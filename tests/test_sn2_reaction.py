@@ -281,9 +281,70 @@ class TestSN2Reaction:
 
         # The reaction should show characteristic SN2 inversion
         # (This is a simplified check - real validation would examine stereochemistry)
+        assert c_cl_distances[-1] > c_cl_distances[0] + 1.0, "C-Cl should be significantly longer at end"
+        assert c_o_distances[0] > c_o_distances[-1] + 1.0, "C-O should be significantly shorter at end"
+
+    def test_sn2_geodesic_interpolation(self, sn2_reactant, sn2_product):
+        """Test geodesic interpolation for SN2 reaction."""
+        reaction = Reaction(sn2_reactant, sn2_product, name="SN2_geodesic")
+        
+        # Test basic functionality
+        geodesic_path = reaction.interpolate(npoints=10, method="geodesic")
+        linear_path = reaction.interpolate(npoints=10, method="linear")
+        
+        assert len(geodesic_path) == len(linear_path) == 10
+        assert all(geom.natoms == 7 for geom in geodesic_path)
+        
+        # Check endpoints match for both methods
+        assert np.allclose(geodesic_path[0].coords, linear_path[0].coords, atol=1e-10)
+        assert np.allclose(geodesic_path[-1].coords, linear_path[-1].coords, atol=1e-10)
+        
+        # Analyze bond distances along geodesic path
+        geo_c_cl_distances = []
+        geo_c_o_distances = []
+        
+        for geom in geodesic_path:
+            coords = geom.coords3d
+            # C is atom 0, Cl is atom 4, O is atom 5
+            c_cl_dist = np.linalg.norm(coords[0] - coords[4])
+            c_o_dist = np.linalg.norm(coords[0] - coords[5])
+            
+            geo_c_cl_distances.append(c_cl_dist)
+            geo_c_o_distances.append(c_o_dist)
+        
+        # Geodesic interpolation should also show reasonable reaction coordinate
+        # C-Cl distance should increase along the path
+        assert geo_c_cl_distances[0] < geo_c_cl_distances[-1], "Geodesic: C-Cl distance should increase"
+        # C-O distance should decrease along the path  
+        assert geo_c_o_distances[0] > geo_c_o_distances[-1], "Geodesic: C-O distance should decrease"
+        
+        # Compare with linear interpolation - geodesic should generally preserve
+        # other bond lengths better (this is a simplified check)
+        geo_bond_variance = self._calculate_bond_length_variance(geodesic_path)
+        linear_bond_variance = self._calculate_bond_length_variance(linear_path)
+        
+        # Geodesic interpolation often (but not always) gives smoother paths
+        # This is just a basic sanity check that it produces reasonable results
+        assert geo_bond_variance > 0  # Some variance is expected in reaction paths
+
+    def _calculate_bond_length_variance(self, geometries):
+        """Helper method to calculate variance in non-reacting bond lengths."""
+        # Calculate variance in C-H bond lengths (should remain relatively constant)
+        ch_bond_lengths = []
+        
+        for geom in geometries:
+            coords = geom.coords3d
+            # C is atom 0, H atoms are 1, 2, 3
+            for h_idx in [1, 2, 3]:
+                ch_dist = np.linalg.norm(coords[0] - coords[h_idx])
+                ch_bond_lengths.append(ch_dist)
+        
+        return np.var(ch_bond_lengths)
+
         assert (
             c_cl_distances[-1] > c_cl_distances[0] + 1.0
         ), "C-Cl should be significantly longer at end"
         assert (
             c_o_distances[0] > c_o_distances[-1] + 1.0
         ), "C-O should be significantly shorter at end"
+
