@@ -1,6 +1,5 @@
 include README.md
 include LICENSE
-include requirements.txt
 recursive-include examples *.py *.xyz
 recursive-include qme *.py
 recursive-exclude tests *
