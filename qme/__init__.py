@@ -1,13 +1,71 @@
-"""
-qme: Quick mechanistic exploration using machine learning potentials
+"""QME: Quick Mechanistic Exploration using machine learning potentials.
 
-A package for molecular geometry optimization using ASE/SELLA optimizers
-combined with UMA machine learning potentials.
+This package provides a unified interface for molecular geometry optimization
+using ASE (Atomic Simulation Environment) and SELLA optimizers combined with
+UMA (Universal Materials Accelerator) machine learning potentials.
+
+Key Features:
+- Minimum energy geometry optimization
+- Transition state searches
+- Support for various file formats (xyz, cif, pdb, etc.)
+- Integration with UMA machine learning potentials
+- Mock calculator for testing without ML dependencies
+
+Example:
+    Basic usage for geometry optimization:
+
+    >>> from qme import QMEOptimizer
+    >>> qme = QMEOptimizer(model_name="uma-4m")
+    >>> atoms = qme.load_structure("molecule.xyz")
+    >>> results = qme.optimize_minimum()
+    >>> qme.save_structure(results['optimized_atoms'], "optimized.xyz")
 """
 
 __version__ = "0.1.0"
+__author__ = "QME Development Team"
 
 from .core import QMEOptimizer
-from .uma_potential import UMAPotential
+from .uma_potential import UMAPotential, get_uma_calculator
+from .so3lr_potential import (
+    SO3LRPotential,
+    get_so3lr_calculator,
+    get_mock_so3lr_calculator,
+)
+from .mock_calculator import MockUMACalculator, get_mock_uma_calculator
 
-__all__ = ["QMEOptimizer", "UMAPotential"]
+# Import modules from src/qme for backward compatibility
+try:
+    import sys
+    import os
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+    from src.qme.geometry import Geometry
+    from src.qme.reactions import Reaction
+    from src.qme.calculators import MLPCalculator, HarmonicCalculator
+
+    __all__ = [
+        "QMEOptimizer",
+        "UMAPotential",
+        "get_uma_calculator",
+        "SO3LRPotential",
+        "get_so3lr_calculator",
+        "get_mock_so3lr_calculator",
+        "MockUMACalculator",
+        "get_mock_uma_calculator",
+        "Geometry",
+        "Reaction",
+        "MLPCalculator",
+        "HarmonicCalculator",
+    ]
+except ImportError:
+    # If src modules are not available, just export the new functionality
+    __all__ = [
+        "QMEOptimizer",
+        "UMAPotential",
+        "get_uma_calculator",
+        "SO3LRPotential",
+        "get_so3lr_calculator",
+        "get_mock_so3lr_calculator",
+        "MockUMACalculator",
+        "get_mock_uma_calculator",
+    ]

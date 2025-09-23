@@ -1,5 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -9,6 +10,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+src/qme.egg-info/
 develop-eggs/
 dist/
 downloads/
@@ -167,7 +169,4 @@ temp/
 # Output files from optimizations  
 *.opt.*
 *.ts.*
-
-# Log files
-*.log
 
