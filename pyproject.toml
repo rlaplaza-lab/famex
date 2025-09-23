@@ -38,7 +38,7 @@ Homepage = "https://github.com/rlaplaza-lab/qme"
 Repository = "https://github.com/rlaplaza-lab/qme"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["qme*"]
 
 [tool.black]
