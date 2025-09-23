@@ -8,20 +8,32 @@ version = "0.1.0"
 description = "Quick mechanistic exploration using machine learning potentials"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "rlaplaza-lab", email = "example@example.com"}
 ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research", 
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9", 
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
 dependencies = [
     "ase>=3.22.0",
-    "sella>=2.0.0",
-    "torch>=2.0.0",
     "numpy>=1.20.0",
     "click>=8.0.0",
-    "fairchem-core>=1.0.0",
 ]
 
 [project.optional-dependencies]
+ml = [
+    "torch>=2.0.0",
+    "sella>=2.0.0",
+    "fairchem-core>=1.0.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -38,8 +50,10 @@ Homepage = "https://github.com/rlaplaza-lab/qme"
 Repository = "https://github.com/rlaplaza-lab/qme"
 
 [tool.setuptools.packages.find]
-where = ["src"]
 include = ["qme*"]
+
+[tool.setuptools.package-data]
+qme = ["*.yml", "*.yaml", "*.json"]
 
 [tool.black]
 line-length = 88
@@ -54,3 +68,4 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
+addopts = "-v --tb=short"
