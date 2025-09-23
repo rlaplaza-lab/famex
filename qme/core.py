@@ -19,7 +19,11 @@ except ImportError:
     HAS_SELLA = False
 
 from .uma_potential import UMAPotential, get_uma_calculator
-from .so3lr_potential import SO3LRPotential, get_so3lr_calculator, get_mock_so3lr_calculator
+from .so3lr_potential import (
+    SO3LRPotential,
+    get_so3lr_calculator,
+    get_mock_so3lr_calculator,
+)
 
 
 class QMEOptimizer:
@@ -36,18 +40,18 @@ class QMEOptimizer:
         results: Dictionary storing optimization results
 
     """
-    
+
     AVAILABLE_OPTIMIZERS = {
         "BFGS": BFGS,
         "LBFGS": LBFGS,
         "FIRE": FIRE,
     }
-    
+
     AVAILABLE_BACKENDS = {
-        'uma': 'UMA (Universal Model for Atoms)',
-        'so3lr': 'SO3LR (SO(3) Invariant Neural Network)',
+        "uma": "UMA (Universal Model for Atoms)",
+        "so3lr": "SO3LR (SO(3) Invariant Neural Network)",
     }
-    
+
     if HAS_SELLA:
         AVAILABLE_OPTIMIZERS["Sella"] = Sella
 
@@ -61,7 +65,7 @@ class QMEOptimizer:
         use_mock: bool = False,
     ):
         """Initialize QME optimizer.
-        
+
         Parameters:
         -----------
         calculator : Calculator, optional
@@ -77,13 +81,13 @@ class QMEOptimizer:
         use_mock : bool
             Use mock calculator for testing (default: False)
         """
-        
+
         if backend not in self.AVAILABLE_BACKENDS:
             available = list(self.AVAILABLE_BACKENDS.keys())
             raise ValueError(f"Unknown backend: {backend}. Available: {available}")
-        
+
         self.backend = backend
-        
+
         if calculator is None:
             if use_mock:
                 if backend == "so3lr":
@@ -91,28 +95,38 @@ class QMEOptimizer:
                 else:  # UMA
                     self.calculator = get_mock_uma_calculator()
             else:
-                self.calculator = self._create_calculator(backend, model_name, model_path, device)
+                self.calculator = self._create_calculator(
+                    backend, model_name, model_path, device
+                )
         else:
             self.calculator = calculator
 
         self.atoms = None
         self.results = {}
-    
-    def _create_calculator(self, backend: str, model_name: Optional[str], model_path: Optional[str], device: Optional[str]):
+
+    def _create_calculator(
+        self,
+        backend: str,
+        model_name: Optional[str],
+        model_path: Optional[str],
+        device: Optional[str],
+    ):
         """Create calculator based on backend."""
         try:
             if backend == "so3lr":
                 # Set default model name for SO3LR if not provided
                 if model_name is None:
                     model_name = "so3lr-small"
-                return get_so3lr_calculator(model_path=model_path, model_name=model_name, device=device)
-            
+                return get_so3lr_calculator(
+                    model_path=model_path, model_name=model_name, device=device
+                )
+
             elif backend == "uma":
                 # Set default model name for UMA if not provided
                 if model_name is None:
                     model_name = "uma-4m"
                 return get_uma_calculator(model_name=model_name, device=device)
-            
+
         except ImportError as e:
             print(f"Warning: {e}")
             print(f"Falling back to mock {backend.upper()} calculator for testing.")
@@ -120,7 +134,7 @@ class QMEOptimizer:
                 return get_mock_so3lr_calculator()
             else:
                 return get_mock_uma_calculator()
-    
+
     def load_structure(self, structure_file: Union[str, Path]) -> Atoms:
         """Load molecular structure from file.
 
