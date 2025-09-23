@@ -25,23 +25,23 @@ __version__ = "0.1.0"
 __author__ = "QME Development Team"
 
 from .core import QMEOptimizer
-from .uma_potential import UMAPotential, get_uma_calculator
+from .mock_calculator import MockUMACalculator, get_mock_uma_calculator
 from .so3lr_potential import (
     SO3LRPotential,
-    get_so3lr_calculator,
     get_mock_so3lr_calculator,
+    get_so3lr_calculator,
 )
-from .mock_calculator import MockUMACalculator, get_mock_uma_calculator
+from .uma_potential import UMAPotential, get_uma_calculator
 
 # Import modules from src/qme for backward compatibility
 try:
-    import sys
     import os
+    import sys
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+    from src.qme.calculators import HarmonicCalculator, MLPCalculator
     from src.qme.geometry import Geometry
     from src.qme.reactions import Reaction
-    from src.qme.calculators import MLPCalculator, HarmonicCalculator
 
     __all__ = [
         "QMEOptimizer",

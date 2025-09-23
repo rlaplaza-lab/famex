@@ -2,17 +2,18 @@
 Tests for SO3LR neural network potential integration.
 """
 
-import pytest
 import tempfile
 from pathlib import Path
+
+import pytest
 from ase import Atoms
 from ase.build import molecule
 
 from qme import QMEOptimizer
 from qme.so3lr_potential import (
     SO3LRPotential,
-    get_so3lr_calculator,
     get_mock_so3lr_calculator,
+    get_so3lr_calculator,
 )
 
 

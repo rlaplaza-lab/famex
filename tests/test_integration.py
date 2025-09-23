@@ -386,9 +386,7 @@ class TestQMEIntegration:
     def test_package_imports(self):
         """Test that all expected components can be imported."""
         from qme import Geometry, MLPCalculator, Reaction
-        from qme.calculators import (
-            HarmonicCalculator,
-        )
+        from qme.calculators import HarmonicCalculator
         from qme.calculators import MLPCalculator as MLPCalculatorDirect
         from qme.geometry import Geometry as GeometryDirect
         from qme.reactions import Reaction as ReactionDirect
