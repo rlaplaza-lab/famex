@@ -17,7 +17,7 @@ from .so3lr_potential import get_so3lr_calculator
 def main():
     """
     QME: Quick mechanistic exploration using machine learning potentials.
-    
+
     Supports multiple neural network backends including UMA and SO3LR potentials
     for molecular geometry optimization and transition state searches.
     """
@@ -100,16 +100,13 @@ def minimize(
             click.echo(f"Model: {model}")
         if model_path:
             click.echo(f"Model path: {model_path}")
-    
+
     try:
         # Initialize optimizer
         qme = QMEOptimizer(
-            backend=backend,
-            model_name=model,
-            model_path=model_path,
-            device=device
+            backend=backend, model_name=model, model_path=model_path, device=device
         )
-        
+
         # Load structure
         atoms = qme.load_structure(input_file)
 
@@ -279,15 +276,25 @@ def transition_state(
 
 
 @main.command()
-@click.option('--backend', '-b', default='so3lr',
-              type=click.Choice(['uma', 'so3lr']),
-              help='Neural network backend to test (default: so3lr)')
-@click.option('--model', '-m', type=str,
-              help='Model name to test (defaults: so3lr-small for SO3LR, uma-4m for UMA)')
-@click.option('--model-path', type=click.Path(exists=True),
-              help='Path to model file (SO3LR only)')
-@click.option('--device', '-d', type=click.Choice(['cpu', 'cuda']),
-              help='Device for computations')
+@click.option(
+    "--backend",
+    "-b",
+    default="so3lr",
+    type=click.Choice(["uma", "so3lr"]),
+    help="Neural network backend to test (default: so3lr)",
+)
+@click.option(
+    "--model",
+    "-m",
+    type=str,
+    help="Model name to test (defaults: so3lr-small for SO3LR, uma-4m for UMA)",
+)
+@click.option(
+    "--model-path", type=click.Path(exists=True), help="Path to model file (SO3LR only)"
+)
+@click.option(
+    "--device", "-d", type=click.Choice(["cpu", "cuda"]), help="Device for computations"
+)
 def test_setup(backend, model, model_path, device):
     """
     Test QME setup and neural network model loading.
@@ -298,14 +305,11 @@ def test_setup(backend, model, model_path, device):
     try:
         # Test imports
         click.echo("✓ Core imports successful")
-        
+
         # Test model loading
         click.echo(f"Testing {backend.upper()} backend...")
         qme = QMEOptimizer(
-            backend=backend,
-            model_name=model,
-            model_path=model_path,
-            device=device
+            backend=backend, model_name=model, model_path=model_path, device=device
         )
         click.echo(f"✓ {backend.upper()} backend initialized successfully")
         click.echo("✅ All tests passed! QME is ready to use.")
@@ -314,9 +318,9 @@ def test_setup(backend, model, model_path, device):
         click.echo(f"❌ Import error: {e}", err=True)
         click.echo("Make sure all dependencies are installed:", err=True)
         click.echo("  pip install ase sella torch", err=True)
-        if backend == 'uma':
+        if backend == "uma":
             click.echo("  pip install fairchem-core  # For UMA backend", err=True)
-        elif backend == 'so3lr':
+        elif backend == "so3lr":
             click.echo("  pip install so3lr  # For SO3LR backend", err=True)
     except Exception as e:
         click.echo(f"❌ Setup error: {e}", err=True)
