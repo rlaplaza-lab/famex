@@ -10,6 +10,7 @@ import click
 from .core import QMEOptimizer
 from .so3lr_potential import get_so3lr_calculator
 from .uma_potential import get_uma_calculator
+from .aimnet2_potential import get_aimnet2_calculator
 
 
 @click.group()
@@ -280,14 +281,14 @@ def transition_state(
     "--backend",
     "-b",
     default="so3lr",
-    type=click.Choice(["uma", "so3lr"]),
+    type=click.Choice(["uma", "so3lr", "aimnet2"]),
     help="Neural network backend to test (default: so3lr)",
 )
 @click.option(
     "--model",
     "-m",
     type=str,
-    help="Model name to test (defaults: so3lr-small for SO3LR, uma-4m for UMA)",
+    help="Model name to test (defaults: so3lr-small for SO3LR, uma-4m for UMA, aimnet2 for AIMNET2)",
 )
 @click.option(
     "--model-path", type=click.Path(exists=True), help="Path to model file (SO3LR only)"
@@ -322,6 +323,8 @@ def test_setup(backend, model, model_path, device):
             click.echo("  pip install fairchem-core  # For UMA backend", err=True)
         elif backend == "so3lr":
             click.echo("  pip install so3lr  # For SO3LR backend", err=True)
+        elif backend == "aimnet2":
+            click.echo("  pip install aimnet2calc  # For AIMNET2 backend", err=True)
     except Exception as e:
         click.echo(f"❌ Setup error: {e}", err=True)
 

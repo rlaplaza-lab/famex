@@ -32,6 +32,7 @@ from .so3lr_potential import (
     get_so3lr_calculator,
 )
 from .uma_potential import UMAPotential, get_uma_calculator
+from .aimnet2_potential import AIMNet2Potential, get_aimnet2_calculator
 
 __all__ = [
     "QMEOptimizer",
@@ -40,6 +41,8 @@ __all__ = [
     "SO3LRPotential",
     "get_so3lr_calculator",
     "get_mock_so3lr_calculator",
+    "AIMNet2Potential",
+    "get_aimnet2_calculator",
     "MockUMACalculator",
     "get_mock_uma_calculator",
 ]

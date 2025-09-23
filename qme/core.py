@@ -25,18 +25,19 @@ from .so3lr_potential import (
     get_so3lr_calculator,
 )
 from .uma_potential import UMAPotential, get_uma_calculator
+from .aimnet2_potential import AIMNet2Potential, get_aimnet2_calculator
 
 
 class QMEOptimizer:
     """Main optimizer class that combines ASE and SELLA optimizers with neural network potentials.
-    Supports UMA and SO3LR backends.
+    Supports UMA, SO3LR, and AIMNET2 backends.
 
     This class provides a unified interface for molecular geometry optimization
     using machine learning potentials, supporting both minimum energy optimization
     and transition state searches.
 
     Attributes:
-        calculator: The underlying energy/force calculator (UMA or mock)
+        calculator: The underlying energy/force calculator (UMA, SO3LR, AIMNET2, or mock)
         atoms: Currently loaded molecular structure
         results: Dictionary storing optimization results
 
@@ -51,6 +52,7 @@ class QMEOptimizer:
     AVAILABLE_BACKENDS = {
         "uma": "UMA (Universal Model for Atoms)",
         "so3lr": "SO3LR (SO(3) Invariant Neural Network)",
+        "aimnet2": "AIMNET2 (Accurate Neural Network Potential)",
     }
 
     if HAS_SELLA:
@@ -72,7 +74,7 @@ class QMEOptimizer:
         calculator : Calculator, optional
             Pre-configured calculator. If None, creates one based on backend.
         backend : str
-            Neural network backend to use ('uma', 'so3lr'). Default: 'so3lr'
+            Neural network backend to use ('uma', 'so3lr', 'aimnet2'). Default: 'so3lr'
         model_name : str, optional
             Model name to use. Defaults depend on backend.
         model_path : str, optional
@@ -93,8 +95,11 @@ class QMEOptimizer:
             if use_mock:
                 if backend == "so3lr":
                     self.calculator = get_mock_so3lr_calculator()
-                else:  # UMA
+                elif backend == "uma":
                     self.calculator = get_mock_uma_calculator()
+                elif backend == "aimnet2":
+                    from .mock_calculator import get_mock_aimnet2_calculator
+                    self.calculator = get_mock_aimnet2_calculator()
             else:
                 self.calculator = self._create_calculator(
                     backend, model_name, model_path, device
@@ -128,13 +133,22 @@ class QMEOptimizer:
                     model_name = "uma-4m"
                 return get_uma_calculator(model_name=model_name, device=device)
 
+            elif backend == "aimnet2":
+                # Set default model name for AIMNET2 if not provided
+                if model_name is None:
+                    model_name = "aimnet2"
+                return get_aimnet2_calculator(model_name=model_name, device=device)
+
         except ImportError as e:
             print(f"Warning: {e}")
             print(f"Falling back to mock {backend.upper()} calculator for testing.")
             if backend == "so3lr":
                 return get_mock_so3lr_calculator()
-            else:
+            elif backend == "uma":
                 return get_mock_uma_calculator()
+            elif backend == "aimnet2":
+                from .mock_calculator import get_mock_aimnet2_calculator
+                return get_mock_aimnet2_calculator()
 
     def load_structure(self, structure_file: Union[str, Path]) -> Atoms:
         """Load molecular structure from file.
