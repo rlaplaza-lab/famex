@@ -49,11 +49,47 @@ calculator.calculate(product)
 
 print(f"Reaction energy: {reaction.reaction_energy:.6f} Hartree")
 
-# Generate reaction pathway
+# Generate reaction pathway using linear interpolation (default)
 path = reaction.interpolate(npoints=10)
 for i, geom in enumerate(path):
     calculator.calculate(geom)
     print(f"Point {i}: Energy = {geom.energy:.6f} Hartree")
+
+# Use geodesic interpolation for better transition state guesses
+geodesic_path = reaction.interpolate(npoints=10, method="geodesic")
+print(f"Generated {len(geodesic_path)} points using geodesic interpolation")
+
+# Find transition state guess using geodesic interpolation
+ts_guess = reaction.find_transition_state_guess(npoints=20, method="geodesic")
+if ts_guess:
+    print(f"Transition state guess energy: {ts_guess.energy:.6f} Hartree")
+```
+
+## Geodesic Interpolation
+
+QME supports geodesic interpolation as an alternative to linear interpolation for generating reaction pathways. This method interpolates in internal coordinate space (distance matrices) rather than Cartesian space, often providing better initial guesses for transition state searches.
+
+```python
+# Standard linear interpolation
+linear_path = reaction.interpolate(npoints=10, method="linear")
+
+# Geodesic interpolation - better for complex rearrangements
+geodesic_path = reaction.interpolate(npoints=10, method="geodesic")
+
+# Path optimization with NEB-like forces (experimental)
+optimized_path = reaction.interpolate(
+    npoints=10, 
+    method="geodesic", 
+    optimize_path=True, 
+    calculator=calculator
+)
+```
+
+**Benefits of geodesic interpolation:**
+- Preserves bond lengths better during interpolation
+- Provides more chemically reasonable intermediate structures
+- Often gives better initial guesses for transition state searches
+- Inspired by nudged elastic band (NEB) methods
 ```
 
 ## Organic Reaction Examples
