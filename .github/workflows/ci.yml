@@ -1,0 +1,153 @@
+name: QME CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+        exclude:
+          # Reduce matrix size for efficiency
+          - os: macos-latest
+            python-version: '3.8'
+          - os: windows-latest
+            python-version: '3.8'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml', '**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+          ${{ runner.os }}-pip-
+
+    - name: Install system dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov pytest-xdist
+        pip install -e .
+
+    - name: Run linting
+      run: |
+        pip install flake8 black isort
+        # Check code formatting
+        black --check --diff qme/ tests/
+        isort --check-only --diff qme/ tests/
+        # Check for basic code issues
+        flake8 qme/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Check for style issues (warnings only)
+        flake8 qme/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
+
+    - name: Run basic tests
+      run: |
+        pytest tests/test_qme.py -v --tb=short
+
+    - name: Run SO3LR tests
+      run: |
+        pytest tests/test_so3lr.py -v --tb=short
+
+    - name: Run all tests with coverage
+      run: |
+        pytest tests/ -v --cov=qme --cov-report=term-missing --cov-report=xml --tb=short
+
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install QME
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+
+    - name: Test CLI commands
+      run: |
+        # Test help commands
+        qme --help
+        qme minimize --help
+        qme transition-state --help
+        qme test-setup --help
+        
+        # Test setup with different backends
+        qme test-setup --backend so3lr
+        qme test-setup --backend uma
+
+    - name: Test CLI with example files
+      run: |
+        # Create a simple test molecule
+        cat > test_water.xyz << 'EOF'
+        3
+        Water molecule
+        O       0.000000    0.000000    0.000000
+        H       0.757000    0.586000    0.000000
+        H      -0.757000    0.586000    0.000000
+        EOF
+        
+        # Test minimization with both backends
+        qme minimize test_water.xyz --backend so3lr --steps 5 --output water_so3lr.xyz --verbose
+        qme minimize test_water.xyz --backend uma --steps 5 --output water_uma.xyz --verbose
+        
+        # Verify outputs were created
+        ls -la water_*.xyz
+
+  build-docs:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install documentation dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install sphinx sphinx-rtd-theme
+        pip install -e .
+
+    - name: Build documentation
+      run: |
+        # Create basic docs if they don't exist
+        mkdir -p docs
+        echo "# QME Documentation" > docs/README.md
+        echo "Documentation will be built here in the future." >> docs/README.md

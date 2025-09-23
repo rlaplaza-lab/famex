@@ -9,6 +9,7 @@ from typing import Optional
 
 from .core import QMEOptimizer
 from .uma_potential import get_uma_calculator
+from .so3lr_potential import get_so3lr_calculator
 
 
 @click.group()
@@ -17,8 +18,8 @@ def main():
     """
     QME: Quick mechanistic exploration using machine learning potentials.
     
-    Combines ASE and SELLA optimizers with UMA potentials for molecular
-    geometry optimization and transition state searches.
+    Supports multiple neural network backends including UMA and SO3LR potentials
+    for molecular geometry optimization and transition state searches.
     """
     pass
 
@@ -30,12 +31,17 @@ def main():
 @click.option('--optimizer', '-opt', default='BFGS',
               type=click.Choice(['BFGS', 'LBFGS', 'FIRE']),
               help='Optimizer to use for minimization')
+@click.option('--backend', '-b', default='so3lr',
+              type=click.Choice(['uma', 'so3lr']),
+              help='Neural network backend to use (default: so3lr)')
 @click.option('--fmax', '-f', default=0.01, type=float,
               help='Force convergence criterion (eV/Å)')
 @click.option('--steps', '-s', default=200, type=int,
               help='Maximum number of optimization steps')
-@click.option('--model', '-m', default='uma-4m', type=str,
-              help='UMA model name to use')
+@click.option('--model', '-m', type=str,
+              help='Model name to use (defaults: so3lr-small for SO3LR, uma-4m for UMA)')
+@click.option('--model-path', type=click.Path(exists=True),
+              help='Path to model file (SO3LR only)')
 @click.option('--device', '-d', type=click.Choice(['cpu', 'cuda']),
               help='Device for computations (auto-detected if not specified)')
 @click.option('--logfile', type=click.Path(),
@@ -45,8 +51,8 @@ def main():
 @click.option('--constraint-atoms', type=str,
               help='Comma-separated list of atom indices to fix (0-based)')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose output')
-def minimize(input_file, output, optimizer, fmax, steps, model, device, 
-             logfile, trajectory, constraint_atoms, verbose):
+def minimize(input_file, output, optimizer, backend, fmax, steps, model, model_path, 
+             device, logfile, trajectory, constraint_atoms, verbose):
     """
     Find minimum energy geometry using specified optimizer.
     
@@ -56,12 +62,21 @@ def minimize(input_file, output, optimizer, fmax, steps, model, device,
     if verbose:
         click.echo(f"Starting minimum energy optimization...")
         click.echo(f"Input file: {input_file}")
+        click.echo(f"Backend: {backend}")
         click.echo(f"Optimizer: {optimizer}")
-        click.echo(f"UMA model: {model}")
+        if model:
+            click.echo(f"Model: {model}")
+        if model_path:
+            click.echo(f"Model path: {model_path}")
     
     try:
         # Initialize optimizer
-        qme = QMEOptimizer(model_name=model, device=device)
+        qme = QMEOptimizer(
+            backend=backend,
+            model_name=model,
+            model_path=model_path,
+            device=device
+        )
         
         # Load structure
         atoms = qme.load_structure(input_file)
@@ -123,12 +138,17 @@ def minimize(input_file, output, optimizer, fmax, steps, model, device,
 @click.argument('input_file', type=click.Path(exists=True))
 @click.option('--output', '-o', type=click.Path(),
               help='Output file for transition state structure')
+@click.option('--backend', '-b', default='so3lr',
+              type=click.Choice(['uma', 'so3lr']),
+              help='Neural network backend to use (default: so3lr)')
 @click.option('--fmax', '-f', default=0.01, type=float,
               help='Force convergence criterion (eV/Å)')
 @click.option('--steps', '-s', default=200, type=int,
               help='Maximum number of optimization steps')
-@click.option('--model', '-m', default='uma-4m', type=str,
-              help='UMA model name to use')
+@click.option('--model', '-m', type=str,
+              help='Model name to use (defaults: so3lr-small for SO3LR, uma-4m for UMA)')
+@click.option('--model-path', type=click.Path(exists=True),
+              help='Path to model file (SO3LR only)')
 @click.option('--device', '-d', type=click.Choice(['cpu', 'cuda']),
               help='Device for computations (auto-detected if not specified)')
 @click.option('--logfile', type=click.Path(),
@@ -138,8 +158,8 @@ def minimize(input_file, output, optimizer, fmax, steps, model, device,
 @click.option('--constraint-atoms', type=str,
               help='Comma-separated list of atom indices to fix (0-based)')
 @click.option('--verbose', '-v', is_flag=True, help='Verbose output')
-def transition_state(input_file, output, fmax, steps, model, device,
-                    logfile, trajectory, constraint_atoms, verbose):
+def transition_state(input_file, output, backend, fmax, steps, model, model_path,
+                    device, logfile, trajectory, constraint_atoms, verbose):
     """
     Find transition state (saddle point) using SELLA optimizer.
     
@@ -152,8 +172,13 @@ def transition_state(input_file, output, fmax, steps, model, device,
         click.echo(f"UMA model: {model}")
     
     try:
-        # Initialize optimizer
-        qme = QMEOptimizer(model_name=model, device=device)
+        # Initialize optimizer with selected backend
+        qme = QMEOptimizer(
+            backend=backend,
+            model_name=model,
+            model_path=model_path,
+            device=device
+        )
         
         # Load structure
         atoms = qme.load_structure(input_file)
@@ -211,13 +236,18 @@ def transition_state(input_file, output, fmax, steps, model, device,
 
 
 @main.command()
-@click.option('--model', '-m', default='uma-4m', type=str,
-              help='UMA model name to test')
+@click.option('--backend', '-b', default='so3lr',
+              type=click.Choice(['uma', 'so3lr']),
+              help='Neural network backend to test (default: so3lr)')
+@click.option('--model', '-m', type=str,
+              help='Model name to test (defaults: so3lr-small for SO3LR, uma-4m for UMA)')
+@click.option('--model-path', type=click.Path(exists=True),
+              help='Path to model file (SO3LR only)')
 @click.option('--device', '-d', type=click.Choice(['cpu', 'cuda']),
               help='Device for computations')
-def test_setup(model, device):
+def test_setup(backend, model, model_path, device):
     """
-    Test QME setup and UMA model loading.
+    Test QME setup and neural network model loading.
     """
     
     click.echo("Testing QME setup...")
@@ -226,21 +256,26 @@ def test_setup(model, device):
         # Test imports
         click.echo("✓ Core imports successful")
         
-        # Test UMA model loading
-        click.echo(f"Loading UMA model: {model}")
-        calculator = get_uma_calculator(model_name=model, device=device)
-        click.echo("✓ UMA model loaded successfully")
-        
-        # Test optimizer initialization
-        qme = QMEOptimizer(calculator=calculator)
-        click.echo("✓ QME optimizer initialized")
+        # Test model loading
+        click.echo(f"Testing {backend.upper()} backend...")
+        qme = QMEOptimizer(
+            backend=backend,
+            model_name=model,
+            model_path=model_path,
+            device=device
+        )
+        click.echo(f"✓ {backend.upper()} backend initialized successfully")
         
         click.echo("✅ All tests passed! QME is ready to use.")
         
     except ImportError as e:
         click.echo(f"❌ Import error: {e}", err=True)
         click.echo("Make sure all dependencies are installed:", err=True)
-        click.echo("  pip install ase sella torch fairchem-core", err=True)
+        click.echo("  pip install ase sella torch", err=True)
+        if backend == 'uma':
+            click.echo("  pip install fairchem-core  # For UMA backend", err=True)
+        elif backend == 'so3lr':
+            click.echo("  pip install so3lr  # For SO3LR backend", err=True)
     except Exception as e:
         click.echo(f"❌ Setup error: {e}", err=True)
 

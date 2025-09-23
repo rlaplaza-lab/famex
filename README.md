@@ -1,17 +1,26 @@
 # QME: Quick Mechanistic Exploration
 
-Quick mechanistic exploration using machine learning potentials (MLPs/NNPs).
+Quick mechanistic exploration using multiple neural network potentials (MLPs/NNPs).
 
-QME combines the power of ASE and SELLA optimizers with UMA (Universal Model for Atoms) machine learning potentials to perform efficient molecular geometry optimization and transition state searches.
+QME combines the power of ASE and SELLA optimizers with state-of-the-art neural network potentials including **SO3LR** (SO(3) invariant networks) and **UMA** (Universal Model for Atoms) to perform efficient molecular geometry optimization and transition state searches.
 
 ## Features
 
+- **Multiple Neural Network Backends**: Support for SO3LR and UMA potentials with easy switching
 - **Minimum Energy Optimization**: Find stable molecular geometries using ASE optimizers (BFGS, LBFGS, FIRE)
 - **Transition State Search**: Locate saddle points using the SELLA optimizer
-- **UMA Integration**: Leverage state-of-the-art Universal Model for Atoms machine learning potentials
 - **Command Line Interface**: Easy-to-use CLI for batch processing and automation
 - **Multiple File Formats**: Support for XYZ, CIF, PDB and other common molecular formats
 - **Flexible Constraints**: Apply geometric constraints during optimization
+- **Robust Testing**: Comprehensive test suite with CI/CD automation
+
+## Supported Neural Network Backends
+
+### SO3LR (Default)
+SO3LR provides SO(3) invariant neural network potentials with excellent accuracy for molecular systems. It's now the **default backend** for better testing and performance.
+
+### UMA (Universal Model for Atoms)
+UMA machine learning potentials from the FAIR Chemistry team provide state-of-the-art accuracy for diverse chemical systems.
 
 ## Installation
 
@@ -117,10 +126,14 @@ The main dependencies will be installed automatically:
 
 ### Test Installation
 
-First, verify your installation:
+First, verify your installation with different backends:
 
 ```bash
-qme test-setup
+# Test SO3LR backend (default)
+python -c "from qme.cli import main; main(['test-setup', '--backend', 'so3lr'])"
+
+# Test UMA backend
+python -c "from qme.cli import main; main(['test-setup', '--backend', 'uma'])"
 ```
 
 ### Minimum Energy Optimization
@@ -128,16 +141,14 @@ qme test-setup
 Optimize a molecular structure to find its minimum energy configuration:
 
 ```bash
-# Basic optimization
-qme minimize examples/water.xyz
+# Basic optimization with SO3LR (default backend)
+python -c "from qme.cli import main; main(['minimize', 'examples/water.xyz'])"
+
+# With UMA backend
+python -c "from qme.cli import main; main(['minimize', 'examples/water.xyz', '--backend', 'uma'])"
 
 # With custom parameters
-qme minimize examples/methane.xyz \
-    --optimizer BFGS \
-    --fmax 0.005 \
-    --steps 300 \
-    --output optimized_methane.xyz \
-    --verbose
+python -c "from qme.cli import main; main(['minimize', 'examples/methane.xyz', '--backend', 'so3lr', '--optimizer', 'BFGS', '--fmax', '0.005', '--steps', '300', '--output', 'optimized_methane.xyz', '--verbose'])"
 ```
 
 ### Transition State Search
@@ -145,15 +156,11 @@ qme minimize examples/methane.xyz \
 Search for transition states (saddle points):
 
 ```bash
-# Basic TS search  
-qme transition-state examples/reaction_guess.xyz
+# Basic TS search with SO3LR
+python -c "from qme.cli import main; main(['transition-state', 'examples/reaction_guess.xyz'])"
 
 # With trajectory logging
-qme transition-state examples/ts_guess.xyz \
-    --output ts_result.xyz \
-    --trajectory ts_optimization.traj \
-    --logfile ts_search.log \
-    --verbose
+python -c "from qme.cli import main; main(['transition-state', 'examples/ts_guess.xyz', '--backend', 'so3lr', '--output', 'ts_result.xyz', '--trajectory', 'ts_optimization.traj', '--logfile', 'ts_search.log', '--verbose'])"
 ```
 
 ## Command Line Reference
