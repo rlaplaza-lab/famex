@@ -10,7 +10,7 @@ QME combines the power of ASE and SELLA optimizers with state-of-the-art neural 
 - **Minimum Energy Optimization**: Find stable molecular geometries using ASE optimizers (BFGS, LBFGS, FIRE)
 - **Transition State Search**: Locate saddle points using the SELLA optimizer
 - **Command Line Interface**: Easy-to-use CLI for batch processing and automation
-- **Multiple File Formats**: Support for XYZ, CIF, PDB and other common molecular formats
+- **Multiple File Formats**: Support for XYZ, CIF, PDB and other ASE-compatible molecular formats
 - **Flexible Constraints**: Apply geometric constraints during optimization
 - **Robust Testing**: Comprehensive test suite with CI/CD automation
 
@@ -26,37 +26,77 @@ UMA machine learning potentials from the FAIR Chemistry team provide state-of-th
 
 ### Prerequisites
 
-QME requires Python 3.8 or higher. Install the package and its dependencies:
+QME requires Python 3.8 or higher.
+
+### Basic Installation (Mock Calculator)
+
+For testing and development without ML dependencies:
 
 ```bash
+pip install ase click numpy matplotlib
+cd /path/to/qme
 pip install -e .
+```
+
+### Full Installation (with UMA)
+
+For production use with UMA machine learning potentials:
+
+```bash
+pip install -e .[ml]  # Includes torch, ase, fairchem-core
 ```
 
 ## Quick Start
 
+### Python API - Basic Usage
+
 ```python
-from qme import Geometry, Reaction, MLPCalculator
-import numpy as np
+from qme import QMEOptimizer
 
-# Create molecular geometries
-atoms = ["H", "H"]
-reactant_coords = np.array([0.0, 0.0, 0.0, 0.74, 0.0, 0.0])  # H2
-product_coords = np.array([0.0, 0.0, 0.0, 3.0, 0.0, 0.0])    # H + H
+# Initialize optimizer (automatically uses mock if UMA unavailable)
+qme = QMEOptimizer(model_name="uma-4m")
 
-reactant = Geometry(atoms=atoms, coords=reactant_coords, charge=0, mult=1)
-product = Geometry(atoms=atoms, coords=product_coords, charge=0, mult=3)
+# Load structure
+atoms = qme.load_structure("molecule.xyz")
 
-# Create reaction
-reaction = Reaction(reactant, product, name="H2_dissociation")
+# Optimize to minimum energy
+results = qme.optimize_minimum(
+    optimizer="BFGS",
+    fmax=0.01,
+    steps=200
+)
 
-# Set up calculator (mock for demonstration)
-calculator = MLPCalculator(model_type="mock")
+# Save result
+if results['converged']:
+    qme.save_structure(results['optimized_atoms'], "optimized.xyz")
+    print(f"Optimization completed in {results['steps_taken']} steps")
+else:
+    print("Optimization did not converge")
+```
 
-# Calculate energies
-calculator.calculate(reactant)
-calculator.calculate(product)
+### Command Line Interface
 
-print(f"Reaction energy: {reaction.reaction_energy:.6f} Hartree")
+```bash
+# Basic optimization
+qme minimize molecule.xyz
+
+# With custom parameters
+qme minimize molecule.xyz \
+    --output optimized.xyz \
+    --optimizer BFGS \
+    --fmax 0.005 \
+    --steps 300 \
+    --verbose
+
+# Transition state search (requires SELLA)
+qme transition-state ts_guess.xyz --trajectory ts_optimization.traj
+```
+
+### Test Installation
+
+```bash
+qme test-setup
+```
 
 # Generate reaction pathway
 path = reaction.interpolate(npoints=10)
@@ -111,184 +151,3 @@ This project is inspired by the excellent [pysisyphus](https://github.com/eljost
 ## License
 
 MIT License
-=======
-### Dependencies
-
-The main dependencies will be installed automatically:
-
-- `ase>=3.22.0` - Atomic Simulation Environment
-- `sella>=2.0.0` - Transition state optimization
-- `torch>=2.0.0` - PyTorch for ML models
-- `fairchem-core>=1.0.0` - UMA machine learning potentials
-- `click>=8.0.0` - Command line interface
-
-## Quick Start
-
-### Test Installation
-
-First, verify your installation with different backends:
-
-```bash
-# Test SO3LR backend (default)
-python -c "from qme.cli import main; main(['test-setup', '--backend', 'so3lr'])"
-
-# Test UMA backend
-python -c "from qme.cli import main; main(['test-setup', '--backend', 'uma'])"
-```
-
-### Minimum Energy Optimization
-
-Optimize a molecular structure to find its minimum energy configuration:
-
-```bash
-# Basic optimization with SO3LR (default backend)
-python -c "from qme.cli import main; main(['minimize', 'examples/water.xyz'])"
-
-# With UMA backend
-python -c "from qme.cli import main; main(['minimize', 'examples/water.xyz', '--backend', 'uma'])"
-
-# With custom parameters
-python -c "from qme.cli import main; main(['minimize', 'examples/methane.xyz', '--backend', 'so3lr', '--optimizer', 'BFGS', '--fmax', '0.005', '--steps', '300', '--output', 'optimized_methane.xyz', '--verbose'])"
-```
-
-### Transition State Search
-
-Search for transition states (saddle points):
-
-```bash
-# Basic TS search with SO3LR
-python -c "from qme.cli import main; main(['transition-state', 'examples/reaction_guess.xyz'])"
-
-# With trajectory logging
-python -c "from qme.cli import main; main(['transition-state', 'examples/ts_guess.xyz', '--backend', 'so3lr', '--output', 'ts_result.xyz', '--trajectory', 'ts_optimization.traj', '--logfile', 'ts_search.log', '--verbose'])"
-```
-
-## Command Line Reference
-
-### `qme minimize`
-
-Find minimum energy geometry using specified optimizer.
-
-**Options:**
-- `--output, -o`: Output file for optimized structure
-- `--optimizer, -opt`: Optimizer to use (`BFGS`, `LBFGS`, `FIRE`)  
-- `--fmax, -f`: Force convergence criterion (eV/Å) [default: 0.01]
-- `--steps, -s`: Maximum optimization steps [default: 200]
-- `--model, -m`: UMA model name [default: uma-4m]
-- `--device, -d`: Computation device (`cpu`, `cuda`)
-- `--logfile`: Log file for optimization output
-- `--trajectory`: Trajectory file to save steps
-- `--constraint-atoms`: Comma-separated atom indices to fix
-- `--verbose, -v`: Verbose output
-
-### `qme transition-state`
-
-Find transition state using SELLA optimizer.
-
-**Options:**
-- Similar to `minimize` but uses SELLA for saddle point optimization
-- Requires good initial guess geometry near transition state
-
-### `qme test-setup`
-
-Test QME installation and UMA model loading.
-
-## Python API
-
-### Basic Usage
-
-```python
-from qme import QMEOptimizer
-
-# Initialize optimizer with UMA potential
-qme = QMEOptimizer(model_name="uma-4m")
-
-# Load structure
-atoms = qme.load_structure("molecule.xyz")
-
-# Optimize to minimum
-results = qme.optimize_minimum(
-    optimizer="BFGS",
-    fmax=0.01,
-    steps=200
-)
-
-# Save result
-qme.save_structure(results['optimized_atoms'], "optimized.xyz")
-```
-
-### Advanced Usage
-
-```python
-from qme import QMEOptimizer
-from qme.uma_potential import get_uma_calculator
-from ase.constraints import FixAtoms
-
-# Custom calculator setup
-calculator = get_uma_calculator(model_name="uma-4m", device="cuda")
-qme = QMEOptimizer(calculator=calculator)
-
-# Load and optimize with constraints
-atoms = qme.load_structure("complex.xyz")
-constraints = [FixAtoms(indices=[0, 1, 2])]  # Fix first 3 atoms
-
-results = qme.optimize_minimum(
-    atoms=atoms,
-    optimizer="LBFGS", 
-    constraints=constraints,
-    fmax=0.005,
-    trajectory="optimization.traj"
-)
-
-# Transition state search
-ts_results = qme.find_transition_state(
-    atoms=atoms,
-    fmax=0.01,
-    steps=500
-)
-
-print(qme.get_optimization_summary())
-```
-
-## UMA Models
-
-QME supports various UMA model variants. The default `uma-4m` model provides good balance of accuracy and speed for most organic molecules.
-
-## File Format Support
-
-QME supports all file formats handled by ASE, including:
-
-- **XYZ**: Simple Cartesian coordinates
-- **CIF**: Crystallographic Information File  
-- **PDB**: Protein Data Bank format
-- **VASP**: POSCAR/CONTCAR files
-- **Gaussian**: Input/output files
-
-## Examples
-
-The `examples/` directory contains sample molecular structures:
-
-- `water.xyz`: Simple water molecule
-- `methane.xyz`: Methane for basic testing
-
-## Contributing
-
-Contributions are welcome! Please see our contributing guidelines and submit pull requests.
-
-## License
-
-This project is licensed under the MIT License.
-
-## Citation
-
-If you use QME in your research, please cite:
-
-```
-QME: Quick Mechanistic Exploration using Machine Learning Potentials
-https://github.com/rlaplaza-lab/qme
-```
-
-## Support
-
-For questions and support, please open an issue on GitHub.
-
