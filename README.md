@@ -1,18 +1,26 @@
 # QME: Quick Mechanistic Exploration
 
-Quick mechanistic exploration using machine learning potentials (MLPs/NNPs).
+Quick mechanistic exploration using multiple neural network potentials (MLPs/NNPs).
 
-QME combines the power of ASE and SELLA optimizers with UMA (Universal Materials Accelerator) machine learning potentials to perform efficient molecular geometry optimization and transition state searches.
+QME combines the power of ASE and SELLA optimizers with state-of-the-art neural network potentials including **SO3LR** (SO(3) invariant networks) and **UMA** (Universal Model for Atoms) to perform efficient molecular geometry optimization and transition state searches.
 
 ## Features
 
+- **Multiple Neural Network Backends**: Support for SO3LR and UMA potentials with easy switching
 - **Minimum Energy Optimization**: Find stable molecular geometries using ASE optimizers (BFGS, LBFGS, FIRE)
-- **Transition State Search**: Locate saddle points using the SELLA optimizer  
-- **UMA Integration**: Leverage state-of-the-art Universal Materials Accelerator machine learning potentials
+- **Transition State Search**: Locate saddle points using the SELLA optimizer
 - **Command Line Interface**: Easy-to-use CLI for batch processing and automation
 - **Multiple File Formats**: Support for XYZ, CIF, PDB and other ASE-compatible molecular formats
 - **Flexible Constraints**: Apply geometric constraints during optimization
-- **Mock Calculator**: Test functionality without requiring heavy ML dependencies
+- **Robust Testing**: Comprehensive test suite with CI/CD automation
+
+## Supported Neural Network Backends
+
+### SO3LR (Default)
+SO3LR provides SO(3) invariant neural network potentials with excellent accuracy for molecular systems. It's now the **default backend** for better testing and performance.
+
+### UMA (Universal Model for Atoms)
+UMA machine learning potentials from the FAIR Chemistry team provide state-of-the-art accuracy for diverse chemical systems.
 
 ## Installation
 
@@ -143,197 +151,3 @@ This project is inspired by the excellent [pysisyphus](https://github.com/eljost
 ## License
 
 MIT License
-=======
-## Dependencies
-
-### Core Dependencies (Minimal Installation)
-- `ase>=3.22.0` - Atomic Simulation Environment for structure handling
-- `click>=8.0.0` - Command line interface framework  
-- `numpy>=1.20.0` - Numerical computing foundation
-
-### Machine Learning Dependencies (Full Installation)
-- `torch>=2.0.0` - PyTorch deep learning framework
-- `fairchem-core>=1.0.0` - UMA machine learning potentials
-
-### Optional Dependencies
-- `sella>=2.0.0` - Transition state optimization (for TS searches)
-- `matplotlib>=3.5.0` - Plotting and visualization
-
-### Development Dependencies
-- `pytest>=7.0.0` - Testing framework
-- `black>=23.0.0` - Code formatting
-- `isort>=5.12.0` - Import sorting  
-- `flake8>=6.0.0` - Code linting
-
-## Quick Start
-
-### Test Installation
-
-First, verify your installation:
-
-```bash
-qme test-setup
-```
-
-### Minimum Energy Optimization
-
-Optimize a molecular structure to find its minimum energy configuration:
-
-```bash
-# Basic optimization
-qme minimize examples/water.xyz
-
-# With custom parameters
-qme minimize examples/methane.xyz \
-    --optimizer BFGS \
-    --fmax 0.005 \
-    --steps 300 \
-    --output optimized_methane.xyz \
-    --verbose
-```
-
-### Transition State Search
-
-Search for transition states (saddle points):
-
-```bash
-# Basic TS search  
-qme transition-state examples/reaction_guess.xyz
-
-# With trajectory logging
-qme transition-state examples/ts_guess.xyz \
-    --output ts_result.xyz \
-    --trajectory ts_optimization.traj \
-    --logfile ts_search.log \
-    --verbose
-```
-
-## Command Line Reference
-
-### `qme minimize`
-
-Find minimum energy geometry using specified optimizer.
-
-**Options:**
-- `--output, -o`: Output file for optimized structure
-- `--optimizer, -opt`: Optimizer to use (`BFGS`, `LBFGS`, `FIRE`)  
-- `--fmax, -f`: Force convergence criterion (eV/Å) [default: 0.01]
-- `--steps, -s`: Maximum optimization steps [default: 200]
-- `--model, -m`: UMA model name [default: uma-4m]
-- `--device, -d`: Computation device (`cpu`, `cuda`)
-- `--logfile`: Log file for optimization output
-- `--trajectory`: Trajectory file to save steps
-- `--constraint-atoms`: Comma-separated atom indices to fix
-- `--verbose, -v`: Verbose output
-
-### `qme transition-state`
-
-Find transition state using SELLA optimizer.
-
-**Options:**
-- Similar to `minimize` but uses SELLA for saddle point optimization
-- Requires good initial guess geometry near transition state
-
-### `qme test-setup`
-
-Test QME installation and UMA model loading.
-
-## Python API
-
-### Basic Usage
-
-```python
-from qme import QMEOptimizer
-
-# Initialize optimizer with UMA potential
-qme = QMEOptimizer(model_name="uma-4m")
-
-# Load structure
-atoms = qme.load_structure("molecule.xyz")
-
-# Optimize to minimum
-results = qme.optimize_minimum(
-    optimizer="BFGS",
-    fmax=0.01,
-    steps=200
-)
-
-# Save result
-qme.save_structure(results['optimized_atoms'], "optimized.xyz")
-```
-
-### Advanced Usage
-
-```python
-from qme import QMEOptimizer
-from qme.uma_potential import get_uma_calculator
-from ase.constraints import FixAtoms
-
-# Custom calculator setup
-calculator = get_uma_calculator(model_name="uma-4m", device="cuda")
-qme = QMEOptimizer(calculator=calculator)
-
-# Load and optimize with constraints
-atoms = qme.load_structure("complex.xyz")
-constraints = [FixAtoms(indices=[0, 1, 2])]  # Fix first 3 atoms
-
-results = qme.optimize_minimum(
-    atoms=atoms,
-    optimizer="LBFGS", 
-    constraints=constraints,
-    fmax=0.005,
-    trajectory="optimization.traj"
-)
-
-# Transition state search
-ts_results = qme.find_transition_state(
-    atoms=atoms,
-    fmax=0.01,
-    steps=500
-)
-
-print(qme.get_optimization_summary())
-```
-
-## UMA Models
-
-QME supports various UMA model variants. The default `uma-4m` model provides good balance of accuracy and speed for most organic molecules.
-
-## File Format Support
-
-QME supports all file formats handled by ASE, including:
-
-- **XYZ**: Simple Cartesian coordinates
-- **CIF**: Crystallographic Information File  
-- **PDB**: Protein Data Bank format
-- **VASP**: POSCAR/CONTCAR files
-- **Gaussian**: Input/output files
-
-## Examples
-
-The `examples/` directory contains sample molecular structures:
-
-- `water.xyz`: Simple water molecule
-- `methane.xyz`: Methane for basic testing
-
-## Contributing
-
-Contributions are welcome! Please see our contributing guidelines and submit pull requests.
-
-## License
-
-This project is licensed under the MIT License.
-
-## Citation
-
-If you use QME in your research, please cite:
-
-```
-QME: Quick Mechanistic Exploration using Machine Learning Potentials
-https://github.com/rlaplaza-lab/qme
-```
-
-## Support
-
-For questions and support, please open an issue on GitHub.
-
