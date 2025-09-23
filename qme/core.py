@@ -18,12 +18,12 @@ try:
 except ImportError:
     HAS_SELLA = False
 
-from .uma_potential import UMAPotential, get_uma_calculator
 from .so3lr_potential import (
     SO3LRPotential,
-    get_so3lr_calculator,
     get_mock_so3lr_calculator,
+    get_so3lr_calculator,
 )
+from .uma_potential import UMAPotential, get_uma_calculator
 
 
 class QMEOptimizer:
