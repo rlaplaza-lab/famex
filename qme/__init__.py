@@ -2,20 +2,21 @@
 
 This package provides a unified interface for molecular geometry optimization
 using ASE (Atomic Simulation Environment) and SELLA optimizers combined with
-UMA (Universal Materials Accelerator) machine learning potentials.
+UMA (Universal Materials Accelerator), SO3LR (SO(3) Invariant Neural Network),
+and AIMNET2 (Accurate Neural Network Potential) machine learning potentials.
 
 Key Features:
 - Minimum energy geometry optimization
 - Transition state searches
 - Support for various file formats (xyz, cif, pdb, etc.)
-- Integration with UMA machine learning potentials
+- Integration with UMA, SO3LR, and AIMNET2 machine learning potentials
 - Mock calculator for testing without ML dependencies
 
 Example:
     Basic usage for geometry optimization:
 
     >>> from qme import QMEOptimizer
-    >>> qme = QMEOptimizer(model_name="uma-4m")
+    >>> qme = QMEOptimizer(backend="aimnet2", model_name="aimnet2")
     >>> atoms = qme.load_structure("molecule.xyz")
     >>> results = qme.optimize_minimum()
     >>> qme.save_structure(results['optimized_atoms'], "optimized.xyz")

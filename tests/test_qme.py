@@ -9,6 +9,7 @@ import pytest
 
 from qme import QMEOptimizer
 from qme.uma_potential import UMAPotential
+from qme.aimnet2_potential import AIMNet2Potential
 
 
 class TestQMEBasics:
@@ -16,10 +17,11 @@ class TestQMEBasics:
 
     def test_imports(self):
         """Test that core modules can be imported."""
-        from qme import QMEOptimizer, UMAPotential
+        from qme import QMEOptimizer, UMAPotential, AIMNet2Potential
 
         assert QMEOptimizer is not None
         assert UMAPotential is not None
+        assert AIMNet2Potential is not None
 
     def test_structure_loading(self):
         """Test structure loading from XYZ file."""
