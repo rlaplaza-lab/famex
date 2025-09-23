@@ -58,7 +58,6 @@ class Reaction:
         if not self.has_ts or self.ts.energy is None or self.reactant.energy is None:
             return None
         return self.ts.energy - self.reactant.energy
-<<<<<<< HEAD
     
     def interpolate(self, npoints: int = 10, method: str = "linear", 
                     optimize_path: bool = False, calculator=None) -> List[Geometry]:
@@ -70,21 +69,11 @@ class Reaction:
             optimize_path: Whether to optimize the interpolated path
             calculator: Calculator for optimization (required if optimize_path=True)
             
-=======
-
-    def interpolate(self, npoints: int = 10) -> List[Geometry]:
-        """Create linear interpolation between reactant and product.
-
-        Args:
-            npoints: Number of interpolated points including endpoints
-
->>>>>>> main
         Returns:
             List of interpolated geometries
         """
         if npoints < 2:
             raise ValueError("Need at least 2 points for interpolation")
-<<<<<<< HEAD
         
         if optimize_path and calculator is None:
             raise ValueError("Calculator required for path optimization")
@@ -104,9 +93,7 @@ class Reaction:
     
     def _linear_interpolation(self, npoints: int) -> List[Geometry]:
         """Create linear interpolation between reactant and product."""
-=======
 
->>>>>>> main
         geoms = []
         coords_start = self.reactant.coords
         coords_end = self.product.coords
@@ -122,9 +109,7 @@ class Reaction:
                 mult=self.reactant.mult,
             )
             geoms.append(geom)
-
         return geoms
-<<<<<<< HEAD
     
     def _geodesic_interpolation(self, npoints: int) -> List[Geometry]:
         """Create geodesic interpolation using distance-based internal coordinates.
@@ -321,14 +306,10 @@ class Reaction:
         ts_guess = path[max_energy_idx]
         
         return ts_guess
-    
-    def get_rmsd_profile(self, geometries: List[Geometry]) -> Tuple[np.ndarray, np.ndarray]:
-=======
 
     def get_rmsd_profile(
         self, geometries: List[Geometry]
     ) -> Tuple[np.ndarray, np.ndarray]:
->>>>>>> main
         """Calculate RMSD profile along a reaction path.
 
         Args:

@@ -281,7 +281,6 @@ class TestSN2Reaction:
 
         # The reaction should show characteristic SN2 inversion
         # (This is a simplified check - real validation would examine stereochemistry)
-<<<<<<< HEAD
         assert c_cl_distances[-1] > c_cl_distances[0] + 1.0, "C-Cl should be significantly longer at end"
         assert c_o_distances[0] > c_o_distances[-1] + 1.0, "C-O should be significantly shorter at end"
 
@@ -341,11 +340,11 @@ class TestSN2Reaction:
                 ch_bond_lengths.append(ch_dist)
         
         return np.var(ch_bond_lengths)
-=======
+
         assert (
             c_cl_distances[-1] > c_cl_distances[0] + 1.0
         ), "C-Cl should be significantly longer at end"
         assert (
             c_o_distances[0] > c_o_distances[-1] + 1.0
         ), "C-O should be significantly shorter at end"
->>>>>>> main
+
