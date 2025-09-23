@@ -1,5 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -167,7 +168,4 @@ temp/
 # Output files from optimizations  
 *.opt.*
 *.ts.*
-
-# Log files
-*.log
 
