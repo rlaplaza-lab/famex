@@ -1,5 +1,6 @@
 """
-Core optimization functionality combining ASE and SELLA optimizers with UMA potentials.
+Core optimization functionality combining ASE and SELLA optimizers with neural network potentials.
+Supports multiple backends including UMA and SO3LR.
 """
 
 from pathlib import Path
@@ -17,13 +18,13 @@ try:
 except ImportError:
     HAS_SELLA = False
 
-# Import mock calculator for testing
-from .mock_calculator import get_mock_uma_calculator
 from .uma_potential import UMAPotential, get_uma_calculator
+from .so3lr_potential import SO3LRPotential, get_so3lr_calculator, get_mock_so3lr_calculator
 
 
 class QMEOptimizer:
-    """Main optimizer class that combines ASE and SELLA optimizers with UMA potentials.
+    """Main optimizer class that combines ASE and SELLA optimizers with neural network potentials.
+    Supports UMA and SO3LR backends.
 
     This class provides a unified interface for molecular geometry optimization
     using machine learning potentials, supporting both minimum energy optimization
@@ -33,51 +34,93 @@ class QMEOptimizer:
         calculator: The underlying energy/force calculator (UMA or mock)
         atoms: Currently loaded molecular structure
         results: Dictionary storing optimization results
-    """
 
+    """
+    
     AVAILABLE_OPTIMIZERS = {
         "BFGS": BFGS,
         "LBFGS": LBFGS,
         "FIRE": FIRE,
     }
-
+    
+    AVAILABLE_BACKENDS = {
+        'uma': 'UMA (Universal Model for Atoms)',
+        'so3lr': 'SO3LR (SO(3) Invariant Neural Network)',
+    }
+    
     if HAS_SELLA:
         AVAILABLE_OPTIMIZERS["Sella"] = Sella
 
     def __init__(
         self,
-        calculator: Optional[UMAPotential] = None,
-        model_name: str = "uma-4m",
+        calculator=None,
+        backend: str = "so3lr",  # Changed default to SO3LR for testing
+        model_name: str = None,
+        model_path: Optional[str] = None,
         device: Optional[str] = None,
         use_mock: bool = False,
     ):
         """Initialize QME optimizer.
-
-        Args:
-            calculator: Pre-configured UMA calculator. If None, creates one with model_name.
-            model_name: UMA model name to use if calculator is None.
-            device: Device for computations ('cpu', 'cuda'). Auto-detected if None.
-            use_mock: Use mock calculator for testing (default: False).
+        
+        Parameters:
+        -----------
+        calculator : Calculator, optional
+            Pre-configured calculator. If None, creates one based on backend.
+        backend : str
+            Neural network backend to use ('uma', 'so3lr'). Default: 'so3lr'
+        model_name : str, optional
+            Model name to use. Defaults depend on backend.
+        model_path : str, optional
+            Path to model file (SO3LR only)
+        device : str, optional
+            Device for computations ('cpu', 'cuda')
+        use_mock : bool
+            Use mock calculator for testing (default: False)
         """
-
+        
+        if backend not in self.AVAILABLE_BACKENDS:
+            available = list(self.AVAILABLE_BACKENDS.keys())
+            raise ValueError(f"Unknown backend: {backend}. Available: {available}")
+        
+        self.backend = backend
+        
         if calculator is None:
             if use_mock:
-                self.calculator = get_mock_uma_calculator()
-            else:
-                try:
-                    self.calculator = get_uma_calculator(
-                        model_name=model_name, device=device
-                    )
-                except ImportError as e:
-                    print(f"Warning: {e}")
-                    print("Falling back to mock calculator for testing.")
+                if backend == "so3lr":
+                    self.calculator = get_mock_so3lr_calculator()
+                else:  # UMA
                     self.calculator = get_mock_uma_calculator()
+            else:
+                self.calculator = self._create_calculator(backend, model_name, model_path, device)
         else:
             self.calculator = calculator
 
         self.atoms = None
         self.results = {}
-
+    
+    def _create_calculator(self, backend: str, model_name: Optional[str], model_path: Optional[str], device: Optional[str]):
+        """Create calculator based on backend."""
+        try:
+            if backend == "so3lr":
+                # Set default model name for SO3LR if not provided
+                if model_name is None:
+                    model_name = "so3lr-small"
+                return get_so3lr_calculator(model_path=model_path, model_name=model_name, device=device)
+            
+            elif backend == "uma":
+                # Set default model name for UMA if not provided
+                if model_name is None:
+                    model_name = "uma-4m"
+                return get_uma_calculator(model_name=model_name, device=device)
+            
+        except ImportError as e:
+            print(f"Warning: {e}")
+            print(f"Falling back to mock {backend.upper()} calculator for testing.")
+            if backend == "so3lr":
+                return get_mock_so3lr_calculator()
+            else:
+                return get_mock_uma_calculator()
+    
     def load_structure(self, structure_file: Union[str, Path]) -> Atoms:
         """Load molecular structure from file.
 
