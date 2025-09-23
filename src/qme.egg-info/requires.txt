@@ -1,0 +1,13 @@
+matplotlib
+numpy
+pytest
+scipy
+
+[dev]
+black
+flake8
+pytest-cov
+
+[ml]
+ase
+torch
