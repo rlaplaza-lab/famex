@@ -1,14 +1,6 @@
 """Test calculator interfaces and implementations."""
 
 import numpy as np
-import pytest
-
-from qme import QMEOptimizer
-
-"""Test calculator interfaces and implementations."""
-
-import numpy as np
-import pytest
 from ase.build import molecule
 
 from qme import MockUMACalculator, QMEOptimizer
@@ -23,7 +15,7 @@ class TestCalculators:
 
         # Create a simple H2 molecule
         h2 = molecule("H2")
-        h2.set_calculator(calc)
+        h2.calc = calc
 
         # Test energy calculation
         energy = h2.get_potential_energy()
@@ -41,7 +33,7 @@ class TestCalculators:
         # Load a simple molecule
         h2 = molecule("H2")
         qme.atoms = h2
-        qme.atoms.set_calculator(qme.calculator)
+        qme.atoms.calc = qme.calculator
 
         # Test that calculator is properly set
         assert qme.calculator is not None
@@ -58,7 +50,7 @@ class TestCalculators:
         # Load a simple molecule
         h2o = molecule("H2O")
         qme.atoms = h2o
-        qme.atoms.set_calculator(qme.calculator)
+        qme.atoms.calc = qme.calculator
 
         # Test that calculator is properly set
         assert qme.calculator is not None

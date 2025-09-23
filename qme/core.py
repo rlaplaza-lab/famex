@@ -1,6 +1,6 @@
 """
-Core optimization functionality combining ASE and SELLA optimizers with neural network potentials.
-Supports multiple backends including UMA and SO3LR.
+Core optimization functionality combining ASE and SELLA optimizers with neural
+network potentials. Supports multiple backends including UMA and SO3LR.
 """
 
 from pathlib import Path
@@ -19,20 +19,17 @@ except ImportError:
     HAS_SELLA = False
 
 from .mock_calculator import get_mock_uma_calculator
-from .so3lr_potential import (
-    SO3LRPotential,
-    get_mock_so3lr_calculator,
-    get_so3lr_calculator,
-)
-from .uma_potential import UMAPotential, get_uma_calculator
+from .so3lr_potential import get_mock_so3lr_calculator, get_so3lr_calculator
+from .uma_potential import get_uma_calculator
 
 
 class QMEOptimizer:
-    """Main optimizer class that combines ASE and SELLA optimizers with neural network potentials.
-    Supports UMA and SO3LR backends.
+    """Main optimizer class combining ASE and SELLA optimizers with neural
+    network potentials. Supports UMA and SO3LR backends.
 
     This class provides a unified interface for molecular geometry optimization
-    using machine learning potentials, supporting both minimum energy optimization
+    using machine learning potentials, supporting both minimum energy
+    optimization and transition state searches.
     and transition state searches.
 
     Attributes:
