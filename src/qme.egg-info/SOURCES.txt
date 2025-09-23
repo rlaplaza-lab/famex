@@ -1,0 +1,17 @@
+README.md
+setup.py
+src/qme/__init__.py
+src/qme/calculators.py
+src/qme/geometry.py
+src/qme/reactions.py
+src/qme.egg-info/PKG-INFO
+src/qme.egg-info/SOURCES.txt
+src/qme.egg-info/dependency_links.txt
+src/qme.egg-info/requires.txt
+src/qme.egg-info/top_level.txt
+tests/test_calculators.py
+tests/test_diels_alder_reaction.py
+tests/test_geometry.py
+tests/test_integration.py
+tests/test_proton_transfer_reaction.py
+tests/test_sn2_reaction.py
