@@ -18,6 +18,7 @@ try:
 except ImportError:
     HAS_SELLA = False
 
+from .mock_calculator import get_mock_uma_calculator
 from .so3lr_potential import (
     SO3LRPotential,
     get_mock_so3lr_calculator,
