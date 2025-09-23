@@ -10,6 +10,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+src/qme.egg-info/
 develop-eggs/
 dist/
 downloads/
