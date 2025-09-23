@@ -81,6 +81,8 @@ profile_default/
 ipython_config.py
 
 # pyenv
+.pdm.toml
+
 .python-version
 
 # pipenv
@@ -141,6 +143,16 @@ cython_debug/
 # VS Code
 .vscode/
 
+# Example output files
+*.xyz
+*.png
+*.pdf
+*.log
+
+# Temporary files
+tmp/
+temp/
+
 # macOS
 .DS_Store
 
@@ -158,3 +170,4 @@ cython_debug/
 
 # Log files
 *.log
+
