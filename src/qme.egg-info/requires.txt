@@ -1,13 +1,13 @@
-matplotlib
-numpy
-pytest
-scipy
+ase>=3.22.0
+sella>=2.0.0
+torch>=2.0.0
+numpy>=1.20.0
+click>=8.0.0
+fairchem-core>=1.0.0
 
 [dev]
-black
-flake8
-pytest-cov
-
-[ml]
-ase
-torch
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.0.0
