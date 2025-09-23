@@ -28,22 +28,46 @@ UMA machine learning potentials from the FAIR Chemistry team provide state-of-th
 
 QME requires Python 3.8 or higher.
 
-### Basic Installation (Mock Calculator)
+### Basic Installation
 
-For testing and development without ML dependencies:
+For testing and development with mock calculators:
 
 ```bash
-pip install ase click numpy matplotlib
-cd /path/to/qme
+pip install qme
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/rlaplaza-lab/qme.git
+cd qme
 pip install -e .
 ```
 
-### Full Installation (with UMA)
+### Full Installation with ML Backends
 
-For production use with UMA machine learning potentials:
+For production use with machine learning potentials:
 
 ```bash
-pip install -e .[ml]  # Includes torch, ase, fairchem-core
+pip install qme[ml]  # Includes torch, ase, sella, fairchem-core
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/rlaplaza-lab/qme.git
+cd qme
+pip install -e .[ml]
+```
+
+### Development Installation
+
+For contributors:
+
+```bash
+git clone https://github.com/rlaplaza-lab/qme.git
+cd qme
+pip install -e .[dev]  # Includes testing and linting tools
 ```
 
 ## Quick Start
@@ -95,83 +119,85 @@ qme transition-state ts_guess.xyz --trajectory ts_optimization.traj
 ### Test Installation
 
 ```bash
-qme test-setup
+# Test QME setup and backends
+qme test-setup --backend so3lr
+qme test-setup --backend uma
 ```
 
-# Generate reaction pathway using linear interpolation (default)
-path = reaction.interpolate(npoints=10)
-for i, geom in enumerate(path):
-    calculator.calculate(geom)
-    print(f"Point {i}: Energy = {geom.energy:.6f} Hartree")
+## Features in Detail
 
-# Use geodesic interpolation for better transition state guesses
-geodesic_path = reaction.interpolate(npoints=10, method="geodesic")
-print(f"Generated {len(geodesic_path)} points using geodesic interpolation")
+### Multiple Neural Network Backends
+- **SO3LR**: SO(3) invariant neural networks (default backend)
+- **UMA**: Universal Materials Accelerator potentials from Meta AI
+- **Mock Calculator**: Harmonic oscillator model for testing
 
-# Find transition state guess using geodesic interpolation
-ts_guess = reaction.find_transition_state_guess(npoints=20, method="geodesic")
-if ts_guess:
-    print(f"Transition state guess energy: {ts_guess.energy:.6f} Hartree")
-```
+### Optimization Algorithms
+- **BFGS, L-BFGS**: Quasi-Newton methods for fast convergence
+- **FIRE**: Fast Inertial Relaxation Engine
+- **SELLA**: Saddle point optimization for transition states
 
-## Geodesic Interpolation
+### Supported File Formats
+All ASE-compatible formats including XYZ, CIF, PDB, POSCAR, and more.
 
-QME supports geodesic interpolation as an alternative to linear interpolation for generating reaction pathways. This method interpolates in internal coordinate space (distance matrices) rather than Cartesian space, often providing better initial guesses for transition state searches.
+## Examples
 
-```python
-# Standard linear interpolation
-linear_path = reaction.interpolate(npoints=10, method="linear")
+See the `examples/` directory for complete demonstrations:
 
-# Geodesic interpolation - better for complex rearrangements
-geodesic_path = reaction.interpolate(npoints=10, method="geodesic")
-
-# Path optimization with NEB-like forces (experimental)
-optimized_path = reaction.interpolate(
-    npoints=10, 
-    method="geodesic", 
-    optimize_path=True, 
-    calculator=calculator
-)
-```
-
-**Benefits of geodesic interpolation:**
-- Preserves bond lengths better during interpolation
-- Provides more chemically reasonable intermediate structures
-- Often gives better initial guesses for transition state searches
-- Inspired by nudged elastic band (NEB) methods
-```
-
-## Organic Reaction Examples
-
-The package includes comprehensive tests for classic organic reactions:
-
-### SN2 Reaction
-```python
-# CH3Cl + OH- → CH3OH + Cl-
-from qme.tests.test_sn2_reaction import TestSN2Reaction
-```
-
-### Diels-Alder Reaction  
-```python
-# 1,3-butadiene + ethylene → cyclohexene
-from qme.tests.test_diels_alder_reaction import TestDielsAlderReaction
-```
-
-### Proton Transfer
-```python
-# HCl + NH3 → NH4+ + Cl-
-from qme.tests.test_proton_transfer_reaction import TestProtonTransferReaction
-```
+- `demo.py`: Basic molecular optimization
+- `h2_dissociation_demo.py`: H₂ dissociation pathway
+- `sn2_reaction_demo.py`: SN2 reaction mechanism
+- `geodesic_demo.py`: Advanced interpolation methods
 
 ## Testing
 
-Run the comprehensive test suite:
+Run the test suite:
 
 ```bash
-pytest tests/ -v
+# Run all tests
+pytest
+
+# Run specific test categories
+pytest tests/test_qme.py          # Basic functionality
+pytest tests/test_so3lr.py        # SO3LR backend tests
+pytest tests/test_calculators.py  # Calculator interfaces
+
+# Run with coverage
+pytest --cov=qme --cov-report=term-missing
 ```
 
-Current status: **51/57 tests passing** (89% success rate)
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Install development dependencies (`pip install -e .[dev]`)
+4. Run tests and linting (`pytest`, `black qme/ tests/`, `isort qme/ tests/`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Citation
+
+If you use QME in your research, please cite:
+
+```bibtex
+@software{qme2024,
+  title={QME: Quick Mechanistic Exploration},
+  author={QME Development Team},
+  year={2024},
+  url={https://github.com/rlaplaza-lab/qme}
+}
+```
+
+## Acknowledgments
+
+- Inspired by [pysisyphus](https://github.com/eljost/pysisyphus) for reaction pathway methods
+- Built on [ASE](https://wiki.fysik.dtu.dk/ase/) for molecular structure handling
+- Integrates [SELLA](https://github.com/zadorlab/sella) for transition state optimization
+- Uses [SO3LR](https://github.com/LLNL/so3lr) and UMA potentials for ML energies
 
 ## Architecture
 
