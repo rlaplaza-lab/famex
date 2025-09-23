@@ -2,52 +2,93 @@
 
 Quick mechanistic exploration using machine learning potentials (MLPs/NNPs).
 
-QME combines the power of ASE and SELLA optimizers with UMA (Universal Model for Atoms) machine learning potentials to perform efficient molecular geometry optimization and transition state searches.
+QME combines the power of ASE and SELLA optimizers with UMA (Universal Materials Accelerator) machine learning potentials to perform efficient molecular geometry optimization and transition state searches.
 
 ## Features
 
 - **Minimum Energy Optimization**: Find stable molecular geometries using ASE optimizers (BFGS, LBFGS, FIRE)
-- **Transition State Search**: Locate saddle points using the SELLA optimizer
-- **UMA Integration**: Leverage state-of-the-art Universal Model for Atoms machine learning potentials
+- **Transition State Search**: Locate saddle points using the SELLA optimizer  
+- **UMA Integration**: Leverage state-of-the-art Universal Materials Accelerator machine learning potentials
 - **Command Line Interface**: Easy-to-use CLI for batch processing and automation
-- **Multiple File Formats**: Support for XYZ, CIF, PDB and other common molecular formats
+- **Multiple File Formats**: Support for XYZ, CIF, PDB and other ASE-compatible molecular formats
 - **Flexible Constraints**: Apply geometric constraints during optimization
+- **Mock Calculator**: Test functionality without requiring heavy ML dependencies
 
 ## Installation
 
 ### Prerequisites
 
-QME requires Python 3.8 or higher. Install the package and its dependencies:
+QME requires Python 3.8 or higher.
+
+### Basic Installation (Mock Calculator)
+
+For testing and development without ML dependencies:
 
 ```bash
+pip install ase click numpy matplotlib
+cd /path/to/qme
 pip install -e .
+```
+
+### Full Installation (with UMA)
+
+For production use with UMA machine learning potentials:
+
+```bash
+pip install -e .[ml]  # Includes torch, ase, fairchem-core
 ```
 
 ## Quick Start
 
+### Python API - Basic Usage
+
 ```python
-from qme import Geometry, Reaction, MLPCalculator
-import numpy as np
+from qme import QMEOptimizer
 
-# Create molecular geometries
-atoms = ["H", "H"]
-reactant_coords = np.array([0.0, 0.0, 0.0, 0.74, 0.0, 0.0])  # H2
-product_coords = np.array([0.0, 0.0, 0.0, 3.0, 0.0, 0.0])    # H + H
+# Initialize optimizer (automatically uses mock if UMA unavailable)
+qme = QMEOptimizer(model_name="uma-4m")
 
-reactant = Geometry(atoms=atoms, coords=reactant_coords, charge=0, mult=1)
-product = Geometry(atoms=atoms, coords=product_coords, charge=0, mult=3)
+# Load structure
+atoms = qme.load_structure("molecule.xyz")
 
-# Create reaction
-reaction = Reaction(reactant, product, name="H2_dissociation")
+# Optimize to minimum energy
+results = qme.optimize_minimum(
+    optimizer="BFGS",
+    fmax=0.01,
+    steps=200
+)
 
-# Set up calculator (mock for demonstration)
-calculator = MLPCalculator(model_type="mock")
+# Save result
+if results['converged']:
+    qme.save_structure(results['optimized_atoms'], "optimized.xyz")
+    print(f"Optimization completed in {results['steps_taken']} steps")
+else:
+    print("Optimization did not converge")
+```
 
-# Calculate energies
-calculator.calculate(reactant)
-calculator.calculate(product)
+### Command Line Interface
 
-print(f"Reaction energy: {reaction.reaction_energy:.6f} Hartree")
+```bash
+# Basic optimization
+qme minimize molecule.xyz
+
+# With custom parameters
+qme minimize molecule.xyz \
+    --output optimized.xyz \
+    --optimizer BFGS \
+    --fmax 0.005 \
+    --steps 300 \
+    --verbose
+
+# Transition state search (requires SELLA)
+qme transition-state ts_guess.xyz --trajectory ts_optimization.traj
+```
+
+### Test Installation
+
+```bash
+qme test-setup
+```
 
 # Generate reaction pathway
 path = reaction.interpolate(npoints=10)
@@ -103,15 +144,26 @@ This project is inspired by the excellent [pysisyphus](https://github.com/eljost
 
 MIT License
 =======
-### Dependencies
+## Dependencies
 
-The main dependencies will be installed automatically:
+### Core Dependencies (Minimal Installation)
+- `ase>=3.22.0` - Atomic Simulation Environment for structure handling
+- `click>=8.0.0` - Command line interface framework  
+- `numpy>=1.20.0` - Numerical computing foundation
 
-- `ase>=3.22.0` - Atomic Simulation Environment
-- `sella>=2.0.0` - Transition state optimization
-- `torch>=2.0.0` - PyTorch for ML models
+### Machine Learning Dependencies (Full Installation)
+- `torch>=2.0.0` - PyTorch deep learning framework
 - `fairchem-core>=1.0.0` - UMA machine learning potentials
-- `click>=8.0.0` - Command line interface
+
+### Optional Dependencies
+- `sella>=2.0.0` - Transition state optimization (for TS searches)
+- `matplotlib>=3.5.0` - Plotting and visualization
+
+### Development Dependencies
+- `pytest>=7.0.0` - Testing framework
+- `black>=23.0.0` - Code formatting
+- `isort>=5.12.0` - Import sorting  
+- `flake8>=6.0.0` - Code linting
 
 ## Quick Start
 

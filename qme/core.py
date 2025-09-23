@@ -23,8 +23,16 @@ from .uma_potential import UMAPotential, get_uma_calculator
 
 
 class QMEOptimizer:
-    """
-    Main optimizer class that combines ASE and SELLA optimizers with UMA potentials.
+    """Main optimizer class that combines ASE and SELLA optimizers with UMA potentials.
+
+    This class provides a unified interface for molecular geometry optimization
+    using machine learning potentials, supporting both minimum energy optimization
+    and transition state searches.
+
+    Attributes:
+        calculator: The underlying energy/force calculator (UMA or mock)
+        atoms: Currently loaded molecular structure
+        results: Dictionary storing optimization results
     """
 
     AVAILABLE_OPTIMIZERS = {
@@ -43,19 +51,13 @@ class QMEOptimizer:
         device: Optional[str] = None,
         use_mock: bool = False,
     ):
-        """
-        Initialize QME optimizer.
+        """Initialize QME optimizer.
 
-        Parameters:
-        -----------
-        calculator : UMAPotential, optional
-            Pre-configured UMA calculator. If None, creates one with model_name.
-        model_name : str
-            UMA model name to use if calculator is None
-        device : str, optional
-            Device for computations ('cpu', 'cuda')
-        use_mock : bool
-            Use mock calculator for testing (default: False)
+        Args:
+            calculator: Pre-configured UMA calculator. If None, creates one with model_name.
+            model_name: UMA model name to use if calculator is None.
+            device: Device for computations ('cpu', 'cuda'). Auto-detected if None.
+            use_mock: Use mock calculator for testing (default: False).
         """
 
         if calculator is None:
@@ -77,18 +79,17 @@ class QMEOptimizer:
         self.results = {}
 
     def load_structure(self, structure_file: Union[str, Path]) -> Atoms:
-        """
-        Load molecular structure from file.
+        """Load molecular structure from file.
 
-        Parameters:
-        -----------
-        structure_file : str or Path
-            Path to structure file (xyz, cif, pdb, etc.)
+        Args:
+            structure_file: Path to structure file (xyz, cif, pdb, etc.).
 
         Returns:
-        --------
-        Atoms
-            Loaded structure
+            Loaded ASE Atoms object with calculator attached.
+
+        Raises:
+            FileNotFoundError: If structure file doesn't exist.
+            RuntimeError: If structure loading fails.
         """
 
         structure_file = Path(structure_file)
@@ -114,32 +115,29 @@ class QMEOptimizer:
         constraints: Optional[List] = None,
         **optimizer_kwargs,
     ) -> Dict[str, Any]:
-        """
-        Optimize structure to find minimum energy geometry.
+        """Optimize structure to find minimum energy geometry.
 
-        Parameters:
-        -----------
-        atoms : Atoms, optional
-            Structure to optimize. Uses self.atoms if None.
-        optimizer : str
-            Optimizer name ('BFGS', 'LBFGS', 'FIRE')
-        fmax : float
-            Force convergence criterion
-        steps : int
-            Maximum optimization steps
-        logfile : str, optional
-            Log file path
-        trajectory : str, optional
-            Trajectory file path
-        constraints : list, optional
-            List of ASE constraints
-        **optimizer_kwargs :
-            Additional optimizer arguments
+        Args:
+            atoms: Structure to optimize. Uses self.atoms if None.
+            optimizer: Optimizer name ('BFGS', 'LBFGS', 'FIRE').
+            fmax: Force convergence criterion (eV/Å).
+            steps: Maximum optimization steps.
+            logfile: Optional log file for optimization output.
+            trajectory: Optional trajectory file to save optimization steps.
+            constraints: Optional list of ASE constraints.
+            **optimizer_kwargs: Additional arguments passed to optimizer.
 
         Returns:
-        --------
-        dict
-            Optimization results
+            Dictionary containing:
+                - converged: Whether optimization converged
+                - optimized_atoms: Final optimized structure
+                - steps_taken: Number of optimization steps
+                - energy_change: Energy change during optimization
+                - final_max_force: Maximum force in final structure
+
+        Raises:
+            ValueError: If optimizer is not available.
+            RuntimeError: If optimization fails.
         """
 
         if atoms is None:
