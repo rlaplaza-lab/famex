@@ -6,9 +6,8 @@ This module provides ASE Calculator interface for SO3LR models.
 """
 
 import warnings
-from typing import Any, Dict, Optional, Union
+from typing import Optional
 
-import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 
 # Handle optional dependencies
@@ -129,7 +128,6 @@ class SO3LRPotential(Calculator):
             def __call__(self, data):
                 # Mock SO3LR inference - returns simple harmonic-like energies
                 positions = data["positions"]
-                atomic_numbers = data["atomic_numbers"]
                 n_atoms = len(positions)
 
                 # Simple Lennard-Jones-like potential
@@ -142,7 +140,8 @@ class SO3LRPotential(Calculator):
                         r = torch.norm(r_vec)
 
                         if r < self.cutoff:
-                            # Simple LJ-like potential: 4*epsilon*[(sigma/r)^12 - (sigma/r)^6]
+                            # Simple LJ-like potential:
+                            # 4*epsilon*[(sigma/r)^12 - (sigma/r)^6]
                             sigma = 1.5  # Angstroms
                             epsilon = 0.1  # eV
 

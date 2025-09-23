@@ -5,13 +5,9 @@ This module tests QME's optimization capabilities on various molecular systems,
 from simple diatomics to more complex polyatomic molecules.
 """
 
-import os
-import tempfile
-
 import numpy as np
 import pytest
 from ase.build import molecule
-from ase.io import read, write
 
 from qme import QMEOptimizer
 
@@ -34,10 +30,6 @@ class TestMolecularOptimization:
 
         qme_optimizer.atoms = h2
         h2.calc = qme_optimizer.calculator
-
-        # Store initial energy and geometry
-        initial_energy = h2.get_potential_energy()
-        initial_distance = np.linalg.norm(positions[1] - positions[0])
 
         # Optimize
         result = qme_optimizer.optimize_minimum(fmax=0.05, steps=10)
@@ -109,7 +101,6 @@ class TestMolecularOptimization:
 
         # Flatten the pyramid slightly (distort from equilibrium)
         positions = nh3.get_positions()
-        n_pos = positions[0]
         h_positions = positions[1:]
 
         # Move hydrogens to make molecule more planar

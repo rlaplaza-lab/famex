@@ -8,8 +8,6 @@ from pathlib import Path
 import click
 
 from .core import QMEOptimizer
-from .so3lr_potential import get_so3lr_calculator
-from .uma_potential import get_uma_calculator
 
 
 @click.group()
@@ -42,7 +40,19 @@ def main():
 @click.option(
     "--steps", "-s", default=200, type=int, help="Maximum number of optimization steps"
 )
-@click.option("--model", "-m", default="uma-4m", type=str, help="UMA model name to use")
+@click.option("--model", "-m", default="uma-4m", type=str, help="Model name to use")
+@click.option(
+    "--backend",
+    "-b",
+    default="so3lr",
+    type=click.Choice(["uma", "so3lr"]),
+    help="Backend to use (uma or so3lr)",
+)
+@click.option(
+    "--model-path",
+    type=click.Path(exists=True),
+    help="Path to model file (SO3LR only)",
+)
 @click.option(
     "--device",
     "-d",
@@ -66,6 +76,8 @@ def minimize(
     fmax,
     steps,
     model,
+    backend,
+    model_path,
     device,
     logfile,
     trajectory,
@@ -92,7 +104,7 @@ def minimize(
     """
 
     if verbose:
-        click.echo(f"Starting minimum energy optimization...")
+        click.echo("Starting minimum energy optimization...")
         click.echo(f"Input file: {input_file}")
         click.echo(f"Backend: {backend}")
         click.echo(f"Optimizer: {optimizer}")
@@ -178,7 +190,19 @@ def minimize(
 @click.option(
     "--steps", "-s", default=200, type=int, help="Maximum number of optimization steps"
 )
-@click.option("--model", "-m", default="uma-4m", type=str, help="UMA model name to use")
+@click.option("--model", "-m", default="uma-4m", type=str, help="Model name to use")
+@click.option(
+    "--backend",
+    "-b",
+    default="so3lr",
+    type=click.Choice(["uma", "so3lr"]),
+    help="Backend to use (uma or so3lr)",
+)
+@click.option(
+    "--model-path",
+    type=click.Path(exists=True),
+    help="Path to model file (SO3LR only)",
+)
 @click.option(
     "--device",
     "-d",
@@ -201,6 +225,8 @@ def transition_state(
     fmax,
     steps,
     model,
+    backend,
+    model_path,
     device,
     logfile,
     trajectory,
@@ -214,11 +240,20 @@ def transition_state(
     """
 
     if verbose:
-        click.echo(f"Starting transition state search...")
+        click.echo("Starting transition state search...")
         click.echo(f"Input file: {input_file}")
-        click.echo(f"UMA model: {model}")
+        click.echo(f"Backend: {backend}")
+        if model:
+            click.echo(f"Model: {model}")
+        if model_path:
+            click.echo(f"Model path: {model_path}")
 
     try:
+        # Initialize optimizer
+        qme = QMEOptimizer(
+            backend=backend, model_name=model, model_path=model_path, device=device
+        )
+
         # Load structure
         atoms = qme.load_structure(input_file)
 
@@ -312,6 +347,7 @@ def test_setup(backend, model, model_path, device):
             backend=backend, model_name=model, model_path=model_path, device=device
         )
         click.echo(f"✓ {backend.upper()} backend initialized successfully")
+        click.echo(f"✓ Calculator type: {type(qme.calculator).__name__}")
         click.echo("✅ All tests passed! QME is ready to use.")
 
     except ImportError as e:
