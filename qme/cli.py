@@ -71,10 +71,23 @@ def minimize(
     constraint_atoms,
     verbose,
 ):
-    """
-    Find minimum energy geometry using specified optimizer.
+    """Find minimum energy geometry using specified optimizer.
 
-    INPUT_FILE: Path to molecular structure file (xyz, cif, pdb, etc.)
+    Optimizes a molecular structure to its minimum energy configuration using
+    machine learning potentials and ASE optimizers.
+
+    Args:
+        input_file: Path to molecular structure file (xyz, cif, pdb, etc.).
+        output: Output file for optimized structure (optional).
+        optimizer: Optimization algorithm to use.
+        fmax: Force convergence criterion in eV/Å.
+        steps: Maximum number of optimization steps.
+        model: UMA model name to use for calculations.
+        device: Computation device (cpu/cuda).
+        logfile: Optional file for optimization logging.
+        trajectory: Optional file to save optimization trajectory.
+        constraint_atoms: Comma-separated atom indices to fix during optimization.
+        verbose: Enable detailed output.
     """
 
     if verbose:
