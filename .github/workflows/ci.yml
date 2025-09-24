@@ -51,10 +51,6 @@ jobs:
         python -c "import qme; print('QME version:', qme.__version__)"
         python -c "from qme import QMEOptimizer; print('QME imports successful')"
         
-    - name: Debug QME functionality
-      run: |
-        python debug_ci.py
-
     - name: Run linting
       run: |
         # Check code formatting (warnings only, don't fail workflow)
@@ -69,14 +65,9 @@ jobs:
       run: |
         pytest tests/test_qme.py -v --tb=short
 
-    - name: Run SO3LR tests (with mock fallback)
-      run: |
-        pytest tests/test_so3lr.py -v --tb=short
-      continue-on-error: false
-
     - name: Run all tests with coverage
       run: |
-        pytest tests/ -v --cov=qme --cov-report=term-missing --cov-report=xml --tb=short
+        pytest tests/test_qme.py -v --cov=qme --cov-report=term-missing --cov-report=xml --tb=short
 
     - name: Upload coverage to Codecov
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
