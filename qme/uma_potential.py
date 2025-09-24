@@ -20,7 +20,7 @@ class UMAPotential(Calculator):
     implemented_properties = ["energy", "forces"]
 
     def __init__(
-        self, model_name: str = "uma-4m", device: Optional[str] = None, **kwargs
+        self, model_name: str = "uma-m-1p1", device: Optional[str] = None, **kwargs
     ):
         """
         Initialize UMA potential calculator.
@@ -28,7 +28,7 @@ class UMAPotential(Calculator):
         Parameters:
         -----------
         model_name : str
-            Name of the UMA model to load (default: "uma-4m")
+            Name of the UMA model to load (default: "uma-m-1p1")
         device : str, optional
             Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
         """
@@ -55,32 +55,29 @@ class UMAPotential(Calculator):
 
         # Load UMA model
         self.model_name = model_name
-        self.model = None
-        self.trainer = None
+        self.predictor = None
+        self.fairchem_calc = None
         self._load_model()
 
     def _load_model(self):
-        """Load the UMA model from fairchem."""
+        """Load the UMA model from fairchem v2 API."""
         try:
-            # Get fairchem dependencies
-            model_registry = deps.get("fairchem_model_registry")
-            build_config = deps.get("fairchem_build_config")
-            ForcesTrainer = deps.get("fairchem_trainer")
+            # Get fairchem v2 dependencies
+            pretrained_mlip = deps.get("fairchem_pretrained_mlip")
+            FAIRChemCalculator = deps.get("fairchem_calculator")
 
-            # Try to load UMA model from fairchem registry
-            if model_registry and self.model_name in model_registry.MODEL_REGISTRY:
-                model_class = model_registry.MODEL_REGISTRY[self.model_name]
-                self.model = model_class()
-            elif build_config and ForcesTrainer:
-                # Fallback: try to load as a pre-trained checkpoint
-                config = build_config({"model": self.model_name, "trainer": "forces"})
-                self.trainer = ForcesTrainer(**config)
-                self.model = self.trainer.model
-            else:
-                raise RuntimeError("FairChem components not available")
+            if not pretrained_mlip or not FAIRChemCalculator:
+                raise RuntimeError("FairChem v2 components not available")
 
-            self.model.to(self.device)
-            self.model.eval()
+            # Load UMA model using v2 API
+            device_str = str(self.device)
+            self.predictor = pretrained_mlip.get_predict_unit(
+                self.model_name, device=device_str
+            )
+
+            # Create fairchem calculator for internal use
+            # Default to 'omol' task for molecular systems
+            self.fairchem_calc = FAIRChemCalculator(self.predictor, task_name="omol")
 
         except Exception as e:
             raise RuntimeError(
@@ -98,57 +95,24 @@ class UMAPotential(Calculator):
 
         Calculator.calculate(self, atoms, properties, system_changes)
 
-        # Convert atoms to format expected by UMA
-        data = self._atoms_to_data(atoms)
+        if atoms is None:
+            raise ValueError("atoms cannot be None")
 
-        # Run prediction
-        with torch.no_grad():
-            if self.trainer is not None:
-                outputs = self.trainer.predict(data)
-            else:
-                outputs = self.model(data)
+        # Use the fairchem v2 calculator directly
+        # Set the calculator on atoms temporarily
+        old_calc = getattr(atoms, "calc", None)
+        atoms.calc = self.fairchem_calc
 
-        # Extract results
-        if "energy" in properties:
-            energy = outputs.get("energy", outputs.get("total_energy"))
-            if energy is not None:
-                self.results["energy"] = float(energy.cpu().numpy())
+        try:
+            # Extract results using standard ASE interface
+            if "energy" in properties:
+                self.results["energy"] = atoms.get_potential_energy()
 
-        if "forces" in properties:
-            forces = outputs.get("forces")
-            if forces is not None:
-                self.results["forces"] = forces.cpu().numpy()
-
-    def _atoms_to_data(self, atoms):
-        """Convert ASE Atoms object to format expected by UMA model."""
-
-        if not HAS_TORCH:
-            raise ImportError("PyTorch is required")
-
-        positions = torch.tensor(
-            atoms.positions, dtype=torch.float32, device=self.device
-        )
-        atomic_numbers = torch.tensor(
-            atoms.numbers, dtype=torch.long, device=self.device
-        )
-
-        # Create data dictionary expected by fairchem models
-        data = {
-            "pos": positions,
-            "atomic_numbers": atomic_numbers,
-            "natoms": torch.tensor([len(atoms)], device=self.device),
-            "batch": torch.zeros(len(atoms), dtype=torch.long, device=self.device),
-        }
-
-        # Add cell information if periodic
-        if atoms.pbc.any():
-            cell = torch.tensor(
-                atoms.cell.array, dtype=torch.float32, device=self.device
-            )
-            data["cell"] = cell.unsqueeze(0)
-            data["pbc"] = torch.tensor(atoms.pbc, device=self.device)
-
-        return data
+            if "forces" in properties:
+                self.results["forces"] = atoms.get_forces()
+        finally:
+            # Restore original calculator
+            atoms.calc = old_calc
 
     def get_calculator(self):
         """Get the calculator instance.
@@ -163,7 +127,7 @@ class UMAPotential(Calculator):
         return self
 
 
-def get_uma_calculator(model_name: str = "uma-4m", **kwargs) -> UMAPotential:
+def get_uma_calculator(model_name: str = "uma-m-1p1", **kwargs) -> UMAPotential:
     """
     Convenience function to get UMA calculator.
 

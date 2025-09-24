@@ -52,7 +52,7 @@ pip install -e .
 For production use with machine learning potentials:
 
 ```bash
-pip install qme[ml]  # Includes torch, ase, sella, fairchem-core, aimnet2calc
+pip install qme[ml]  # Includes torch, ase, sella, and fairchem-core
 ```
 
 Or from source:
@@ -97,7 +97,7 @@ pip install .
 from qme import QMEOptimizer
 
 # Initialize optimizer (automatically uses mock if UMA unavailable)
-qme = QMEOptimizer(model_name="uma-4m")
+qme = QMEOptimizer(model_name="uma-m-1p1")
 
 # Load structure
 atoms = qme.load_structure("molecule.xyz")
