@@ -12,7 +12,6 @@ Tests chemical systems including:
 import tempfile
 from pathlib import Path
 
-import numpy as np
 import pytest
 from ase import Atoms
 
@@ -49,7 +48,7 @@ class TestAIMNET2Backend:
         assert result["converged"] or result["steps_taken"] > 0
         final_distance = result["optimized_atoms"].get_distance(0, 1)
         # Should be closer to equilibrium
-        assert 0.6 < final_distance < 1.2
+        assert 0.6 < final_distance < 0.9
 
     def test_water_optimization(self, aimnet2_optimizer):
         """Test water molecule optimization."""
@@ -163,6 +162,9 @@ class TestAIMNET2Backend:
 
             # Check trajectory file was created
             assert Path(traj_file).exists()
+            # Check that optimization returned valid results
+            assert "converged" in result
+            assert "optimized_atoms" in result
 
         finally:
             # Clean up

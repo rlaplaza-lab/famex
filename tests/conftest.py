@@ -137,4 +137,4 @@ def available_calculator():
     import qme
 
     # Always return mock calculator as fallback
-    return qme.get_mock_uma_calculator()
+    return qme.MockCalculator(backend="uma")

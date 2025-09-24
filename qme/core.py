@@ -95,13 +95,13 @@ class QMEOptimizer:
             if backend == "mock" or use_mock:
                 # Use mock backend explicitly or via use_mock flag
                 # (for backwards compatibility)
-                from .mock_calculator import UnifiedMockCalculator
+                from .mock_calculator import MockCalculator
 
                 # Determine which mock backend to simulate
                 mock_backend = "generic"
                 if backend in ["so3lr", "uma", "aimnet2"]:
                     mock_backend = backend
-                self.calculator = UnifiedMockCalculator(backend=mock_backend)
+                self.calculator = MockCalculator(backend=mock_backend)
             else:
                 self.calculator = self._create_calculator(
                     backend, model_name, model_path, device
@@ -120,22 +120,25 @@ class QMEOptimizer:
         device: Optional[str],
     ):
         """Create calculator based on backend."""
-        # Use configuration default model if not provided
         if model_name is None:
             model_name = get_default_model(backend)
 
-        # Get device preference if not provided
         if device is None:
             device = config.get_device_preference()
 
-        if backend == "so3lr":
-            return get_so3lr_calculator(
+        # Map backend names to their calculator creation functions
+        calculator_factory = {
+            "so3lr": lambda: get_so3lr_calculator(
                 model_path=model_path, model_name=model_name, device=device
-            )
-        elif backend == "uma":
-            return get_uma_calculator(model_name=model_name, device=device)
-        elif backend == "aimnet2":
-            return get_aimnet2_calculator(model_name=model_name, device=device)
+            ),
+            "uma": lambda: get_uma_calculator(model_name=model_name, device=device),
+            "aimnet2": lambda: get_aimnet2_calculator(
+                model_name=model_name, device=device
+            ),
+        }
+
+        if backend in calculator_factory:
+            return calculator_factory[backend]()
         else:
             raise ValueError(f"Unknown backend: {backend}")
 
@@ -204,6 +207,68 @@ class QMEOptimizer:
                     f"Failed to load structure from {structure_file}: {e}"
                 )
 
+    def _run_single_optimization(
+        self,
+        atoms: Atoms,
+        optimizer: str,
+        fmax: float,
+        steps: int,
+        logfile: Optional[str] = None,
+        trajectory: Optional[str] = None,
+        **optimizer_kwargs,
+    ) -> tuple[bool, int, str]:
+        """Run the specified optimizer for geometry optimization.
+
+        This method initializes and runs a single ASE optimizer instance
+        with the provided settings. It does not implement any fallback
+        mechanisms or pre-optimization strategies.
+
+        Args:
+            atoms: Structure to optimize
+            optimizer: Name of the optimizer to use (e.g., 'BFGS', 'LBFGS', 'FIRE')
+            fmax: Force convergence criterion
+            steps: Maximum number of optimization steps
+            logfile: Optional log file for optimization output
+            trajectory: Optional trajectory file to save optimization steps
+            **optimizer_kwargs: Additional arguments passed to the optimizer constructor
+
+        Returns:
+            Tuple of (converged, steps_taken, optimizer_used)
+        """
+        OptimizerClass = self.AVAILABLE_OPTIMIZERS[optimizer]
+        opt = OptimizerClass(
+            atoms, logfile=logfile, trajectory=trajectory, **optimizer_kwargs
+        )
+
+        try:
+            converged = opt.run(fmax=fmax, steps=steps)
+            steps_taken = opt.get_number_of_steps()
+        except np.linalg.LinAlgError as e:
+            print(
+                f"Warning: {optimizer} failed with a linear algebra error "
+                f"(e.g., Hessian not converging): {e}"
+            )
+            print(
+                "This can sometimes happen with difficult geometries or "
+                "specific optimizers."
+            )
+            raise RuntimeError(
+                f"Optimization with {optimizer} failed due to a linear algebra "
+                f"error: {e}"
+            ) from e
+        except Exception as e:
+            print(f"Warning: {optimizer} failed with an unexpected error: {e}")
+            raise RuntimeError(
+                f"Optimization with {optimizer} failed unexpectedly: {e}"
+            ) from e
+
+        print(
+            f"{optimizer} optimization completed: converged={converged}, "
+            f"steps={steps_taken}"
+        )
+
+        return converged, steps_taken, optimizer
+
     def optimize_minimum(
         self,
         atoms: Optional[Atoms] = None,
@@ -212,6 +277,8 @@ class QMEOptimizer:
         steps: int = 200,
         logfile: Optional[str] = None,
         trajectory: Optional[str] = None,
+        initial_fmax_factor: float = 10.0,  # Factor to loosen fmax in initial stage
+        initial_steps_fraction: float = 0.5,  # Fraction of total steps for initial
         constraints: Optional[List] = None,
         **optimizer_kwargs,
     ) -> Dict[str, Any]:
@@ -224,6 +291,10 @@ class QMEOptimizer:
             steps: Maximum optimization steps.
             logfile: Optional log file for optimization output.
             trajectory: Optional trajectory file to save optimization steps.
+            initial_fmax_factor: Factor by which to multiply `fmax` for an
+                initial, looser optimization stage. Set to 1.0 or less to disable.
+            initial_steps_fraction: Fraction of total `steps` to allocate for the
+                initial, looser optimization stage.
             constraints: Optional list of ASE constraints.
             **optimizer_kwargs: Additional arguments passed to optimizer.
 
@@ -243,7 +314,13 @@ class QMEOptimizer:
         if atoms is None:
             if self.atoms is None:
                 raise ValueError("No structure loaded. Use load_structure() first.")
-            atoms = self.atoms.copy()
+            # Handle case where self.atoms might be a list (from multi-structure files)
+            if isinstance(self.atoms, list):
+                if len(self.atoms) == 0:
+                    raise ValueError("No structures available in loaded file.")
+                atoms = self.atoms[0].copy()  # Use first structure
+            else:
+                atoms = self.atoms.copy()
         else:
             atoms = atoms.copy()
 
@@ -253,25 +330,86 @@ class QMEOptimizer:
         if constraints:
             atoms.set_constraint(constraints)
 
-        # Get optimizer class
+        # Validate optimizer
         if optimizer not in self.AVAILABLE_OPTIMIZERS:
             available = list(self.AVAILABLE_OPTIMIZERS.keys())
             raise ValueError(f"Unknown optimizer: {optimizer}. Available: {available}")
-
-        OptimizerClass = self.AVAILABLE_OPTIMIZERS[optimizer]
-
-        # Initialize optimizer
-        opt = OptimizerClass(
-            atoms, logfile=logfile, trajectory=trajectory, **optimizer_kwargs
-        )
 
         # Store initial state
         initial_energy = atoms.get_potential_energy()
         initial_forces = atoms.get_forces()
         initial_max_force = np.max(np.abs(initial_forces))
 
-        # Run optimization
-        converged = opt.run(fmax=fmax, steps=steps)
+        total_steps_taken = 0
+        converged = False
+        optimizer_used = optimizer  # Default to the requested one
+
+        # Adaptive fmax strategy: Looser initial stage, then tighter final stage
+        if initial_fmax_factor > 1.0 and initial_steps_fraction > 0:
+            # Stage 1: Looser fmax for initial steps
+            stage1_fmax = fmax * initial_fmax_factor
+            stage1_steps = int(steps * initial_steps_fraction)
+
+            if stage1_steps > 0:
+                print(
+                    f"Stage 1: Optimizing with {optimizer} "
+                    f"(fmax={stage1_fmax:.4f} eV/Å, steps={stage1_steps})..."
+                )
+                converged_stage1, steps_taken_stage1, _ = self._run_single_optimization(
+                    atoms,
+                    optimizer,
+                    stage1_fmax,
+                    stage1_steps,
+                    logfile,
+                    trajectory,
+                    **optimizer_kwargs,
+                )
+                total_steps_taken += steps_taken_stage1
+
+                if converged_stage1:
+                    print(
+                        "Stage 1 converged (forces below initial_fmax). "
+                        "Proceeding to final convergence check."
+                    )
+                else:
+                    print(
+                        f"Stage 1 did not converge (max force: "
+                        f"{np.max(np.abs(atoms.get_forces())):.4f} eV/Å)."
+                    )
+
+            # Stage 2: Tighter fmax for remaining steps
+            remaining_steps = steps - total_steps_taken
+            if remaining_steps > 0:
+                print(
+                    f"Stage 2: Optimizing with {optimizer} "
+                    f"(fmax={fmax:.4f} eV/Å, steps={remaining_steps})..."
+                )
+                converged_stage2, steps_taken_stage2, _ = self._run_single_optimization(
+                    atoms,
+                    optimizer,
+                    fmax,
+                    remaining_steps,
+                    logfile,
+                    trajectory,
+                    **optimizer_kwargs,
+                )
+                total_steps_taken += steps_taken_stage2
+                converged = converged_stage2
+            else:
+                print(
+                    "No remaining steps for Stage 2. Checking final convergence "
+                    "based on Stage 1."
+                )
+                # If stage 1 used all steps, check if it met the final fmax
+                converged = np.max(np.abs(atoms.get_forces())) < fmax
+        else:
+            # Single stage optimization
+            print(
+                f"Optimizing with {optimizer} (fmax={fmax:.4f} eV/Å, steps={steps})..."
+            )
+            converged, total_steps_taken, _ = self._run_single_optimization(
+                atoms, optimizer, fmax, steps, logfile, trajectory, **optimizer_kwargs
+            )
 
         # Store final state
         final_energy = atoms.get_potential_energy()
@@ -280,14 +418,14 @@ class QMEOptimizer:
 
         results = {
             "converged": converged,
-            "steps_taken": opt.get_number_of_steps(),
+            "steps_taken": total_steps_taken,
             "initial_energy": initial_energy,
             "final_energy": final_energy,
             "energy_change": final_energy - initial_energy,
             "initial_max_force": initial_max_force,
             "final_max_force": final_max_force,
             "optimized_atoms": atoms,
-            "optimizer_used": optimizer,
+            "optimizer_used": optimizer_used,
         }
 
         self.results["minimum_optimization"] = results
@@ -338,7 +476,13 @@ class QMEOptimizer:
         if atoms is None:
             if self.atoms is None:
                 raise ValueError("No structure loaded. Use load_structure() first.")
-            atoms = self.atoms.copy()
+            # Handle case where self.atoms might be a list (from multi-structure files)
+            if isinstance(self.atoms, list):
+                if len(self.atoms) == 0:
+                    raise ValueError("No structures available in loaded file.")
+                atoms = self.atoms[0].copy()  # Use first structure
+            else:
+                atoms = self.atoms.copy()
         else:
             atoms = atoms.copy()
 
@@ -399,7 +543,10 @@ class QMEOptimizer:
         output_file = Path(output_file)
 
         try:
-            write(output_file, atoms, format=format)
+            if format is not None:
+                write(output_file, atoms, format=format)
+            else:
+                write(output_file, atoms)
         except Exception as e:
             raise RuntimeError(f"Failed to save structure to {output_file}: {e}")
 
@@ -431,6 +578,11 @@ class QMEOptimizer:
             )
 
         return "\n".join(summary_lines)
+
+    def clear_results(self):
+        """Clear all stored optimization results.
+        Useful when reusing the QMEOptimizer instance for multiple tasks."""
+        self.results = {}
 
 
 def minimize_structure(

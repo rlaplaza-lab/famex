@@ -187,9 +187,9 @@ class TestReactionPathways:
         calculators = []
 
         # Mock calculators are always available
-        calculators.append(("mock_uma", qme.get_mock_uma_calculator()))
-        calculators.append(("mock_so3lr", qme.get_mock_so3lr_calculator()))
-        calculators.append(("mock_aimnet2", qme.get_mock_aimnet2_calculator()))
+        calculators.append(("mock_uma", qme.MockCalculator(backend="uma")))
+        calculators.append(("mock_so3lr", qme.MockCalculator(backend="so3lr")))
+        calculators.append(("mock_aimnet2", qme.MockCalculator(backend="aimnet2")))
 
         # Real calculators if available
         if deps.has("fairchem"):

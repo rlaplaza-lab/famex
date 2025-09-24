@@ -146,6 +146,9 @@ class TestMockBackend:
 
             # Check trajectory file was created
             assert Path(traj_file).exists()
+            # Check that optimization returned valid results
+            assert "converged" in result
+            assert "optimized_atoms" in result
 
         finally:
             # Clean up
@@ -172,7 +175,7 @@ class TestMockReactionPaths:
     @pytest.fixture
     def mock_calculator(self):
         """Create Mock calculator."""
-        return qme.get_mock_uma_calculator()  # Mock calculators are interchangeable
+        return qme.MockCalculator(backend="uma")  # Mock calculators are interchangeable
 
     def test_h2_dissociation_path(self, mock_calculator):
         """Test H2 dissociation reaction pathway."""
@@ -372,9 +375,9 @@ class TestMockAdvanced:
     def test_mock_calculator_types(self):
         """Test different mock calculator types."""
         # Test that different mock calculators can be created
-        mock_uma = qme.get_mock_uma_calculator()
-        mock_so3lr = qme.get_mock_so3lr_calculator()
-        mock_aimnet2 = qme.get_mock_aimnet2_calculator()
+        mock_uma = qme.MockCalculator(backend="uma")
+        mock_so3lr = qme.MockCalculator(backend="so3lr")
+        mock_aimnet2 = qme.MockCalculator(backend="aimnet2")
 
         assert mock_uma is not None
         assert mock_so3lr is not None

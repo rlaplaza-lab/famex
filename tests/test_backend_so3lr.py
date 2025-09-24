@@ -12,7 +12,6 @@ Tests chemical systems including:
 import tempfile
 from pathlib import Path
 
-import numpy as np
 import pytest
 from ase import Atoms
 
@@ -148,6 +147,9 @@ class TestSO3LRBackend:
 
             # Check trajectory file was created
             assert Path(traj_file).exists()
+            # Check that optimization returned valid results
+            assert "converged" in result
+            assert "optimized_atoms" in result
 
         finally:
             # Clean up

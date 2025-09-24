@@ -72,10 +72,12 @@ class TestCICDIntegration:
         backends_to_try = ["uma", "so3lr", "aimnet2", "mock"]
 
         working_backend = None
+        working_optimizer = None
         for backend in backends_to_try:
             try:
                 optimizer = qme.QMEOptimizer(backend=backend)
                 working_backend = backend
+                working_optimizer = optimizer
                 break
             except ImportError:
                 continue
@@ -83,6 +85,7 @@ class TestCICDIntegration:
         # At minimum, mock should work
         assert working_backend is not None
         assert working_backend in backends_to_try
+        assert working_optimizer is not None
 
     def test_dependency_manager_consistency(self):
         """Test that dependency manager provides consistent information."""
@@ -106,9 +109,9 @@ class TestCICDIntegration:
         """Test that calculator creation is robust in CI/CD."""
         # Mock calculators should always work
         mock_calculators = [
-            qme.get_mock_uma_calculator(),
-            qme.get_mock_so3lr_calculator(),
-            qme.get_mock_aimnet2_calculator(),
+            qme.MockCalculator(backend="uma"),
+            qme.MockCalculator(backend="so3lr"),
+            qme.MockCalculator(backend="aimnet2"),
         ]
 
         for calc in mock_calculators:
@@ -131,7 +134,7 @@ class TestCICDIntegration:
         reactant = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         product = Atoms("H2", positions=[[0, 0, 0], [2.5, 0, 0]])
 
-        mock_calc = qme.get_mock_uma_calculator()
+        mock_calc = qme.MockCalculator(backend="uma")
         reaction = qme.Reaction(reactant, product, calculator=mock_calc)
 
         # Should be able to generate pathway

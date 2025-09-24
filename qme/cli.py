@@ -24,6 +24,73 @@ def main():
     pass
 
 
+def add_common_options(options):
+    """A decorator factory to add a list of common click options."""
+
+    def decorator(f):
+        for option in reversed(options):
+            f = option(f)
+        return f
+
+    return decorator
+
+
+# Define common option groups
+core_options = [
+    click.option(
+        "--backend",
+        "-b",
+        default="so3lr",
+        type=click.Choice(["uma", "so3lr", "aimnet2"]),
+        help="Backend to use (uma, so3lr, or aimnet2)",
+    ),
+    click.option("--model", "-m", default=None, type=str, help="Model name to use"),
+    click.option(
+        "--model-path",
+        type=click.Path(exists=True),
+        help="Path to model file (SO3LR only)",
+    ),
+    click.option(
+        "--device",
+        "-d",
+        type=click.Choice(["cpu", "cuda"]),
+        default=None,
+        help="Device for computations (auto-detected if not specified)",
+    ),
+    click.option("--verbose", "-v", is_flag=True, help="Verbose output"),
+]
+
+optimization_options = [
+    click.option(
+        "--fmax",
+        "-f",
+        default=0.01,
+        type=float,
+        help="Force convergence criterion (eV/Å)",
+    ),
+    click.option(
+        "--steps",
+        "-s",
+        default=200,
+        type=int,
+        help="Maximum number of optimization steps",
+    ),
+    click.option(
+        "--logfile", type=click.Path(), help="Log file for optimization output"
+    ),
+    click.option(
+        "--trajectory",
+        type=click.Path(),
+        help="Trajectory file to save optimization steps",
+    ),
+    click.option(
+        "--constraint-atoms",
+        type=str,
+        help="Comma-separated list of atom indices to fix (0-based)",
+    ),
+]
+
+
 @main.command()
 @click.argument("input_file", type=click.Path(exists=True))
 @click.option(
@@ -36,41 +103,8 @@ def main():
     type=click.Choice(["BFGS", "LBFGS", "FIRE"]),
     help="Optimizer to use for minimization",
 )
-@click.option(
-    "--fmax", "-f", default=0.01, type=float, help="Force convergence criterion (eV/Å)"
-)
-@click.option(
-    "--steps", "-s", default=200, type=int, help="Maximum number of optimization steps"
-)
-@click.option("--model", "-m", default="uma-4m", type=str, help="Model name to use")
-@click.option(
-    "--backend",
-    "-b",
-    default="so3lr",
-    type=click.Choice(["uma", "so3lr", "aimnet2"]),
-    help="Backend to use (uma, so3lr, or aimnet2)",
-)
-@click.option(
-    "--model-path",
-    type=click.Path(exists=True),
-    help="Path to model file (SO3LR only)",
-)
-@click.option(
-    "--device",
-    "-d",
-    type=click.Choice(["cpu", "cuda"]),
-    help="Device for computations (auto-detected if not specified)",
-)
-@click.option("--logfile", type=click.Path(), help="Log file for optimization output")
-@click.option(
-    "--trajectory", type=click.Path(), help="Trajectory file to save optimization steps"
-)
-@click.option(
-    "--constraint-atoms",
-    type=str,
-    help="Comma-separated list of atom indices to fix (0-based)",
-)
-@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@add_common_options(core_options)
+@add_common_options(optimization_options)
 def minimize(
     input_file,
     output,
@@ -186,41 +220,8 @@ def minimize(
     type=click.Path(),
     help="Output file for transition state structure",
 )
-@click.option(
-    "--fmax", "-f", default=0.01, type=float, help="Force convergence criterion (eV/Å)"
-)
-@click.option(
-    "--steps", "-s", default=200, type=int, help="Maximum number of optimization steps"
-)
-@click.option("--model", "-m", default="uma-4m", type=str, help="Model name to use")
-@click.option(
-    "--backend",
-    "-b",
-    default="so3lr",
-    type=click.Choice(["uma", "so3lr", "aimnet2"]),
-    help="Backend to use (uma, so3lr, or aimnet2)",
-)
-@click.option(
-    "--model-path",
-    type=click.Path(exists=True),
-    help="Path to model file (SO3LR only)",
-)
-@click.option(
-    "--device",
-    "-d",
-    type=click.Choice(["cpu", "cuda"]),
-    help="Device for computations (auto-detected if not specified)",
-)
-@click.option("--logfile", type=click.Path(), help="Log file for optimization output")
-@click.option(
-    "--trajectory", type=click.Path(), help="Trajectory file to save optimization steps"
-)
-@click.option(
-    "--constraint-atoms",
-    type=str,
-    help="Comma-separated list of atom indices to fix (0-based)",
-)
-@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@add_common_options(optimization_options)
+@add_common_options(core_options)
 def transition_state(
     input_file,
     output,
@@ -313,27 +314,8 @@ def transition_state(
 
 
 @main.command()
-@click.option(
-    "--backend",
-    "-b",
-    default="so3lr",
-    type=click.Choice(["uma", "so3lr", "aimnet2"]),
-    help="Neural network backend to test (default: so3lr)",
-)
-@click.option(
-    "--model",
-    "-m",
-    type=str,
-    help="Model name to test (defaults: so3lr-small for SO3LR, uma-4m for UMA, "
-    "aimnet2 for AIMNET2)",
-)
-@click.option(
-    "--model-path", type=click.Path(exists=True), help="Path to model file (SO3LR only)"
-)
-@click.option(
-    "--device", "-d", type=click.Choice(["cpu", "cuda"]), help="Device for computations"
-)
-def test_setup(backend, model, model_path, device):
+@add_common_options(core_options)
+def test_setup(backend, model, model_path, device, verbose):
     """
     Test QME setup and neural network model loading.
     """
@@ -381,25 +363,7 @@ def test_setup(backend, model, model_path, device):
     type=click.Choice(["linear", "geodesic"]),
     help="Interpolation method",
 )
-@click.option(
-    "--backend",
-    "-b",
-    default="so3lr",
-    type=click.Choice(["uma", "so3lr", "aimnet2"]),
-    help="Backend to use for calculations",
-)
-@click.option("--model", type=str, help="Model name to use")
-@click.option(
-    "--model-path",
-    type=click.Path(exists=True),
-    help="Path to model file (SO3LR only)",
-)
-@click.option(
-    "--device",
-    "-d",
-    type=click.Choice(["cpu", "cuda"]),
-    help="Device for computations",
-)
+@add_common_options(core_options)
 @click.option(
     "--optimize-path",
     is_flag=True,
@@ -410,7 +374,6 @@ def test_setup(backend, model, model_path, device):
     is_flag=True,
     help="Calculate energies along the path",
 )
-@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 def interpolate(
     reactant_file,
     product_file,
@@ -442,6 +405,10 @@ def interpolate(
         click.echo(f"Method: {method}")
         click.echo(f"Points: {npoints}")
         click.echo(f"Backend: {backend}")
+        if model:
+            click.echo(f"Model: {model}")
+        if model_path:
+            click.echo(f"Model path: {model_path}")
         if optimize_path:
             click.echo("Path optimization: enabled")
 
@@ -450,13 +417,23 @@ def interpolate(
         reactant = read_geometry(reactant_file)
         product = read_geometry(product_file)
 
+        if isinstance(reactant, list) or isinstance(product, list):
+            click.echo(
+                "Error: Interpolation requires single structures, "
+                "but multi-structure files were provided.",
+                err=True,
+            )
+            sys.exit(1)
+
         if verbose:
             click.echo(f"Loaded reactant with {len(reactant)} atoms")
             click.echo(f"Loaded product with {len(product)} atoms")
 
         # Create reaction object
         reaction = Reaction(
-            reactant, product, name=f"{reactant_file}_to_{product_file}"
+            reactant,
+            product,
+            name=f"{Path(reactant_file).stem}_to_{Path(product_file).stem}",
         )
 
         # Set up calculator if needed
@@ -473,18 +450,15 @@ def interpolate(
                     device=device,
                 )
                 calculator = qme.calculator
-
-                # Set calculator on reaction
-                reaction.calculator = calculator
+                reaction.set_calculator(calculator)
 
             except Exception as e:
-                click.echo(f"Warning: Calculator initialization failed: {e}")
-                click.echo("Falling back to mock calculator for demonstration")
+                click.echo(f"Warning: Calculator initialization failed: {e}", err=True)
+                click.echo("Falling back to mock calculator for demonstration.")
+                from .mock_calculator import MockCalculator
 
-                from .mlp_calculator import MLPCalculator
-
-                calculator = MLPCalculator(model_type="mock").calculator
-                reaction.calculator = calculator
+                calculator = MockCalculator()
+                reaction.set_calculator(calculator)
 
         # Generate interpolated path
         if verbose:
@@ -498,64 +472,32 @@ def interpolate(
         )
 
         # Calculate energies if requested
-        if calculate_energies and calculator is not None:
-            if verbose:
-                click.echo("Calculating energies along path...")
-
-            for i, geom in enumerate(path_geometries):
-                if geom.atoms.calc is None:
-                    geom.atoms.calc = calculator
-                try:
-                    energy = geom.atoms.get_potential_energy()
-                    geom.energy = energy
-                except Exception:
-                    pass
-
-        # Output results
-        click.echo("✓ Pathway generation completed!")
-        click.echo(f"Generated {len(path_geometries)} intermediate structures")
-
-        # Show energies if available
         if calculate_energies:
-            click.echo("\nEnergies along reaction path:")
-            for i, geom in enumerate(path_geometries):
-                if geom.energy is not None:
-                    click.echo(f"  Point {i:2d}: {geom.energy:10.6f} eV")
-                else:
-                    click.echo(f"  Point {i:2d}: {'N/A':>10s}")
+            if verbose:
+                click.echo("Calculating energies along the path...")
+            energies = reaction.calculate_path_energies(path_geometries)
+            for i, (geom, energy) in enumerate(zip(path_geometries, energies)):
+                click.echo(f"Point {i}: Energy = {energy:.6f} eV")
 
-        # Save trajectory
+        # Save interpolated path
         if output:
-            trajectory_xyz = reaction.to_xyz_trajectory(path_geometries)
-            with open(output, "w") as f:
-                f.write(trajectory_xyz)
-            click.echo(f"Trajectory saved to: {output}")
+            output_path = Path(output)
+            # Use ASE's write function for multi-frame XYZ
+            from ase.io import write as write_traj
+
+            write_traj(output_path, path_geometries, format="xyz")
+            click.echo(f"Interpolated path saved to: {output_path}")
         else:
             # Generate default output name
-            default_output = f"pathway_{method}_{npoints}pts.xyz"
-            trajectory_xyz = reaction.to_xyz_trajectory(path_geometries)
-            with open(default_output, "w") as f:
-                f.write(trajectory_xyz)
-            click.echo(f"Trajectory saved to: {default_output}")
+            reactant_path = Path(reactant_file)
+            default_output = reactant_path.with_name(f"{reactant_path.stem}_path.xyz")
+            from ase.io import write as write_traj
 
-        # Additional analysis
-        if verbose:
-            rmsd_from_reactant, rmsd_from_product = reaction.get_rmsd_profile(
-                path_geometries
-            )
-            click.echo("\nRMSD analysis:")
-            click.echo("Point  From_Reactant  From_Product")
-            for i, (r_rmsd, p_rmsd) in enumerate(
-                zip(rmsd_from_reactant, rmsd_from_product)
-            ):
-                click.echo(f"{i:3d}    {r_rmsd:8.3f}       {p_rmsd:8.3f}")
+            write_traj(default_output, path_geometries, format="xyz")
+            click.echo(f"Interpolated path saved to: {default_output}")
 
     except Exception as e:
         click.echo(f"Error during interpolation: {e}", err=True)
-        if verbose:
-            import traceback
-
-            click.echo(traceback.format_exc(), err=True)
         sys.exit(1)
 
 
