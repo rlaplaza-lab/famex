@@ -101,7 +101,8 @@ class BaseMockCalculator(Calculator):
 
     def _calculate_harmonic_potential(self, atoms):
         """
-        Calculate energy and forces using harmonic oscillator model between bonded atoms only.
+        Calculate energy and forces using harmonic oscillator model between
+        bonded atoms only.
 
         Parameters
         ----------
@@ -114,7 +115,6 @@ class BaseMockCalculator(Calculator):
             (energy, forces) where energy is float and forces is numpy array
         """
         positions = atoms.positions
-        n_atoms = len(atoms)
         energy = 0.0
         forces = np.zeros_like(positions)
 
@@ -201,7 +201,10 @@ class UnifiedMockCalculator(BaseMockCalculator):
         super().__init__(**config)
 
     def __repr__(self):
-        return f"{self.BACKEND_CONFIGS[self.backend]['name']}(charge={self.charge}, mult={self.mult})"
+        return (
+            f"{self.BACKEND_CONFIGS[self.backend]['name']}("
+            f"charge={self.charge}, mult={self.mult})"
+        )
 
 
 # Backward compatibility classes

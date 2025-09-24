@@ -6,7 +6,7 @@ import patterns across the package.
 """
 
 import warnings
-from typing import Any, Optional
+from typing import Any
 
 
 class DependencyManager:
