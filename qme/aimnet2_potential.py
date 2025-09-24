@@ -100,6 +100,10 @@ class AIMNet2Potential(Calculator):
         """Calculate properties using AIMNET2 potential."""
         Calculator.calculate(self, atoms, properties, system_changes)
 
+        # Clear any cached results to ensure fresh calculation
+        if hasattr(self.aimnet2_calc, "results"):
+            self.aimnet2_calc.results.clear()
+
         # Set atoms to the AIMNET2 calculator
         self.aimnet2_calc.set_atoms(atoms)
 
@@ -178,10 +182,3 @@ def get_aimnet2_calculator(
     return AIMNet2Potential(
         model_name=model_name, device=device, charge=charge, mult=mult, **kwargs
     )
-
-
-# Mock AIMNET2 calculator for testing without dependencies
-def get_mock_aimnet2_calculator(**kwargs):
-    """Get mock AIMNET2 calculator for testing without dependencies."""
-    # Use the AIMNet2Potential class which will automatically fall back to mock
-    return AIMNet2Potential(**kwargs)

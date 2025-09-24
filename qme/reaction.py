@@ -354,6 +354,29 @@ class Reaction:
 
         return "\n".join(xyz_lines)
 
+    def set_calculator(self, calculator):
+        """Set the calculator for reactant, product, and the reaction itself."""
+        self.calculator = calculator
+        if self.reactant:
+            self.reactant.calc = calculator
+        if self.product:
+            self.product.calc = calculator
+
+    def calculate_path_energies(self, path: List[Geometry]) -> List[float]:
+        """Calculate and return energies for a given reaction path."""
+        if not path:
+            return []
+
+        energies = []
+        for geom in path:
+            if geom.calc is None:
+                geom.calc = self.calculator
+            try:
+                energies.append(geom.get_potential_energy())
+            except Exception:
+                energies.append(float("nan"))
+        return energies
+
     def __str__(self) -> str:
         """String representation."""
         return f"Reaction({len(self.reactant)} atoms)"

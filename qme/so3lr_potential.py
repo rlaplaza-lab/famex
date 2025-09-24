@@ -183,27 +183,3 @@ def get_so3lr_calculator(
         Configured SO3LR calculator
     """
     return SO3LRPotential(model_path=model_path, model_name=model_name, **kwargs)
-
-
-# Mock SO3LR calculator for testing without dependencies
-def get_mock_so3lr_calculator(**kwargs):
-    """
-    Get mock SO3LR calculator for testing.
-
-    This function now returns a standardized MockSO3LRCalculator instead of
-    an SO3LRPotential with mock enabled. This provides better separation
-    between the real potential class and the mock implementation.
-
-    Parameters
-    ----------
-    **kwargs
-        Keyword arguments passed to MockSO3LRCalculator
-
-    Returns
-    -------
-    MockSO3LRCalculator
-        Mock calculator instance that simulates SO3LR behavior
-    """
-    from .mock_calculator import MockSO3LRCalculator
-
-    return MockSO3LRCalculator(**kwargs)

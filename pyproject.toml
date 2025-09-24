@@ -56,7 +56,7 @@ qme = ["*.yml", "*.yaml", "*.json"]
 
 [tool.black]
 line-length = 88
-target-version = ['py38']
+target-version = ['py312']
 
 [tool.isort]
 profile = "black"

@@ -1,11 +1,11 @@
 """
 Mock calculators for testing QME functionality without ML dependencies.
 
-This module provides standardized mock calculators that simulate the behavior
+This module provides a standardized mock calculator that simulates the behavior
 of various quantum mechanical calculators (UMA, AIMNet2, SO3LR) for testing
 purposes without requiring the actual dependencies.
 
-All mock calculators use simple harmonic oscillator potentials between
+The mock calculator uses simple harmonic oscillator potentials between
 covalently bonded atoms to ensure numerical stability.
 """
 
@@ -14,39 +14,60 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.data import atomic_numbers, covalent_radii
 
 
-class BaseMockCalculator(Calculator):
+class MockCalculator(Calculator):
     """
-    Base mock calculator with common functionality.
+    Mock calculator for testing purposes.
 
     This class provides a standardized interface and common methods
-    for all mock calculators used in testing. All calculators use
-    harmonic oscillator potentials between covalently bonded atoms only.
+    for all mock calculators used in testing. It uses harmonic oscillator
+    potentials between covalently bonded atoms only, with equilibrium bond
+    lengths determined from covalent radii.
     """
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, bond_length=1.0, force_constant=1.0, charge=0, mult=1, **kwargs):
-        """Initialize base mock calculator.
+    # Pre-defined configurations for different backends
+    BACKEND_CONFIGS = {
+        "uma": {"force_constant": 1.0, "name": "MockUMA"},
+        "aimnet2": {"force_constant": 1.0, "name": "MockAIMNet2"},
+        "so3lr": {"force_constant": 1.0, "name": "MockSO3LR"},
+        "generic": {"force_constant": 1.0, "name": "MockGeneric"},
+    }
+
+    def __init__(self, backend="generic", charge=0, mult=1, **kwargs):
+        """
+        Initialize mock calculator.
 
         Parameters
         ----------
-        bond_length : float, optional
-            Equilibrium bond length in Å (default: 1.0)
-        force_constant : float, optional
-            Force constant in eV/Å² (default: 1.0)
-        charge : int, optional
-            Molecular charge (default: 0)
-        mult : int, optional
-            Spin multiplicity (default: 1)
+        backend : str, default "generic"
+            Backend to simulate ("uma", "aimnet2", "so3lr", "generic")
+        charge : int, default 0
+            Molecular charge
+        mult : int, default 1
+            Spin multiplicity
         **kwargs
-            Additional keyword arguments passed to ASE Calculator
+            Override default parameters
         """
         Calculator.__init__(self, **kwargs)
 
-        self.bond_length = bond_length
-        self.force_constant = force_constant
-        self.charge = charge
-        self.mult = mult
+        # Get base configuration for backend
+        if backend not in self.BACKEND_CONFIGS:
+            backend = "generic"
+
+        config = self.BACKEND_CONFIGS[backend].copy()
+        config.update({"charge": charge, "mult": mult})
+        config.update(kwargs)  # Allow overriding defaults
+
+        self.backend = backend
+        self.force_constant = config["force_constant"]
+        self.charge = config["charge"]
+        self.mult = config["mult"]
+
+        # Add SO3LR-like attributes for compatibility
+        if self.backend == "so3lr":
+            self.device = "cpu"  # Mock device
+            self.model = self  # Self-reference for compatibility
 
     def set_charge(self, charge):
         """Set molecular charge."""
@@ -91,7 +112,7 @@ class BaseMockCalculator(Calculator):
                 # Sum of covalent radii with tolerance
                 r_cov_i = covalent_radii[atom_numbers[i]]
                 r_cov_j = covalent_radii[atom_numbers[j]]
-                bond_threshold = (r_cov_i + r_cov_j) * 1.3  # 30% tolerance
+                bond_threshold = (r_cov_i + r_cov_j) * 1.2  # 20% tolerance
 
                 # Consider atoms bonded if distance is within threshold
                 if r < bond_threshold:
@@ -115,6 +136,9 @@ class BaseMockCalculator(Calculator):
             (energy, forces) where energy is float and forces is numpy array
         """
         positions = atoms.positions
+        symbols = atoms.get_chemical_symbols()
+        atom_numbers = [atomic_numbers[symbol] for symbol in symbols]
+
         energy = 0.0
         forces = np.zeros_like(positions)
 
@@ -127,13 +151,16 @@ class BaseMockCalculator(Calculator):
             r_vec = positions[j] - positions[i]
             r = np.linalg.norm(r_vec)
 
+            # Equilibrium bond length from sum of covalent radii
+            r0 = covalent_radii[atom_numbers[i]] + covalent_radii[atom_numbers[j]]
+
             # Harmonic potential: E = 0.5 * k * (r - r0)²
-            energy += 0.5 * self.force_constant * (r - self.bond_length) ** 2
+            energy += 0.5 * self.force_constant * (r - r0) ** 2
 
             # Force: F = -k * (r - r0) * r_unit
             if r > 1e-6:  # Avoid division by zero
                 r_unit = r_vec / r
-                force_magnitude = -self.force_constant * (r - self.bond_length)
+                force_magnitude = -self.force_constant * (r - r0)
                 force_vec = force_magnitude * r_unit
 
                 forces[i] -= force_vec
@@ -159,127 +186,8 @@ class BaseMockCalculator(Calculator):
         if "forces" in properties:
             self.results["forces"] = forces
 
-
-class UnifiedMockCalculator(BaseMockCalculator):
-    """
-    Unified mock calculator that can simulate different backend behaviors.
-
-    This replaces the individual mock calculators with a single configurable one.
-    """
-
-    # Pre-defined configurations for different backends
-    BACKEND_CONFIGS = {
-        "uma": {"bond_length": 1.0, "force_constant": 1.0, "name": "MockUMA"},
-        "aimnet2": {"bond_length": 1.2, "force_constant": 0.8, "name": "MockAIMNet2"},
-        "so3lr": {"bond_length": 1.1, "force_constant": 0.9, "name": "MockSO3LR"},
-        "generic": {"bond_length": 1.0, "force_constant": 1.0, "name": "MockGeneric"},
-    }
-
-    def __init__(self, backend="generic", charge=0, mult=1, **kwargs):
-        """Initialize unified mock calculator.
-
-        Parameters
-        ----------
-        backend : str, default "generic"
-            Backend to simulate ("uma", "aimnet2", "so3lr", "generic")
-        charge : int, default 0
-            Molecular charge
-        mult : int, default 1
-            Spin multiplicity
-        **kwargs
-            Override default parameters
-        """
-        # Get base configuration for backend
-        if backend not in self.BACKEND_CONFIGS:
-            backend = "generic"
-
-        config = self.BACKEND_CONFIGS[backend].copy()
-        config.update({"charge": charge, "mult": mult})
-        config.update(kwargs)  # Allow overriding defaults
-
-        self.backend = backend
-        super().__init__(**config)
-
     def __repr__(self):
         return (
-            f"{self.BACKEND_CONFIGS[self.backend]['name']}("
+            f'{self.BACKEND_CONFIGS[self.backend]["name"]}('
             f"charge={self.charge}, mult={self.mult})"
         )
-
-
-# Backward compatibility classes
-class MockUMACalculator(UnifiedMockCalculator):
-    """Mock calculator that simulates UMA behavior for testing."""
-
-    def __init__(self, **kwargs):
-        super().__init__(backend="uma", **kwargs)
-
-
-class MockAIMNet2Calculator(UnifiedMockCalculator):
-    """Mock calculator that simulates AIMNET2 behavior for testing."""
-
-    def __init__(self, charge=0, mult=1, **kwargs):
-        super().__init__(backend="aimnet2", charge=charge, mult=mult, **kwargs)
-
-
-class MockSO3LRCalculator(UnifiedMockCalculator):
-    """Mock calculator that simulates SO3LR behavior for testing."""
-
-    def __init__(self, **kwargs):
-        super().__init__(backend="so3lr", **kwargs)
-
-        # Add SO3LR-like attributes for compatibility
-        self.device = "cpu"  # Mock device
-        self.model = self  # Self-reference for compatibility
-
-
-def get_mock_uma_calculator(**kwargs):
-    """Get mock UMA calculator for testing.
-
-    Parameters
-    ----------
-    **kwargs
-        Keyword arguments passed to UnifiedMockCalculator
-
-    Returns
-    -------
-    UnifiedMockCalculator
-        Mock calculator configured for UMA backend
-    """
-    return UnifiedMockCalculator(backend="uma", **kwargs)
-
-
-def get_mock_aimnet2_calculator(**kwargs):
-    """Get mock AIMNET2 calculator for testing.
-
-    Parameters
-    ----------
-    **kwargs
-        Keyword arguments passed to UnifiedMockCalculator
-
-    Returns
-    -------
-    UnifiedMockCalculator
-        Mock calculator configured for AIMNET2 backend
-    """
-    return UnifiedMockCalculator(backend="aimnet2", **kwargs)
-
-
-def get_mock_so3lr_calculator(**kwargs):
-    """Get mock SO3LR calculator for testing.
-
-    Parameters
-    ----------
-    **kwargs
-        Keyword arguments passed to UnifiedMockCalculator
-
-    Returns
-    -------
-    UnifiedMockCalculator
-        Mock calculator configured for SO3LR backend
-    """
-    return UnifiedMockCalculator(backend="so3lr", **kwargs)
-
-
-# Convenience alias for backward compatibility and general testing
-MockCalculator = UnifiedMockCalculator

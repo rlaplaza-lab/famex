@@ -32,9 +32,7 @@ class TestPackageImports:
 
     def test_calculator_imports(self):
         """Test that calculator functions can be imported."""
-        assert hasattr(qme, "get_mock_uma_calculator")
-        assert hasattr(qme, "get_mock_so3lr_calculator")
-        assert hasattr(qme, "get_mock_aimnet2_calculator")
+        assert hasattr(qme, "MockCalculator")
 
     def test_config_imports(self):
         """Test that configuration functions can be imported."""
@@ -48,19 +46,19 @@ class TestMockCalculators:
 
     def test_mock_uma_calculator(self):
         """Test UMA mock calculator creation."""
-        calc = qme.get_mock_uma_calculator()
+        calc = qme.MockCalculator(backend="uma")
         assert calc is not None
         assert hasattr(calc, "calculate")
 
     def test_mock_so3lr_calculator(self):
         """Test SO3LR mock calculator creation."""
-        calc = qme.get_mock_so3lr_calculator()
+        calc = qme.MockCalculator(backend="so3lr")
         assert calc is not None
         assert hasattr(calc, "calculate")
 
     def test_mock_aimnet2_calculator(self):
         """Test AIMNET2 mock calculator creation."""
-        calc = qme.get_mock_aimnet2_calculator()
+        calc = qme.MockCalculator(backend="aimnet2")
         assert calc is not None
         assert hasattr(calc, "calculate")
 
@@ -76,7 +74,7 @@ class TestMockCalculators:
             ],
         )
 
-        calc = qme.get_mock_so3lr_calculator()
+        calc = qme.MockCalculator(backend="so3lr")
         water.calc = calc
 
         # Test that we can compute energy and forces
