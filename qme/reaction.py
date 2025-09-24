@@ -57,15 +57,15 @@ class Reaction:
         if len(self.reactant) != len(self.product):
             raise ValueError("Reactant and product must have same number of atoms")
 
-        if self.reactant.symbols != self.product.symbols:
+        if list(self.reactant.symbols) != list(self.product.symbols):
             raise ValueError("Reactant and product must have same atomic symbols")
 
         self.calculator = calculator
 
         # Set calculator on geometries if provided
         if calculator is not None:
-            self.reactant.atoms.calc = calculator
-            self.product.atoms.calc = calculator
+            self.reactant.calc = calculator
+            self.product.calc = calculator
 
     @property
     def reaction_energy(self) -> Optional[float]:

@@ -9,7 +9,7 @@ from ase import Atoms
 from ase.io import read, write
 
 
-class Geometry:
+class Geometry(Atoms):
     """
     Represents a molecular geometry with atomic positions, types, and properties.
 
@@ -26,6 +26,7 @@ class Geometry:
         charge: int = 0,
         mult: int = 1,
         ase_atoms: Optional[Atoms] = None,
+        **kwargs,
     ):
         """
         Initialize a Geometry object.
@@ -44,14 +45,23 @@ class Geometry:
             Spin multiplicity (2S + 1)
         ase_atoms : Atoms, optional
             Pre-constructed ASE Atoms object
+        **kwargs
+            Additional arguments passed to ASE Atoms constructor
         """
 
         if ase_atoms is not None:
-            self.atoms = ase_atoms.copy()
-        else:
-            if atoms is None:
-                raise ValueError("Must provide either 'atoms' or 'ase_atoms'")
-
+            # Initialize from existing Atoms object
+            super().__init__(
+                symbols=ase_atoms.get_chemical_symbols(),
+                positions=ase_atoms.get_positions(),
+                cell=ase_atoms.get_cell(),
+                pbc=ase_atoms.get_pbc(),
+                **kwargs,
+            )
+            # Copy calculator and other properties if they exist
+            if ase_atoms.calc is not None:
+                self.calc = ase_atoms.calc
+        elif atoms is not None:
             # Convert atomic symbols to list if string
             if isinstance(atoms, str):
                 symbols = list(atoms)
@@ -70,8 +80,11 @@ class Geometry:
             else:
                 raise ValueError("Must provide either 'coords' or 'positions'")
 
-            # Create ASE Atoms object
-            self.atoms = Atoms(symbols=symbols, positions=positions)
+            # Initialize ASE Atoms object
+            super().__init__(symbols=symbols, positions=positions, **kwargs)
+        else:
+            # Create empty geometry for default instantiation
+            super().__init__(**kwargs)
 
         # Store additional properties
         self.charge = charge
@@ -82,12 +95,12 @@ class Geometry:
     @property
     def coords3d(self) -> np.ndarray:
         """Get coordinates as (n_atoms, 3) array."""
-        return self.atoms.get_positions()
+        return self.get_positions()
 
     @coords3d.setter
     def coords3d(self, positions: np.ndarray):
         """Set coordinates from (n_atoms, 3) array."""
-        self.atoms.set_positions(positions)
+        self.set_positions(positions)
 
     @property
     def coords(self) -> np.ndarray:
@@ -100,17 +113,16 @@ class Geometry:
         coords = np.array(coords)
         self.coords3d = coords.reshape(-1, 3)
 
-    @property
-    def symbols(self) -> List[str]:
-        """Get atomic symbols."""
-        return self.atoms.get_chemical_symbols()
+    def get_symbols(self) -> List[str]:
+        """Get atomic symbols as list."""
+        return self.get_chemical_symbols()
 
     @property
     def energy(self) -> Optional[float]:
         """Get energy if calculated."""
-        if self.atoms.calc is not None:
+        if self.calc is not None:
             try:
-                return self.atoms.get_potential_energy()
+                return self.get_potential_energy()
             except Exception:
                 return self._energy
         return self._energy
@@ -123,9 +135,9 @@ class Geometry:
     @property
     def forces(self) -> Optional[np.ndarray]:
         """Get forces if calculated."""
-        if self.atoms.calc is not None:
+        if self.calc is not None:
             try:
-                return self.atoms.get_forces()
+                return super().get_forces()
             except Exception:
                 return self._forces
         return self._forces
@@ -137,17 +149,21 @@ class Geometry:
 
     def copy(self) -> "Geometry":
         """Create a copy of the geometry."""
-        return Geometry(ase_atoms=self.atoms.copy(), charge=self.charge, mult=self.mult)
+        atoms_copy = super().copy()
+        new_geom = Geometry(ase_atoms=atoms_copy, charge=self.charge, mult=self.mult)
+        new_geom._energy = self._energy
+        new_geom._forces = self._forces
+        return new_geom
 
-    def get_distance(self, atom1: int, atom2: int) -> float:
+    def get_distance_between(self, atom1: int, atom2: int) -> float:
         """Get distance between two atoms."""
-        return self.atoms.get_distance(atom1, atom2)
+        return self.get_distance(atom1, atom2)
 
-    def get_distances(self) -> np.ndarray:
+    def get_all_pairwise_distances(self) -> np.ndarray:
         """Get all pairwise distances."""
-        return self.atoms.get_all_distances()
+        return super().get_all_distances()
 
-    def get_angle(self, atom1: int, atom2: int, atom3: int) -> float:
+    def get_angle_degrees(self, atom1: int, atom2: int, atom3: int) -> float:
         """Get angle between three atoms in degrees.
 
         Parameters
@@ -160,9 +176,11 @@ class Geometry:
         float
             Angle in degrees
         """
-        return self.atoms.get_angle(atom1, atom2, atom3) * 180.0 / np.pi
+        return self.get_angle(atom1, atom2, atom3) * 180.0 / np.pi
 
-    def get_dihedral(self, atom1: int, atom2: int, atom3: int, atom4: int) -> float:
+    def get_dihedral_degrees(
+        self, atom1: int, atom2: int, atom3: int, atom4: int
+    ) -> float:
         """Get dihedral angle between four atoms in degrees.
 
         Parameters
@@ -175,7 +193,7 @@ class Geometry:
         float
             Dihedral angle in degrees
         """
-        return self.atoms.get_dihedral(atom1, atom2, atom3, atom4) * 180.0 / np.pi
+        return self.get_dihedral(atom1, atom2, atom3, atom4) * 180.0 / np.pi
 
     def center_of_mass(self) -> np.ndarray:
         """Get center of mass coordinates.
@@ -185,11 +203,7 @@ class Geometry:
         np.ndarray
             Center of mass coordinates (x, y, z)
         """
-        return self.atoms.get_center_of_mass()
-
-    def __len__(self) -> int:
-        """Number of atoms."""
-        return len(self.atoms)
+        return self.get_center_of_mass()
 
     def __str__(self) -> str:
         """String representation."""
@@ -199,7 +213,7 @@ class Geometry:
         return self.__str__()
 
 
-def read_geometry(filename: str, **kwargs) -> Geometry:
+def read_geometry(filename: str, **kwargs):
     """
     Read geometry from file using ASE.
 
@@ -212,24 +226,34 @@ def read_geometry(filename: str, **kwargs) -> Geometry:
 
     Returns
     -------
-    Geometry
-        Loaded geometry
+    Geometry or List[Geometry]
+        QME Geometry object(s) with loaded structure(s)
     """
     atoms = read(filename, **kwargs)
-    return Geometry(ase_atoms=atoms)
+    if isinstance(atoms, list):
+        return [Geometry(ase_atoms=atom) for atom in atoms]
+    else:
+        return Geometry(ase_atoms=atoms)
 
 
-def write_geometry(geometry: Geometry, filename: str, **kwargs):
+def write_geometry(geometry, filename: str, **kwargs):
     """
     Write geometry to file using ASE.
 
     Parameters
     ----------
-    geometry : Geometry
-        Geometry to write
+    geometry : Geometry or Atoms
+        Geometry to write (can be Geometry object or ASE Atoms object)
     filename : str
         Output filename
     **kwargs
         Additional arguments passed to ase.io.write
     """
-    write(filename, geometry.atoms, **kwargs)
+    # Handle both Geometry objects (which inherit from Atoms) and plain ASE Atoms
+    # objects
+    if isinstance(geometry, Geometry):
+        # It's a Geometry object (which is also an Atoms object)
+        write(filename, geometry, **kwargs)
+    else:
+        # Assume it's a plain ASE Atoms object
+        write(filename, geometry, **kwargs)
