@@ -45,6 +45,7 @@ class SO3LRPotential(Calculator):
         model_path: Optional[str] = None,
         model_name: str = "so3lr-small",
         device: Optional[str] = None,
+        use_mock: bool = False,
         **kwargs,
     ):
         """
@@ -58,37 +59,55 @@ class SO3LRPotential(Calculator):
             Name of pre-trained SO3LR model (default: "so3lr-small")
         device : str, optional
             Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
+        use_mock : bool, optional
+            Force use of mock implementation even if PyTorch is available
         """
-
-        if not HAS_TORCH:
-            raise ImportError(
-                "PyTorch is required for SO3LR potentials. "
-                "Install with: pip install torch"
-            )
 
         Calculator.__init__(self, **kwargs)
 
-        # Set device
-        if device is None:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        else:
-            self.device = torch.device(device)
-
-        # Store model configuration
+        # Store parameters
         self.model_path = model_path
         self.model_name = model_name
-        self.model = None
+        self.use_mock = use_mock
 
+        # Check if we should use mock mode
+        if not HAS_TORCH and not use_mock:
+            raise ImportError(
+                "PyTorch is required for SO3LR potentials. "
+                "Install with: pip install torch, or use use_mock=True for testing"
+            )
+
+        if HAS_TORCH and not use_mock:
+            # Initialize PyTorch-related attributes only if PyTorch is available
+            if device is None:
+                self.device = torch.device(
+                    "cuda" if torch.cuda.is_available() else "cpu"
+                )
+            else:
+                self.device = torch.device(device)
+        else:
+            # Mock mode - don't use torch
+            self.device = "cpu"  # Just a string for mock mode
+
+        # Initialize model
+        self.model = None
         self._load_model()
 
     def _load_model(self):
         """Load the SO3LR model."""
-        if not HAS_SO3LR:
-            warnings.warn(
-                "SO3LR package not available. Install with: pip install so3lr\n"
-                "Falling back to mock SO3LR implementation for testing.",
-                UserWarning,
-            )
+        # Check if we should use mock mode (either forced or no PyTorch/SO3LR)
+        if self.use_mock or not HAS_TORCH or not HAS_SO3LR:
+            if not HAS_TORCH:
+                warnings.warn(
+                    "PyTorch not available. Falling back to mock SO3LR implementation for testing.",
+                    UserWarning,
+                )
+            elif not HAS_SO3LR:
+                warnings.warn(
+                    "SO3LR package not available. Install with: pip install so3lr\n"
+                    "Falling back to mock SO3LR implementation for testing.",
+                    UserWarning,
+                )
             self._use_mock_implementation()
             return
 
@@ -127,17 +146,19 @@ class SO3LRPotential(Calculator):
 
             def __call__(self, data):
                 # Mock SO3LR inference - returns simple harmonic-like energies
+                import numpy as np
+                
                 positions = data["positions"]
                 n_atoms = len(positions)
 
                 # Simple Lennard-Jones-like potential
                 energy = 0.0
-                forces = torch.zeros_like(positions)
+                forces = np.zeros_like(positions)
 
                 for i in range(n_atoms):
                     for j in range(i + 1, n_atoms):
                         r_vec = positions[j] - positions[i]
-                        r = torch.norm(r_vec)
+                        r = np.linalg.norm(r_vec)
 
                         if r < self.cutoff:
                             # Simple LJ-like potential:
@@ -158,7 +179,7 @@ class SO3LRPotential(Calculator):
                             forces[i] -= force_vec
                             forces[j] += force_vec
 
-                return {"energy": energy.unsqueeze(0), "forces": forces}
+                return {"energy": energy, "forces": forces}
 
         self.model = MockSO3LRModel(self.device)
 
@@ -176,8 +197,13 @@ class SO3LRPotential(Calculator):
         data = self._atoms_to_data(atoms)
 
         # Run prediction
-        with torch.no_grad():
+        if self.use_mock or not HAS_TORCH:
+            # Mock mode - no need for torch.no_grad()
             outputs = self.model(data)
+        else:
+            # Real SO3LR mode
+            with torch.no_grad():
+                outputs = self.model(data)
 
         # Extract results
         if "energy" in properties:
@@ -186,16 +212,36 @@ class SO3LRPotential(Calculator):
                 # Handle tensor conversion properly
                 if hasattr(energy, "item"):
                     self.results["energy"] = energy.item()
-                else:
+                elif hasattr(energy, "cpu"):
                     self.results["energy"] = float(energy.cpu().numpy().item())
+                else:
+                    # Mock mode - energy is already a scalar
+                    self.results["energy"] = float(energy)
 
         if "forces" in properties:
             forces = outputs["forces"]
             if forces is not None:
-                self.results["forces"] = forces.cpu().numpy()
+                if hasattr(forces, "cpu"):
+                    self.results["forces"] = forces.cpu().numpy()
+                else:
+                    # Mock mode - forces are already numpy arrays
+                    self.results["forces"] = forces
 
     def _atoms_to_data(self, atoms):
         """Convert ASE Atoms object to format expected by SO3LR model."""
+
+        # If using mock mode, we don't need PyTorch tensors
+        if self.use_mock or not HAS_TORCH:
+            # Return data in a format that works with mock implementation
+            import numpy as np
+            data = {
+                "positions": atoms.positions,  # Keep as numpy arrays
+                "atomic_numbers": atoms.numbers,
+                "n_atoms": len(atoms),
+            }
+            if atoms.pbc.any():
+                data["cell"] = atoms.cell.array
+            return data
 
         if not HAS_TORCH:
             raise ImportError("PyTorch is required")
@@ -258,6 +304,5 @@ def get_mock_so3lr_calculator(**kwargs):
     SO3LRPotential
         SO3LR calculator with mock implementation
     """
-    calc = SO3LRPotential(**kwargs)
-    calc._use_mock_implementation()
-    return calc
+    kwargs["use_mock"] = True
+    return SO3LRPotential(**kwargs)
