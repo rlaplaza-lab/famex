@@ -70,6 +70,22 @@ cd qme
 pip install -e .[dev]  # Includes testing and linting tools
 ```
 
+### SO3LR Backend Installation
+
+To use the SO3LR backend (optional):
+
+```bash
+# Install JAX (CPU version)
+pip install jax==0.4.23
+
+# Install SO3LR
+git clone https://github.com/general-molecular-simulations/so3lr.git
+cd so3lr
+pip install .
+```
+
+**Note**: If SO3LR is not installed, QME will automatically fall back to mock implementations for testing and development.
+
 ## Quick Start
 
 ### Python API - Basic Usage
