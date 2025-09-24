@@ -14,7 +14,6 @@ from ase.optimize import BFGS, FIRE, LBFGS
 from .aimnet2_potential import get_aimnet2_calculator
 from .config import config, get_default_model
 from .dependencies import HAS_SELLA, deps
-from .mock_calculator import get_mock_so3lr_calculator, get_mock_uma_calculator
 from .so3lr_potential import get_so3lr_calculator
 from .uma_potential import get_uma_calculator
 
@@ -45,9 +44,10 @@ class QMEOptimizer:
     }
 
     AVAILABLE_BACKENDS = {
-        "uma": "UMA (Universal Model for Atoms)",
         "so3lr": "SO3LR (SO(3) Invariant Neural Network)",
+        "uma": "UMA (Universal Model for Atoms)",
         "aimnet2": "AIMNET2 (Accurate Neural Network Potential)",
+        "mock": "Mock Calculator (for testing)",
     }
 
     if HAS_SELLA:
@@ -92,15 +92,16 @@ class QMEOptimizer:
         self.backend = backend
 
         if calculator is None:
-            if use_mock:
-                if backend == "so3lr":
-                    self.calculator = get_mock_so3lr_calculator()
-                elif backend == "uma":
-                    self.calculator = get_mock_uma_calculator()
-                elif backend == "aimnet2":
-                    from .mock_calculator import get_mock_aimnet2_calculator
+            if backend == "mock" or use_mock:
+                # Use mock backend explicitly or via use_mock flag
+                # (for backwards compatibility)
+                from .mock_calculator import UnifiedMockCalculator
 
-                    self.calculator = get_mock_aimnet2_calculator()
+                # Determine which mock backend to simulate
+                mock_backend = "generic"
+                if backend in ["so3lr", "uma", "aimnet2"]:
+                    mock_backend = backend
+                self.calculator = UnifiedMockCalculator(backend=mock_backend)
             else:
                 self.calculator = self._create_calculator(
                     backend, model_name, model_path, device
@@ -119,35 +120,24 @@ class QMEOptimizer:
         device: Optional[str],
     ):
         """Create calculator based on backend."""
-        try:
-            # Use configuration default model if not provided
-            if model_name is None:
-                model_name = get_default_model(backend)
+        # Use configuration default model if not provided
+        if model_name is None:
+            model_name = get_default_model(backend)
 
-            # Get device preference if not provided
-            if device is None:
-                device = config.get_device_preference()
+        # Get device preference if not provided
+        if device is None:
+            device = config.get_device_preference()
 
-            if backend == "so3lr":
-                return get_so3lr_calculator(
-                    model_path=model_path, model_name=model_name, device=device
-                )
-            elif backend == "uma":
-                return get_uma_calculator(model_name=model_name, device=device)
-            elif backend == "aimnet2":
-                return get_aimnet2_calculator(model_name=model_name, device=device)
-
-        except ImportError as e:
-            print(f"Warning: {e}")
-            print(f"Falling back to mock {backend.upper()} calculator for testing.")
-            if backend == "so3lr":
-                return get_mock_so3lr_calculator()
-            elif backend == "uma":
-                return get_mock_uma_calculator()
-            elif backend == "aimnet2":
-                from .mock_calculator import get_mock_aimnet2_calculator
-
-                return get_mock_aimnet2_calculator()
+        if backend == "so3lr":
+            return get_so3lr_calculator(
+                model_path=model_path, model_name=model_name, device=device
+            )
+        elif backend == "uma":
+            return get_uma_calculator(model_name=model_name, device=device)
+        elif backend == "aimnet2":
+            return get_aimnet2_calculator(model_name=model_name, device=device)
+        else:
+            raise ValueError(f"Unknown backend: {backend}")
 
     def load_structure(self, structure_file: Union[str, Path]) -> Atoms:
         """Load molecular structure from file.
@@ -467,7 +457,7 @@ def minimize_structure(
         steps: Maximum optimization steps.
         logfile: Optional log file for optimization output.
         trajectory: Optional trajectory file to save optimization steps.
-        use_mock: Use mock calculator for testing.
+        use_mock: Use mock calculator for testing (backward compatibility).
         **optimizer_kwargs: Additional arguments passed to optimizer.
 
     Returns:
@@ -491,11 +481,6 @@ def minimize_structure(
 
     if optimizer not in available_optimizers:
         raise ImportError(f"Optimizer {optimizer} not available")
-
-    # Handle mock backend by setting use_mock=True and using a real backend
-    if backend == "mock":
-        use_mock = True
-        backend = "uma"  # Default to UMA for mock calculations
 
     # Create optimizer instance
     qme_opt = QMEOptimizer(backend=backend, use_mock=use_mock)

@@ -52,18 +52,21 @@ class AIMNet2Potential(Calculator):
         self.charge = charge
         self.mult = mult
 
+        # Check dependencies
+        if not HAS_TORCH:
+            raise ImportError(
+                "PyTorch is required for AIMNET2 potentials. "
+                "Install with: pip install torch"
+            )
+
+        if not HAS_AIMNET2:
+            raise ImportError(
+                "AIMNET2 is required for AIMNET2 potentials. "
+                "Install with: pip install aimnet2calc"
+            )
+
         # Initialize calculator
-        if HAS_AIMNET2 and HAS_TORCH:
-            try:
-                self._load_model()
-            except Exception as e:
-                print(f"Warning: Failed to load AIMNET2 model: {e}")
-                print("Falling back to mock AIMNET2 calculator for testing.")
-                self._use_mock_implementation()
-        else:
-            print("Warning: AIMNET2 or PyTorch not available.")
-            print("Falling back to mock AIMNET2 calculator for testing.")
-            self._use_mock_implementation()
+        self._load_model()
 
     def _load_model(self):
         """Load the AIMNET2 model from aimnet2calc."""
@@ -87,13 +90,6 @@ class AIMNet2Potential(Calculator):
                 f"Failed to load AIMNET2 model '{self.model_name}'. "
                 f"Error: {e}. Please check the model name or installation."
             )
-
-    def _use_mock_implementation(self):
-        """Use mock AIMNET2 implementation for testing."""
-        # Import here to avoid circular imports
-        from .mock_calculator import MockAIMNet2Calculator
-
-        self.aimnet2_calc = MockAIMNet2Calculator(charge=self.charge, mult=self.mult)
 
     def calculate(
         self,

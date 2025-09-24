@@ -48,6 +48,7 @@ class QMEConfig:
                 "uma": "uma-4m",
                 "so3lr": "so3lr-small",
                 "aimnet2": "aimnet2",
+                "mock": "generic",
             }
 
 
@@ -150,6 +151,18 @@ class ConfigManager:
         if hasattr(self.config, name):
             return getattr(self.config, name)
         raise AttributeError(f"'ConfigManager' has no attribute '{name}'")
+
+    def __getitem__(self, key: str) -> Any:
+        """Allow dictionary-style access to config attributes."""
+        if hasattr(self.config, key):
+            return getattr(self.config, key)
+        raise KeyError(f"Configuration key '{key}' not found")
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get configuration value with optional default."""
+        if hasattr(self.config, key):
+            return getattr(self.config, key)
+        return default
 
 
 # Global configuration instance

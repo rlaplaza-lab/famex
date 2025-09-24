@@ -123,6 +123,7 @@ class TestQMEOptimizer:
         assert "uma" in qme.QMEOptimizer.AVAILABLE_BACKENDS
         assert "so3lr" in qme.QMEOptimizer.AVAILABLE_BACKENDS
         assert "aimnet2" in qme.QMEOptimizer.AVAILABLE_BACKENDS
+        assert "mock" in qme.QMEOptimizer.AVAILABLE_BACKENDS
 
 
 class TestGeometry:
@@ -182,7 +183,7 @@ class TestConfiguration:
 
     def test_default_model(self):
         """Test default model retrieval."""
-        model = qme.get_default_model("so3lr")
+        model = qme.get_default_model("mock")
         assert isinstance(model, str)
 
 
