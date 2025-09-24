@@ -18,14 +18,13 @@ try:
 except ImportError:
     HAS_SELLA = False
 
-from .mock_calculator import get_mock_uma_calculator
+from .aimnet2_potential import AIMNet2Potential, get_aimnet2_calculator
+from .mock_calculator import get_mock_so3lr_calculator, get_mock_uma_calculator
 from .so3lr_potential import (
     SO3LRPotential,
-    get_mock_so3lr_calculator,
     get_so3lr_calculator,
 )
 from .uma_potential import UMAPotential, get_uma_calculator
-from .aimnet2_potential import AIMNet2Potential, get_aimnet2_calculator
 
 
 class QMEOptimizer:
@@ -100,6 +99,7 @@ class QMEOptimizer:
                     self.calculator = get_mock_uma_calculator()
                 elif backend == "aimnet2":
                     from .mock_calculator import get_mock_aimnet2_calculator
+
                     self.calculator = get_mock_aimnet2_calculator()
             else:
                 self.calculator = self._create_calculator(
@@ -149,6 +149,7 @@ class QMEOptimizer:
                 return get_mock_uma_calculator()
             elif backend == "aimnet2":
                 from .mock_calculator import get_mock_aimnet2_calculator
+
                 return get_mock_aimnet2_calculator()
 
     def load_structure(self, structure_file: Union[str, Path]) -> Atoms:

@@ -131,12 +131,13 @@ class SO3LRPotential(Calculator):
 
     def _use_mock_implementation(self):
         """Use mock SO3LR implementation for testing."""
+        from .mock_calculator import MockSO3LRCalculator
 
-        # Create a simple mock model that behaves like SO3LR
+        # Create a wrapper that makes MockSO3LRCalculator behave like SO3LR model
         class MockSO3LRModel:
             def __init__(self, device):
                 self.device = device
-                self.cutoff = 5.0  # Cutoff radius in Angstroms
+                self.mock_calc = MockSO3LRCalculator()
 
             def to(self, device):
                 self.device = device
@@ -146,39 +147,18 @@ class SO3LRPotential(Calculator):
                 pass
 
             def __call__(self, data):
-                # Mock SO3LR inference - returns simple harmonic-like energies
-                import numpy as np
+                # Convert data format to atoms-like object for mock calculator
+                from ase import Atoms
 
                 positions = data["positions"]
-                n_atoms = len(positions)
+                # Create dummy atoms object (we only need positions for mock)
+                # Use hydrogen atoms as default since mass doesn't affect the mock calculation
+                atoms = Atoms("H" * len(positions), positions=positions)
 
-                # Simple Lennard-Jones-like potential
-                energy = 0.0
-                forces = np.zeros_like(positions)
-
-                for i in range(n_atoms):
-                    for j in range(i + 1, n_atoms):
-                        r_vec = positions[j] - positions[i]
-                        r = np.linalg.norm(r_vec)
-
-                        if r < self.cutoff:
-                            # Simple LJ-like potential:
-                            # 4*epsilon*[(sigma/r)^12 - (sigma/r)^6]
-                            sigma = 1.5  # Angstroms
-                            epsilon = 0.1  # eV
-
-                            sigma_over_r = sigma / r
-                            sigma6 = sigma_over_r**6
-                            sigma12 = sigma6**2
-
-                            energy += 4 * epsilon * (sigma12 - sigma6)
-
-                            # Force calculation
-                            force_magnitude = 24 * epsilon * (2 * sigma12 - sigma6) / r
-                            force_vec = force_magnitude * r_vec / r
-
-                            forces[i] -= force_vec
-                            forces[j] += force_vec
+                # Use mock calculator
+                atoms.calc = self.mock_calc
+                energy = atoms.get_potential_energy()
+                forces = atoms.get_forces()
 
                 return {"energy": energy, "forces": forces}
 
@@ -301,10 +281,20 @@ def get_mock_so3lr_calculator(**kwargs):
     """
     Get mock SO3LR calculator for testing.
 
-    Returns:
-    --------
-    SO3LRPotential
-        SO3LR calculator with mock implementation
+    This function now returns a standardized MockSO3LRCalculator instead of
+    an SO3LRPotential with mock enabled. This provides better separation
+    between the real potential class and the mock implementation.
+
+    Parameters
+    ----------
+    **kwargs
+        Keyword arguments passed to MockSO3LRCalculator
+
+    Returns
+    -------
+    MockSO3LRCalculator
+        Mock calculator instance that simulates SO3LR behavior
     """
-    kwargs["use_mock"] = True
-    return SO3LRPotential(**kwargs)
+    from .mock_calculator import MockSO3LRCalculator
+
+    return MockSO3LRCalculator(**kwargs)

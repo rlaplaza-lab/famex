@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 from qme import QMEOptimizer
-from qme.uma_potential import UMAPotential
 from qme.aimnet2_potential import AIMNet2Potential
+from qme.uma_potential import UMAPotential
 
 
 class TestQMEBasics:
@@ -17,7 +17,7 @@ class TestQMEBasics:
 
     def test_imports(self):
         """Test that core modules can be imported."""
-        from qme import QMEOptimizer, UMAPotential, AIMNet2Potential
+        from qme import AIMNet2Potential, QMEOptimizer, UMAPotential
 
         assert QMEOptimizer is not None
         assert UMAPotential is not None

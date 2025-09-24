@@ -60,10 +60,12 @@ class AIMNet2Potential(Calculator):
         Calculator.__init__(self, **kwargs)
 
         self.model_name = model_name
-        self.device = device or ("cuda" if torch and torch.cuda.is_available() else "cpu")
+        self.device = device or (
+            "cuda" if torch and torch.cuda.is_available() else "cpu"
+        )
         self.charge = charge
         self.mult = mult
-        
+
         # Initialize calculator
         if HAS_AIMNET2 and HAS_TORCH:
             try:
@@ -82,15 +84,13 @@ class AIMNet2Potential(Calculator):
         try:
             # Create AIMNET2ASE calculator with model
             self.aimnet2_calc = AIMNet2ASE(
-                base_calc=self.model_name,
-                charge=self.charge,
-                mult=self.mult
+                base_calc=self.model_name, charge=self.charge, mult=self.mult
             )
-            
+
             # Set device if torch is available
-            if hasattr(self.aimnet2_calc.base_calc, 'device'):
+            if hasattr(self.aimnet2_calc.base_calc, "device"):
                 self.aimnet2_calc.base_calc.device = self.device
-                
+
         except Exception as e:
             raise RuntimeError(
                 f"Failed to load AIMNET2 model '{self.model_name}'. "
@@ -101,10 +101,8 @@ class AIMNet2Potential(Calculator):
         """Use mock AIMNET2 implementation for testing."""
         # Import here to avoid circular imports
         from .mock_calculator import MockAIMNet2Calculator
-        self.aimnet2_calc = MockAIMNet2Calculator(
-            charge=self.charge,
-            mult=self.mult
-        )
+
+        self.aimnet2_calc = MockAIMNet2Calculator(charge=self.charge, mult=self.mult)
 
     def calculate(
         self,
@@ -117,11 +115,17 @@ class AIMNet2Potential(Calculator):
 
         # Set atoms to the AIMNET2 calculator
         self.aimnet2_calc.set_atoms(atoms)
-        
+
         # Set charge and multiplicity if they differ
-        if hasattr(self.aimnet2_calc, 'set_charge') and self.aimnet2_calc.charge != self.charge:
+        if (
+            hasattr(self.aimnet2_calc, "set_charge")
+            and self.aimnet2_calc.charge != self.charge
+        ):
             self.aimnet2_calc.set_charge(self.charge)
-        if hasattr(self.aimnet2_calc, 'set_mult') and self.aimnet2_calc.mult != self.mult:
+        if (
+            hasattr(self.aimnet2_calc, "set_mult")
+            and self.aimnet2_calc.mult != self.mult
+        ):
             self.aimnet2_calc.set_mult(self.mult)
 
         # Calculate properties
@@ -136,22 +140,22 @@ class AIMNet2Potential(Calculator):
     def set_charge(self, charge: int):
         """Set molecular charge."""
         self.charge = charge
-        if hasattr(self.aimnet2_calc, 'set_charge'):
+        if hasattr(self.aimnet2_calc, "set_charge"):
             self.aimnet2_calc.set_charge(charge)
 
     def set_mult(self, mult: int):
         """Set spin multiplicity."""
         self.mult = mult
-        if hasattr(self.aimnet2_calc, 'set_mult'):
+        if hasattr(self.aimnet2_calc, "set_mult"):
             self.aimnet2_calc.set_mult(mult)
 
 
 def get_aimnet2_calculator(
-    model_name: str = "aimnet2", 
+    model_name: str = "aimnet2",
     device: Optional[str] = None,
     charge: int = 0,
     mult: int = 1,
-    **kwargs
+    **kwargs,
 ) -> AIMNet2Potential:
     """
     Convenience function to get AIMNET2 calculator.
@@ -175,11 +179,7 @@ def get_aimnet2_calculator(
         Configured AIMNET2 calculator
     """
     return AIMNet2Potential(
-        model_name=model_name, 
-        device=device, 
-        charge=charge, 
-        mult=mult, 
-        **kwargs
+        model_name=model_name, device=device, charge=charge, mult=mult, **kwargs
     )
 
 
