@@ -26,7 +26,7 @@ UMA machine learning potentials from the FAIR Chemistry team provide state-of-th
 
 ### Prerequisites
 
-QME requires Python 3.8 or higher.
+QME requires Python 3.12 or higher.
 
 ### Basic Installation
 
