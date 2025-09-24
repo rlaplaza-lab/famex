@@ -6,9 +6,6 @@ to demonstrate and test optimization algorithms. These include simple
 model reactions that are easy to visualize and understand.
 """
 
-import os
-import tempfile
-
 import numpy as np
 import pytest
 from ase import Atoms
@@ -40,7 +37,7 @@ class TestToyReactions:
 
         h3_system = Atoms("HHH", positions=positions)
         qme_optimizer.atoms = h3_system
-        h3_system.set_calculator(qme_optimizer.calculator)
+        h3_system.calc = qme_optimizer.calculator
 
         # Test optimization of reactant-like configuration
         result = qme_optimizer.optimize_minimum(fmax=0.3, steps=10)
@@ -64,7 +61,7 @@ class TestToyReactions:
 
         h3_system = Atoms("HHH", positions=positions)
         qme_optimizer.atoms = h3_system
-        h3_system.set_calculator(qme_optimizer.calculator)
+        h3_system.calc = qme_optimizer.calculator
 
         # Optimize product configuration
         result = qme_optimizer.optimize_minimum(fmax=0.3, steps=10)
@@ -90,7 +87,7 @@ class TestToyReactions:
 
         water_dimer = Atoms(symbols, positions=positions)
         qme_optimizer.atoms = water_dimer
-        water_dimer.set_calculator(qme_optimizer.calculator)
+        water_dimer.calc = qme_optimizer.calculator
 
         # Optimize the dimer
         result = qme_optimizer.optimize_minimum(fmax=0.2, steps=15)
@@ -118,7 +115,7 @@ class TestToyReactions:
 
         complex_system = Atoms(symbols, positions=positions)
         qme_optimizer.atoms = complex_system
-        complex_system.set_calculator(qme_optimizer.calculator)
+        complex_system.calc = qme_optimizer.calculator
 
         # Optimize complex
         result = qme_optimizer.optimize_minimum(fmax=0.2, steps=15)
@@ -141,7 +138,7 @@ class TestToyReactions:
 
         reaction_system = Atoms(symbols, positions=positions)
         qme_optimizer.atoms = reaction_system
-        reaction_system.set_calculator(qme_optimizer.calculator)
+        reaction_system.calc = qme_optimizer.calculator
 
         # Optimize reactant complex
         result = qme_optimizer.optimize_minimum(fmax=0.2, steps=15)
@@ -173,7 +170,7 @@ class TestToyReactions:
         pt_system = Atoms(symbols, positions=positions)
 
         qme_optimizer.atoms = pt_system
-        pt_system.set_calculator(qme_optimizer.calculator)
+        pt_system.calc = qme_optimizer.calculator
 
         # Optimize proton transfer system
         result = qme_optimizer.optimize_minimum(fmax=0.3, steps=15)
@@ -208,7 +205,7 @@ class TestToyReactions:
 
                 test_mol.set_positions(positions)
                 qme_optimizer.atoms = test_mol
-                test_mol.set_calculator(qme_optimizer.calculator)
+                test_mol.calc = qme_optimizer.calculator
 
                 # Short optimization
                 result = qme_optimizer.optimize_minimum(fmax=0.3, steps=5)
@@ -245,7 +242,7 @@ class TestToyReactions:
         for name, positions in [("linear", linear_positions), ("bent", bent_positions)]:
             conformer = Atoms(symbols, positions=positions)
             qme_optimizer.atoms = conformer
-            conformer.set_calculator(qme_optimizer.calculator)
+            conformer.calc = qme_optimizer.calculator
 
             result = qme_optimizer.optimize_minimum(fmax=0.2, steps=10)
 
@@ -277,7 +274,7 @@ class TestToyReactions:
 
         reaction_system = Atoms(symbols, positions=positions)
         qme_optimizer.atoms = reaction_system
-        reaction_system.set_calculator(qme_optimizer.calculator)
+        reaction_system.calc = qme_optimizer.calculator
 
         # Optimize reactant complex
         result = qme_optimizer.optimize_minimum(fmax=0.3, steps=15)
@@ -301,7 +298,7 @@ class TestToyReactions:
 
         radical_system = Atoms(symbols, positions=positions)
         qme_optimizer.atoms = radical_system
-        radical_system.set_calculator(qme_optimizer.calculator)
+        radical_system.calc = qme_optimizer.calculator
 
         # Optimize radical system
         result = qme_optimizer.optimize_minimum(fmax=0.3, steps=10)
@@ -327,7 +324,7 @@ class TestToyReactions:
             h2_scan.set_positions(positions)
 
             qme_optimizer.atoms = h2_scan
-            h2_scan.set_calculator(qme_optimizer.calculator)
+            h2_scan.calc = qme_optimizer.calculator
 
             # Constrained optimization (fix bond length, optimize other coordinates)
             # For simplicity, just do a regular optimization
@@ -364,7 +361,7 @@ class TestToyReactions:
 
         collision_system = Atoms(symbols, positions=positions)
         qme_optimizer.atoms = collision_system
-        collision_system.set_calculator(qme_optimizer.calculator)
+        collision_system.calc = qme_optimizer.calculator
 
         # Optimize collision complex
         result = qme_optimizer.optimize_minimum(fmax=0.3, steps=10)
