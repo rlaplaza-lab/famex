@@ -25,15 +25,22 @@ Example:
 __version__ = "0.1.0"
 __author__ = "QME Development Team"
 
+from .aimnet2_potential import AIMNet2Potential, get_aimnet2_calculator
 from .core import QMEOptimizer
-from .mock_calculator import MockUMACalculator, get_mock_uma_calculator
+from .mock_calculator import (
+    BaseMockCalculator,
+    MockAIMNet2Calculator,
+    MockSO3LRCalculator,
+    MockUMACalculator,
+    get_mock_aimnet2_calculator,
+    get_mock_so3lr_calculator,
+    get_mock_uma_calculator,
+)
 from .so3lr_potential import (
     SO3LRPotential,
-    get_mock_so3lr_calculator,
     get_so3lr_calculator,
 )
 from .uma_potential import UMAPotential, get_uma_calculator
-from .aimnet2_potential import AIMNet2Potential, get_aimnet2_calculator
 
 __all__ = [
     "QMEOptimizer",
@@ -41,9 +48,13 @@ __all__ = [
     "get_uma_calculator",
     "SO3LRPotential",
     "get_so3lr_calculator",
-    "get_mock_so3lr_calculator",
     "AIMNet2Potential",
     "get_aimnet2_calculator",
+    "BaseMockCalculator",
     "MockUMACalculator",
+    "MockAIMNet2Calculator",
+    "MockSO3LRCalculator",
     "get_mock_uma_calculator",
+    "get_mock_aimnet2_calculator",
+    "get_mock_so3lr_calculator",
 ]

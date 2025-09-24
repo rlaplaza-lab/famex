@@ -7,10 +7,10 @@ from pathlib import Path
 
 import click
 
+from .aimnet2_potential import get_aimnet2_calculator
 from .core import QMEOptimizer
 from .so3lr_potential import get_so3lr_calculator
 from .uma_potential import get_uma_calculator
-from .aimnet2_potential import get_aimnet2_calculator
 
 
 @click.group()
