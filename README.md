@@ -2,11 +2,11 @@
 
 Quick mechanistic exploration using multiple neural network potentials (MLPs/NNPs).
 
-QME combines the power of ASE and SELLA optimizers with state-of-the-art neural network potentials including **SO3LR** (SO(3) invariant networks) and **UMA** (Universal Model for Atoms) to perform efficient molecular geometry optimization and transition state searches.
+QME combines the power of ASE and SELLA optimizers with state-of-the-art neural network potentials including **SO3LR** (SO(3) invariant networks), **UMA** (Universal Model for Atoms), and **AIMNET2** (Accurate Neural Network Potential) to perform efficient molecular geometry optimization and transition state searches.
 
 ## Features
 
-- **Multiple Neural Network Backends**: Support for SO3LR and UMA potentials with easy switching
+- **Multiple Neural Network Backends**: Support for SO3LR, UMA, and AIMNET2 potentials with easy switching
 - **Minimum Energy Optimization**: Find stable molecular geometries using ASE optimizers (BFGS, LBFGS, FIRE)
 - **Transition State Search**: Locate saddle points using the SELLA optimizer
 - **Command Line Interface**: Easy-to-use CLI for batch processing and automation
@@ -21,6 +21,9 @@ SO3LR provides SO(3) invariant neural network potentials with excellent accuracy
 
 ### UMA (Universal Model for Atoms)
 UMA machine learning potentials from the FAIR Chemistry team provide state-of-the-art accuracy for diverse chemical systems.
+
+### AIMNET2 (Accurate Neural Network Potential)
+AIMNET2 provides fast and reliable energy, force, and property calculations for molecules containing a diverse range of elements. It excels at modeling neutral, charged, organic, and elemental-organic systems with flexible long-range interactions.
 
 ## Installation
 
@@ -49,7 +52,7 @@ pip install -e .
 For production use with machine learning potentials:
 
 ```bash
-pip install qme[ml]  # Includes torch, ase, sella, fairchem-core
+pip install qme[ml]  # Includes torch, ase, sella, fairchem-core, aimnet2calc
 ```
 
 Or from source:
@@ -137,7 +140,8 @@ qme transition-state ts_guess.xyz --trajectory ts_optimization.traj
 ```bash
 # Test QME setup and backends
 qme test-setup --backend so3lr
-qme test-setup --backend uma
+qme test-setup --backend uma  
+qme test-setup --backend aimnet2
 ```
 
 ## Features in Detail
@@ -145,6 +149,7 @@ qme test-setup --backend uma
 ### Multiple Neural Network Backends
 - **SO3LR**: SO(3) invariant neural networks (default backend)
 - **UMA**: Universal Materials Accelerator potentials from Meta AI
+- **AIMNET2**: Accurate neural network potentials for diverse molecular systems
 - **Mock Calculator**: Harmonic oscillator model for testing
 
 ### Optimization Algorithms
@@ -175,6 +180,7 @@ pytest
 # Run specific test categories
 pytest tests/test_qme.py          # Basic functionality
 pytest tests/test_so3lr.py        # SO3LR backend tests
+pytest tests/test_aimnet2.py      # AIMNET2 backend tests
 pytest tests/test_calculators.py  # Calculator interfaces
 
 # Run with coverage
