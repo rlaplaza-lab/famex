@@ -73,8 +73,9 @@ class SO3LRPotential(Calculator):
         # Check if we should use mock mode
         if not HAS_TORCH and not use_mock:
             raise ImportError(
-                "PyTorch is required for SO3LR potentials. "
-                "Install with: pip install torch, or use use_mock=True for testing"
+                "PyTorch and SO3LR are required for SO3LR potentials. "
+                "Install SO3LR with: git clone https://github.com/general-molecular-simulations/so3lr.git && cd so3lr && pip install ., "
+                "or use use_mock=True for testing"
             )
 
         if HAS_TORCH and not use_mock:
@@ -147,7 +148,7 @@ class SO3LRPotential(Calculator):
             def __call__(self, data):
                 # Mock SO3LR inference - returns simple harmonic-like energies
                 import numpy as np
-                
+
                 positions = data["positions"]
                 n_atoms = len(positions)
 
@@ -234,6 +235,7 @@ class SO3LRPotential(Calculator):
         if self.use_mock or not HAS_TORCH:
             # Return data in a format that works with mock implementation
             import numpy as np
+
             data = {
                 "positions": atoms.positions,  # Keep as numpy arrays
                 "atomic_numbers": atoms.numbers,
