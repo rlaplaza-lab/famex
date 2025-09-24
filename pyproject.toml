@@ -30,6 +30,7 @@ dependencies = [
 ml = [
     "torch>=2.0.0",
     "fairchem-core>=1.0.0",
+    "aimnet2calc",  # For AIMNET2 backend
     "jax>=0.4.20",
 ]
 dev = [
