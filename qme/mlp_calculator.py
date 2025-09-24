@@ -2,7 +2,7 @@
 MLPCalculator convenience class for machine learning potentials in QME.
 """
 
-from typing import Optional, Union
+from typing import Optional
 
 from .core import QMEOptimizer
 

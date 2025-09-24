@@ -6,8 +6,6 @@ from typing import List, Optional, Union
 
 import numpy as np
 from ase import Atoms
-from ase.io import write
-from ase.optimize import BFGS
 
 from .geometry import Geometry
 
@@ -259,7 +257,7 @@ class Reaction:
                 # Force energy calculation
                 energy = geom.atoms.get_potential_energy()
                 geom.energy = energy
-            except:
+            except Exception:
                 pass
 
         return path_geometries

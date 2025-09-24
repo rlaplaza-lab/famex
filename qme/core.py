@@ -11,19 +11,18 @@ from ase import Atoms
 from ase.io import read, write
 from ase.optimize import BFGS, FIRE, LBFGS
 
-from .aimnet2_potential import AIMNet2Potential, get_aimnet2_calculator
-from .config import config, get_default_model, get_optimization_defaults
+from .aimnet2_potential import get_aimnet2_calculator
+from .config import config, get_default_model
 from .dependencies import HAS_SELLA, deps
 from .mock_calculator import get_mock_so3lr_calculator, get_mock_uma_calculator
-from .so3lr_potential import (
-    SO3LRPotential,
-    get_so3lr_calculator,
-)
-from .uma_potential import UMAPotential, get_uma_calculator
+from .so3lr_potential import get_so3lr_calculator
+from .uma_potential import get_uma_calculator
 
 
 class QMEOptimizer:
-    """Main optimizer class that combines ASE and SELLA optimizers with neural network potentials.
+    """Main optimizer class that combines ASE and SELLA optimizers with neural
+    network potentials.
+
     Supports UMA, SO3LR, and AIMNET2 backends.
 
     This class provides a unified interface for molecular geometry optimization
@@ -32,7 +31,8 @@ class QMEOptimizer:
     and transition state searches.
 
     Attributes:
-        calculator: The underlying energy/force calculator (UMA, SO3LR, AIMNET2, or mock)
+        calculator: The underlying energy/force calculator (UMA, SO3LR, AIMNET2,
+            or mock)
         atoms: Currently loaded molecular structure
         results: Dictionary storing optimization results
 
@@ -194,7 +194,8 @@ class QMEOptimizer:
                 pos = atoms.get_positions()
                 if np.any(np.isnan(pos)) or np.any(np.isinf(pos)):
                     raise ValueError(
-                        f"Invalid coordinates (NaN or Inf) in structure: {structure_file}"
+                        f"Invalid coordinates (NaN or Inf) in structure: "
+                        f"{structure_file}"
                     )
 
             atoms.calc = self.calculator

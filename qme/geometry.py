@@ -111,7 +111,7 @@ class Geometry:
         if self.atoms.calc is not None:
             try:
                 return self.atoms.get_potential_energy()
-            except:
+            except Exception:
                 return self._energy
         return self._energy
 
@@ -126,7 +126,7 @@ class Geometry:
         if self.atoms.calc is not None:
             try:
                 return self.atoms.get_forces()
-            except:
+            except Exception:
                 return self._forces
         return self._forces
 

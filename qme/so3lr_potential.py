@@ -57,7 +57,9 @@ class SO3LRPotential(Calculator):
         if not HAS_TORCH and not use_mock:
             raise ImportError(
                 "PyTorch and SO3LR are required for SO3LR potentials. "
-                "Install SO3LR with: git clone https://github.com/general-molecular-simulations/so3lr.git && cd so3lr && pip install ., "
+                "Install SO3LR with: git clone "
+                "https://github.com/general-molecular-simulations/so3lr.git && "
+                "cd so3lr && pip install ., "
                 "or use use_mock=True for testing"
             )
 
@@ -83,7 +85,8 @@ class SO3LRPotential(Calculator):
         if self.use_mock or not HAS_TORCH or not HAS_SO3LR:
             if not HAS_TORCH:
                 warnings.warn(
-                    "PyTorch not available. Falling back to mock SO3LR implementation for testing.",
+                    "PyTorch not available. Falling back to mock SO3LR implementation "
+                    "for testing.",
                     UserWarning,
                 )
             elif not HAS_SO3LR:
@@ -140,7 +143,8 @@ class SO3LRPotential(Calculator):
 
                 positions = data["positions"]
                 # Create dummy atoms object (we only need positions for mock)
-                # Use hydrogen atoms as default since mass doesn't affect the mock calculation
+                # Use hydrogen atoms as default since mass doesn't affect the
+                # mock calculation
                 atoms = Atoms("H" * len(positions), positions=positions)
 
                 # Use mock calculator
@@ -202,8 +206,6 @@ class SO3LRPotential(Calculator):
         # If using mock mode, we don't need PyTorch tensors
         if self.use_mock or not HAS_TORCH:
             # Return data in a format that works with mock implementation
-            import numpy as np
-
             data = {
                 "positions": atoms.positions,  # Keep as numpy arrays
                 "atomic_numbers": atoms.numbers,

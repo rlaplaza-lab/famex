@@ -7,13 +7,9 @@ from pathlib import Path
 
 import click
 
-from .aimnet2_potential import get_aimnet2_calculator
 from .core import QMEOptimizer
-from .geometry import Geometry, read_geometry, write_geometry
-from .mlp_calculator import MLPCalculator
+from .geometry import read_geometry
 from .reaction import Reaction
-from .so3lr_potential import get_so3lr_calculator
-from .uma_potential import get_uma_calculator
 
 
 @click.group()
@@ -328,7 +324,8 @@ def transition_state(
     "--model",
     "-m",
     type=str,
-    help="Model name to test (defaults: so3lr-small for SO3LR, uma-4m for UMA, aimnet2 for AIMNET2)",
+    help="Model name to test (defaults: so3lr-small for SO3LR, uma-4m for UMA, "
+    "aimnet2 for AIMNET2)",
 )
 @click.option(
     "--model-path", type=click.Path(exists=True), help="Path to model file (SO3LR only)"
@@ -511,7 +508,7 @@ def interpolate(
                 try:
                     energy = geom.atoms.get_potential_energy()
                     geom.energy = energy
-                except:
+                except Exception:
                     pass
 
         # Output results
