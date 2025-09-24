@@ -7,17 +7,18 @@ This module provides ASE Calculator interface for SO3LR models.
 
 from typing import Optional
 
+import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 
-from .dependencies import HAS_SO3LR, HAS_TORCH, deps, torch
+from .dependencies import HAS_SO3LR, deps
 
 
 class SO3LRPotential(Calculator):
     """
     ASE Calculator interface for SO3LR neural network potential.
 
-    SO3LR provides SO(3) invariant neural network potentials for molecular
-    property prediction and geometry optimization.
+    This is a wrapper around the native SO3LR ASE calculator to provide
+    compatibility with the QME interface.
     """
 
     implemented_properties = ["energy", "forces"]
@@ -35,7 +36,7 @@ class SO3LRPotential(Calculator):
         Parameters:
         -----------
         model_path : str, optional
-            Path to trained SO3LR model file
+            Path to trained SO3LR model file (currently not used by SO3LR)
         model_name : str
             Name of pre-trained SO3LR model (default: "so3lr-small")
         device : str, optional
@@ -48,13 +49,7 @@ class SO3LRPotential(Calculator):
         # Store parameters
         self.model_path = model_path
         self.model_name = model_name
-
-        # Check dependencies
-        if not HAS_TORCH:
-            raise ImportError(
-                "PyTorch is required for SO3LR potentials. "
-                "Install with: pip install torch"
-            )
+        self.device = device
 
         if not HAS_SO3LR:
             raise ImportError(
@@ -64,32 +59,24 @@ class SO3LRPotential(Calculator):
                 "cd so3lr && pip install ."
             )
 
-        # Set device
-        if device is None:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        else:
-            self.device = torch.device(device)
+        # Initialize the actual SO3LR calculator
+        self.calculator = None
+        self._load_calculator()
 
-        # Initialize model
-        self.model = None
-        self._load_model()
-
-    def _load_model(self):
-        """Load the SO3LR model."""
+    def _load_calculator(self):
+        """Load the SO3LR ASE calculator."""
         # Get SO3LR module
         so3lr = deps.get("so3lr")
         if so3lr is None:
             raise RuntimeError("SO3LR module not available")
 
-        if self.model_path:
-            # Load model from file
-            self.model = so3lr.load_model(self.model_path)
-        else:
-            # Load pre-trained model
-            self.model = so3lr.get_pretrained_model(self.model_name)
+        # Create SO3LR calculator with appropriate parameters
+        # Use high cutoff for gas-phase systems as recommended
+        lr_cutoff = 1000.0
 
-        self.model.to(self.device)
-        self.model.eval()
+        self.calculator = so3lr.So3lrCalculator(
+            calculate_stress=False, lr_cutoff=lr_cutoff, dtype=np.float32
+        )
 
     def calculate(
         self,
@@ -98,56 +85,25 @@ class SO3LRPotential(Calculator):
         system_changes=all_changes,
     ):
         """Calculate properties using SO3LR potential."""
+        if atoms is None:
+            return
 
         Calculator.calculate(self, atoms, properties, system_changes)
 
-        # Convert atoms to format expected by SO3LR
-        data = self._atoms_to_data(atoms)
+        # Ensure atoms has charge information as required by SO3LR
+        if "charge" not in atoms.info:
+            atoms.info["charge"] = 0.0
 
-        # Run prediction
-        with torch.no_grad():
-            outputs = self.model(data)
+        # Set the calculator on the atoms and get properties
+        atoms.calc = self.calculator
 
-        # Extract results
         if "energy" in properties:
-            energy = outputs["energy"]
-            if energy is not None:
-                # Handle tensor conversion properly
-                if hasattr(energy, "item"):
-                    self.results["energy"] = energy.item()
-                elif hasattr(energy, "cpu"):
-                    self.results["energy"] = float(energy.cpu().numpy().item())
+            energy = atoms.get_potential_energy()
+            self.results["energy"] = energy
 
         if "forces" in properties:
-            forces = outputs["forces"]
-            if forces is not None:
-                self.results["forces"] = forces.cpu().numpy()
-
-    def _atoms_to_data(self, atoms):
-        """Convert ASE Atoms object to format expected by SO3LR model."""
-        positions = torch.tensor(
-            atoms.positions, dtype=torch.float32, device=self.device
-        )
-        atomic_numbers = torch.tensor(
-            atoms.numbers, dtype=torch.long, device=self.device
-        )
-
-        # Create data dictionary expected by SO3LR models
-        data = {
-            "positions": positions,
-            "atomic_numbers": atomic_numbers,
-            "n_atoms": len(atoms),
-        }
-
-        # Add cell information if periodic
-        if atoms.pbc.any():
-            cell = torch.tensor(
-                atoms.cell.array, dtype=torch.float32, device=self.device
-            )
-            data["cell"] = cell
-            data["pbc"] = torch.tensor(atoms.pbc, device=self.device)
-
-        return data
+            forces = atoms.get_forces()
+            self.results["forces"] = forces
 
     def get_calculator(self):
         """Get the calculator instance.
@@ -163,7 +119,10 @@ class SO3LRPotential(Calculator):
 
 
 def get_so3lr_calculator(
-    model_path: Optional[str] = None, model_name: str = "so3lr-small", **kwargs
+    model_path: Optional[str] = None,
+    model_name: str = "so3lr-small",
+    device: Optional[str] = None,
+    **kwargs,
 ) -> SO3LRPotential:
     """
     Convenience function to get SO3LR calculator.
@@ -171,9 +130,11 @@ def get_so3lr_calculator(
     Parameters:
     -----------
     model_path : str, optional
-        Path to trained SO3LR model file
+        Path to trained SO3LR model file (currently not used by SO3LR)
     model_name : str
-        Name of pre-trained SO3LR model
+        Name of pre-trained SO3LR model (currently not used by SO3LR)
+    device : str, optional
+        Device preference ('cpu', 'cuda')
     **kwargs :
         Additional arguments passed to SO3LRPotential
 
@@ -182,4 +143,6 @@ def get_so3lr_calculator(
     SO3LRPotential
         Configured SO3LR calculator
     """
-    return SO3LRPotential(model_path=model_path, model_name=model_name, **kwargs)
+    return SO3LRPotential(
+        model_path=model_path, model_name=model_name, device=device, **kwargs
+    )
