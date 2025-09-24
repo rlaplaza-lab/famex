@@ -27,6 +27,9 @@ __author__ = "QME Development Team"
 
 from .aimnet2_potential import AIMNet2Potential, get_aimnet2_calculator
 from .core import QMEOptimizer
+from .geometry import Geometry, read_geometry, write_geometry
+from .reaction import Reaction
+from .mlp_calculator import MLPCalculator
 from .mock_calculator import (
     BaseMockCalculator,
     MockAIMNet2Calculator,
@@ -44,6 +47,11 @@ from .uma_potential import UMAPotential, get_uma_calculator
 
 __all__ = [
     "QMEOptimizer",
+    "Geometry", 
+    "Reaction",
+    "MLPCalculator",
+    "read_geometry",
+    "write_geometry",
     "UMAPotential",
     "get_uma_calculator",
     "SO3LRPotential",
