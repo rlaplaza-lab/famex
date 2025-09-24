@@ -31,7 +31,7 @@ class TestSO3LRBasics:
     def test_so3lr_calculator_with_mock(self):
         """Test SO3LR calculator initialization with mock fallback."""
         # This should use mock implementation since so3lr package isn't available
-        calc = SO3LRPotential()
+        calc = SO3LRPotential(use_mock=True)
         assert calc is not None
         assert hasattr(calc, "device")
         assert hasattr(calc, "model")
@@ -126,9 +126,10 @@ class TestSO3LRIntegration:
         with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
             model_path = f.name
 
+        calc = None
         try:
             # This should fall back to mock since the file isn't a real model
-            calc = SO3LRPotential(model_path=model_path)
+            calc = SO3LRPotential(model_path=model_path, use_mock=True)
             assert calc is not None
         except Exception as e:
             # Expected to fail or use mock fallback
