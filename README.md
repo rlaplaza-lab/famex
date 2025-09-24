@@ -187,15 +187,78 @@ pytest tests/test_calculators.py  # Calculator interfaces
 pytest --cov=qme --cov-report=term-missing
 ```
 
+### Troubleshooting
+
+#### Intel MKL Threading Issues (Conda Environments)
+
+If you encounter symbol lookup errors like:
+```
+symbol lookup error: .../libmkl_intel_thread.so.2: undefined symbol: __kmpc_global_thread_num
+```
+
+This is a common issue in conda environments with conflicting Intel MKL and OpenMP libraries. Solutions:
+
+**Option 1: Set environment variable before running**
+```bash
+export MKL_THREADING_LAYER=GNU
+pytest tests/test_backend_aimnet2.py
+```
+
+**Option 2: Use inline environment variable**
+```bash
+MKL_THREADING_LAYER=GNU pytest tests/test_backend_aimnet2.py
+```
+
+**Option 3: Add to your shell profile**
+```bash
+echo 'export MKL_THREADING_LAYER=GNU' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**Option 4: Alternative MKL service layer (alternative)**
+```bash
+export MKL_SERVICE_FORCE_INTEL=1
+```
+
+**Test your setup**: Use the provided test script to verify the fix works:
+```bash
+# Should fail without fix
+python test_mkl_fix.py
+
+# Should work with fix
+MKL_THREADING_LAYER=GNU python test_mkl_fix.py
+```
+
+**For developers**: Use the provided test runner script:
+```bash
+# Run all tests with MKL fix
+./run_tests.sh
+
+# Run specific test file
+./run_tests.sh tests/test_backend_aimnet2.py
+
+# Run specific test pattern  
+./run_tests.sh -k test_water
+```
+
+#### Other Common Issues
+
+**Missing dependencies**: Install with `pip install qme[ml]` for full functionality.
+
+**SELLA import errors**: Install with `pip install sella` or `conda install sella`.
+
+**JAX backend warnings**: These are informational and can be safely ignored for CPU usage.
+
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Install development dependencies (`pip install -e .[dev]`)
-4. Run tests and linting (`pytest`, `black qme/ tests/`, `isort qme/ tests/`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+4. **Important for conda users**: Set `export MKL_THREADING_LAYER=GNU` to avoid MKL conflicts
+5. Run tests and linting (`pytest`, `black qme/ tests/`, `isort qme/ tests/`)
+6. Commit your changes (`git commit -m 'Add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
 
 ## License
 

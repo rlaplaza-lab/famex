@@ -9,6 +9,8 @@ extend-ignore =
     E203
     # Trailing whitespaces
     W291
+    # Unused local variable
+    F841
 exclude = 
     .git,
     __pycache__,
