@@ -11,14 +11,9 @@ from ase import Atoms
 from ase.io import read, write
 from ase.optimize import BFGS, FIRE, LBFGS
 
-try:
-    from sella import Sella
-
-    HAS_SELLA = True
-except ImportError:
-    HAS_SELLA = False
-
 from .aimnet2_potential import AIMNet2Potential, get_aimnet2_calculator
+from .config import config, get_default_model, get_optimization_defaults
+from .dependencies import HAS_SELLA, deps
 from .mock_calculator import get_mock_so3lr_calculator, get_mock_uma_calculator
 from .so3lr_potential import (
     SO3LRPotential,
@@ -56,13 +51,13 @@ class QMEOptimizer:
     }
 
     if HAS_SELLA:
-        AVAILABLE_OPTIMIZERS["Sella"] = Sella
+        AVAILABLE_OPTIMIZERS["Sella"] = deps.get("sella")
 
     def __init__(
         self,
         calculator=None,
-        backend: str = "so3lr",  # Changed default to SO3LR for testing
-        model_name: str = None,
+        backend: Optional[str] = None,
+        model_name: Optional[str] = None,
         model_path: Optional[str] = None,
         device: Optional[str] = None,
         use_mock: bool = False,
@@ -73,17 +68,22 @@ class QMEOptimizer:
         -----------
         calculator : Calculator, optional
             Pre-configured calculator. If None, creates one based on backend.
-        backend : str
-            Neural network backend to use ('uma', 'so3lr', 'aimnet2'). Default: 'so3lr'
+        backend : str, optional
+            Neural network backend to use ('uma', 'so3lr', 'aimnet2').
+            Uses configuration default if None.
         model_name : str, optional
-            Model name to use. Defaults depend on backend.
+            Model name to use. Uses configuration defaults if None.
         model_path : str, optional
             Path to model file (SO3LR only)
         device : str, optional
-            Device for computations ('cpu', 'cuda')
+            Device for computations ('cpu', 'cuda'). Auto-detected if None.
         use_mock : bool
             Use mock calculator for testing (default: False)
         """
+
+        # Use configuration defaults if not provided
+        if backend is None:
+            backend = config.default_backend
 
         if backend not in self.AVAILABLE_BACKENDS:
             available = list(self.AVAILABLE_BACKENDS.keys())
@@ -120,24 +120,21 @@ class QMEOptimizer:
     ):
         """Create calculator based on backend."""
         try:
+            # Use configuration default model if not provided
+            if model_name is None:
+                model_name = get_default_model(backend)
+
+            # Get device preference if not provided
+            if device is None:
+                device = config.get_device_preference()
+
             if backend == "so3lr":
-                # Set default model name for SO3LR if not provided
-                if model_name is None:
-                    model_name = "so3lr-small"
                 return get_so3lr_calculator(
                     model_path=model_path, model_name=model_name, device=device
                 )
-
             elif backend == "uma":
-                # Set default model name for UMA if not provided
-                if model_name is None:
-                    model_name = "uma-4m"
                 return get_uma_calculator(model_name=model_name, device=device)
-
             elif backend == "aimnet2":
-                # Set default model name for AIMNET2 if not provided
-                if model_name is None:
-                    model_name = "aimnet2"
                 return get_aimnet2_calculator(model_name=model_name, device=device)
 
         except ImportError as e:
@@ -163,20 +160,58 @@ class QMEOptimizer:
 
         Raises:
             FileNotFoundError: If structure file doesn't exist.
+            ValueError: If structure file is invalid or empty.
             RuntimeError: If structure loading fails.
         """
 
         structure_file = Path(structure_file)
+
+        # Validate file existence and format
         if not structure_file.exists():
             raise FileNotFoundError(f"Structure file not found: {structure_file}")
 
+        if structure_file.stat().st_size == 0:
+            raise ValueError(f"Structure file is empty: {structure_file}")
+
+        # Validate file format
+        valid_extensions = {".xyz", ".cif", ".pdb", ".mol", ".sdf", ".cml", ".traj"}
+        if structure_file.suffix.lower() not in valid_extensions:
+            if config.enable_warnings:
+                print(
+                    f"Warning: Unrecognized file extension '{structure_file.suffix}'. "
+                    f"Supported formats: {', '.join(valid_extensions)}"
+                )
+
         try:
             atoms = read(structure_file)
+
+            # Validate loaded structure
+            if len(atoms) == 0:
+                raise ValueError(f"No atoms found in structure file: {structure_file}")
+
+            # Check for reasonable coordinates
+            if hasattr(atoms, "positions") and atoms.positions is not None:
+                pos = atoms.get_positions()
+                if np.any(np.isnan(pos)) or np.any(np.isinf(pos)):
+                    raise ValueError(
+                        f"Invalid coordinates (NaN or Inf) in structure: {structure_file}"
+                    )
+
             atoms.calc = self.calculator
             self.atoms = atoms
             return atoms
+
         except Exception as e:
-            raise RuntimeError(f"Failed to load structure from {structure_file}: {e}")
+            if "No such file or directory" in str(e):
+                raise FileNotFoundError(f"Structure file not found: {structure_file}")
+            elif "Empty file" in str(e) or "No data" in str(e):
+                raise ValueError(
+                    f"Structure file appears to be empty or corrupted: {structure_file}"
+                )
+            else:
+                raise RuntimeError(
+                    f"Failed to load structure from {structure_file}: {e}"
+                )
 
     def optimize_minimum(
         self,
@@ -323,6 +358,7 @@ class QMEOptimizer:
             atoms.set_constraint(constraints)
 
         # Initialize SELLA optimizer for TS search
+        Sella = deps.require("sella", "transition state searches")
         opt = Sella(atoms, logfile=logfile, trajectory=trajectory, **sella_kwargs)
 
         # Store initial state
@@ -404,3 +440,74 @@ class QMEOptimizer:
             )
 
         return "\n".join(summary_lines)
+
+
+def minimize_structure(
+    atoms: Atoms,
+    backend: str = "uma",
+    optimizer: str = "BFGS",
+    fmax: float = 0.01,
+    steps: int = 200,
+    logfile: Optional[str] = None,
+    trajectory: Optional[str] = None,
+    use_mock: bool = False,
+    **optimizer_kwargs,
+) -> Atoms:
+    """Convenience function to minimize a molecular structure.
+
+    This function creates a QMEOptimizer and runs a geometry optimization,
+    returning the optimized structure.
+
+    Args:
+        atoms: Input molecular structure to optimize.
+        backend: ML backend to use ('uma', 'so3lr', 'aimnet2', 'mock').
+        optimizer: Optimizer to use ('BFGS', 'LBFGS', 'FIRE').
+        fmax: Force convergence criterion (eV/Å).
+        steps: Maximum optimization steps.
+        logfile: Optional log file for optimization output.
+        trajectory: Optional trajectory file to save optimization steps.
+        use_mock: Use mock calculator for testing.
+        **optimizer_kwargs: Additional arguments passed to optimizer.
+
+    Returns:
+        Optimized ASE Atoms object.
+
+    Raises:
+        ValueError: If optimizer or backend is not available.
+        ImportError: If required dependencies are not available.
+        RuntimeError: If optimization fails.
+
+    Example:
+        >>> from ase.build import molecule
+        >>> from qme.core import minimize_structure
+        >>> water = molecule('H2O')
+        >>> optimized = minimize_structure(water, backend='uma', optimizer='BFGS')
+    """
+    # Check if optimizer is available
+    available_optimizers = ["BFGS", "LBFGS", "FIRE"]
+    if HAS_SELLA:
+        available_optimizers.append("Sella")
+
+    if optimizer not in available_optimizers:
+        raise ImportError(f"Optimizer {optimizer} not available")
+
+    # Handle mock backend by setting use_mock=True and using a real backend
+    if backend == "mock":
+        use_mock = True
+        backend = "uma"  # Default to UMA for mock calculations
+
+    # Create optimizer instance
+    qme_opt = QMEOptimizer(backend=backend, use_mock=use_mock)
+
+    # Run optimization
+    results = qme_opt.optimize_minimum(
+        atoms=atoms,
+        optimizer=optimizer,
+        fmax=fmax,
+        steps=steps,
+        logfile=logfile,
+        trajectory=trajectory,
+        **optimizer_kwargs,
+    )
+
+    return results["optimized_atoms"]

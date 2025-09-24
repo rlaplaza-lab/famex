@@ -6,23 +6,7 @@ from typing import Optional
 
 from ase.calculators.calculator import Calculator, all_changes
 
-# Handle optional dependencies
-try:
-    import torch
-
-    HAS_TORCH = True
-except ImportError:
-    HAS_TORCH = False
-    torch = None
-
-try:
-    from fairchem.core.common.utils import build_config
-    from fairchem.core.models import model_registry
-    from fairchem.core.trainers import ForcesTrainer
-
-    HAS_FAIRCHEM = True
-except ImportError:
-    HAS_FAIRCHEM = False
+from .dependencies import HAS_FAIRCHEM, HAS_TORCH, deps, torch
 
 
 class UMAPotential(Calculator):
@@ -78,15 +62,22 @@ class UMAPotential(Calculator):
     def _load_model(self):
         """Load the UMA model from fairchem."""
         try:
+            # Get fairchem dependencies
+            model_registry = deps.get("fairchem_model_registry")
+            build_config = deps.get("fairchem_build_config")
+            ForcesTrainer = deps.get("fairchem_trainer")
+
             # Try to load UMA model from fairchem registry
-            if self.model_name in model_registry.MODEL_REGISTRY:
+            if model_registry and self.model_name in model_registry.MODEL_REGISTRY:
                 model_class = model_registry.MODEL_REGISTRY[self.model_name]
                 self.model = model_class()
-            else:
+            elif build_config and ForcesTrainer:
                 # Fallback: try to load as a pre-trained checkpoint
                 config = build_config({"model": self.model_name, "trainer": "forces"})
                 self.trainer = ForcesTrainer(**config)
                 self.model = self.trainer.model
+            else:
+                raise RuntimeError("FairChem components not available")
 
             self.model.to(self.device)
             self.model.eval()
@@ -158,6 +149,18 @@ class UMAPotential(Calculator):
             data["pbc"] = torch.tensor(atoms.pbc, device=self.device)
 
         return data
+
+    def get_calculator(self):
+        """Get the calculator instance.
+
+        For UMA, this returns self since UMAPotential is itself the calculator.
+
+        Returns:
+        --------
+        UMAPotential
+            The calculator instance that can be used with ASE
+        """
+        return self
 
 
 def get_uma_calculator(model_name: str = "uma-4m", **kwargs) -> UMAPotential:

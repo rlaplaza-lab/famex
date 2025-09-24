@@ -6,21 +6,7 @@ from typing import Optional
 
 from ase.calculators.calculator import Calculator, all_changes
 
-# Handle optional dependencies
-try:
-    import torch
-
-    HAS_TORCH = True
-except ImportError:
-    HAS_TORCH = False
-    torch = None
-
-try:
-    from aimnet2calc import AIMNet2ASE
-
-    HAS_AIMNET2 = True
-except ImportError:
-    HAS_AIMNET2 = False
+from .dependencies import HAS_AIMNET2, HAS_TORCH, deps, torch
 
 
 class AIMNet2Potential(Calculator):
@@ -82,9 +68,14 @@ class AIMNet2Potential(Calculator):
     def _load_model(self):
         """Load the AIMNET2 model from aimnet2calc."""
         try:
+            # Get AIMNET2 calculator class
+            AIMNet2ASE = deps.get("aimnet2calc")
+            if AIMNet2ASE is None:
+                raise RuntimeError("AIMNET2 calculator not available")
+
             # Create AIMNET2ASE calculator with model
             self.aimnet2_calc = AIMNet2ASE(
-                base_calc=self.model_name, charge=self.charge, mult=self.mult
+                self.model_name, charge=self.charge, mult=self.mult
             )
 
             # Set device if torch is available
@@ -148,6 +139,16 @@ class AIMNet2Potential(Calculator):
         self.mult = mult
         if hasattr(self.aimnet2_calc, "set_mult"):
             self.aimnet2_calc.set_mult(mult)
+
+    def get_calculator(self):
+        """Get the underlying AIMNet2ASE calculator instance.
+
+        Returns:
+        --------
+        AIMNet2ASE or MockAIMNet2Calculator
+            The underlying calculator instance that can be used with ASE
+        """
+        return self.aimnet2_calc
 
 
 def get_aimnet2_calculator(
