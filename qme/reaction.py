@@ -125,7 +125,7 @@ class Reaction:
                 mult=self.reactant.mult,
             )
             if self.calculator is not None:
-                geom.atoms.calc = self.calculator
+                geom.calc = self.calculator
             path_geometries.append(geom)
 
         # Optionally optimize path with NEB-like forces
