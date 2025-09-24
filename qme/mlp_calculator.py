@@ -1,7 +1,11 @@
 """
 MLPCalculator convenience class for machine learning potentials in QME.
+
+DEPRECATED: This class is deprecated. Use QMEOptimizer directly instead.
+MLPCalculator(model_type="so3lr") -> QMEOptimizer(backend="so3lr")
 """
 
+import warnings
 from typing import Optional
 
 from .core import QMEOptimizer
@@ -9,10 +13,12 @@ from .core import QMEOptimizer
 
 class MLPCalculator:
     """
-    Convenience class for creating machine learning potential calculators.
+    Deprecated convenience class for creating machine learning potential calculators.
 
-    This class provides a simple interface to create calculators for different
-    ML backends (UMA, SO3LR, AIMNET2) used in the examples.
+    This class is now just a compatibility wrapper around QMEOptimizer.
+    New code should use QMEOptimizer directly.
+
+    DEPRECATED: Use QMEOptimizer instead.
     """
 
     def __init__(
@@ -24,7 +30,7 @@ class MLPCalculator:
         use_mock: bool = False,
     ):
         """
-        Initialize MLP calculator.
+        Initialize MLP calculator (DEPRECATED).
 
         Parameters
         ----------
@@ -39,6 +45,13 @@ class MLPCalculator:
         use_mock : bool, default False
             Use mock calculator for testing
         """
+        warnings.warn(
+            "MLPCalculator is deprecated. Use QMEOptimizer directly instead. "
+            "Example: MLPCalculator(model_type='so3lr') -> "
+            "QMEOptimizer(backend='so3lr')",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
         # Handle special case for mock model type
         if model_type == "mock":
@@ -66,21 +79,31 @@ class MLPCalculator:
 
     def calculate(self, geometry):
         """
-        Calculate energy and forces for a geometry.
+        Calculate energy and forces for a geometry (DEPRECATED).
+
+        Use geometry.calc = qme_optimizer.calculator instead.
 
         Parameters
         ----------
         geometry : Geometry
             Geometry object to calculate for
         """
-
         # Set calculator on the geometry's atoms
-        geometry.atoms.calc = self.calculator
+        if hasattr(geometry, "calc"):
+            geometry.calc = self.calculator
+        elif hasattr(geometry, "atoms"):
+            geometry.atoms.calc = self.calculator
 
         # Force calculation
         try:
-            energy = geometry.atoms.get_potential_energy()
-            forces = geometry.atoms.get_forces()
+            if hasattr(geometry, "get_potential_energy"):
+                energy = geometry.get_potential_energy()
+                forces = geometry.get_forces()
+            elif hasattr(geometry, "atoms"):
+                energy = geometry.atoms.get_potential_energy()
+                forces = geometry.atoms.get_forces()
+            else:
+                return
 
             # Store in geometry
             geometry.energy = energy
@@ -96,7 +119,7 @@ class MLPCalculator:
 
     def __str__(self) -> str:
         """String representation."""
-        return f"MLPCalculator({self.backend}, {self.model_name})"
+        return f"MLPCalculator({self.backend}, {self.model_name}) [DEPRECATED]"
 
     def __repr__(self) -> str:
         return self.__str__()

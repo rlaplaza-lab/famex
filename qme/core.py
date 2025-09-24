@@ -11,11 +11,9 @@ from ase import Atoms
 from ase.io import read, write
 from ase.optimize import BFGS, FIRE, LBFGS
 
-from .aimnet2_potential import get_aimnet2_calculator
+from .calculator_registry import calculator_registry
 from .config import config, get_default_model
 from .dependencies import HAS_SELLA, deps
-from .so3lr_potential import get_so3lr_calculator
-from .uma_potential import get_uma_calculator
 
 
 class QMEOptimizer:
@@ -27,7 +25,6 @@ class QMEOptimizer:
     This class provides a unified interface for molecular geometry optimization
     using machine learning potentials, supporting both minimum energy
     optimization and transition state searches.
-    and transition state searches.
 
     Attributes:
         calculator: The underlying energy/force calculator (UMA, SO3LR, AIMNET2,
@@ -85,8 +82,8 @@ class QMEOptimizer:
         if backend is None:
             backend = config.default_backend
 
-        if backend not in self.AVAILABLE_BACKENDS:
-            available = list(self.AVAILABLE_BACKENDS.keys())
+        if backend not in QMEOptimizer.AVAILABLE_BACKENDS:
+            available = list(QMEOptimizer.AVAILABLE_BACKENDS.keys())
             raise ValueError(f"Unknown backend: {backend}. Available: {available}")
 
         self.backend = backend
@@ -109,8 +106,8 @@ class QMEOptimizer:
         else:
             self.calculator = calculator
 
-        self.atoms = None
-        self.results = {}
+        self.atoms: Optional[Atoms] = None
+        self.results: Dict[str, Any] = {}
 
     def _create_calculator(
         self,
@@ -119,28 +116,17 @@ class QMEOptimizer:
         model_path: Optional[str],
         device: Optional[str],
     ):
-        """Create calculator based on backend."""
+        """Create calculator based on backend using the registry."""
         if model_name is None:
             model_name = get_default_model(backend)
 
         if device is None:
             device = config.get_device_preference()
 
-        # Map backend names to their calculator creation functions
-        calculator_factory = {
-            "so3lr": lambda: get_so3lr_calculator(
-                model_path=model_path, model_name=model_name, device=device
-            ),
-            "uma": lambda: get_uma_calculator(model_name=model_name, device=device),
-            "aimnet2": lambda: get_aimnet2_calculator(
-                model_name=model_name, device=device
-            ),
-        }
-
-        if backend in calculator_factory:
-            return calculator_factory[backend]()
-        else:
-            raise ValueError(f"Unknown backend: {backend}")
+        # Use the centralized calculator registry
+        return calculator_registry.create_calculator(
+            backend=backend, model_name=model_name, model_path=model_path, device=device
+        )
 
     def load_structure(self, structure_file: Union[str, Path]) -> Atoms:
         """Load molecular structure from file.
@@ -176,7 +162,21 @@ class QMEOptimizer:
                 )
 
         try:
-            atoms = read(structure_file)
+            atoms_result = read(structure_file)
+
+            # Handle case where read() returns a list of atoms objects
+            if isinstance(atoms_result, list):
+                if len(atoms_result) == 0:
+                    raise ValueError(f"No structures found in file: {structure_file}")
+                elif len(atoms_result) > 1:
+                    if config.enable_warnings:
+                        print(
+                            f"Warning: Multiple structures found in {structure_file}. "
+                            "Using the first one."
+                        )
+                atoms = atoms_result[0]
+            else:
+                atoms = atoms_result
 
             # Validate loaded structure
             if len(atoms) == 0:
@@ -314,13 +314,7 @@ class QMEOptimizer:
         if atoms is None:
             if self.atoms is None:
                 raise ValueError("No structure loaded. Use load_structure() first.")
-            # Handle case where self.atoms might be a list (from multi-structure files)
-            if isinstance(self.atoms, list):
-                if len(self.atoms) == 0:
-                    raise ValueError("No structures available in loaded file.")
-                atoms = self.atoms[0].copy()  # Use first structure
-            else:
-                atoms = self.atoms.copy()
+            atoms = self.atoms.copy()
         else:
             atoms = atoms.copy()
 
@@ -476,13 +470,7 @@ class QMEOptimizer:
         if atoms is None:
             if self.atoms is None:
                 raise ValueError("No structure loaded. Use load_structure() first.")
-            # Handle case where self.atoms might be a list (from multi-structure files)
-            if isinstance(self.atoms, list):
-                if len(self.atoms) == 0:
-                    raise ValueError("No structures available in loaded file.")
-                atoms = self.atoms[0].copy()  # Use first structure
-            else:
-                atoms = self.atoms.copy()
+            atoms = self.atoms.copy()
         else:
             atoms = atoms.copy()
 

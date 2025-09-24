@@ -26,6 +26,8 @@ __version__ = "0.1.0"
 __author__ = "QME Development Team"
 
 from .aimnet2_potential import AIMNet2Potential, get_aimnet2_calculator
+from .base_potential import BasePotential
+from .calculator_registry import calculator_registry
 from .config import config, get_default_backend, get_default_model, set_defaults
 from .core import QMEOptimizer, minimize_structure
 
@@ -40,6 +42,7 @@ from .so3lr_potential import (
     get_so3lr_calculator,
 )
 from .uma_potential import UMAPotential, get_uma_calculator
+from .validation import BackendError, DependencyError, QMEError, ValidationError
 
 __all__ = [
     # Core classes
@@ -47,7 +50,10 @@ __all__ = [
     "minimize_structure",
     "Geometry",
     "Reaction",
-    "MLPCalculator",
+    "MLPCalculator",  # Deprecated but kept for compatibility
+    # Base classes and registry
+    "BasePotential",
+    "calculator_registry",
     # Configuration and dependencies
     "config",
     "deps",
@@ -66,4 +72,9 @@ __all__ = [
     "get_aimnet2_calculator",
     # Mock calculators
     "MockCalculator",
+    # Error classes
+    "QMEError",
+    "DependencyError",
+    "BackendError",
+    "ValidationError",
 ]

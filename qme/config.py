@@ -9,7 +9,7 @@ import json
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -45,7 +45,7 @@ class QMEConfig:
     def __post_init__(self):
         if self.default_models is None:
             self.default_models = {
-                "uma": "uma-m-1p1",
+                "uma": "uma-s-1p1",
                 "so3lr": "so3lr-small",
                 "aimnet2": "aimnet2",
                 "mock": "generic",
@@ -128,6 +128,37 @@ class ConfigManager:
             self.config.default_models = {}
         self.config.default_models[backend] = model_name
         self.save_config()
+
+    def validate_config(self) -> List[str]:
+        """Validate configuration and return list of issues found."""
+        issues = []
+
+        # Check backend availability
+        from .dependencies import deps
+
+        backend = self.config.default_backend
+        if backend == "uma" and not deps.has("fairchem"):
+            issues.append(
+                f"Default backend '{backend}' requires FairChem (fairchem-core)"
+            )
+        elif backend == "so3lr" and not deps.has("so3lr"):
+            issues.append(f"Default backend '{backend}' requires SO3LR")
+        elif backend == "aimnet2" and not deps.has("torch"):
+            issues.append(f"Default backend '{backend}' requires PyTorch")
+
+        # Check model names
+        if self.config.default_models:
+            for backend_name, model_name in self.config.default_models.items():
+                if backend_name == "uma" and model_name not in [
+                    "uma-s-1p1",
+                    "uma-m-1p1",
+                ]:
+                    issues.append(
+                        f"Unknown UMA model '{model_name}'. "
+                        "Available: uma-s-1p1, uma-m-1p1"
+                    )
+
+        return issues
 
     def get_device_preference(self) -> Optional[str]:
         """Get preferred device, considering availability."""

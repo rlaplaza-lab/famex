@@ -8,6 +8,7 @@ import numpy as np
 from ase import Atoms
 
 from .geometry import Geometry
+from .validation import validate_atoms_compatibility
 
 
 class Reaction:
@@ -54,11 +55,7 @@ class Reaction:
             self.product = product
 
         # Validate that structures are compatible
-        if len(self.reactant) != len(self.product):
-            raise ValueError("Reactant and product must have same number of atoms")
-
-        if list(self.reactant.symbols) != list(self.product.symbols):
-            raise ValueError("Reactant and product must have same atomic symbols")
+        validate_atoms_compatibility(self.reactant, self.product, "reaction")
 
         self.calculator = calculator
 
@@ -119,7 +116,7 @@ class Reaction:
         path_geometries = []
         for coords in path_coords:
             geom = Geometry(
-                atoms=self.reactant.symbols,
+                atoms=list(self.reactant.get_chemical_symbols()),
                 positions=coords,
                 charge=self.reactant.charge,
                 mult=self.reactant.mult,
@@ -252,10 +249,10 @@ class Reaction:
 
         # Set calculators and calculate energies
         for geom in path_geometries:
-            geom.atoms.calc = calculator
+            geom.calc = calculator
             try:
                 # Force energy calculation
-                energy = geom.atoms.get_potential_energy()
+                energy = geom.get_potential_energy()
                 geom.energy = energy
             except Exception:
                 pass

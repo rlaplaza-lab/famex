@@ -40,9 +40,9 @@ core_options = [
     click.option(
         "--backend",
         "-b",
-        default="so3lr",
-        type=click.Choice(["uma", "so3lr", "aimnet2"]),
-        help="Backend to use (uma, so3lr, or aimnet2)",
+        default=None,  # Will use config default
+        type=click.Choice(["uma", "so3lr", "aimnet2", "mock"]),
+        help="Backend to use (uma, so3lr, aimnet2, or mock for testing)",
     ),
     click.option("--model", "-m", default=None, type=str, help="Model name to use"),
     click.option(
@@ -139,10 +139,15 @@ def minimize(
         verbose: Enable detailed output.
     """
 
+    # Use config defaults if not specified
+    from .config import config as qme_config
+
+    effective_backend = backend or qme_config.config.default_backend
+
     if verbose:
         click.echo("Starting minimum energy optimization...")
         click.echo(f"Input file: {input_file}")
-        click.echo(f"Backend: {backend}")
+        click.echo(f"Backend: {effective_backend}")
         click.echo(f"Optimizer: {optimizer}")
         if model:
             click.echo(f"Model: {model}")
@@ -152,7 +157,10 @@ def minimize(
     try:
         # Initialize optimizer
         qme = QMEOptimizer(
-            backend=backend, model_name=model, model_path=model_path, device=device
+            backend=effective_backend,
+            model_name=model,
+            model_path=model_path,
+            device=device,
         )
 
         # Load structure
@@ -242,10 +250,15 @@ def transition_state(
     INPUT_FILE: Path to molecular structure file (starting guess for TS)
     """
 
+    # Use config defaults if not specified
+    from .config import config as qme_config
+
+    effective_backend = backend or qme_config.config.default_backend
+
     if verbose:
         click.echo("Starting transition state search...")
         click.echo(f"Input file: {input_file}")
-        click.echo(f"Backend: {backend}")
+        click.echo(f"Backend: {effective_backend}")
         if model:
             click.echo(f"Model: {model}")
         if model_path:
@@ -254,7 +267,10 @@ def transition_state(
     try:
         # Initialize optimizer
         qme = QMEOptimizer(
-            backend=backend, model_name=model, model_path=model_path, device=device
+            backend=effective_backend,
+            model_name=model,
+            model_path=model_path,
+            device=device,
         )
 
         # Load structure
@@ -333,7 +349,6 @@ def test_setup(backend, model, model_path, device, verbose):
             backend=backend,
             model_name=model,
             device=device,
-            use_mock=True,
         )
         click.echo(f"✓ {backend.upper()} backend initialized successfully")
         click.echo(f"✓ Calculator type: {type(qme.calculator).__name__}")
@@ -511,6 +526,115 @@ def interpolate(
     except Exception as e:
         click.echo(f"Error during interpolation: {e}", err=True)
         sys.exit(1)
+
+
+@main.command()
+@click.option("--show", is_flag=True, help="Show current configuration")
+@click.option(
+    "--backend",
+    type=click.Choice(["uma", "so3lr", "aimnet2"]),
+    help="Set default backend",
+)
+@click.option("--model", type=str, help="Set default model for backend")
+@click.option("--fmax", type=float, help="Set default force convergence criterion")
+@click.option("--steps", type=int, help="Set default maximum optimization steps")
+@click.option("--reset", is_flag=True, help="Reset configuration to defaults")
+def config(show, backend, model, fmax, steps, reset):
+    """Manage QME configuration settings."""
+    from .config import config as qme_config
+
+    if reset:
+        # Remove config file and recreate with defaults
+        import os
+
+        config_file = qme_config._config_file
+        if config_file.exists():
+            os.remove(config_file)
+            click.echo("Configuration reset to defaults.")
+        qme_config.__init__()  # Reinitialize with defaults
+        return
+
+    if show or not any([backend, model, fmax, steps]):
+        # Show current configuration
+        click.echo("Current QME Configuration:")
+        click.echo(f"  Default backend: {qme_config.config.default_backend}")
+        click.echo(f"  Default optimizer: {qme_config.config.default_optimizer}")
+        if qme_config.config.default_models:
+            click.echo("  Default models:")
+            for backend_name, model_name in qme_config.config.default_models.items():
+                click.echo(f"    {backend_name}: {model_name}")
+        click.echo(f"  Default fmax: {qme_config.config.default_fmax}")
+        click.echo(f"  Default steps: {qme_config.config.default_steps}")
+        click.echo(
+            f"  Preferred device: {qme_config.config.preferred_device or 'auto'}"
+        )
+        click.echo(f"  Warnings enabled: {qme_config.config.enable_warnings}")
+        return
+
+    # Update configuration
+    if backend:
+        qme_config.config.default_backend = backend
+        click.echo(f"Default backend set to: {backend}")
+
+    if model and backend:
+        if qme_config.config.default_models is None:
+            qme_config.config.default_models = {}
+        qme_config.config.default_models[backend] = model
+        click.echo(f"Default model for {backend} set to: {model}")
+    elif model:
+        click.echo("Error: --model requires --backend to be specified", err=True)
+        sys.exit(1)
+
+    if fmax:
+        qme_config.config.default_fmax = fmax
+        click.echo(f"Default fmax set to: {fmax}")
+
+    if steps:
+        qme_config.config.default_steps = steps
+        click.echo(f"Default steps set to: {steps}")
+
+    # Save configuration
+    qme_config.save_config()
+    click.echo("Configuration saved.")
+
+
+@main.command()
+def info():
+    """Show system and dependency information."""
+    from .config import config as qme_config
+    from .dependencies import deps
+
+    click.echo("QME System Information")
+    click.echo("=" * 30)
+
+    # Backend availability
+    backends = {
+        "UMA (FairChem)": deps.has("fairchem"),
+        "SO3LR": deps.has("so3lr"),
+        "AIMNET2": deps.has("aimnet2"),
+        "SELLA (TS)": deps.has("sella"),
+        "PyTorch": deps.has("torch"),
+    }
+
+    click.echo("\nBackend Availability:")
+    for backend, available in backends.items():
+        status = "✓" if available else "✗"
+        click.echo(f"  {status} {backend}")
+
+    # Configuration
+    click.echo(f"\nDefault Backend: {qme_config.config.default_backend}")
+    click.echo(f"Config Location: {qme_config._config_file}")
+
+    # Device information
+    device = qme_config.get_device_preference()
+    click.echo(f"Preferred Device: {device or 'auto-detect'}")
+
+    if deps.has("torch"):
+        torch = deps.get("torch")
+        if torch.cuda.is_available():
+            click.echo(f"CUDA Available: ✓ ({torch.cuda.get_device_name()})")
+        else:
+            click.echo("CUDA Available: ✗")
 
 
 if __name__ == "__main__":
