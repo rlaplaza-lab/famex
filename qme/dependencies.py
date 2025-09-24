@@ -38,30 +38,24 @@ class DependencyManager:
             self._cache["sella"] = None
             self._cache["HAS_SELLA"] = False
 
-        # AIMNET2
+        # AIMNET2 - now using native implementation
+        # We always mark as True since we have native implementation
+        self._cache["aimnet2calc"] = None  # Not used anymore
+        self._cache["HAS_AIMNET2"] = True
+
+        # FairChem (v2 API)
         try:
-            from aimnet2calc import AIMNet2ASE
+            from fairchem.core import FAIRChemCalculator, pretrained_mlip
+            from fairchem.core.units.mlip_unit import load_predict_unit
 
-            self._cache["aimnet2calc"] = AIMNet2ASE
-            self._cache["HAS_AIMNET2"] = True
-        except ImportError:
-            self._cache["aimnet2calc"] = None
-            self._cache["HAS_AIMNET2"] = False
-
-        # FairChem
-        try:
-            from fairchem.core.common.utils import build_config
-            from fairchem.core.models import model_registry
-            from fairchem.core.trainers import ForcesTrainer
-
-            self._cache["fairchem_build_config"] = build_config
-            self._cache["fairchem_model_registry"] = model_registry
-            self._cache["fairchem_trainer"] = ForcesTrainer
+            self._cache["fairchem_pretrained_mlip"] = pretrained_mlip
+            self._cache["fairchem_calculator"] = FAIRChemCalculator
+            self._cache["fairchem_load_predict_unit"] = load_predict_unit
             self._cache["HAS_FAIRCHEM"] = True
         except ImportError:
-            self._cache["fairchem_build_config"] = None
-            self._cache["fairchem_model_registry"] = None
-            self._cache["fairchem_trainer"] = None
+            self._cache["fairchem_pretrained_mlip"] = None
+            self._cache["fairchem_calculator"] = None
+            self._cache["fairchem_load_predict_unit"] = None
             self._cache["HAS_FAIRCHEM"] = False
 
         # SO3LR
@@ -96,7 +90,7 @@ class DependencyManager:
         commands = {
             "torch": "torch",
             "sella": "sella",
-            "aimnet2": "aimnet2calc",
+            "aimnet2": "torch",  # Native implementation only needs torch
             "fairchem": "fairchem-core",
             "so3lr": "so3lr  # See installation instructions in README",
         }

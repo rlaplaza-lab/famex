@@ -45,7 +45,7 @@ class QMEConfig:
     def __post_init__(self):
         if self.default_models is None:
             self.default_models = {
-                "uma": "uma-4m",
+                "uma": "uma-m-1p1",
                 "so3lr": "so3lr-small",
                 "aimnet2": "aimnet2",
                 "mock": "generic",

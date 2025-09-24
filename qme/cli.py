@@ -328,8 +328,12 @@ def test_setup(backend, model, model_path, device, verbose):
 
         # Test model loading
         click.echo(f"Testing {backend.upper()} backend...")
+        # Use use_mock=True to test initialization without downloading models
         qme = QMEOptimizer(
-            backend=backend, model_name=model, model_path=model_path, device=device
+            backend=backend,
+            model_name=model,
+            device=device,
+            use_mock=True,
         )
         click.echo(f"✓ {backend.upper()} backend initialized successfully")
         click.echo(f"✓ Calculator type: {type(qme.calculator).__name__}")
@@ -338,13 +342,19 @@ def test_setup(backend, model, model_path, device, verbose):
     except ImportError as e:
         click.echo(f"❌ Import error: {e}", err=True)
         click.echo("Make sure all dependencies are installed:", err=True)
-        click.echo("  pip install ase sella torch", err=True)
-        if backend == "uma":
-            click.echo("  pip install fairchem-core  # For UMA backend", err=True)
-        elif backend == "so3lr":
-            click.echo("  pip install so3lr  # For SO3LR backend", err=True)
-        elif backend == "aimnet2":
-            click.echo("  pip install aimnet2calc  # For AIMNET2 backend", err=True)
+        if backend == "uma" and "fairchem" in str(e).lower():
+            click.echo("  For UMA, run: pip install qme[ml]", err=True)
+        elif backend == "so3lr" and "so3lr" in str(e).lower():
+            click.echo(
+                "  SO3LR not found. See README.md for installation instructions.",
+                err=True,
+            )
+        elif backend == "aimnet2" and "torch" in str(e).lower():
+            click.echo(
+                "  PyTorch is required for AIMNet2. See README.md for details.",
+                err=True,
+            )
+        click.echo("See 'Backend-Specific Installation' in README.md for more help.")
     except Exception as e:
         click.echo(f"❌ Setup error: {e}", err=True)
 
@@ -453,11 +463,13 @@ def interpolate(
                 reaction.set_calculator(calculator)
 
             except Exception as e:
-                click.echo(f"Warning: Calculator initialization failed: {e}", err=True)
-                click.echo("Falling back to mock calculator for demonstration.")
-                from .mock_calculator import MockCalculator
-
-                calculator = MockCalculator()
+                click.echo(
+                    f"Warning: Failed to initialize '{backend}' backend: {e}", err=True
+                )
+                click.echo("Falling back to a mock calculator for demonstration.")
+                # Use QMEOptimizer's mock capability to get a consistent mock calc
+                qme_mock = QMEOptimizer(backend=backend, use_mock=True)
+                calculator = qme_mock.calculator
                 reaction.set_calculator(calculator)
 
         # Generate interpolated path
