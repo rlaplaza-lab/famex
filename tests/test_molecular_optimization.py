@@ -15,7 +15,7 @@ from qme import QMEOptimizer
 class TestMolecularOptimization:
     """Test molecular geometry optimization with QME."""
 
-    @pytest.fixture(params=["so3lr", "uma"])
+    @pytest.fixture(params=["so3lr", "uma", "aimnet2"])
     def qme_optimizer(self, request):
         """QME optimizer fixture with different backends."""
         return QMEOptimizer(use_mock=True, backend=request.param)
