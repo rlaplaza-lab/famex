@@ -10,8 +10,8 @@ import click
 from .aimnet2_potential import get_aimnet2_calculator
 from .core import QMEOptimizer
 from .geometry import Geometry, read_geometry, write_geometry
-from .reaction import Reaction
 from .mlp_calculator import MLPCalculator
+from .reaction import Reaction
 from .so3lr_potential import get_so3lr_calculator
 from .uma_potential import get_uma_calculator
 
@@ -373,9 +373,7 @@ def test_setup(backend, model, model_path, device):
 @main.command()
 @click.argument("reactant_file", type=click.Path(exists=True))
 @click.argument("product_file", type=click.Path(exists=True))
-@click.option(
-    "--output", "-o", type=click.Path(), help="Output XYZ trajectory file"
-)
+@click.option("--output", "-o", type=click.Path(), help="Output XYZ trajectory file")
 @click.option(
     "--npoints", "-n", default=10, type=int, help="Number of interpolation points"
 )
@@ -393,9 +391,7 @@ def test_setup(backend, model, model_path, device):
     type=click.Choice(["uma", "so3lr", "aimnet2"]),
     help="Backend to use for calculations",
 )
-@click.option(
-    "--model", type=str, help="Model name to use"
-)
+@click.option("--model", type=str, help="Model name to use")
 @click.option(
     "--model-path",
     type=click.Path(exists=True),
@@ -434,14 +430,14 @@ def interpolate(
 ):
     """
     Generate reaction pathway by interpolation between reactant and product.
-    
+
     Uses geodesic or linear interpolation to create intermediate structures
     along a reaction coordinate, similar to NEB (Nudged Elastic Band) methods.
-    
+
     REACTANT_FILE: Path to reactant structure file (xyz, cif, pdb, etc.)
     PRODUCT_FILE: Path to product structure file
     """
-    
+
     if verbose:
         click.echo("Starting reaction pathway interpolation...")
         click.echo(f"Reactant: {reactant_file}")
@@ -451,61 +447,64 @@ def interpolate(
         click.echo(f"Backend: {backend}")
         if optimize_path:
             click.echo("Path optimization: enabled")
-    
+
     try:
         # Load reactant and product geometries
         reactant = read_geometry(reactant_file)
         product = read_geometry(product_file)
-        
+
         if verbose:
             click.echo(f"Loaded reactant with {len(reactant)} atoms")
             click.echo(f"Loaded product with {len(product)} atoms")
-        
+
         # Create reaction object
-        reaction = Reaction(reactant, product, name=f"{reactant_file}_to_{product_file}")
-        
+        reaction = Reaction(
+            reactant, product, name=f"{reactant_file}_to_{product_file}"
+        )
+
         # Set up calculator if needed
         calculator = None
         if optimize_path or calculate_energies:
             if verbose:
                 click.echo(f"Initializing {backend.upper()} calculator...")
-            
+
             try:
                 qme = QMEOptimizer(
                     backend=backend,
                     model_name=model,
                     model_path=model_path,
-                    device=device
+                    device=device,
                 )
                 calculator = qme.calculator
-                
+
                 # Set calculator on reaction
                 reaction.calculator = calculator
-                
+
             except Exception as e:
                 click.echo(f"Warning: Calculator initialization failed: {e}")
                 click.echo("Falling back to mock calculator for demonstration")
-                
+
                 from .mlp_calculator import MLPCalculator
+
                 calculator = MLPCalculator(model_type="mock").calculator
                 reaction.calculator = calculator
-        
+
         # Generate interpolated path
         if verbose:
             click.echo(f"Generating {method} interpolation path...")
-        
+
         path_geometries = reaction.interpolate(
             npoints=npoints,
             method=method,
             optimize_path=optimize_path,
-            calculator=calculator
+            calculator=calculator,
         )
-        
+
         # Calculate energies if requested
         if calculate_energies and calculator is not None:
             if verbose:
                 click.echo("Calculating energies along path...")
-            
+
             for i, geom in enumerate(path_geometries):
                 if geom.atoms.calc is None:
                     geom.atoms.calc = calculator
@@ -514,11 +513,11 @@ def interpolate(
                     geom.energy = energy
                 except:
                     pass
-        
+
         # Output results
         click.echo("✓ Pathway generation completed!")
         click.echo(f"Generated {len(path_geometries)} intermediate structures")
-        
+
         # Show energies if available
         if calculate_energies:
             click.echo("\nEnergies along reaction path:")
@@ -527,33 +526,38 @@ def interpolate(
                     click.echo(f"  Point {i:2d}: {geom.energy:10.6f} eV")
                 else:
                     click.echo(f"  Point {i:2d}: {'N/A':>10s}")
-        
+
         # Save trajectory
         if output:
             trajectory_xyz = reaction.to_xyz_trajectory(path_geometries)
-            with open(output, 'w') as f:
+            with open(output, "w") as f:
                 f.write(trajectory_xyz)
             click.echo(f"Trajectory saved to: {output}")
         else:
             # Generate default output name
             default_output = f"pathway_{method}_{npoints}pts.xyz"
             trajectory_xyz = reaction.to_xyz_trajectory(path_geometries)
-            with open(default_output, 'w') as f:
+            with open(default_output, "w") as f:
                 f.write(trajectory_xyz)
             click.echo(f"Trajectory saved to: {default_output}")
-        
+
         # Additional analysis
         if verbose:
-            rmsd_from_reactant, rmsd_from_product = reaction.get_rmsd_profile(path_geometries)
+            rmsd_from_reactant, rmsd_from_product = reaction.get_rmsd_profile(
+                path_geometries
+            )
             click.echo("\nRMSD analysis:")
             click.echo("Point  From_Reactant  From_Product")
-            for i, (r_rmsd, p_rmsd) in enumerate(zip(rmsd_from_reactant, rmsd_from_product)):
+            for i, (r_rmsd, p_rmsd) in enumerate(
+                zip(rmsd_from_reactant, rmsd_from_product)
+            ):
                 click.echo(f"{i:3d}    {r_rmsd:8.3f}       {p_rmsd:8.3f}")
-        
+
     except Exception as e:
         click.echo(f"Error during interpolation: {e}", err=True)
         if verbose:
             import traceback
+
             click.echo(traceback.format_exc(), err=True)
         sys.exit(1)
 

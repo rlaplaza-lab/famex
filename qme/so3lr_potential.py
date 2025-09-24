@@ -10,24 +10,7 @@ from typing import Optional
 
 from ase.calculators.calculator import Calculator, all_changes
 
-# Handle optional dependencies
-try:
-    import torch
-
-    HAS_TORCH = True
-except ImportError:
-    HAS_TORCH = False
-    torch = None
-
-try:
-    # This would be the actual SO3LR import when available
-    # For now, we'll implement a mock interface
-    import so3lr
-
-    HAS_SO3LR = True
-except ImportError:
-    HAS_SO3LR = False
-    so3lr = None
+from .dependencies import HAS_SO3LR, HAS_TORCH, deps, torch
 
 
 class SO3LRPotential(Calculator):
@@ -113,6 +96,11 @@ class SO3LRPotential(Calculator):
             return
 
         try:
+            # Get SO3LR module
+            so3lr = deps.get("so3lr")
+            if so3lr is None:
+                raise RuntimeError("SO3LR module not available")
+
             if self.model_path:
                 # Load model from file
                 self.model = so3lr.load_model(self.model_path)
@@ -251,6 +239,18 @@ class SO3LRPotential(Calculator):
             data["pbc"] = torch.tensor(atoms.pbc, device=self.device)
 
         return data
+
+    def get_calculator(self):
+        """Get the calculator instance.
+
+        For SO3LR, this returns self since SO3LRPotential is itself the calculator.
+
+        Returns:
+        --------
+        SO3LRPotential
+            The calculator instance that can be used with ASE
+        """
+        return self
 
 
 def get_so3lr_calculator(

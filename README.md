@@ -16,13 +16,13 @@ QME combines the power of ASE and SELLA optimizers with state-of-the-art neural 
 
 ## Supported Neural Network Backends
 
-### SO3LR (Default)
+### SO3LR
 SO3LR provides SO(3) invariant neural network potentials with excellent accuracy for molecular systems. It's now the **default backend** for better testing and performance.
 
-### UMA (Universal Model for Atoms)
+### UMA
 UMA machine learning potentials from the FAIR Chemistry team provide state-of-the-art accuracy for diverse chemical systems.
 
-### AIMNET2 (Accurate Neural Network Potential)
+### AIMNET2
 AIMNET2 provides fast and reliable energy, force, and property calculations for molecules containing a diverse range of elements. It excels at modeling neutral, charged, organic, and elemental-organic systems with flexible long-range interactions.
 
 ## Installation
@@ -206,10 +206,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you use QME in your research, please cite:
 
 ```bibtex
-@software{qme2024,
+@software{qme2025,
   title={QME: Quick Mechanistic Exploration},
   author={QME Development Team},
-  year={2024},
+  year={2025},
   url={https://github.com/rlaplaza-lab/qme}
 }
 ```
@@ -219,7 +219,6 @@ If you use QME in your research, please cite:
 - Inspired by [pysisyphus](https://github.com/eljost/pysisyphus) for reaction pathway methods
 - Built on [ASE](https://wiki.fysik.dtu.dk/ase/) for molecular structure handling
 - Integrates [SELLA](https://github.com/zadorlab/sella) for transition state optimization
-- Uses [SO3LR](https://github.com/LLNL/so3lr) and UMA potentials for ML energies
 
 ## Architecture
 
@@ -230,7 +229,7 @@ If you use QME in your research, please cite:
 
 ## Contributing
 
-This project is inspired by the excellent [pysisyphus](https://github.com/eljost/pysisyphus) package by @eljost. Contributions are welcome!
+Contributions are welcome!
 
 ## License
 

@@ -160,61 +160,70 @@ class BaseMockCalculator(Calculator):
             self.results["forces"] = forces
 
 
-class MockUMACalculator(BaseMockCalculator):
+class UnifiedMockCalculator(BaseMockCalculator):
     """
-    Mock calculator that simulates UMA behavior for testing.
+    Unified mock calculator that can simulate different backend behaviors.
 
-    Uses simple harmonic oscillator potentials between covalently bonded atoms.
+    This replaces the individual mock calculators with a single configurable one.
     """
+
+    # Pre-defined configurations for different backends
+    BACKEND_CONFIGS = {
+        "uma": {"bond_length": 1.0, "force_constant": 1.0, "name": "MockUMA"},
+        "aimnet2": {"bond_length": 1.2, "force_constant": 0.8, "name": "MockAIMNet2"},
+        "so3lr": {"bond_length": 1.1, "force_constant": 0.9, "name": "MockSO3LR"},
+        "generic": {"bond_length": 1.0, "force_constant": 1.0, "name": "MockGeneric"},
+    }
+
+    def __init__(self, backend="generic", charge=0, mult=1, **kwargs):
+        """Initialize unified mock calculator.
+
+        Parameters
+        ----------
+        backend : str, default "generic"
+            Backend to simulate ("uma", "aimnet2", "so3lr", "generic")
+        charge : int, default 0
+            Molecular charge
+        mult : int, default 1
+            Spin multiplicity
+        **kwargs
+            Override default parameters
+        """
+        # Get base configuration for backend
+        if backend not in self.BACKEND_CONFIGS:
+            backend = "generic"
+
+        config = self.BACKEND_CONFIGS[backend].copy()
+        config.update({"charge": charge, "mult": mult})
+        config.update(kwargs)  # Allow overriding defaults
+
+        self.backend = backend
+        super().__init__(**config)
+
+    def __repr__(self):
+        return f"{self.BACKEND_CONFIGS[self.backend]['name']}(charge={self.charge}, mult={self.mult})"
+
+
+# Backward compatibility classes
+class MockUMACalculator(UnifiedMockCalculator):
+    """Mock calculator that simulates UMA behavior for testing."""
 
     def __init__(self, **kwargs):
-        """Initialize mock UMA calculator."""
-        defaults = {
-            "bond_length": 1.0,  # Equilibrium bond length (Å)
-            "force_constant": 1.0,  # Force constant (eV/Å²)
-            "charge": 0,
-            "mult": 1,
-        }
-        defaults.update(kwargs)
-        super().__init__(**defaults)
+        super().__init__(backend="uma", **kwargs)
 
 
-class MockAIMNet2Calculator(BaseMockCalculator):
-    """
-    Mock calculator that simulates AIMNET2 behavior for testing.
-
-    Uses simple harmonic oscillator potentials between covalently bonded atoms.
-    """
+class MockAIMNet2Calculator(UnifiedMockCalculator):
+    """Mock calculator that simulates AIMNET2 behavior for testing."""
 
     def __init__(self, charge=0, mult=1, **kwargs):
-        """Initialize mock AIMNET2 calculator."""
-        defaults = {
-            "bond_length": 1.2,  # Equilibrium bond length (Å) - different from UMA
-            "force_constant": 0.8,  # Force constant (eV/Å²) - different from UMA
-            "charge": charge,
-            "mult": mult,
-        }
-        defaults.update(kwargs)
-        super().__init__(**defaults)
+        super().__init__(backend="aimnet2", charge=charge, mult=mult, **kwargs)
 
 
-class MockSO3LRCalculator(BaseMockCalculator):
-    """
-    Mock calculator that simulates SO3LR behavior for testing.
-
-    Uses simple harmonic oscillator potentials between covalently bonded atoms.
-    """
+class MockSO3LRCalculator(UnifiedMockCalculator):
+    """Mock calculator that simulates SO3LR behavior for testing."""
 
     def __init__(self, **kwargs):
-        """Initialize mock SO3LR calculator."""
-        defaults = {
-            "bond_length": 1.0,  # Equilibrium bond length (Å)
-            "force_constant": 1.0,  # Force constant (eV/Å²)
-            "charge": 0,
-            "mult": 1,
-        }
-        defaults.update(kwargs)
-        super().__init__(**defaults)
+        super().__init__(backend="so3lr", **kwargs)
 
         # Add SO3LR-like attributes for compatibility
         self.device = "cpu"  # Mock device
@@ -222,51 +231,52 @@ class MockSO3LRCalculator(BaseMockCalculator):
 
 
 def get_mock_uma_calculator(**kwargs):
-    """
-    Get mock UMA calculator for testing.
+    """Get mock UMA calculator for testing.
 
     Parameters
     ----------
     **kwargs
-        Keyword arguments passed to MockUMACalculator
+        Keyword arguments passed to UnifiedMockCalculator
 
     Returns
     -------
-    MockUMACalculator
-        Mock calculator instance
+    UnifiedMockCalculator
+        Mock calculator configured for UMA backend
     """
-    return MockUMACalculator(**kwargs)
+    return UnifiedMockCalculator(backend="uma", **kwargs)
 
 
 def get_mock_aimnet2_calculator(**kwargs):
-    """
-    Get mock AIMNET2 calculator for testing.
+    """Get mock AIMNET2 calculator for testing.
 
     Parameters
     ----------
     **kwargs
-        Keyword arguments passed to MockAIMNet2Calculator
+        Keyword arguments passed to UnifiedMockCalculator
 
     Returns
     -------
-    MockAIMNet2Calculator
-        Mock calculator instance
+    UnifiedMockCalculator
+        Mock calculator configured for AIMNET2 backend
     """
-    return MockAIMNet2Calculator(**kwargs)
+    return UnifiedMockCalculator(backend="aimnet2", **kwargs)
 
 
 def get_mock_so3lr_calculator(**kwargs):
-    """
-    Get mock SO3LR calculator for testing.
+    """Get mock SO3LR calculator for testing.
 
     Parameters
     ----------
     **kwargs
-        Keyword arguments passed to MockSO3LRCalculator
+        Keyword arguments passed to UnifiedMockCalculator
 
     Returns
     -------
-    MockSO3LRCalculator
-        Mock calculator instance
+    UnifiedMockCalculator
+        Mock calculator configured for SO3LR backend
     """
-    return MockSO3LRCalculator(**kwargs)
+    return UnifiedMockCalculator(backend="so3lr", **kwargs)
+
+
+# Convenience alias for backward compatibility and general testing
+MockCalculator = UnifiedMockCalculator
