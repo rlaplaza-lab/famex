@@ -15,7 +15,7 @@ class TestReactions:
 
         # Simple H2 dissociation: H2 -> 2H
         h2 = molecule("H2")
-        h2.set_calculator(qme.calculator)
+        h2.calc = qme.calculator
         qme.atoms = h2  # Set atoms on QME instance
 
         # Optimize "reactant"
@@ -27,7 +27,7 @@ class TestReactions:
         positions = h2_stretched.get_positions()
         positions[1][0] += 2.0  # Move second H atom away
         h2_stretched.set_positions(positions)
-        h2_stretched.set_calculator(qme.calculator)
+        h2_stretched.calc = qme.calculator
 
         # Optimize "product"
         qme.atoms = h2_stretched
@@ -42,7 +42,7 @@ class TestReactions:
         if "Sella" in qme.AVAILABLE_OPTIMIZERS:
             # Create a simple system
             h2 = molecule("H2")
-            h2.set_calculator(qme.calculator)
+            h2.calc = qme.calculator
             qme.atoms = h2
 
             # Try transition state search (may not converge, but should not error)
@@ -71,13 +71,13 @@ class TestReactions:
 
         # Create two different structures
         h2_normal = molecule("H2")
-        h2_normal.set_calculator(qme.calculator)
+        h2_normal.calc = qme.calculator
 
         h2_stretched = h2_normal.copy()
         positions = h2_stretched.get_positions()
         positions[1][0] += 0.5  # Stretch bond
         h2_stretched.set_positions(positions)
-        h2_stretched.set_calculator(qme.calculator)
+        h2_stretched.calc = qme.calculator
 
         # Compare energies
         e1 = h2_normal.get_potential_energy()
@@ -86,6 +86,6 @@ class TestReactions:
         # Both should be valid floats
         assert isinstance(e1, float)
         assert isinstance(e2, float)
-        # Note: With mock calculator, energy comparison may not follow physical expectations
-        # Just verify we can calculate different energies
+        # Note: With mock calculator, energy comparison may not follow
+        # physical expectations. Just verify we can calculate different energies
         assert e1 != e2

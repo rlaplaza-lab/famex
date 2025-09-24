@@ -49,6 +49,15 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -e .[dev]
+        
+    - name: Verify installation
+      run: |
+        python -c "import qme; print('QME version:', qme.__version__)"
+        python -c "from qme import QMEOptimizer; print('QME imports successful')"
+        
+    - name: Debug QME functionality
+      run: |
+        python debug_ci.py
 
     - name: Run linting
       run: |
@@ -64,9 +73,10 @@ jobs:
       run: |
         pytest tests/test_qme.py -v --tb=short
 
-    - name: Run SO3LR tests
+    - name: Run SO3LR tests (with mock fallback)
       run: |
         pytest tests/test_so3lr.py -v --tb=short
+      continue-on-error: false
 
     - name: Run all tests with coverage
       run: |

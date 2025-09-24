@@ -5,13 +5,9 @@ This module tests QME's transition state search capabilities on toy reactions
 and model systems using the SELLA optimizer.
 """
 
-import os
-import tempfile
-
 import numpy as np
 import pytest
 from ase.build import molecule
-from ase.io import read, write
 
 from qme import QMEOptimizer
 
@@ -133,9 +129,6 @@ class TestTransitionStateOptimization:
         positions = nh3.get_positions()
 
         # Make nitrogen coplanar with hydrogens
-        n_pos = positions[0]
-        h_positions = positions[1:]
-
         # Set all z-coordinates to same plane
         positions[:, 2] = 0.0
 
@@ -186,7 +179,6 @@ class TestTransitionStateOptimization:
         positions = ch4.get_positions()
 
         # Arrange in linear fashion for TS-like geometry
-        c_pos = positions[0]  # Carbon at center
         positions[0] = [0.0, 0.0, 0.0]  # C
         positions[1] = [1.5, 0.0, 0.0]  # H (leaving group)
         positions[2] = [-1.5, 0.0, 0.0]  # H (attacking group)
