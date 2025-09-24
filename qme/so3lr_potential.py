@@ -8,12 +8,13 @@ This module provides ASE Calculator interface for SO3LR models.
 from typing import Optional
 
 import numpy as np
-from ase.calculators.calculator import Calculator, all_changes
+from ase.calculators.calculator import all_changes
 
+from .base_potential import BasePotential
 from .dependencies import HAS_SO3LR, deps
 
 
-class SO3LRPotential(Calculator):
+class SO3LRPotential(BasePotential):
     """
     ASE Calculator interface for SO3LR neural network potential.
 
@@ -44,13 +45,6 @@ class SO3LRPotential(Calculator):
 
         """
 
-        Calculator.__init__(self, **kwargs)
-
-        # Store parameters
-        self.model_path = model_path
-        self.model_name = model_name
-        self.device = device
-
         if not HAS_SO3LR:
             raise ImportError(
                 "SO3LR is required for SO3LR potentials. "
@@ -59,9 +53,14 @@ class SO3LRPotential(Calculator):
                 "cd so3lr && pip install ."
             )
 
-        # Initialize the actual SO3LR calculator
+        # Store additional SO3LR-specific parameters
+        self.model_path = model_path
+
+        # Initialize base class
+        super().__init__(model_name=model_name, device=device, **kwargs)
+
+        # SO3LR-specific attributes
         self.calculator = None
-        self._load_calculator()
 
     def _load_calculator(self):
         """Load the SO3LR ASE calculator."""
@@ -88,34 +87,29 @@ class SO3LRPotential(Calculator):
         if atoms is None:
             return
 
-        Calculator.calculate(self, atoms, properties, system_changes)
+        super().calculate(atoms, properties, system_changes)
 
         # Ensure atoms has charge information as required by SO3LR
         if "charge" not in atoms.info:
             atoms.info["charge"] = 0.0
 
-        # Set the calculator on the atoms and get properties
-        atoms.calc = self.calculator
+        # Ensure calculator is loaded
+        if self.calculator is None:
+            self._load_calculator()
 
+        # Use the underlying calculator directly
+        self.calculator.calculate(atoms, properties, system_changes)
+
+        # Extract results from the underlying calculator
         if "energy" in properties:
-            energy = atoms.get_potential_energy()
-            self.results["energy"] = energy
+            self.results["energy"] = self.calculator.results["energy"]
 
         if "forces" in properties:
-            forces = atoms.get_forces()
-            self.results["forces"] = forces
+            self.results["forces"] = self.calculator.results["forces"]
 
-    def get_calculator(self):
-        """Get the calculator instance.
-
-        For SO3LR, this returns self since SO3LRPotential is itself the calculator.
-
-        Returns:
-        --------
-        SO3LRPotential
-            The calculator instance that can be used with ASE
-        """
-        return self
+    def _get_backend_name(self) -> str:
+        """Get the backend name for SO3LR."""
+        return "so3lr"
 
 
 def get_so3lr_calculator(

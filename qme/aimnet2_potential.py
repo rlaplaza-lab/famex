@@ -10,9 +10,10 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 import requests
-from ase.calculators.calculator import Calculator, all_changes
+from ase.calculators.calculator import all_changes
 from torch_cluster import radius_graph
 
+from .base_potential import BasePotential
 from .dependencies import HAS_TORCH, torch
 
 # Model registry - mapping model names to download URLs
@@ -395,7 +396,7 @@ class NativeAIMNet2Calculator:
         return result
 
 
-class AIMNet2Potential(Calculator):
+class AIMNet2Potential(BasePotential):
     """
     ASE Calculator interface for AIMNET2 neural network potential.
 
@@ -403,8 +404,6 @@ class AIMNet2Potential(Calculator):
     molecular property prediction and geometry optimization, excelling at
     modeling neutral, charged, organic, and elemental-organic systems.
     """
-
-    implemented_properties = ["energy", "forces"]
 
     def __init__(
         self,
@@ -429,14 +428,6 @@ class AIMNet2Potential(Calculator):
         **kwargs :
             Additional arguments passed to parent Calculator
         """
-        Calculator.__init__(self, **kwargs)
-
-        self.model_name = model_name
-        self.device = device or (
-            "cuda" if torch and torch.cuda.is_available() else "cpu"
-        )
-        self.charge = charge
-        self.mult = mult
 
         # Check dependencies
         if not HAS_TORCH:
@@ -445,12 +436,28 @@ class AIMNet2Potential(Calculator):
                 "Install with: pip install torch"
             )
 
-        # Initialize calculator
-        self._load_model()
+        # Set device if not provided
+        if device is None:
+            device = "cuda" if torch and torch.cuda.is_available() else "cpu"
 
-    def _load_model(self):
+        # Initialize base class
+        super().__init__(model_name=model_name, device=device, **kwargs)
+
+        # AIMNet2-specific attributes
+        self.charge = charge
+        self.mult = mult
+
+    def _load_calculator(self):
         """Load the AIMNET2 model directly."""
         try:
+            # Ensure model_name is not None
+            if self.model_name is None:
+                self.model_name = "aimnet2"
+
+            # Ensure device is not None
+            if self.device is None:
+                self.device = "cpu"
+
             model_path = get_model_path(self.model_name)
             self.aimnet2_calc = NativeAIMNet2Calculator(model_path, device=self.device)
             print(f"Successfully loaded AIMNet2 model: {self.model_name}")
@@ -468,7 +475,7 @@ class AIMNet2Potential(Calculator):
         system_changes=all_changes,
     ):
         """Calculate properties using AIMNET2 potential."""
-        Calculator.calculate(self, atoms, properties, system_changes)
+        super().calculate(atoms, properties, system_changes)
 
         # Use self.atoms if atoms is None (standard ASE behavior)
         if atoms is None:
@@ -508,15 +515,9 @@ class AIMNet2Potential(Calculator):
         """Set spin multiplicity."""
         self.mult = mult
 
-    def get_calculator(self):
-        """Get the underlying AIMNet2ASE calculator instance.
-
-        Returns:
-        --------
-        AIMNet2ASE or MockAIMNet2Calculator
-            The underlying calculator instance that can be used with ASE
-        """
-        return self.aimnet2_calc
+    def _get_backend_name(self) -> str:
+        """Get the backend name for AIMNet2."""
+        return "aimnet2"
 
 
 def get_aimnet2_calculator(

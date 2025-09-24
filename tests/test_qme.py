@@ -136,7 +136,7 @@ class TestGeometry:
         """Test geometry reading and writing with XYZ format."""
         # Create a temporary XYZ file
         xyz_content = """3
-Water molecule  
+Water molecule
 O       0.000000    0.000000    0.000000
 H       0.757000    0.586000    0.000000
 H      -0.757000    0.586000    0.000000

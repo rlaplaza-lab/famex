@@ -4,12 +4,13 @@ UMA Machine Learning Potential integration for ASE.
 
 from typing import Optional
 
-from ase.calculators.calculator import Calculator, all_changes
+from ase.calculators.calculator import all_changes
 
+from .base_potential import BasePotential
 from .dependencies import HAS_FAIRCHEM, HAS_TORCH, deps, torch
 
 
-class UMAPotential(Calculator):
+class UMAPotential(BasePotential):
     """
     ASE Calculator interface for UMA (Universal Model for Atoms) potential.
 
@@ -20,7 +21,7 @@ class UMAPotential(Calculator):
     implemented_properties = ["energy", "forces"]
 
     def __init__(
-        self, model_name: str = "uma-m-1p1", device: Optional[str] = None, **kwargs
+        self, model_name: str = "uma-s-1p1", device: Optional[str] = None, **kwargs
     ):
         """
         Initialize UMA potential calculator.
@@ -28,7 +29,7 @@ class UMAPotential(Calculator):
         Parameters:
         -----------
         model_name : str
-            Name of the UMA model to load (default: "uma-m-1p1")
+            Name of the UMA model to load (default: "uma-s-1p1")
         device : str, optional
             Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
         """
@@ -45,21 +46,18 @@ class UMAPotential(Calculator):
                 "Install with: pip install fairchem-core"
             )
 
-        Calculator.__init__(self, **kwargs)
-
         # Set device
         if device is None:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        else:
-            self.device = torch.device(device)
+            device = str(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
-        # Load UMA model
-        self.model_name = model_name
+        # Initialize base class
+        super().__init__(model_name=model_name, device=device, **kwargs)
+
+        # UMA-specific attributes
         self.predictor = None
         self.fairchem_calc = None
-        self._load_model()
 
-    def _load_model(self):
+    def _load_calculator(self):
         """Load the UMA model from fairchem v2 API."""
         try:
             # Get fairchem v2 dependencies
@@ -93,41 +91,32 @@ class UMAPotential(Calculator):
     ):
         """Calculate properties using UMA potential."""
 
-        Calculator.calculate(self, atoms, properties, system_changes)
+        super().calculate(atoms, properties, system_changes)
 
         if atoms is None:
             raise ValueError("atoms cannot be None")
 
+        # Ensure calculator is loaded
+        if self.fairchem_calc is None:
+            self._load_calculator()
+
         # Use the fairchem v2 calculator directly
-        # Set the calculator on atoms temporarily
-        old_calc = getattr(atoms, "calc", None)
-        atoms.calc = self.fairchem_calc
+        # Calculate properties using the fairchem calculator directly
+        self.fairchem_calc.calculate(atoms, properties, system_changes)
 
-        try:
-            # Extract results using standard ASE interface
-            if "energy" in properties:
-                self.results["energy"] = atoms.get_potential_energy()
+        # Extract results from the fairchem calculator
+        if "energy" in properties:
+            self.results["energy"] = self.fairchem_calc.results["energy"]
 
-            if "forces" in properties:
-                self.results["forces"] = atoms.get_forces()
-        finally:
-            # Restore original calculator
-            atoms.calc = old_calc
+        if "forces" in properties:
+            self.results["forces"] = self.fairchem_calc.results["forces"]
 
-    def get_calculator(self):
-        """Get the calculator instance.
-
-        For UMA, this returns self since UMAPotential is itself the calculator.
-
-        Returns:
-        --------
-        UMAPotential
-            The calculator instance that can be used with ASE
-        """
-        return self
+    def _get_backend_name(self) -> str:
+        """Get the backend name for UMA."""
+        return "uma"
 
 
-def get_uma_calculator(model_name: str = "uma-m-1p1", **kwargs) -> UMAPotential:
+def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs) -> UMAPotential:
     """
     Convenience function to get UMA calculator.
 
