@@ -8,7 +8,7 @@ from pathlib import Path
 import click
 
 from .core import QMEOptimizer
-from .geometry import read_geometry
+from .geometry import read_gaussian_input, read_geometry
 from .reaction import Reaction
 
 
@@ -33,6 +33,111 @@ def add_common_options(options):
         return f
 
     return decorator
+
+
+def _setup_optimization(
+    input_file,
+    backend,
+    model,
+    model_path,
+    device,
+    constraint_atoms,
+    verbose,
+    geometry=None,
+):
+    """Shared setup for minimize and transition_state commands."""
+    from .config import config as qme_config
+
+    effective_backend = backend or qme_config.config.default_backend
+
+    if verbose:
+        if input_file:
+            click.echo(f"Starting optimization setup for: {input_file}")
+        else:
+            click.echo("Starting optimization setup from provided geometry.")
+        click.echo(f"Backend: {effective_backend}")
+        if model:
+            click.echo(f"Model: {model}")
+        if model_path:
+            click.echo(f"Model path: {model_path}")
+
+    try:
+        # Initialize optimizer
+        qme = QMEOptimizer(
+            backend=effective_backend,
+            model_name=model,
+            model_path=model_path,
+            device=device,
+        )
+
+        # Load structure
+        if geometry:
+            geometry.calc = qme.calculator
+            qme.atoms = geometry
+            atoms = geometry
+        elif input_file:
+            atoms = qme.load_structure(input_file)
+        else:
+            raise ValueError("Either input_file or geometry must be provided.")
+
+        if verbose:
+            click.echo(f"Loaded structure with {len(atoms)} atoms")
+
+        # Parse constraints
+        constraints = _parse_constraints(constraint_atoms, verbose)
+
+        return qme, constraints
+
+    except Exception as e:
+        click.echo(f"Error during setup: {e}", err=True)
+        sys.exit(1)
+
+
+def _handle_optimization_results(results, qme, input_file, output, job_type, verbose):
+    """Handles the output and saving of optimization results."""
+    if results["converged"]:
+        click.echo(
+            f"✓ {job_type.replace('_', ' ').capitalize()} converged successfully!"
+        )
+    else:
+        click.echo(
+            f"⚠ {job_type.replace('_', ' ').capitalize()} did not converge within step limit"
+        )
+
+    if verbose or not results["converged"]:
+        click.echo(f"Steps taken: {results['steps_taken']}")
+        click.echo(f"Energy change: {results['energy_change']:.6f} eV")
+        click.echo(f"Final max force: {results['final_max_force']:.4f} eV/Å")
+
+    suffix = ".opt" if job_type == "minimize" else ".ts"
+    atoms_key = "optimized_atoms" if job_type == "minimize" else "ts_atoms"
+
+    output_path = output or _generate_output_path(input_file, suffix)
+    qme.save_structure(results[atoms_key], output_path)
+    click.echo(f"Structure saved to: {output_path}")
+
+
+def _parse_constraints(constraint_atoms, verbose=False):
+    """Parses comma-separated atom indices for constraints."""
+    if not constraint_atoms:
+        return None
+    try:
+        fixed_indices = [int(i.strip()) for i in constraint_atoms.split(",")]
+        from ase.constraints import FixAtoms
+
+        constraints = [FixAtoms(indices=fixed_indices)]
+        if verbose:
+            click.echo(f"Fixed atoms: {fixed_indices}")
+        return constraints
+    except ValueError as e:
+        click.echo(f"Error parsing constraint atoms: {e}", err=True)
+        sys.exit(1)
+
+
+def _generate_output_path(input_path_str, suffix):
+    """Generates a default output path."""
+    input_path = Path(input_path_str)
+    return input_path.with_suffix(suffix + input_path.suffix)
 
 
 # Define common option groups
@@ -120,68 +225,15 @@ def minimize(
     constraint_atoms,
     verbose,
 ):
-    """Find minimum energy geometry using specified optimizer.
-
-    Optimizes a molecular structure to its minimum energy configuration using
-    machine learning potentials and ASE optimizers.
-
-    Args:
-        input_file: Path to molecular structure file (xyz, cif, pdb, etc.).
-        output: Output file for optimized structure (optional).
-        optimizer: Optimization algorithm to use.
-        fmax: Force convergence criterion in eV/Å.
-        steps: Maximum number of optimization steps.
-        model: UMA model name to use for calculations.
-        device: Computation device (cpu/cuda).
-        logfile: Optional file for optimization logging.
-        trajectory: Optional file to save optimization trajectory.
-        constraint_atoms: Comma-separated atom indices to fix during optimization.
-        verbose: Enable detailed output.
-    """
-
-    # Use config defaults if not specified
-    from .config import config as qme_config
-
-    effective_backend = backend or qme_config.config.default_backend
+    """Find minimum energy geometry using specified optimizer."""
 
     if verbose:
         click.echo("Starting minimum energy optimization...")
-        click.echo(f"Input file: {input_file}")
-        click.echo(f"Backend: {effective_backend}")
-        click.echo(f"Optimizer: {optimizer}")
-        if model:
-            click.echo(f"Model: {model}")
-        if model_path:
-            click.echo(f"Model path: {model_path}")
 
     try:
-        # Initialize optimizer
-        qme = QMEOptimizer(
-            backend=effective_backend,
-            model_name=model,
-            model_path=model_path,
-            device=device,
+        qme, constraints = _setup_optimization(
+            input_file, backend, model, model_path, device, constraint_atoms, verbose
         )
-
-        # Load structure
-        atoms = qme.load_structure(input_file)
-
-        if verbose:
-            click.echo(f"Loaded structure with {len(atoms)} atoms")
-
-        # Parse constraints if provided
-        constraints = None
-        if constraint_atoms:
-            try:
-                fixed_indices = [int(i.strip()) for i in constraint_atoms.split(",")]
-                from ase.constraints import FixAtoms
-
-                constraints = [FixAtoms(indices=fixed_indices)]
-                if verbose:
-                    click.echo(f"Fixed atoms: {fixed_indices}")
-            except ValueError as e:
-                click.echo(f"Error parsing constraint atoms: {e}", err=True)
-                sys.exit(1)
 
         # Run optimization
         results = qme.optimize_minimum(
@@ -193,27 +245,9 @@ def minimize(
             constraints=constraints,
         )
 
-        # Output results
-        if results["converged"]:
-            click.echo("✓ Optimization converged successfully!")
-        else:
-            click.echo("⚠ Optimization did not converge within step limit")
-
-        if verbose or not results["converged"]:
-            click.echo(f"Steps taken: {results['steps_taken']}")
-            click.echo(f"Energy change: {results['energy_change']:.6f} eV")
-            click.echo(f"Final max force: {results['final_max_force']:.4f} eV/Å")
-
-        # Save optimized structure
-        if output:
-            qme.save_structure(results["optimized_atoms"], output)
-            click.echo(f"Optimized structure saved to: {output}")
-        else:
-            # Generate default output name
-            input_path = Path(input_file)
-            default_output = input_path.with_suffix(".opt" + input_path.suffix)
-            qme.save_structure(results["optimized_atoms"], default_output)
-            click.echo(f"Optimized structure saved to: {default_output}")
+        _handle_optimization_results(
+            results, qme, input_file, output, "minimize", verbose
+        )
 
     except Exception as e:
         click.echo(f"Error during optimization: {e}", err=True)
@@ -244,54 +278,15 @@ def transition_state(
     constraint_atoms,
     verbose,
 ):
-    """
-    Find transition state (saddle point) using SELLA optimizer.
-
-    INPUT_FILE: Path to molecular structure file (starting guess for TS)
-    """
-
-    # Use config defaults if not specified
-    from .config import config as qme_config
-
-    effective_backend = backend or qme_config.config.default_backend
+    """Find transition state (saddle point) using SELLA optimizer."""
 
     if verbose:
         click.echo("Starting transition state search...")
-        click.echo(f"Input file: {input_file}")
-        click.echo(f"Backend: {effective_backend}")
-        if model:
-            click.echo(f"Model: {model}")
-        if model_path:
-            click.echo(f"Model path: {model_path}")
 
     try:
-        # Initialize optimizer
-        qme = QMEOptimizer(
-            backend=effective_backend,
-            model_name=model,
-            model_path=model_path,
-            device=device,
+        qme, constraints = _setup_optimization(
+            input_file, backend, model, model_path, device, constraint_atoms, verbose
         )
-
-        # Load structure
-        atoms = qme.load_structure(input_file)
-
-        if verbose:
-            click.echo(f"Loaded structure with {len(atoms)} atoms")
-
-        # Parse constraints if provided
-        constraints = None
-        if constraint_atoms:
-            try:
-                fixed_indices = [int(i.strip()) for i in constraint_atoms.split(",")]
-                from ase.constraints import FixAtoms
-
-                constraints = [FixAtoms(indices=fixed_indices)]
-                if verbose:
-                    click.echo(f"Fixed atoms: {fixed_indices}")
-            except ValueError as e:
-                click.echo(f"Error parsing constraint atoms: {e}", err=True)
-                sys.exit(1)
 
         # Run TS search
         results = qme.find_transition_state(
@@ -302,27 +297,9 @@ def transition_state(
             constraints=constraints,
         )
 
-        # Output results
-        if results["converged"]:
-            click.echo("✓ Transition state search converged successfully!")
-        else:
-            click.echo("⚠ Transition state search did not converge within step limit")
-
-        if verbose or not results["converged"]:
-            click.echo(f"Steps taken: {results['steps_taken']}")
-            click.echo(f"Energy change: {results['energy_change']:.6f} eV")
-            click.echo(f"Final max force: {results['final_max_force']:.4f} eV/Å")
-
-        # Save TS structure
-        if output:
-            qme.save_structure(results["ts_atoms"], output)
-            click.echo(f"Transition state structure saved to: {output}")
-        else:
-            # Generate default output name
-            input_path = Path(input_file)
-            default_output = input_path.with_suffix(".ts" + input_path.suffix)
-            qme.save_structure(results["ts_atoms"], default_output)
-            click.echo(f"Transition state structure saved to: {default_output}")
+        _handle_optimization_results(
+            results, qme, input_file, output, "transition_state", verbose
+        )
 
     except Exception as e:
         click.echo(f"Error during transition state search: {e}", err=True)
@@ -635,6 +612,94 @@ def info():
             click.echo(f"CUDA Available: ✓ ({torch.cuda.get_device_name()})")
         else:
             click.echo("CUDA Available: ✗")
+
+
+@main.command()
+@click.argument("gaussian_file", type=click.Path(exists=True))
+@click.option(
+    "--output", "-o", type=click.Path(), help="Output file for optimized structure"
+)
+@click.option(
+    "--optimizer",
+    "-opt",
+    default="BFGS",
+    type=click.Choice(["BFGS", "LBFGS", "FIRE"]),
+    help="Optimizer to use for minimization (if applicable)",
+)
+@add_common_options(core_options)
+@add_common_options(optimization_options)
+def from_gaussian(
+    gaussian_file,
+    output,
+    optimizer,
+    fmax,
+    steps,
+    model,
+    backend,
+    model_path,
+    device,
+    logfile,
+    trajectory,
+    constraint_atoms,
+    verbose,
+):
+    """
+    Run a QME optimization starting from a Gaussian input file.
+    The job type (minimize or transition_state) is detected automatically.
+    """
+    if verbose:
+        click.echo(f"Reading Gaussian input file: {gaussian_file}")
+
+    try:
+        geometry, job_type = read_gaussian_input(gaussian_file)
+
+        if verbose:
+            click.echo(f"Detected job type: {job_type}")
+            click.echo(f"Loaded geometry: {geometry}")
+
+        qme, constraints = _setup_optimization(
+            None,
+            backend,
+            model,
+            model_path,
+            device,
+            constraint_atoms,
+            verbose,
+            geometry=geometry,
+        )
+
+        if job_type == "minimize":
+            if verbose:
+                click.echo("Starting minimum energy optimization...")
+            results = qme.optimize_minimum(
+                optimizer=optimizer,
+                fmax=fmax,
+                steps=steps,
+                logfile=logfile,
+                trajectory=trajectory,
+                constraints=constraints,
+            )
+            _handle_optimization_results(
+                results, qme, gaussian_file, output, "minimize", verbose
+            )
+
+        elif job_type == "transition_state":
+            if verbose:
+                click.echo("Starting transition state search...")
+            results = qme.find_transition_state(
+                fmax=fmax,
+                steps=steps,
+                logfile=logfile,
+                trajectory=trajectory,
+                constraints=constraints,
+            )
+            _handle_optimization_results(
+                results, qme, gaussian_file, output, "transition_state", verbose
+            )
+
+    except Exception as e:
+        click.echo(f"An error occurred: {e}", err=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
