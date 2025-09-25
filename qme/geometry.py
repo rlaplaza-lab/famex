@@ -257,3 +257,98 @@ def write_geometry(geometry, filename: str, **kwargs):
     else:
         # Assume it's a plain ASE Atoms object
         write(filename, geometry, **kwargs)
+
+
+def read_gaussian_input(filename: str) -> (Atoms, str):
+    """Reads a Gaussian input file (.com or .gjf) and determines the intended calculation type.
+
+    Parses the route section to detect if it's a minimization or a transition state search
+    and extracts the molecular geometry.
+
+    Args:
+        filename: Path to the Gaussian input file.
+
+    Returns:
+        A tuple containing:
+        - a Geometry object with the structure, charge, and multiplicity.
+        - a string indicating the job type ('minimize' or 'transition_state').
+
+    Raises:
+        ValueError: If the file cannot be parsed or the job type is unclear.
+    """
+    with open(filename, "r") as f:
+        lines = f.readlines()
+
+    route_line = ""
+    job_type = None
+    charge_mult_line_index = -1
+
+    # Find the route line and the line number for charge/multiplicity
+    for i, line in enumerate(lines):
+        line_lower = line.strip().lower()
+        if line_lower.startswith("#"):
+            route_line = line_lower
+            # The title is next, then a blank line, then charge/multiplicity
+            charge_mult_line_index = i + 3
+            break
+
+    if not route_line:
+        raise ValueError("Route section (starting with #) not found in Gaussian input.")
+
+    # Determine job type from route line
+    if "opt=ts" in route_line or "opt=saddle" in route_line:
+        job_type = "transition_state"
+    elif "opt" in route_line:
+        job_type = "minimize"
+    else:
+        raise ValueError(
+            "Could not determine job type. Route line must contain 'opt' or 'opt=ts'."
+        )
+
+    if (
+        charge_mult_line_index >= len(lines)
+        or not lines[charge_mult_line_index].strip()
+    ):
+        # This handles cases with no title or compact input
+        # Let's search for the charge/multiplicity line after the route line
+        for i in range(charge_mult_line_index - 2, len(lines)):
+            if len(lines[i].strip().split()) == 2 and all(
+                c.isdigit() or c == "-" for c in lines[i].strip().split()[0]
+            ):
+                charge_mult_line_index = i
+                break
+        else:
+            raise ValueError("Could not find charge and multiplicity line.")
+
+    # Extract charge and multiplicity
+    try:
+        parts = lines[charge_mult_line_index].strip().split()
+        charge = int(parts[0])
+        multiplicity = int(parts[1])
+    except (ValueError, IndexError):
+        raise ValueError(
+            f"Invalid charge/multiplicity line: '{lines[charge_mult_line_index].strip()}'"
+        )
+
+    # Extract coordinates
+    coord_lines = lines[charge_mult_line_index + 1 :]
+    symbols = []
+    positions = []
+    for line in coord_lines:
+        parts = line.strip().split()
+        if len(parts) == 4:
+            try:
+                symbols.append(parts[0])
+                positions.append([float(p) for p in parts[1:]])
+            except ValueError:
+                # Reached end of coordinate block
+                break
+        elif len(parts) == 0:
+            # Empty line signifies end of coordinates
+            break
+
+    if not symbols:
+        raise ValueError("No atomic coordinates found in the input file.")
+
+    atoms = Atoms(symbols=symbols, positions=positions)
+    return Geometry(ase_atoms=atoms, charge=charge, mult=multiplicity), job_type
