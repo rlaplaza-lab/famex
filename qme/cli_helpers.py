@@ -7,13 +7,14 @@ from pathlib import Path
 
 import click
 
-from .core import QMEOptimizer
+# Lazy import to avoid loading heavy MLP backends for simple commands
+# from .core import QMEOptimizer
 
 
 def _write_standard_xyz(atoms, filename):
     """
     Write atoms to XYZ file in standard format (just atom types and coordinates).
-    
+
     Parameters:
     -----------
     atoms : ase.Atoms
@@ -21,7 +22,7 @@ def _write_standard_xyz(atoms, filename):
     filename : str
         Output filename
     """
-    with open(filename, 'w') as f:
+    with open(filename, "w") as f:
         f.write(f"{len(atoms)}\n")
         f.write("\n")  # Comment line (empty)
         for atom in atoms:
@@ -43,9 +44,11 @@ def setup_optimization(
     geometry=None,
 ):
     """Shared setup for minimize and transition_state commands."""
-    from .config import config as qme_config
+    # Import only when actually setting up optimization
+    from .core import QMEOptimizer
+    from .settings import config as qme_config
 
-    effective_backend = backend or qme_config.config.default_backend
+    effective_backend = backend or qme_config.get_backend()
 
     if verbose:
         if input_file:
@@ -162,7 +165,8 @@ def calculate_frequencies_if_requested(qme, results, frequencies, verbose, is_ts
             )
             results["frequencies"] = freq_results
             click.echo(
-                f"✓ Calculated {len(freq_results['frequencies'])} vibrational frequencies"
+                f"✓ Calculated {len(freq_results['frequencies'])} "
+                f"vibrational frequencies"
             )
 
             if is_ts:
@@ -216,7 +220,8 @@ def handle_optimization_results(results, qme, input_file, output, job_type, verb
         if optimized_atoms is None:
             raise KeyError("No optimized structure found in results")
 
-        # Save as standard XYZ format (just atom types and coordinates) for better compatibility
+        # Save as standard XYZ format (just atom types and coordinates)
+        # for better compatibility
         _write_standard_xyz(optimized_atoms, str(output_path))
         click.echo(f"Optimized structure saved to: {output_path}")
 

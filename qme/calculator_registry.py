@@ -5,6 +5,7 @@ This module provides centralized calculator creation logic to eliminate
 code duplication across the codebase.
 """
 
+import importlib
 from typing import Callable, Dict, Optional
 
 from .dependencies import deps
@@ -12,34 +13,73 @@ from .dependencies import deps
 
 class CalculatorRegistry:
     """
-    Registry for calculator creation functions.
+    Registry for calculator creation functions with lazy loading.
 
     This centralizes the mapping between backend names and their
-    calculator creation functions, eliminating duplication.
+    calculator creation functions, with lazy loading to avoid
+    importing heavy ML backends until actually needed.
     """
 
     def __init__(self):
         self._registry: Dict[str, Callable] = {}
-        self._register_default_backends()
-
-    def _register_default_backends(self):
-        """Register the default backend calculators."""
-        # Import here to avoid circular imports
-        from .aimnet2_potential import get_aimnet2_calculator
-        from .mace_potential import get_mace_calculator
-        from .mock_calculator import MockCalculator
-        from .so3lr_potential import get_so3lr_calculator
-        from .uma_potential import get_uma_calculator
-
-        self._registry = {
-            "so3lr": get_so3lr_calculator,
-            "uma": get_uma_calculator,
-            "aimnet2": get_aimnet2_calculator,
-            "mace": get_mace_calculator,
-            "mock": lambda **kwargs: MockCalculator(
-                backend=kwargs.get("backend", "generic")
-            ),
+        self._lazy_registry: Dict[str, dict] = {
+            "so3lr": {
+                "module": "qme.so3lr_potential",
+                "function": "get_so3lr_calculator",
+            },
+            "uma": {
+                "module": "qme.uma_potential",
+                "function": "get_uma_calculator",
+            },
+            "aimnet2": {
+                "module": "qme.aimnet2_potential",
+                "function": "get_aimnet2_calculator",
+            },
+            "mace": {
+                "module": "qme.mace_potential",
+                "function": "get_mace_calculator",
+            },
+            "mock": {
+                "module": "qme.mock_calculator",
+                "function": "MockCalculator",
+                "is_class": True,
+            },
         }
+
+    def _load_backend(self, backend_name: str):
+        """Lazy load a backend when first accessed."""
+        if backend_name in self._registry:
+            return  # Already loaded
+
+        if backend_name not in self._lazy_registry:
+            return  # Unknown backend
+
+        backend_info = self._lazy_registry[backend_name]
+        module_name = backend_info["module"]
+        function_name = backend_info["function"]
+
+        try:
+            module = importlib.import_module(module_name)
+            func_or_class = getattr(module, function_name)
+
+            if backend_info.get("is_class", False):
+                # Special case for MockCalculator class
+                self._registry[backend_name] = lambda **kwargs: func_or_class(
+                    backend=kwargs.get("backend", "generic")
+                )
+            else:
+                # Regular function
+                self._registry[backend_name] = func_or_class
+
+        except ImportError as e:
+            # Backend not available, this is expected for optional dependencies
+            pass
+        except Exception as e:
+            # Other errors should be logged but not break the system
+            import warnings
+
+            warnings.warn(f"Failed to load backend {backend_name}: {e}")
+            pass
 
     def register(self, backend_name: str, factory_func: Callable):
         """Register a new calculator factory function.
@@ -55,7 +95,9 @@ class CalculatorRegistry:
 
     def get_available_backends(self) -> list:
         """Get list of available backend names."""
-        return list(self._registry.keys())
+        # Return all known backends from lazy registry
+        # We don't try to load them here to avoid heavy imports
+        return list(self._lazy_registry.keys())
 
     def create_calculator(
         self,
@@ -88,11 +130,16 @@ class CalculatorRegistry:
         Raises:
         -------
         ValueError
-            If backend is not registered
+            If backend is not registered or available
         """
+        # Lazy load the backend
+        self._load_backend(backend)
+
         if backend not in self._registry:
-            available = list(self._registry.keys())
-            raise ValueError(f"Unknown backend: {backend}. Available: {available}")
+            available = self.get_available_backends()
+            raise ValueError(
+                f"Unknown or unavailable backend: {backend}. Available: {available}"
+            )
 
         factory_func = self._registry[backend]
 

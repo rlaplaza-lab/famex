@@ -8,7 +8,7 @@ foundation model for molecular systems, transition metals, and cations.
 from typing import Optional
 
 from .base_potential import BasePotential
-from .dependencies import HAS_TORCH, deps
+from .dependencies import deps
 
 
 class MACEPotential(BasePotential):
@@ -46,45 +46,48 @@ class MACEPotential(BasePotential):
 
     def _load_calculator(self):
         """Load the MACE calculator implementation."""
-        if not HAS_TORCH:
+        from .logging_utils import quiet_backend_loading
+
+        if not deps.has("torch"):
             raise ImportError(
                 "PyTorch is required for MACE backend. "
                 "Install with: pip install torch"
             )
 
-        try:
-            # Try to import MACE calculators
-            if self.model_name == "mace-omol-0":
-                from mace.calculators import mace_omol
+        with quiet_backend_loading("mace", self.model_name, None, self.device):
+            try:
+                # Try to import MACE calculators
+                if self.model_name == "mace-omol-0":
+                    from mace.calculators import mace_omol
 
-                self._calc = mace_omol(device=self.device or "cpu")
-            elif self.model_name.startswith("mace-mp"):
-                from mace.calculators import mace_mp
+                    self._calc = mace_omol(device=self.device or "cpu")
+                elif self.model_name and self.model_name.startswith("mace-mp"):
+                    from mace.calculators import mace_mp
 
-                # Extract model size from model name (e.g., mace-mp-medium -> medium)
-                model_size = self.model_name.replace("mace-mp-", "") or "medium"
-                self._calc = mace_mp(model=model_size, device=self.device or "cpu")
-            elif self.model_name.startswith("mace-off"):
-                from mace.calculators import mace_off
+                    # Extract model size from model name (e.g., mace-mp-medium -> medium)
+                    model_size = self.model_name.replace("mace-mp-", "") or "medium"
+                    self._calc = mace_mp(model=model_size, device=self.device or "cpu")
+                elif self.model_name and self.model_name.startswith("mace-off"):
+                    from mace.calculators import mace_off
 
-                # Extract model size from model name (e.g., mace-off-medium -> medium)
-                model_size = self.model_name.replace("mace-off-", "") or "medium"
-                self._calc = mace_off(model=model_size, device=self.device or "cpu")
-            else:
-                # Default to MACE-OMOL for unknown model names
-                from mace.calculators import mace_omol
+                    # Extract model size from model name (e.g., mace-off-medium -> medium)
+                    model_size = self.model_name.replace("mace-off-", "") or "medium"
+                    self._calc = mace_off(model=model_size, device=self.device or "cpu")
+                else:
+                    # Default to MACE-OMOL for unknown model names
+                    from mace.calculators import mace_omol
 
-                self._calc = mace_omol(device=self.device or "cpu")
+                    self._calc = mace_omol(device=self.device or "cpu")
 
-        except ImportError as e:
-            deps.warn_fallback(
-                "mace",
-                f"MACE not available ({e}). Install with: pip install mace-torch",
-            )
-            # Fall back to mock calculator
-            from .mock_calculator import MockCalculator
+            except ImportError as e:
+                deps.warn_fallback(
+                    "mace",
+                    f"MACE not available ({e}). Install with: pip install mace-torch",
+                )
+                # Fall back to mock calculator
+                from .mock_calculator import MockCalculator
 
-            self._calc = MockCalculator(backend="mace")
+                self._calc = MockCalculator(backend="mace")
 
     def _get_backend_name(self) -> str:
         """Get the backend name for this calculator."""

@@ -7,7 +7,7 @@ from typing import Optional
 from ase.calculators.calculator import all_changes
 
 from .base_potential import BasePotential
-from .dependencies import HAS_FAIRCHEM, HAS_TORCH, deps, torch
+from .dependencies import deps
 
 
 class UMAPotential(BasePotential):
@@ -43,62 +43,86 @@ class UMAPotential(BasePotential):
             Default spin multiplicity to use if not specified in atoms.info (default: 1)
         """
 
-        if not HAS_TORCH:
-            raise ImportError(
-                "PyTorch is required for UMA potentials. "
-                "Install with: pip install torch"
-            )
-
-        if not HAS_FAIRCHEM:
-            raise ImportError(
-                "fairchem-core is required for UMA potentials. "
-                "Install with: pip install fairchem-core"
-            )
+        # Don't check dependencies here - let _load_calculator handle it
+        # This avoids early imports that might interfere with fairchem
 
         # Set device
         if device is None:
-            device = str(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            device = "cpu"  # Default device, will be auto-detected later if needed
 
-        # Initialize base class
-        super().__init__(model_name=model_name, device=device, **kwargs)
-
-        # UMA-specific attributes
+        # Initialize UMA-specific attributes first
         self.predictor = None
         self.fairchem_calc = None
         self.default_charge = default_charge
         self.default_spin = default_spin
 
+        # Initialize base class (this will call _load_calculator)
+        super().__init__(model_name=model_name, device=device, **kwargs)
+
     def _load_calculator(self):
         """Load the UMA model from fairchem v2 API."""
-        try:
-            # Get fairchem v2 dependencies
-            pretrained_mlip = deps.get("fairchem_pretrained_mlip")
-            FAIRChemCalculator = deps.get("fairchem_calculator")
+        # Skip if already loaded
+        if hasattr(self, "fairchem_calc") and self.fairchem_calc is not None:
+            return
 
-            if not pretrained_mlip or not FAIRChemCalculator:
-                raise RuntimeError("FairChem v2 components not available")
+        from .logging_utils import quiet_backend_loading
 
-            # Load UMA model using v2 API
-            device_str = str(self.device)
-            self.predictor = pretrained_mlip.get_predict_unit(
-                self.model_name, device=device_str
-            )
+        with quiet_backend_loading("uma", self.model_name, None, self.device):
+            try:
+                # Check fairchem availability without forcing PyTorch import
+                if not deps.has("fairchem"):
+                    raise ImportError(
+                        "fairchem-core is required for UMA potentials. "
+                        "Install with: pip install fairchem-core"
+                    )
 
-            # Try to force consistent precision to avoid dtype mismatches
-            if hasattr(self.predictor, "model"):
-                # Force model to float32 precision to avoid mixed precision issues
-                if hasattr(self.predictor.model, "float"):
-                    self.predictor.model.float()
+                # Check fairchem availability without importing torch first
+                # This preserves the original import order that worked
+                if not deps.has("fairchem"):
+                    raise ImportError(
+                        "fairchem-core is required for UMA potentials. "
+                        "Install with: pip install fairchem-core"
+                    )
 
-            # Create fairchem calculator for internal use
-            # Default to 'omol' task for molecular systems
-            self.fairchem_calc = FAIRChemCalculator(self.predictor, task_name="omol")
+                    # Use the dependency system to get fairchem components
+                # This ensures proper import order (torch first, then fairchem)
+                pretrained_mlip = deps.get("fairchem_pretrained_mlip")
+                FAIRChemCalculator = deps.get("fairchem_calculator")
 
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to load UMA model '{self.model_name}'. "
-                f"Error: {e}. Please check the model name or installation."
-            )
+                if not pretrained_mlip or not FAIRChemCalculator:
+                    raise RuntimeError(
+                        "FairChem v2 components not available"
+                    )  # Load UMA model using v2 API
+                # Ensure model_name is not None
+                model_name = self.model_name or "uma-s-1p1"
+
+                # Ensure device is compatible
+                if self.device == "cuda":
+                    device_param = "cuda"
+                else:
+                    device_param = "cpu"
+
+                self.predictor = pretrained_mlip.get_predict_unit(
+                    model_name, device=device_param
+                )
+
+                # Try to force consistent precision to avoid dtype mismatches
+                if hasattr(self.predictor, "model"):
+                    # Force model to float32 precision to avoid mixed precision issues
+                    if hasattr(self.predictor.model, "float"):
+                        self.predictor.model.float()
+
+                # Create fairchem calculator for internal use
+                # Default to 'omol' task for molecular systems
+                self.fairchem_calc = FAIRChemCalculator(
+                    self.predictor, task_name="omol"
+                )
+
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to load UMA model '{self.model_name}'. "
+                    f"Error: {e}. Please check the model name or installation."
+                )
 
     def calculate(
         self,

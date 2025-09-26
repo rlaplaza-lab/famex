@@ -120,11 +120,11 @@ else:
 ### Command Line Interface
 
 ```bash
-# Basic optimization
-qme minimize molecule.xyz
+# Basic optimization  
+qme opt molecule.xyz
 
 # With custom parameters and constraints
-qme minimize molecule.xyz \
+qme opt molecule.xyz \
     --output optimized.xyz \
     --optimizer LBFGS \
     --fmax 0.005 \
@@ -135,7 +135,10 @@ qme minimize molecule.xyz \
     --verbose
 
 # Transition state search (requires SELLA)
-qme transition-state ts_guess.xyz --trajectory ts_optimization.traj
+qme tsopt ts_guess.xyz --trajectory ts_optimization.traj
+
+# Find transition state using NEB method
+qme neb reactant.xyz product.xyz --output ts.xyz
 ```
 
 ### Test Installation
@@ -145,6 +148,12 @@ qme transition-state ts_guess.xyz --trajectory ts_optimization.traj
 qme test-setup --backend so3lr
 qme test-setup --backend uma  
 qme test-setup --backend aimnet2
+
+# Show system information
+qme info
+
+# Show configuration
+qme config --show
 ```
 
 ## Features in Detail
@@ -234,17 +243,6 @@ If you use QME in your research, please cite:
 - Built on [ASE](https://wiki.fysik.dtu.dk/ase/) for molecular structure handling
 - Integrates [SELLA](https://github.com/zadorlab/sella) for transition state optimization
 
-## Architecture
 
-- `qme.geometry`: Molecular geometry handling and manipulation
-- `qme.reactions`: Reaction pathway creation and analysis  
-- `qme.calculators`: Interfaces for MLP/NNP energy and force calculations
-- `tests/`: Comprehensive test suite for organic reactions
 
-## Contributing
 
-Contributions are welcome!
-
-## License
-
-MIT License

@@ -13,9 +13,11 @@ from .cli_helpers import (
     handle_optimization_results,
     setup_optimization,
 )
-from .core import QMEOptimizer
-from .geometry import read_gaussian_input, read_geometry
-from .reaction import Reaction
+
+# Lazy imports to avoid loading heavy MLP backends for simple commands like --help
+# from .core import QMEOptimizer
+# from .geometry import read_gaussian_input, read_geometry
+# from .reaction import Reaction
 
 
 @click.group()
@@ -24,18 +26,21 @@ def main():
     """
     QME: Quick mechanistic exploration using machine learning potentials.
 
-    Supports multiple neural network backends including UMA, SO3LR, AIMNET2, and MACE potentials
-    for molecular geometry optimization and transition state searches.
+    Supports multiple neural network backends including UMA, SO3LR, AIMNET2,
+    and MACE potentials for molecular geometry optimization and transition
+    state searches.
     """
     pass
 
 
-def add_common_options(options):
+def add_common_options(options_func):
     """A decorator factory to add a list of common click options."""
 
     def decorator(f):
-        for option in reversed(options):
-            f = option(f)
+        options = options_func() if callable(options_func) else options_func
+        if options:  # Ensure options is not None and is iterable
+            for option in reversed(list(options)):
+                f = option(f)
         return f
 
     return decorator
@@ -63,17 +68,17 @@ def parse_constraints(
     # Handle harmonic constraints
     if harmonic_constraints:
         try:
-            # For now, implement as a simple position constraint using Hookean
+            # For now, implement as a simple position constraint
             # Format expected: "0,1,2" for atoms to constrain harmonically
             harmonic_indices = [int(i.strip()) for i in harmonic_constraints.split(",")]
-            from ase.constraints import Hookean
 
             # Note: This is a simplified implementation
             # In practice, you'd want to set up position-based constraints
             # using the initial geometry as reference
             if verbose:
                 click.echo(
-                    f"Harmonic constraints on atoms: {harmonic_indices} (k={spring_constant} eV/Å²)"
+                    f"Harmonic constraints on atoms: {harmonic_indices} "
+                    f"(k={spring_constant} eV/Å²)"
                 )
             # For now, we'll implement this as a placeholder
             # Real implementation would require access to initial geometry
@@ -85,109 +90,128 @@ def parse_constraints(
     return constraints if constraints else None
 
 
-# Define common option groups
-core_options = [
-    click.option(
-        "--backend",
-        "-b",
-        default=None,  # Will use config default
-        type=click.Choice(["uma", "so3lr", "aimnet2", "mace", "mock"]),
-        help="Backend to use (uma, so3lr, aimnet2, mace, or mock for testing) - default: uma",
-    ),
-    click.option("--model", "-m", default=None, type=str, help="Model name to use"),
-    click.option(
-        "--model-path",
-        type=click.Path(exists=True),
-        help="Path to model file (SO3LR only)",
-    ),
-    click.option(
-        "--device",
-        "-d",
-        type=click.Choice(["cpu", "cuda"]),
-        default=None,
-        help="Device for computations (auto-detected if not specified)",
-    ),
-    click.option(
-        "--charge",
-        "-c",
-        type=int,
-        default=0,
-        help="Total charge of the system (default: 0))",
-    ),
-    click.option(
-        "--spin",
-        "-s",
-        type=int,
-        default=1,
-        help="Spin multiplicity (default: 1))",
-    ),
-    click.option("--verbose", "-v", is_flag=True, help="Verbose output"),
-]
-
-optimization_options = [
-    click.option(
-        "--fmax",
-        "-f",
-        default=0.01,
-        type=float,
-        help="Force convergence criterion (eV/Å)",
-    ),
-    click.option(
-        "--steps",
-        "--max-steps",
-        default=200,
-        type=int,
-        help="Maximum number of optimization steps",
-    ),
-    click.option(
-        "--logfile", type=click.Path(), help="Log file for optimization output"
-    ),
-    click.option(
-        "--trajectory",
-        type=click.Path(),
-        help="Trajectory file to save optimization steps",
-    ),
-    click.option(
-        "--fix-atoms",
-        type=str,
-        help="Comma-separated list of atom indices to fix (e.g., '0,1,2')",
-    ),
-    click.option(
-        "--harmonic-constraints",
-        type=str,
-        help="Comma-separated list of atom indices for harmonic position constraints "
-        "(e.g., '0,1,2')",
-    ),
-    click.option(
-        "--spring-constant",
-        "-k",
-        default=0.1,
-        type=float,
-        help="Spring constant for harmonic constraints (eV/Å²)",
-    ),
-    click.option(
-        "--frequencies",
-        is_flag=True,
-        help="Calculate frequencies after optimization",
-    ),
-]
+def get_core_options():
+    """Get core options with hardcoded defaults to avoid heavy imports at CLI import time."""
+    return [
+        click.option(
+            "--backend",
+            "-b",
+            default="mock",  # Hardcoded default for now
+            show_default=True,
+            type=click.Choice(["uma", "so3lr", "aimnet2", "mace", "mock"]),
+            help="Backend to use",
+        ),
+        click.option(
+            "--model",
+            "-m",
+            default=None,
+            type=str,
+            help="Model name to use (auto-selected per backend if not specified)",
+        ),
+        click.option(
+            "--model-path",
+            type=click.Path(exists=True),
+            help="Path to model file (SO3LR only)",
+        ),
+        click.option(
+            "--device",
+            "-d",
+            type=click.Choice(["cpu", "cuda"]),
+            default="cpu",  # Safe default for testing
+            show_default=True,
+            help="Device for computations",
+        ),
+        click.option(
+            "--charge",
+            "-c",
+            type=int,
+            default=0,
+            show_default=True,
+            help="Total charge of the system",
+        ),
+        click.option(
+            "--spin",
+            "-s",
+            type=int,
+            default=1,
+            show_default=True,
+            help="Spin multiplicity",
+        ),
+        click.option("--verbose", "-v", is_flag=True, help="Verbose output"),
+    ]
 
 
-@main.command()
+def get_optimization_options():
+    """Get optimization options with hardcoded defaults to avoid heavy imports at CLI import
+    time."""
+    return [
+        click.option(
+            "--fmax",
+            "-f",
+            default=0.01,  # Hardcoded default for now
+            show_default=True,
+            type=float,
+            help="Force convergence criterion (eV/Å)",
+        ),
+        click.option(
+            "--steps",
+            "--max-steps",
+            default=500,  # Hardcoded default for now
+            show_default=True,
+            type=int,
+            help="Maximum number of optimization steps",
+        ),
+        click.option(
+            "--logfile", type=click.Path(), help="Log file for optimization output"
+        ),
+        click.option(
+            "--trajectory",
+            type=click.Path(),
+            help="Trajectory file to save optimization steps",
+        ),
+        click.option(
+            "--fix-atoms",
+            type=str,
+            help="Comma-separated list of atom indices to fix (e.g., '0,1,2')",
+        ),
+        click.option(
+            "--harmonic-constraints",
+            type=str,
+            help="Comma-separated list of atom indices for harmonic position constraints "
+            "(e.g., '0,1,2')",
+        ),
+        click.option(
+            "--spring-constant",
+            "-k",
+            default=0.1,
+            show_default=True,
+            type=float,
+            help="Spring constant for harmonic constraints (eV/Å²)",
+        ),
+        click.option(
+            "--frequencies",
+            is_flag=True,
+            help="Calculate frequencies after optimization",
+        ),
+    ]
+
+
+@main.command(name="opt")
 @click.argument("input_file", type=click.Path(exists=True))
 @click.option(
     "--output", "-o", type=click.Path(), help="Output file for optimized structure"
 )
 @click.option(
     "--optimizer",
-    "-opt",
+    "-O",
     default="LBFGS",
+    show_default=True,
     type=click.Choice(["BFGS", "LBFGS", "FIRE"]),
     help="Optimizer to use for minimization",
 )
-@add_common_options(core_options)
-@add_common_options(optimization_options)
-def minimize(
+@add_common_options(get_core_options)
+@add_common_options(get_optimization_options)
+def opt(
     input_file,
     output,
     optimizer,
@@ -224,7 +248,7 @@ def minimize(
             model,
             model_path,
             device,
-            None,  # constraint_atoms (deprecated)
+            None,
             verbose,
             charge,
             spin,
@@ -245,15 +269,13 @@ def minimize(
             qme, results, frequencies, verbose, is_ts=False
         )
 
-        handle_optimization_results(
-            results, qme, input_file, output, "minimize", verbose
-        )
+        handle_optimization_results(results, qme, input_file, output, "opt", verbose)
 
     except Exception as e:
         handle_cli_error(e, "optimization", verbose)
 
 
-@main.command()
+@main.command(name="tsopt")
 @click.argument("input_file", type=click.Path(exists=True))
 @click.option(
     "--output",
@@ -261,9 +283,9 @@ def minimize(
     type=click.Path(),
     help="Output file for transition state structure",
 )
-@add_common_options(optimization_options)
-@add_common_options(core_options)
-def transition_state(
+@add_common_options(get_optimization_options)
+@add_common_options(get_core_options)
+def tsopt(
     input_file,
     output,
     fmax,
@@ -299,7 +321,7 @@ def transition_state(
             model,
             model_path,
             device,
-            None,  # constraint_atoms (deprecated)
+            None,
             verbose,
             charge,
             spin,
@@ -319,15 +341,13 @@ def transition_state(
             qme, results, frequencies, verbose, is_ts=True
         )
 
-        handle_optimization_results(
-            results, qme, input_file, output, "transition_state", verbose
-        )
+        handle_optimization_results(results, qme, input_file, output, "tsopt", verbose)
 
     except Exception as e:
         handle_cli_error(e, "transition state search", verbose)
 
 
-@main.command(name="ts-from-endpoints")
+@main.command(name="neb")
 @click.argument("reactant_file", type=click.Path(exists=True))
 @click.argument("product_file", type=click.Path(exists=True))
 @click.option(
@@ -346,9 +366,9 @@ def transition_state(
     type=click.Choice(["linear", "geodesic"]),
     help="Interpolation method",
 )
-@add_common_options(optimization_options)
-@add_common_options(core_options)
-def ts_from_endpoints(
+@add_common_options(get_optimization_options)
+@add_common_options(get_core_options)
+def neb(
     reactant_file,
     product_file,
     output,
@@ -370,7 +390,8 @@ def ts_from_endpoints(
     frequencies,
     verbose,
 ):
-    """Find transition state by interpolating between reactant and product structures."""
+    """Find transition state using NEB method (currently interpolation between reactant and
+    product)."""
 
     if verbose:
         click.echo("Starting transition state search from endpoints...")
@@ -391,7 +412,7 @@ def ts_from_endpoints(
             model,
             model_path,
             device,
-            None,  # constraint_atoms (deprecated)
+            None,
             verbose,
             charge,
             spin,
@@ -435,7 +456,8 @@ def ts_from_endpoints(
 
         if verbose:
             click.echo(
-                f"✓ Using structure {max_idx} as TS guess (energy: {energies[max_idx]:.6f} eV)"
+                f"✓ Using structure {max_idx} as TS guess "
+                f"(energy: {energies[max_idx]:.6f} eV)"
             )
 
         # Set up the TS guess for optimization
@@ -463,18 +485,21 @@ def ts_from_endpoints(
                 )
                 results["frequencies"] = freq_results
                 click.echo(
-                    f"✓ Calculated {len(freq_results['frequencies'])} vibrational frequencies"
+                    f"✓ Calculated {len(freq_results['frequencies'])} "
+                    f"vibrational frequencies"
                 )
 
                 # For TS, also check for imaginary frequencies
                 imag_freqs = [f for f in freq_results["frequencies"] if f < 0]
                 if imag_freqs:
                     click.echo(
-                        f"✓ Found {len(imag_freqs)} imag. freq(s): {imag_freqs[0]:.1f} cm⁻¹"
+                        f"✓ Found {len(imag_freqs)} imag. freq(s): "
+                        f"{imag_freqs[0]:.1f} cm⁻¹"
                     )
                 else:
                     click.echo(
-                        "⚠ No imaginary frequencies found - structure may not be a transition state"
+                        "⚠ No imaginary frequencies found - "
+                        "structure may not be a transition state"
                     )
             except Exception as e:
                 click.echo(f"⚠ Frequency calculation failed: {e}")
@@ -489,11 +514,13 @@ def ts_from_endpoints(
 
 
 @main.command()
-@add_common_options(core_options)
+@add_common_options(get_core_options)
 def test_setup(backend, model, model_path, device, charge, spin, verbose):
     """
     Test QME setup and neural network model loading.
     """
+    # Import only when needed
+    from .core import QMEOptimizer
 
     click.echo("Testing QME setup...")
 
@@ -554,7 +581,7 @@ def test_setup(backend, model, model_path, device, charge, spin, verbose):
     type=click.Choice(["linear", "geodesic"]),
     help="Interpolation method",
 )
-@add_common_options(core_options)
+@add_common_options(get_core_options)
 @click.option(
     "--optimize-path",
     is_flag=True,
@@ -588,6 +615,10 @@ def interpolate(
     REACTANT_FILE: Path to reactant structure file (xyz, cif, pdb, etc.)
     PRODUCT_FILE: Path to product structure file
     """
+    # Import only when needed
+    from .core import QMEOptimizer
+    from .geometry import read_geometry
+    from .reaction import Reaction
 
     if verbose:
         click.echo("Starting reaction pathway interpolation...")
@@ -695,80 +726,76 @@ def interpolate(
 
 
 @main.command()
-@click.option("--show", is_flag=True, help="Show current configuration")
+@click.option("--show", is_flag=True, help="Show current configuration and defaults")
 @click.option(
-    "--backend",
-    type=click.Choice(["uma", "so3lr", "aimnet2", "mace"]),
-    help="Set default backend",
+    "--create-config",
+    is_flag=True,
+    help="Create a qme.json config file in current directory",
 )
-@click.option("--model", type=str, help="Set default model for backend")
-@click.option("--fmax", type=float, help="Set default force convergence criterion")
-@click.option("--steps", type=int, help="Set default maximum optimization steps")
-@click.option("--reset", is_flag=True, help="Reset configuration to defaults")
-def config(show, backend, model, fmax, steps, reset):
-    """Manage QME configuration settings."""
-    from .config import config as qme_config
+def config(show, create_config):
+    """Show configuration defaults and optionally create a config file.
 
-    if reset:
-        # Remove config file and recreate with defaults
-        import os
+    QME uses visible defaults for all CLI options. A qme.json config file in the
+    current directory can override these defaults.
+    """
+    from .settings import config as qme_config
 
-        config_file = qme_config._config_file
-        if config_file.exists():
-            os.remove(config_file)
-            click.echo("Configuration reset to defaults.")
-        qme_config.__init__()  # Reinitialize with defaults
+    if create_config:
+        config_path = qme_config.config_file_path()
+        if config_path.exists():
+            click.echo(f"Config file {config_path} already exists!")
+            return
+
+        # Create a sample config file with current defaults
+        sample_config = {
+            "backend": qme_config.defaults.backend,
+            "optimizer": qme_config.defaults.optimizer,
+            "fmax": qme_config.defaults.fmax,
+            "steps": qme_config.defaults.steps,
+            "models": qme_config.defaults.models,
+        }
+
+        import json
+
+        with open(config_path, "w") as f:
+            json.dump(sample_config, f, indent=2)
+
+        click.echo(f"Created sample config file: {config_path}")
+        click.echo("Edit this file to customize your defaults.")
         return
 
-    if show or not any([backend, model, fmax, steps]):
-        # Show current configuration
-        click.echo("Current QME Configuration:")
-        click.echo(f"  Default backend: {qme_config.config.default_backend}")
-        click.echo(f"  Default optimizer: {qme_config.config.default_optimizer}")
-        if qme_config.config.default_models:
-            click.echo("  Default models:")
-            for backend_name, model_name in qme_config.config.default_models.items():
-                click.echo(f"    {backend_name}: {model_name}")
-        click.echo(f"  Default fmax: {qme_config.config.default_fmax}")
-        click.echo(f"  Default steps: {qme_config.config.default_steps}")
-        click.echo(
-            f"  Preferred device: {qme_config.config.preferred_device or 'auto'}"
-        )
-        click.echo(f"  Warnings enabled: {qme_config.config.enable_warnings}")
-        return
+    # Show current configuration
+    click.echo("QME Configuration:")
+    click.echo("=" * 30)
 
-    # Update configuration
-    if backend:
-        qme_config.config.default_backend = backend
-        click.echo(f"Default backend set to: {backend}")
+    # Show whether config file is being used
+    if qme_config.has_config_file():
+        click.echo(f"✓ Using config file: {qme_config.config_file_path()}")
+    else:
+        click.echo("✓ Using built-in defaults (no config file found)")
 
-    if model and backend:
-        if qme_config.config.default_models is None:
-            qme_config.config.default_models = {}
-        qme_config.config.default_models[backend] = model
-        click.echo(f"Default model for {backend} set to: {model}")
-    elif model:
-        click.echo("Error: --model requires --backend to be specified", err=True)
-        sys.exit(1)
+    click.echo("\nCurrent values:")
+    click.echo(f"  Backend: {qme_config.get_backend()}")
+    click.echo(f"  Optimizer: {qme_config.get_optimizer()}")
+    click.echo(f"  Force convergence (fmax): {qme_config.get_fmax()}")
+    click.echo(f"  Max steps: {qme_config.get_steps()}")
+    click.echo(f"  Device: {qme_config.get_device() or 'auto-detect'}")
 
-    if fmax:
-        qme_config.config.default_fmax = fmax
-        click.echo(f"Default fmax set to: {fmax}")
+    models = qme_config.get("models")
+    if models:
+        click.echo("  Default models:")
+        for backend_name, model_name in models.items():
+            click.echo(f"    {backend_name}: {model_name}")
 
-    if steps:
-        qme_config.config.default_steps = steps
-        click.echo(f"Default steps set to: {steps}")
-
-    # Save configuration
-    qme_config.save_config()
-    click.echo("Configuration saved.")
+    if not qme_config.has_config_file():
+        click.echo("\nTo customize defaults, run: qme config --create-config")
 
 
 @main.command()
 def info():
     """Show system and dependency information."""
-    from .config import config as qme_config
     from .dependencies import deps
+    from .settings import config as qme_config
 
     click.echo("QME System Information")
     click.echo("=" * 30)
@@ -788,12 +815,15 @@ def info():
         click.echo(f"  {status} {backend}")
 
     # Configuration
-    click.echo(f"\nDefault Backend: {qme_config.config.default_backend}")
-    click.echo(f"Config Location: {qme_config._config_file}")
+    click.echo(f"\nDefault Backend: {qme_config.get_backend()}")
+    if qme_config.has_config_file():
+        click.echo(f"Config File: {qme_config.config_file_path()}")
+    else:
+        click.echo("Config File: None (using built-in defaults)")
 
     # Device information
-    device = qme_config.get_device_preference()
-    click.echo(f"Preferred Device: {device or 'auto-detect'}")
+    device = qme_config.get_device()
+    click.echo(f"Device: {device or 'auto-detect'}")
 
     if deps.has("torch"):
         torch = deps.get("torch")
@@ -810,13 +840,14 @@ def info():
 )
 @click.option(
     "--optimizer",
-    "-opt",
+    "-O",
     default="BFGS",
+    show_default=True,
     type=click.Choice(["BFGS", "LBFGS", "FIRE"]),
     help="Optimizer to use for minimization (if applicable)",
 )
-@add_common_options(core_options)
-@add_common_options(optimization_options)
+@add_common_options(get_core_options)
+@add_common_options(get_optimization_options)
 def from_gaussian(
     gaussian_file,
     output,
@@ -838,6 +869,9 @@ def from_gaussian(
     Run a QME optimization starting from a Gaussian input file.
     The job type (minimize or transition_state) is detected automatically.
     """
+    # Import only when needed
+    from .geometry import read_gaussian_input
+
     if verbose:
         click.echo(f"Reading Gaussian input file: {gaussian_file}")
 
@@ -859,7 +893,7 @@ def from_gaussian(
             model,
             model_path,
             device,
-            None,  # constraint_atoms (deprecated)
+            None,
             verbose,
             geometry=geometry,
         )
@@ -929,7 +963,7 @@ def from_gaussian(
     type=str,
     help="Comma-separated list of atom indices to include (0-based)",
 )
-@add_common_options(core_options)
+@add_common_options(get_core_options)
 def frequencies(
     input_file,
     output,
@@ -1003,7 +1037,8 @@ def frequencies(
             real_freqs = [f for f in frequencies if f > 0]
             if real_freqs:
                 click.echo(
-                    f"Real frequencies: {real_freqs[0]:.1f} to {real_freqs[-1]:.1f} cm⁻¹"
+                    f"Real frequencies: {real_freqs[0]:.1f} to "
+                    f"{real_freqs[-1]:.1f} cm⁻¹"
                 )
 
         # Transition state verification if requested
@@ -1014,13 +1049,14 @@ def frequencies(
             if ts_results["is_transition_state"]:
                 imag_freq = ts_results["imaginary_frequencies"][0]
                 click.echo(
-                    f"  ✓ Valid TS with imaginary frequency: {imag_freq:.1f} cm⁻¹"
+                    f"  ✓ Valid TS with imaginary frequency: " f"{imag_freq:.1f} cm⁻¹"
                 )
             elif n_imaginary == 0:
                 click.echo("  ✓ Structure is a minimum (no imaginary frequencies)")
             else:
                 click.echo(
-                    f"  ⚠ Higher-order saddle point ({n_imaginary} imaginary frequencies)"
+                    f"  ⚠ Higher-order saddle point "
+                    f"({n_imaginary} imaginary frequencies)"
                 )
 
         # Save results if output file specified
@@ -1061,6 +1097,9 @@ def frequencies(
 
             traceback.print_exc()
         sys.exit(1)
+
+
+# Backward compatibility aliases
 
 
 if __name__ == "__main__":
