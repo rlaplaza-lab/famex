@@ -11,7 +11,7 @@ import numpy as np
 from ase.calculators.calculator import all_changes
 
 from .base_potential import BasePotential
-from .dependencies import HAS_SO3LR, deps
+from .dependencies import deps
 
 
 class SO3LRPotential(BasePotential):
@@ -45,7 +45,7 @@ class SO3LRPotential(BasePotential):
 
         """
 
-        if not HAS_SO3LR:
+        if not deps.has("so3lr"):
             raise ImportError(
                 "SO3LR is required for SO3LR potentials. "
                 "Install SO3LR with: git clone "
@@ -56,18 +56,27 @@ class SO3LRPotential(BasePotential):
         # Store additional SO3LR-specific parameters
         self.model_path = model_path
 
-        # Initialize base class
-        super().__init__(model_name=model_name, device=device, **kwargs)
-
         # SO3LR-specific attributes
         self.calculator = None
 
+        # Initialize base class (this will call _load_calculator)
+        super().__init__(model_name=model_name, device=device, **kwargs)
+
     def _load_calculator(self):
         """Load the SO3LR ASE calculator."""
-        # Get SO3LR module
-        so3lr = deps.get("so3lr")
-        if so3lr is None:
-            raise RuntimeError("SO3LR module not available")
+        # Skip if already loaded
+        if hasattr(self, "calculator") and self.calculator is not None:
+            return
+
+        from .logging_utils import quiet_backend_loading
+
+        with quiet_backend_loading(
+            "so3lr", self.model_name, self.model_path, self.device
+        ):
+            # Get SO3LR module
+            so3lr = deps.get("so3lr")
+            if so3lr is None:
+                raise RuntimeError("SO3LR module not available")
 
         # Create SO3LR calculator with appropriate parameters
         # Use high cutoff for gas-phase systems as recommended

@@ -12,8 +12,8 @@ from ase.io import read, write
 from ase.optimize import BFGS, FIRE, LBFGS
 
 from .calculator_registry import calculator_registry
-from .config import config, get_default_model
-from .dependencies import HAS_SELLA, deps
+from .dependencies import deps
+from .settings import config, get_default_model
 
 
 class QMEOptimizer:
@@ -48,7 +48,7 @@ class QMEOptimizer:
         "mock": "Mock Calculator (for testing)",
     }
 
-    if HAS_SELLA:
+    if deps.has("sella"):
         AVAILABLE_OPTIMIZERS["Sella"] = deps.get("sella")
 
     def __init__(
@@ -123,7 +123,7 @@ class QMEOptimizer:
             model_name = get_default_model(backend)
 
         if device is None:
-            device = config.get_device_preference()
+            device = config.get_device()
 
         # Use the centralized calculator registry
         return calculator_registry.create_calculator(
@@ -607,7 +607,7 @@ class QMEOptimizer:
             TS optimization results
         """
 
-        if not HAS_SELLA:
+        if not deps.has("sella"):
             raise ImportError(
                 "SELLA is required for transition state searches. "
                 "Install with: pip install sella"
@@ -1141,7 +1141,7 @@ def minimize_structure(
     """
     # Check if optimizer is available
     available_optimizers = ["BFGS", "LBFGS", "FIRE"]
-    if HAS_SELLA:
+    if deps.has("sella"):
         available_optimizers.append("Sella")
 
     if optimizer not in available_optimizers:

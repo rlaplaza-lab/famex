@@ -14,7 +14,28 @@ from ase.calculators.calculator import all_changes
 from torch_cluster import radius_graph
 
 from .base_potential import BasePotential
-from .dependencies import HAS_TORCH, torch
+from .dependencies import deps
+
+# Lazy torch import - will be None until needed
+_torch = None
+
+
+def _get_torch():
+    """Get torch module, importing it lazily."""
+    global _torch
+    if _torch is None:
+        _torch = deps.require("torch", purpose="AIMNet2 calculations")
+    return _torch
+
+
+# Create a module-level torch that's lazy
+class _LazyTorch:
+    def __getattr__(self, name):
+        torch = _get_torch()
+        return getattr(torch, name)
+
+
+torch = _LazyTorch()
 
 # Model registry - mapping model names to download URLs
 MODEL_REGISTRY = {
@@ -211,8 +232,10 @@ class NativeAIMNet2Calculator:
     """
 
     def __init__(self, model_path: str, device: str = "cpu"):
-        if not HAS_TORCH:
+        if not deps.has("torch"):
             raise ImportError("PyTorch is required for AIMNet2 calculations")
+
+        # torch is now available globally as a lazy import
 
         self.device = device
         self.model = torch.jit.load(model_path, map_location=device)
@@ -430,7 +453,7 @@ class AIMNet2Potential(BasePotential):
         """
 
         # Check dependencies
-        if not HAS_TORCH:
+        if not deps.has("torch"):
             raise ImportError(
                 "PyTorch is required for AIMNET2 potentials. "
                 "Install with: pip install torch"
@@ -438,7 +461,7 @@ class AIMNet2Potential(BasePotential):
 
         # Set device if not provided
         if device is None:
-            device = "cuda" if torch and torch.cuda.is_available() else "cpu"
+            device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # Initialize base class
         super().__init__(model_name=model_name, device=device, **kwargs)
@@ -449,6 +472,8 @@ class AIMNet2Potential(BasePotential):
 
     def _load_calculator(self):
         """Load the AIMNET2 model directly."""
+        from .logging_utils import quiet_backend_loading
+
         try:
             # Ensure model_name is not None
             if self.model_name is None:
@@ -459,8 +484,13 @@ class AIMNet2Potential(BasePotential):
                 self.device = "cpu"
 
             model_path = get_model_path(self.model_name)
-            self.aimnet2_calc = NativeAIMNet2Calculator(model_path, device=self.device)
-            print(f"Successfully loaded AIMNet2 model: {self.model_name}")
+
+            with quiet_backend_loading(
+                "aimnet2", self.model_name, model_path, self.device
+            ):
+                self.aimnet2_calc = NativeAIMNet2Calculator(
+                    model_path, device=self.device
+                )
 
         except Exception as e:
             raise RuntimeError(

@@ -226,13 +226,7 @@ class TestReaction:
         assert reaction.product is not None
 
 
-class TestMLPCalculator:
-    """Test MLPCalculator functionality."""
-
-    def test_mlp_calculator_creation(self):
-        """Test MLPCalculator class exists."""
-        assert hasattr(qme, "MLPCalculator")
-        # Don't instantiate as it might require ML dependencies
+# MLPCalculator has been removed as it was deprecated
 
 
 class TestCLIIntegration:

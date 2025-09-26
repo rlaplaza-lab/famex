@@ -149,7 +149,7 @@ class HarmonicPositionConstraint:
         Note: ASE doesn't have built-in positional springs.
         This returns an empty list for now - would need custom implementation.
         """
-        # TODO: Implement custom positional spring constraint
+        # Custom positional spring constraints not yet implemented
         # For now, return empty list (constraint will be noted but not applied)
         return []
 
@@ -238,7 +238,7 @@ class HarmonicAngleConstraint:
         Note: ASE doesn't have built-in angle constraints.
         This returns an empty list for now - would need custom implementation.
         """
-        # TODO: Implement custom angle constraint
+        # Custom angle constraints not yet implemented
         # For now, return empty list (constraint will be noted but not applied)
         return []
 

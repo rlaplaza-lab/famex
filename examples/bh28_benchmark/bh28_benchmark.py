@@ -162,8 +162,7 @@ class BH28Benchmark:
 
         if not available:
             raise RuntimeError(
-                "No ML backends available! Please install at least one of: "
-                "fairchem (UMA), so3lr, aimnet2, or mace-torch (MACE). "
+                "No ML backends available! Please install at least one."
                 "The mock backend is excluded from benchmarking as it provides meaningless results."
             )
 
@@ -215,8 +214,8 @@ class BH28Benchmark:
                             with suppress_verbose_output():
                                 result = optimizer.optimize_minimum(
                                     atoms=reactant,
-                                    optimizer="BFGS",
-                                    steps=200,
+                                    optimizer="LBFGS",
+                                    steps=500,
                                     fmax=0.01,
                                 )
                             optimized_reactants.append(result["optimized_atoms"])
@@ -252,7 +251,7 @@ class BH28Benchmark:
 
                                 with suppress_verbose_output():
                                     ts_result = optimizer.find_transition_state(
-                                        atoms=ts_atoms, steps=300, fmax=0.02
+                                        atoms=ts_atoms, steps=500, fmax=0.01
                                     )
 
                                 ts_time = time.time() - start_time

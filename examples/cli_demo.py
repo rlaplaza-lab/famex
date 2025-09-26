@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Demo script showing QME CLI functionality with comprehensive backend comparison.
-Tests both basic optimization and transition state searches including
-reactant-product based methods across all available backends.
+Tests the new CLI commands: opt (minimize), tsopt (transition state optimization),
+and neb (nudged elastic band from reactant-product endpoints) across all available backends.
 """
 
 import subprocess
@@ -87,52 +87,43 @@ def run_command(cmd, desc, backend, timeout=300) -> Tuple[bool, float, str, str]
 def create_example_commands(
     example_files: Path, backend: str, steps: int = 500
 ) -> List[Dict]:
-    """Create example commands for a specific backend."""
+    """Create example commands for a specific backend using default settings."""
     return [
         {
-            "desc": "Reactant structure minimization",
+            "desc": "Structure optimization using 'opt' command",
             "cmd": [
                 "qme",
-                "minimize",
+                "opt",
                 str(example_files / "diels_alder_reactant.xyz"),
                 "--backend",
                 backend,
                 "--steps",
                 str(steps),
+                "--output",
+                f"test_opt_{backend}.xyz",
                 "--verbose",
             ],
         },
         {
-            "desc": "Product structure minimization",
+            "desc": "Transition state optimization using 'tsopt' command",
             "cmd": [
                 "qme",
-                "minimize",
-                str(example_files / "diels_alder_product.xyz"),
-                "--backend",
-                backend,
-                "--steps",
-                str(steps),
-                "--verbose",
-            ],
-        },
-        {
-            "desc": "Transition state search from initial guess",
-            "cmd": [
-                "qme",
-                "transition-state",
+                "tsopt",
                 str(example_files / "biaryl_ts.xyz"),
                 "--backend",
                 backend,
                 "--steps",
                 str(steps),
+                "--output",
+                f"test_tsopt_{backend}.xyz",
                 "--verbose",
             ],
         },
         {
-            "desc": "TS search from reactant-product endpoints",
+            "desc": "NEB method using 'neb' command",
             "cmd": [
                 "qme",
-                "ts-from-endpoints",
+                "neb",
                 str(example_files / "diels_alder_reactant.xyz"),
                 str(example_files / "diels_alder_product.xyz"),
                 "--backend",
@@ -141,19 +132,38 @@ def create_example_commands(
                 str(steps),
                 "--npoints",
                 "5",
-                "--method",
-                "geodesic",
+                "--interp-method",
+                "linear",
+                "--output",
+                f"test_neb_{backend}.xyz",
                 "--verbose",
+            ],
+        },
+        {
+            "desc": "Show default configuration (no config file)",
+            "cmd": [
+                "qme",
+                "config",
+                "--show",
             ],
         },
     ]
 
 
 def demo_cli():
-    """Demonstrate QME CLI with comprehensive backend comparison."""
+    """Demonstrate QME CLI with new commands using default settings."""
 
-    print("🚀 QME CLI Comprehensive Backend Comparison")
+    print("🚀 QME CLI Demo: Testing opt, tsopt, and neb commands")
     print("=" * 80)
+
+    # Ensure no config file interferes with defaults
+    config_file = Path("qme.json")
+    if config_file.exists():
+        print(
+            "⚠️ Found qme.json config file - temporarily moving it for pure defaults test"
+        )
+        config_file.rename("qme.json.temp")
+        print("✅ Using built-in defaults only")
 
     # Get available backends
     try:
@@ -194,8 +204,8 @@ def demo_cli():
     # Performance tracking
     backend_results = {}
     total_start_time = time.time()
-    total_examples_per_backend = 4
-    steps = 500
+    total_examples_per_backend = 4  # opt, tsopt, neb, and config commands
+    steps = 500  # Reduced steps for faster testing
 
     # Run examples for each backend
     for backend in available_backends:
@@ -244,7 +254,7 @@ def demo_cli():
         print(f"\n📊 {backend.upper()} SUMMARY:")
         print(f"   ✅ Successful: {backend_results[backend]['successful']}")
         print(f"   ❌ Failed: {backend_results[backend]['failed']}")
-        print(f"   ⏱️  Total time: {backend_results[backend]['total_time']:.2f}s")
+        print(f"   ⏱️ Total time: {backend_results[backend]['total_time']:.2f}s")
 
     total_time = time.time() - total_start_time
 
@@ -285,12 +295,12 @@ def demo_cli():
         )
         print(f"\n🥇 Best performing backend: {best_backend[0].upper()}")
         print(
-            f"   - Success rate: {best_backend[1]['successful']
-                                  }/{total_examples_per_backend} examples"
+            f'   - Success rate: {best_backend[1]["successful"]
+                                  }/{total_examples_per_backend} examples'
         )
         print(
-            f"   - Average time per task: {best_backend[1]
-                                           ['total_time']/total_examples_per_backend:.2f}s"
+            f'   - Average time per task: {best_backend[1]
+                                           ["total_time"]/total_examples_per_backend:.2f}s'
         )
 
     print(f"\n⏱️  Total benchmark time: {total_time:.2f} seconds")
@@ -303,8 +313,14 @@ def demo_cli():
 
     success_rate = total_successful / total_tests if total_tests > 0 else 0
 
+    # Restore config file if it was moved
+    temp_config = Path("qme.json.temp")
+    if temp_config.exists():
+        temp_config.rename("qme.json")
+        print("✅ Restored qme.json config file")
+
     if success_rate > 0.7:  # 70% success rate threshold
-        print("🎉 Overall demo successful! Most backends working properly.")
+        print("🎉 Overall demo successful! New CLI commands working properly.")
         return True
     else:
         print(f"⚠️  Demo completed with {success_rate:.1%} success rate.")
