@@ -39,7 +39,7 @@ def get_available_backends() -> List[str]:
     return available
 
 
-def run_command(cmd, desc, backend, timeout=300) -> Tuple[bool, float, str, str]:
+def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]:
     """Run a CLI command and report results."""
     print(f"\n{'='*80}")
     print(f"🔧 Backend: {backend}")

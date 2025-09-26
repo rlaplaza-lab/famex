@@ -60,7 +60,8 @@ class ConfigManager:
         """Initialize config manager with hard-coded defaults and optional overrides.
 
         Args:
-            config_file: Optional path to config file. If None, looks for qme.json in current directory.
+            config_file: Optional path to config file.
+                        If None, looks for qme.json in current directory.
                         If no config file is found, uses only defaults.
         """
         self.defaults = QMEDefaults()

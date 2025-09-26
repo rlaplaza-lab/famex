@@ -628,7 +628,14 @@ class QMEOptimizer:
 
         # Initialize SELLA optimizer for TS search
         Sella = deps.require("sella", "transition state searches")
-        opt = Sella(atoms, logfile=logfile, trajectory=trajectory, **sella_kwargs)
+        opt = Sella(
+            atoms,
+            logfile=logfile,
+            trajectory=trajectory,
+            internal=True,
+            order=1,
+            **sella_kwargs,
+        )
 
         # Store initial state
         initial_energy = atoms.get_potential_energy()
