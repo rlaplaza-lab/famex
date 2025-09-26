@@ -17,10 +17,10 @@ QME combines the power of ASE and SELLA optimizers with state-of-the-art neural 
 ## Supported Neural Network Backends
 
 ### SO3LR
-SO3LR provides SO(3) invariant neural network potentials with excellent accuracy for molecular systems. It's now the **default backend** for better testing and performance.
+SO3LR provides SO(3) invariant neural network potentials with excellent accuracy for molecular systems.
 
 ### UMA
-UMA machine learning potentials from the FAIR Chemistry team provide state-of-the-art accuracy for diverse chemical systems.
+UMA machine learning potentials from the FAIR Chemistry team provide state-of-the-art accuracy for diverse chemical systems. UMA is the **default backend** as the most advanced MLP available.
 
 ### AIMNET2
 AIMNET2 provides fast and reliable energy, force, and property calculations for molecules containing a diverse range of elements. It excels at modeling neutral, charged, organic, and elemental-organic systems with flexible long-range interactions.
@@ -123,12 +123,15 @@ else:
 # Basic optimization
 qme minimize molecule.xyz
 
-# With custom parameters
+# With custom parameters and constraints
 qme minimize molecule.xyz \
     --output optimized.xyz \
-    --optimizer BFGS \
+    --optimizer LBFGS \
     --fmax 0.005 \
     --steps 300 \
+    --fix-atoms "0,1,2" \
+    --harmonic-constraints "3,4" \
+    --spring-constant 15.0 \
     --verbose
 
 # Transition state search (requires SELLA)
@@ -147,13 +150,14 @@ qme test-setup --backend aimnet2
 ## Features in Detail
 
 ### Multiple Neural Network Backends
-- **SO3LR**: SO(3) invariant neural networks (default backend)
-- **UMA**: Universal Materials Accelerator potentials from Meta AI
+- **UMA**: Universal Materials Accelerator potentials from Meta AI (default backend)
+- **SO3LR**: SO(3) invariant neural networks
 - **AIMNET2**: Accurate neural network potentials for diverse molecular systems
 - **Mock Calculator**: Harmonic oscillator model for testing
 
 ### Optimization Algorithms
-- **BFGS, L-BFGS**: Quasi-Newton methods for fast convergence
+- **L-BFGS**: Limited-memory quasi-Newton method (default for minima)
+- **BFGS**: Quasi-Newton method for fast convergence
 - **FIRE**: Fast Inertial Relaxation Engine
 - **SELLA**: Saddle point optimization for transition states
 
@@ -189,59 +193,7 @@ pytest --cov=qme --cov-report=term-missing
 
 ### Troubleshooting
 
-#### Intel MKL Threading Issues (Conda Environments)
-
-If you encounter symbol lookup errors like:
-```
-symbol lookup error: .../libmkl_intel_thread.so.2: undefined symbol: __kmpc_global_thread_num
-```
-
-This is a common issue in conda environments with conflicting Intel MKL and OpenMP libraries. Solutions:
-
-**Option 1: Set environment variable before running**
-```bash
-export MKL_THREADING_LAYER=GNU
-pytest tests/test_backend_aimnet2.py
-```
-
-**Option 2: Use inline environment variable**
-```bash
-MKL_THREADING_LAYER=GNU pytest tests/test_backend_aimnet2.py
-```
-
-**Option 3: Add to your shell profile**
-```bash
-echo 'export MKL_THREADING_LAYER=GNU' >> ~/.bashrc
-source ~/.bashrc
-```
-
-**Option 4: Alternative MKL service layer (alternative)**
-```bash
-export MKL_SERVICE_FORCE_INTEL=1
-```
-
-**Test your setup**: Use the provided test script to verify the fix works:
-```bash
-# Should fail without fix
-python test_mkl_fix.py
-
-# Should work with fix
-MKL_THREADING_LAYER=GNU python test_mkl_fix.py
-```
-
-**For developers**: Use the provided test runner script:
-```bash
-# Run all tests with MKL fix
-./run_tests.sh
-
-# Run specific test file
-./run_tests.sh tests/test_backend_aimnet2.py
-
-# Run specific test pattern  
-./run_tests.sh -k test_water
-```
-
-#### Other Common Issues
+#### Common Issues
 
 **Missing dependencies**: Install with `pip install qme[ml]` for full functionality.
 
@@ -254,11 +206,10 @@ MKL_THREADING_LAYER=GNU python test_mkl_fix.py
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Install development dependencies (`pip install -e .[dev]`)
-4. **Important for conda users**: Set `export MKL_THREADING_LAYER=GNU` to avoid MKL conflicts
-5. Run tests and linting (`pytest`, `black qme/ tests/`, `isort qme/ tests/`)
-6. Commit your changes (`git commit -m 'Add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
+4. Run tests and linting (`pytest`, `black qme/ tests/`, `isort qme/ tests/`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
 ## License
 

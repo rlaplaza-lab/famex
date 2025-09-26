@@ -24,14 +24,15 @@ class MockCalculator(Calculator):
     lengths determined from covalent radii.
     """
 
-    implemented_properties = ["energy", "forces"]
+    implemented_properties = ["energy", "forces", "hessian"]
 
     # Pre-defined configurations for different backends
     BACKEND_CONFIGS = {
-        "uma": {"force_constant": 1.0, "name": "MockUMA"},
-        "aimnet2": {"force_constant": 1.0, "name": "MockAIMNet2"},
-        "so3lr": {"force_constant": 1.0, "name": "MockSO3LR"},
-        "generic": {"force_constant": 1.0, "name": "MockGeneric"},
+        "uma": {"force_constant": 5.0, "name": "MockUMA"},
+        "aimnet2": {"force_constant": 5.0, "name": "MockAIMNet2"},
+        "so3lr": {"force_constant": 5.0, "name": "MockSO3LR"},
+        "mace": {"force_constant": 5.0, "name": "MockMACE"},
+        "generic": {"force_constant": 5.0, "name": "MockGeneric"},
     }
 
     def __init__(self, backend="generic", charge=0, mult=1, **kwargs):
@@ -41,7 +42,7 @@ class MockCalculator(Calculator):
         Parameters
         ----------
         backend : str, default "generic"
-            Backend to simulate ("uma", "aimnet2", "so3lr", "generic")
+            Backend to simulate ("uma", "aimnet2", "so3lr", "mace", "generic")
         charge : int, default 0
             Molecular charge
         mult : int, default 1
@@ -185,6 +186,76 @@ class MockCalculator(Calculator):
 
         if "forces" in properties:
             self.results["forces"] = forces
+
+    def get_hessian(self, atoms=None):
+        """
+        Calculate analytical Hessian matrix for the harmonic potential model.
+
+        Parameters
+        ----------
+        atoms : ase.Atoms, optional
+            Atoms object. If None, uses self.atoms
+
+        Returns
+        -------
+        numpy.ndarray
+            Hessian matrix of shape (3*n_atoms, 3*n_atoms)
+        """
+        if atoms is None:
+            atoms = self.atoms
+
+        if atoms is None:
+            raise ValueError("No atoms object available for Hessian calculation")
+
+        positions = atoms.positions
+        symbols = atoms.get_chemical_symbols()
+        atom_numbers = [atomic_numbers[symbol] for symbol in symbols]
+        n_atoms = len(atoms)
+
+        # Initialize Hessian matrix (3N x 3N)
+        hessian = np.zeros((3 * n_atoms, 3 * n_atoms))
+
+        # Get list of covalent bonds
+        bonds = self._detect_covalent_bonds(atoms)
+
+        # Calculate Hessian contributions from each bond
+        for i, j in bonds:
+            # Vector between atoms
+            r_vec = positions[j] - positions[i]
+            r = np.linalg.norm(r_vec)
+
+            # Equilibrium bond length from sum of covalent radii
+            r0 = covalent_radii[atom_numbers[i]] + covalent_radii[atom_numbers[j]]
+
+            if r > 1e-6:  # Avoid division by zero
+                r_unit = r_vec / r
+
+                # For harmonic potential V = 0.5 * k * (r - r0)²
+                # The Hessian for a harmonic bond is simpler:
+                # Second derivative is just k along the bond direction
+                k = self.force_constant
+
+                # Identity matrix for 3D
+                identity = np.eye(3)
+
+                # Outer product of unit vector
+                rr = np.outer(r_unit, r_unit)
+
+                # For a simple harmonic bond, the Hessian block is:
+                # H = k * rr (only along bond direction)
+                # This gives the correct second derivative for V = 0.5*k*(r-r0)²
+                bond_hessian = k * rr
+
+                # Add contributions to the full Hessian matrix
+                # Diagonal blocks (on-site terms)
+                hessian[3 * i : 3 * i + 3, 3 * i : 3 * i + 3] += bond_hessian
+                hessian[3 * j : 3 * j + 3, 3 * j : 3 * j + 3] += bond_hessian
+
+                # Off-diagonal blocks (coupling terms)
+                hessian[3 * i : 3 * i + 3, 3 * j : 3 * j + 3] -= bond_hessian
+                hessian[3 * j : 3 * j + 3, 3 * i : 3 * i + 3] -= bond_hessian
+
+        return hessian
 
     def __repr__(self):
         return (

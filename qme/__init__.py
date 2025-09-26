@@ -33,14 +33,13 @@ from .core import QMEOptimizer, minimize_structure
 
 # Import dependency manager and config first
 from .dependencies import deps
+from .frequency import FrequencyAnalysis, HessianCalculator, ThermodynamicProperties
 from .geometry import Geometry, read_geometry, write_geometry
+from .mace_potential import MACEPotential, get_mace_calculator
 from .mlp_calculator import MLPCalculator
 from .mock_calculator import MockCalculator
 from .reaction import Reaction
-from .so3lr_potential import (
-    SO3LRPotential,
-    get_so3lr_calculator,
-)
+from .so3lr_potential import SO3LRPotential, get_so3lr_calculator
 from .uma_potential import UMAPotential, get_uma_calculator
 from .validation import BackendError, DependencyError, QMEError, ValidationError
 
@@ -50,6 +49,10 @@ __all__ = [
     "minimize_structure",
     "Geometry",
     "Reaction",
+    # Frequency analysis
+    "FrequencyAnalysis",
+    "HessianCalculator",
+    "ThermodynamicProperties",
     "MLPCalculator",  # Deprecated but kept for compatibility
     # Base classes and registry
     "BasePotential",
@@ -70,6 +73,8 @@ __all__ = [
     "get_so3lr_calculator",
     "AIMNet2Potential",
     "get_aimnet2_calculator",
+    "MACEPotential",
+    "get_mace_calculator",
     # Mock calculators
     "MockCalculator",
     # Error classes

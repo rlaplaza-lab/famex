@@ -51,7 +51,7 @@ class TestCICDIntegration:
         assert "mock" in qme.QMEOptimizer.AVAILABLE_BACKENDS
 
         # Other backends may or may not be available
-        for backend in ["uma", "so3lr", "aimnet2"]:
+        for backend in ["uma", "so3lr", "aimnet2", "mace"]:
             try:
                 optimizer = qme.QMEOptimizer(backend=backend)
                 # If creation succeeds, backend is available
@@ -69,7 +69,7 @@ class TestCICDIntegration:
     def test_graceful_degradation_to_mock(self):
         """Test that applications can gracefully degrade to mock calculators."""
         # This simulates how user code should handle missing backends
-        backends_to_try = ["uma", "so3lr", "aimnet2", "mock"]
+        backends_to_try = ["uma", "so3lr", "aimnet2", "mace", "mock"]
 
         working_backend = None
         working_optimizer = None
@@ -112,6 +112,7 @@ class TestCICDIntegration:
             qme.MockCalculator(backend="uma"),
             qme.MockCalculator(backend="so3lr"),
             qme.MockCalculator(backend="aimnet2"),
+            qme.MockCalculator(backend="mace"),
         ]
 
         for calc in mock_calculators:

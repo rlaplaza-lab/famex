@@ -68,6 +68,16 @@ class DependencyManager:
             self._cache["so3lr"] = None
             self._cache["HAS_SO3LR"] = False
 
+        # MACE
+        try:
+            import mace.calculators
+
+            self._cache["mace"] = mace.calculators
+            self._cache["HAS_MACE"] = True
+        except ImportError:
+            self._cache["mace"] = None
+            self._cache["HAS_MACE"] = False
+
     def get(self, name: str, default: Any = None) -> Any:
         """Get a dependency or capability flag."""
         return self._cache.get(name, default)
@@ -93,6 +103,7 @@ class DependencyManager:
             "aimnet2": "torch",  # Native implementation only needs torch
             "fairchem": "fairchem-core",
             "so3lr": "so3lr  # See installation instructions in README",
+            "mace": "mace-torch",
         }
         return commands.get(name.lower(), name.lower())
 
@@ -115,3 +126,5 @@ HAS_SELLA = deps.has("sella")
 HAS_AIMNET2 = deps.has("aimnet2")
 HAS_FAIRCHEM = deps.has("fairchem")
 HAS_SO3LR = deps.has("so3lr")
+HAS_MACE = deps.has("mace")
+HAS_MACE = deps.has("mace")

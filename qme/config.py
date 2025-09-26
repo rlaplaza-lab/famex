@@ -17,8 +17,8 @@ class QMEConfig:
     """Main QME configuration container."""
 
     # Default backend settings
-    default_backend: str = "so3lr"
-    default_optimizer: str = "BFGS"
+    default_backend: str = "uma"
+    default_optimizer: str = "LBFGS"
 
     # Model default names
     default_models: Optional[Dict[str, str]] = None
@@ -48,6 +48,7 @@ class QMEConfig:
                 "uma": "uma-s-1p1",
                 "so3lr": "so3lr-small",
                 "aimnet2": "aimnet2",
+                "mace": "mace-omol-0",
                 "mock": "generic",
             }
 
@@ -145,6 +146,8 @@ class ConfigManager:
             issues.append(f"Default backend '{backend}' requires SO3LR")
         elif backend == "aimnet2" and not deps.has("torch"):
             issues.append(f"Default backend '{backend}' requires PyTorch")
+        elif backend == "mace" and not deps.has("mace"):
+            issues.append(f"Default backend '{backend}' requires MACE (mace-torch)")
 
         # Check model names
         if self.config.default_models:
