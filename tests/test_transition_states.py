@@ -2,7 +2,7 @@
 Unified transition state optimization tests across all available backends.
 
 This module tests transition state searches on the same test problems using
-all available ML backends (UMA, SO3LR, AIMNET2, Mock) that support SELLA
+all available ML backends (UMA, SO3LR, AIMNET2, MACE, Mock) that support SELLA
 to ensure consistency and enable performance comparisons.
 
 Test systems include:
@@ -34,6 +34,8 @@ if deps.has("sella"):
         AVAILABLE_BACKENDS.append("so3lr")
     if deps.has("aimnet2"):
         AVAILABLE_BACKENDS.append("aimnet2")
+    if deps.has("mace"):
+        AVAILABLE_BACKENDS.append("mace")
 
 
 class TestTransitionStateDefinitions:
@@ -98,13 +100,15 @@ class TestTransitionStateOptimization:
         """Parametrized fixture for available backends with SELLA support."""
         backend_name = request.param
 
-        # Double-check backend availability
+        # Skip if backend is not available (double-check)
         if backend_name == "uma" and not deps.has("fairchem"):
             pytest.skip("UMA backend not available")
         elif backend_name == "so3lr" and not deps.has("so3lr"):
             pytest.skip("SO3LR backend not available")
         elif backend_name == "aimnet2" and not deps.has("aimnet2"):
             pytest.skip("AIMNET2 backend not available")
+        elif backend_name == "mace" and not deps.has("mace"):
+            pytest.skip("MACE backend not available")
 
         # Ensure SELLA is available
         if not deps.has("sella"):
@@ -285,6 +289,8 @@ class TestTransitionStateConsistency:
                 continue
             elif backend == "aimnet2" and not deps.has("aimnet2"):
                 continue
+            elif backend == "mace" and not deps.has("mace"):
+                continue
 
             try:
                 optimizer = qme.QMEOptimizer(backend=backend)
@@ -329,6 +335,8 @@ class TestTransitionStateFileIO:
             pytest.skip("SO3LR backend not available")
         elif backend == "aimnet2" and not deps.has("aimnet2"):
             pytest.skip("AIMNET2 backend not available")
+        elif backend == "mace" and not deps.has("mace"):
+            pytest.skip("MACE backend not available")
 
         try:
             optimizer = qme.QMEOptimizer(backend=backend)
@@ -378,6 +386,8 @@ class TestTransitionStateRobustness:
             pytest.skip("SO3LR backend not available")
         elif backend == "aimnet2" and not deps.has("aimnet2"):
             pytest.skip("AIMNET2 backend not available")
+        elif backend == "mace" and not deps.has("mace"):
+            pytest.skip("MACE backend not available")
 
         try:
             optimizer = qme.QMEOptimizer(backend=backend)
@@ -434,6 +444,8 @@ class TestTransitionStatePerformance:
             elif backend == "so3lr" and not deps.has("so3lr"):
                 continue
             elif backend == "aimnet2" and not deps.has("aimnet2"):
+                continue
+            elif backend == "mace" and not deps.has("mace"):
                 continue
 
             try:

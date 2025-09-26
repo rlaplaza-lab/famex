@@ -43,7 +43,7 @@ class MLPCalculator:
         device : str, optional
             Device for computation ("cpu", "cuda")
         use_mock : bool, default False
-            Use mock calculator for testing
+            Use mock calculator for testing (backward compatibility)
         """
         warnings.warn(
             "MLPCalculator is deprecated. Use QMEOptimizer directly instead. "
@@ -53,10 +53,9 @@ class MLPCalculator:
             stacklevel=2,
         )
 
-        # Handle special case for mock model type
-        if model_type == "mock":
-            use_mock = True
-            model_type = "so3lr"  # Default backend for mock
+        # Handle backward compatibility - use_mock or mock model_type
+        if model_type == "mock" or use_mock:
+            model_type = "mock"
 
         # Create QME optimizer to get the calculator
         self._qme = QMEOptimizer(
@@ -64,7 +63,6 @@ class MLPCalculator:
             model_name=model_name,
             model_path=model_path,
             device=device,
-            use_mock=use_mock,
         )
 
         # Extract the calculator

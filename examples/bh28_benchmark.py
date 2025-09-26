@@ -14,9 +14,9 @@ The benchmark:
 5. Provides comprehensive performance analysis
 
 Usage:
-    python bh28_benchmark.py --quick           # Fast subset
-    python bh28_benchmark.py --backends uma   # Specific backend
-    python bh28_benchmark.py                  # Full benchmark
+    python bh28_benchmark.py --quick             # Fast subset
+    python bh28_benchmark.py --backends uma mace # Specific backends
+    python bh28_benchmark.py                     # Full benchmark
 
 Reference: A. Karton, J. Phys. Chem. A 2019, 123, 6720-6729
 """
@@ -157,11 +157,13 @@ class BH28Benchmark:
             available.append("so3lr")
         if deps.has("aimnet2"):
             available.append("aimnet2")
+        if deps.has("mace"):
+            available.append("mace")
 
         if not available:
             raise RuntimeError(
                 "No ML backends available! Please install at least one of: "
-                "fairchem (UMA), so3lr, or aimnet2. "
+                "fairchem (UMA), so3lr, aimnet2, or mace-torch (MACE). "
                 "The mock backend is excluded from benchmarking as it provides meaningless results."
             )
 

@@ -11,6 +11,8 @@ extend-ignore =
     W291
     # Unused local variable
     F841
+    # Unused import
+    F401
 exclude = 
     .git,
     __pycache__,

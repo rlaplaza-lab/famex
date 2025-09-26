@@ -26,6 +26,7 @@ class CalculatorRegistry:
         """Register the default backend calculators."""
         # Import here to avoid circular imports
         from .aimnet2_potential import get_aimnet2_calculator
+        from .mace_potential import get_mace_calculator
         from .mock_calculator import MockCalculator
         from .so3lr_potential import get_so3lr_calculator
         from .uma_potential import get_uma_calculator
@@ -34,6 +35,7 @@ class CalculatorRegistry:
             "so3lr": get_so3lr_calculator,
             "uma": get_uma_calculator,
             "aimnet2": get_aimnet2_calculator,
+            "mace": get_mace_calculator,
             "mock": lambda **kwargs: MockCalculator(
                 backend=kwargs.get("backend", "generic")
             ),
@@ -131,6 +133,8 @@ class CalculatorRegistry:
             return deps.has("fairchem") and deps.has("torch")
         elif backend == "aimnet2":
             return deps.has("torch")
+        elif backend == "mace":
+            return deps.has("mace") and deps.has("torch")
         else:
             return backend in self._registry
 

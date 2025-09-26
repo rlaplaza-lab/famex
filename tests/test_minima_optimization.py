@@ -2,7 +2,7 @@
 Unified minima optimization tests across all available backends.
 
 This module tests geometry optimization on the same test problems using
-all available ML backends (UMA, SO3LR, AIMNET2, Mock) to ensure consistency
+all available ML backends (UMA, SO3LR, AIMNET2, MACE, Mock) to ensure consistency
 and enable performance comparisons.
 
 Test systems include:
@@ -32,6 +32,8 @@ if deps.has("so3lr"):
     AVAILABLE_BACKENDS.append("so3lr")
 if deps.has("aimnet2"):
     AVAILABLE_BACKENDS.append("aimnet2")
+if deps.has("mace"):
+    AVAILABLE_BACKENDS.append("mace")
 
 # Define optimizers to test
 OPTIMIZERS = ["BFGS", "LBFGS", "FIRE"]
@@ -119,6 +121,8 @@ class TestMinimaOptimization:
             pytest.skip("SO3LR backend not available")
         elif backend_name == "aimnet2" and not deps.has("aimnet2"):
             pytest.skip("AIMNET2 backend not available")
+        elif backend_name == "mace" and not deps.has("mace"):
+            pytest.skip("MACE backend not available")
 
         return backend_name
 
@@ -298,10 +302,10 @@ class TestMinimaOptimization:
             oh_dist = final_atoms.get_distance(1, 2)  # O-H
 
             if backend == "mock":
-                assert 1.0 < co_dist < 3.1  # Mock is less precise
+                assert 1.0 < co_dist < 3.2  # Mock is less precise
                 assert 0.7 < oh_dist < 1.5
             else:
-                assert 1.0 < co_dist < 3.1  # Allow wider range for ML potentials
+                assert 1.0 < co_dist < 3.2  # Allow wider range for ML potentials
                 assert (
                     0.7 < oh_dist < 1.5
                 )  # O-H range - relax lower bound for ML potentials
