@@ -9,11 +9,8 @@ proper test skipping.
 import pytest
 from ase import Atoms
 
-from qme.core import QMEOptimizer, minimize_structure
-from qme.geometry import Geometry
-from qme.potentials.mock import MockCalculator
-from qme.reaction import Reaction
-from qme.utils.dependencies import deps
+import qme
+from qme.dependencies import deps
 
 
 class TestCICDIntegration:
@@ -22,14 +19,14 @@ class TestCICDIntegration:
     def test_basic_functionality_always_available(self):
         """Test that basic QME functionality is always available."""
         # These should never fail in CI/CD
-        assert QMEOptimizer is not None
-        assert callable(minimize_structure)
-        assert Geometry is not None
-        assert Reaction is not None
+        assert hasattr(qme, "QMEOptimizer")
+        assert hasattr(qme, "minimize_structure")
+        assert hasattr(qme, "Geometry")
+        assert hasattr(qme, "Reaction")
 
     def test_mock_backend_always_works(self):
         """Test that mock backend always works for CI/CD."""
-        optimizer = QMEOptimizer(backend="mock")
+        optimizer = qme.QMEOptimizer(backend="mock")
         assert optimizer.backend == "mock"
         assert optimizer.calculator is not None
 
@@ -45,18 +42,18 @@ class TestCICDIntegration:
         h2 = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
 
         # Should work with mock backend (always available)
-        result = minimize_structure(h2, backend="mock", steps=5)
+        result = qme.minimize_structure(h2, backend="mock", steps=5)
         assert isinstance(result, Atoms)
 
     def test_backend_availability_detection(self):
         """Test that backend availability is correctly detected."""
         # Mock backend should always be available
-        assert "mock" in QMEOptimizer.AVAILABLE_BACKENDS
+        assert "mock" in qme.QMEOptimizer.AVAILABLE_BACKENDS
 
         # Other backends may or may not be available
         for backend in ["uma", "so3lr", "aimnet2", "mace"]:
             try:
-                optimizer = QMEOptimizer(backend=backend)
+                optimizer = qme.QMEOptimizer(backend=backend)
                 # If creation succeeds, backend is available
                 assert optimizer.backend == backend
             except ImportError:
@@ -78,7 +75,7 @@ class TestCICDIntegration:
         working_optimizer = None
         for backend in backends_to_try:
             try:
-                optimizer = QMEOptimizer(backend=backend)
+                optimizer = qme.QMEOptimizer(backend=backend)
                 working_backend = backend
                 working_optimizer = optimizer
                 break
@@ -112,10 +109,10 @@ class TestCICDIntegration:
         """Test that calculator creation is robust in CI/CD."""
         # Mock calculators should always work
         mock_calculators = [
-            MockCalculator(backend="uma"),
-            MockCalculator(backend="so3lr"),
-            MockCalculator(backend="aimnet2"),
-            MockCalculator(backend="mace"),
+            qme.MockCalculator(backend="uma"),
+            qme.MockCalculator(backend="so3lr"),
+            qme.MockCalculator(backend="aimnet2"),
+            qme.MockCalculator(backend="mace"),
         ]
 
         for calc in mock_calculators:
@@ -133,11 +130,13 @@ class TestCICDIntegration:
 
     def test_reaction_pathways_work_with_mock(self):
         """Test that reaction pathways work with mock calculators."""
+        from ase import Atoms
+
         reactant = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         product = Atoms("H2", positions=[[0, 0, 0], [2.5, 0, 0]])
 
-        mock_calc = MockCalculator(backend="uma")
-        reaction = Reaction(reactant, product, calculator=mock_calc)
+        mock_calc = qme.MockCalculator(backend="uma")
+        reaction = qme.Reaction(reactant, product, calculator=mock_calc)
 
         # Should be able to generate pathway
         path = reaction.interpolate(npoints=5, method="linear")
@@ -150,7 +149,7 @@ class TestCICDIntegration:
     @pytest.mark.skipif(not deps.has("sella"), reason="SELLA not available")
     def test_transition_state_search_conditional(self):
         """Test transition state search when SELLA is available."""
-        optimizer = QMEOptimizer(backend="mock")
+        optimizer = qme.QMEOptimizer(backend="mock")
         ts_guess = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
 
         # Should not crash even if it doesn't converge
@@ -162,9 +161,12 @@ class TestCICDIntegration:
     def test_cli_integration_availability(self):
         """Test that CLI integration works in CI/CD."""
         # CLI should be importable
-        import qme.cli as cli
+        from qme import cli
 
         assert hasattr(cli, "main")
+
+        # Test setup command should work with mock backend
+        # (This is tested more thoroughly in CLI integration tests)
 
     def test_comprehensive_backend_matrix(self):
         """Test comprehensive matrix of backend availability."""
@@ -178,7 +180,7 @@ class TestCICDIntegration:
         for backend, should_be_available in backend_tests.items():
             if should_be_available:
                 # Should be able to create optimizer
-                optimizer = QMEOptimizer(backend=backend)
+                optimizer = qme.QMEOptimizer(backend=backend)
                 assert optimizer.backend == backend
 
                 # Should be able to do basic optimization
@@ -188,7 +190,7 @@ class TestCICDIntegration:
             else:
                 # Should gracefully handle unavailable backends
                 try:
-                    optimizer = QMEOptimizer(backend=backend)
+                    optimizer = qme.QMEOptimizer(backend=backend)
                     # If this succeeds, the backend became available
                     pass
                 except ImportError:
@@ -204,7 +206,7 @@ class TestDocumentationExamples:
         # This should always work
         h2 = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
 
-        result = minimize_structure(
+        result = qme.minimize_structure(
             h2, backend="mock", fmax=0.05, steps=50  # Use mock for CI/CD
         )
 
@@ -214,7 +216,7 @@ class TestDocumentationExamples:
 
     def test_optimizer_class_example(self):
         """Test optimizer class usage example."""
-        optimizer = QMEOptimizer(backend="mock")
+        optimizer = qme.QMEOptimizer(backend="mock")
 
         h2 = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
         result = optimizer.optimize_minimum(atoms=h2, fmax=0.05, steps=50)
@@ -227,7 +229,7 @@ class TestDocumentationExamples:
         reactant = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         product = Atoms("H2", positions=[[0, 0, 0], [3.0, 0, 0]])
 
-        reaction = Reaction(reactant, product)
+        reaction = qme.Reaction(reactant, product)
         path = reaction.interpolate(npoints=10, method="linear")
 
         assert len(path) == 10

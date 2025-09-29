@@ -21,9 +21,8 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from qme.core import QMEOptimizer
-from qme.potentials.mock import MockCalculator
-from qme.utils.dependencies import deps
+import qme
+from qme.dependencies import deps
 
 # Define available backends
 AVAILABLE_BACKENDS = ["mock"]
@@ -135,7 +134,7 @@ class TestMinimaOptimization:
     def test_h2_optimization(self, backend):
         """Test H2 optimization across all backends."""
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
             h2 = TestSystemDefinitions.get_h2_stretched()
 
             start_time = time.time()
@@ -173,7 +172,7 @@ class TestMinimaOptimization:
     def test_water_optimization(self, backend):
         """Test H2O optimization across all backends."""
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
             water = TestSystemDefinitions.get_water_distorted()
 
             start_time = time.time()
@@ -213,7 +212,7 @@ class TestMinimaOptimization:
     def test_methane_optimization(self, backend):
         """Test CH4 optimization across all backends."""
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
             methane = TestSystemDefinitions.get_methane_distorted()
 
             start_time = time.time()
@@ -253,7 +252,7 @@ class TestMinimaOptimization:
     def test_ethane_optimization(self, backend):
         """Test C2H6 optimization across all backends."""
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
             ethane = TestSystemDefinitions.get_ethane_distorted()
 
             start_time = time.time()
@@ -285,7 +284,7 @@ class TestMinimaOptimization:
     def test_methanol_optimization(self, backend):
         """Test CH3OH optimization across all backends."""
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
             methanol = TestSystemDefinitions.get_methanol_distorted()
 
             start_time = time.time()
@@ -336,7 +335,7 @@ class TestOptimizerComparison:
             pytest.skip("AIMNET2 backend not available")
 
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
             h2 = TestSystemDefinitions.get_h2_stretched()
 
             start_time = time.time()
@@ -375,7 +374,7 @@ class TestFileIO:
             pytest.skip("AIMNET2 backend not available")
 
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 input_file = Path(tmpdir) / "input.xyz"
@@ -415,7 +414,7 @@ class TestBackendConsistency:
                 continue
 
             try:
-                optimizer = QMEOptimizer(backend=backend)
+                optimizer = qme.QMEOptimizer(backend=backend)
                 h2 = TestSystemDefinitions.get_h2_stretched()
 
                 result = optimizer.optimize_minimum(atoms=h2, fmax=0.05, steps=50)
