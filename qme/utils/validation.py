@@ -1,5 +1,5 @@
 """
-Common error messages and validation patterns for QME.
+Common error messages and validation patterns for QME (moved into qme.utils).
 
 This module provides standardized error messages and validation functions
 to ensure consistency across the codebase.
