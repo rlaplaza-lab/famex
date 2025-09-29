@@ -36,8 +36,9 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-import qme
-from qme.dependencies import HAS_SELLA, deps
+from qme.core import QMEOptimizer
+from qme.utils.dependencies import HAS_SELLA, deps
+from qme.utils.settings import get_default_model
 
 # Suppress verbose logging from dependencies early
 logging.getLogger("jax").setLevel(logging.WARNING)
@@ -181,7 +182,7 @@ class BH28Benchmark:
             backend_results = {}
 
             # Get default model for backend
-            model_name = qme.get_default_model(backend)
+            model_name = get_default_model(backend)
 
             try:
                 for reaction in reactions:
@@ -190,9 +191,7 @@ class BH28Benchmark:
 
                     # Create fresh optimizer for each reaction (ensures consistency across backends)
                     with suppress_verbose_output():
-                        optimizer = qme.QMEOptimizer(
-                            backend=backend, model_name=model_name
-                        )
+                        optimizer = QMEOptimizer(backend=backend, model_name=model_name)
 
                     try:
                         # 1. Optimize reactant minima

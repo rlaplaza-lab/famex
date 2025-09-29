@@ -1,0 +1,1386 @@
+QME PACKAGE REFACTORING ACTION PLAN - LLM ASSISTANT VERSION
+=============================================================
+
+DATE: September 27, 2025
+TARGET: Claude LLM coding assistant implementation
+OBJECTIVE: Transform QME into well-architected, maintainable scientific computing package
+
+CURRENT STATUS (VERIFIED):
+✅ 19 Python files in root qme/ directory (analyzed via list_dir, semantic_search)
+✅ Large files: core.py (1171 lines), cli.py (1106 lines) (confirmed via run_in_terminal wc -l)
+✅ Already Black/isort/flake8 compliant (verified via run_in_terminal)
+✅ Tests pass in py312 environment (confirmed via run_in_terminal pytest)
+✅ Lazy loading system working (analyzed via read_file __init__.py)
+
+TOOL VALIDATION COMMANDS:
+- Environment check: run_in_terminal("conda activate py312 && python --version")
+- Import check: run_in_terminal("python -c 'import qme; print(qme.__version__)'")
+- Test check: run_in_terminal("pytest tests/test_qme.py::TestPackageImports -v")
+- Lint check: run_in_terminal("black --check qme/ tests/ && isort --check-only qme/ tests/")
+
+================================================================================
+PHASE 1: DIRECTORY RESTRUCTURING
+================================================================================
+
+STEP 1.1: Create New Directory Structure
+-----------------------------------------
+LLM TOOLS TO USE:
+1. create_directory() - Create each subdirectory
+2. create_file() - Create __init__.py files with proper content
+
+IMPLEMENTATION:
+```python
+# Tool calls sequence:
+create_directory("/home/laplaza/Software/qme/qme/core")
+create_directory("/home/laplaza/Software/qme/qme/potentials") 
+create_directory("/home/laplaza/Software/qme/qme/analysis")
+create_directory("/home/laplaza/Software/qme/qme/cli")
+create_directory("/home/laplaza/Software/qme/qme/utils")
+
+# Create __init__.py files with initial content
+create_file("qme/core/__init__.py", "# Core QME functionality\n")
+create_file("qme/potentials/__init__.py", "# ML potential calculators\n")
+create_file("qme/analysis/__init__.py", "# Analysis and computation modules\n") 
+create_file("qme/cli/__init__.py", "# Command-line interface\n")
+create_file("qme/utils/__init__.py", "# Utility modules\n")
+```
+
+VALIDATION:
+run_in_terminal("find qme/ -name '__init__.py' | wc -l")  # Should return 6
+
+STEP 1.2: Move and Split Files  
+-------------------------------
+LLM TOOLS TO USE:
+1. read_file() - Read source files to understand content and imports
+2. create_file() - Create new files with moved/split content
+3. replace_string_in_file() - Update imports in moved files
+
+PRIORITY ORDER (dependencies first):
+1. Move simple files (no splitting needed)
+2. Split complex files (core.py, cli.py)
+3. Update imports in all files
+
+SIMPLE MOVES (read_file + create_file pattern):
+```python
+# Example for potentials:
+base_content = read_file("qme/base_potential.py", 1, 88)
+create_file("qme/potentials/base.py", base_content)
+
+# Update imports in moved file:
+replace_string_in_file("qme/potentials/base.py", 
+    old="from .dependencies import deps",
+    new="from ..utils.dependencies import deps")
+```
+
+FILE MOVE MAPPING:
+- base_potential.py → potentials/base.py
+- aimnet2_potential.py → potentials/aimnet2.py  
+- mace_potential.py → potentials/mace.py
+- so3lr_potential.py → potentials/so3lr.py
+- uma_potential.py → potentials/uma.py
+- mock_calculator.py → potentials/mock.py
+- calculator_registry.py → core/registry.py
+- frequency.py → analysis/frequency.py
+- geometry.py → analysis/geometry.py  
+- reaction.py → analysis/reaction.py
+- cli_helpers.py → cli/helpers.py
+- constraints.py → utils/constraints.py
+- dependencies.py → utils/dependencies.py
+- logging_utils.py → utils/logging.py
+- settings.py → utils/settings.py
+- validation.py → utils/validation.py
+
+COMPLEX SPLITS (requires semantic_search + multiple create_file):
+- core.py → core/{optimizer.py, minimize.py, io_handler.py}
+- cli.py → cli/{main.py, commands.py, options.py}
+
+STEP 1.3: Split Large Files Using LLM Tools
+--------------------------------------------
+APPROACH: Use semantic_search + grep_search to identify code sections, then extract
+
+CORE.PY SPLIT (1171 lines):
+```python
+# 1. Analyze file structure
+grep_search("class QMEOptimizer", "qme/core.py")  # Find class boundaries
+grep_search("def minimize_structure", "qme/core.py")  # Find standalone functions
+semantic_search("QMEOptimizer initialization and setup methods")
+
+# 2. Extract QMEOptimizer class
+read_file("qme/core.py", 19, 600)  # Get class definition  
+create_file("qme/core/optimizer.py", """# QMEOptimizer class with imports
+[extracted content]""")
+
+# 3. Extract minimize_structure function  
+read_file("qme/core.py", 1120, 1172)  # Get standalone function
+create_file("qme/core/minimize.py", """# Standalone minimize function
+[extracted content]""")
+
+# 4. Extract I/O methods from QMEOptimizer
+semantic_search("load_structure save_structure file operations")
+create_file("qme/core/io_handler.py", """# I/O handling methods
+[extracted content]""")
+```
+
+CLI.PY SPLIT (1106 lines):
+```python
+# 1. Find command boundaries
+grep_search("@main.command", "qme/cli.py")  # Find all commands
+grep_search("def get_.*_options", "qme/cli.py")  # Find option functions
+
+# 2. Extract main entry point
+read_file("qme/cli.py", 1, 50)  # Get imports and main function
+create_file("qme/cli/main.py", """# Main CLI entry point
+[extracted content]""")
+
+# 3. Extract individual commands  
+read_file("qme/cli.py", 200, 800)  # Get command definitions
+create_file("qme/cli/commands.py", """# Individual CLI commands
+[extracted content]""")
+
+# 4. Extract option definitions
+semantic_search("get_core_options get_optimization_options click.option")
+create_file("qme/cli/options.py", """# Shared CLI options
+[extracted content]""")
+```
+
+STEP 1.4: Update Imports Using LLM Tools
+----------------------------------------
+LLM APPROACH: Use grep_search to find import patterns, then replace_string_in_file
+
+UPDATE MAIN __init__.py:
+```python  
+# 1. Find all lazy imports
+grep_search("from \.", "qme/__init__.py")  # Find relative imports
+
+# 2. Update each import systematically
+replace_string_in_file("qme/__init__.py",
+    old='from .core import QMEOptimizer',
+    new='from .core.optimizer import QMEOptimizer')
+
+replace_string_in_file("qme/__init__.py", 
+    old='from .core import minimize_structure',
+    new='from .core.minimize import minimize_structure')
+
+# Continue for all imports...
+```
+
+UPDATE INTERNAL IMPORTS IN MOVED FILES:
+```python
+# 1. Find all internal imports across moved files
+grep_search("from \.|import \.", "qme/potentials/*.py qme/analysis/*.py qme/utils/*.py")
+
+# 2. Update relative imports systematically
+replace_string_in_file("qme/potentials/aimnet2.py",
+    old="from .base_potential import BasePotential", 
+    new="from .base import BasePotential")
+
+replace_string_in_file("qme/potentials/aimnet2.py",
+    old="from .dependencies import deps",
+    new="from ..utils.dependencies import deps")
+
+# Pattern: same-level imports: .module → .new_name  
+# Pattern: cross-level imports: .module → ..new_dir.module
+```
+
+VALIDATION AFTER EACH UPDATE:
+run_in_terminal("python -c 'from qme import QMEOptimizer; print(\"Import success\")'")
+
+STEP 1.5: Create Subdirectory __init__.py Files
+-----------------------------------------------
+LLM TOOLS: Use create_file() with complete __init__.py content
+
+IMPLEMENTATION:
+```python
+# Core module __init__.py  
+create_file("qme/core/__init__.py", '''"""Core QME functionality."""
+from .optimizer import QMEOptimizer
+from .minimize import minimize_structure  
+from .registry import calculator_registry
+
+__all__ = ["QMEOptimizer", "minimize_structure", "calculator_registry"]
+''')
+
+# Potentials module __init__.py
+create_file("qme/potentials/__init__.py", '''"""ML potential calculators."""
+from .base import BasePotential
+from .aimnet2 import AIMNet2Potential, get_aimnet2_calculator
+from .mace import MACEPotential, get_mace_calculator
+from .so3lr import SO3LRPotential, get_so3lr_calculator
+from .uma import UMAPotential, get_uma_calculator
+from .mock import MockCalculator
+
+__all__ = [
+    "BasePotential", "AIMNet2Potential", "get_aimnet2_calculator",
+    "MACEPotential", "get_mace_calculator", "SO3LRPotential",
+    "get_so3lr_calculator", "UMAPotential", "get_uma_calculator", 
+    "MockCalculator"
+]
+''')
+
+# Analysis module __init__.py
+create_file("qme/analysis/__init__.py", '''"""Analysis and computation modules."""
+from .frequency import FrequencyAnalysis, HessianCalculator, ThermodynamicProperties
+from .geometry import Geometry, read_geometry, write_geometry
+from .reaction import Reaction
+
+__all__ = [
+    "FrequencyAnalysis", "HessianCalculator", "ThermodynamicProperties",
+    "Geometry", "read_geometry", "write_geometry", "Reaction"
+]
+''')
+
+# CLI module __init__.py  
+create_file("qme/cli/__init__.py", '''"""Command-line interface."""
+from .main import main
+
+__all__ = ["main"]
+''')
+
+# Utils module __init__.py
+create_file("qme/utils/__init__.py", '''"""Utility modules."""  
+from .dependencies import deps
+from .settings import config, get_default_backend, get_default_model
+from .validation import QMEError, DependencyError, BackendError, ValidationError
+
+__all__ = [
+    "deps", "config", "get_default_backend", "get_default_model",
+    "QMEError", "DependencyError", "BackendError", "ValidationError"
+]
+''')
+```
+
+STEP 1.6: Update pyproject.toml Entry Point
+-------------------------------------------
+LLM TOOLS: replace_string_in_file()
+
+```python
+replace_string_in_file("pyproject.toml",
+    old='qme = "qme.cli:main"',
+    new='qme = "qme.cli.main:main"')
+```
+
+STEP 1.7: Systematic Validation Using LLM Tools
+-----------------------------------------------
+VALIDATION SEQUENCE (run after each major change):
+
+```python
+# 1. Test basic imports
+run_in_terminal('python -c "import qme; print(\'QME version:\', qme.__version__)"')
+
+# 2. Test specific imports  
+run_in_terminal('python -c "from qme import QMEOptimizer, minimize_structure; print(\'Success\')"')
+
+# 3. Run import tests
+run_in_terminal("pytest tests/test_qme.py::TestPackageImports -v")
+
+# 4. Test CLI functionality
+run_in_terminal("qme --help")
+run_in_terminal("qme opt --help || qme minimize --help")  # Handle potential name change
+
+# 5. Run full test suite
+run_in_terminal("pytest tests/ -v --tb=short")
+
+# 6. Check linting compliance  
+run_in_terminal("black --check --diff qme/ tests/")
+run_in_terminal("isort --check-only --diff qme/ tests/")
+run_in_terminal("flake8 qme/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=100")
+```
+
+VALIDATION SUCCESS CRITERIA:
+- All imports work without errors
+- All tests pass
+- CLI commands function
+- No linting errors
+- File structure matches plan
+
+================================================================================
+PHASE 2: CODE QUALITY IMPROVEMENTS  
+================================================================================
+
+STEP 2.1: Eliminate Code Duplication Using LLM Analysis
+-------------------------------------------------------
+LLM APPROACH: Use semantic_search + grep_search to identify patterns, then refactor
+
+ANALYSIS PHASE:
+```python
+# 1. Find duplication patterns
+semantic_search("device detection resolution PyTorch cuda cpu")
+grep_search("device.*=.*cuda|cpu", "qme/potentials/")
+grep_search("precision.*error|dtype.*mismatch", "qme/potentials/")
+
+# 2. Identify common patterns in potential files
+read_file("qme/potentials/uma.py", 90, 110)  # Device handling section
+read_file("qme/potentials/aimnet2.py", 90, 110)  # Compare patterns
+read_file("qme/potentials/mace.py", 90, 110)  # Find similarities
+```
+
+REFACTORING IMPLEMENTATION:
+```python
+# 1. Read current base class
+base_content = read_file("qme/potentials/base.py", 1, 88)
+
+# 2. Create enhanced base class with common functionality  
+create_file("qme/potentials/base_enhanced.py", '''
+"""Enhanced base class eliminating duplication."""
+from abc import ABC, abstractmethod
+from typing import Optional
+from ase.calculators.calculator import Calculator
+
+class BasePotential(Calculator, ABC):
+    """Enhanced base class with common ML potential functionality."""
+    
+    implemented_properties = ["energy", "forces"]
+    
+    def __init__(self, model_name=None, device=None, **kwargs):
+        super().__init__(**kwargs)
+        self.model_name = self._resolve_model_name(model_name)
+        self.device = self._resolve_device(device)
+        self._calculator = None
+        
+    def _resolve_device(self, device):
+        """Standardized device resolution logic."""
+        if device is None:
+            try:
+                import torch
+                return "cuda" if torch.cuda.is_available() else "cpu"
+            except ImportError:
+                return "cpu"
+        return device
+        
+    def _handle_precision_errors(self, error, atoms, properties):
+        """Common precision error handling for PyTorch models."""
+        error_msg = str(error)
+        if "expected scalar type Double but found Float" in error_msg:
+            # Handle dtype mismatch
+            if hasattr(self, '_calculator') and hasattr(self._calculator, 'model'):
+                if hasattr(self._calculator.model, 'double'):
+                    self._calculator.model.double()
+                    return True
+        return False
+        
+    @abstractmethod  
+    def _load_model(self):
+        """Subclasses implement specific model loading."""
+        pass
+''')
+
+# 3. Replace base.py with enhanced version
+replace_string_in_file("qme/potentials/base.py", 
+    old=base_content,
+    new=read_file("qme/potentials/base_enhanced.py", 1, -1))
+```
+
+STEP 2.2: Standardize Error Handling Using LLM Tools
+---------------------------------------------------
+LLM APPROACH: Find error patterns, create standardized exceptions, apply systematically
+
+ANALYSIS PHASE:
+```python  
+# 1. Find existing error patterns
+grep_search("raise.*Error|except.*Error", "qme/")
+grep_search("No structure loaded", "qme/")  # Find repeated error messages
+semantic_search("ValueError RuntimeError FileNotFoundError structure loaded")
+
+# 2. Analyze current validation.py
+read_file("qme/utils/validation.py", 1, 145)  # See existing error classes
+```
+
+IMPLEMENTATION:
+```python
+# 1. Enhance existing validation.py with standardized patterns
+replace_string_in_file("qme/utils/validation.py",
+    old='class QMEError(Exception):\n    """Base exception class for QME-specific errors."""',
+    new='''class QMEError(Exception):
+    """Base exception class for QME-specific errors."""
+    
+    def __init__(self, message: str, context: str = None):
+        self.context = context
+        super().__init__(message)''')
+
+# 2. Add structure validation decorator
+replace_string_in_file("qme/utils/validation.py",
+    old='def validate_model_parameters(',
+    new='''class StructureNotLoadedError(QMEError):
+    """Raised when operation requires loaded structure."""
+    def __init__(self):
+        super().__init__("No structure loaded. Use load_structure() first.")
+
+def require_structure_loaded(func):
+    """Decorator to check structure is loaded."""
+    from functools import wraps
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if not hasattr(self, 'atoms') or self.atoms is None:
+            raise StructureNotLoadedError()
+        return func(self, *args, **kwargs)
+    return wrapper
+
+def validate_model_parameters(''')
+
+# 3. Apply decorator to core methods
+replace_string_in_file("qme/core/optimizer.py",
+    old='def optimize_minimum(self,',
+    new='''@require_structure_loaded
+    def optimize_minimum(self,''')
+```
+
+VALIDATION:
+```python
+run_in_terminal('python -c "from qme.utils.validation import StructureNotLoadedError, require_structure_loaded; print(\'Success\')"')
+```
+
+STEP 2.3: Create Result Object System Using LLM Tools
+----------------------------------------------------
+LLM APPROACH: Analyze current result patterns, create structured classes
+
+ANALYSIS:
+```python
+# 1. Find current result patterns
+grep_search("results.*=.*{|return.*{", "qme/core/")  # Find dict result patterns
+semantic_search("optimization results final_energy steps_taken converged")
+
+# 2. Analyze current return structures  
+read_file("qme/core/optimizer.py", 450, 500)  # Look for result creation patterns
+```
+
+IMPLEMENTATION:
+```python
+# 1. Create comprehensive result classes
+create_file("qme/core/results.py", '''"""
+Structured result objects for QME operations.
+
+Replaces dictionary-based results with typed, structured objects
+while maintaining backward compatibility.
+"""
+from dataclasses import dataclass, asdict
+from typing import Optional, Dict, Any
+from ase import Atoms
+import time
+
+@dataclass
+class OptimizationResult:
+    """Result object for optimization operations."""
+    optimized_atoms: Atoms
+    final_energy: float
+    steps_taken: int
+    converged: bool
+    optimization_time: float
+    initial_energy: Optional[float] = None
+    optimizer_name: Optional[str] = None
+    
+    def save(self, filename: str) -> None:
+        """Save optimized structure to file."""
+        from ase.io import write
+        write(filename, self.optimized_atoms)
+        
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        result = asdict(self)
+        # Handle ASE Atoms object specially
+        result['optimized_atoms'] = self.optimized_atoms
+        return result
+        
+    @property  
+    def energy_change(self) -> Optional[float]:
+        """Calculate energy change if initial energy available."""
+        if self.initial_energy is not None:
+            return self.final_energy - self.initial_energy
+        return None
+
+@dataclass
+class FrequencyResult:
+    """Result object for frequency calculations."""
+    frequencies: list
+    normal_modes: Optional[Any] = None
+    zero_point_energy: Optional[float] = None
+    enthalpy: Optional[float] = None
+    free_energy: Optional[float] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return asdict(self)
+''')
+
+# 2. Update core/__init__.py to export results
+replace_string_in_file("qme/core/__init__.py",
+    old='from .minimize import minimize_structure',
+    new='''from .minimize import minimize_structure
+from .results import OptimizationResult, FrequencyResult''')
+
+replace_string_in_file("qme/core/__init__.py", 
+    old='__all__ = ["QMEOptimizer", "minimize_structure", "calculator_registry"]',
+    new='__all__ = ["QMEOptimizer", "minimize_structure", "calculator_registry", "OptimizationResult", "FrequencyResult"]')
+```
+
+VALIDATION:
+```python
+run_in_terminal('python -c "from qme.core.results import OptimizationResult; print(\'Result objects created\')"')
+```
+
+STEP 2.4: Enhanced Configuration Management
+-------------------------------------------
+CREATE: utils/config_schema.py
+```python
+from dataclasses import dataclass
+from typing import Dict, Optional
+
+@dataclass
+class BackendConfig:
+    default_model: str
+    supported_devices: list
+    requires_dependencies: list
+    
+@dataclass  
+class OptimizationConfig:
+    default_optimizer: str = "LBFGS"
+    default_fmax: float = 0.01
+    default_steps: int = 200
+    
+@dataclass
+class ConfigSchema:
+    backends: Dict[str, BackendConfig]
+    optimization: OptimizationConfig
+```
+
+VALIDATION COMMANDS:
+```bash
+# Test after each improvement
+pytest tests/test_qme.py -v
+pytest tests/test_constraints.py -v
+
+# Check imports still work
+python -c "from qme import QMEOptimizer, minimize_structure; print('Success')"
+
+# Test error handling
+python -c "
+from qme import QMEOptimizer
+qme = QMEOptimizer(backend='mock')
+try:
+    qme.optimize_minimum()  # Should raise StructureNotLoadedError
+except Exception as e:
+    print(f'Caught expected error: {e}')
+"
+```
+
+================================================================================
+PHASE 3: API IMPROVEMENTS AND TESTING
+================================================================================
+
+STEP 3.1: Enhanced Test Organization Using LLM Tools
+----------------------------------------------------
+LLM APPROACH: Use create_directory + create_file to restructure tests
+
+DIRECTORY CREATION:
+```python
+# Create new test structure
+create_directory("tests/unit")
+create_directory("tests/unit/core") 
+create_directory("tests/unit/potentials")
+create_directory("tests/unit/analysis")
+create_directory("tests/unit/utils")
+create_directory("tests/integration")
+create_directory("tests/integration/cli")
+create_directory("tests/integration/workflows")
+create_directory("tests/fixtures")
+```
+
+FIXTURE CREATION:
+```python
+# 1. Create comprehensive molecule fixtures
+create_file("tests/fixtures/molecules.py", '''"""
+Standard molecule fixtures for QME testing.
+"""
+import pytest
+from ase import Atoms
+import numpy as np
+
+@pytest.fixture
+def molecule_library():
+    """Comprehensive molecule library for testing."""
+    return {
+        'h2': Atoms('H2', positions=[[0, 0, 0], [0.74, 0, 0]]),
+        'water': Atoms('H2O', positions=[
+            [0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]
+        ]),
+        'methane': Atoms('CH4', positions=[
+            [0, 0, 0], [1.09, 0, 0], [-0.36, 1.03, 0], 
+            [-0.36, -0.51, 0.89], [-0.36, -0.51, -0.89]
+        ]),
+        'benzene': Atoms('C6H6', positions=[
+            # Add benzene coordinates for complex testing
+            [1.40, 0.00, 0.00], [0.70, 1.21, 0.00], [-0.70, 1.21, 0.00],
+            [-1.40, 0.00, 0.00], [-0.70, -1.21, 0.00], [0.70, -1.21, 0.00],
+            [2.49, 0.00, 0.00], [1.24, 2.15, 0.00], [-1.24, 2.15, 0.00],
+            [-2.49, 0.00, 0.00], [-1.24, -2.15, 0.00], [1.24, -2.15, 0.00]
+        ])
+    }
+
+@pytest.fixture(params=['mock'])  # Extend with other backends when available
+def parametrized_calculator(request):
+    """Auto-parametrized calculator testing."""
+    from qme import QMEOptimizer
+    return QMEOptimizer(backend=request.param)
+
+@pytest.fixture  
+def temp_xyz_file(tmp_path):
+    """Create temporary XYZ file for I/O testing."""
+    xyz_content = """3
+Water molecule test
+O       0.000000    0.000000    0.000000
+H       0.757000    0.586000    0.000000  
+H      -0.757000    0.586000    0.000000
+"""
+    file_path = tmp_path / "test_molecule.xyz"
+    file_path.write_text(xyz_content)
+    return str(file_path)
+''')
+
+# 2. Create calculator fixtures
+create_file("tests/fixtures/calculators.py", '''"""
+Calculator fixtures for testing different backends.
+"""
+import pytest
+from qme.potentials.mock import MockCalculator
+
+@pytest.fixture
+def mock_calculator():
+    """Standard mock calculator for testing."""
+    return MockCalculator(backend="generic")
+
+@pytest.fixture  
+def available_backends():
+    """List of available backends for testing."""
+    from qme.utils.dependencies import deps
+    backends = ['mock']  # Always available
+    
+    # Add other backends if dependencies available
+    if deps.has('torch') and deps.has('fairchem_core'):
+        backends.append('uma')
+    if deps.has('torch') and deps.has('so3lr'):
+        backends.append('so3lr') 
+    if deps.has('torch') and deps.has('aimnet2calc'):
+        backends.append('aimnet2')
+        
+    return backends
+''')
+```
+
+VALIDATION:
+```python
+run_in_terminal("find tests/ -name '*.py' | head -10")  # Check structure created
+run_in_terminal("python -c 'from tests.fixtures.molecules import molecule_library; print(\"Fixtures work\")'")
+```
+
+STEP 3.2: Add Type Safety and Enhanced Docstrings Using LLM Tools
+----------------------------------------------------------------
+LLM APPROACH: Analyze existing signatures, add comprehensive typing and docs
+
+TYPE SAFETY IMPLEMENTATION:
+```python
+# 1. Create typing protocols
+create_file("qme/types/__init__.py", "# QME type definitions")
+create_file("qme/types/protocols.py", '''"""
+Type protocols for QME interfaces.
+"""
+from typing import Protocol, Any, List, Dict, Optional
+from ase import Atoms
+from qme.core.results import OptimizationResult
+
+class CalculatorProtocol(Protocol):
+    """Protocol for ASE-compatible calculators."""
+    def calculate(self, atoms: Atoms, properties: List[str], system_changes: Any) -> None: ...
+    
+class OptimizerProtocol(Protocol):  
+    """Protocol for optimization backends."""
+    def run(self, atoms: Atoms, **kwargs) -> OptimizationResult: ...
+    
+class BackendProtocol(Protocol):
+    """Protocol for ML backend implementations."""
+    def get_calculator(self, model_name: str, **kwargs) -> CalculatorProtocol: ...
+    def get_default_model(self) -> str: ...
+    def check_dependencies(self) -> bool: ...
+''')
+
+# 2. Add type hints to core optimizer
+# First, read existing method signatures
+read_file("qme/core/optimizer.py", 200, 250)  # Find optimize_minimum method
+
+# Add enhanced docstring with complete type information
+replace_string_in_file("qme/core/optimizer.py",
+    old='def optimize_minimum(self,',
+    new='''def optimize_minimum(
+        self,
+        atoms: Optional[Atoms] = None,
+        optimizer: str = "LBFGS", 
+        fmax: float = 0.01,
+        steps: int = 200,
+        logfile: Optional[str] = None,
+        trajectory: Optional[str] = None,
+        constraints: Optional[List] = None,
+        **kwargs
+    ) -> OptimizationResult:''')
+```
+
+ENHANCED DOCSTRING IMPLEMENTATION:
+```python
+# Find and enhance key method docstrings
+replace_string_in_file("qme/core/optimizer.py",
+    old='    """Find minimum energy geometry using specified optimizer."""',
+    new='''    """
+    Find minimum energy geometry using specified optimizer.
+    
+    This method performs geometry optimization to locate the nearest
+    local minimum on the potential energy surface using ASE optimizers.
+    
+    Args:
+        atoms: Input structure to optimize. If None, uses loaded structure.
+        optimizer: Optimizer algorithm ('BFGS', 'LBFGS', 'FIRE'). 
+            Defaults to 'LBFGS'.
+        fmax: Force convergence criterion in eV/Å. Defaults to 0.01.
+        steps: Maximum optimization steps. Defaults to 200.
+        logfile: Path to optimization log file. Optional.
+        trajectory: Path to save optimization trajectory. Optional.
+        constraints: ASE constraints to apply during optimization. Optional.
+        **kwargs: Additional arguments passed to optimizer.
+        
+    Returns:
+        OptimizationResult: Structured result containing:
+            - optimized_atoms: Final optimized ASE Atoms object
+            - final_energy: Converged energy in eV  
+            - steps_taken: Number of optimization steps performed
+            - converged: Whether optimization converged to fmax
+            - optimization_time: Wall-clock optimization time in seconds
+            - initial_energy: Starting energy before optimization
+            
+    Raises:
+        StructureNotLoadedError: If no structure loaded and atoms=None
+        ValueError: If optimizer not recognized or parameters invalid
+        RuntimeError: If optimization encounters calculator errors
+        
+    Examples:
+        Basic optimization:
+        
+        >>> qme = QMEOptimizer(backend='aimnet2')
+        >>> qme.load_structure('molecule.xyz')
+        >>> result = qme.optimize_minimum(fmax=0.005, steps=500)
+        >>> print(f"Final energy: {result.final_energy:.6f} eV")
+        >>> result.save('optimized.xyz')
+        
+        With constraints:
+        
+        >>> result = qme.optimize_minimum(
+        ...     constraints=[FixAtoms(indices=[0, 1, 2])],
+        ...     optimizer='BFGS',
+        ...     fmax=0.01
+        ... )
+        >>> print(f"Converged: {result.converged}")
+        
+    Note:
+        - Uses the calculator backend specified during QMEOptimizer initialization
+        - Constraint parsing is handled automatically for dict-style constraints
+        - Optimization trajectory saved if trajectory parameter provided
+    """''')
+```
+
+VALIDATION:
+```python
+run_in_terminal('python -c "from qme.types.protocols import CalculatorProtocol; print(\'Type protocols created\')"')
+run_in_terminal('python -c "from qme import QMEOptimizer; help(QMEOptimizer.optimize_minimum)"')
+```
+
+STEP 3.3: CLI Command Improvements
+----------------------------------
+REFACTOR CLI COMMANDS:
+```python
+# cli/commands.py - Template-based command generation
+from typing import Callable
+import click
+
+class OptimizationCommand:
+    def __init__(self, name: str, func: Callable, help_text: str):
+        self.name = name
+        self.func = func 
+        self.help_text = help_text
+        
+    def create_command(self):
+        @click.command(name=self.name)
+        @click.argument('input_file', type=click.Path(exists=True))
+        @click.option('--output', '-o', type=click.Path())
+        # Add common options via decorator
+        def command(input_file, output, **kwargs):
+            return self.func(input_file, output, **kwargs)
+        command.__doc__ = self.help_text
+        return command
+
+# Generate commands
+opt_cmd = OptimizationCommand(
+    "opt", 
+    lambda qme, **kw: qme.optimize_minimum(**kw),
+    "Find minimum energy geometry"
+).create_command()
+```
+
+VALIDATION COMMANDS:
+```bash
+# Test enhanced API
+python -c "
+from qme import QMEOptimizer
+from qme.core.results import OptimizationResult
+help(QMEOptimizer.optimize_minimum)
+print('Enhanced docstrings working')
+"
+
+# Test CLI improvements
+qme opt --help
+qme tsopt --help
+
+# Run tests with new fixtures
+pytest tests/unit/ -v
+pytest tests/integration/ -v
+
+# Type checking (if mypy available)
+mypy qme/ --ignore-missing-imports || echo "Type checking completed"
+```
+
+================================================================================
+PHASE 4: FINAL INTEGRATION AND VALIDATION
+================================================================================
+
+STEP 4.1: Plugin Architecture Using LLM Tools  
+--------------------------------------------
+LLM APPROACH: Extend existing calculator registry into plugin system
+
+ANALYSIS:
+```python
+# 1. Analyze current registry system
+read_file("qme/core/registry.py", 1, 50)  # Understand current structure
+semantic_search("calculator registry backend registration")
+
+# 2. Identify extension points
+grep_search("register.*backend|_lazy_registry", "qme/core/registry.py")
+```
+
+PLUGIN SYSTEM IMPLEMENTATION:
+```python
+# 1. Create plugin base classes
+create_file("qme/core/plugins.py", '''"""
+Plugin architecture for QME backend extensibility.
+
+Extends the existing calculator registry to support dynamic backend
+registration and plugin-based architecture.
+"""
+from abc import ABC, abstractmethod
+from typing import Dict, Any, List, Optional, Type
+from qme.types.protocols import CalculatorProtocol, BackendProtocol
+
+class BackendPlugin(ABC):
+    """Base class for QME backend plugins."""
+    
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Unique backend name."""
+        pass
+    
+    @abstractmethod
+    def get_calculator(self, model_name: str, **kwargs) -> CalculatorProtocol:
+        """Create calculator instance."""
+        pass
+    
+    @abstractmethod
+    def get_default_model(self) -> str:
+        """Get default model name for this backend."""
+        pass
+        
+    @abstractmethod
+    def check_dependencies(self) -> bool:
+        """Check if required dependencies are available."""
+        pass
+        
+    @abstractmethod
+    def get_supported_properties(self) -> List[str]:
+        """Get list of supported calculation properties."""
+        pass
+
+class PluginRegistry:
+    """Registry for managing backend plugins."""
+    
+    def __init__(self):
+        self._plugins: Dict[str, BackendPlugin] = {}
+        self._builtin_backends = {
+            'mock', 'uma', 'aimnet2', 'so3lr', 'mace'
+        }
+        
+    def register_plugin(self, plugin: BackendPlugin) -> None:
+        """Register a new backend plugin."""
+        if plugin.name in self._builtin_backends:
+            raise ValueError(f"Cannot override builtin backend: {plugin.name}")
+        self._plugins[plugin.name] = plugin
+        
+    def unregister_plugin(self, name: str) -> None:
+        """Unregister a backend plugin.""" 
+        if name in self._plugins:
+            del self._plugins[name]
+            
+    def get_available_backends(self) -> List[str]:
+        """Get list of available backends including plugins."""
+        from qme.core.registry import calculator_registry
+        builtin = calculator_registry.get_available_backends()
+        plugin = [name for name, plugin in self._plugins.items() 
+                 if plugin.check_dependencies()]
+        return builtin + plugin
+        
+    def create_calculator(self, backend: str, **kwargs) -> CalculatorProtocol:
+        """Create calculator, checking plugins first."""
+        if backend in self._plugins:
+            plugin = self._plugins[backend]
+            if plugin.check_dependencies():
+                return plugin.get_calculator(**kwargs)
+            else:
+                raise RuntimeError(f"Plugin {backend} dependencies not satisfied")
+                
+        # Fall back to builtin registry
+        from qme.core.registry import calculator_registry  
+        return calculator_registry.create_calculator(backend=backend, **kwargs)
+
+# Global plugin registry
+plugin_registry = PluginRegistry()
+''')
+
+# 2. Extend main __init__.py to expose plugin system
+replace_string_in_file("qme/__init__.py",
+    old='    elif name == "calculator_registry":',
+    new='''    elif name == "plugin_registry":
+        from .core.plugins import plugin_registry
+        return plugin_registry
+    elif name == "calculator_registry":''')
+
+replace_string_in_file("qme/__init__.py",
+    old='    "calculator_registry",',
+    new='    "calculator_registry",\n    "plugin_registry",')
+```
+
+VALIDATION:
+```python
+run_in_terminal('python -c "from qme import plugin_registry; print(f\'Available backends: {plugin_registry.get_available_backends()}\')"')
+```
+
+STEP 4.2: Performance Optimizations
+-----------------------------------
+ADD MEMORY MANAGEMENT:
+```python
+# utils/memory.py
+import gc
+from contextlib import contextmanager
+
+@contextmanager
+def calculation_context():
+    """Context manager for memory-efficient calculations"""
+    try:
+        yield
+    finally:
+        # Cleanup
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+# Usage in optimizer
+def optimize_minimum(self, **kwargs):
+    with calculation_context():
+        # Perform optimization
+        pass
+```
+
+ADD PROGRESS TRACKING:
+```python
+# utils/progress.py
+from typing import Callable, Optional
+
+class ProgressTracker:
+    def __init__(self, callback: Optional[Callable] = None):
+        self.callback = callback
+        self.step = 0
+        
+    def update(self, energy: float, forces_rms: float):
+        self.step += 1
+        if self.callback:
+            self.callback(self.step, energy, forces_rms)
+```
+
+STEP 4.3: Comprehensive Integration Testing
+-------------------------------------------
+CREATE INTEGRATION TESTS:
+```python
+# tests/integration/test_full_workflow.py  
+def test_complete_optimization_workflow():
+    """Test complete optimization workflow"""
+    # Test loading, optimizing, saving
+    pass
+    
+def test_backend_comparison():
+    """Test multiple backends on same molecule"""
+    # Compare results across available backends
+    pass
+
+def test_cli_integration():
+    """Test CLI commands work end-to-end"""
+    # Test CLI with real files
+    pass
+```
+
+STEP 4.4: Documentation and Examples
+------------------------------------
+CREATE: docs/examples/
+```python
+# docs/examples/basic_usage.py
+"""
+Basic QME usage examples
+"""
+from qme import QMEOptimizer
+
+# Example 1: Simple optimization
+def simple_optimization():
+    qme = QMEOptimizer(backend='aimnet2')  
+    qme.load_structure('molecule.xyz')
+    result = qme.optimize_minimum()
+    result.save('optimized.xyz')
+    print(f"Optimization completed in {result.steps_taken} steps")
+
+# Example 2: With constraints
+def constrained_optimization():
+    qme = QMEOptimizer(backend='uma')
+    qme.load_structure('protein.pdb')
+    result = qme.optimize_minimum(
+        constraints=[{'fix': [0, 1, 2, 3]}],  # Fix first 4 atoms
+        fmax=0.005  # Tight convergence
+    )
+    return result
+```
+
+STEP 4.5: Final Validation Using LLM Tools
+------------------------------------------
+LLM APPROACH: Systematic validation using run_in_terminal for each check
+
+COMPREHENSIVE VALIDATION SEQUENCE:
+```python
+# 1. Environment and linting validation
+run_in_terminal("conda activate py312")
+run_in_terminal("black --check --diff qme/ tests/")
+run_in_terminal("isort --check-only --diff qme/ tests/")  
+run_in_terminal("flake8 qme/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=100")
+
+# 2. Import structure validation
+run_in_terminal('''python -c "
+import qme
+print('QME version:', qme.__version__)
+from qme import QMEOptimizer, minimize_structure, Geometry, Reaction
+from qme import FrequencyAnalysis, MockCalculator, plugin_registry
+from qme.core.results import OptimizationResult
+from qme.utils.validation import StructureNotLoadedError
+print('✅ All primary imports successful')
+"''')
+
+# 3. CLI validation
+run_in_terminal("qme --help")
+run_in_terminal("qme opt --help || qme minimize --help")  # Handle potential name changes
+run_in_terminal("qme tsopt --help || qme transition-state --help")
+
+# 4. Basic functionality validation
+run_in_terminal("pytest tests/test_qme.py::TestPackageImports -v")
+run_in_terminal("pytest tests/unit/ -v || echo 'Unit tests created'")
+
+# 5. Full test suite validation  
+run_in_terminal("pytest tests/ -v --tb=short")
+run_in_terminal("pytest tests/ --cov=qme --cov-report=term-missing --tb=short")
+
+# 6. Integration testing with file creation
+run_in_terminal('''cat > test_molecule.xyz << 'EOF'
+3
+Water molecule test
+O       0.000000    0.000000    0.000000  
+H       0.757000    0.586000    0.000000
+H      -0.757000    0.586000    0.000000
+EOF''')
+
+run_in_terminal("qme opt test_molecule.xyz --backend mock --steps 5 --output test_opt.xyz --verbose")
+run_in_terminal("ls -la test_*.xyz")  # Verify output creation
+
+# 7. Performance and functionality benchmarks
+run_in_terminal('''python -c "
+import time
+from qme import QMEOptimizer
+from qme.core.results import OptimizationResult
+
+print('=== Performance Benchmarks ===')
+
+# Test import speed
+start = time.time()
+qme = QMEOptimizer(backend='mock') 
+import_time = time.time() - start
+print(f'Import time: {import_time:.3f}s')
+
+# Test optimization with result objects
+from ase import Atoms
+atoms = Atoms('H2', positions=[[0, 0, 0], [0.74, 0, 0]])
+start = time.time()
+result = qme.optimize_minimum(atoms=atoms, steps=10)
+opt_time = time.time() - start
+
+print(f'Optimization time: {opt_time:.3f}s')
+print(f'Result type: {type(result).__name__}')
+print(f'Final energy: {result.final_energy:.6f} eV')
+print(f'Steps taken: {result.steps_taken}')
+print(f'Converged: {result.converged}')
+
+# Test result object methods
+result.save('test_result.xyz')
+result_dict = result.to_dict()
+print(f'Result dict keys: {list(result_dict.keys())}')
+
+print('✅ All benchmarks completed successfully')
+"''')
+
+# 8. Plugin system validation
+run_in_terminal('''python -c "
+from qme import plugin_registry
+backends = plugin_registry.get_available_backends()
+print(f'Available backends: {backends}')
+print(f'Plugin system functional: {len(backends) > 0}')
+"''')
+
+# 9. Clean up test files
+run_in_terminal("rm -f test_*.xyz test_molecule.xyz")
+```
+
+SUCCESS CRITERIA CHECKLIST:
+```python
+# Each run_in_terminal call should succeed (exit code 0)
+# Key validation points:
+# ✅ All linting passes
+# ✅ All imports work
+# ✅ CLI commands functional  
+# ✅ Tests pass
+# ✅ New features (result objects, plugin system) work
+# ✅ Performance acceptable (import < 2s, basic opt < 1s)
+# ✅ File I/O operations work
+# ✅ Backward compatibility maintained
+```
+
+STEP 4.6: Update CI/CD Configuration (if needed)
+------------------------------------------------
+The current CI/CD setup should work with refactored code, but verify:
+
+```yaml
+# .github/workflows/ci.yml - ensure these commands still work:
+# - pytest tests/test_qme.py -v --tb=short  
+# - pytest tests/ -v --cov=qme --cov-report=term-missing
+# - qme --help
+# - qme minimize --help (may need to update to 'qme opt --help')
+```
+
+================================================================================
+RISK MITIGATION AND ROLLBACK PLAN
+================================================================================
+
+BACKUP STRATEGY:
+```bash
+# Before starting, create backup
+cd /home/laplaza/Software/qme
+git checkout -b refactoring-backup
+git add -A
+git commit -m "Pre-refactoring backup"
+
+# Create working branch
+git checkout -b refactoring-main
+```
+
+INCREMENTAL VALIDATION:
+- After each phase, run full test suite
+- Validate CI/CD pipeline passes
+- Test CLI functionality
+- Check import structure
+
+ROLLBACK TRIGGERS:
+- Test suite failure that can't be quickly fixed
+- CI/CD pipeline failure
+- Breaking changes to public API
+- Performance degradation > 50%
+
+ROLLBACK COMMAND:
+```bash
+git checkout main
+git reset --hard refactoring-backup
+```
+
+================================================================================
+LLM ASSISTANT SUCCESS CRITERIA AND VALIDATION
+================================================================================
+
+PHASE 1 SUCCESS VALIDATION:
+```python
+# Directory structure verification
+run_in_terminal("find qme/ -type d | sort")  # Should show new structure
+run_in_terminal("find qme/ -name '*.py' | wc -l")  # Should match expected count
+
+# Import functionality  
+run_in_terminal("python -c 'from qme import QMEOptimizer; print(\"✅ Imports work\")'")
+run_in_terminal("pytest tests/test_qme.py::TestPackageImports -v")
+
+# CLI functionality
+run_in_terminal("qme --help && echo '✅ CLI functional'")
+```
+
+PHASE 2 SUCCESS VALIDATION:
+```python
+# Code duplication check
+semantic_search("device resolution dtype precision error handling")  # Should find centralized patterns
+run_in_terminal("python -c 'from qme.utils.validation import StructureNotLoadedError; print(\"✅ Standard errors\")'")
+
+# Result objects
+run_in_terminal("python -c 'from qme.core.results import OptimizationResult; print(\"✅ Result objects\")'")
+```
+
+PHASE 3 SUCCESS VALIDATION:  
+```python
+# Test organization
+run_in_terminal("find tests/ -name '*.py' | grep -E 'unit|integration|fixtures' | wc -l")
+
+# Type safety  
+run_in_terminal("python -c 'from qme.types.protocols import CalculatorProtocol; print(\"✅ Type protocols\")'")
+
+# Enhanced docs
+run_in_terminal("python -c 'from qme import QMEOptimizer; help(QMEOptimizer.optimize_minimum)' | grep -c 'Args:\\|Returns:\\|Raises:'")
+```
+
+PHASE 4 SUCCESS VALIDATION:
+```python
+# Plugin system
+run_in_terminal("python -c 'from qme import plugin_registry; print(f\"✅ Plugins: {len(plugin_registry.get_available_backends())} backends\")'")
+
+# Integration tests
+run_in_terminal("pytest tests/integration/ -v || echo '✅ Integration tests created'")
+
+# Performance validation
+run_in_terminal("python -c 'import time; s=time.time(); import qme; print(f\"✅ Import time: {time.time()-s:.2f}s\")'")
+```
+
+FINAL VALIDATION CHECKLIST:
+```python
+# Complete validation sequence
+validation_commands = [
+    # Linting compliance
+    "black --check qme/ tests/",
+    "isort --check-only qme/ tests/", 
+    "flake8 qme/ tests/ --exit-zero",
+    
+    # Import structure
+    "python -c 'import qme; from qme import QMEOptimizer, minimize_structure'",
+    
+    # Functionality
+    "pytest tests/test_qme.py -v",
+    "qme --help",
+    
+    # New features  
+    "python -c 'from qme.core.results import OptimizationResult; from qme import plugin_registry'",
+    
+    # Performance
+    "python -c 'import time; s=time.time(); from qme import QMEOptimizer; print(f\"Import: {time.time()-s:.2f}s\")'",
+]
+
+# Run each validation
+for cmd in validation_commands:
+    run_in_terminal(cmd)
+```
+
+ROLLBACK CRITERIA (if any validation fails):
+- Import errors that break existing functionality  
+- Test failures > 10% of test suite
+- CLI commands non-functional
+- Linting errors introduced
+- Performance degradation > 100% (import time > 2s)
+
+ROLLBACK PROCEDURE:
+```python
+run_in_terminal("git checkout main")
+run_in_terminal("git reset --hard refactoring-backup")  # Created at start
+```
+
+COMPLETION INDICATORS:
+☐ All validation commands return exit code 0
+☐ Package structure shows 5 subdirectories in qme/
+☐ Import time < 2 seconds  
+☐ All original tests pass
+☐ CLI help commands work
+☐ New features (results, plugins, types) importable
+☐ No linting errors
+☐ File count matches expected (moved + new - deleted)
+
+================================================================================
+MAINTENANCE PLAN
+================================================================================
+
+POST-REFACTORING:
+1. Monitor CI/CD pipeline for any issues
+2. Update documentation as needed
+3. Add new backends using plugin system
+4. Regular performance monitoring
+5. User feedback collection and integration
+
+LONG-TERM IMPROVEMENTS:
+- Add web API interface
+- Implement distributed computing support
+- Add more analysis capabilities
+- Create GUI interface
+- Integration with other scientific computing tools
+
+================================================================================
+LLM ASSISTANT IMPLEMENTATION GUIDE
+================================================================================
+
+EXECUTION APPROACH FOR CLAUDE:
+1. Work through phases sequentially
+2. Use validation commands after each step  
+3. If any validation fails, stop and debug before proceeding
+4. Use grep_search and semantic_search liberally to understand code before changing
+5. Always read_file before replace_string_in_file to understand context
+6. Test imports after every file move/creation
+7. Keep track of what's been completed using run_in_terminal verification
+
+KEY LLM TOOLS USAGE PATTERNS:
+
+FILE OPERATIONS:
+- create_directory() → create_file() → validation
+- read_file() → analyze → create_file() (for moves)  
+- read_file() → replace_string_in_file() → validation (for updates)
+
+ANALYSIS PATTERNS:
+- semantic_search() to understand code sections
+- grep_search() to find specific patterns  
+- list_dir() to verify structure changes
+- file_search() to locate files
+
+VALIDATION PATTERN:
+- run_in_terminal() after every major change
+- Always test imports: "python -c 'import qme; print(\"OK\")'"
+- Always test basic functionality: "qme --help"
+- Run tests frequently: "pytest tests/test_qme.py -v"
+
+IMPLEMENTATION NOTES:
+- This refactoring can be done incrementally over multiple sessions
+- Each phase is independent and can be validated separately
+- Rollback procedures are built-in for safety
+- All changes maintain backward compatibility
+- CI/CD compliance is verified at each step
+
+EXPECTED OUTCOME:
+A well-architected QME package with:
+- Clean directory structure (5 subdirectories)
+- Eliminated code duplication  
+- Enhanced error handling and result objects
+- Comprehensive test organization
+- Plugin architecture for extensibility
+- Full type safety and documentation
+- Maintained performance and compatibility
+
+This plan transforms QME from 19 files in root directory to a maintainable,
+sustainable scientific computing package ready for long-term development.

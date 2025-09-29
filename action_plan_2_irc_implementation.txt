@@ -1,0 +1,597 @@
+# Action Plan 2: Intrinsic Reaction Coordinate (IRC) Implementation
+
+## Overview
+Implement Intrinsic Reaction Coordinate (IRC) calculations to follow reaction pathways from transition states to reactants and products. This enables validation of reaction mechanisms and exploration of reaction pathways with steepest descent path following.
+
+## 1. Core Implementation Files
+
+### 1.1 Create `qme/irc.py` - Main IRC Implementation Module
+
+**Classes to implement:**
+```python
+class IRCCalculator:
+    """
+    Intrinsic Reaction Coordinate path following using steepest descent.
+    Based on pysisyphus IRC implementation and Gaussian-style IRC algorithms.
+    """
+    
+    def __init__(
+        self,
+        atoms,
+        calculator,
+        step_size=0.1,
+        max_steps=200,
+        direction='both',
+        predictor='euler',
+        corrector='none',
+        mass_weighted=True,
+        energy_threshold=1e-6,
+        gradient_threshold=1e-4
+    ):
+        """
+        Parameters:
+        - atoms: Transition state structure (ASE Atoms)
+        - calculator: QME calculator
+        - step_size: IRC step size in amu^1/2 * Å
+        - max_steps: Maximum number of IRC steps
+        - direction: 'forward', 'reverse', or 'both'
+        - predictor: 'euler' or 'rk4' (Runge-Kutta 4th order)
+        - corrector: 'none', 'gradient', or 'energy'
+        - mass_weighted: Use mass-weighted coordinates
+        - energy_threshold: Energy convergence threshold
+        - gradient_threshold: Gradient convergence threshold
+        """
+    
+    def follow_irc(self) -> Dict[str, Any]:
+        """
+        Main method to follow IRC path from transition state.
+        
+        Returns:
+            Dictionary containing:
+            - forward_path: List of geometries going forward
+            - reverse_path: List of geometries going reverse
+            - energies_forward: Energies along forward path
+            - energies_reverse: Energies along reverse path
+            - converged_forward: Boolean convergence status
+            - converged_reverse: Boolean convergence status
+        """
+    
+    def _get_initial_direction(self, atoms):
+        """Get initial IRC direction from transition vector"""
+    
+    def _follow_direction(self, atoms, direction_vector, sign=1):
+        """Follow IRC in specific direction"""
+    
+    def _euler_step(self, atoms, gradient, step_size):
+        """Euler predictor step"""
+    
+    def _rk4_step(self, atoms, gradient, step_size):
+        """Runge-Kutta 4th order predictor step"""
+    
+    def _apply_corrector(self, atoms_old, atoms_new, method):
+        """Apply corrector step to maintain IRC path"""
+    
+    def _mass_weight_coordinates(self, coords, masses):
+        """Apply mass weighting to coordinates"""
+    
+    def _check_convergence(self, atoms, energy_change, gradient_norm):
+        """Check IRC convergence criteria"""
+
+class IRCAnalysis:
+    """Analysis tools for IRC results"""
+    
+    def __init__(self, irc_results):
+        """Initialize with IRC calculation results"""
+    
+    def get_reaction_coordinate_profile(self):
+        """Get reaction coordinate vs energy profile"""
+    
+    def find_minima(self, gradient_threshold=1e-4):
+        """Find minima along IRC path"""
+    
+    def calculate_intrinsic_barrier(self):
+        """Calculate intrinsic reaction barrier"""
+    
+    def get_path_statistics(self):
+        """Get statistics about IRC path (length, curvature, etc.)"""
+    
+    def validate_connection(self, reactant_ref, product_ref, rmsd_threshold=0.5):
+        """Validate that IRC connects expected reactant and product"""
+
+class IRCPathOptimizer:
+    """Optimize IRC path points to higher accuracy"""
+    
+    def __init__(self, path_geometries, calculator):
+        """Initialize with IRC path geometries"""
+    
+    def optimize_path_points(self, fmax=0.01, constrain_to_path=True):
+        """Optimize geometries along IRC path"""
+    
+    def refine_minima(self, fmax=0.001):
+        """Refine identified minima to high accuracy"""
+    
+    def apply_geodesic_refinement(self, use_qme_geodesic=True):
+        """
+        Apply geodesic interpolation refinement to IRC path points.
+        
+        Leverages QME's existing geodesic interpolation from qme.reaction.Reaction
+        to improve chemical reasonableness of IRC intermediate structures.
+        """
+        from ..reaction import Reaction
+        
+        if use_qme_geodesic:
+            # Use QME's geodesic interpolation for path refinement
+            # Create temporary Reaction object to access geodesic methods
+            reaction = Reaction(self.path_geometries[0], self.path_geometries[-1])
+            
+            # Apply geodesic refinement to intermediate points
+            refined_path = reaction._geodesic_interpolation(
+                self.path_geometries[0].coords3d,
+                self.path_geometries[-1].coords3d,
+                len(self.path_geometries)
+            )
+            
+            # Update path geometries with geodesic-refined coordinates
+            for i, coords in enumerate(refined_path):
+                self.path_geometries[i].set_positions(coords)
+        
+        return self.path_geometries
+```
+
+### 1.2 Extend `qme/core.py` - Add IRC Methods to QMEOptimizer
+
+**New methods to add:**
+```python
+def calculate_irc(
+    self,
+    ts_atoms: Optional[Atoms] = None,
+    step_size: float = 0.1,
+    max_steps: int = 200,
+    direction: str = 'both',
+    predictor: str = 'euler',
+    corrector: str = 'none',
+    mass_weighted: bool = True,
+    optimize_endpoints: bool = True,
+    save_trajectory: Optional[str] = None,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Calculate Intrinsic Reaction Coordinate from transition state.
+    
+    Parameters:
+    - ts_atoms: Transition state structure
+    - step_size: IRC step size in amu^1/2 * Å
+    - max_steps: Maximum IRC steps per direction
+    - direction: 'forward', 'reverse', or 'both'
+    - predictor: Integration method ('euler' or 'rk4')
+    - corrector: Corrector method ('none', 'gradient', 'energy')
+    - mass_weighted: Use mass-weighted coordinates
+    - optimize_endpoints: Optimize IRC endpoints to minima
+    - save_trajectory: Save IRC trajectory to file
+    
+    Returns:
+        Dictionary with IRC results including paths, energies, and analysis
+    """
+
+def validate_reaction_path(
+    self,
+    reactant_atoms: Atoms,
+    ts_atoms: Atoms,
+    product_atoms: Atoms,
+    irc_results: Optional[Dict] = None,
+    rmsd_threshold: float = 0.5,
+    **irc_kwargs
+) -> Dict[str, Any]:
+    """
+    Validate that a transition state connects expected reactant and product
+    by calculating IRC and comparing endpoints.
+    
+    Returns:
+        Dictionary with validation results including RMSD comparisons
+        and connection status.
+    """
+
+def find_reaction_path(
+    self,
+    ts_atoms: Atoms,
+    optimize_minima: bool = True,
+    characterize_minima: bool = True,
+    **irc_kwargs
+) -> Dict[str, Any]:
+    """
+    Complete reaction path characterization starting from transition state:
+    1. Calculate IRC paths
+    2. Optimize minima endpoints
+    3. Calculate frequencies at critical points (optional)
+    4. Generate reaction profile
+    
+    Returns:
+        Comprehensive reaction path analysis results
+    """
+```
+
+### 1.3 Extend `qme/reaction.py` - IRC Integration with Reaction Class
+
+**New methods to add to Reaction class:**
+```python
+def calculate_irc_from_ts(
+    self,
+    ts_geometry: Geometry,
+    calculator=None,
+    **irc_kwargs
+) -> Dict[str, Any]:
+    """Calculate IRC from given transition state"""
+
+def validate_ts_connection(
+    self,
+    ts_geometry: Geometry,
+    rmsd_threshold: float = 0.5,
+    **irc_kwargs
+) -> Dict[str, bool]:
+    """
+    Validate that TS connects the reactant and product of this reaction
+    """
+
+def get_complete_reaction_profile(
+    self,
+    ts_geometry: Geometry,
+    include_frequencies: bool = False,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Generate complete reaction energy profile including:
+    - IRC paths from TS
+    - Optimized reactant, TS, and product
+    - Energy barriers and reaction energy
+    - Optional frequency analysis
+    """
+```
+
+## 2. Mathematical Implementation Details
+
+### 2.1 IRC Integration Algorithms
+
+**Euler Method (simple predictor):**
+```python
+def euler_step(self, r_current, gradient, step_size, masses):
+    """
+    Simple Euler integration step
+    r_new = r_current - step_size * gradient / sqrt(masses)
+    """
+    mass_weighted_grad = gradient / np.sqrt(masses.repeat(3))
+    r_new = r_current - step_size * mass_weighted_grad
+    return r_new
+```
+
+**Runge-Kutta 4th Order:**
+```python
+def rk4_step(self, r_current, calculator, step_size, masses):
+    """
+    4th order Runge-Kutta integration for better accuracy
+    """
+    # Calculate k1, k2, k3, k4 gradients
+    # Return improved prediction
+```
+
+**Corrector Methods:**
+- **Gradient Corrector**: Project gradient perpendicular to path
+- **Energy Corrector**: Minimize energy while constraining to IRC
+- **None**: Use predictor step only
+
+### 2.2 Transition Vector Calculation
+
+**Implementation based on frequency analysis:**
+```python
+def get_transition_vector(self, atoms, calculator):
+    """
+    Get transition vector from imaginary frequency normal mode.
+    This determines the initial IRC direction.
+    """
+    # Calculate frequencies (requires frequency analysis implementation)
+    freq_analysis = FrequencyAnalysis(atoms, calculator)
+    frequencies, normal_modes = freq_analysis.calculate()
+    
+    # Find imaginary frequency (should be only one for proper TS)
+    imaginary_idx = np.where(frequencies < 0)[0]
+    if len(imaginary_idx) != 1:
+        raise ValueError("TS should have exactly one imaginary frequency")
+    
+    return normal_modes[imaginary_idx[0]]
+```
+
+## 3. CLI Integration
+
+### 3.1 Extend `qme/cli.py` - Add IRC Commands
+
+**New CLI commands:**
+```python
+@main.command()
+@click.argument("ts_file", type=click.Path(exists=True))
+@click.option("--output", "-o", help="Output prefix for IRC trajectories")
+@click.option("--step-size", default=0.1, help="IRC step size")
+@click.option("--max-steps", default=200, help="Maximum IRC steps")
+@click.option("--direction", 
+              type=click.Choice(['forward', 'reverse', 'both']),
+              default='both', help="IRC direction")
+@click.option("--predictor",
+              type=click.Choice(['euler', 'rk4']),
+              default='euler', help="Integration method")
+@click.option("--optimize-endpoints", is_flag=True, 
+              help="Optimize IRC endpoints to minima")
+@click.option("--use-geodesic-refinement", is_flag=True, default=False,
+              help="Apply geodesic interpolation refinement to IRC path")
+@add_common_options(core_options)
+def irc(ts_file, output, step_size, max_steps, direction, predictor, 
+        optimize_endpoints, use_geodesic_refinement, **kwargs):
+    """Calculate Intrinsic Reaction Coordinate from transition state."""
+
+@main.command()
+@click.argument("reactant_file", type=click.Path(exists=True))
+@click.argument("ts_file", type=click.Path(exists=True))
+@click.argument("product_file", type=click.Path(exists=True))
+@click.option("--rmsd-threshold", default=0.5, 
+              help="RMSD threshold for endpoint validation")
+@add_common_options(core_options)
+def validate_reaction(reactant_file, ts_file, product_file, rmsd_threshold, **kwargs):
+    """Validate that transition state connects given reactant and product."""
+
+@main.command()
+@click.argument("ts_file", type=click.Path(exists=True))
+@click.option("--output", "-o", help="Output file for reaction profile")
+@click.option("--include-frequencies", is_flag=True,
+              help="Include frequency analysis at critical points")
+@add_common_options(core_options)
+def reaction_profile(ts_file, output, include_frequencies, **kwargs):
+    """Generate complete reaction energy profile from transition state."""
+```
+
+## 4. Testing Implementation
+
+### 4.1 Create `tests/test_irc.py`
+
+**Test cases to implement:**
+```python
+class TestIRCCalculation:
+    """Test IRC calculation functionality"""
+    
+    @pytest.fixture
+    def h2_dissociation_ts(self):
+        """H2 dissociation transition state for testing"""
+        return Atoms('H2', positions=[[0, 0, 0], [2.0, 0, 0]])
+    
+    def test_irc_both_directions(self, backend, h2_dissociation_ts):
+        """Test IRC calculation in both directions"""
+    
+    def test_irc_forward_only(self, backend, h2_dissociation_ts):
+        """Test IRC calculation forward only"""
+    
+    def test_irc_convergence(self, backend, h2_dissociation_ts):
+        """Test IRC convergence criteria"""
+    
+    def test_euler_vs_rk4(self, backend, h2_dissociation_ts):
+        """Compare Euler and RK4 integration methods"""
+    
+    def test_mass_weighting(self, backend):
+        """Test mass-weighted vs non-mass-weighted IRC"""
+
+class TestIRCAnalysis:
+    """Test IRC analysis and validation"""
+    
+    def test_minima_identification(self, backend):
+        """Test identification of minima along IRC path"""
+    
+    def test_reaction_validation(self, backend):
+        """Test validation of reactant-TS-product connection"""
+    
+    def test_barrier_calculation(self, backend):
+        """Test intrinsic barrier height calculation"""
+    
+    def test_path_statistics(self, backend):
+        """Test IRC path statistics calculation"""
+
+class TestIRCIntegration:
+    """Test IRC integration with other QME components"""
+    
+    def test_irc_with_frequency_analysis(self, backend):
+        """Test IRC using transition vector from frequency analysis"""
+    
+    def test_reaction_class_integration(self, backend):
+        """Test IRC integration with Reaction class"""
+    
+    def test_endpoint_optimization(self, backend):
+        """Test optimization of IRC endpoints"""
+```
+
+### 4.2 Reference Test Cases
+
+**Create reference data:**
+- H2 dissociation: Simple 1D reaction coordinate
+- H2O → H + OH: More complex reaction with multiple degrees of freedom
+- SN2 reaction: Test with realistic organic reaction mechanism
+
+## 5. Integration with Existing Components
+
+### 5.1 Frequency Analysis Dependency
+
+**IRC requires transition vector from frequency analysis:**
+- Implement after or alongside frequency analysis (Action Plan 1)
+- Use imaginary frequency normal mode as initial IRC direction
+- Validate that TS has exactly one imaginary frequency
+
+### 5.2 Reaction Class Enhancement
+
+**Extend reaction.py to include IRC validation:**
+```python
+class Reaction:
+    def validate_mechanism(self, ts_geometry, **irc_kwargs):
+        """Validate proposed reaction mechanism using IRC"""
+    
+    def find_true_reactants_products(self, ts_geometry, **irc_kwargs):
+        """Find actual reactants/products connected by TS"""
+```
+
+### 5.3 Geometry Class Extensions
+
+**Add IRC-related properties to Geometry class:**
+```python
+class Geometry(Atoms):
+    _irc_forward = None
+    _irc_reverse = None
+    
+    def calculate_irc(self, calculator, **kwargs):
+        """Calculate IRC from this geometry (if TS)"""
+    
+    def get_irc_paths(self):
+        """Get calculated IRC paths"""
+```
+
+## 6. Advanced Features
+
+### 6.1 IRC Path Refinement
+
+**Implement path smoothing and optimization:**
+- Optimize IRC points to eliminate numerical noise
+- Smooth path using spline interpolation
+- Refine path density in chemically important regions
+- **Note**: QME already has geodesic interpolation capabilities in `qme/reaction.py` which preserve bond lengths better than linear interpolation - this should be leveraged for IRC path refinement and initial guess generation
+
+### 6.2 Geodesic Interpolation Integration
+
+**Leverage QME's existing geodesic interpolation capabilities:**
+- Use `qme.reaction.Reaction._geodesic_interpolation()` for improved path initialization
+- Apply geodesic principles to IRC path point refinement for better chemical reasonableness
+- Integrate distance matrix preservation techniques for IRC path smoothing
+- Combine IRC steepest descent with geodesic-refined intermediate geometries
+
+### 6.3 Multiple Transition States
+
+**Handle complex reactions with multiple TSs:**
+- Detect branching points along IRC
+- Follow multiple pathways from single TS  
+- Connect IRC segments for complex mechanisms
+
+### 6.3 Constrained IRC
+
+**Implement constrained IRC for specific studies:**
+- IRC with frozen atoms or distances
+- IRC following specific reaction coordinates
+- IRC with external potential constraints
+
+## 7. Performance Optimization
+
+### 7.1 Efficient Gradient Calculations
+
+**Optimize force/gradient calculations:**
+- Reuse calculator instances
+- Minimize redundant energy calculations
+- Implement parallel gradient evaluations where possible
+
+### 7.2 Adaptive Step Size
+
+**Implement adaptive IRC step size:**
+- Reduce step size in high curvature regions
+- Increase step size in flat regions
+- Monitor energy and gradient changes
+
+### 7.3 Checkpoint/Restart Capability
+
+**Add checkpoint functionality:**
+- Save IRC progress at regular intervals
+- Restart from saved checkpoints
+- Resume interrupted calculations
+
+## 8. Documentation and Examples
+
+### 8.1 Create `examples/irc_analysis_demo.py`
+
+**Demonstrate IRC functionality:**
+```python
+# Example: H2 dissociation IRC
+from qme.core import QMEOptimizer
+from ase import Atoms
+
+# Create TS guess
+ts_atoms = Atoms('H2', positions=[[0, 0, 0], [2.0, 0, 0]])
+
+# Initialize QME with backend
+qme = QMEOptimizer(backend='so3lr')
+
+# Optimize to TS first
+ts_results = qme.find_transition_state(ts_atoms)
+
+# Calculate IRC
+irc_results = qme.calculate_irc(ts_results['ts_atoms'])
+
+# Validate connection
+validation = qme.validate_reaction_path(
+    reactant_atoms=...,
+    ts_atoms=ts_results['ts_atoms'],
+    product_atoms=...,
+    irc_results=irc_results
+)
+```
+
+### 8.2 Update Documentation
+
+**Add IRC sections to README.md:**
+- IRC calculation capabilities
+- CLI usage examples
+- Integration with transition state searches
+- Reaction mechanism validation workflow
+
+## 9. Implementation Timeline
+
+### Phase 1: Core IRC Implementation (Week 1-2)
+1. Create `irc.py` with basic IRC algorithm
+2. Implement Euler and RK4 integration methods
+3. Add mass-weighted coordinate support
+
+### Phase 2: Analysis and Validation (Week 3)
+1. Implement IRC analysis tools
+2. Add reaction validation functionality
+3. Create endpoint optimization methods
+
+### Phase 3: Integration (Week 4)
+1. Extend `QMEOptimizer` with IRC methods
+2. Add CLI commands for IRC calculations
+3. Integrate with Reaction class
+
+### Phase 4: Testing and Optimization (Week 5)
+1. Comprehensive testing across backends
+2. Performance optimization
+3. Documentation and examples
+
+## 10. Success Criteria
+
+1. **Accuracy**: IRC paths correctly follow steepest descent
+2. **Reliability**: Consistent results across QME backends
+3. **Validation**: Successfully validates known reaction mechanisms
+4. **Performance**: Reasonable computation time for typical organic reactions
+5. **Integration**: Seamless integration with TS search and frequency analysis
+6. **Usability**: Clear CLI interface and comprehensive documentation
+
+## 11. References and Dependencies
+
+### 11.1 Literature References
+- Fukui, K. "The Path of Chemical Reactions - The IRC Approach" Acc. Chem. Res. 1981
+- Gonzalez, C.; Schlegel, H. B. J. Chem. Phys. 1989 (IRC algorithms)
+- Hratchian, H. P.; Schlegel, H. B. "Accurate Reaction Paths" J. Chem. Phys. 2004
+
+### 11.2 Software References
+- pysisyphus IRC implementation
+- Gaussian IRC algorithms
+- ASE optimization methods
+
+### 11.3 Dependencies
+- scipy: For numerical integration and optimization
+- numpy: For linear algebra operations
+- ASE: For molecular structure handling
+- QME frequency analysis (Action Plan 1): For transition vector calculation
+
+## 12. Future Enhancements
+
+1. **Higher-Order Integration**: Implement higher-order integration schemes
+2. **Branch Point Detection**: Detect and follow reaction branching points
+3. **Free Energy IRC**: Implement free energy IRC with thermal sampling
+4. **Solvent Effects**: Extend IRC to include implicit/explicit solvation
+5. **Parallel IRC**: Implement parallel IRC calculation for complex systems

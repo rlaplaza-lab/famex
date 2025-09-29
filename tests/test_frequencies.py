@@ -13,9 +13,10 @@ import pytest
 from ase import Atoms
 from ase.build import molecule
 
-import qme
-from qme.dependencies import deps
+from qme.core import QMEOptimizer
 from qme.frequency import FrequencyAnalysis, HessianCalculator
+from qme.potentials.mock import MockCalculator
+from qme.utils.dependencies import deps
 
 # Define available backends for ML frequency testing
 AVAILABLE_BACKENDS = ["mock"]
@@ -36,21 +37,21 @@ class TestFrequencyAnalysis:
     def h2_molecule(self):
         """H2 molecule for simple frequency tests."""
         atoms = molecule("H2")
-        atoms.calc = qme.MockCalculator(backend="so3lr")
+        atoms.calc = MockCalculator(backend="so3lr")
         return atoms
 
     @pytest.fixture
     def water_molecule(self):
         """H2O molecule for more complex frequency tests."""
         atoms = molecule("H2O")
-        atoms.calc = qme.MockCalculator(backend="so3lr")
+        atoms.calc = MockCalculator(backend="so3lr")
         return atoms
 
     @pytest.fixture
     def linear_molecule(self):
         """CO2 molecule for linear molecule tests."""
         atoms = molecule("CO2")
-        atoms.calc = qme.MockCalculator(backend="so3lr")
+        atoms.calc = MockCalculator(backend="so3lr")
         return atoms
 
     def test_frequency_analysis_creation(self, h2_molecule):
@@ -260,12 +261,14 @@ class TestQMEOptimizerFrequencyIntegration:
     @pytest.fixture
     def qme_optimizer(self):
         """QME optimizer with mock calculator."""
-        return qme.QMEOptimizer(backend="mock")
+        return QMEOptimizer(backend="mock")
 
     @pytest.fixture
     def water_atoms(self):
         """Water molecule."""
-        return molecule("H2O")
+        atoms = molecule("H2O")
+        atoms.calc = MockCalculator()
+        return atoms
 
     def test_calculate_frequencies_method(self, qme_optimizer, water_atoms):
         """Test QMEOptimizer.calculate_frequencies method."""
@@ -380,7 +383,7 @@ class TestHessianCalculator:
     def h2_atoms(self):
         """H2 molecule with mock calculator."""
         atoms = molecule("H2")
-        atoms.calc = qme.MockCalculator()
+        atoms.calc = MockCalculator()
         return atoms
 
     def test_hessian_calculator_creation(self, h2_atoms):
@@ -418,7 +421,7 @@ class TestErrorHandling:
     def test_frequency_analysis_without_hessian(self):
         """Test accessing frequencies without explicitly calculating Hessian first."""
         atoms = molecule("H2")
-        atoms.calc = qme.MockCalculator()
+        atoms.calc = MockCalculator()
 
         freq_analysis = FrequencyAnalysis(atoms, atoms.calc)
 
@@ -432,7 +435,7 @@ class TestErrorHandling:
     def test_invalid_frequency_unit(self):
         """Test invalid frequency unit."""
         atoms = molecule("H2")
-        atoms.calc = qme.MockCalculator()
+        atoms.calc = MockCalculator()
 
         freq_analysis = FrequencyAnalysis(atoms, atoms.calc)
         freq_analysis.calculate_hessian()
@@ -444,7 +447,7 @@ class TestErrorHandling:
     def test_invalid_hessian_method(self):
         """Test invalid Hessian calculation method."""
         atoms = molecule("H2")
-        atoms.calc = qme.MockCalculator()
+        atoms.calc = MockCalculator()
 
         freq_analysis = FrequencyAnalysis(atoms, atoms.calc)
 
@@ -493,7 +496,7 @@ class TestMLBackendFrequencyAnalysis:
         atoms = small_molecules["H2"]
 
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
+            optimizer = QMEOptimizer(backend=backend)
             optimizer.atoms = atoms
 
             # Create frequency analysis
@@ -533,7 +536,7 @@ class TestMLBackendFrequencyAnalysis:
         atoms = molecule("H2O")
 
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
+            optimizer = QMEOptimizer(backend=backend)
             optimizer.atoms = atoms
 
             # Calculate frequencies
@@ -561,7 +564,7 @@ class TestMLBackendFrequencyAnalysis:
         atoms = molecule("H2O")
 
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
+            optimizer = QMEOptimizer(backend=backend)
             optimizer.atoms = atoms
 
             # Calculate frequencies with thermodynamic properties
@@ -590,7 +593,7 @@ class TestMLBackendFrequencyAnalysis:
         atoms = molecule("H2O")  # This should NOT be a transition state
 
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
+            optimizer = QMEOptimizer(backend=backend)
             optimizer.atoms = atoms
 
             # Verify transition state
@@ -625,7 +628,7 @@ class TestMLBackendFrequencyAnalysis:
         atoms = molecule(molecule_name)
 
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
+            optimizer = QMEOptimizer(backend=backend)
             optimizer.atoms = atoms
 
             # Calculate frequencies
@@ -667,7 +670,7 @@ class TestMLBackendFrequencyAnalysis:
         atoms = molecule("H2")
 
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
+            optimizer = QMEOptimizer(backend=backend)
             optimizer.atoms = atoms
 
             # Calculate frequencies twice
