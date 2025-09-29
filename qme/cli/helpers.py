@@ -1,14 +1,9 @@
-"""
-Helper functions for QME CLI to reduce code duplication and improve maintainability.
-"""
+"""CLI helper functions moved into qme.cli.helpers."""
 
 import sys
 from pathlib import Path
 
 import click
-
-# Lazy import to avoid loading heavy MLP backends for simple commands
-# from .core import QMEOptimizer
 
 
 def _write_standard_xyz(atoms, filename):
@@ -45,8 +40,8 @@ def setup_optimization(
 ):
     """Shared setup for minimize and transition_state commands."""
     # Import only when actually setting up optimization
-    from .core import QMEOptimizer
-    from .settings import config as qme_config
+    from ..core import QMEOptimizer
+    from ..utils.settings import config as qme_config
 
     effective_backend = backend or qme_config.get_backend()
 
@@ -141,7 +136,7 @@ def parse_enhanced_constraints(constraint_spec, atoms, verbose=False):
             enhanced_spec = constraint_spec
 
         # Use the enhanced constraint parser
-        from .core import QMEOptimizer
+        from ..core import QMEOptimizer
 
         temp_optimizer = QMEOptimizer(backend="mock")  # Temporary optimizer for parsing
         constraints = temp_optimizer.parse_constraints(enhanced_spec, atoms, verbose)
@@ -165,7 +160,7 @@ def calculate_frequencies_if_requested(qme, results, frequencies, verbose, is_ts
             )
             results["frequencies"] = freq_results
             click.echo(
-                f"✓ Calculated {len(freq_results['frequencies'])} "
+                f"\u2713 Calculated {len(freq_results['frequencies'])} "
                 f"vibrational frequencies"
             )
 
@@ -174,16 +169,16 @@ def calculate_frequencies_if_requested(qme, results, frequencies, verbose, is_ts
                 imag_freqs = [f for f in freq_results["frequencies"] if f < 0]
                 if imag_freqs:
                     click.echo(
-                        f"✓ Found {len(imag_freqs)} imaginary frequency(ies): "
-                        f"{imag_freqs[0]:.1f} cm⁻¹"
+                        f"\u2713 Found {len(imag_freqs)} imaginary frequency(ies): "
+                        f"{imag_freqs[0]:.1f} cm\u207b\u00b9"
                     )
                 else:
                     click.echo(
-                        "⚠ No imaginary frequencies found - "
+                        "\u26a0 No imaginary frequencies found - "
                         "structure may not be a transition state"
                     )
         except Exception as e:
-            click.echo(f"⚠ Frequency calculation failed: {e}")
+            click.echo(f"\u26a0 Frequency calculation failed: {e}")
 
 
 def handle_optimization_results(results, qme, input_file, output, job_type, verbose):
@@ -192,7 +187,7 @@ def handle_optimization_results(results, qme, input_file, output, job_type, verb
         final_energy = results["final_energy"]
         steps_taken = results["steps_taken"]
 
-        click.echo(f"\n✓ {job_type.title()} optimization completed!")
+        click.echo(f"\n\u2713 {job_type.title()} optimization completed!")
         click.echo(f"Final energy: {final_energy:.6f} eV")
         click.echo(f"Steps taken: {steps_taken}")
 
@@ -226,7 +221,7 @@ def handle_optimization_results(results, qme, input_file, output, job_type, verb
         click.echo(f"Optimized structure saved to: {output_path}")
 
     else:
-        click.echo(f"\n❌ {job_type.title()} optimization did not converge")
+        click.echo(f"\n\u274c {job_type.title()} optimization did not converge")
         max_force = results.get("max_force", "unknown")
         click.echo(f"Maximum force: {max_force}")
         sys.exit(1)

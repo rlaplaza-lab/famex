@@ -8,7 +8,7 @@ import numpy as np
 from ase import Atoms
 
 from .geometry import Geometry
-from .validation import validate_atoms_compatibility
+from .utils.validation import validate_atoms_compatibility
 
 
 class Reaction:

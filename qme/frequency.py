@@ -20,7 +20,7 @@ from ase.parallel import world
 from ase.thermochemistry import HarmonicThermo
 from scipy.linalg import eigh
 
-from .validation import QMEError
+from .utils.validation import QMEError
 
 
 class FrequencyAnalysis:
@@ -647,7 +647,12 @@ class ThermodynamicProperties:
             x = freq / kT
             if x < 50:  # Avoid overflow
                 exp_x = np.exp(x)
-                cv_vib += units.kB * x**2 * exp_x / (exp_x - 1) ** 2
+                denom = exp_x - 1.0
+                # Guard against divide-by-zero when x -> 0 (classical limit)
+                if abs(denom) < 1e-12:
+                    cv_vib += units.kB
+                else:
+                    cv_vib += units.kB * x**2 * exp_x / (denom ** 2)
 
         return cv_vib
 
@@ -661,6 +666,16 @@ class ThermodynamicProperties:
             x = freq / kT
             if x < 50:  # Avoid overflow
                 exp_x = np.exp(x)
-                s_vib += units.kB * (x / (exp_x - 1) - np.log(1 - np.exp(-x)))
+                # Guard small-x behavior and numerical issues when x -> 0
+                denom = exp_x - 1.0
+                if abs(denom) < 1e-12:
+                    # Use series expansion limit for small x:
+                    # x/(e^x-1) ~ 1 - x/2 + x^2/12 ... and -log(1-e^{-x}) ~ -log(x) + ...
+                    # For extremely small frequencies, treat entropy contribution as 0 to avoid -inf/log issues
+                    continue
+                else:
+                    # Numerically stable form
+                    safe_term = x / denom - np.log(1.0 - np.exp(-x))
+                    s_vib += units.kB * safe_term
 
         return s_vib

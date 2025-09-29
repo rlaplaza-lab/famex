@@ -1,5 +1,5 @@
 """
-Configuration management for QME.
+Configuration management for QME (moved into qme.utils).
 
 This module provides centralized configuration management with visible defaults
 and optional config file overrides. No hidden files are created automatically.
@@ -54,7 +54,7 @@ class QMEDefaults:
 
 
 class ConfigManager:
-    """Manages QME configuration with visible defaults and optional config file overrides."""
+    """Manages QME configuration with visible defaults and optional overrides."""
 
     def __init__(self, config_file: Optional[Path] = None):
         """Initialize config manager with hard-coded defaults and optional overrides.
