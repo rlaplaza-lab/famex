@@ -21,8 +21,8 @@ from pathlib import Path
 import pytest
 from ase import Atoms
 
-from qme.core import QMEOptimizer
-from qme.utils.dependencies import deps
+import qme
+from qme.dependencies import deps
 
 # Define available backends (only include those with SELLA support)
 AVAILABLE_BACKENDS = []
@@ -119,7 +119,7 @@ class TestTransitionStateOptimization:
     def test_h2_dissociation_ts(self, backend):
         """Test H2 dissociation transition state across all backends."""
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
             h2_ts_guess = TestTransitionStateDefinitions.get_h2_dissociation_ts_guess()
 
             start_time = time.time()
@@ -158,7 +158,7 @@ class TestTransitionStateOptimization:
     def test_water_dissociation_ts(self, backend):
         """Test water dissociation transition state across all backends."""
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
             water_ts_guess = (
                 TestTransitionStateDefinitions.get_water_dissociation_ts_guess()
             )
@@ -200,7 +200,7 @@ class TestTransitionStateOptimization:
     def test_methanol_rotation_ts(self, backend):
         """Test methanol OH rotation transition state across all backends."""
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
             meoh_ts_guess = (
                 TestTransitionStateDefinitions.get_methanol_rotation_ts_guess()
             )
@@ -237,7 +237,7 @@ class TestTransitionStateOptimization:
     def test_sn2_like_ts(self, backend):
         """Test SN2-like transition state across all backends."""
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
             sn2_ts_guess = TestTransitionStateDefinitions.get_sn2_like_ts_guess()
 
             start_time = time.time()
@@ -293,7 +293,7 @@ class TestTransitionStateConsistency:
                 continue
 
             try:
-                optimizer = QMEOptimizer(backend=backend)
+                optimizer = qme.QMEOptimizer(backend=backend)
                 h2_ts = TestTransitionStateDefinitions.get_h2_dissociation_ts_guess()
 
                 result = optimizer.find_transition_state(
@@ -339,7 +339,7 @@ class TestTransitionStateFileIO:
             pytest.skip("MACE backend not available")
 
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 input_file = Path(tmpdir) / "ts_guess.xyz"
@@ -390,7 +390,7 @@ class TestTransitionStateRobustness:
             pytest.skip("MACE backend not available")
 
         try:
-            optimizer = QMEOptimizer(backend=backend)
+            optimizer = qme.QMEOptimizer(backend=backend)
 
             # Test different starting H-H distances
             starting_distances = [2.5, 3.0, 3.5, 4.0]
@@ -449,7 +449,7 @@ class TestTransitionStatePerformance:
                 continue
 
             try:
-                optimizer = QMEOptimizer(backend=backend)
+                optimizer = qme.QMEOptimizer(backend=backend)
                 h2_ts = TestTransitionStateDefinitions.get_h2_dissociation_ts_guess()
 
                 start_time = time.time()

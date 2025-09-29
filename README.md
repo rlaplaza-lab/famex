@@ -94,24 +94,24 @@ pip install .
 ### Python API - Basic Usage
 
 ```python
-from qme.core import QMEOptimizer
+from qme import QMEOptimizer
 
 # Initialize optimizer (automatically uses mock if UMA unavailable)
-optimizer = QMEOptimizer(model_name="uma-m-1p1")
+qme = QMEOptimizer(model_name="uma-m-1p1")
 
 # Load structure
-atoms = optimizer.load_structure("molecule.xyz")
+atoms = qme.load_structure("molecule.xyz")
 
 # Optimize to minimum energy
-results = optimizer.optimize_minimum(
+results = qme.optimize_minimum(
     optimizer="BFGS",
     fmax=0.01,
-    steps=200,
+    steps=200
 )
 
 # Save result
-if results["converged"]:
-    optimizer.save_structure(results["optimized_atoms"], "optimized.xyz")
+if results['converged']:
+    qme.save_structure(results['optimized_atoms'], "optimized.xyz")
     print(f"Optimization completed in {results['steps_taken']} steps")
 else:
     print("Optimization did not converge")
