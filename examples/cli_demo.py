@@ -13,7 +13,7 @@ from typing import Dict, List, Tuple
 
 # Import QME dependencies check similar to bh28_benchmark
 try:
-    from qme.utils.dependencies import deps
+    from qme.dependencies import deps
 except ImportError:
     print("❌ QME not properly installed. Please install with 'pip install -e .'")
     sys.exit(1)

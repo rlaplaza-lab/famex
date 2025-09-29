@@ -12,12 +12,7 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-# Import concrete symbols from subpackages (no top-level re-exports)
-from qme.core import QMEOptimizer, minimize_structure
-from qme.geometry import Geometry, read_geometry, write_geometry
-from qme.potentials.mock import MockCalculator
-from qme.reaction import Reaction
-from qme.utils.settings import config, get_default_backend, get_default_model
+import qme
 
 
 class TestPackageImports:
@@ -25,28 +20,25 @@ class TestPackageImports:
 
     def test_version_available(self):
         """Test that package version is accessible."""
-        # Package metadata is available via package import
-        import qme as _qme
-
-        assert hasattr(_qme, "__version__")
-        assert isinstance(_qme.__version__, str)
-        assert _qme.__version__ == "0.1.0"
+        assert hasattr(qme, "__version__")
+        assert isinstance(qme.__version__, str)
+        assert qme.__version__ == "0.1.0"
 
     def test_core_imports(self):
         """Test that core classes can be imported."""
-        assert QMEOptimizer is not None
-        assert callable(minimize_structure)
-        assert Geometry is not None
+        assert hasattr(qme, "QMEOptimizer")
+        assert hasattr(qme, "minimize_structure")
+        assert hasattr(qme, "Geometry")
 
     def test_calculator_imports(self):
         """Test that calculator functions can be imported."""
-        assert MockCalculator is not None
+        assert hasattr(qme, "MockCalculator")
 
     def test_config_imports(self):
         """Test that configuration functions can be imported."""
-        assert config is not None
-        assert callable(get_default_backend)
-        assert callable(get_default_model)
+        assert hasattr(qme, "config")
+        assert hasattr(qme, "get_default_backend")
+        assert hasattr(qme, "get_default_model")
 
 
 class TestMockCalculators:
@@ -54,19 +46,19 @@ class TestMockCalculators:
 
     def test_mock_uma_calculator(self):
         """Test UMA mock calculator creation."""
-        calc = MockCalculator(backend="uma")
+        calc = qme.MockCalculator(backend="uma")
         assert calc is not None
         assert hasattr(calc, "calculate")
 
     def test_mock_so3lr_calculator(self):
         """Test SO3LR mock calculator creation."""
-        calc = MockCalculator(backend="so3lr")
+        calc = qme.MockCalculator(backend="so3lr")
         assert calc is not None
         assert hasattr(calc, "calculate")
 
     def test_mock_aimnet2_calculator(self):
         """Test AIMNET2 mock calculator creation."""
-        calc = MockCalculator(backend="aimnet2")
+        calc = qme.MockCalculator(backend="aimnet2")
         assert calc is not None
         assert hasattr(calc, "calculate")
 
@@ -82,7 +74,7 @@ class TestMockCalculators:
             ],
         )
 
-        calc = MockCalculator(backend="so3lr")
+        calc = qme.MockCalculator(backend="so3lr")
         water.calc = calc
 
         # Test that we can compute energy and forces
@@ -99,14 +91,14 @@ class TestQMEOptimizer:
 
     def test_optimizer_creation(self):
         """Test basic QMEOptimizer instantiation."""
-        optimizer = QMEOptimizer(backend="mock")
+        optimizer = qme.QMEOptimizer(backend="mock")
         assert optimizer is not None
         assert hasattr(optimizer, "optimize_minimum")
         assert hasattr(optimizer, "load_structure")
 
     def test_optimizer_with_mock_backend(self):
         """Test optimizer with mock backend."""
-        optimizer = QMEOptimizer(backend="mock")
+        optimizer = qme.QMEOptimizer(backend="mock")
 
         # Create a simple H2 molecule
         h2 = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
@@ -118,18 +110,18 @@ class TestQMEOptimizer:
 
     def test_available_optimizers(self):
         """Test that available optimizers are defined."""
-        assert hasattr(QMEOptimizer, "AVAILABLE_OPTIMIZERS")
-        assert "BFGS" in QMEOptimizer.AVAILABLE_OPTIMIZERS
-        assert "LBFGS" in QMEOptimizer.AVAILABLE_OPTIMIZERS
-        assert "FIRE" in QMEOptimizer.AVAILABLE_OPTIMIZERS
+        assert hasattr(qme.QMEOptimizer, "AVAILABLE_OPTIMIZERS")
+        assert "BFGS" in qme.QMEOptimizer.AVAILABLE_OPTIMIZERS
+        assert "LBFGS" in qme.QMEOptimizer.AVAILABLE_OPTIMIZERS
+        assert "FIRE" in qme.QMEOptimizer.AVAILABLE_OPTIMIZERS
 
     def test_available_backends(self):
         """Test that available backends are defined."""
-        assert hasattr(QMEOptimizer, "AVAILABLE_BACKENDS")
-        assert "uma" in QMEOptimizer.AVAILABLE_BACKENDS
-        assert "so3lr" in QMEOptimizer.AVAILABLE_BACKENDS
-        assert "aimnet2" in QMEOptimizer.AVAILABLE_BACKENDS
-        assert "mock" in QMEOptimizer.AVAILABLE_BACKENDS
+        assert hasattr(qme.QMEOptimizer, "AVAILABLE_BACKENDS")
+        assert "uma" in qme.QMEOptimizer.AVAILABLE_BACKENDS
+        assert "so3lr" in qme.QMEOptimizer.AVAILABLE_BACKENDS
+        assert "aimnet2" in qme.QMEOptimizer.AVAILABLE_BACKENDS
+        assert "mock" in qme.QMEOptimizer.AVAILABLE_BACKENDS
 
 
 class TestGeometry:
@@ -137,7 +129,7 @@ class TestGeometry:
 
     def test_geometry_creation(self):
         """Test Geometry class instantiation."""
-        geom = Geometry()
+        geom = qme.Geometry()
         assert geom is not None
 
     def test_read_write_geometry(self):
@@ -155,14 +147,14 @@ H      -0.757000    0.586000    0.000000
 
         try:
             # Test reading geometry
-            atoms = read_geometry(temp_path)
+            atoms = qme.read_geometry(temp_path)
             assert isinstance(atoms, Atoms)
             assert len(atoms) == 3
             assert atoms.get_chemical_symbols() == ["O", "H", "H"]
 
             # Test writing geometry
             output_path = temp_path.replace(".xyz", "_output.xyz")
-            write_geometry(atoms, output_path)
+            qme.write_geometry(atoms, output_path)
 
             # Verify the output file exists
             assert Path(output_path).exists()
@@ -179,17 +171,17 @@ class TestConfiguration:
 
     def test_config_object(self):
         """Test that config object exists and has expected attributes."""
-        assert config is not None
-        assert hasattr(config, "get") or hasattr(config, "__getitem__")
+        assert qme.config is not None
+        assert hasattr(qme.config, "__getitem__") or hasattr(qme.config, "get")
 
     def test_default_backend(self):
         """Test default backend retrieval."""
-        backend = get_default_backend()
+        backend = qme.get_default_backend()
         assert backend in ["uma", "so3lr", "aimnet2", "mock"]
 
     def test_default_model(self):
         """Test default model retrieval."""
-        model = get_default_model("mock")
+        model = qme.get_default_model("mock")
         assert isinstance(model, str)
 
 
@@ -198,7 +190,7 @@ class TestMinimizeStructure:
 
     def test_minimize_structure_exists(self):
         """Test that minimize_structure function exists."""
-        assert callable(minimize_structure)
+        assert callable(qme.minimize_structure)
 
     def test_minimize_structure_with_mock(self):
         """Test minimize_structure with mock calculator."""
@@ -209,7 +201,7 @@ class TestMinimizeStructure:
 
         # This should not raise an exception even if optimization isn't fully performed
         try:
-            result = minimize_structure(h2, backend="mock", steps=1)
+            result = qme.minimize_structure(h2, backend="mock", steps=1)
             # If it returns something, verify it's the right type
             if result is not None:
                 assert isinstance(result, (Atoms, dict))
@@ -227,7 +219,8 @@ class TestReaction:
         # Create simple reactant and product structures
         reactant = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
         product = Atoms("H2", positions=[[0, 0, 0], [1.0, 0, 0]])
-        reaction = Reaction(reactant, product)
+
+        reaction = qme.Reaction(reactant, product)
         assert reaction is not None
         assert reaction.reactant is not None
         assert reaction.product is not None
@@ -241,7 +234,7 @@ class TestCLIIntegration:
 
     def test_cli_import(self):
         """Test that CLI module can be imported."""
-        import qme.cli as cli
+        from qme import cli
 
         assert hasattr(cli, "main")
         assert callable(cli.main)
