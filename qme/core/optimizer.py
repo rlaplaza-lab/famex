@@ -97,7 +97,7 @@ class QMEOptimizer:
         if calculator is None:
             if backend == "mock":
                 # Use mock backend
-                from .mock_calculator import MockCalculator
+                from .potentials import MockCalculator
 
                 # Use generic mock backend
                 self.calculator = MockCalculator(backend="generic")

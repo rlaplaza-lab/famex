@@ -94,7 +94,7 @@ def create_example_commands(
             "cmd": [
                 "qme",
                 "opt",
-                str(example_files / "diels_alder_reactant.xyz"),
+                str(example_files / "R001.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -109,7 +109,7 @@ def create_example_commands(
             "cmd": [
                 "qme",
                 "tsopt",
-                str(example_files / "biaryl_ts.xyz"),
+                str(example_files / "TS001.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -124,8 +124,8 @@ def create_example_commands(
             "cmd": [
                 "qme",
                 "neb",
-                str(example_files / "diels_alder_reactant.xyz"),
-                str(example_files / "diels_alder_product.xyz"),
+                str(example_files / "R001.xyz"),
+                str(example_files / "P001.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -191,9 +191,9 @@ def demo_cli():
 
     # Check required files exist
     required_files = [
-        "diels_alder_reactant.xyz",
-        "diels_alder_product.xyz",
-        "biaryl_ts.xyz",
+        "R001.xyz",
+        "P001.xyz",
+        "TS001.xyz",
     ]
 
     for filename in required_files:
