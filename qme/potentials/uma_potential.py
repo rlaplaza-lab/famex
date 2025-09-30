@@ -52,7 +52,8 @@ class UMAPotential(BasePotential):
 
         # Initialize UMA-specific attributes first
         self.predictor = None
-        self.fairchem_calc = None
+        # Standard backend attribute used by BasePotential helpers
+        self._calc = None
         self.default_charge = default_charge
         self.default_spin = default_spin
 
@@ -62,7 +63,7 @@ class UMAPotential(BasePotential):
     def _load_calculator(self):
         """Load the UMA model from fairchem v2 API."""
         # Skip if already loaded
-        if hasattr(self, "fairchem_calc") and self.fairchem_calc is not None:
+        if hasattr(self, "_calc") and self._calc is not None:
             return
 
         from .logging_utils import quiet_backend_loading
@@ -105,9 +106,7 @@ class UMAPotential(BasePotential):
 
                 # Create fairchem calculator for internal use
                 # Default to 'omol' task for molecular systems
-                self.fairchem_calc = FAIRChemCalculator(
-                    self.predictor, task_name="omol"
-                )
+                self._calc = FAIRChemCalculator(self.predictor, task_name="omol")
 
             except Exception as e:
                 # If anything goes wrong while initializing the heavy UMA
@@ -123,7 +122,7 @@ class UMAPotential(BasePotential):
                 try:
                     from qme.potentials import MockCalculator
 
-                    self.fairchem_calc = MockCalculator(backend="uma")
+                    self._calc = MockCalculator(backend="uma")
                 except Exception:
                     # If MockCalculator is unavailable for some reason, raise
                     raise RuntimeError(
@@ -150,16 +149,15 @@ class UMAPotential(BasePotential):
             atoms.info["spin"] = self.default_spin
 
         # Ensure calculator is loaded
-        if self.fairchem_calc is None:
+        if self._calc is None:
             self._load_calculator()
 
-        if self.fairchem_calc is None:
+        if self._calc is None:
             raise RuntimeError("Failed to load UMA calculator")
 
-        # Use the fairchem v2 calculator directly
-        # Calculate properties using the fairchem calculator directly
+        # Use the underlying calculator directly
         try:
-            self.fairchem_calc.calculate(atoms, properties, system_changes)
+            self._calc.calculate(atoms, properties, system_changes)
         except RuntimeError as e:
             if "expected scalar type Double but found Float" in str(
                 e
@@ -178,7 +176,7 @@ class UMAPotential(BasePotential):
                             self.predictor.model.double()
 
                     # Retry calculation
-                    self.fairchem_calc.calculate(atoms, properties, system_changes)
+                    self._calc.calculate(atoms, properties, system_changes)
                 else:
                     raise RuntimeError(
                         f"UMA model precision mismatch. {e}. "
@@ -187,12 +185,18 @@ class UMAPotential(BasePotential):
             else:
                 raise
 
-        # Extract results from the fairchem calculator
+        # Extract results from the underlying calculator
         if "energy" in properties:
-            self.results["energy"] = self.fairchem_calc.results["energy"]
+            try:
+                self.results["energy"] = self._calc.results["energy"]
+            except Exception:
+                self.results["energy"] = self.results.get("energy")
 
         if "forces" in properties:
-            self.results["forces"] = self.fairchem_calc.results["forces"]
+            try:
+                self.results["forces"] = self._calc.results["forces"]
+            except Exception:
+                self.results["forces"] = self.results.get("forces")
 
     def _get_backend_name(self) -> str:
         """Get the backend name for UMA."""
@@ -200,34 +204,11 @@ class UMAPotential(BasePotential):
 
     def get_potential_energy(self, atoms=None, force_consistent: bool = False):
         """Get potential energy (ASE-compatible)."""
-        if atoms is not None:
-            self.atoms = atoms
-
-        # Ensure calculator is loaded
-        if self.fairchem_calc is None:
-            self._load_calculator()
-
-        # If the underlying fairchem calculator provides get_potential_energy, delegate
-        if hasattr(self.fairchem_calc, "get_potential_energy"):
-            return self.fairchem_calc.get_potential_energy(self.atoms, force_consistent)
-
-        # Otherwise, run a calculate call and return stored result
-        self.calculate(self.atoms, properties=["energy"], system_changes=None)
-        return float(self.results.get("energy", 0.0))
+        return super().get_potential_energy(atoms, force_consistent)
 
     def get_forces(self, atoms=None):
         """Get forces (ASE-compatible)."""
-        if atoms is not None:
-            self.atoms = atoms
-
-        if self.fairchem_calc is None:
-            self._load_calculator()
-
-        if hasattr(self.fairchem_calc, "get_forces"):
-            return self.fairchem_calc.get_forces(self.atoms)
-
-        self.calculate(self.atoms, properties=["forces"], system_changes=None)
-        return self.results.get("forces")
+        return super().get_forces(atoms)
 
 
 def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs) -> UMAPotential:

@@ -44,9 +44,12 @@ def __getattr__(name):
         "write_geometry": (f"{__name__}.types.geometry", "write_geometry"),
         "Reaction": (f"{__name__}.types.reaction", "Reaction"),
         # frequency analysis
-        "FrequencyAnalysis": (f"{__name__}.frequency", "FrequencyAnalysis"),
-        "HessianCalculator": (f"{__name__}.frequency", "HessianCalculator"),
-        "ThermodynamicProperties": (f"{__name__}.frequency", "ThermodynamicProperties"),
+        "FrequencyAnalysis": (f"{__name__}.analysis.frequency", "FrequencyAnalysis"),
+        "HessianCalculator": (f"{__name__}.analysis.frequency", "HessianCalculator"),
+        "ThermodynamicProperties": (
+            f"{__name__}.analysis.frequency",
+            "ThermodynamicProperties",
+        ),
         # potentials / calculators
         "BasePotential": (f"{__name__}.potentials", "BasePotential"),
         "MockCalculator": (f"{__name__}.potentials", "MockCalculator"),
@@ -64,10 +67,10 @@ def __getattr__(name):
             "calculator_registry",
         ),
         # errors
-        "QMEError": (f"{__name__}.validation", "QMEError"),
-        "DependencyError": (f"{__name__}.validation", "DependencyError"),
-        "BackendError": (f"{__name__}.validation", "BackendError"),
-        "ValidationError": (f"{__name__}.validation", "ValidationError"),
+        "QMEError": (f"{__name__}.types.validation", "QMEError"),
+        "DependencyError": (f"{__name__}.types.validation", "DependencyError"),
+        "BackendError": (f"{__name__}.types.validation", "BackendError"),
+        "ValidationError": (f"{__name__}.types.validation", "ValidationError"),
         # expose the cli package as a module object
         "cli": (f"{__name__}.cli", None),
     }
@@ -120,3 +123,23 @@ __all__ = [
     "ValidationError",
     "cli",
 ]
+
+
+# Eagerly expose a few core singletons so `from qme import calculator_registry`
+# returns the registry instance instead of the submodule object. These are
+# lightweight and safe to import at package import time.
+try:
+    from .calculator_registry import calculator_registry as calculator_registry
+except Exception:
+    # Leave it to lazy import machinery if something goes wrong
+    pass
+
+try:
+    from .settings import config as config
+except Exception:
+    pass
+
+try:
+    from .dependencies import deps as deps
+except Exception:
+    pass

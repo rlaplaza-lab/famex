@@ -57,7 +57,8 @@ class SO3LRPotential(BasePotential):
         self.model_path = model_path
 
         # SO3LR-specific attributes
-        self.calculator = None
+        # Standard backend attribute used by BasePotential helpers
+        self._calc = None
 
         # Initialize base class (this will call _load_calculator)
         super().__init__(model_name=model_name, device=device, **kwargs)
@@ -65,7 +66,7 @@ class SO3LRPotential(BasePotential):
     def _load_calculator(self):
         """Load the SO3LR ASE calculator."""
         # Skip if already loaded
-        if hasattr(self, "calculator") and self.calculator is not None:
+        if hasattr(self, "_calc") and self._calc is not None:
             return
 
         from .logging_utils import quiet_backend_loading
@@ -82,7 +83,7 @@ class SO3LRPotential(BasePotential):
         # Use high cutoff for gas-phase systems as recommended
         lr_cutoff = 1000.0
 
-        self.calculator = so3lr.So3lrCalculator(
+        self._calc = so3lr.So3lrCalculator(
             calculate_stress=False, lr_cutoff=lr_cutoff, dtype=np.float32
         )
 
@@ -103,47 +104,38 @@ class SO3LRPotential(BasePotential):
             atoms.info["charge"] = 0.0
 
         # Ensure calculator is loaded
-        if self.calculator is None:
+        if self._calc is None:
             self._load_calculator()
 
         # Use the underlying calculator directly
-        self.calculator.calculate(atoms, properties, system_changes)
+        self._calc.calculate(atoms, properties, system_changes)
 
         # Extract results from the underlying calculator
         if "energy" in properties:
-            self.results["energy"] = self.calculator.results["energy"]
+            try:
+                self.results["energy"] = self._calc.results["energy"]
+            except Exception:
+                self.results["energy"] = self.results.get("energy")
 
         if "forces" in properties:
-            self.results["forces"] = self.calculator.results["forces"]
+            try:
+                self.results["forces"] = self._calc.results["forces"]
+            except Exception:
+                self.results["forces"] = self.results.get("forces")
 
     def get_potential_energy(self, atoms=None, force_consistent: bool = False):
         """Get potential energy (ASE-compatible)."""
         if atoms is not None:
             self.atoms = atoms
 
-        if self.calculator is None:
-            self._load_calculator()
-
-        if hasattr(self.calculator, "get_potential_energy"):
-            return self.calculator.get_potential_energy(self.atoms, force_consistent)
-
-        # Fallback: run calculate and return stored energy
-        self.calculate(self.atoms, properties=["energy"], system_changes=None)
-        return float(self.results.get("energy", 0.0))
+        return super().get_potential_energy(atoms, force_consistent)
 
     def get_forces(self, atoms=None):
         """Get forces (ASE-compatible)."""
         if atoms is not None:
             self.atoms = atoms
 
-        if self.calculator is None:
-            self._load_calculator()
-
-        if hasattr(self.calculator, "get_forces"):
-            return self.calculator.get_forces(self.atoms)
-
-        self.calculate(self.atoms, properties=["forces"], system_changes=None)
-        return self.results.get("forces")
+        return super().get_forces(atoms)
 
     def _get_backend_name(self) -> str:
         """Get the backend name for SO3LR."""

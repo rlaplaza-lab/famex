@@ -145,7 +145,7 @@ class ConfigManager:
             return device
 
         # Auto-detect based on availability
-        from .dependencies import deps
+        from qme.dependencies import deps
 
         if deps.has("torch"):
             torch = deps.get("torch")
@@ -173,7 +173,7 @@ class ConfigManager:
         issues = []
 
         # Check backend availability
-        from .dependencies import deps
+        from qme.dependencies import deps
 
         backend = self.get_backend()
         if backend == "uma" and not deps.has("fairchem"):

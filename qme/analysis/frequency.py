@@ -20,7 +20,7 @@ from ase.parallel import world
 from ase.thermochemistry import HarmonicThermo
 from scipy.linalg import eigh
 
-from .validation import QMEError
+from qme.types.validation import QMEError
 
 
 class FrequencyAnalysis:
@@ -573,18 +573,25 @@ class HessianCalculator:
         atoms_displaced.positions[atom_index, direction] += displacement
 
         # Create a fresh calculator instance to avoid caching issues
-        if hasattr(self.calculator, "backend"):
-            # For MockCalculator, create a new instance with same parameters
-            from .potentials import MockCalculator
+        # Only recreate the calculator when it's the lightweight MockCalculator.
+        # Previously this branch tested for the presence of ``backend`` which
+        # many real calculators also expose (e.g., UMA), causing AttributeError
+        # when trying to read mock-specific attributes like ``force_constant``.
+        try:
+            from qme.potentials.mock_potential import MockCalculator
+        except Exception:
+            MockCalculator = None
 
+        if MockCalculator is not None and isinstance(self.calculator, MockCalculator):
+            # For MockCalculator, create a new instance with the same parameters
             calc = MockCalculator(
                 backend=self.calculator.backend,
-                force_constant=self.calculator.force_constant,
-                charge=self.calculator.charge,
-                mult=self.calculator.mult,
+                force_constant=getattr(self.calculator, "force_constant", 1.0),
+                charge=getattr(self.calculator, "charge", 0),
+                mult=getattr(self.calculator, "mult", 1),
             )
         else:
-            # For other calculators, try to create a copy
+            # For other calculators, reuse the same calculator instance
             calc = self.calculator
 
         atoms_displaced.calc = calc
