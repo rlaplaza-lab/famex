@@ -7,8 +7,8 @@ from typing import List, Optional, Union
 import numpy as np
 from ase import Atoms
 
-from .geometry import Geometry
-from .validation import validate_atoms_compatibility
+from qme.types.geometry import Geometry
+from qme.types.validation import validate_atoms_compatibility
 
 
 class Reaction:

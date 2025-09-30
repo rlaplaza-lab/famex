@@ -8,7 +8,6 @@ from pathlib import Path
 import click
 
 # Lazy import to avoid loading heavy MLP backends for simple commands
-# from .core import QMEOptimizer
 
 
 def _write_standard_xyz(atoms, filename):
@@ -45,8 +44,8 @@ def setup_optimization(
 ):
     """Shared setup for minimize and transition_state commands."""
     # Import only when actually setting up optimization
-    from .core import QMEOptimizer
-    from .settings import config as qme_config
+    from qme.core.optimizer import QMEOptimizer
+    from qme.settings import config as qme_config
 
     effective_backend = backend or qme_config.get_backend()
 
@@ -121,6 +120,8 @@ def parse_enhanced_constraints(constraint_spec, atoms, verbose=False):
     if not constraint_spec:
         return None
 
+    from qme.core.optimizer import QMEOptimizer
+
     try:
         # Check if it's the old simple format (just comma-separated numbers)
         # vs new enhanced format (contains keywords like 'fix', 'harmonic_')
@@ -141,13 +142,9 @@ def parse_enhanced_constraints(constraint_spec, atoms, verbose=False):
             enhanced_spec = constraint_spec
 
         # Use the enhanced constraint parser
-        from .core import QMEOptimizer
-
         temp_optimizer = QMEOptimizer(backend="mock")  # Temporary optimizer for parsing
         constraints = temp_optimizer.parse_constraints(enhanced_spec, atoms, verbose)
-
         return constraints
-
     except ValueError as e:
         raise ValueError(f"Invalid constraint specification: {e}")
     except Exception as e:

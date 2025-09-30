@@ -11,9 +11,9 @@ from ase import Atoms
 from ase.io import read, write
 from ase.optimize import BFGS, FIRE, LBFGS
 
-from .calculator_registry import calculator_registry
-from .dependencies import deps
-from .settings import config, get_default_model
+from qme.calculator_registry import calculator_registry
+from qme.dependencies import deps
+from qme.settings import config, get_default_backend, get_default_model
 
 
 class QMEOptimizer:
@@ -84,7 +84,7 @@ class QMEOptimizer:
 
         # Use configuration defaults if not provided
         if backend is None:
-            backend = config.default_backend
+            backend = get_default_backend()
 
         if backend not in QMEOptimizer.AVAILABLE_BACKENDS:
             available = list(QMEOptimizer.AVAILABLE_BACKENDS.keys())
@@ -97,7 +97,7 @@ class QMEOptimizer:
         if calculator is None:
             if backend == "mock":
                 # Use mock backend
-                from .potentials import MockCalculator
+                from qme.potentials import MockCalculator
 
                 # Use generic mock backend
                 self.calculator = MockCalculator(backend="generic")
@@ -642,8 +642,31 @@ class QMEOptimizer:
         initial_forces = atoms.get_forces()
         initial_max_force = np.max(np.abs(initial_forces))
 
-        # Run TS optimization
-        converged = opt.run(fmax=fmax, steps=steps)
+        # Run TS optimization (wrap in try/except to avoid hard crashes from
+        # SELLA internals like MGS failures). If SELLA raises a runtime error,
+        # return a non-exceptional result describing the failure so callers can
+        # handle gracefully.
+        try:
+            converged = opt.run(fmax=fmax, steps=steps)
+        except RuntimeError as e:
+            # Capture SELLA internals failure (e.g., MGS failed) and return
+            # a result dictionary indicating failure without raising.
+            print(f"Warning: SELLA optimization failed: {e}")
+            results = {
+                "converged": False,
+                "steps_taken": getattr(opt, "get_number_of_steps", lambda: 0)(),
+                "initial_energy": initial_energy,
+                "final_energy": atoms.get_potential_energy(),
+                "energy_change": atoms.get_potential_energy() - initial_energy,
+                "initial_max_force": initial_max_force,
+                "final_max_force": np.max(np.abs(atoms.get_forces())),
+                "ts_atoms": atoms,
+                "optimizer_used": "Sella",
+                "error": str(e),
+            }
+
+            self.results["transition_state_search"] = results
+            return results
 
         # Store final state
         final_energy = atoms.get_potential_energy()
@@ -709,7 +732,7 @@ class QMEOptimizer:
             - zero_point_energy: Zero-point vibrational energy
             - thermodynamic_properties: Dict with entropy, heat capacity, etc.
         """
-        from .frequency import FrequencyAnalysis
+        from qme.analysis.frequency import FrequencyAnalysis
 
         if atoms is None:
             if self.atoms is None:
@@ -791,7 +814,7 @@ class QMEOptimizer:
             Dictionary with verification results including number of imaginary
             frequencies and their values.
         """
-        from .frequency import FrequencyAnalysis
+        from qme.analysis.frequency import FrequencyAnalysis
 
         if atoms is None:
             if self.atoms is None:
@@ -895,7 +918,7 @@ class QMEOptimizer:
         Dict[str, Any]
             Dictionary with reaction thermodynamics
         """
-        from .frequency import FrequencyAnalysis
+        from qme.analysis.frequency import FrequencyAnalysis
 
         print(f"Calculating reaction thermodynamics at {temperature} K...")
 

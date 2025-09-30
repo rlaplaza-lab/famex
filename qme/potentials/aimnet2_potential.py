@@ -494,9 +494,7 @@ class AIMNet2Potential(BasePotential):
             with quiet_backend_loading(
                 "aimnet2", self.model_name, model_path, self.device
             ):
-                self.aimnet2_calc = NativeAIMNet2Calculator(
-                    model_path, device=self.device
-                )
+                self._calc = NativeAIMNet2Calculator(model_path, device=self.device)
 
         except Exception as e:
             raise RuntimeError(
@@ -529,8 +527,12 @@ class AIMNet2Potential(BasePotential):
         }
 
         # Calculate with forces if requested
+        # Ensure backend loaded
+        if self._calc is None:
+            self._load_calculator()
+
         forces_needed = "forces" in properties
-        results = self.aimnet2_calc(data, forces=forces_needed)
+        results = self._calc(data, forces=forces_needed)
 
         # Convert results to numpy arrays and store
         if "energy" in properties:
@@ -561,32 +563,14 @@ class AIMNet2Potential(BasePotential):
             self.atoms = atoms
 
         # Ensure calculator is loaded
-        if not hasattr(self, "aimnet2_calc") or self.aimnet2_calc is None:
-            self._load_calculator()
-
-        # Use the calculate method to populate results
-        try:
-            self.calculate(self.atoms, properties=["energy"], system_changes=None)
-        except TypeError:
-            # Fallback if super().calculate signature differs in base class
-            self.calculate(self.atoms, properties=["energy"])  # type: ignore[arg-type]
-
-        return float(self.results.get("energy", 0.0))
+        return super().get_potential_energy(atoms, force_consistent)
 
     def get_forces(self, atoms=None):
         """Get forces (ASE-compatible)."""
         if atoms is not None:
             self.atoms = atoms
 
-        if not hasattr(self, "aimnet2_calc") or self.aimnet2_calc is None:
-            self._load_calculator()
-
-        try:
-            self.calculate(self.atoms, properties=["forces"], system_changes=None)
-        except TypeError:
-            self.calculate(self.atoms, properties=["forces"])  # type: ignore[arg-type]
-
-        return self.results.get("forces")
+        return super().get_forces(atoms)
 
 
 def get_aimnet2_calculator(

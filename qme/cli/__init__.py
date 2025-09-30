@@ -6,6 +6,6 @@ compatibility with console entry points that previously referenced
 ``qme.cli:main``.
 """
 
-from .cli import main
+from qme.cli.cli import main
 
 __all__ = ["main"]

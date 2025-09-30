@@ -7,7 +7,7 @@ from pathlib import Path
 
 import click
 
-from .cli_helpers import (
+from qme.cli.cli_helpers import (
     calculate_frequencies_if_requested,
     handle_cli_error,
     handle_optimization_results,
@@ -520,7 +520,7 @@ def test_setup(backend, model, model_path, device, charge, spin, verbose):
     Test QME setup and neural network model loading.
     """
     # Import only when needed
-    from .core import QMEOptimizer
+    from qme.core.optimizer import QMEOptimizer
 
     click.echo("Testing QME setup...")
 
@@ -616,9 +616,9 @@ def interpolate(
     PRODUCT_FILE: Path to product structure file
     """
     # Import only when needed
-    from .core import QMEOptimizer
-    from .types.geometry import read_geometry
-    from .types.reaction import Reaction
+    from qme.core.optimizer import QMEOptimizer
+    from qme.types.geometry import read_geometry
+    from qme.types.reaction import Reaction
 
     if verbose:
         click.echo("Starting reaction pathway interpolation...")
@@ -738,7 +738,7 @@ def config(show, create_config):
     QME uses visible defaults for all CLI options. A qme.json config file in the
     current directory can override these defaults.
     """
-    from .settings import config as qme_config
+    from qme.settings import config as qme_config
 
     if create_config:
         config_path = qme_config.config_file_path()
@@ -794,8 +794,8 @@ def config(show, create_config):
 @main.command()
 def info():
     """Show system and dependency information."""
-    from .dependencies import deps
-    from .settings import config as qme_config
+    from qme.dependencies import deps
+    from qme.settings import config as qme_config
 
     click.echo("QME System Information")
     click.echo("=" * 30)
@@ -870,7 +870,7 @@ def from_gaussian(
     The job type (minimize or transition_state) is detected automatically.
     """
     # Import only when needed
-    from .types.geometry import read_gaussian_input
+    from qme.types.geometry import read_gaussian_input
 
     if verbose:
         click.echo(f"Reading Gaussian input file: {gaussian_file}")

@@ -43,8 +43,7 @@ class MACEPotential(BasePotential):
         """
         if model_name is None:
             model_name = "mace-omol-0"
-
-        # Placeholder for the underlying calculator implementation
+        # Placeholder for the underlying calculator implementation (standardized)
         self._calc = None
 
         super().__init__(model_name=model_name, device=device, **kwargs)
@@ -107,6 +106,7 @@ class MACEPotential(BasePotential):
         super().calculate(atoms, properties, system_changes)
 
         # Ensure calculator is loaded
+        # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
 
@@ -132,29 +132,14 @@ class MACEPotential(BasePotential):
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
-        if self._calc is None:
-            self._load_calculator()
-
-        if self._calc is None:
-            # Fallback: run a calculation to populate results
-            self.calculate(self.atoms, properties=["energy"], system_changes=None)
-            return float(self.results.get("energy", 0.0))
-
-        return self._calc.get_potential_energy(atoms, force_consistent)
+        return super().get_potential_energy(atoms, force_consistent)
 
     def get_forces(self, atoms=None):
         """Get forces on atoms."""
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
-        if self._calc is None:
-            self._load_calculator()
-
-        if self._calc is None:
-            self.calculate(self.atoms, properties=["forces"], system_changes=None)
-            return self.results.get("forces")
-
-        return self._calc.get_forces(atoms)
+        return super().get_forces(atoms)
 
     def get_stress(self, atoms=None):
         """Get stress tensor (if supported)."""
