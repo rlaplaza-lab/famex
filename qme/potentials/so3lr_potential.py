@@ -10,8 +10,8 @@ from typing import Optional
 import numpy as np
 from ase.calculators.calculator import all_changes
 
-from .base_potential import BasePotential
-from .dependencies import deps
+from qme.dependencies import deps
+from qme.potentials.base_potential import BasePotential
 
 
 class SO3LRPotential(BasePotential):
@@ -115,6 +115,35 @@ class SO3LRPotential(BasePotential):
 
         if "forces" in properties:
             self.results["forces"] = self.calculator.results["forces"]
+
+    def get_potential_energy(self, atoms=None, force_consistent: bool = False):
+        """Get potential energy (ASE-compatible)."""
+        if atoms is not None:
+            self.atoms = atoms
+
+        if self.calculator is None:
+            self._load_calculator()
+
+        if hasattr(self.calculator, "get_potential_energy"):
+            return self.calculator.get_potential_energy(self.atoms, force_consistent)
+
+        # Fallback: run calculate and return stored energy
+        self.calculate(self.atoms, properties=["energy"], system_changes=None)
+        return float(self.results.get("energy", 0.0))
+
+    def get_forces(self, atoms=None):
+        """Get forces (ASE-compatible)."""
+        if atoms is not None:
+            self.atoms = atoms
+
+        if self.calculator is None:
+            self._load_calculator()
+
+        if hasattr(self.calculator, "get_forces"):
+            return self.calculator.get_forces(self.atoms)
+
+        self.calculate(self.atoms, properties=["forces"], system_changes=None)
+        return self.results.get("forces")
 
     def _get_backend_name(self) -> str:
         """Get the backend name for SO3LR."""

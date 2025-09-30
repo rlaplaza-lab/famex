@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from qme.constraints import (
+from qme.core.constraints import (
     FixedAtomsConstraint,
     HarmonicAngleConstraint,
     HarmonicBondConstraint,
@@ -14,7 +14,7 @@ from qme.constraints import (
     parse_constraint_string,
     validate_atom_indices,
 )
-from qme.core import QMEOptimizer
+from qme.core.optimizer import QMEOptimizer
 
 
 class TestConstraintManager:
