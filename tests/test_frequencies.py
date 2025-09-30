@@ -14,8 +14,8 @@ from ase import Atoms
 from ase.build import molecule
 
 import qme
+from qme.analysis.frequency import FrequencyAnalysis, HessianCalculator
 from qme.dependencies import deps
-from qme.frequency import FrequencyAnalysis, HessianCalculator
 
 # Define available backends for ML frequency testing
 AVAILABLE_BACKENDS = ["mock"]

@@ -146,7 +146,7 @@ def print_model_info(
         if device == "cuda":
             try:
                 # Only import torch if we're actually using CUDA
-                from .dependencies import deps
+                from qme.dependencies import deps
 
                 if deps.has("torch"):
                     torch = deps.get("torch")

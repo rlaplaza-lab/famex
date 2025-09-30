@@ -7,8 +7,8 @@ foundation model for molecular systems, transition metals, and cations.
 
 from typing import Optional
 
-from .base_potential import BasePotential
-from .dependencies import deps
+from qme.dependencies import deps
+from qme.potentials.base_potential import BasePotential
 
 
 class MACEPotential(BasePotential):
@@ -19,6 +19,8 @@ class MACEPotential(BasePotential):
     the MACE-OMOL-0 model which is excellent for molecules, transition metals,
     and cations with charge/spin embedding capabilities.
     """
+
+    implemented_properties = ["energy", "forces"]
 
     def __init__(
         self, model_name: Optional[str] = None, device: Optional[str] = None, **kwargs
@@ -42,10 +44,16 @@ class MACEPotential(BasePotential):
         if model_name is None:
             model_name = "mace-omol-0"
 
+        # Placeholder for the underlying calculator implementation
+        self._calc = None
+
         super().__init__(model_name=model_name, device=device, **kwargs)
 
     def _load_calculator(self):
         """Load the MACE calculator implementation."""
+        # Skip if already loaded
+        if hasattr(self, "_calc") and self._calc is not None:
+            return
         from .logging_utils import quiet_backend_loading
 
         if not deps.has("torch"):
@@ -85,7 +93,7 @@ class MACEPotential(BasePotential):
                     f"MACE not available ({e}). Install with: pip install mace-torch",
                 )
                 # Fall back to mock calculator
-                from .potentials import MockCalculator
+                from qme.potentials import MockCalculator
 
                 self._calc = MockCalculator(backend="mace")
 
@@ -95,34 +103,67 @@ class MACEPotential(BasePotential):
 
     def calculate(self, atoms=None, properties=None, system_changes=None):
         """Calculate properties using the MACE calculator."""
-        if atoms is not None:
-            self.atoms = atoms
+        # Common setup
+        super().calculate(atoms, properties, system_changes)
 
-        if properties is None:
-            properties = self.implemented_properties
+        # Ensure calculator is loaded
+        if self._calc is None:
+            self._load_calculator()
+
+        if self._calc is None:
+            raise RuntimeError("Failed to load MACE calculator")
 
         # Delegate to the underlying MACE calculator
-        self._calc.calculate(atoms, properties, system_changes)
+        self._calc.calculate(self.atoms, properties, system_changes)
 
         # Copy results from underlying calculator
-        self.results = self._calc.results.copy()
+        try:
+            self.results = self._calc.results.copy()
+        except Exception:
+            # If underlying calculator does not use .results dict, attempt to
+            # extract common properties
+            if properties is None:
+                properties = self.implemented_properties
+            if "energy" in properties and hasattr(self._calc, "results"):
+                self.results["energy"] = getattr(self._calc.results, "energy", None)
 
     def get_potential_energy(self, atoms=None, force_consistent=False):
         """Get potential energy."""
         if atoms is not None:
             self.atoms = atoms
+        # Ensure calculator is loaded
+        if self._calc is None:
+            self._load_calculator()
+
+        if self._calc is None:
+            # Fallback: run a calculation to populate results
+            self.calculate(self.atoms, properties=["energy"], system_changes=None)
+            return float(self.results.get("energy", 0.0))
+
         return self._calc.get_potential_energy(atoms, force_consistent)
 
     def get_forces(self, atoms=None):
         """Get forces on atoms."""
         if atoms is not None:
             self.atoms = atoms
+        # Ensure calculator is loaded
+        if self._calc is None:
+            self._load_calculator()
+
+        if self._calc is None:
+            self.calculate(self.atoms, properties=["forces"], system_changes=None)
+            return self.results.get("forces")
+
         return self._calc.get_forces(atoms)
 
     def get_stress(self, atoms=None):
         """Get stress tensor (if supported)."""
         if atoms is not None:
             self.atoms = atoms
+        # Ensure calculator is loaded
+        if self._calc is None:
+            self._load_calculator()
+
         if hasattr(self._calc, "get_stress"):
             return self._calc.get_stress(atoms)
         else:
