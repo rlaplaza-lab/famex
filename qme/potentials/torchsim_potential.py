@@ -217,8 +217,9 @@ class TorchSimPotential(BasePotential):
             )
             
             # Use regular Fairchem calculator as fallback
-            from fairchem.core.pretrained_mlip import get_predict_unit
+            from fairchem.core import pretrained_mlip
             from fairchem.core import FAIRChemCalculator
+            get_predict_unit = pretrained_mlip.get_predict_unit
             
             # Load the model using regular Fairchem
             device_param = "cuda" if self.device == "cuda" else "cpu"
