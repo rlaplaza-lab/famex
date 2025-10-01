@@ -78,16 +78,21 @@ class TestTorchSimIntegration:
             assert calc_fairchem is not None
 
     def test_torchsim_fallback_behavior(self):
-        """Test TorchSim fallback behavior when not available."""
-        # This should work even without TorchSim
-        calc = qme.calculator_registry.create_calculator(
-            backend="torchsim", model_name="mace-omol-0", device="cpu"
-        )
-        assert calc is not None
-
-        # Should be a mock calculator if TorchSim is not available
+        """Test TorchSim error behavior when not available."""
         if not deps.has("torch_sim"):
-            assert "mock" in str(type(calc)).lower()
+            # Should raise ImportError with clear message when TorchSim is not available
+            with pytest.raises(ImportError, match="TorchSim backend requires torch-sim-atomistic"):
+                qme.calculator_registry.create_calculator(
+                    backend="torchsim", model_name="mace-omol-0", device="cpu"
+                )
+        else:
+            # If TorchSim is available, should create a real calculator
+            calc = qme.calculator_registry.create_calculator(
+                backend="torchsim", model_name="mace-omol-0", device="cpu"
+            )
+            assert calc is not None
+            # Should be a real TorchSim calculator, not mock
+            assert "mock" not in str(type(calc)).lower()
 
     def test_torchsim_energy_calculation(self):
         """Test TorchSim energy calculation."""
