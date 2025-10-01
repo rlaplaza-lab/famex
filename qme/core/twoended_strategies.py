@@ -175,13 +175,7 @@ def twoended_ts_guess_runner(
 
     ts_results = []
     # Select optimizer class
-    try:
-        OptClass = _get_local_optimizer_class(local_optimizer_name)
-    except Exception as e:
-        warnings.warn(
-            f"Could not select requested optimizer '{local_optimizer_name}': {e}"
-        )
-        OptClass = None
+    opt_class = _get_local_optimizer_class(local_optimizer_name)
 
     for idx in max_idxs:
         geom = path[idx]
@@ -201,14 +195,7 @@ def twoended_ts_guess_runner(
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 1)
 
-        if OptClass is None:
-            warnings.warn(
-                "No optimizer available for TS optimization; returning raw TS guesses"
-            )
-            ts_results.append(geom)
-            continue
-
-        opt = OptClass(geom, **opt_kwargs)
+        opt = opt_class(geom, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
         ts_results.append(geom)
 
@@ -292,13 +279,7 @@ def twoended_minima_runner(
     results = []
 
     # Select optimizer class
-    try:
-        OptClass = _get_local_optimizer_class(local_optimizer_name)
-    except Exception as e:
-        warnings.warn(
-            f"Could not select requested optimizer '{local_optimizer_name}': {e}"
-        )
-        OptClass = None
+    opt_class = _get_local_optimizer_class(local_optimizer_name)
 
     for idx in minima_idxs:
         geom = path[idx]
@@ -316,18 +297,7 @@ def twoended_minima_runner(
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 0)
 
-        if OptClass is None:
-            # Fallback to ASE LBFGS if available
-            try:
-                from ase.optimize.lbfgs import LBFGS as _LBFGS  # type: ignore
-
-                OptClass = _LBFGS
-            except Exception:
-                warnings.warn("No optimizer available; returning raw minima guesses")
-                results.append(geom)
-                continue
-
-        opt = OptClass(geom, **opt_kwargs)
+        opt = opt_class(geom, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
         results.append(geom)
 

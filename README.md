@@ -79,18 +79,14 @@ This installs:
 
 ### Transition-State Optimizer (SELLA)
 
-SELLA is optional and only needed for transition state optimization:
-
-```bash
-pip install qme[opt]
-```
+SELLA is now included as a core dependency for transition state optimization.
 
 ### Complete Installation
 
 For full functionality with all backends and optimizers:
 
 ```bash
-pip install qme[ml,opt]
+pip install qme[ml]
 ```
 
 ### Development Installation
@@ -291,7 +287,7 @@ pytest --cov=qme --cov-report=term-missing
 
 **Missing dependencies**: Install with `pip install qme[ml]` for full functionality.
 
-**SELLA missing**: Install with `pip install qme[opt]`.
+**SELLA missing**: SELLA is now a core dependency and should be automatically installed.
 
 **JAX backend warnings**: These are informational and can be safely ignored for CPU usage.
 
