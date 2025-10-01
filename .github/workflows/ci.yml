@@ -97,9 +97,9 @@ jobs:
       run: |
         # Test help commands
         qme --help
-        qme minimize --help
-        qme transition-state --help
-        qme test-setup --help
+        qme opt --help
+        qme tsopt --help
+        qme cache --help
 
     - name: Test CLI with minimal smoke test
       run: |
@@ -112,16 +112,19 @@ jobs:
         H      -0.757000    0.586000    0.000000
         EOF
         
-        # Test that the CLI can parse the input file without errors
-        echo "Testing CLI file parsing..."
-        qme minimize --help > /dev/null && echo "✓ minimize command available"
-        qme transition-state --help > /dev/null && echo "✓ transition-state command available"
-        qme test-setup --help > /dev/null && echo "✓ test-setup command available"
+        # Test that the CLI commands are available
+        echo "Testing CLI command availability..."
+        qme opt --help > /dev/null && echo "✓ opt command available"
+        qme tsopt --help > /dev/null && echo "✓ tsopt command available"
+        qme cache --help > /dev/null && echo "✓ cache command available"
         
-        # Test basic file validation (should not crash even if backend unavailable)
-        echo "Testing basic file validation..."
-        qme test-setup --backend uma || echo "✓ UMA backend properly handled (not available)"
-        qme test-setup --backend so3lr || echo "✓ SO3LR backend properly handled (not available)"
+        # Test cache functionality (should always work)
+        echo "Testing cache functionality..."
+        qme cache info && echo "✓ Cache info command works"
+        
+        # Test that CLI can handle missing backends gracefully
+        echo "Testing backend error handling..."
+        qme opt test_water.xyz --backend uma --steps 1 --output test_output.xyz || echo "✓ UMA backend properly handled (not available)"
         
         echo "✓ CLI smoke test completed successfully"
 
