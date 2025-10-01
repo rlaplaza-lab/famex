@@ -13,7 +13,7 @@ QME combines the power of ASE and SELLA optimizers with state-of-the-art neural 
 - **Command Line Interface**: Easy-to-use CLI with `qme opt` and `qme tsopt` commands
 - **Multiple File Formats**: Support for XYZ, CIF, PDB and other ASE-compatible molecular formats
 - **Flexible Constraints**: Apply geometric constraints during optimization
-- **Automatic Fallback**: Graceful degradation to mock calculators when ML backends unavailable
+- **Clear Error Messages**: Clear dependency requirements and installation instructions when backends are unavailable
 - **Comprehensive Testing**: Full test suite with benchmark examples
 
 ## Supported Neural Network Backends
@@ -123,7 +123,7 @@ pip install torch-sim-atomistic
 
 This enables up to 100x speedup for supported models (MACE, Fairchem) through automatic batching and GPU acceleration.
 
-**Note**: If any ML backend is not installed, QME will automatically fall back to mock implementations for testing and development.
+**Note**: If any ML backend is not installed, QME will provide clear error messages with installation instructions instead of falling back to mock implementations.
 
 ## Quick Start
 

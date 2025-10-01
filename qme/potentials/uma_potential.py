@@ -108,25 +108,11 @@ class UMAPotential(BasePotential):
                 self._calc = FAIRChemCalculator(self.predictor, task_name="omol")
 
             except Exception as e:
-                # If anything goes wrong while initializing the heavy UMA
-                # model (including checkpoint unpickling issues), warn and
-                # fall back to the MockCalculator so CI and light-weight
-                # environments do not fail hard.
-                deps.warn_fallback(
-                    "uma",
-                    f"UMA model load failed ({e}). Falling back to mock UMA.",
+                # If anything goes wrong while initializing the UMA model, raise a clear error
+                raise RuntimeError(
+                    f"Failed to load UMA model '{self.model_name}'. Error: {e}. "
+                    f"Make sure fairchem-core is properly installed and the model is available."
                 )
-
-                # Fall back to mock calculator implementation
-                try:
-                    from qme.potentials import MockCalculator
-
-                    self._calc = MockCalculator(backend="uma")
-                except Exception:
-                    # If MockCalculator is unavailable for some reason, raise
-                    raise RuntimeError(
-                        f"Failed to load UMA model '{self.model_name}'. Error: {e}."
-                    )
 
     def calculate(
         self,
