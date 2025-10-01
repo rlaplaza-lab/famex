@@ -20,7 +20,7 @@ from ase.parallel import world
 from ase.thermochemistry import HarmonicThermo
 from scipy.linalg import eigh
 
-from qme.types.validation import QMEError
+from qme.core.validation import QMEError
 
 
 class FrequencyAnalysis:
@@ -199,11 +199,12 @@ class FrequencyAnalysis:
         eigenvalues, eigenvectors = eigh(mass_weighted_hessian)
 
         # Convert eigenvalues to frequencies (in cm^-1)
-        # eigenvalues are in eV/Å^2/amu, convert to cm^-1
-        # Convert eigenvalues to frequencies (in cm^-1)
-        # eigenvalues are in eV/Å^2/amu, convert to cm^-1
-        conversion = np.sqrt(units._e / units._amu) / (2 * np.pi * units._c * 100)
-        frequencies = np.sqrt(np.abs(eigenvalues)) * conversion
+        # Following ASE's implementation:
+        # 1. Convert eigenvalues to energies in eV using ASE's unit conversion
+        # 2. Convert energies to frequencies using units.invcm
+        unit_conversion = units._hbar * units.m / np.sqrt(units._e * units._amu)
+        energies = unit_conversion * np.sqrt(np.abs(eigenvalues))
+        frequencies = energies / units.invcm
 
         # Handle imaginary frequencies
         imaginary_mask = eigenvalues < 0
@@ -214,9 +215,9 @@ class FrequencyAnalysis:
         frequencies = frequencies[sort_indices]
         eigenvectors = eigenvectors[:, sort_indices]
 
-        # Normalize eigenvectors properly (mass-weighted)
+        # Normalize eigenvectors in mass-weighted coordinates
+        # The eigenvectors are already in mass-weighted coordinates from diagonalization
         for i in range(len(eigenvectors[0])):
-            eigenvectors[:, i] /= mass_weights
             eigenvectors[:, i] /= np.linalg.norm(eigenvectors[:, i])
 
         self._frequencies = frequencies
@@ -342,10 +343,10 @@ class FrequencyAnalysis:
         # Only include real (positive) frequencies
         real_frequencies = frequencies[frequencies > 0]
 
-        # Convert to eV: E = 0.5 * h * c * nu (in cm^-1)
-        zpe = (
-            0.5 * np.sum(real_frequencies) * units._hplanck * units._c * 100 / units._e
-        )
+        # Convert frequencies from cm^-1 to eV, then calculate ZPE
+        # ZPE = (1/2) * Σ hνᵢ where νᵢ are frequencies in eV
+        freq_eV = real_frequencies * units.invcm  # Convert cm^-1 to eV
+        zpe = 0.5 * np.sum(freq_eV)  # ZPE in eV
 
         self._zero_point_energy = zpe
         return zpe
@@ -370,10 +371,12 @@ class FrequencyAnalysis:
         # Only include real frequencies
         real_frequencies = frequencies[frequencies > 0]
 
-        # freq_eV not used here since we use ASE's HarmonicThermo
+        # Convert frequencies from cm^-1 to eV for HarmonicThermo
+        # HarmonicThermo expects frequencies in eV
+        freq_eV = real_frequencies * units._hplanck * units._c * 100 / units._e
 
         # Use ASE's HarmonicThermo for consistency
-        thermo = HarmonicThermo(real_frequencies * units._hplanck * units._c * 100)
+        thermo = HarmonicThermo(freq_eV)
 
         # Get thermodynamic contributions
         zpe = self.get_zero_point_energy()
@@ -630,6 +633,7 @@ class ThermodynamicProperties:
 
     def partition_function_vibrational(self) -> float:
         """Calculate vibrational partition function."""
+        # Convert frequencies from cm^-1 to eV
         freq_eV = self.frequencies * units._hplanck * units._c * 100 / units._e
         kT = units.kB * self.temperature
 
@@ -646,6 +650,7 @@ class ThermodynamicProperties:
 
     def heat_capacity_vibrational(self) -> float:
         """Calculate vibrational heat capacity."""
+        # Convert frequencies from cm^-1 to eV
         freq_eV = self.frequencies * units._hplanck * units._c * 100 / units._e
         kT = units.kB * self.temperature
 
@@ -660,6 +665,7 @@ class ThermodynamicProperties:
 
     def entropy_vibrational(self) -> float:
         """Calculate vibrational entropy."""
+        # Convert frequencies from cm^-1 to eV
         freq_eV = self.frequencies * units._hplanck * units._c * 100 / units._e
         kT = units.kB * self.temperature
 

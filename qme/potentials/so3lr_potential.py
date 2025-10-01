@@ -69,7 +69,7 @@ class SO3LRPotential(BasePotential):
         if hasattr(self, "_calc") and self._calc is not None:
             return
 
-        from .logging_utils import quiet_backend_loading
+        from qme.potentials.logging_utils import quiet_backend_loading
 
         with quiet_backend_loading(
             "so3lr", self.model_name, self.model_path, self.device

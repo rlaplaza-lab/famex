@@ -30,7 +30,7 @@ def __getattr__(name):
 
     _LAZY_IMPORTS = {
         # core
-        "QMEOptimizer": (f"{__name__}.core", "QMEOptimizer"),
+        "QMEOptimizer": (f"{__name__}.core.convenience", "QMEOptimizer"),
         "minimize_structure": (f"{__name__}.core", "minimize_structure"),
         # settings
         "config": (f"{__name__}.settings", "config"),
@@ -38,11 +38,11 @@ def __getattr__(name):
         "get_default_model": (f"{__name__}.settings", "get_default_model"),
         # dependencies
         "deps": (f"{__name__}.dependencies", "deps"),
-        # types / IO
-        "Geometry": (f"{__name__}.types.geometry", "Geometry"),
-        "read_geometry": (f"{__name__}.types.geometry", "read_geometry"),
-        "write_geometry": (f"{__name__}.types.geometry", "write_geometry"),
-        "Reaction": (f"{__name__}.types.reaction", "Reaction"),
+        # core types / IO
+        "Geometry": (f"{__name__}.core.geometry", "Geometry"),
+        "read_geometry": (f"{__name__}.core.geometry", "read_geometry"),
+        "write_geometry": (f"{__name__}.core.geometry", "write_geometry"),
+        "Reaction": (f"{__name__}.core.reaction", "Reaction"),
         # frequency analysis
         "FrequencyAnalysis": (f"{__name__}.analysis.frequency", "FrequencyAnalysis"),
         "HessianCalculator": (f"{__name__}.analysis.frequency", "HessianCalculator"),
@@ -67,10 +67,10 @@ def __getattr__(name):
             "calculator_registry",
         ),
         # errors
-        "QMEError": (f"{__name__}.types.validation", "QMEError"),
-        "DependencyError": (f"{__name__}.types.validation", "DependencyError"),
-        "BackendError": (f"{__name__}.types.validation", "BackendError"),
-        "ValidationError": (f"{__name__}.types.validation", "ValidationError"),
+        "QMEError": (f"{__name__}.core.validation", "QMEError"),
+        "DependencyError": (f"{__name__}.core.validation", "DependencyError"),
+        "BackendError": (f"{__name__}.core.validation", "BackendError"),
+        "ValidationError": (f"{__name__}.core.validation", "ValidationError"),
         # expose the cli package as a module object
         "cli": (f"{__name__}.cli", None),
     }

@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
 Demo script showing QME CLI functionality with comprehensive backend comparison.
-Tests the new CLI commands: opt (minimize), tsopt (transition state optimization),
-and neb (nudged elastic band from reactant-product endpoints) across all available backends.
 """
 
+import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-# Import QME dependencies check similar to bh28_benchmark
+# Disable ASE GUI to prevent popup windows
+os.environ["DISPLAY"] = ""
+os.environ["MPLBACKEND"] = "Agg"
+
 try:
     from qme.dependencies import deps
 except ImportError:
@@ -32,6 +34,13 @@ def get_available_backends() -> List[str]:
     if deps.has("mace"):
         available.append("mace")
 
+    # Add TorchSim backends if available
+    if deps.has("torch_sim"):
+        available.append("torchsim")
+        available.append("torchsim_mace")
+        if deps.has("fairchem"):  # TorchSim Fairchem needs fairchem
+            available.append("torchsim_fairchem")
+
     if len(available) == 0:
         print("❌ No ML backends available! Please install at least one.")
         return []
@@ -49,12 +58,18 @@ def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]
 
     try:
         start_time = time.time()
+        # Create a modified environment with GUI disabled
+        env = os.environ.copy()
+        env["DISPLAY"] = ""
+        env["MPLBACKEND"] = "Agg"
+
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             timeout=timeout,
             cwd=Path(__file__).parent.parent,  # Run from qme root
+            env=env,  # Pass the modified environment
         )
         end_time = time.time()
         runtime = end_time - start_time
@@ -76,8 +91,15 @@ def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]
                 )
             return False, runtime, result.stdout, result.stderr
 
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
         print(f"❌ TIMEOUT after {timeout} seconds")
+        # Clean up the process if it's still running
+        if hasattr(e, "subprocess") and e.subprocess:
+            try:
+                e.subprocess.kill()
+                e.subprocess.wait(timeout=5)
+            except Exception:
+                pass
         return False, timeout, "", f"Command timed out after {timeout} seconds"
     except Exception as e:
         print(f"❌ ERROR: {e}")
@@ -94,14 +116,14 @@ def create_example_commands(
             "cmd": [
                 "qme",
                 "opt",
-                str(example_files / "R001.xyz"),
+                str(example_files / "reaction_001_reactant.xyz"),
                 "--backend",
                 backend,
                 "--steps",
                 str(steps),
                 "--output",
                 f"test_opt_{backend}.xyz",
-                "--verbose",
+                "--no-quiet",
             ],
         },
         {
@@ -109,42 +131,81 @@ def create_example_commands(
             "cmd": [
                 "qme",
                 "tsopt",
-                str(example_files / "TS001.xyz"),
+                str(example_files / "reaction_001_ts.xyz"),
                 "--backend",
                 backend,
                 "--steps",
                 str(steps),
                 "--output",
                 f"test_tsopt_{backend}.xyz",
-                "--verbose",
+                "--no-quiet",
             ],
         },
         {
-            "desc": "NEB method using 'neb' command",
+            "desc": "Two-ended minima optimization using 'opt' command",
             "cmd": [
                 "qme",
-                "neb",
-                str(example_files / "R001.xyz"),
-                str(example_files / "P001.xyz"),
+                "opt",
+                str(example_files / "reaction_001_reactant.xyz"),
+                "--product",
+                str(example_files / "reaction_001_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
                 str(steps),
                 "--npoints",
                 "5",
-                "--interp-method",
-                "linear",
+                "--interp",
+                "geodesic",
                 "--output",
-                f"test_neb_{backend}.xyz",
-                "--verbose",
+                f"test_twoended_{backend}.xyz",
+                "--no-quiet",
             ],
         },
         {
-            "desc": "Show default configuration (no config file)",
+            "desc": "Two-ended TS optimization using 'tsopt' command",
             "cmd": [
                 "qme",
-                "config",
-                "--show",
+                "tsopt",
+                str(example_files / "reaction_001_reactant.xyz"),
+                "--product",
+                str(example_files / "reaction_001_product.xyz"),
+                "--backend",
+                backend,
+                "--steps",
+                str(steps),
+                "--npoints",
+                "5",
+                "--interp",
+                "geodesic",
+                "--output",
+                f"test_ts_twoended_{backend}.xyz",
+                "--no-quiet",
+            ],
+        },
+        {
+            "desc": "NEB path optimization using 'tsopt' with --mode neb",
+            "cmd": [
+                "qme",
+                "tsopt",
+                str(example_files / "reaction_001_reactant.xyz"),
+                "--product",
+                str(example_files / "reaction_001_product.xyz"),
+                "--mode",
+                "neb",
+                "--backend",
+                backend,
+                "--steps",
+                str(steps),
+                "--npoints",
+                "7",
+                "--interp",
+                "geodesic",
+                "--spring-constant",
+                "2.0",  # Moderate spring constant for demo
+                "--output",
+                f"test_neb_{backend}.xyz",
+                "--no-quiet",
             ],
         },
     ]
@@ -191,9 +252,9 @@ def demo_cli():
 
     # Check required files exist
     required_files = [
-        "R001.xyz",
-        "P001.xyz",
-        "TS001.xyz",
+        "reaction_001_reactant.xyz",
+        "reaction_001_product.xyz",
+        "reaction_001_ts.xyz",
     ]
 
     for filename in required_files:
@@ -204,7 +265,9 @@ def demo_cli():
     # Performance tracking
     backend_results = {}
     total_start_time = time.time()
-    total_examples_per_backend = 4  # opt, tsopt, neb, and config commands
+    total_examples_per_backend = (
+        5  # opt, tsopt, twoended, tsopt_twoended, and neb commands
+    )
     steps = 500  # Reduced steps for faster testing
 
     # Run examples for each backend

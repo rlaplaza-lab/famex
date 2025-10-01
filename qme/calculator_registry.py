@@ -50,6 +50,15 @@ class CalculatorRegistry:
             "mace": LazyBackend(
                 module="qme.potentials", function="get_mace_calculator"
             ),
+            "torchsim": LazyBackend(
+                module="qme.potentials", function="get_torchsim_calculator"
+            ),
+            "torchsim_mace": LazyBackend(
+                module="qme.potentials", function="get_torchsim_mace_calculator"
+            ),
+            "torchsim_fairchem": LazyBackend(
+                module="qme.potentials", function="get_torchsim_fairchem_calculator"
+            ),
             "mock": LazyBackend(
                 module="qme.potentials.mock_potential",
                 function="MockCalculator",
@@ -155,10 +164,10 @@ class CalculatorRegistry:
                     backend=backend, **kwargs
                 )
             except Exception:
+                from qme.core.validation import BackendError
+
                 available = self.get_available_backends()
-                raise ValueError(
-                    f"Unknown or unavailable backend: {backend}. Available: {available}"
-                )
+                raise BackendError(backend, available, "calculator creation")
 
         factory_func = self._registry[backend]
 
@@ -201,6 +210,8 @@ class CalculatorRegistry:
             return deps.has("torch")
         elif backend == "mace":
             return deps.has("mace") and deps.has("torch")
+        elif backend in ["torchsim", "torchsim_mace", "torchsim_fairchem"]:
+            return deps.has("torch_sim") and deps.has("torch")
         else:
             return backend in self._registry
 

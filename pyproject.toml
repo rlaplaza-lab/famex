@@ -23,15 +23,22 @@ dependencies = [
     "ase>=3.22.0",
     "numpy>=1.20.0",
     "click>=8.0.0",
-    "sella>=2.0.0",
+    "requests>=2.25.0",
 ]
 
 [project.optional-dependencies]
 ml = [
     "torch>=2.0.0",
     "fairchem-core>=1.0.0",
-    "aimnet2calc",
+    "torch-cluster>=0.6.0",
+    "mace-torch>=0.1.0",
     "jax>=0.4.20",
+]
+torchsim = [
+    "torch-sim-atomistic>=0.3.0",
+]
+opt = [
+    "sella>=2.0.0",
 ]
 dev = [
     "pytest>=7.0.0",

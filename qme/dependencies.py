@@ -38,7 +38,6 @@ class DependencyManager:
     def __init__(self):
         self._cache: Dict[str, Any] = {}
         self._availability_cache: Dict[str, bool] = {}
-        # NO eager dependency checking - everything is lazy now
 
     def _check_availability_lazy(self, package_name: str) -> bool:
         """
@@ -75,6 +74,10 @@ class DependencyManager:
                     import mace.calculators
 
                     self._cache["mace"] = mace.calculators
+                elif name == "torch_sim":
+                    import torch_sim as ts
+
+                    self._cache["torch_sim"] = ts
                 elif name == "fairchem_pretrained_mlip":
                     from fairchem.core import pretrained_mlip
 
@@ -97,7 +100,7 @@ class DependencyManager:
 
     def require_multiple(self, *deps_names, purpose="this functionality"):
         """
-        Require multiple dependencies, raising ImportError if any are missing.
+        Require multiple dependencies, raising DependencyError if any are missing.
 
         Parameters:
         -----------
@@ -111,13 +114,13 @@ class DependencyManager:
         dict or module : If one dependency, returns the module directly.
                         If multiple, returns dict mapping name -> module.
         """
+        from qme.core.validation import DependencyError
+
         if len(deps_names) == 1:
             name = deps_names[0]
             if not self.has(name):
-                raise ImportError(
-                    f"{name} is required for {purpose}. "
-                    f"Install with: pip install {self._get_install_command(name)}"
-                )
+                install_cmd = self._get_install_command(name)
+                raise DependencyError(name, purpose, install_cmd)
             return self.get(name.lower())
         else:
             results = {}
@@ -130,10 +133,8 @@ class DependencyManager:
 
             if missing:
                 install_cmds = [self._get_install_command(name) for name in missing]
-                raise ImportError(
-                    f"Missing dependencies for {purpose}: {', '.join(missing)}. "
-                    f"Install with: pip install {' '.join(install_cmds)}"
-                )
+                install_command = " ".join(install_cmds)
+                raise DependencyError(", ".join(missing), purpose, install_command)
             return results
 
     def need(self, *deps_names):
@@ -162,6 +163,7 @@ class DependencyManager:
             "fairchem": "fairchem.core",
             "so3lr": "so3lr",
             "mace": "mace.calculators",
+            "torch_sim": "torch_sim",
         }
 
         package_name = package_mapping.get(name.lower(), name.lower())
@@ -190,6 +192,7 @@ class DependencyManager:
             "fairchem": "fairchem-core",
             "so3lr": "so3lr  # See installation instructions in README",
             "mace": "mace-torch",
+            "torch_sim": "torch-sim-atomistic",
         }
         return commands.get(name.lower(), name.lower())
 
@@ -221,6 +224,8 @@ def __getattr__(name):
         return deps.has("so3lr")
     elif name == "HAS_MACE":
         return deps.has("mace")
+    elif name == "HAS_TORCH_SIM":
+        return deps.has("torch_sim")
     elif name == "torch":
         return deps.get("torch")
     else:

@@ -48,6 +48,8 @@ MODEL_REGISTRY = {
 
 def get_model_path(model_name: str) -> str:
     """Get the path to a model file, downloading if necessary."""
+    from qme.potentials.model_cache import download_and_cache_model
+
     # Direct file path
     if os.path.isfile(model_name):
         print(f"Found model file: {model_name}")
@@ -63,35 +65,46 @@ def get_model_path(model_name: str) -> str:
     if not model_path.endswith(".jpt"):
         model_path = model_path + ".jpt"
 
-    # Create local assets directory
-    assets_dir = os.path.join(os.path.dirname(__file__), "assets")
-    model_dir = os.path.dirname(model_path)
-    if model_dir:
-        os.makedirs(os.path.join(assets_dir, model_dir), exist_ok=True)
-
-    local_path = os.path.join(assets_dir, model_path)
-
-    if os.path.isfile(local_path):
-        print(f"Found model file: {local_path}")
-        return local_path
-
-    # Download from model zoo
-    url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
-    print(f"Downloading model from {url}")
-
+    # Try to use cached model first
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
-        with open(local_path, "wb") as f:
-            f.write(response.content)
-
-        print(f"Saved to {local_path}")
-        return local_path
-
+        model_url = (
+            f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
+        )
+        cached_path = download_and_cache_model(model_name, model_url)
+        return str(cached_path)
     except Exception as e:
-        raise RuntimeError(f"Failed to download model {model_name}: {e}")
+        # Fallback to old behavior if caching fails
+        print(f"Model caching failed, using fallback: {e}")
+
+        # Create local assets directory
+        assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+        model_dir = os.path.dirname(model_path)
+        if model_dir:
+            os.makedirs(os.path.join(assets_dir, model_dir), exist_ok=True)
+
+        local_path = os.path.join(assets_dir, model_path)
+
+        if os.path.isfile(local_path):
+            print(f"Found model file: {local_path}")
+            return local_path
+
+        # Download from model zoo
+        url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
+        print(f"Downloading model from {url}")
+
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            with open(local_path, "wb") as f:
+                f.write(response.content)
+
+            print(f"Saved to {local_path}")
+            return local_path
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to download model {model_name}: {e}")
 
 
 def sparse_nb_to_dense_half(idx, natom, max_nb):
@@ -478,7 +491,7 @@ class AIMNet2Potential(BasePotential):
 
     def _load_calculator(self):
         """Load the AIMNET2 model directly."""
-        from .logging_utils import quiet_backend_loading
+        from qme.potentials.logging_utils import quiet_backend_loading
 
         try:
             # Ensure model_name is not None

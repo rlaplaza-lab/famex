@@ -1,0 +1,19 @@
+[
+  {
+    "backend": "mock",
+    "device": "cpu",
+    "model_name": null,
+    "available": true,
+    "error": "axis 1 is out of bounds for array of dimension 1",
+    "timings": {
+      "initialization": 1.173198688775301e-05,
+      "structure_loading": 0.000351199007127434,
+      "single_energy_first": 0.0017450540035497397,
+      "single_energy_second": 0.0014574780070688576,
+      "single_energy": 0.0014574780070688576,
+      "single_forces": 0.0014425450062844902
+    },
+    "optimization_results": {},
+    "frequency_results": {}
+  }
+]
