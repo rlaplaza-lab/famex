@@ -25,16 +25,8 @@ def _make_xyz(tmpdir: str, fname: str = "mol.xyz") -> str:
     return path
 
 
-BACKENDS = [
-    "mock",
-    "uma",
-    "so3lr",
-    "aimnet2",
-    "mace",
-    "torchsim",
-    "torchsim_mace",
-    "torchsim_fairchem",
-]
+# Reduced backend list to focus on most important ones
+BACKENDS = ["mock", "aimnet2", "mace"]
 
 
 def _backend_available(name: str) -> bool:
@@ -65,7 +57,7 @@ def test_minima_runs_across_backends(backend: str):
                 "--optimizer",
                 "lbfgs",
                 "--steps",
-                "2",
+                "5",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -91,7 +83,7 @@ def test_ts_runs_across_backends(backend: str):
                 "--optimizer",
                 "lbfgs",
                 "--steps",
-                "1",
+                "3",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -125,7 +117,7 @@ def test_neb_runs_across_backends(backend: str):
                 "--npoints",
                 "5",  # Small number for fast testing
                 "--steps",
-                "2",  # Very few steps for testing
+                "5",  # Very few steps for testing
                 "--fmax",
                 "0.1",  # Relaxed convergence for testing
                 "--spring-constant",

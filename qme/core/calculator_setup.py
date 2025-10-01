@@ -3,10 +3,7 @@
 from typing import Optional
 
 from qme.calculator_registry import calculator_registry
-from qme.potentials.calculator_cache import (
-    cache_calculator,
-    get_cached_calculator,
-)
+from qme.potentials.calculator_cache import cache_calculator, get_cached_calculator
 
 
 def create_calculator(

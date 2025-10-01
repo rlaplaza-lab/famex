@@ -5,11 +5,7 @@ import click
 from ase import Atoms
 
 from qme.cli.cache_commands import cache
-from qme.cli.cli_helpers import (
-    load_atoms_from_xyz,
-    parse_kv_pairs,
-    write_atoms,
-)
+from qme.cli.cli_helpers import load_atoms_from_xyz, parse_kv_pairs, write_atoms
 from qme.core.explorer import Explorer
 from qme.logging_utils import quiet_backend_loading
 

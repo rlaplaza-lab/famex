@@ -24,10 +24,7 @@ from ase import Atoms
 
 from qme.core.calculator_setup import create_calculator
 from qme.core.constraint_parser import parse_constraints
-from qme.core.local_strategies import (
-    local_minima_runner,
-    local_ts_runner,
-)
+from qme.core.local_strategies import local_minima_runner, local_ts_runner
 from qme.core.twoended_strategies import (
     twoended_minima_runner,
     twoended_neb_runner,
