@@ -32,7 +32,7 @@ jobs:
 
     - name: Run basic tests
       run: |
-        pytest tests/test_qme.py -v
+        pytest tests/test_package_deps.py -v
 
     - name: Test CLI
       run: |
