@@ -66,65 +66,97 @@ def _import_backend(
         cls = getattr(module, cls_name)
         func = getattr(module, func_name)
         return cls, func
-    except ImportError:
-        # If the backend is unavailable, provide fallbacks
-        return MockCalculator, _make_fallback_factory(backend_label)
-
-
-# UMA depends on fairchem-core (deps name 'fairchem') - special-case availability
-if deps.has("fairchem") or deps.has("uma"):
-    UMAPotential, get_uma_calculator = _import_backend(
-        "uma_potential", "UMAPotential", "get_uma_calculator", "uma"
-    )
-else:
-    # Provide lightweight fallback
-    UMAPotential, get_uma_calculator = MockCalculator, _make_fallback_factory("uma")
-
-# SO3LR backend
-if deps.has("so3lr"):
-    SO3LRPotential, get_so3lr_calculator = _import_backend(
-        "so3lr_potential", "SO3LRPotential", "get_so3lr_calculator", "so3lr"
-    )
-else:
-    SO3LRPotential, get_so3lr_calculator = MockCalculator, _make_fallback_factory(
-        "so3lr"
-    )
-
-# AIMNet2 backend (requires torch)
-if deps.has("torch"):
-    AIMNet2Potential, get_aimnet2_calculator = _import_backend(
-        "aimnet2_potential", "AIMNet2Potential", "get_aimnet2_calculator", "aimnet2"
-    )
-else:
-    AIMNet2Potential, get_aimnet2_calculator = MockCalculator, _make_fallback_factory(
-        "aimnet2"
-    )
-
-# MACE backend
-if deps.has("mace"):
-    MACEPotential, get_mace_calculator = _import_backend(
-        "mace_potential", "MACEPotential", "get_mace_calculator", "mace"
-    )
-else:
-    MACEPotential, get_mace_calculator = MockCalculator, _make_fallback_factory("mace")
-
-# TorchSim backend
-if deps.has("torch_sim"):
-    TorchSimPotential, get_torchsim_calculator = _import_backend(
-        "torchsim_potential", "TorchSimPotential", "get_torchsim_calculator", "torchsim"
-    )
-    # Also import convenience functions
-    try:
-        from qme.potentials.torchsim_potential import (
-            get_torchsim_fairchem_calculator,
-            get_torchsim_mace_calculator,
+    except ImportError as e:
+        # If the backend is unavailable, raise a clear error instead of falling back to mock
+        raise ImportError(
+            f"Failed to import {backend_label} backend: {e}. "
+            f"Make sure all required dependencies are installed."
         )
-    except ImportError:
-        get_torchsim_mace_calculator = _make_fallback_factory("torchsim_mace")
-        get_torchsim_fairchem_calculator = _make_fallback_factory("torchsim_fairchem")
-else:
-    TorchSimPotential, get_torchsim_calculator = MockCalculator, _make_fallback_factory(
-        "torchsim"
-    )
-    get_torchsim_mace_calculator = _make_fallback_factory("torchsim_mace")
-    get_torchsim_fairchem_calculator = _make_fallback_factory("torchsim_fairchem")
+
+
+# UMA depends on fairchem-core (deps name 'fairchem') - lazy loading
+UMAPotential = None
+def get_uma_calculator(**kwargs):
+    if not (deps.has("fairchem") or deps.has("uma")):
+        raise ImportError(
+            "UMA backend requires fairchem-core. Install with: pip install fairchem-core"
+        )
+    try:
+        from qme.potentials.uma_potential import UMAPotential
+        return UMAPotential(**kwargs)
+    except ImportError as e:
+        raise ImportError(f"Failed to import UMA backend: {e}")
+
+# SO3LR backend - lazy loading
+SO3LRPotential = None
+def get_so3lr_calculator(**kwargs):
+    if not deps.has("so3lr"):
+        raise ImportError(
+            "SO3LR backend requires so3lr. Install with: pip install so3lr"
+        )
+    try:
+        from qme.potentials.so3lr_potential import SO3LRPotential
+        return SO3LRPotential(**kwargs)
+    except ImportError as e:
+        raise ImportError(f"Failed to import SO3LR backend: {e}")
+
+# AIMNet2 backend - lazy loading
+AIMNet2Potential = None
+def get_aimnet2_calculator(**kwargs):
+    if not deps.has("torch"):
+        raise ImportError(
+            "AIMNet2 backend requires torch. Install with: pip install torch"
+        )
+    try:
+        from qme.potentials.aimnet2_potential import AIMNet2Potential
+        return AIMNet2Potential(**kwargs)
+    except ImportError as e:
+        raise ImportError(f"Failed to import AIMNet2 backend: {e}")
+
+# MACE backend - lazy loading
+MACEPotential = None
+def get_mace_calculator(**kwargs):
+    if not deps.has("mace"):
+        raise ImportError(
+            "MACE backend requires mace-torch. Install with: pip install mace-torch"
+        )
+    try:
+        from qme.potentials.mace_potential import MACEPotential
+        return MACEPotential(**kwargs)
+    except ImportError as e:
+        raise ImportError(f"Failed to import MACE backend: {e}")
+
+# TorchSim backend - lazy loading
+TorchSimPotential = None
+def get_torchsim_calculator(**kwargs):
+    if not deps.has("torch_sim"):
+        raise ImportError(
+            "TorchSim backend requires torch-sim-atomistic. Install with: pip install torch-sim-atomistic"
+        )
+    try:
+        from qme.potentials.torchsim_potential import TorchSimPotential
+        return TorchSimPotential(**kwargs)
+    except ImportError as e:
+        raise ImportError(f"Failed to import TorchSim backend: {e}")
+
+def get_torchsim_mace_calculator(**kwargs):
+    if not deps.has("torch_sim"):
+        raise ImportError(
+            "TorchSim MACE calculator requires torch-sim-atomistic. Install with: pip install torch-sim-atomistic"
+        )
+    try:
+        from qme.potentials.torchsim_potential import get_torchsim_mace_calculator as _get_torchsim_mace_calculator
+        return _get_torchsim_mace_calculator(**kwargs)
+    except ImportError as e:
+        raise ImportError(f"Failed to import TorchSim MACE calculator: {e}")
+
+def get_torchsim_fairchem_calculator(**kwargs):
+    if not deps.has("torch_sim"):
+        raise ImportError(
+            "TorchSim Fairchem calculator requires torch-sim-atomistic. Install with: pip install torch-sim-atomistic"
+        )
+    try:
+        from qme.potentials.torchsim_potential import get_torchsim_fairchem_calculator as _get_torchsim_fairchem_calculator
+        return _get_torchsim_fairchem_calculator(**kwargs)
+    except ImportError as e:
+        raise ImportError(f"Failed to import TorchSim Fairchem calculator: {e}")

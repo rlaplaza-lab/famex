@@ -153,21 +153,10 @@ class CalculatorRegistry:
         # Lazy load the backend
         self._load_backend(backend)
         if backend not in self._registry:
-            # If the requested backend couldn't be loaded, fall back to mock
-            # to allow tests and environments without ML backends to run.
-            # Emit a warning via the deps manager to keep behavior visible.
-            try:
-                from qme.potentials import MockCalculator
-
-                # Register a factory that returns a MockCalculator instance
-                self._registry[backend] = lambda **kwargs: MockCalculator(
-                    backend=backend, **kwargs
-                )
-            except Exception:
-                from qme.core.validation import BackendError
-
-                available = self.get_available_backends()
-                raise BackendError(backend, available, "calculator creation")
+            # If the requested backend couldn't be loaded, raise a clear error
+            from qme.core.validation import BackendError
+            available = self.get_available_backends()
+            raise BackendError(backend, available, "calculator creation")
 
         factory_func = self._registry[backend]
 
@@ -188,7 +177,7 @@ class CalculatorRegistry:
         return factory_func(**factory_kwargs)
 
     def is_backend_available(self, backend: str) -> bool:
-        """Check if a backend is available (dependencies satisfied).
+        """Check if a backend is available and can create real calculators.
 
         Parameters:
         -----------
@@ -198,20 +187,50 @@ class CalculatorRegistry:
         Returns:
         --------
         bool
-            True if backend is available, False otherwise
+            True if backend is available and can create real calculators, False otherwise
         """
         if backend == "mock":
             return True
         elif backend == "so3lr":
-            return deps.has("so3lr")
+            if not deps.has("so3lr"):
+                return False
+            try:
+                from qme.potentials.so3lr_potential import SO3LRPotential
+                return True
+            except ImportError:
+                return False
         elif backend == "uma":
-            return deps.has("fairchem") and deps.has("torch")
+            if not (deps.has("fairchem") and deps.has("torch")):
+                return False
+            try:
+                from qme.potentials.uma_potential import UMAPotential
+                return True
+            except ImportError:
+                return False
         elif backend == "aimnet2":
-            return deps.has("torch")
+            if not deps.has("torch"):
+                return False
+            try:
+                from qme.potentials.aimnet2_potential import AIMNet2Potential
+                return True
+            except ImportError:
+                return False
         elif backend == "mace":
-            return deps.has("mace") and deps.has("torch")
+            if not (deps.has("mace") and deps.has("torch")):
+                return False
+            try:
+                from qme.potentials.mace_potential import MACEPotential
+                return True
+            except ImportError:
+                return False
         elif backend in ["torchsim", "torchsim_mace", "torchsim_fairchem"]:
-            return deps.has("torch_sim") and deps.has("torch")
+            if not (deps.has("torch_sim") and deps.has("torch")):
+                return False
+            try:
+                from qme.potentials.torchsim_potential import TorchSimPotential
+                return True
+            except ImportError:
+                return False
         else:
             return backend in self._registry
 
