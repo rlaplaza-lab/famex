@@ -15,15 +15,13 @@ from qme.dependencies import deps
 def _get_local_optimizer_class(name: str):
     """Map a short name to an ASE optimizer class or SELLA's Sella.
 
-    SELLA is preferred when requested. This function uses the centralized
-    `deps` manager to lazily import Sella to avoid import-time failures.
+    SELLA is preferred when requested and is now a core dependency.
     """
     name = (name or "").lower()
 
     if name == "sella":
-        if deps.has("sella"):
-            return deps.get("sella")
-        raise ImportError("SELLA is not available in this environment")
+        from sella import Sella
+        return Sella
 
     try:
         if name in ("lbfgs", "l-bfgs", "l_bfgs"):
@@ -60,13 +58,7 @@ def local_minima_runner(
     """
     if explorer is None:
         raise ValueError("explorer must be provided to default_minima_runner")
-    try:
-        opt_class = _get_local_optimizer_class(local_optimizer_name)
-    except Exception as e:
-        warnings.warn(
-            f"Could not select requested optimizer '{local_optimizer_name}': {e}"
-        )
-        opt_class = None
+    opt_class = _get_local_optimizer_class(local_optimizer_name)
     # Accept re meither a single Atoms instance or a list of them
     single_input = False
     if not isinstance(atoms_list, (list, tuple)):
@@ -82,7 +74,6 @@ def local_minima_runner(
         except Exception as e:
             warnings.warn(f"Failed to create calculator for a structure: {e}")
         explorer._apply_constraints(atoms)
-        OptClass = opt_class
         opt_kwargs = getattr(explorer, "optimizer_kwargs", {}) or {}
         if local_optimizer_name.lower() == "sella":
             # Sella-specific kwargs for minima search
@@ -90,19 +81,7 @@ def local_minima_runner(
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 0)
 
-        if OptClass is None:
-            # Try to fall back to ASE's LBFGS/BFGS/FIRE if available
-            try:
-                from ase.optimize.lbfgs import LBFGS as _LBFGS  # type: ignore
-
-                OptClass = _LBFGS
-            except Exception:
-                raise ImportError(
-                    "No suitable optimizer available (requested: %s). "
-                    "Install 'sella' or ASE optimizers." % local_optimizer_name
-                )
-
-        opt = OptClass(atoms, **opt_kwargs)
+        opt = opt_class(atoms, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
         results.append(atoms)
 
@@ -124,13 +103,7 @@ def local_ts_runner(
     """
     if explorer is None:
         raise ValueError("explorer must be provided to default_ts_runner")
-    try:
-        opt_class = _get_local_optimizer_class(local_optimizer_name)
-    except Exception as e:
-        warnings.warn(
-            f"Could not select requested optimizer '{local_optimizer_name}': {e}"
-        )
-        opt_class = None
+    opt_class = _get_local_optimizer_class(local_optimizer_name)
     # Accept either a single Atoms instance or a list of them
     single_input = False
     if not isinstance(atoms_list, (list, tuple)):
@@ -146,7 +119,6 @@ def local_ts_runner(
         except Exception as e:
             warnings.warn(f"Failed to create calculator for a structure: {e}")
         explorer._apply_constraints(atoms)
-        OptClass = opt_class
         opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
         if local_optimizer_name.lower() == "sella":
             # Sella-specific kwargs for TS search
@@ -154,19 +126,7 @@ def local_ts_runner(
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 1)
 
-        if OptClass is None:
-            # Try to fall back to ASE LBFGS
-            try:
-                from ase.optimize.lbfgs import LBFGS as _LBFGS  # type: ignore
-
-                OptClass = _LBFGS
-            except Exception:
-                raise ImportError(
-                    "No suitable optimizer available for TS optimization (requested: %s)."
-                    % local_optimizer_name
-                )
-
-        opt = OptClass(atoms, **opt_kwargs)
+        opt = opt_class(atoms, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
         results.append(atoms)
 

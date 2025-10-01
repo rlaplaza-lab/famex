@@ -24,6 +24,7 @@ dependencies = [
     "numpy>=1.20.0",
     "click>=8.0.0",
     "requests>=2.25.0",
+    "sella>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -36,9 +37,6 @@ ml = [
 ]
 torchsim = [
     "torch-sim-atomistic>=0.3.0",
-]
-opt = [
-    "sella>=2.0.0",
 ]
 dev = [
     "pytest>=7.0.0",
