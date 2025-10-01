@@ -26,13 +26,38 @@ import qme
 from qme.dependencies import deps
 
 # Define available backends - limit to 3 most important ones
+# Only include backends that can actually create real calculators (not mock fallbacks)
 AVAILABLE_BACKENDS = ["mock"]
+
+# Check AIMNet2 - only add if it can create a real calculator
 if deps.has("aimnet2"):
-    AVAILABLE_BACKENDS.append("aimnet2")
+    try:
+        from qme.potentials.aimnet2_potential import AIMNet2Potential
+        # If we can import the real class, add it to available backends
+        AVAILABLE_BACKENDS.append("aimnet2")
+    except ImportError:
+        # AIMNet2 not properly available, skip it
+        pass
+
+# Check MACE - only add if it can create a real calculator  
 if deps.has("mace"):
-    AVAILABLE_BACKENDS.append("mace")
+    try:
+        from qme.potentials.mace_potential import MACEPotential
+        # If we can import the real class, add it to available backends
+        AVAILABLE_BACKENDS.append("mace")
+    except ImportError:
+        # MACE not properly available, skip it
+        pass
+
+# Check UMA - only add if it can create a real calculator
 if deps.has("fairchem"):
-    AVAILABLE_BACKENDS.append("uma")
+    try:
+        from qme.potentials.uma_potential import UMAPotential
+        # If we can import the real class, add it to available backends
+        AVAILABLE_BACKENDS.append("uma")
+    except ImportError:
+        # UMA not properly available, skip it
+        pass
 
 # Define optimizers to test - limit to 2 most important ones
 OPTIMIZERS = ["BFGS", "LBFGS"]

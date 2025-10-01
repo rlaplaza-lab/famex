@@ -19,11 +19,36 @@ def _make_test_xyz(tmpdir: str, fname: str = "mol.xyz") -> str:
 
 
 def _backend_available(name: str) -> bool:
-    """Check if a backend is available for testing."""
+    """Check if a backend is truly available for testing (can create real calculators, not mock fallbacks)."""
     if name == "mock":
         return True
+    if name == "aimnet2":
+        # Check if AIMNet2 can actually create a real calculator
+        if not deps.has("aimnet2"):
+            return False
+        try:
+            from qme.potentials.aimnet2_potential import AIMNet2Potential
+            return True
+        except ImportError:
+            return False
+    if name == "mace":
+        # Check if MACE can actually create a real calculator
+        if not deps.has("mace"):
+            return False
+        try:
+            from qme.potentials.mace_potential import MACEPotential
+            return True
+        except ImportError:
+            return False
     if name == "uma":
-        return deps.has("fairchem")
+        # Check if UMA can actually create a real calculator
+        if not deps.has("fairchem"):
+            return False
+        try:
+            from qme.potentials.uma_potential import UMAPotential
+            return True
+        except ImportError:
+            return False
     if name in ["torchsim", "torchsim_mace", "torchsim_fairchem"]:
         return deps.has("torch_sim") and deps.has("torch")
     return deps.has(name)
