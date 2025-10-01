@@ -53,7 +53,8 @@ class MACEPotential(BasePotential):
         # Skip if already loaded
         if hasattr(self, "_calc") and self._calc is not None:
             return
-        from .logging_utils import quiet_backend_loading
+
+        from qme.potentials.logging_utils import quiet_backend_loading
 
         if not deps.has("torch"):
             raise ImportError(

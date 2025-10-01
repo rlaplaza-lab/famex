@@ -14,7 +14,8 @@ The benchmark:
 5. Provides comprehensive performance analysis
 
 Usage:
-    python bh28_benchmark.py --quick             # Fast subset
+    python bh28_benchmark.py --quicker           # Single reaction (fastest)
+    python bh28_benchmark.py --quick             # Representative subset
     python bh28_benchmark.py --backends uma mace # Specific backends
     python bh28_benchmark.py                     # Full benchmark
 
@@ -112,6 +113,9 @@ class BH28Benchmark:
             "BHPERI_2",
         ]
 
+        # Quicker subset for very fast testing (single reaction)
+        self.quicker_reactions = ["BHDIV_3"]
+
         # Results storage
         self.results = {}
 
@@ -160,10 +164,18 @@ class BH28Benchmark:
         if deps.has("mace"):
             available.append("mace")
 
+        # Add TorchSim backends if available
+        if deps.has("torch_sim"):
+            available.append("torchsim")
+            available.append("torchsim_mace")
+            if deps.has("fairchem"):  # TorchSim Fairchem needs fairchem
+                available.append("torchsim_fairchem")
+
         if not available:
             raise RuntimeError(
-                "No ML backends available! Please install at least one."
-                "The mock backend is excluded from benchmarking as it provides meaningless results."
+                "No ML backends available! Please install at least one ML backend."
+                "The mock backend is excluded from benchmarking as it cannot optimize "
+                "transition states."
             )
 
         return available
@@ -180,8 +192,8 @@ class BH28Benchmark:
             print(f"\n🔧 Backend: {backend.upper()}")
             backend_results = {}
 
-            # Get default model for backend
-            model_name = qme.get_default_model(backend)
+            # Get default model for backend (use None for auto-detection)
+            model_name = None
 
             try:
                 for reaction in reactions:
@@ -553,7 +565,7 @@ class BH28Benchmark:
         print(f"🔬 Backends: {', '.join(backends)}")
         print(
             f"⚗️  Reactions: {len(reactions)} ({', '.join(reactions[:3])}{
-              '...' if len(reactions) > 3 else ''})"
+                '...' if len(reactions) > 3 else ''})"
         )
 
         start_time = time.time()
@@ -600,6 +612,12 @@ def main():
     )
 
     parser.add_argument(
+        "--quicker",
+        action="store_true",
+        help="Run quicker benchmark with single reaction for very fast testing",
+    )
+
+    parser.add_argument(
         "--analyze",
         action="store_true",
         help="Analyze existing results without running new calculations",
@@ -628,7 +646,9 @@ def main():
         return 1
 
     # Determine reactions to test
-    if args.quick:
+    if args.quicker:
+        reactions = benchmark.quicker_reactions
+    elif args.quick:
         reactions = benchmark.quick_reactions
     elif args.reactions:
         reactions = args.reactions

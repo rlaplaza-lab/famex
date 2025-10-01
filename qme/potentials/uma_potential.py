@@ -52,7 +52,6 @@ class UMAPotential(BasePotential):
 
         # Initialize UMA-specific attributes first
         self.predictor = None
-        # Standard backend attribute used by BasePotential helpers
         self._calc = None
         self.default_charge = default_charge
         self.default_spin = default_spin
@@ -66,7 +65,7 @@ class UMAPotential(BasePotential):
         if hasattr(self, "_calc") and self._calc is not None:
             return
 
-        from .logging_utils import quiet_backend_loading
+        from qme.potentials.logging_utils import quiet_backend_loading
 
         with quiet_backend_loading("uma", self.model_name, None, self.device):
             try:

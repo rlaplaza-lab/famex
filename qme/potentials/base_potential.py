@@ -7,7 +7,7 @@ and provides a compatible ``calculate`` signature so subclasses can call
 setup work.
 """
 
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Sequence
 
 
 class BasePotential:
@@ -36,7 +36,12 @@ class BasePotential:
             "implemented_properties", []
         )
 
-    def calculate(self, atoms=None, properties=None, system_changes=None):
+    def calculate(
+        self,
+        atoms=None,
+        properties: Optional[Sequence[str]] = None,
+        system_changes=None,
+    ):
         """Base calculate method that performs minimal setup.
 
         Subclasses should call this via super().calculate(...) to ensure
@@ -52,21 +57,26 @@ class BasePotential:
         # ``self.results`` when appropriate.
         return
 
-    # Helper methods to reduce boilerplate in concrete potential wrappers
-    def _backend_obj(self):
-        """Return the underlying backend calculator object if present.
+    def _prepare_calculation(self, atoms=None):
+        """Prepare for a calculation by setting atoms and ensuring backend is loaded.
 
-        This searches a small set of common attribute names used by
-        existing potential wrappers so subclasses can be migrated to a
-        single attribute name (`self._calc`) incrementally.
+        Args:
+            atoms: An optional ASE Atoms object. If provided, it will be set
+                   as `self.atoms`.
+
+        Returns:
+            The loaded backend calculator object, or None if loading failed.
         """
-        candidates = ("_calc", "calculator", "fairchem_calc", "aimnet2_calc", "calc")
-        for name in candidates:
-            if hasattr(self, name):
-                obj = getattr(self, name)
-                if obj is not None:
-                    return obj
-        return None
+        if atoms is not None:
+            self.atoms = atoms
+        return self.ensure_loaded()
+
+    def _backend_obj(self):
+        """Return the standardized backend calculator stored in ``self._calc``.
+
+        If the attribute is not present or is None, return None.
+        """
+        return getattr(self, "_calc", None)
 
     def ensure_loaded(self):
         """Ensure the underlying backend calculator is loaded.
@@ -80,11 +90,7 @@ class BasePotential:
 
         # Attempt to call subclass loader if available
         if hasattr(self, "_load_calculator"):
-            try:
-                self._load_calculator()
-            except Exception:
-                # Let callers decide how to handle loader failures
-                pass
+            self._load_calculator()
 
         return self._backend_obj()
 
@@ -95,10 +101,7 @@ class BasePotential:
         Otherwise, a ``calculate`` call is performed and the stored
         ``self.results['energy']`` is returned.
         """
-        if atoms is not None:
-            self.atoms = atoms
-
-        backend = self.ensure_loaded()
+        backend = self._prepare_calculation(atoms)
         if backend is None:
             # Fallback: run a calculation to populate results
             self.calculate(self.atoms, properties=["energy"], system_changes=None)
@@ -119,10 +122,7 @@ class BasePotential:
         ``calculate`` call is performed and the stored ``self.results['forces']``
         is returned.
         """
-        if atoms is not None:
-            self.atoms = atoms
-
-        backend = self.ensure_loaded()
+        backend = self._prepare_calculation(atoms)
         if backend is None:
             self.calculate(self.atoms, properties=["forces"], system_changes=None)
             return self.results.get("forces")

@@ -1,11 +1,10 @@
-"""qme.cli package: command-line interface subpackage for QME.
+"""
+Thin re-export layer for the QME CLI.
 
-This package contains the CLI implementation and helper utilities. We keep a
-lightweight __init__ that re-exports the main entrypoint to preserve
-compatibility with console entry points that previously referenced
-``qme.cli:main``.
+The actual commands live in qme.cli.cli. This module re-exports the
+Click entrypoint and subcommands for convenience and stable imports.
 """
 
-from qme.cli.cli import main
+from qme.cli.cli import main, opt, tsopt  # noqa: F401
 
-__all__ = ["main"]
+__all__ = ["main", "opt", "tsopt"]

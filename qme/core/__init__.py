@@ -1,16 +1,10 @@
-"""QME core package: optimizer, constraints and core settings."""
+"""Core API exports for QME.
 
-from .constraints import (
-    QMEConstraintManager,
-    get_constraint_summary,
-    parse_constraint_string,
-)
-from .optimizer import QMEOptimizer, minimize_structure
+This module intentionally provides a compact public surface for the
+core package. New exports should be added here so users can import from
+``qme.core`` directly.
+"""
 
-__all__ = [
-    "QMEOptimizer",
-    "minimize_structure",
-    "QMEConstraintManager",
-    "parse_constraint_string",
-    "get_constraint_summary",
-]
+from qme.core.explorer import Explorer
+
+__all__ = ["Explorer"]
