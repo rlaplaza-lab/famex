@@ -4,7 +4,11 @@ from typing import Any, Dict, List, Optional
 
 from ase import Atoms
 
-from qme.analysis.frequency import FrequencyAnalysis
+from qme.analysis.frequency import (
+    BatchFrequencyAnalysis,
+    FrequencyAnalysis,
+    _supports_batch_evaluation,
+)
 
 
 def calculate_frequencies(
@@ -61,14 +65,23 @@ def calculate_frequencies(
 
     atoms.calc = self.calculator
 
-    # Initialize frequency analysis
-    freq_analysis = FrequencyAnalysis(
-        atoms=atoms,
-        calculator=self.calculator,
-        delta=delta,
-        nfree=nfree,
-        indices=indices,
-    )
+    # Initialize frequency analysis - use batch if available
+    if _supports_batch_evaluation(self.calculator):
+        freq_analysis = BatchFrequencyAnalysis(
+            atoms=atoms,
+            calculator=self.calculator,
+            delta=delta,
+            nfree=nfree,
+            indices=indices,
+        )
+    else:
+        freq_analysis = FrequencyAnalysis(
+            atoms=atoms,
+            calculator=self.calculator,
+            delta=delta,
+            nfree=nfree,
+            indices=indices,
+        )
 
     # Calculate Hessian and frequencies
     print(f"Calculating frequencies using {method} method...")

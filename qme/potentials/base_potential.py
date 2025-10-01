@@ -36,6 +36,11 @@ class BasePotential:
             "implemented_properties", []
         )
 
+        # Batch evaluation support
+        self._supports_batch_evaluation: bool = kwargs.get(
+            "supports_batch_evaluation", False
+        )
+
     def calculate(
         self,
         atoms=None,
@@ -132,6 +137,40 @@ class BasePotential:
 
         self.calculate(self.atoms, properties=["forces"], system_changes=None)
         return self.results.get("forces")
+
+    @property
+    def supports_batch_evaluation(self):
+        """Whether this calculator supports batch evaluation."""
+        return self._supports_batch_evaluation
+
+    def calculate_batch(self, atoms_list, properties=None):
+        """Calculate properties for a batch of structures.
+
+        Parameters:
+        -----------
+        atoms_list : List[Atoms]
+            List of ASE Atoms objects to calculate properties for
+        properties : List[str], optional
+            Properties to calculate (default: ["energy", "forces"])
+
+        Returns:
+        --------
+        List[dict]
+            List of result dictionaries, one for each structure
+        """
+        if not self.supports_batch_evaluation:
+            raise NotImplementedError(
+                f"Batch evaluation not supported by {self.__class__.__name__}. "
+                "Use individual calculations instead."
+            )
+
+        # Default implementation: calculate individually
+        results = []
+        for atoms in atoms_list:
+            self.calculate(atoms, properties)
+            results.append(self.results.copy())
+
+        return results
 
 
 __all__ = ["BasePotential"]

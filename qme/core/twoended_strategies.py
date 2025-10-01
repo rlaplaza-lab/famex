@@ -21,6 +21,14 @@ from qme.core.local_strategies import _get_local_optimizer_class
 from qme.core.reaction import Reaction
 
 
+def _supports_batch_evaluation(calculator):
+    """Check if calculator supports batch evaluation."""
+    return (
+        hasattr(calculator, "supports_batch_evaluation")
+        and calculator.supports_batch_evaluation
+    )
+
+
 def path_generator(
     atoms_list: Union[Sequence[Atoms], Atoms],
     npoints: int = 11,
@@ -331,6 +339,157 @@ def twoended_minima_runner(
     return results
 
 
+class BatchNEBOptimizer:
+    """
+    NEB optimizer with batch evaluation support.
+
+    This class implements a NEB optimization that leverages batch evaluation
+    capabilities of calculators like TorchSim to calculate energies and forces
+    for all NEB images simultaneously.
+    """
+
+    def __init__(
+        self, path, calculator, fmax=0.05, steps=1000, spring_constant=5.0, **kwargs
+    ):
+        """Initialize batch NEB optimizer."""
+        self.path = [atoms.copy() for atoms in path]
+        self.calculator = calculator
+        self.fmax = fmax
+        self.steps = steps
+        self.spring_constant = spring_constant
+        self.kwargs = kwargs
+
+        # Attach calculator to all images
+        for atoms in self.path:
+            atoms.calc = calculator
+
+    def optimize(self):
+        """Optimize NEB path using batch evaluation."""
+        print(
+            f"Optimizing NEB path with {len(self.path)} images using batch evaluation..."
+        )
+
+        for step in range(self.steps):
+            # Calculate forces for all images in one batch
+            batch_results = self.calculator.calculate_batch(
+                self.path, properties=["energy", "forces"]
+            )
+
+            # Extract forces from batch results
+            forces = [result["forces"] for result in batch_results]
+
+            # Apply NEB forces (spring + nudging)
+            neb_forces = self._apply_neb_forces(forces)
+
+            # Update positions
+            self._update_positions(neb_forces)
+
+            # Check convergence
+            max_force = max(np.max(np.abs(force)) for force in neb_forces)
+            if max_force < self.fmax:
+                print(
+                    f"NEB converged after {step + 1} steps (max force: {max_force:.6f})"
+                )
+                break
+
+        return self.path
+
+    def _apply_neb_forces(self, forces):
+        """Apply NEB forces (spring + nudging)."""
+        neb_forces = []
+
+        for i in range(len(self.path)):
+            if i == 0 or i == len(self.path) - 1:
+                # Endpoints: use only spring forces
+                neb_forces.append(self._spring_forces(i))
+            else:
+                # Middle images: spring forces + nudging
+                spring_f = self._spring_forces(i)
+                nudged_f = self._nudge_forces(forces[i], spring_f)
+                neb_forces.append(nudged_f)
+
+        return neb_forces
+
+    def _spring_forces(self, i):
+        """Calculate spring forces for image i."""
+        if i == 0:
+            # First image: spring to next
+            return self.spring_constant * (
+                self.path[i + 1].positions - self.path[i].positions
+            )
+        elif i == len(self.path) - 1:
+            # Last image: spring to previous
+            return self.spring_constant * (
+                self.path[i - 1].positions - self.path[i].positions
+            )
+        else:
+            # Middle images: spring to both neighbors
+            f_prev = self.spring_constant * (
+                self.path[i - 1].positions - self.path[i].positions
+            )
+            f_next = self.spring_constant * (
+                self.path[i + 1].positions - self.path[i].positions
+            )
+            return f_prev + f_next
+
+    def _nudge_forces(self, forces, spring_forces):
+        """Apply nudging to forces (project out parallel component)."""
+        # Calculate tangent vector (simplified)
+        if len(self.path) > 1:
+            tangent = self.path[1].positions - self.path[0].positions
+            tangent = tangent / np.linalg.norm(tangent)
+        else:
+            tangent = np.zeros_like(forces[0])
+
+        # Project forces perpendicular to tangent
+        parallel_component = np.sum(forces * tangent) * tangent
+        perpendicular_forces = forces - parallel_component
+
+        return perpendicular_forces + spring_forces
+
+    def _update_positions(self, forces, step_size=0.01):
+        """Update positions using forces."""
+        for i, (atoms, force) in enumerate(zip(self.path, forces)):
+            atoms.positions += step_size * force
+
+
+def _batch_neb_runner(
+    atoms_list: Union[Sequence[Atoms], Atoms],
+    calculator,
+    npoints: int = 11,
+    method: str = "geodesic",
+    fmax: float = 0.05,
+    steps: int = 1000,
+    spring_constant: float = 5.0,
+    **kwargs,
+):
+    """Batch NEB runner for calculators that support batch evaluation."""
+    # Generate initial path using geodesic interpolation
+    path = path_generator(
+        atoms_list,
+        npoints=npoints,
+        method=method,
+        optimize_path=False,  # Don't optimize initially, we'll do NEB
+        calculator=calculator,
+        **kwargs,
+    )
+
+    # Create batch NEB optimizer
+    batch_neb = BatchNEBOptimizer(
+        path,
+        calculator=calculator,
+        fmax=fmax,
+        steps=steps,
+        spring_constant=spring_constant,
+        **kwargs,
+    )
+
+    # Optimize using batch evaluation
+    optimized_path = batch_neb.optimize()
+
+    return optimized_path
+
+
 def twoended_neb_runner(
     atoms_list: Union[Sequence[Atoms], Atoms],
     npoints: int = 11,
@@ -376,6 +535,34 @@ def twoended_neb_runner(
     List[Atoms]
         Optimized NEB path (list of Atoms objects)
     """
+    # Check if we should use batch evaluation
+    calculator = None
+    if explorer is not None:
+        # Create calculator using explorer's parameters
+        from qme.core.calculator_setup import create_calculator
+
+        calculator = create_calculator(
+            backend=explorer.backend,
+            model_name=explorer.model_name,
+            model_path=explorer.model_path,
+            device=explorer.device,
+            default_charge=explorer.default_charge,
+            default_spin=explorer.default_spin,
+        )
+
+    if calculator is not None and _supports_batch_evaluation(calculator):
+        # Use batch NEB optimizer
+        return _batch_neb_runner(
+            atoms_list,
+            calculator=calculator,
+            npoints=npoints,
+            method=method,
+            fmax=fmax,
+            steps=steps,
+            spring_constant=spring_constant,
+            **kwargs,
+        )
+
     # Generate initial path using geodesic interpolation
     path = path_generator(
         atoms_list,

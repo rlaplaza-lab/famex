@@ -23,6 +23,14 @@ from scipy.linalg import eigh
 from qme.core.validation import QMEError
 
 
+def _supports_batch_evaluation(calculator):
+    """Check if calculator supports batch evaluation."""
+    return (
+        hasattr(calculator, "supports_batch_evaluation")
+        and calculator.supports_batch_evaluation
+    )
+
+
 class FrequencyAnalysis:
     """
     Vibrational frequency analysis with automatic Hessian method selection.
@@ -677,3 +685,112 @@ class ThermodynamicProperties:
                 s_vib += units.kB * (x / (exp_x - 1) - np.log(1 - np.exp(-x)))
 
         return s_vib
+
+
+class BatchFrequencyAnalysis(FrequencyAnalysis):
+    """
+    Batch-enabled frequency analysis for calculators that support batch evaluation.
+
+    This class extends FrequencyAnalysis to leverage batch evaluation capabilities
+    of calculators like TorchSim, providing significant speedup for large molecules
+    by calculating energies and forces for all displaced structures simultaneously.
+    """
+
+    def calculate_hessian(self, method="auto"):
+        """Calculate Hessian matrix using batch evaluation when available."""
+        if method == "auto":
+            method = (
+                "batch"
+                if _supports_batch_evaluation(self.calculator)
+                else "finite_differences"
+            )
+
+        if method == "batch":
+            return self._calculate_hessian_batch()
+        else:
+            return super().calculate_hessian(method)
+
+    def _calculate_hessian_batch(self):
+        """Calculate Hessian using batch evaluation."""
+        if not _supports_batch_evaluation(self.calculator):
+            raise RuntimeError("Calculator does not support batch evaluation")
+
+        print("Using batch evaluation for Hessian calculation...")
+
+        # Generate all displaced structures
+        displaced_structures = self._generate_displaced_structures()
+
+        # Calculate energies and forces for all structures in one batch
+        batch_results = self.calculator.calculate_batch(
+            displaced_structures, properties=["energy", "forces"]
+        )
+
+        # Construct Hessian matrix from batch results
+        return self._construct_hessian_from_batch(batch_results)
+
+    def _generate_displaced_structures(self):
+        """Generate all displaced structures for finite differences."""
+        displaced_structures = []
+
+        # Add the original structure
+        displaced_structures.append(self.atoms.copy())
+
+        # Generate displaced structures
+        for i in self.indices:
+            for j in range(3):  # x, y, z directions
+                # Positive displacement
+                atoms_pos = self.atoms.copy()
+                atoms_pos.positions[i, j] += self.delta
+                displaced_structures.append(atoms_pos)
+
+                # Negative displacement
+                atoms_neg = self.atoms.copy()
+                atoms_neg.positions[i, j] -= self.delta
+                displaced_structures.append(atoms_neg)
+
+        return displaced_structures
+
+    def _construct_hessian_from_batch(self, batch_results):
+        """Construct Hessian matrix from batch calculation results."""
+        n_atoms = len(self.indices)
+        hessian = np.zeros((3 * n_atoms, 3 * n_atoms))
+
+        # Get reference energy and forces
+        ref_energy = batch_results[0]["energy"]
+        ref_forces = batch_results[0]["forces"]
+
+        # Calculate Hessian using finite differences
+        result_idx = 1  # Start from index 1 (skip reference structure)
+
+        for i in range(n_atoms):
+            atom_idx = self.indices[i]
+            for j in range(3):  # x, y, z directions
+                # Positive displacement
+                pos_forces = batch_results[result_idx]["forces"]
+                result_idx += 1
+
+                # Negative displacement
+                neg_forces = batch_results[result_idx]["forces"]
+                result_idx += 1
+
+                # Calculate second derivative using finite differences
+                # d²E/dx² ≈ (F_neg - F_pos) / (2 * delta)
+                hessian_row = 3 * i + j
+                for k in range(n_atoms):
+                    atom_k = self.indices[k]
+                    for l in range(3):
+                        hessian_col = 3 * k + l
+                        hessian[hessian_row, hessian_col] = (
+                            neg_forces[atom_k, l] - pos_forces[atom_k, l]
+                        ) / (2 * self.delta)
+
+        # Convert to eV/Å²
+        hessian *= units.Hartree / units.Bohr**2
+
+        self._hessian = hessian
+        self._is_calculated = True
+
+        return hessian
+
+
+__all__ = ["FrequencyAnalysis", "BatchFrequencyAnalysis"]

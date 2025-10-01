@@ -6,7 +6,7 @@ import qme
 from qme.analysis.frequency import FrequencyAnalysis, HessianCalculator
 
 
-def _mocked_atoms(name: str = "H2"):
+def _mocked_atoms(name: str = "H2O"):
     atoms = molecule(name)
     atoms.calc = qme.MockCalculator(backend="mock")
     return atoms
@@ -42,13 +42,13 @@ class TestFrequencyBasics:
 
 class TestHessianCalculator:
     def test_hessian_dimensions(self):
-        atoms = _mocked_atoms("H2")
+        atoms = _mocked_atoms("H2O")
         hc = HessianCalculator(atoms, atoms.calc)
         h = hc.calculate_numerical_hessian()
-        assert h.shape == (6, 6)
+        assert h.shape == (9, 9)
 
     def test_subset_indices(self):
-        atoms = _mocked_atoms("H2")
+        atoms = _mocked_atoms("H2O")
         hc = HessianCalculator(atoms, atoms.calc, indices=[0])
         h = hc.calculate_numerical_hessian()
         assert h.shape == (3, 3)
