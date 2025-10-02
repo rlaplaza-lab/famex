@@ -25,42 +25,15 @@ from ase import Atoms
 import qme
 from qme.dependencies import deps
 
-# Define available backends - limit to 3 most important ones
-# Only include backends that can actually create real calculators (not mock fallbacks)
-AVAILABLE_BACKENDS = ["mock"]
+# Define available backends using centralized availability detection
+# This ensures consistency with the actual backend availability logic
+ALL_BACKENDS = ["mock", "aimnet2", "mace", "uma", "torchsim_mace", "torchsim_uma"]
 
-# Check AIMNet2 - only add if it can create a real calculator
-if deps.has("aimnet2"):
-    try:
-        from qme.potentials.aimnet2_potential import AIMNet2Potential
-
-        # If we can import the real class, add it to available backends
-        AVAILABLE_BACKENDS.append("aimnet2")
-    except ImportError:
-        # AIMNet2 not properly available, skip it
-        pass
-
-# Check MACE - only add if it can create a real calculator
-if deps.has("mace"):
-    try:
-        from qme.potentials.mace_potential import MACEPotential
-
-        # If we can import the real class, add it to available backends
-        AVAILABLE_BACKENDS.append("mace")
-    except ImportError:
-        # MACE not properly available, skip it
-        pass
-
-# Check UMA - only add if it can create a real calculator
-if deps.has("fairchem"):
-    try:
-        from qme.potentials.uma_potential import UMAPotential
-
-        # If we can import the real class, add it to available backends
-        AVAILABLE_BACKENDS.append("uma")
-    except ImportError:
-        # UMA not properly available, skip it
-        pass
+# Only include backends that are actually available
+AVAILABLE_BACKENDS = []
+for backend in ALL_BACKENDS:
+    if qme.calculator_registry.is_backend_available(backend):
+        AVAILABLE_BACKENDS.append(backend)
 
 # Define optimizers to test - limit to 2 most important ones
 OPTIMIZERS = ["BFGS", "LBFGS"]

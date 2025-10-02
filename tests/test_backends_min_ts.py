@@ -25,13 +25,14 @@ def _make_xyz(tmpdir: str, fname: str = "mol.xyz") -> str:
     return path
 
 
-# Reduced backend list to focus on most important ones
-BACKENDS = ["mock", "aimnet2", "mace"]
+# Comprehensive backend list including TorchSim backends
+BACKENDS = ["mock", "aimnet2", "mace", "uma", "torchsim_mace", "torchsim_uma"]
 
 
 def _backend_available(name: str) -> bool:
     """Check if a backend is truly available (can create real calculators, not just mock fallbacks)."""
     import qme
+
     return qme.calculator_registry.is_backend_available(name)
 
 

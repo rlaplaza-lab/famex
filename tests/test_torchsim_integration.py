@@ -45,7 +45,9 @@ class TestTorchSimIntegration:
             # Note: We don't assert specific availability expectations here because
             # backends may be unavailable due to compatibility issues (e.g., e3nn version conflicts)
             # The important thing is that the availability check doesn't crash
-            assert isinstance(available, bool), f"Backend {backend} availability should be boolean"
+            assert isinstance(
+                available, bool
+            ), f"Backend {backend} availability should be boolean"
 
     def test_torchsim_calculator_creation(self):
         """Test TorchSim calculator creation."""
