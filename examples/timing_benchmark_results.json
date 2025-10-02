@@ -1,19 +1,45 @@
 [
   {
-    "backend": "mock",
+    "backend": "uma",
     "device": "cpu",
     "model_name": null,
     "available": true,
-    "error": "axis 1 is out of bounds for array of dimension 1",
+    "error": null,
     "timings": {
-      "initialization": 1.173198688775301e-05,
-      "structure_loading": 0.000351199007127434,
-      "single_energy_first": 0.0017450540035497397,
-      "single_energy_second": 0.0014574780070688576,
-      "single_energy": 0.0014574780070688576,
-      "single_forces": 0.0014425450062844902
+      "initialization": 4.414992872625589e-06,
+      "structure_loading": 0.00011472600453998893,
+      "single_energy_first": 5.442046491996734,
+      "single_energy_second": 0.0002805700059980154,
+      "single_energy": 0.0002805700059980154,
+      "single_forces": 0.00015546800568699837,
+      "optimization": 3.3439819649938727,
+      "avg_time_per_step": 0.2572293819226056,
+      "frequency_analysis": 19.10646227899997,
+      "total": 28.15055586692828
     },
-    "optimization_results": {},
-    "frequency_results": {}
+    "optimization_results": {
+      "converged": "True",
+      "final_energy": -6319.221238575663,
+      "max_force": 0.00957180093973875,
+      "steps_taken": 13
+    },
+    "frequency_results": {
+      "n_frequencies": 30,
+      "frequencies": [
+        419.0954037653141,
+        480.1567039698508,
+        617.5341714214385,
+        644.2150621193559,
+        686.5500913402583,
+        758.7414683853731,
+        877.9577468368789,
+        897.6886447210702,
+        971.8210045814627,
+        987.0432537470189
+      ],
+      "zero_point_energy": 2.749492605252019,
+      "is_transition_state": false,
+      "method_used": "auto"
+    }
   }
 ]

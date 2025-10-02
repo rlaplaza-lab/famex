@@ -13,8 +13,6 @@ Usage:
 
 import argparse
 import json
-
-# Add the parent directory to Python path to find the local qme module
 import os
 import sys
 import time
@@ -26,28 +24,25 @@ import numpy as np
 from ase import Atoms
 from ase.build import molecule
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(script_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
+# Import standardized backend utilities
+from backend_utils import (
+    get_available_backends,
+    filter_available_backends,
+    print_backend_summary,
+    AVAILABLE_BACKENDS,
+    AVAILABLE_ML_BACKENDS
+)
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# Import QME components
-try:
-    import qme
-
-    QMEOptimizer = qme.QMEOptimizer
-    deps = qme.deps
-    calculator_registry = qme.calculator_registry
-    from qme.analysis.frequency import FrequencyAnalysis
-except (ImportError, AttributeError) as e:
-    print(f"Error importing QME: {e}")
-    print("Make sure you're in the QME package directory or have it installed.")
-    exit(1)
+# Import QME components (already imported in backend_utils)
+import qme
+QMEOptimizer = qme.QMEOptimizer
+deps = qme.deps
+calculator_registry = qme.calculator_registry
+from qme.analysis.frequency import FrequencyAnalysis
 
 
 def create_benzene_molecule() -> Atoms:
@@ -449,8 +444,8 @@ def main():
     parser.add_argument(
         "--backends",
         type=str,
-        default="mock,aimnet2,uma,so3lr,mace,torchsim_mace,torchsim_uma",
-        help="Comma-separated list of backends to benchmark",
+        default=None,
+        help="Comma-separated list of backends to benchmark (default: all available)",
     )
     parser.add_argument(
         "--device",
@@ -483,31 +478,30 @@ def main():
     else:
         args = parser.parse_args()
 
-    # Parse backends
-    backends = [b.strip() for b in args.backends.split(",")]
-
-    print("QME Backend Timing Benchmark")
+    print("🚀 QME Backend Timing Benchmark")
     print("=" * 50)
-    print(f"Backends: {', '.join(backends)}")
+
+    # Determine which backends to test
+    if args.backends:
+        requested_backends = [b.strip() for b in args.backends.split(",")]
+        available_backends = filter_available_backends(requested_backends, verbose=True)
+        
+        if not available_backends:
+            print("\nNo requested backends are available! Please install required dependencies.")
+            return
+    else:
+        available_backends = get_available_backends(verbose=True)
+        
+        if not available_backends:
+            print("\nNo backends available! Please install required dependencies.")
+            return
+
+    print_backend_summary(available_backends, "Benchmarking Backends")
     print(f"Device: {args.device}")
     print(f"Output: {args.output}")
     print()
 
-    # Check available backends
-    print("Checking backend availability...")
-    available_backends = []
-    for backend in backends:
-        if calculator_registry.is_backend_available(backend):
-            available_backends.append(backend)
-            print(f"  ✅ {backend}")
-        else:
-            print(f"  ❌ {backend} (dependencies missing)")
-
-    if not available_backends:
-        print("\nNo backends available! Please install required dependencies.")
-        return
-
-    print(f"\nRunning benchmarks for {len(available_backends)} available backends...")
+    print(f"Running benchmarks for {len(available_backends)} backend(s)...")
 
     # Run benchmarks
     results_list = []

@@ -38,6 +38,18 @@ from ase.io import read
 import qme
 from qme.dependencies import HAS_SELLA, deps
 
+# Add parent directory to path for backend_utils
+script_dir = Path(__file__).parent
+parent_dir = script_dir.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
+from backend_utils import (
+    get_available_ml_backends,
+    filter_available_backends,
+    print_backend_summary
+)
+
 # Quiet noisy backends
 logging.getLogger("jax").setLevel(logging.WARNING)
 logging.getLogger("numexpr").setLevel(logging.WARNING)
@@ -201,23 +213,8 @@ class Zimmermann93Benchmark:
         return self.load_structure(ts_file)
 
     def get_available_backends(self) -> List[str]:
-        available = []
-        if deps.has("fairchem"):
-            available.append("uma")
-        if deps.has("so3lr"):
-            available.append("so3lr")
-        if deps.has("aimnet2"):
-            available.append("aimnet2")
-        if deps.has("mace"):
-            available.append("mace")
-
-        # Add TorchSim backends if available
-        if deps.has("torch_sim"):
-            available.append("torchsim")
-            available.append("torchsim_mace")
-            if deps.has("fairchem"):  # TorchSim Fairchem needs fairchem
-                available.append("torchsim_fairchem")
-
+        available = get_available_ml_backends()
+        
         if not available:
             raise RuntimeError(
                 "No ML backends available for benchmarking. "
@@ -519,11 +516,16 @@ def main():
     available_backends = benchmark.get_available_backends()
     backends = args.backends if args.backends else available_backends
 
-    invalid = [b for b in backends if b not in available_backends]
-    if invalid:
-        print(f"❌ Invalid backends requested: {invalid}")
-        print(f"Available: {available_backends}")
-        return 1
+    # Filter to only available backends
+    if args.backends:
+        backends = filter_available_backends(args.backends, verbose=True)
+        if not backends:
+            print("❌ No requested backends are available!")
+            return 1
+    else:
+        backends = available_backends
+    
+    print_backend_summary(backends, "Benchmarking Backends")
 
     if args.quicker:
         reactions = benchmark.quicker_reactions

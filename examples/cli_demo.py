@@ -14,38 +14,11 @@ from typing import Dict, List, Tuple
 os.environ["DISPLAY"] = ""
 os.environ["MPLBACKEND"] = "Agg"
 
-try:
-    from qme.dependencies import deps
-except ImportError:
-    print("❌ QME not properly installed. Please install with 'pip install -e .'")
-    sys.exit(1)
-
-
-def get_available_backends() -> List[str]:
-    """Get list of available ML QME backends for demonstration."""
-    available = []
-
-    if deps.has("fairchem"):
-        available.append("uma")
-    if deps.has("so3lr"):
-        available.append("so3lr")
-    if deps.has("aimnet2"):
-        available.append("aimnet2")
-    if deps.has("mace"):
-        available.append("mace")
-
-    # Add TorchSim backends if available
-    if deps.has("torch_sim"):
-        available.append("torchsim")
-        available.append("torchsim_mace")
-        if deps.has("fairchem"):  # TorchSim Fairchem needs fairchem
-            available.append("torchsim_fairchem")
-
-    if len(available) == 0:
-        print("❌ No ML backends available! Please install at least one.")
-        return []
-
-    return available
+from backend_utils import (
+    get_available_ml_backends,
+    require_ml_backends,
+    print_backend_summary
+)
 
 
 def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]:
@@ -226,13 +199,19 @@ def demo_cli():
         config_file.rename("qme.json.temp")
         print("✅ Using built-in defaults only")
 
-    # Get available backends
+    # Get available ML backends
     try:
-        available_backends = get_available_backends()
+        available_backends = get_available_ml_backends()
         if not available_backends:
-            print("❌ No real ML backends available for comparison.")
+            print("❌ No ML backends available for comparison.")
+            print("Please install at least one ML backend:")
+            print("  - UMA: pip install fairchem-core")
+            print("  - MACE: pip install mace-torch")
+            print("  - AIMNet2: pip install aimnet2")
+            print("  - SO3LR: pip install so3lr")
+            print("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
             return False
-        print(f"🔍 Available backends: {', '.join(available_backends)}")
+        print_backend_summary(available_backends, "Available ML Backends")
     except Exception as e:
         print(f"❌ Error detecting backends: {e}")
         return False
