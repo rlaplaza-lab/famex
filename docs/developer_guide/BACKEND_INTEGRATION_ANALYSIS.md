@@ -128,7 +128,7 @@ ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma
 
 ### Pre-Integration Testing
 1. **Checklist verification** - all files updated
-2. **Installation testing** - `pip install qme[new_backend]`
+2. **Installation testing** - `pip install qme-ml-ml[new_backend]`
 3. **CLI testing** - `qme opt --backend new_backend`
 4. **Example testing** - run all benchmarks with new backend
 

@@ -12,7 +12,7 @@ By the end of this tutorial, you will:
 
 ## Prerequisites
 
-- QME installed with at least one backend: `pip install qme[aimnet2]`
+- QME installed with at least one backend: `pip install qme-ml-ml[aimnet2]`
 - Basic understanding of molecular structure
 - Familiarity with XYZ file format
 
@@ -92,8 +92,8 @@ qme opt water.xyz --backend mock
 
 **Note**: You may need to install additional backends:
 ```bash
-pip install qme[uma]    # For UMA
-pip install qme[mace]   # For MACE
+pip install qme-ml-ml[uma]    # For UMA
+pip install qme-ml-ml[mace]   # For MACE
 ```
 
 ### Step 5: Backend Comparison
@@ -377,7 +377,7 @@ Error: Backend 'uma' not available
 ```
 **Solution**: Install the backend dependencies:
 ```bash
-pip install qme[uma]
+pip install qme-ml-ml[uma]
 ```
 
 ### Problem: Slow optimization

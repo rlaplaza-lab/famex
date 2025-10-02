@@ -64,7 +64,7 @@ Before starting the tutorials, ensure you have:
 
 1. **QME installed** with at least one backend:
    ```bash
-   pip install qme[aimnet2]  # Recommended for beginners
+   pip install qme-ml-ml[aimnet2]  # Recommended for beginners
    ```
 
 2. **Example files** available:
