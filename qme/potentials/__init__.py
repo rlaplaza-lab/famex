@@ -45,8 +45,6 @@ except ImportError:  # pragma: no cover - tests expect MockCalculator
     MockCalculator = _MissingMock
 
 
-
-
 # Helper to attempt to import a concrete backend module and pull symbols.
 # If the concrete module is not importable, raise a clear ImportError.
 def _import_backend(

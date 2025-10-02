@@ -91,6 +91,16 @@ class MACEPotential(BasePotential):
                 raise ImportError(
                     f"MACE not available ({e}). Install with: pip install mace-torch"
                 )
+            except ValueError as e:
+                if "too many values to unpack" in str(e):
+                    raise ImportError(
+                        f"MACE version compatibility issue with e3nn. "
+                        f"MACE 0.3.14 requires e3nn==0.4.4, but a newer e3nn version is installed. "
+                        f"This is a known dependency conflict between MACE and FairChem requirements. "
+                        f"Error: {e}"
+                    )
+                else:
+                    raise
 
     def _get_backend_name(self) -> str:
         """Get the backend name for this calculator."""

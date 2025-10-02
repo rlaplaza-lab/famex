@@ -225,9 +225,14 @@ class CalculatorRegistry:
                 return False
             try:
                 from qme.potentials.mace_potential import MACEPotential
-
+                
+                # Test if MACE can actually be loaded (check for e3nn compatibility)
+                test_calc = MACEPotential(device="cpu")
+                test_calc._load_calculator()
                 return True
-            except ImportError:
+            except (ImportError, ValueError):
+                # ImportError: missing dependencies
+                # ValueError: e3nn compatibility issue
                 return False
         elif backend == "torchsim_mace":
             if not (deps.has("torch_sim") and deps.has("torch")):
