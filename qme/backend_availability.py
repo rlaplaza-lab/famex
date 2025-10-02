@@ -1,0 +1,282 @@
+"""
+Efficient backend availability checking for QME.
+
+This module provides fast, dependency-based backend availability checking
+that avoids expensive calculator instantiation while still catching most
+compatibility issues.
+"""
+
+import importlib.util
+import warnings
+from typing import Dict, List, Optional, Set
+
+from qme.dependencies import deps
+
+
+def _check_package_conflict(
+    package1: str, package2: str, conflict_packages: Dict[str, str]
+) -> Optional[str]:
+    """
+    Check if two packages have known version conflicts.
+
+    Args:
+        package1: First package name
+        package2: Second package name
+        conflict_packages: Dict mapping package names to their conflicting versions
+
+    Returns:
+        Error message if conflict detected, None otherwise
+    """
+    # Known conflicts
+    conflicts = {
+        (
+            "mace",
+            "fairchem",
+        ): "MACE 0.3.14 requires e3nn==0.4.4, but FairChem 2.7.0 requires e3nn>=0.5",
+        (
+            "mace",
+            "torchsim",
+        ): "MACE models with TorchSim affected by e3nn version conflicts",
+    }
+
+    conflict_key = tuple(sorted([package1, package2]))
+    return conflicts.get(conflict_key)
+
+
+def _get_package_version(package_name: str) -> Optional[str]:
+    """Get version of an installed package."""
+    try:
+        module = importlib.import_module(package_name)
+        return getattr(module, "__version__", "unknown")
+    except ImportError:
+        return None
+
+
+def _check_e3nn_conflict() -> Optional[str]:
+    """
+    Check for e3nn version conflicts between MACE and FairChem.
+
+    Returns:
+        Error message if conflict detected, None otherwise
+    """
+    if not (deps.has("mace") and deps.has("fairchem")):
+        return None
+
+    try:
+        import e3nn
+
+        e3nn_version = e3nn.__version__
+
+        # MACE 0.3.14 was built with e3nn 0.4.4, FairChem needs e3nn >= 0.5
+        if e3nn_version.startswith("0.5") or e3nn_version.startswith("0.6"):
+            return (
+                f"e3nn version conflict: MACE requires e3nn==0.4.4 but "
+                f"e3nn {e3nn_version} is installed (required by FairChem)"
+            )
+    except ImportError:
+        pass
+
+    return None
+
+
+def _check_torchsim_fairchem_conflict() -> Optional[str]:
+    """
+    Check for TorchSim-FairChem API compatibility.
+
+    Returns:
+        Error message if conflict detected, None otherwise
+    """
+    if not (deps.has("torch_sim") and deps.has("fairchem")):
+        return None
+
+    # Fast check: TorchSim expects load_config/update_config in fairchem.core.common.utils
+    # These functions were removed in FairChem 2.x, so if we have FairChem 2.x, there's a conflict
+    try:
+        import fairchem.core
+
+        version = getattr(fairchem.core, "__version__", "0.0.0")
+        if version.startswith("2."):
+            return (
+                "TorchSim-FairChem API incompatibility: TorchSim expects "
+                "load_config/update_config functions not available in FairChem 2.x"
+            )
+        # If it's not version 2.x, assume it's compatible (avoid expensive checks)
+        return None
+    except (ImportError, AttributeError):
+        # If we can't determine the version, assume there's a conflict
+        # (this is safer and avoids expensive imports)
+        return (
+            "TorchSim-FairChem API incompatibility: Cannot determine FairChem version, "
+            "likely missing load_config/update_config functions"
+        )
+
+
+class BackendAvailabilityChecker:
+    """Fast, dependency-based backend availability checker."""
+
+    def __init__(self):
+        self._cache: Dict[str, bool] = {}
+        self._conflict_cache: Dict[str, Optional[str]] = {}
+
+    def _check_basic_dependencies(self, backend: str) -> bool:
+        """Check basic package dependencies for a backend."""
+        requirements = {
+            "mock": [],
+            "aimnet2": ["torch"],
+            "uma": ["fairchem", "torch"],
+            "so3lr": ["so3lr"],
+            "mace": ["mace", "torch"],
+            "torchsim_mace": ["torch_sim", "torch"],
+            "torchsim_uma": ["torch_sim", "torch", "fairchem"],
+        }
+
+        required = requirements.get(backend, [])
+        return all(deps.has(pkg) for pkg in required)
+
+    def _check_import_compatibility(self, backend: str) -> Optional[str]:
+        """Check if backend modules can be imported without errors."""
+        # For most backends, if basic dependencies are available and no conflicts
+        # are detected, we can assume they'll import successfully.
+        # Only do actual imports for backends with complex import chains.
+
+        if backend in ["aimnet2", "uma", "so3lr"]:
+            # These have simple import chains, skip expensive imports
+            return None
+
+        # Only do actual imports for complex backends
+        try:
+            if backend == "mace":
+                # Just check if the main module imports, don't instantiate
+                import mace.calculators
+
+                return None
+            elif backend in ["torchsim_mace", "torchsim_uma"]:
+                # Check TorchSim imports
+                import torch_sim
+
+                return None
+            return None  # No import error
+        except ImportError as e:
+            return f"Import error: {e}"
+
+    def _check_known_conflicts(self, backend: str) -> Optional[str]:
+        """Check for known package version conflicts."""
+        if backend in self._conflict_cache:
+            return self._conflict_cache[backend]
+
+        conflict = None
+
+        if backend in ["mace", "torchsim_mace"]:
+            conflict = _check_e3nn_conflict()
+        elif backend == "torchsim_uma":
+            conflict = _check_torchsim_fairchem_conflict()
+
+        self._conflict_cache[backend] = conflict
+        return conflict
+
+    def is_backend_available(self, backend: str) -> bool:
+        """
+        Check if a backend is available using fast dependency and import checks.
+
+        This avoids expensive calculator instantiation while catching most
+        compatibility issues through dependency analysis.
+        """
+        if backend in self._cache:
+            return self._cache[backend]
+
+        # Always available
+        if backend == "mock":
+            self._cache[backend] = True
+            return True
+
+        # Check basic dependencies first (fastest)
+        if not self._check_basic_dependencies(backend):
+            self._cache[backend] = False
+            return False
+
+        # Check for known conflicts (fast)
+        if self._check_known_conflicts(backend):
+            self._cache[backend] = False
+            return False
+
+        # Check import compatibility (medium speed)
+        if self._check_import_compatibility(backend):
+            self._cache[backend] = False
+            return False
+
+        # If all checks pass, consider it available
+        self._cache[backend] = True
+        return True
+
+    def get_availability_reason(self, backend: str) -> str:
+        """Get detailed reason why a backend is or isn't available."""
+        if backend == "mock":
+            return "Always available"
+
+        if not self._check_basic_dependencies(backend):
+            requirements = {
+                "aimnet2": ["torch"],
+                "uma": ["fairchem-core", "torch"],
+                "so3lr": ["so3lr"],
+                "mace": ["mace-torch", "torch"],
+                "torchsim_mace": ["torch-sim-atomistic", "torch"],
+                "torchsim_uma": ["torch-sim-atomistic", "torch", "fairchem-core"],
+            }
+            required = requirements.get(backend, [])
+            return f"Missing dependencies: {', '.join(required)}"
+
+        conflict = self._check_known_conflicts(backend)
+        if conflict:
+            return f"Known conflict: {conflict}"
+
+        import_error = self._check_import_compatibility(backend)
+        if import_error:
+            return f"Import issue: {import_error}"
+
+        return "Available"
+
+    def get_available_backends(self, include_mock: bool = True) -> List[str]:
+        """Get list of all available backends."""
+        all_backends = [
+            "mock",
+            "aimnet2",
+            "uma",
+            "so3lr",
+            "mace",
+            "torchsim_mace",
+            "torchsim_uma",
+        ]
+        if not include_mock:
+            all_backends = all_backends[1:]  # Remove mock
+
+        return [b for b in all_backends if self.is_backend_available(b)]
+
+    def clear_cache(self):
+        """Clear the availability cache (useful for testing)."""
+        self._cache.clear()
+        self._conflict_cache.clear()
+
+
+# Global instance
+_checker = BackendAvailabilityChecker()
+
+
+# Convenience functions
+def is_backend_available(backend: str) -> bool:
+    """Check if a backend is available."""
+    return _checker.is_backend_available(backend)
+
+
+def get_availability_reason(backend: str) -> str:
+    """Get reason why a backend is or isn't available."""
+    return _checker.get_availability_reason(backend)
+
+
+def get_available_backends(include_mock: bool = True) -> List[str]:
+    """Get list of available backends."""
+    return _checker.get_available_backends(include_mock)
+
+
+def clear_availability_cache():
+    """Clear the availability cache."""
+    _checker.clear_cache()
