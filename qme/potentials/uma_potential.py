@@ -65,7 +65,7 @@ class UMAPotential(BasePotential):
         if hasattr(self, "_calc") and self._calc is not None:
             return
 
-        from qme.potentials.logging_utils import quiet_backend_loading
+        from qme.logging_utils import quiet_backend_loading
 
         with quiet_backend_loading("uma", self.model_name, None, self.device):
             try:

@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 """
-Comprehensive BH28 Benchmark Suite
+QME BH28 Benchmark - Chemical Accuracy Evaluation
 
-This unified benchmark evaluates QME backends on the BH28 database of 28 diverse
+This benchmark evaluates QME backends on the BH28 database of 28 diverse
 chemical reaction barrier heights with reference values from high-level quantum
 chemistry calculations (CCSDT(Q)/CBS level).
 
-The benchmark:
-1. Optimizes all reactant minima using various QME backends
-2. Optimizes all transition states (when SELLA is available)
-3. Calculates barrier heights from optimized structures
-4. Compares accuracy against reference values
-5. Provides comprehensive performance analysis
-
 Usage:
-    python bh28_benchmark.py --quicker           # Single reaction (fastest)
-    python bh28_benchmark.py --quick             # Representative subset
-    python bh28_benchmark.py --backends uma mace # Specific backends
-    python bh28_benchmark.py                     # Full benchmark
+    conda run -n py312 python bh28_benchmark.py [--quick|--quicker]
+    conda run -n py312 python bh28_benchmark.py --backends uma,mace
+    conda run -n py312 python bh28_benchmark.py --analyze
+
+Features:
+    - Optimizes reactant minima using various QME backends
+    - Optimizes transition states (when SELLA is available)
+    - Calculates barrier heights from optimized structures
+    - Compares accuracy against reference values
+    - Provides comprehensive performance analysis
 
 Reference: A. Karton, J. Phys. Chem. A 2019, 123, 6720-6729
 """
@@ -37,20 +36,14 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-from qme import Explorer
-from qme.dependencies import HAS_SELLA, deps
-
-# Add parent directory to path for backend_utils
-script_dir = Path(__file__).parent
-parent_dir = script_dir.parent
-if str(parent_dir) not in sys.path:
-    sys.path.insert(0, str(parent_dir))
-
-from backend_utils import (  # noqa: E402
-    filter_available_backends,
-    get_available_ml_backends,
-    print_backend_summary,
-)
+# Import QME components
+try:
+    from qme import Explorer, calculator_registry
+    from qme.dependencies import HAS_SELLA
+except ImportError as e:
+    print(f"❌ Error importing QME: {e}")
+    print("   Please ensure QME is installed and accessible")
+    sys.exit(1)
 
 # Suppress verbose logging from dependencies early
 logging.getLogger("jax").setLevel(logging.WARNING)
@@ -131,13 +124,13 @@ class BH28Benchmark:
         # Results storage
         self.results = {}
 
-        print("🧪 Comprehensive BH28 Benchmark Initialized")
-        print(f"📁 Dataset: {self.dataset_dir}")
-        print(f"📊 Output: {self.output_dir}")
-        print(f"🔬 Available reactions: {len(self.reference_barriers)}")
-        print(
-            "⚠️  Note: SO3LR has known molecular size limitations and may skip some reactions"
-        )
+        print("=" * 80)
+        print("QME BH28 Benchmark - Chemical Accuracy Evaluation")
+        print("=" * 80)
+        print(f"Dataset: {self.dataset_dir}")
+        print(f"Output: {self.output_dir}")
+        print(f"Available reactions: {len(self.reference_barriers)}")
+        print("Note: SO3LR has known molecular size limitations and may skip some reactions")
 
     def load_structure(self, filename: str) -> Atoms:
         """Load molecular structure from XYZ file."""
@@ -166,7 +159,12 @@ class BH28Benchmark:
 
     def get_available_backends(self) -> List[str]:
         """Get list of available QME backends (excluding mock)."""
-        available = get_available_ml_backends()
+        available = []
+        ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma"]
+        
+        for backend in ml_backends:
+            if calculator_registry.is_backend_available(backend):
+                available.append(backend)
 
         if not available:
             raise RuntimeError(
@@ -176,17 +174,36 @@ class BH28Benchmark:
             )
 
         return available
+    
+    def filter_available_backends(self, requested_backends: List[str], verbose: bool = False) -> List[str]:
+        """Filter requested backends to only available ones."""
+        available = []
+        for backend in requested_backends:
+            if calculator_registry.is_backend_available(backend):
+                available.append(backend)
+            elif verbose:
+                print(f"Warning: Backend '{backend}' not available, skipping")
+        return available
+
+    def print_backend_summary(self, backends: List[str], title: str = "Available Backends"):
+        """Print a formatted summary of backends."""
+        print(f"\n📋 {title}")
+        print("-" * 50)
+        for i, backend in enumerate(backends, 1):
+            print(f"  {i}. {backend}")
+        print(f"Total: {len(backends)} backends")
 
     def optimize_structures(self, reactions: List[str], backends: List[str]) -> Dict:
         """Optimize all structures (minima and TS) for given reactions and backends."""
         print(f"\n{'='*80}")
-        print("🔬 STRUCTURE OPTIMIZATION")
+        print("STRUCTURE OPTIMIZATION")
         print(f"{'='*80}")
 
         results = {}
 
         for backend in backends:
-            print(f"\n🔧 Backend: {backend.upper()}")
+            print(f"\nBackend: {backend.upper()}")
+            print("-" * 60)
             backend_results = {}
 
             # Get default model for backend (use None for auto-detection)
@@ -207,9 +224,9 @@ class BH28Benchmark:
                         # Brief molecular information
                         reactant_info = [r.get_chemical_formula() for r in reactants]
                         if len(reactant_info) > 1:
-                            print(f"    🧪 Reactants: {' + '.join(reactant_info)}")
+                            print(f"  Reactants: {' + '.join(reactant_info)}")
                         else:
-                            print(f"    🧪 Reactant: {reactant_info[0]}")
+                            print(f"  Reactant: {reactant_info[0]}")
 
                         start_time = time.time()
                         optimized_reactants = []
@@ -234,7 +251,7 @@ class BH28Benchmark:
                                 f"reactant_{i+1}" if len(reactants) > 1 else "reactant"
                             )
                             print(
-                                f"    ✅ {reactant_label}: {result['final_energy']:.6f} eV "
+                                f"  ✅ {reactant_label}: {result['final_energy']:.6f} eV "
                                 f"({result['steps_taken']} steps)"
                             )
 
@@ -286,12 +303,12 @@ class BH28Benchmark:
                                     "✅" if ts_result.get("converged", True) else "⚠️"
                                 )
                                 print(
-                                    f"    {status} TS: {ts_result['final_energy']:.6f} eV "
+                                    f"  {status} TS: {ts_result['final_energy']:.6f} eV "
                                     f"({ts_result['steps_taken']} steps)"
                                 )
 
                             except Exception as e:
-                                print(f"    ❌ TS optimization failed: {str(e)}")
+                                print(f"  ❌ TS optimization failed: {str(e)}")
                                 # Fall back to single-point energy
                                 try:
                                     ts_atoms = self.get_transition_state(reaction)
@@ -306,18 +323,18 @@ class BH28Benchmark:
                                         }
                                     )
                                     print(
-                                        f"    📊 TS (single-point fallback): {ts_energy:.6f} eV"
+                                        f"  📊 TS (single-point fallback): {ts_energy:.6f} eV"
                                     )
                                 except Exception as e2:
                                     print(
-                                        f"    ❌ TS single-point also failed: {str(e2)}"
+                                        f"  ❌ TS single-point also failed: {str(e2)}"
                                     )
                                     reaction_data.update(
                                         {"ts_success": False, "ts_error": str(e)}
                                     )
                         else:
                             print(
-                                "    ⚠️  SELLA not available - using single-point TS energy"
+                                "  ⚠️  SELLA not available - using single-point TS energy"
                             )
                             try:
                                 ts_atoms = self.get_transition_state(reaction)
@@ -331,9 +348,9 @@ class BH28Benchmark:
                                         "ts_method": "single_point",
                                     }
                                 )
-                                print(f"    📊 TS (single-point): {ts_energy:.6f} eV")
+                                print(f"  📊 TS (single-point): {ts_energy:.6f} eV")
                             except Exception as e:
-                                print(f"    ❌ TS single-point failed: {str(e)}")
+                                print(f"  ❌ TS single-point failed: {str(e)}")
                                 reaction_data.update(
                                     {"ts_success": False, "ts_error": str(e)}
                                 )
@@ -364,7 +381,7 @@ class BH28Benchmark:
                             )
 
                             print(
-                                f"    📊 Barrier: {barrier_height:.3f} eV | "
+                                f"  📊 Barrier: {barrier_height:.3f} eV | "
                                 f"Ref: {ref_barrier:.3f} eV | "
                                 f"Error: {error:+.3f} eV ({relative_error:+.1f}%)"
                             )
@@ -376,7 +393,7 @@ class BH28Benchmark:
                             and "vmap got inconsistent sizes" in error_msg
                         ):
                             print(
-                                "    ⚠️  Skipped: SO3LR molecular size incompatibility"
+                                "  ⚠️  Skipped: SO3LR molecular size incompatibility"
                             )
                             reaction_data = {
                                 "success": False,
@@ -384,7 +401,7 @@ class BH28Benchmark:
                                 "skipped": True,
                             }
                         else:
-                            print(f"    ❌ Failed: {error_msg}")
+                            print(f"  ❌ Failed: {error_msg}")
                             reaction_data = {"success": False, "error": error_msg}
 
                     backend_results[reaction] = reaction_data
@@ -401,13 +418,14 @@ class BH28Benchmark:
     def analyze_performance(self, backends: List[str]) -> Dict:
         """Analyze performance metrics across backends."""
         print(f"\n{'='*80}")
-        print("📊 PERFORMANCE ANALYSIS")
+        print("PERFORMANCE ANALYSIS")
         print(f"{'='*80}")
 
         analysis = {}
 
         for backend in backends:
-            print(f"\n🔧 Backend: {backend.upper()}")
+            print(f"\nBackend: {backend.upper()}")
+            print("-" * 50)
             backend_data = self.results.get(backend, {})
 
             # Collect successful barrier calculations
@@ -449,22 +467,20 @@ class BH28Benchmark:
                     "std_error": np.std(errors),
                 }
 
-                print(f"  📈 Barrier Heights ({barrier_stats['count']} reactions):")
-                print(f"     MAE:  {barrier_stats['mae']:.3f} eV")
-                print(f"     RMSE: {barrier_stats['rmse']:.3f} eV")
-                print(f"     Max Error: {barrier_stats['max_error']:.3f} eV")
-                print(f"     Mean Rel. Error: {barrier_stats['mean_rel_error']:.1f}%")
+                print(f"Barrier Heights ({barrier_stats['count']} reactions):")
+                print(f"  MAE:  {barrier_stats['mae']:.3f} eV")
+                print(f"  RMSE: {barrier_stats['rmse']:.3f} eV")
+                print(f"  Max Error: {barrier_stats['max_error']:.3f} eV")
+                print(f"  Mean Rel. Error: {barrier_stats['mean_rel_error']:.1f}%")
             else:
                 barrier_stats = {"count": 0}
-                print("  ❌ No successful barrier height calculations")
+                print("❌ No successful barrier height calculations")
 
             # Report skipped and failed reactions
             if skipped_count > 0:
-                print(
-                    f"  ⚠️  Skipped reactions (known incompatibilities): {skipped_count}"
-                )
+                print(f"⚠️  Skipped reactions (known incompatibilities): {skipped_count}")
             if failed_count > 0:
-                print(f"  ❌ Failed reactions: {failed_count}")
+                print(f"❌ Failed reactions: {failed_count}")
 
             # Calculate timing statistics
             timing_stats = {
@@ -476,15 +492,15 @@ class BH28Benchmark:
                 "ts_avg_time": np.mean(ts_times) if ts_times else 0,
             }
 
-            print("  ⏱️  Timing:")
+            print("Timing:")
             if timing_stats["minima_count"] > 0:
                 print(
-                    f"     Minima: {timing_stats['minima_avg_time']:.1f}s avg "
+                    f"  Minima: {timing_stats['minima_avg_time']:.1f}s avg "
                     f"({timing_stats['minima_total_time']:.1f}s total)"
                 )
             if timing_stats["ts_count"] > 0:
                 print(
-                    f"     TS: {timing_stats['ts_avg_time']:.1f}s avg "
+                    f"  TS: {timing_stats['ts_avg_time']:.1f}s avg "
                     f"({timing_stats['ts_total_time']:.1f}s total)"
                 )
 
@@ -494,7 +510,8 @@ class BH28Benchmark:
             }
 
         # Cross-backend comparison
-        print("\n🏆 BACKEND COMPARISON")
+        print("\nBACKEND COMPARISON")
+        print("-" * 65)
         print(
             f"{'Backend':<12} {'Success':<8} {'MAE (eV)':<10} {'RMSE (eV)':<11} {'Avg Time':<10}"
         )
@@ -559,14 +576,14 @@ class BH28Benchmark:
         with open(output_file, "w") as f:
             json.dump(serializable_results, f, indent=2)
 
-        print(f"\n💾 Results saved to: {output_file}")
+        print(f"\nResults saved to: {output_file}")
 
     def run_benchmark(self, backends: List[str], reactions: List[str]):
         """Run the complete benchmark suite."""
-        print("\n🚀 Starting Comprehensive BH28 Benchmark")
-        print(f"🔬 Backends: {', '.join(backends)}")
+        print(f"\nStarting BH28 Benchmark")
+        print(f"Backends: {', '.join(backends)}")
         print(
-            f"⚗️  Reactions: {len(reactions)} "
+            f"Reactions: {len(reactions)} "
             f"({', '.join(reactions[:3])}{'...' if len(reactions) > 3 else ''})"
         )
 
@@ -582,28 +599,35 @@ class BH28Benchmark:
         self.save_results()
 
         total_time = time.time() - start_time
-        print(f"\n🏁 Benchmark completed in {total_time:.1f} seconds")
+        print(f"\nBenchmark completed in {total_time:.1f} seconds")
 
         return self.results
 
 
 def main():
-    """Main entry point for the comprehensive benchmark."""
+    """Main entry point for the benchmark."""
     parser = argparse.ArgumentParser(
-        description="Comprehensive BH28 Benchmark Suite for QME"
+        description="QME BH28 Benchmark - Chemical Accuracy Evaluation",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  conda run -n py312 python bh28_benchmark.py
+  conda run -n py312 python bh28_benchmark.py --backends aimnet2,uma
+  conda run -n py312 python bh28_benchmark.py --quick
+  conda run -n py312 python bh28_benchmark.py --quicker
+  conda run -n py312 python bh28_benchmark.py --analyze
+        """
     )
 
     parser.add_argument(
         "--backends",
         nargs="+",
-        default=None,
         help="QME backends to test (default: all available)",
     )
 
     parser.add_argument(
         "--reactions",
         nargs="+",
-        default=None,
         help="Specific reactions to test (default: all 28 reactions)",
     )
 
@@ -638,18 +662,16 @@ def main():
 
     # Determine backends to test
     available_backends = benchmark.get_available_backends()
-    backends = args.backends if args.backends else available_backends
-
-    # Filter to only available backends
+    
     if args.backends:
-        backends = filter_available_backends(args.backends, verbose=True)
+        backends = benchmark.filter_available_backends(args.backends, verbose=True)
         if not backends:
             print("❌ No requested backends are available!")
             return 1
     else:
         backends = available_backends
 
-    print_backend_summary(backends, "Benchmarking Backends")
+    benchmark.print_backend_summary(backends, "Benchmarking Backends")
 
     # Determine reactions to test
     if args.quicker:
@@ -680,10 +702,10 @@ def main():
     else:
         # Run full benchmark
         benchmark.run_benchmark(backends, reactions)
-        print("\n✨ Comprehensive benchmark completed successfully!")
+        print("\n✅ Benchmark completed successfully!")
 
     return 0
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

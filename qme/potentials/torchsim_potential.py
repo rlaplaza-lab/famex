@@ -99,7 +99,7 @@ class TorchSimPotential(BasePotential):
 
     def _load_calculator(self):
         """Load the TorchSim model and setup."""
-        from qme.potentials.logging_utils import quiet_backend_loading
+        from qme.logging_utils import quiet_backend_loading
 
         if self._torch_sim is not None:
             return  # Already loaded
