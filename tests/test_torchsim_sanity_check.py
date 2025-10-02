@@ -16,6 +16,7 @@ from ase.build import molecule
 
 import qme
 from qme.dependencies import deps
+from tests.backend_utils import AVAILABLE_BACKEND_PAIRS, require_backend
 
 
 class TestTorchSimSanityCheck:
@@ -89,13 +90,7 @@ class TestTorchSimSanityCheck:
             except ImportError:
                 pytest.skip("Regular UMA not available")
 
-    @pytest.mark.parametrize(
-        "backend_pair",
-        [
-            ("mace", "torchsim_mace"),
-            ("uma", "torchsim_uma"),
-        ],
-    )
+    @pytest.mark.parametrize("backend_pair", AVAILABLE_BACKEND_PAIRS)
     def test_energy_force_consistency(self, backend_pair, test_molecules):
         """Test that TorchSim and regular backends produce similar results."""
         regular_backend, torchsim_backend = backend_pair

@@ -24,16 +24,7 @@ from ase import Atoms
 
 import qme
 from qme.dependencies import deps
-
-# Define available backends using centralized availability detection
-# This ensures consistency with the actual backend availability logic
-ALL_BACKENDS = ["mock", "aimnet2", "mace", "uma", "torchsim_mace", "torchsim_uma"]
-
-# Only include backends that are actually available
-AVAILABLE_BACKENDS = []
-for backend in ALL_BACKENDS:
-    if qme.calculator_registry.is_backend_available(backend):
-        AVAILABLE_BACKENDS.append(backend)
+from tests.backend_utils import AVAILABLE_BACKENDS
 
 # Define optimizers to test - limit to 2 most important ones
 OPTIMIZERS = ["BFGS", "LBFGS"]
@@ -139,19 +130,7 @@ class TestMinimaOptimization:
     @pytest.fixture(params=AVAILABLE_BACKENDS)
     def backend(self, request):
         """Parametrized fixture for available backends."""
-        backend_name = request.param
-
-        # Skip if backend is not available (double-check)
-        if backend_name == "uma" and not deps.has("fairchem"):
-            pytest.skip("UMA backend not available")
-        elif backend_name == "so3lr" and not deps.has("so3lr"):
-            pytest.skip("SO3LR backend not available")
-        elif backend_name == "aimnet2" and not deps.has("aimnet2"):
-            pytest.skip("AIMNET2 backend not available")
-        elif backend_name == "mace" and not deps.has("mace"):
-            pytest.skip("MACE backend not available")
-
-        return backend_name
+        return request.param
 
     def test_h2_optimization(self, backend):
         """Test H2 optimization across all backends - basic functionality only."""
@@ -187,8 +166,9 @@ class TestMinimaOptimization:
                 f"{final_distance:.3f} Å"
             )
 
-        except ImportError:
-            pytest.skip(f"{backend} backend dependencies not available")
+        except ImportError as e:
+            # This should not happen with pre-filtered backends, but just in case
+            pytest.fail(f"Unexpected ImportError for available backend {backend}: {e}")
 
     def test_water_optimization(self, backend):
         """Test H2O optimization across all backends."""
@@ -225,8 +205,9 @@ class TestMinimaOptimization:
                 f"{oh1_dist:.3f}, {oh2_dist:.3f} Å"
             )
 
-        except ImportError:
-            pytest.skip(f"{backend} backend dependencies not available")
+        except ImportError as e:
+            # This should not happen with pre-filtered backends, but just in case
+            pytest.fail(f"Unexpected ImportError for available backend {backend}: {e}")
 
     def test_methane_optimization(self, backend):
         """Test CH4 optimization across all backends."""
@@ -261,8 +242,9 @@ class TestMinimaOptimization:
                 f"{np.mean(ch_distances):.3f} Å"
             )
 
-        except ImportError:
-            pytest.skip(f"{backend} backend dependencies not available")
+        except ImportError as e:
+            # This should not happen with pre-filtered backends, but just in case
+            pytest.fail(f"Unexpected ImportError for available backend {backend}: {e}")
 
     # Removed ethane and methanol tests to reduce test suite size
     # Focus on H2, H2O, and CH4 which cover the most important cases
@@ -274,23 +256,11 @@ class TestTransitionStateOptimization:
     @pytest.fixture(params=AVAILABLE_BACKENDS)
     def backend(self, request):
         """Parametrized fixture for available backends."""
-        backend_name = request.param
-
-        # Skip if backend is not available (double-check)
-        if backend_name == "uma" and not deps.has("fairchem"):
-            pytest.skip("UMA backend not available")
-        elif backend_name == "so3lr" and not deps.has("so3lr"):
-            pytest.skip("SO3LR backend not available")
-        elif backend_name == "aimnet2" and not deps.has("aimnet2"):
-            pytest.skip("AIMNET2 backend not available")
-        elif backend_name == "mace" and not deps.has("mace"):
-            pytest.skip("MACE backend not available")
-
-        # Ensure SELLA is available
+        # Ensure SELLA is available for transition state optimization
         if not deps.has("sella"):
             pytest.skip("SELLA not available for transition state optimization")
 
-        return backend_name
+        return request.param
 
     def test_water_dissociation_ts(self, backend):
         """Test water dissociation transition state across all backends."""
@@ -327,8 +297,9 @@ class TestTransitionStateOptimization:
                 f"O-H distances: {oh1_dist:.3f}, {oh2_dist:.3f} Å"
             )
 
-        except ImportError:
-            pytest.skip(f"{backend} backend dependencies not available")
+        except ImportError as e:
+            # This should not happen with pre-filtered backends, but just in case
+            pytest.fail(f"Unexpected ImportError for available backend {backend}: {e}")
         except Exception as e:
             print(f"Backend {backend}: H2O TS optimization failed with: {e}")
 
@@ -362,8 +333,9 @@ class TestTransitionStateOptimization:
                 f"C-Cl: {ccl_dist:.3f} Å"
             )
 
-        except ImportError:
-            pytest.skip(f"{backend} backend dependencies not available")
+        except ImportError as e:
+            # This should not happen with pre-filtered backends, but just in case
+            pytest.fail(f"Unexpected ImportError for available backend {backend}: {e}")
         except Exception as e:
             print(f"Backend {backend}: SN2 TS optimization failed with: {e}")
 
@@ -376,8 +348,10 @@ class TestFileIO:
         """Test complete XYZ file workflow."""
         import qme
 
-        if not qme.calculator_registry.is_backend_available(backend):
-            pytest.skip(f"{backend} backend not available")
+        # Backend should be available since we use pre-filtered AVAILABLE_BACKENDS
+        assert qme.calculator_registry.is_backend_available(
+            backend
+        ), f"Backend {backend} should be available"
 
         try:
             optimizer = qme.QMEOptimizer(backend=backend)
@@ -400,8 +374,9 @@ class TestFileIO:
                 final_atoms = optimizer.load_structure(str(output_file))
                 assert len(final_atoms) == 2
 
-        except ImportError:
-            pytest.skip(f"{backend} backend dependencies not available")
+        except ImportError as e:
+            # This should not happen with pre-filtered backends, but just in case
+            pytest.fail(f"Unexpected ImportError for available backend {backend}: {e}")
 
 
 # Removed TestOptimizerComparison class to reduce test suite size
