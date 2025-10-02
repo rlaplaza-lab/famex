@@ -196,13 +196,6 @@ class DependencyManager:
         }
         return commands.get(name.lower(), name.lower())
 
-    def warn_fallback(self, backend: str, reason: str = "dependencies not available"):
-        """Issue a standardized fallback warning."""
-        warnings.warn(
-            f"Falling back to mock {backend.upper()} calculator: {reason}. "
-            f"For production use, install the required dependencies.",
-            UserWarning,
-        )
 
 
 # Global dependency manager instance
