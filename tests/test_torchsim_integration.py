@@ -36,15 +36,15 @@ class TestTorchSimIntegration:
 
     def test_torchsim_backend_availability(self):
         """Test TorchSim backend availability."""
-        backends = ["torchsim", "torchsim_mace", "torchsim_fairchem"]
+        backends = ["torchsim_mace", "torchsim_uma"]
 
         for backend in backends:
             available = qme.calculator_registry.is_backend_available(backend)
             print(f"{backend}: {available}")
 
             if deps.has("torch_sim") and deps.has("torch"):
-                if backend == "torchsim_fairchem":
-                    # TorchSim Fairchem also needs fairchem
+                if backend == "torchsim_uma":
+                    # TorchSim UMA also needs fairchem
                     expected = deps.has("fairchem")
                 else:
                     expected = True
@@ -55,40 +55,37 @@ class TestTorchSimIntegration:
         if not deps.has("torch_sim"):
             pytest.skip("TorchSim not available")
 
-        # Test basic TorchSim calculator
-        calc = qme.calculator_registry.create_calculator(
-            backend="torchsim", model_name="mace-omol-0", device="cpu"
-        )
-        assert calc is not None
-        assert hasattr(calc, "backend")
-
         # Test TorchSim MACE calculator
         calc_mace = qme.calculator_registry.create_calculator(
             backend="torchsim_mace", model_name="mace-omol-0", device="cpu"
         )
         assert calc_mace is not None
+        assert hasattr(calc_mace, "backend")
 
-        # Test TorchSim Fairchem calculator (if fairchem available)
+        # Test TorchSim UMA calculator (if fairchem available)
         if deps.has("fairchem"):
-            calc_fairchem = qme.calculator_registry.create_calculator(
-                backend="torchsim_fairchem",
-                model_name="equiformer_v2_31M_s2ef_all_md",
+            calc_uma = qme.calculator_registry.create_calculator(
+                backend="torchsim_uma",
+                model_name="uma-s-1p1",
                 device="cpu",
             )
-            assert calc_fairchem is not None
+            assert calc_uma is not None
 
     def test_torchsim_fallback_behavior(self):
         """Test TorchSim error behavior when not available."""
         if not deps.has("torch_sim"):
             # Should raise ImportError with clear message when TorchSim is not available
-            with pytest.raises(ImportError, match="TorchSim backend requires torch-sim-atomistic"):
+            with pytest.raises(
+                ImportError,
+                match="TorchSim MACE calculator requires torch-sim-atomistic",
+            ):
                 qme.calculator_registry.create_calculator(
-                    backend="torchsim", model_name="mace-omol-0", device="cpu"
+                    backend="torchsim_mace", model_name="mace-omol-0", device="cpu"
                 )
         else:
             # If TorchSim is available, should create a real calculator
             calc = qme.calculator_registry.create_calculator(
-                backend="torchsim", model_name="mace-omol-0", device="cpu"
+                backend="torchsim_mace", model_name="mace-omol-0", device="cpu"
             )
             assert calc is not None
             # Should be a real TorchSim calculator, not mock

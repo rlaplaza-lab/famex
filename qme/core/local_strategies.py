@@ -21,6 +21,7 @@ def _get_local_optimizer_class(name: str):
 
     if name == "sella":
         from sella import Sella
+
         return Sella
 
     try:

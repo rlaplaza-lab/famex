@@ -564,8 +564,7 @@ class BH28Benchmark:
         print("\n🚀 Starting Comprehensive BH28 Benchmark")
         print(f"🔬 Backends: {', '.join(backends)}")
         print(
-            f"⚗️  Reactions: {len(reactions)} ({', '.join(reactions[:3])}{
-                '...' if len(reactions) > 3 else ''})"
+            f"⚗️  Reactions: {len(reactions)} ({', '.join(reactions[:3])}{'...' if len(reactions) > 3 else ''})"
         )
 
         start_time = time.time()

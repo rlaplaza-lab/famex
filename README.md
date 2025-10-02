@@ -31,13 +31,18 @@ MACE (Machine learning Accelerated Computational Environment) provides foundatio
 SO3LR provides SO(3) invariant neural network potentials with excellent accuracy for molecular systems. Requires separate installation.
 
 ### TorchSim Acceleration (Optional)
-TorchSim provides significant performance improvements for supported models through automatic batching and GPU acceleration. Install with `pip install torch-sim-atomistic` to enable up to 100x speedup for MACE and Fairchem models.
+TorchSim provides significant performance improvements for supported models through automatic batching and GPU acceleration. Two TorchSim backends are available:
+
+- **`torchsim_mace`**: TorchSim-accelerated MACE models (requires Python 3.11+)
+- **`torchsim_uma`**: TorchSim-accelerated UMA models (requires Python 3.11+)
+
+Install with `pip install torch-sim-atomistic` to enable up to 100x speedup for supported models.
 
 ## Installation
 
 ### Prerequisites
 
-QME requires Python 3.12 or higher.
+QME requires Python 3.10 or higher. For TorchSim acceleration, Python 3.11 or higher is required.
 
 ### Basic Installation
 
@@ -121,7 +126,11 @@ For significant performance improvements, install TorchSim:
 pip install torch-sim-atomistic
 ```
 
-This enables up to 100x speedup for supported models (MACE, Fairchem) through automatic batching and GPU acceleration.
+**Note**: TorchSim requires Python 3.11 or higher. If you're using Python 3.10, TorchSim backends (`torchsim_mace`, `torchsim_uma`) will not be available.
+
+This enables up to 100x speedup for supported models through automatic batching and GPU acceleration. Available TorchSim backends:
+- `torchsim_mace`: TorchSim-accelerated MACE models
+- `torchsim_uma`: TorchSim-accelerated UMA models
 
 **Note**: If any ML backend is not installed, QME will provide clear error messages with installation instructions instead of falling back to mock implementations.
 
@@ -161,7 +170,7 @@ from qme import QMEOptimizer
 # Initialize with TorchSim MACE for maximum performance
 qme = QMEOptimizer(
     backend="torchsim_mace",
-    model_name="mace-omol-0",
+    model_name="mace-omol-0",  # Good default for molecules
     device="cuda"  # Use GPU for best performance
 )
 
@@ -207,7 +216,7 @@ qme opt molecule.xyz --backend so3lr  # Requires SO3LR installation
 
 # Using TorchSim acceleration (requires torch-sim-atomistic)
 qme opt molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda
-qme opt molecule.xyz --backend torchsim_fairchem --model-name equiformer_v2_31M_s2ef_all_md
+qme opt molecule.xyz --backend torchsim_uma --model-name uma-s-1p1 --device cuda
 ```
 
 ### Test Installation

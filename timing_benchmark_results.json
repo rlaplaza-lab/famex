@@ -1,0 +1,53 @@
+[
+  {
+    "backend": "mock",
+    "device": "cpu",
+    "model_name": null,
+    "available": true,
+    "error": "axis 1 is out of bounds for array of dimension 1",
+    "timings": {
+      "initialization": 5.432000762084499e-06,
+      "structure_loading": 0.0003833980008494109,
+      "single_energy_first": 0.0019603119981184136,
+      "single_energy_second": 0.0015668639971408993,
+      "single_energy": 0.0015668639971408993,
+      "single_forces": 0.001473151998652611
+    },
+    "optimization_results": {},
+    "frequency_results": {}
+  },
+  {
+    "backend": "uma",
+    "device": "cpu",
+    "model_name": null,
+    "available": true,
+    "error": "axis 1 is out of bounds for array of dimension 1",
+    "timings": {
+      "initialization": 5.2780014812015e-06,
+      "structure_loading": 0.00012025700198137201,
+      "single_energy_first": 7.588548988998809,
+      "single_energy_second": 0.00026576000163913704,
+      "single_energy": 0.00026576000163913704,
+      "single_forces": 0.00016497300021001138
+    },
+    "optimization_results": {},
+    "frequency_results": {}
+  },
+  {
+    "backend": "mace",
+    "device": "cpu",
+    "model_name": null,
+    "available": true,
+    "error": "axis 1 is out of bounds for array of dimension 1",
+    "timings": {
+      "initialization": 4.756999260280281e-06,
+      "structure_loading": 0.00013459399997373112,
+      "single_energy_first": 1.5205819490001886,
+      "single_energy_second": 0.0002736310016189236,
+      "single_energy": 0.0002736310016189236,
+      "single_forces": 0.00016496600073878653
+    },
+    "optimization_results": {},
+    "frequency_results": {}
+  }
+]

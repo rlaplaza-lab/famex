@@ -76,6 +76,8 @@ def _import_backend(
 
 # UMA depends on fairchem-core (deps name 'fairchem') - lazy loading
 UMAPotential = None
+
+
 def get_uma_calculator(**kwargs):
     if not (deps.has("fairchem") or deps.has("uma")):
         raise ImportError(
@@ -83,12 +85,16 @@ def get_uma_calculator(**kwargs):
         )
     try:
         from qme.potentials.uma_potential import UMAPotential
+
         return UMAPotential(**kwargs)
     except ImportError as e:
         raise ImportError(f"Failed to import UMA backend: {e}")
 
+
 # SO3LR backend - lazy loading
 SO3LRPotential = None
+
+
 def get_so3lr_calculator(**kwargs):
     if not deps.has("so3lr"):
         raise ImportError(
@@ -96,12 +102,16 @@ def get_so3lr_calculator(**kwargs):
         )
     try:
         from qme.potentials.so3lr_potential import SO3LRPotential
+
         return SO3LRPotential(**kwargs)
     except ImportError as e:
         raise ImportError(f"Failed to import SO3LR backend: {e}")
 
+
 # AIMNet2 backend - lazy loading
 AIMNet2Potential = None
+
+
 def get_aimnet2_calculator(**kwargs):
     if not deps.has("torch"):
         raise ImportError(
@@ -109,12 +119,16 @@ def get_aimnet2_calculator(**kwargs):
         )
     try:
         from qme.potentials.aimnet2_potential import AIMNet2Potential
+
         return AIMNet2Potential(**kwargs)
     except ImportError as e:
         raise ImportError(f"Failed to import AIMNet2 backend: {e}")
 
+
 # MACE backend - lazy loading
 MACEPotential = None
+
+
 def get_mace_calculator(**kwargs):
     if not deps.has("mace"):
         raise ImportError(
@@ -122,12 +136,16 @@ def get_mace_calculator(**kwargs):
         )
     try:
         from qme.potentials.mace_potential import MACEPotential
+
         return MACEPotential(**kwargs)
     except ImportError as e:
         raise ImportError(f"Failed to import MACE backend: {e}")
 
+
 # TorchSim backend - lazy loading
 TorchSimPotential = None
+
+
 def get_torchsim_calculator(**kwargs):
     if not deps.has("torch_sim"):
         raise ImportError(
@@ -135,9 +153,11 @@ def get_torchsim_calculator(**kwargs):
         )
     try:
         from qme.potentials.torchsim_potential import TorchSimPotential
+
         return TorchSimPotential(**kwargs)
     except ImportError as e:
         raise ImportError(f"Failed to import TorchSim backend: {e}")
+
 
 def get_torchsim_mace_calculator(**kwargs):
     if not deps.has("torch_sim"):
@@ -145,18 +165,29 @@ def get_torchsim_mace_calculator(**kwargs):
             "TorchSim MACE calculator requires torch-sim-atomistic. Install with: pip install torch-sim-atomistic"
         )
     try:
-        from qme.potentials.torchsim_potential import get_torchsim_mace_calculator as _get_torchsim_mace_calculator
+        from qme.potentials.torchsim_potential import (
+            get_torchsim_mace_calculator as _get_torchsim_mace_calculator,
+        )
+
         return _get_torchsim_mace_calculator(**kwargs)
     except ImportError as e:
         raise ImportError(f"Failed to import TorchSim MACE calculator: {e}")
 
-def get_torchsim_fairchem_calculator(**kwargs):
+
+def get_torchsim_uma_calculator(**kwargs):
     if not deps.has("torch_sim"):
         raise ImportError(
-            "TorchSim Fairchem calculator requires torch-sim-atomistic. Install with: pip install torch-sim-atomistic"
+            "TorchSim UMA calculator requires torch-sim-atomistic. Install with: pip install torch-sim-atomistic"
+        )
+    if not deps.has("fairchem"):
+        raise ImportError(
+            "TorchSim UMA calculator requires fairchem-core. Install with: pip install fairchem-core"
         )
     try:
-        from qme.potentials.torchsim_potential import get_torchsim_fairchem_calculator as _get_torchsim_fairchem_calculator
-        return _get_torchsim_fairchem_calculator(**kwargs)
+        from qme.potentials.torchsim_potential import (
+            get_torchsim_uma_calculator as _get_torchsim_uma_calculator,
+        )
+
+        return _get_torchsim_uma_calculator(**kwargs)
     except ImportError as e:
-        raise ImportError(f"Failed to import TorchSim Fairchem calculator: {e}")
+        raise ImportError(f"Failed to import TorchSim UMA calculator: {e}")

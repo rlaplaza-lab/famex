@@ -358,12 +358,10 @@ def demo_cli():
         )
         print(f"\n🥇 Best performing backend: {best_backend[0].upper()}")
         print(
-            f'   - Success rate: {best_backend[1]["successful"]
-                                  }/{total_examples_per_backend} examples'
+            f'   - Success rate: {best_backend[1]["successful"]}/{total_examples_per_backend} examples'
         )
         print(
-            f'   - Average time per task: {best_backend[1]
-                                           ["total_time"]/total_examples_per_backend:.2f}s'
+            f'   - Average time per task: {best_backend[1]["total_time"]/total_examples_per_backend:.2f}s'
         )
 
     print(f"\n⏱️  Total benchmark time: {total_time:.2f} seconds")

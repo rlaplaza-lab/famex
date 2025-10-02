@@ -124,7 +124,7 @@ class TorchSimPotential(BasePotential):
     def _load_mace_model(self):
         """Load MACE model through TorchSim."""
         if self.model_name is None:
-            self.model_name = "mace-omol-0"
+            self.model_name = "mace-omol-0"  # Good default for molecules
 
         # Load MACE model through TorchSim
         from mace.calculators.foundations_models import mace_mp, mace_off, mace_omol
@@ -201,7 +201,7 @@ class TorchSimPotential(BasePotential):
     def _load_fairchem_model(self):
         """Load Fairchem model through TorchSim."""
         if self.model_name is None:
-            self.model_name = "uma-s-1p1"  # Use a model that's actually available
+            self.model_name = "uma-s-1p1"  # Good default for molecules
 
         try:
             # Try to load Fairchem model through TorchSim
@@ -507,71 +507,6 @@ class TorchSimPotential(BasePotential):
 
         return results
 
-    def _state_to_atoms(self, state):
-        """Convert TorchSim state back to ASE atoms."""
-        from ase import Atoms
-
-        # Extract positions, atomic numbers, and cell from state
-        positions = state.positions.detach().cpu().numpy()
-        atomic_numbers = state.atomic_numbers.detach().cpu().numpy()
-        cell = state.cell.detach().cpu().numpy()
-
-        # Handle pbc - it might be a tensor or boolean
-        if hasattr(state.pbc, "detach"):
-            pbc = state.pbc.detach().cpu().numpy()
-        else:
-            pbc = state.pbc
-
-        # Ensure cell is 3x3 matrix
-        if cell.shape == (3, 3):
-            cell_matrix = cell
-        else:
-            # Create a default cell if needed
-            cell_matrix = np.eye(3) * 10.0  # 10 Å box
-
-        # Create ASE atoms object
-        atoms = Atoms(
-            numbers=atomic_numbers, positions=positions, cell=cell_matrix, pbc=pbc
-        )
-
-        return atoms
-
-
-def get_torchsim_calculator(
-    model_name: Optional[str] = None,
-    device: Optional[str] = None,
-    backend: str = "mace",
-    **kwargs,
-) -> TorchSimPotential:
-    """
-    Factory function to create TorchSim calculator.
-
-    Parameters:
-    -----------
-    model_name : str, optional
-        Model name to use
-    device : str, optional
-        Device for computations ('cpu', 'cuda')
-    backend : str
-        Backend to use ('mace', 'fairchem', etc.)
-    **kwargs : dict
-        Additional arguments passed to TorchSimPotential
-
-    Returns:
-    --------
-    TorchSimPotential
-        Configured TorchSim calculator instance
-
-    Examples:
-    ---------
-    >>> calc = get_torchsim_calculator()  # Uses MACE-OMOL-0
-    >>> calc = get_torchsim_calculator(backend="mace", model_name="mace-mp-medium")
-    >>> calc = get_torchsim_calculator(backend="fairchem", model_name="equiformer_v2_31M_s2ef_all_md")
-    """
-    return TorchSimPotential(
-        model_name=model_name, device=device, backend=backend, **kwargs
-    )
-
 
 def get_torchsim_mace_calculator(
     model_name: Optional[str] = None,
@@ -579,17 +514,17 @@ def get_torchsim_mace_calculator(
     **kwargs,
 ) -> TorchSimPotential:
     """Convenience function for TorchSim MACE calculator."""
-    return get_torchsim_calculator(
+    return TorchSimPotential(
         model_name=model_name, device=device, backend="mace", **kwargs
     )
 
 
-def get_torchsim_fairchem_calculator(
+def get_torchsim_uma_calculator(
     model_name: Optional[str] = None,
     device: Optional[str] = None,
     **kwargs,
 ) -> TorchSimPotential:
-    """Convenience function for TorchSim Fairchem calculator."""
-    return get_torchsim_calculator(
+    """Convenience function for TorchSim UMA calculator."""
+    return TorchSimPotential(
         model_name=model_name, device=device, backend="fairchem", **kwargs
     )

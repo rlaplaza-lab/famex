@@ -50,14 +50,11 @@ class CalculatorRegistry:
             "mace": LazyBackend(
                 module="qme.potentials", function="get_mace_calculator"
             ),
-            "torchsim": LazyBackend(
-                module="qme.potentials", function="get_torchsim_calculator"
-            ),
             "torchsim_mace": LazyBackend(
                 module="qme.potentials", function="get_torchsim_mace_calculator"
             ),
-            "torchsim_fairchem": LazyBackend(
-                module="qme.potentials", function="get_torchsim_fairchem_calculator"
+            "torchsim_uma": LazyBackend(
+                module="qme.potentials", function="get_torchsim_uma_calculator"
             ),
             "mock": LazyBackend(
                 module="qme.potentials.mock_potential",
@@ -155,7 +152,11 @@ class CalculatorRegistry:
         if backend not in self._registry:
             # If the requested backend couldn't be loaded, raise a clear error
             from qme.core.validation import BackendError
-            available = self.get_available_backends()
+
+            # Get actually available backends (not just registered ones)
+            available = [
+                b for b in self.get_available_backends() if self.is_backend_available(b)
+            ]
             raise BackendError(backend, available, "calculator creation")
 
         factory_func = self._registry[backend]
@@ -187,7 +188,8 @@ class CalculatorRegistry:
         Returns:
         --------
         bool
-            True if backend is available and can create real calculators, False otherwise
+            True if backend is available and can create real calculators,
+            False otherwise
         """
         if backend == "mock":
             return True
@@ -196,6 +198,7 @@ class CalculatorRegistry:
                 return False
             try:
                 from qme.potentials.so3lr_potential import SO3LRPotential
+
                 return True
             except ImportError:
                 return False
@@ -204,6 +207,7 @@ class CalculatorRegistry:
                 return False
             try:
                 from qme.potentials.uma_potential import UMAPotential
+
                 return True
             except ImportError:
                 return False
@@ -212,6 +216,7 @@ class CalculatorRegistry:
                 return False
             try:
                 from qme.potentials.aimnet2_potential import AIMNet2Potential
+
                 return True
             except ImportError:
                 return False
@@ -220,14 +225,31 @@ class CalculatorRegistry:
                 return False
             try:
                 from qme.potentials.mace_potential import MACEPotential
+
                 return True
             except ImportError:
                 return False
-        elif backend in ["torchsim", "torchsim_mace", "torchsim_fairchem"]:
+        elif backend == "torchsim_mace":
             if not (deps.has("torch_sim") and deps.has("torch")):
                 return False
             try:
                 from qme.potentials.torchsim_potential import TorchSimPotential
+
+                return True
+            except ImportError:
+                return False
+        elif backend == "torchsim_uma":
+            # TorchSim UMA requires torch_sim, torch, AND fairchem
+            if not (
+                deps.has("torch_sim") and deps.has("torch") and deps.has("fairchem")
+            ):
+                return False
+            try:
+                # Additional check for fairchem compatibility
+                from fairchem.core.common.utils import setup_imports, setup_logging
+
+                from qme.potentials.torchsim_potential import TorchSimPotential
+
                 return True
             except ImportError:
                 return False
