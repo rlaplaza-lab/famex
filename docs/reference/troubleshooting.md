@@ -24,7 +24,7 @@ qme opt --help
 
 | Error Pattern | Likely Cause | Quick Fix |
 |---------------|--------------|-----------|
-| `Backend 'X' not available` | Missing dependencies | Install backend: `pip install qme[X]` |
+| `Backend 'X' not available` | Missing dependencies | Install backend: `pip install qme-ml-ml[X]` |
 | `CUDA out of memory` | GPU memory full | Use `--device cpu` |
 | `File not found` | Wrong file path | Check file exists and path is correct |
 | `Optimization did not converge` | Difficult system or wrong settings | Try `--fmax 0.1 --steps 2000` |
@@ -44,11 +44,11 @@ Error: Backend 'uma' not available. Available backends: ['mock']
 **Solutions**:
 ```bash
 # Install specific backend
-pip install qme[uma]        # UMA backend
-pip install qme[aimnet2]    # AIMNet2 backend  
-pip install qme[mace]       # MACE backend
-pip install qme[so3lr]      # SO3LR backend
-pip install qme[torchsim]   # TorchSim backends
+pip install qme-ml-ml[uma]        # UMA backend
+pip install qme-ml-ml[aimnet2]    # AIMNet2 backend  
+pip install qme-ml-ml[mace]       # MACE backend
+pip install qme-ml-ml[so3lr]      # SO3LR backend
+pip install qme-ml-ml[torchsim]   # TorchSim backends
 
 # Check installation
 python -c "import torch; print('PyTorch version:', torch.__version__)"
@@ -68,15 +68,15 @@ ERROR: pip's dependency resolver does not currently have the necessary informati
 # Use separate environments
 conda create -n qme-uma python=3.12
 conda activate qme-uma
-pip install qme[uma]
+pip install qme-ml-ml[uma]
 
 conda create -n qme-mace python=3.12  
 conda activate qme-mace
-pip install qme[mace]
+pip install qme-ml-ml[mace]
 
 # Or install individually
-pip install qme  # Base package only
-pip install qme[aimnet2]  # Add specific backends
+pip install qme-ml  # Base package only
+pip install qme-ml-ml[aimnet2]  # Add specific backends
 ```
 
 ### Python Version Issues
@@ -94,10 +94,10 @@ python --version
 # Upgrade Python
 conda create -n qme-py311 python=3.11
 conda activate qme-py311
-pip install qme[torchsim]
+pip install qme-ml-ml[torchsim]
 
 # Or use older backends with Python 3.10
-pip install qme[aimnet2,uma]
+pip install qme-ml-ml[aimnet2,uma]
 ```
 
 ### SELLA Optimizer Missing
@@ -255,7 +255,7 @@ Conflicting e3nn versions
 # Use UMA in separate environment
 conda create -n qme-uma python=3.12
 conda activate qme-uma
-pip install qme[uma]
+pip install qme-ml-ml[uma]
 ```
 
 ### MACE Backend
@@ -393,7 +393,7 @@ bash: qme: command not found
 pip list | grep qme
 
 # Reinstall if needed
-pip install qme
+pip install qme-ml
 
 # Check PATH (for conda/virtual environments)
 which python
@@ -530,7 +530,7 @@ If QME is completely broken:
 pip uninstall qme
 pip cache purge
 rm -rf ~/.cache/qme
-pip install qme[aimnet2]
+pip install qme-ml-ml[aimnet2]
 
 # Test with minimal setup
 qme opt --help

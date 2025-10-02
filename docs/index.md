@@ -48,7 +48,7 @@ Welcome to the QME documentation! QME provides a unified interface for molecular
 
 ## Quick Links
 
-- **Installation**: `pip install qme[uma]` (see [Getting Started](getting_started.md) for details)
+- **Installation**: `pip install qme-ml-ml[uma]` (see [Getting Started](getting_started.md) for details)
 - **GitHub Repository**: [https://github.com/rlaplaza-lab/qme](https://github.com/rlaplaza-lab/qme)
 - **Issue Tracker**: [Report bugs and request features](https://github.com/rlaplaza-lab/qme/issues)
 - **License**: MIT License

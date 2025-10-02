@@ -6,11 +6,11 @@ QME supports multiple machine learning potential backends, each with different s
 
 | Backend | Description | Installation | Best For |
 |---------|-------------|--------------|----------|
-| `uma` | Universal Materials Accelerator (Meta AI) | `pip install qme[uma]` | General purpose, materials |
-| `aimnet2` | Native PyTorch implementation | `pip install qme[aimnet2]` | Molecules, fast inference |
-| `mace` | Foundation models for chemistry | `pip install qme[mace]` | High accuracy, diverse systems |
-| `so3lr` | SO(3) invariant neural networks | `pip install qme[so3lr]` | Research, custom models |
-| `torchsim_*` | TorchSim accelerated backends | `pip install qme[torchsim]` | High performance, GPU |
+| `uma` | Universal Materials Accelerator (Meta AI) | `pip install qme-ml-ml[uma]` | General purpose, materials |
+| `aimnet2` | Native PyTorch implementation | `pip install qme-ml-ml[aimnet2]` | Molecules, fast inference |
+| `mace` | Foundation models for chemistry | `pip install qme-ml-ml[mace]` | High accuracy, diverse systems |
+| `so3lr` | SO(3) invariant neural networks | `pip install qme-ml-ml[so3lr]` | Research, custom models |
+| `torchsim_*` | TorchSim accelerated backends | `pip install qme-ml-ml[torchsim]` | High performance, GPU |
 | `mock` | Harmonic oscillator for testing | Built-in | Testing, development |
 
 ## UMA Backend
@@ -19,7 +19,7 @@ QME supports multiple machine learning potential backends, each with different s
 
 ### Installation
 ```bash
-pip install qme[uma]
+pip install qme-ml-ml[uma]
 ```
 
 ### Models
@@ -51,7 +51,7 @@ explorer = qme.Explorer.from_file("molecule.xyz", backend="uma")
 
 ### Installation
 ```bash
-pip install qme[aimnet2]
+pip install qme-ml-ml[aimnet2]
 ```
 
 ### Models
@@ -82,7 +82,7 @@ explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2")
 
 ### Installation
 ```bash
-pip install qme[mace]
+pip install qme-ml-ml[mace]
 ```
 
 ### Models
@@ -121,7 +121,7 @@ explorer = qme.Explorer.from_file("molecule.xyz",
 
 ### Installation
 ```bash
-pip install qme[so3lr]
+pip install qme-ml-ml[so3lr]
 pip install so3lr  # Additional package required
 ```
 
@@ -150,7 +150,7 @@ explorer = qme.Explorer.from_file("molecule.xyz", backend="so3lr")
 
 ### Installation
 ```bash
-pip install qme[torchsim]  # Requires Python 3.11+
+pip install qme-ml-ml[torchsim]  # Requires Python 3.11+
 ```
 
 ### Available TorchSim Backends
@@ -228,12 +228,12 @@ explorer = qme.Explorer.from_file("molecule.xyz", backend="mock")
 # Environment 1: UMA only
 conda create -n qme-uma python=3.12
 conda activate qme-uma
-pip install qme[uma]
+pip install qme-ml-ml[uma]
 
 # Environment 2: MACE only  
 conda create -n qme-mace python=3.12
 conda activate qme-mace
-pip install qme[mace]
+pip install qme-ml-ml[mace]
 ```
 
 ### Compatibility Matrix
@@ -251,23 +251,23 @@ pip install qme[mace]
 ### For Beginners
 Start with **AIMNet2** - no conflicts, fast, reliable:
 ```bash
-pip install qme[aimnet2]
+pip install qme-ml-ml[aimnet2]
 ```
 
 ### For Production Use
 Use **UMA** for materials or **MACE** for molecules:
 ```bash
 # Materials and general purpose
-pip install qme[uma]
+pip install qme-ml-ml[uma]
 
 # High accuracy molecules
-pip install qme[mace]
+pip install qme-ml-ml[mace]
 ```
 
 ### For Maximum Performance
 Use **TorchSim** backends with GPU acceleration:
 ```bash
-pip install qme[torchsim]
+pip install qme-ml-ml[torchsim]
 qme opt molecule.xyz --backend torchsim_mace --device cuda
 ```
 
@@ -296,7 +296,7 @@ Error: Backend 'uma' not available
 ```
 **Solution**: Install backend dependencies:
 ```bash
-pip install qme[uma]
+pip install qme-ml-ml[uma]
 ```
 
 ### Dependency Conflicts

@@ -106,7 +106,7 @@ Faster backends enable larger-scale studies:
 # Use consistent environment
 conda create -n qme-bench python=3.12
 conda activate qme-bench
-pip install qme[uma,aimnet2,mace]
+pip install qme-ml-ml[uma,aimnet2,mace]
 
 # Run with fixed random seeds (where applicable)
 python timing_benchmark.py --seed 42

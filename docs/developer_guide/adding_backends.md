@@ -528,7 +528,7 @@ Add your backend to the user guide:
 
 ### Installation
 ```bash
-pip install qme[my_backend]  # If you add optional dependency
+pip install qme-ml-ml[my_backend]  # If you add optional dependency
 pip install my-ml-package    # Or direct installation
 ```
 
@@ -746,7 +746,7 @@ Use this comprehensive checklist to ensure you've updated ALL necessary files:
 
 ### Final Validation
 - [ ] **Installation Test**:
-  - [ ] `pip install qme[my_backend]` works
+  - [ ] `pip install qme-ml-ml[my_backend]` works
   - [ ] Backend appears in available backends list
   - [ ] Can create calculator successfully
 
