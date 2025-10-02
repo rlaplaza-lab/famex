@@ -212,8 +212,15 @@ class Zimmermann93Benchmark:
     def get_available_backends(self) -> List[str]:
         """Get list of available ML backends (excluding mock)."""
         available = []
-        ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma"]
-        
+        ml_backends = [
+            "aimnet2",
+            "uma",
+            "so3lr",
+            "mace",
+            "torchsim_mace",
+            "torchsim_uma",
+        ]
+
         for backend in ml_backends:
             if calculator_registry.is_backend_available(backend):
                 available.append(backend)
@@ -224,8 +231,10 @@ class Zimmermann93Benchmark:
                 "The mock backend is excluded as it cannot optimize transition states."
             )
         return available
-    
-    def filter_available_backends(self, requested_backends: List[str], verbose: bool = False) -> List[str]:
+
+    def filter_available_backends(
+        self, requested_backends: List[str], verbose: bool = False
+    ) -> List[str]:
         """Filter requested backends to only available ones."""
         available = []
         for backend in requested_backends:
@@ -235,7 +244,9 @@ class Zimmermann93Benchmark:
                 print(f"Warning: Backend '{backend}' not available, skipping")
         return available
 
-    def print_backend_summary(self, backends: List[str], title: str = "Available Backends"):
+    def print_backend_summary(
+        self, backends: List[str], title: str = "Available Backends"
+    ):
         """Print a formatted summary of backends."""
         print(f"\n📋 {title}")
         print("-" * 50)
@@ -529,23 +540,21 @@ Examples:
   conda run -n py312 python zimmermann93_benchmark.py --quick
   conda run -n py312 python zimmermann93_benchmark.py --quicker
   conda run -n py312 python zimmermann93_benchmark.py --npoints 15
-        """
+        """,
     )
-    
+
     parser.add_argument(
-        "--backends", 
-        nargs="+", 
-        help="QME backends to test (default: all available)"
+        "--backends", nargs="+", help="QME backends to test (default: all available)"
     )
     parser.add_argument(
-        "--reactions", 
-        nargs="+", 
-        help="Specific reactions to test (default: all reactions)"
+        "--reactions",
+        nargs="+",
+        help="Specific reactions to test (default: all reactions)",
     )
     parser.add_argument(
-        "--quick", 
+        "--quick",
         action="store_true",
-        help="Run quick benchmark with representative subset of reactions"
+        help="Run quick benchmark with representative subset of reactions",
     )
     parser.add_argument(
         "--quicker",
@@ -553,46 +562,46 @@ Examples:
         help="Run quicker benchmark with single reaction for very fast testing",
     )
     parser.add_argument(
-        "--output-dir", 
+        "--output-dir",
         default="benchmark_results",
-        help="Output directory for results (default: benchmark_results)"
+        help="Output directory for results (default: benchmark_results)",
     )
     parser.add_argument(
-        "--npoints", 
-        type=int, 
+        "--npoints",
+        type=int,
         default=11,
-        help="Number of points in interpolated path (default: 11)"
+        help="Number of points in interpolated path (default: 11)",
     )
     parser.add_argument(
-        "--interp-method", 
-        choices=["linear", "geodesic"], 
+        "--interp-method",
+        choices=["linear", "geodesic"],
         default="geodesic",
-        help="Interpolation method (default: geodesic)"
+        help="Interpolation method (default: geodesic)",
     )
     parser.add_argument(
-        "--no-optimize-path", 
-        dest="optimize_path", 
+        "--no-optimize-path",
+        dest="optimize_path",
         action="store_false",
-        help="Skip path optimization step"
+        help="Skip path optimization step",
     )
     parser.add_argument(
-        "--fmax", 
-        type=float, 
+        "--fmax",
+        type=float,
         default=0.01,
-        help="Force convergence criterion (default: 0.01)"
+        help="Force convergence criterion (default: 0.01)",
     )
     parser.add_argument(
-        "--steps", 
-        type=int, 
+        "--steps",
+        type=int,
         default=300,
-        help="Maximum optimization steps (default: 300)"
+        help="Maximum optimization steps (default: 300)",
     )
 
     args = parser.parse_args()
 
     benchmark = Zimmermann93Benchmark(dataset_dir=None, output_dir=args.output_dir)
     available_backends = benchmark.get_available_backends()
-    
+
     if args.backends:
         backends = benchmark.filter_available_backends(args.backends, verbose=True)
         if not backends:

@@ -8,10 +8,10 @@ performance and reliability.
 
 Usage:
     conda run -n py312 python cli_demo.py [--backends BACKEND1,BACKEND2,...]
-    
+
 Features:
     - Structure optimization using 'opt' command
-    - Transition state optimization using 'tsopt' command  
+    - Transition state optimization using 'tsopt' command
     - Two-ended optimization workflows
     - NEB path optimization
     - Comprehensive backend performance comparison
@@ -31,7 +31,7 @@ os.environ["MPLBACKEND"] = "Agg"
 
 # Import QME for backend detection
 try:
-    from qme import calculator_registry
+    from qme.backend_availability import is_backend_available
 except ImportError as e:
     print(f"❌ Error importing QME: {e}")
     print("   Please ensure QME is installed and accessible")
@@ -42,11 +42,11 @@ def get_available_ml_backends() -> List[str]:
     """Get list of available ML backends (excluding mock)."""
     available = []
     ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma"]
-    
+
     for backend in ml_backends:
-        if calculator_registry.is_backend_available(backend):
+        if is_backend_available(backend):
             available.append(backend)
-    
+
     return available
 
 
@@ -245,13 +245,13 @@ def demo_cli(backends: List[str] = None):
             # Filter requested backends to only available ones
             available_backends = []
             for backend in backends:
-                if calculator_registry.is_backend_available(backend):
+                if is_backend_available(backend):
                     available_backends.append(backend)
                 else:
                     print(f"Warning: Backend '{backend}' not available, skipping")
         else:
             available_backends = get_available_ml_backends()
-        
+
         if not available_backends:
             print("\n❌ No ML backends available for comparison.")
             print("Please install at least one ML backend:")
@@ -261,7 +261,7 @@ def demo_cli(backends: List[str] = None):
             print("  - SO3LR: pip install so3lr")
             print("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
             return False
-        
+
         print_backend_summary(available_backends, "Testing Backends")
     except Exception as e:
         print(f"❌ Error detecting backends: {e}")
@@ -357,7 +357,9 @@ def demo_cli(backends: List[str] = None):
     print(f"{'='*80}")
 
     print("\nBackend Performance Summary:")
-    print(f"{'Backend':<12} {'Success':<8} {'Failed':<8} {'Total Time':<12} {'Avg Time/Task':<15}")
+    print(
+        f"{'Backend':<12} {'Success':<8} {'Failed':<8} {'Total Time':<12} {'Avg Time/Task':<15}"
+    )
     print("-" * 70)
 
     for backend in available_backends:
@@ -429,22 +431,22 @@ Examples:
   conda run -n py312 python cli_demo.py
   conda run -n py312 python cli_demo.py --backends aimnet2,uma
   conda run -n py312 python cli_demo.py --backends mace
-        """
+        """,
     )
-    
+
     parser.add_argument(
         "--backends",
         type=str,
-        help="Comma-separated list of backends to test (default: all available)"
+        help="Comma-separated list of backends to test (default: all available)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Parse backends if provided
     backends = None
     if args.backends:
         backends = [b.strip() for b in args.backends.split(",")]
-    
+
     try:
         success = demo_cli(backends)
         return 0 if success else 1

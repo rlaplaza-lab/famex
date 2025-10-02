@@ -47,9 +47,7 @@ class TestTorchSimSanityCheck:
             try:
                 regular_mace = qme.calculator_registry.create_calculator("mace")
                 expected_mace_default = "mace-omol-0"
-                assert (
-                    regular_mace.model_name == expected_mace_default
-                ), (
+                assert regular_mace.model_name == expected_mace_default, (
                     f"Regular MACE default should be {expected_mace_default}, "
                     f"got {regular_mace.model_name}"
                 )
@@ -59,9 +57,7 @@ class TestTorchSimSanityCheck:
                         torchsim_mace = qme.calculator_registry.create_calculator(
                             "torchsim_mace"
                         )
-                        assert (
-                            torchsim_mace.model_name == expected_mace_default
-                        ), (
+                        assert torchsim_mace.model_name == expected_mace_default, (
                             f"TorchSim MACE default should be {expected_mace_default}, "
                             f"got {torchsim_mace.model_name}"
                         )
@@ -77,9 +73,7 @@ class TestTorchSimSanityCheck:
             try:
                 regular_uma = qme.calculator_registry.create_calculator("uma")
                 expected_uma_default = "uma-s-1p1"
-                assert (
-                    regular_uma.model_name == expected_uma_default
-                ), (
+                assert regular_uma.model_name == expected_uma_default, (
                     f"Regular UMA default should be {expected_uma_default}, "
                     f"got {regular_uma.model_name}"
                 )
@@ -89,9 +83,7 @@ class TestTorchSimSanityCheck:
                         torchsim_uma = qme.calculator_registry.create_calculator(
                             "torchsim_uma"
                         )
-                        assert (
-                            torchsim_uma.model_name == expected_uma_default
-                        ), (
+                        assert torchsim_uma.model_name == expected_uma_default, (
                             f"TorchSim UMA default should be {expected_uma_default}, "
                             f"got {torchsim_uma.model_name}"
                         )
@@ -158,7 +150,7 @@ class TestTorchSimSanityCheck:
             print(f"  Regular energy: {regular_energy:.6f} eV")
             print(f"  TorchSim energy: {torchsim_energy:.6f} eV")
 
-            # For now, just log the differences - we can tighten tolerances once we 
+            # For now, just log the differences - we can tighten tolerances once we
             # know expected behavior
             if energy_diff > energy_tolerance:
                 print(
@@ -396,9 +388,7 @@ class TestTorchSimSanityCheck:
                 ), f"{torchsim_backend} calculator creation failed"
 
                 # Both should have the same model name
-                assert (
-                    regular_calc.model_name == torchsim_calc.model_name
-                ), (
+                assert regular_calc.model_name == torchsim_calc.model_name, (
                     f"Model names don't match: {regular_calc.model_name} "
                     f"vs {torchsim_calc.model_name}"
                 )
@@ -435,7 +425,7 @@ class TestTorchSimSanityCheck:
             print(f"  {regular_backend}: {'✅' if regular_available else '❌'}")
             print(f"  {torchsim_backend}: {'✅' if torchsim_available else '❌'}")
 
-            # If regular backend is available but TorchSim is not, it should be due to 
+            # If regular backend is available but TorchSim is not, it should be due to
             # missing torch_sim
             if regular_available and not torchsim_available:
                 if not deps.has("torch_sim"):

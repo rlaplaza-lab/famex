@@ -14,10 +14,10 @@ QME provides an intuitive interface for molecular optimization using state-of-th
 
 ```bash
 # Recommended: Install with a specific backend
-pip install qme[aimnet2]    # Fast and reliable
-pip install qme[mace]       # High accuracy  
-pip install qme[uma]        # General purpose
-pip install qme[torchsim]   # Maximum performance (Python 3.11+)
+pip install qme-ml[aimnet2]    # Fast and reliable
+pip install qme-ml[mace]       # High accuracy  
+pip install qme-ml[uma]        # General purpose
+pip install qme-ml[torchsim]   # Maximum performance (Python 3.11+)
 ```
 
 > **Note**: Some backends have dependency conflicts. See [Installation Guide](docs/getting_started.md) for details.
@@ -100,11 +100,11 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 | Backend | Description | Best For | Installation |
 |---------|-------------|----------|--------------|
-| `aimnet2` | Native PyTorch implementation | General use, no conflicts | `pip install qme[aimnet2]` |
-| `mace` | Foundation models | High accuracy | `pip install qme[mace]` |
-| `uma` | Universal Materials Accelerator | Materials science | `pip install qme[uma]` |
-| `torchsim_*` | TorchSim acceleration | Maximum performance | `pip install qme[torchsim]` |
-| `so3lr` | SO(3) neural networks | Research applications | `pip install qme[so3lr]` |
+| `aimnet2` | Native PyTorch implementation | General use, no conflicts | `pip install qme-ml[aimnet2]` |
+| `mace` | Foundation models | High accuracy | `pip install qme-ml[mace]` |
+| `uma` | Universal Materials Accelerator | Materials science | `pip install qme-ml[uma]` |
+| `torchsim_*` | TorchSim acceleration | Maximum performance | `pip install qme-ml[torchsim]` |
+| `so3lr` | SO(3) neural networks | Research applications | `pip install qme-ml[so3lr]` |
 | `mock` | Harmonic oscillator | Testing and development | Built-in |
 
 > **Note**: UMA and MACE cannot be installed together due to dependency conflicts. Use separate environments or choose one.
