@@ -118,6 +118,18 @@ class TorchSimPotential(BasePotential):
                 else:
                     raise ValueError(f"Unsupported TorchSim backend: {self.backend}")
 
+        except ValueError as e:
+            if "too many values to unpack" in str(e):
+                raise ImportError(
+                    f"TorchSim MACE compatibility issue with e3nn. "
+                    f"MACE 0.3.14 requires e3nn==0.4.4, but a newer e3nn version is installed. "
+                    f"This affects both regular MACE and TorchSim MACE backends. "
+                    f"Error: {e}"
+                )
+            else:
+                raise ImportError(
+                    f"TorchSim not available ({e}). Install with: pip install torch-sim-atomistic"
+                )
         except Exception as e:
             raise ImportError(
                 f"TorchSim not available ({e}). Install with: pip install torch-sim-atomistic"

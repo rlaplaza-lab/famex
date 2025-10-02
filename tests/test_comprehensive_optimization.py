@@ -402,7 +402,7 @@ class TestFileIO:
     def test_xyz_file_workflow(self, backend):
         """Test complete XYZ file workflow."""
         import qme
-        
+
         if not qme.calculator_registry.is_backend_available(backend):
             pytest.skip(f"{backend} backend not available")
 
