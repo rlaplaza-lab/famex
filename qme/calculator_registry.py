@@ -224,29 +224,45 @@ class CalculatorRegistry:
             if not (deps.has("mace") and deps.has("torch")):
                 return False
             try:
+                from ase.build import molecule
+
                 from qme.potentials.mace_potential import MACEPotential
 
-                # Test if MACE can actually be loaded (check for e3nn compatibility)
+                # Test if MACE can actually perform calculations (comprehensive check)
                 test_calc = MACEPotential(device="cpu")
                 test_calc._load_calculator()
+
+                # Test a simple calculation to catch e3nn runtime errors
+                atoms = molecule("H2")
+                atoms.calc = test_calc
+                atoms.get_potential_energy()  # This will fail if e3nn is incompatible
+
                 return True
-            except (ImportError, ValueError):
+            except (ImportError, ValueError, AttributeError, RuntimeError):
                 # ImportError: missing dependencies
-                # ValueError: e3nn compatibility issue
+                # ValueError/AttributeError/RuntimeError: e3nn compatibility issues
                 return False
         elif backend == "torchsim_mace":
             if not (deps.has("torch_sim") and deps.has("torch")):
                 return False
             try:
+                from ase.build import molecule
+
                 from qme.potentials.torchsim_potential import TorchSimPotential
 
-                # Test if TorchSim MACE can actually be loaded (check for e3nn compatibility)
+                # Test if TorchSim MACE can actually perform calculations (comprehensive check)
                 test_calc = TorchSimPotential(backend="mace", device="cpu")
                 test_calc._load_calculator()
+
+                # Test a simple calculation to catch e3nn runtime errors
+                atoms = molecule("H2")
+                atoms.calc = test_calc
+                atoms.get_potential_energy()  # This will fail if e3nn is incompatible
+
                 return True
-            except (ImportError, ValueError):
+            except (ImportError, ValueError, AttributeError, RuntimeError):
                 # ImportError: missing dependencies
-                # ValueError: e3nn compatibility issue
+                # ValueError/AttributeError/RuntimeError: e3nn compatibility issues
                 return False
         elif backend == "torchsim_uma":
             # TorchSim UMA requires torch_sim, torch, AND fairchem
@@ -256,7 +272,7 @@ class CalculatorRegistry:
                 return False
             try:
                 from qme.potentials.torchsim_potential import TorchSimPotential
-                
+
                 # Test if TorchSim UMA can actually be loaded (check for FairChem compatibility)
                 test_calc = TorchSimPotential(backend="fairchem", device="cpu")
                 test_calc._load_calculator()

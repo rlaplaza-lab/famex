@@ -30,6 +30,29 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Individual backend installations to avoid dependency conflicts
+uma = [
+    "torch>=2.0.0",
+    "fairchem-core>=1.0.0",
+    "torch-cluster>=0.6.0",
+]
+aimnet2 = [
+    "torch>=2.0.0",
+]
+mace = [
+    "torch>=2.0.0",
+    "mace-torch>=0.1.0",
+    # Note: mace-torch requires e3nn==0.4.4, conflicts with fairchem-core
+]
+so3lr = [
+    "jax>=0.4.20",
+    # Note: so3lr must be installed separately from source
+]
+# TorchSim acceleration (requires Python 3.11+)
+torchsim = [
+    "torch-sim-atomistic>=0.3.0; python_version>='3.11'",
+]
+# Legacy combined installation (may have conflicts)
 ml = [
     "torch>=2.0.0",
     "fairchem-core>=1.0.0",
@@ -37,9 +60,7 @@ ml = [
     "mace-torch>=0.1.0",
     "jax>=0.4.20",
 ]
-torchsim = [
-    "torch-sim-atomistic>=0.3.0; python_version>='3.11'",
-]
+# Development dependencies
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
