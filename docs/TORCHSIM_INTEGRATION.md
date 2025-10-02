@@ -45,7 +45,7 @@ from ase.build import molecule
 benzene = molecule("C6H6")
 
 # Create QME optimizer with TorchSim MACE
-qme_opt = qme.QMEOptimizer(
+qme_opt = qme.Explorer.from_file("molecule.xyz",
     backend="torchsim_mace",
     model_name="mace-omol-0",
     device="cuda"  # Use GPU for best performance
@@ -70,13 +70,13 @@ QME now supports three TorchSim backends:
 
 ```python
 # TorchSim MACE
-qme_opt = qme.QMEOptimizer(backend="torchsim_mace", model_name="mace-omol-0")
+qme_opt = qme.Explorer.from_file("molecule.xyz",backend="torchsim_mace", model_name="mace-omol-0")
 
 # TorchSim Fairchem
-qme_opt = qme.QMEOptimizer(backend="torchsim_fairchem", model_name="equiformer_v2_31M_s2ef_all_md")
+qme_opt = qme.Explorer.from_file("molecule.xyz",backend="torchsim_fairchem", model_name="equiformer_v2_31M_s2ef_all_md")
 
 # Generic TorchSim (defaults to MACE)
-qme_opt = qme.QMEOptimizer(backend="torchsim", model_name="mace-mp-medium")
+qme_opt = qme.Explorer.from_file("molecule.xyz",backend="torchsim", model_name="mace-mp-medium")
 ```
 
 ### Direct Calculator Usage

@@ -15,7 +15,7 @@ import pytest
 from ase import Atoms
 from ase.build import molecule
 
-import qme
+from qme import Explorer, calculator_registry
 from qme.dependencies import deps
 from tests.backend_utils import AVAILABLE_TORCHSIM_BACKENDS, require_backend
 
@@ -40,7 +40,7 @@ class TestTorchSimIntegration:
         backends = ["torchsim_mace", "torchsim_uma"]
 
         for backend in backends:
-            available = qme.calculator_registry.is_backend_available(backend)
+            available = calculator_registry.is_backend_available(backend)
             print(f"{backend}: {available}")
 
             # Note: We don't assert specific availability expectations here because
@@ -55,7 +55,7 @@ class TestTorchSimIntegration:
         require_backend("torchsim_mace")  # This will skip if TorchSim is not available
 
         # Test TorchSim MACE calculator
-        calc_mace = qme.calculator_registry.create_calculator(
+        calc_mace = calculator_registry.create_calculator(
             backend="torchsim_mace", model_name="mace-omol-0", device="cpu"
         )
         assert calc_mace is not None
@@ -63,7 +63,7 @@ class TestTorchSimIntegration:
 
         # Test TorchSim UMA calculator (if fairchem available)
         if deps.has("fairchem"):
-            calc_uma = qme.calculator_registry.create_calculator(
+            calc_uma = calculator_registry.create_calculator(
                 backend="torchsim_uma",
                 model_name="uma-s-1p1",
                 device="cpu",
@@ -78,12 +78,12 @@ class TestTorchSimIntegration:
                 ImportError,
                 match="TorchSim MACE calculator requires torch-sim-atomistic",
             ):
-                qme.calculator_registry.create_calculator(
+                calculator_registry.create_calculator(
                     backend="torchsim_mace", model_name="mace-omol-0", device="cpu"
                 )
         else:
             # If TorchSim is available, should create a real calculator
-            calc = qme.calculator_registry.create_calculator(
+            calc = calculator_registry.create_calculator(
                 backend="torchsim_mace", model_name="mace-omol-0", device="cpu"
             )
             assert calc is not None
@@ -98,7 +98,7 @@ class TestTorchSimIntegration:
         benzene = molecule("C6H6")
 
         # Create TorchSim calculator
-        calc = qme.calculator_registry.create_calculator(
+        calc = calculator_registry.create_calculator(
             backend="torchsim_mace", model_name="mace-omol-0", device="cpu"
         )
 
@@ -118,7 +118,7 @@ class TestTorchSimIntegration:
         benzene = molecule("C6H6")
 
         # Create TorchSim calculator
-        calc = qme.calculator_registry.create_calculator(
+        calc = calculator_registry.create_calculator(
             backend="torchsim_mace", model_name="mace-omol-0", device="cpu"
         )
 
@@ -143,12 +143,14 @@ class TestTorchSimIntegration:
         benzene.set_positions(pos)
 
         # Create QME optimizer with TorchSim
-        qme_opt = qme.QMEOptimizer(
-            backend="torchsim_mace", model_name="mace-omol-0", device="cpu"
+        qme_opt = Explorer(
+            atoms=benzene,
+            backend="torchsim_mace",
+            model_name="mace-omol-0",
+            device="cpu",
         )
 
-        # Load structure and optimize
-        qme_opt.load_structure(benzene)
+        # Optimize (structure already loaded in constructor)
         result = qme_opt.optimize_minimum(
             optimizer="BFGS", fmax=0.05, steps=10  # Small number for testing
         )
@@ -209,8 +211,8 @@ class TestTorchSimIntegration:
         benzene = molecule("C6H6")
 
         # Test standard MACE (if available)
-        if qme.calculator_registry.is_backend_available("mace"):
-            calc_standard = qme.calculator_registry.create_calculator(
+        if calculator_registry.is_backend_available("mace"):
+            calc_standard = calculator_registry.create_calculator(
                 backend="mace", model_name="mace-omol-0", device="cpu"
             )
             benzene.calc = calc_standard
@@ -225,7 +227,7 @@ class TestTorchSimIntegration:
             print("Standard MACE not available - skipping comparison")
 
         # Test TorchSim MACE
-        calc_torchsim = qme.calculator_registry.create_calculator(
+        calc_torchsim = calculator_registry.create_calculator(
             backend="torchsim_mace", model_name="mace-omol-0", device="cpu"
         )
         benzene.calc = calc_torchsim

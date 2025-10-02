@@ -35,7 +35,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-import qme
+from qme import Explorer
 from qme.dependencies import HAS_SELLA, deps
 
 # Add parent directory to path for backend_utils
@@ -44,7 +44,7 @@ parent_dir = script_dir.parent
 if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
-from backend_utils import (
+from backend_utils import (  # noqa: E402
     filter_available_backends,
     get_available_ml_backends,
     print_backend_summary,
@@ -248,119 +248,123 @@ class Zimmermann93Benchmark:
 
                     try:
                         with suppress_verbose_output():
-                            optimizer = qme.QMEOptimizer(
-                                backend=backend, model_name=model_name
-                            )
+                            # Will create optimizer per structure below
 
-                        # Load endpoints
-                        reactant, product = self.get_reactant_and_product(reaction)
+                            # Load endpoints
+                            reactant, product = self.get_reactant_and_product(reaction)
 
-                        # Build Reaction object and interpolate
-                        from qme.core.reaction import Reaction
+                            # Build Reaction object and interpolate
+                            from qme.core.reaction import Reaction
 
-                        reaction_obj = Reaction(reactant, product)
+                            reaction_obj = Reaction(reactant, product)
 
-                        # Set calculator for path generation/energies
-                        try:
-                            qme_opt = qme.QMEOptimizer(
-                                backend=backend, model_name=model_name
-                            )
-                            # Load a dummy structure to initialize the calculator
-                            qme_opt.load_structure(reactant)
-                            qme_calc = qme_opt.calculator
-                            reaction_obj.set_calculator(qme_calc)
-                        except Exception:
-                            # fallback to mock calculator
-                            mock_opt = qme.QMEOptimizer(backend="mock")
-                            mock_opt.load_structure(reactant)
-                            reaction_obj.set_calculator(mock_opt.calculator)
-
-                        path = reaction_obj.interpolate(
-                            npoints=npoints,
-                            method=interp_method,
-                            optimize_path=optimize_path,
-                            calculator=reaction_obj.calculator,
-                        )
-
-                        # Evaluate energies along path
-                        energies = reaction_obj.calculate_path_energies(path)
-
-                        # Pick highest energy image as TS guess
-                        max_idx = int(np.nanargmax(energies))
-                        ts_guess_geom = path[max_idx]
-                        ts_guess_atoms = (
-                            ts_guess_geom  # Geometry objects are ASE-compatible
-                        )
-
-                        # For ASE-based optimizer we need an Atoms instance
-                        optimizer.atoms = None
-                        optimizer.atoms = ts_guess_atoms
-
-                        ts_result = {}
-                        if HAS_SELLA:
+                            # Set calculator for path generation/energies
                             try:
-                                ts_result = optimizer.find_transition_state(
-                                    atoms=ts_guess_atoms, fmax=fmax, steps=steps
+                                qme_opt = Explorer(
+                                    atoms=reactant,
+                                    backend=backend,
+                                    model_name=model_name,
                                 )
-                                ts_success = ts_result.get(
-                                    "converged", False
-                                ) or ts_result.get("ts_converged", False)
-                                ts_opt_atoms = ts_result.get(
-                                    "optimized_atoms"
-                                ) or ts_result.get("ts_atoms")
-                            except Exception as e:
-                                ts_success = False
-                                ts_result = {"error": str(e)}
-                                ts_opt_atoms = None
-                        else:
-                            # No SELLA: fallback to single-point energy evaluation only
-                            try:
-                                # Ensure calculator is attached
-                                if optimizer.calculator is None:
-                                    optimizer._ensure_explorer_for_atoms(ts_guess_atoms)
-                                ts_guess_atoms.calc = optimizer.calculator
-                                with suppress_verbose_output():
-                                    energy = ts_guess_atoms.get_potential_energy()
-                                ts_result = {
-                                    "ts_energy": energy,
-                                    "method": "single_point",
-                                    "converged": False,
-                                }
-                                ts_success = False
-                                ts_opt_atoms = ts_guess_atoms
-                            except Exception as e:
-                                ts_result = {"error": str(e)}
-                                ts_success = False
-                                ts_opt_atoms = None
+                                # Get calculator from the explorer
+                                qme_calc = qme_opt.atoms_list[0].calc
+                                reaction_obj.set_calculator(qme_calc)
+                            except Exception:
+                                # fallback to mock calculator
+                                mock_opt = Explorer(atoms=reactant, backend="mock")
+                                reaction_obj.set_calculator(mock_opt.atoms_list[0].calc)
 
-                        # Compare geometry to reference TS (use flexible RMSD matcher)
-                        try:
-                            ref_ts = self.get_reference_ts(reaction)
-                            if ts_opt_atoms is not None:
-                                rmsd = compute_rmsd_flexible(ref_ts, ts_opt_atoms)
+                            path = reaction_obj.interpolate(
+                                npoints=npoints,
+                                method=interp_method,
+                                optimize_path=optimize_path,
+                                calculator=reaction_obj.calculator,
+                            )
+
+                            # Evaluate energies along path
+                            energies = reaction_obj.calculate_path_energies(path)
+
+                            # Pick highest energy image as TS guess
+                            max_idx = int(np.nanargmax(energies))
+                            ts_guess_geom = path[max_idx]
+                            ts_guess_atoms = (
+                                ts_guess_geom  # Geometry objects are ASE-compatible
+                            )
+
+                            # TS optimization will be done with fresh optimizer
+
+                            ts_result = {}
+                            if HAS_SELLA:
+                                try:
+                                    ts_optimizer = Explorer(
+                                        atoms=ts_guess_atoms,
+                                        backend=backend,
+                                        model_name=model_name,
+                                    )
+                                    ts_result = ts_optimizer.find_transition_state(
+                                        fmax=fmax, steps=steps
+                                    )
+                                    ts_success = ts_result.get(
+                                        "converged", False
+                                    ) or ts_result.get("ts_converged", False)
+                                    ts_opt_atoms = ts_result.get(
+                                        "optimized_atoms"
+                                    ) or ts_result.get("ts_atoms")
+                                except Exception as e:
+                                    ts_success = False
+                                    ts_result = {"error": str(e)}
+                                    ts_opt_atoms = None
                             else:
+                                # No SELLA: fallback to single-point energy evaluation only
+                                try:
+                                    # Create optimizer for single-point calculation
+                                    ts_optimizer = Explorer(
+                                        atoms=ts_guess_atoms,
+                                        backend=backend,
+                                        model_name=model_name,
+                                    )
+                                    ts_guess_atoms.calc = ts_optimizer.calculator
+                                    with suppress_verbose_output():
+                                        energy = ts_guess_atoms.get_potential_energy()
+                                    ts_result = {
+                                        "ts_energy": energy,
+                                        "method": "single_point",
+                                        "converged": False,
+                                    }
+                                    ts_success = False
+                                    ts_opt_atoms = ts_guess_atoms
+                                except Exception as e:
+                                    ts_result = {"error": str(e)}
+                                    ts_success = False
+                                    ts_opt_atoms = None
+
+                            # Compare geometry to reference TS (use flexible RMSD matcher)
+                            try:
+                                ref_ts = self.get_reference_ts(reaction)
+                                if ts_opt_atoms is not None:
+                                    rmsd = compute_rmsd_flexible(ref_ts, ts_opt_atoms)
+                                else:
+                                    rmsd = float("nan")
+                            except Exception:
                                 rmsd = float("nan")
-                        except Exception:
-                            rmsd = float("nan")
 
-                        reaction_data.update(
-                            {
-                                "path_max_idx": int(max_idx),
-                                "path_energies": energies,
-                                "ts_guess_energy": (
-                                    float(energies[max_idx])
-                                    if len(energies) > max_idx
-                                    else None
-                                ),
-                                "ts_result": ts_result,
-                                "ts_success": bool(ts_success),
-                                "ts_rmsd_to_reference": rmsd,
-                            }
-                        )
+                            reaction_data.update(
+                                {
+                                    "path_max_idx": int(max_idx),
+                                    "path_energies": energies,
+                                    "ts_guess_energy": (
+                                        float(energies[max_idx])
+                                        if len(energies) > max_idx
+                                        else None
+                                    ),
+                                    "ts_result": ts_result,
+                                    "ts_success": bool(ts_success),
+                                    "ts_rmsd_to_reference": rmsd,
+                                }
+                            )
 
-                        print(
-                            f"    ✓ TS guess index: {max_idx}, RMSD -> ref: {rmsd:.4f}"
-                        )
+                            print(
+                                f"    ✓ TS guess index: {max_idx}, RMSD -> ref: {rmsd:.4f}"
+                            )
 
                     except Exception as e:
                         reaction_data = {"success": False, "error": str(e)}

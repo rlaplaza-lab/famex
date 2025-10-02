@@ -778,10 +778,10 @@ class BatchFrequencyAnalysis(FrequencyAnalysis):
                 hessian_row = 3 * i + j
                 for k in range(n_atoms):
                     atom_k = self.indices[k]
-                    for l in range(3):
-                        hessian_col = 3 * k + l
+                    for coord in range(3):
+                        hessian_col = 3 * k + coord
                         hessian[hessian_row, hessian_col] = (
-                            neg_forces[atom_k, l] - pos_forces[atom_k, l]
+                            neg_forces[atom_k, coord] - pos_forces[atom_k, coord]
                         ) / (2 * self.delta)
 
         # Convert to eV/Å²

@@ -19,7 +19,10 @@ def _make_test_xyz(tmpdir: str, fname: str = "mol.xyz") -> str:
 
 
 def _backend_available(name: str) -> bool:
-    """Check if a backend is truly available for testing (can create real calculators, not mock fallbacks)."""
+    """Check if a backend is truly available for testing.
+
+    Can create real calculators, not mock fallbacks.
+    """
     if name == "mock":
         return True
     if name == "aimnet2":

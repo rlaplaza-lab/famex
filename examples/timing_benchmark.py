@@ -33,17 +33,13 @@ from backend_utils import (
     print_backend_summary,
 )
 
+# Import QME components (already imported in backend_utils)
+from qme import Explorer, calculator_registry, deps
+from qme.analysis.frequency import FrequencyAnalysis
+
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
-
-# Import QME components (already imported in backend_utils)
-import qme
-
-QMEOptimizer = qme.QMEOptimizer
-deps = qme.deps
-calculator_registry = qme.calculator_registry
-from qme.analysis.frequency import FrequencyAnalysis
 
 
 def create_benzene_molecule() -> Atoms:
@@ -136,7 +132,8 @@ def benchmark_backend(
             print("Initializing QME optimizer...")
         init_start = time.perf_counter()
 
-        qme = QMEOptimizer(
+        explorer = Explorer(
+            atoms=benzene,
             backend=backend,
             model_name=model_name,
             device=device,
@@ -155,7 +152,7 @@ def benchmark_backend(
             print("Loading structure...")
         load_start = time.perf_counter()
 
-        qme.load_structure(benzene)
+        # Structure already loaded in Explorer constructor
 
         load_time = time.perf_counter() - load_start
         results["timings"]["structure_loading"] = load_time
@@ -170,7 +167,7 @@ def benchmark_backend(
             )
         energy_first_start = time.perf_counter()
 
-        energy = qme.atoms.get_potential_energy()
+        energy = explorer.atoms_list[0].get_potential_energy()
 
         energy_first_time = time.perf_counter() - energy_first_start
         results["timings"]["single_energy_first"] = energy_first_time
@@ -186,7 +183,7 @@ def benchmark_backend(
             )
         energy_second_start = time.perf_counter()
 
-        energy2 = qme.atoms.get_potential_energy()
+        energy2 = explorer.atoms_list[0].get_potential_energy()
 
         energy_second_time = time.perf_counter() - energy_second_start
         results["timings"]["single_energy_second"] = energy_second_time
@@ -203,7 +200,7 @@ def benchmark_backend(
             print("Testing single force calculation...")
         force_start = time.perf_counter()
 
-        forces = qme.atoms.get_forces()
+        forces = explorer.atoms_list[0].get_forces()
         max_force = float(np.max(np.abs(forces)))
 
         force_time = time.perf_counter() - force_start
@@ -225,7 +222,7 @@ def benchmark_backend(
         # Create the optimizer manually to capture step count
         from ase.optimize import BFGS
 
-        opt = BFGS(qme.atoms)
+        opt = BFGS(explorer.atoms_list[0])
         opt.run(fmax=0.01, steps=1000)
         steps_taken = opt.get_number_of_steps()
 
@@ -238,7 +235,8 @@ def benchmark_backend(
             avg_time_per_step = None
 
         # Get optimization results for compatibility
-        forces = qme.atoms.get_forces()
+        atoms = explorer.atoms_list[0]
+        forces = atoms.get_forces()
         max_force = float(np.max(np.abs(forces)))
 
         # Flatten forces for converged() method
@@ -246,9 +244,9 @@ def benchmark_backend(
 
         opt_results = {
             "converged": opt.converged(forces_flat),
-            "final_energy": float(qme.atoms.get_potential_energy()),
+            "final_energy": float(atoms.get_potential_energy()),
             "steps_taken": steps_taken,
-            "optimized_atoms": qme.atoms,
+            "optimized_atoms": atoms,
             "max_force": max_force,
         }
 
@@ -275,7 +273,7 @@ def benchmark_backend(
             print("Running frequency analysis...")
         freq_start = time.perf_counter()
 
-        freq_results = qme.calculate_frequencies(
+        freq_results = explorer.calculate_frequencies(
             delta=0.01,
             method="auto",
             temperature=298.15,
@@ -323,8 +321,9 @@ def print_summary(results_list: List[Dict[str, Any]]):
 
     # Header
     print(
-        f"{'Backend':<12} {'Available':<10} {'Total (s)':<10} {'Init (s)':<10} {'Opt (s)':<10} "
-        f"{'Freq (s)':<10} {'E1st (s)':<10} {'E2nd (s)':<10} {'Forces (s)':<10} {'Steps':<8} {'Avg/Step (s)':<12}"
+        f"{'Backend':<12} {'Available':<10} {'Total (s)':<10} {'Init (s)':<10} "
+        f"{'Opt (s)':<10} {'Freq (s)':<10} {'E1st (s)':<10} {'E2nd (s)':<10} "
+        f"{'Forces (s)':<10} {'Steps':<8} {'Avg/Step (s)':<12}"
     )
     print("-" * 120)
     print("📊 INDIVIDUAL MEASUREMENTS:")
@@ -365,7 +364,8 @@ def print_summary(results_list: List[Dict[str, Any]]):
         else:
             print(
                 f"{results['backend']:<12} {'No':<10} "
-                f"{'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<8} {'N/A':<12}"
+                f"{'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<10} "
+                f"{'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<8} {'N/A':<12}"
             )
 
     print("-" * 100)
@@ -466,7 +466,7 @@ def main():
     )
 
     # Handle case where script is run directly without arguments
-    import sys
+    # sys already imported at top
 
     if len(sys.argv) == 1:
         # No arguments provided, use defaults

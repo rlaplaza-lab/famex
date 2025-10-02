@@ -28,7 +28,8 @@ os.environ.setdefault("MPLBACKEND", "Agg")
         "  qme tsopt r.xyz --product p.xyz --interp geodesic --npoints 15\n"
         "  qme tsopt r.xyz --product p.xyz --mode neb --npoints 11 --spring-constant 5.0\n"
         "  qme opt molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n"
-        "  qme opt molecule.xyz --backend torchsim_fairchem --model-name equiformer_v2_31M_s2ef_all_md\n"
+        "  qme opt molecule.xyz --backend torchsim_fairchem \\\n"
+        "      --model-name equiformer_v2_31M_s2ef_all_md\n"
         "  qme cache info  # Show cache information\n"
         "  qme cache clear # Clear model cache\n"
     )

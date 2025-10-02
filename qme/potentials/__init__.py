@@ -138,7 +138,8 @@ TorchSimPotential = None
 def get_torchsim_calculator(**kwargs):
     if not deps.has("torch_sim"):
         raise ImportError(
-            "TorchSim backend requires torch-sim-atomistic. Install with: pip install torch-sim-atomistic"
+            "TorchSim backend requires torch-sim-atomistic. "
+            "Install with: pip install torch-sim-atomistic"
         )
     try:
         from qme.potentials.torchsim_potential import TorchSimPotential
@@ -151,7 +152,8 @@ def get_torchsim_calculator(**kwargs):
 def get_torchsim_mace_calculator(**kwargs):
     if not deps.has("torch_sim"):
         raise ImportError(
-            "TorchSim MACE calculator requires torch-sim-atomistic. Install with: pip install torch-sim-atomistic"
+            "TorchSim MACE calculator requires torch-sim-atomistic. "
+            "Install with: pip install torch-sim-atomistic"
         )
     try:
         from qme.potentials.torchsim_potential import (
@@ -166,11 +168,13 @@ def get_torchsim_mace_calculator(**kwargs):
 def get_torchsim_uma_calculator(**kwargs):
     if not deps.has("torch_sim"):
         raise ImportError(
-            "TorchSim UMA calculator requires torch-sim-atomistic. Install with: pip install torch-sim-atomistic"
+            "TorchSim UMA calculator requires torch-sim-atomistic. "
+            "Install with: pip install torch-sim-atomistic"
         )
     if not deps.has("fairchem"):
         raise ImportError(
-            "TorchSim UMA calculator requires fairchem-core. Install with: pip install fairchem-core"
+            "TorchSim UMA calculator requires fairchem-core. "
+            "Install with: pip install fairchem-core"
         )
     try:
         from qme.potentials.torchsim_potential import (

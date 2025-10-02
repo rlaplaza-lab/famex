@@ -22,7 +22,7 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-import qme
+from qme import Explorer
 from qme.dependencies import deps
 from tests.backend_utils import AVAILABLE_BACKENDS
 
@@ -135,12 +135,12 @@ class TestMinimaOptimization:
     def test_h2_optimization(self, backend):
         """Test H2 optimization across all backends - basic functionality only."""
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
             h2 = TestSystemDefinitions.get_h2_stretched()
+            optimizer = Explorer(atoms=h2, backend=backend)
 
             start_time = time.time()
             result = optimizer.optimize_minimum(
-                atoms=h2, optimizer="BFGS", fmax=0.05, steps=20  # Reduced steps
+                optimizer="BFGS", fmax=0.05, steps=20  # Reduced steps
             )
             optimization_time = time.time() - start_time
 
@@ -173,13 +173,11 @@ class TestMinimaOptimization:
     def test_water_optimization(self, backend):
         """Test H2O optimization across all backends."""
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
             water = TestSystemDefinitions.get_water_distorted()
+            optimizer = Explorer(atoms=water, backend=backend)
 
             start_time = time.time()
-            result = optimizer.optimize_minimum(
-                atoms=water, optimizer="BFGS", fmax=0.05, steps=50
-            )
+            result = optimizer.optimize_minimum(optimizer="BFGS", fmax=0.05, steps=50)
             optimization_time = time.time() - start_time
 
             # Check convergence
@@ -212,13 +210,11 @@ class TestMinimaOptimization:
     def test_methane_optimization(self, backend):
         """Test CH4 optimization across all backends."""
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
             methane = TestSystemDefinitions.get_methane_distorted()
+            optimizer = Explorer(atoms=methane, backend=backend)
 
             start_time = time.time()
-            result = optimizer.optimize_minimum(
-                atoms=methane, optimizer="BFGS", fmax=0.05, steps=50
-            )
+            result = optimizer.optimize_minimum(optimizer="BFGS", fmax=0.05, steps=50)
             optimization_time = time.time() - start_time
 
             # Check convergence
@@ -265,12 +261,11 @@ class TestTransitionStateOptimization:
     def test_water_dissociation_ts(self, backend):
         """Test water dissociation transition state across all backends."""
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
             water_ts_guess = TestSystemDefinitions.get_water_dissociation_ts_guess()
+            optimizer = Explorer(atoms=water_ts_guess, backend=backend)
 
             start_time = time.time()
             result = optimizer.ts_opt(
-                atoms=water_ts_guess,
                 fmax=0.1,  # Slightly looser convergence for complex system
                 steps=50,  # Reduced steps for faster testing
             )
@@ -306,11 +301,11 @@ class TestTransitionStateOptimization:
     def test_sn2_like_ts(self, backend):
         """Test SN2-like transition state across all backends."""
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
             sn2_ts_guess = TestSystemDefinitions.get_sn2_like_ts_guess()
+            optimizer = Explorer(atoms=sn2_ts_guess, backend=backend)
 
             start_time = time.time()
-            result = optimizer.ts_opt(atoms=sn2_ts_guess, fmax=0.1, steps=50)
+            result = optimizer.ts_opt(fmax=0.1, steps=50)
             optimization_time = time.time() - start_time
 
             # Check convergence
@@ -346,16 +341,14 @@ class TestFileIO:
     @pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
     def test_xyz_file_workflow(self, backend):
         """Test complete XYZ file workflow."""
-        import qme
-
         # Backend should be available since we use pre-filtered AVAILABLE_BACKENDS
-        assert qme.calculator_registry.is_backend_available(
+        from qme import calculator_registry
+
+        assert calculator_registry.is_backend_available(
             backend
         ), f"Backend {backend} should be available"
 
         try:
-            optimizer = qme.QMEOptimizer(backend=backend)
-
             with tempfile.TemporaryDirectory() as tmpdir:
                 input_file = Path(tmpdir) / "input.xyz"
                 output_file = Path(tmpdir) / "output.xyz"
@@ -364,9 +357,11 @@ class TestFileIO:
                 h2 = TestSystemDefinitions.get_h2_stretched()
                 h2.write(str(input_file))
 
-                # Load, optimize, save
-                atoms = optimizer.load_structure(str(input_file))
-                result = optimizer.optimize_minimum(atoms=atoms, fmax=0.05, steps=30)
+                # Create optimizer and test file operations
+                optimizer = Explorer.from_file(str(input_file), backend=backend)
+
+                # Optimize and save
+                result = optimizer.optimize_minimum(fmax=0.05, steps=30)
                 optimizer.save_structure(result["optimized_atoms"], str(output_file))
 
                 # Verify output file
@@ -401,10 +396,10 @@ class TestBackendConsistency:
                 continue
 
             try:
-                optimizer = qme.QMEOptimizer(backend=backend)
                 h2 = TestSystemDefinitions.get_h2_stretched()
+                optimizer = Explorer(atoms=h2, backend=backend)
 
-                result = optimizer.optimize_minimum(atoms=h2, fmax=0.05, steps=50)
+                result = optimizer.optimize_minimum(fmax=0.05, steps=50)
                 final_distance = result["optimized_atoms"].get_distance(0, 1)
                 results[backend] = final_distance
 

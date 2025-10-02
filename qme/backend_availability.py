@@ -122,7 +122,9 @@ class BackendAvailabilityChecker:
         """Check basic package dependencies for a backend."""
         requirements = {
             "mock": [],
-            "aimnet2": ["torch"],
+            "aimnet2": [
+                "aimnet2"
+            ],  # Use backend name, deps.has() will handle the mapping
             "uma": ["fairchem", "torch"],
             "so3lr": ["so3lr"],
             "mace": ["mace", "torch"],
@@ -215,7 +217,7 @@ class BackendAvailabilityChecker:
 
         if not self._check_basic_dependencies(backend):
             requirements = {
-                "aimnet2": ["torch"],
+                "aimnet2": ["torch", "torch-cluster"],
                 "uma": ["fairchem-core", "torch"],
                 "so3lr": ["so3lr"],
                 "mace": ["mace-torch", "torch"],
