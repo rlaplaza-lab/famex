@@ -1,322 +1,278 @@
 # QME: Quick Mechanistic Exploration
 
-Quick mechanistic exploration using multiple neural network potentials (MLPs/NNPs).
+Quick mechanistic exploration using machine learning potentials (MLPs) for molecular geometry optimization and transition state searches.
 
-QME combines the power of ASE and SELLA optimizers with state-of-the-art neural network potentials including **SO3LR** (SO(3) invariant networks), **UMA** (Universal Model for Atoms), and **AIMNET2** (Accurate Neural Network Potential) to perform efficient molecular geometry optimization and transition state searches.
-
-## Features
-
-- **Multiple Neural Network Backends**: Support for UMA, AIMNet2, MACE, and SO3LR potentials with easy switching
-- **TorchSim Integration**: Optional TorchSim acceleration for up to 100x speedup on supported models
-- **Local and Two-Ended Optimization**: Find stable molecular geometries and transition states
-- **NEB Path Optimization**: Nudged Elastic Band method for reaction pathway exploration
-- **Command Line Interface**: Easy-to-use CLI with `qme opt` and `qme tsopt` commands
-- **Multiple File Formats**: Support for XYZ, CIF, PDB and other ASE-compatible molecular formats
-- **Flexible Constraints**: Apply geometric constraints during optimization
-- **Clear Error Messages**: Clear dependency requirements and installation instructions when backends are unavailable
-- **Comprehensive Testing**: Full test suite with benchmark examples
-
-## Supported Neural Network Backends
-
-### UMA (Default)
-UMA machine learning potentials from the FAIR Chemistry team provide state-of-the-art accuracy for diverse chemical systems. UMA is the **default backend** as the most advanced MLP available.
-
-### AIMNet2
-AIMNet2 provides fast and reliable energy, force, and property calculations for molecules containing a diverse range of elements. It excels at modeling neutral, charged, organic, and elemental-organic systems with flexible long-range interactions.
-
-### MACE
-MACE (Machine learning Accelerated Computational Environment) provides foundation models for molecules, transition metals, and cations with excellent accuracy and charge/spin embedding capabilities.
-
-### SO3LR
-SO3LR provides SO(3) invariant neural network potentials with excellent accuracy for molecular systems. Requires separate installation.
-
-### TorchSim Acceleration (Optional)
-TorchSim provides significant performance improvements for supported models through automatic batching and GPU acceleration. Two TorchSim backends are available:
-
-- **`torchsim_mace`**: TorchSim-accelerated MACE models (requires Python 3.11+)
-- **`torchsim_uma`**: TorchSim-accelerated UMA models (requires Python 3.11+)
-
-Install with `pip install torch-sim-atomistic` to enable up to 100x speedup for supported models.
+QME provides a simple command-line interface for molecular optimization tasks using state-of-the-art neural network potentials including UMA, AIMNet2, MACE, and SO3LR.
 
 ## Installation
 
-### Prerequisites
-
-QME requires Python 3.10 or higher. For TorchSim acceleration, Python 3.11 or higher is required.
-
 ### Basic Installation
-
-For testing and development (mock calculator by default, no heavy ML dependencies):
 
 ```bash
 pip install qme
 ```
 
-Or install from source:
+### Per-Backend Installation (Recommended)
+
+Due to dependency conflicts between ML packages, install backends individually:
 
 ```bash
-git clone https://github.com/rlaplaza-lab/qme.git
-cd qme
-pip install -e .
+# UMA backend (Meta AI, default)
+pip install qme[uma]
+
+# AIMNet2 backend (native PyTorch)
+pip install qme[aimnet2]
+
+# MACE backend (foundation models)
+pip install qme[mace]
+
+# SO3LR backend (requires separate installation)
+pip install qme[so3lr]
+pip install so3lr  # Install from PyPI or source
+
+# TorchSim acceleration (Python 3.11+ only)
+pip install qme[torchsim]
 ```
 
-### Full Installation with ML Backends
+### Combined Installation (May Have Conflicts)
 
-For production use with machine learning potentials:
+⚠️ **Warning**: Installing multiple backends together may cause dependency conflicts, particularly between MACE and UMA due to incompatible e3nn versions.
 
 ```bash
+# Legacy combined installation (not recommended)
 pip install qme[ml]
-```
 
-Or from source:
-
-```bash
-git clone https://github.com/rlaplaza-lab/qme.git
-cd qme
-pip install -e .[ml]
-```
-
-This installs:
-- **UMA**: Universal Materials Accelerator (Meta AI) - default backend
-- **AIMNet2**: Native implementation with PyTorch
-- **MACE**: Foundation models for molecules and materials
-- **JAX**: For SO3LR backend (if installed separately)
-
-### Transition-State Optimizer (SELLA)
-
-SELLA is now included as a core dependency for transition state optimization.
-
-### Complete Installation
-
-For full functionality with all backends and optimizers:
-
-```bash
-pip install qme[ml]
+# Multiple backends (may conflict)
+pip install qme[uma,mace]  # Known to conflict due to e3nn versions
 ```
 
 ### Development Installation
 
-For contributors:
-
 ```bash
 git clone https://github.com/rlaplaza-lab/qme.git
 cd qme
-pip install -e .[dev]  # Includes testing and linting tools
+pip install -e .[dev]
 ```
-
-### SO3LR Backend Installation (optional)
-
-To use the SO3LR backend (requires separate installation):
-
-```bash
-# Install JAX (CPU version recommended for most users)
-pip install "jax[cpu]>=0.4.20"
-
-# Install SO3LR from source
-git clone https://github.com/general-molecular-simulations/so3lr.git
-cd so3lr
-pip install .
-```
-
-### TorchSim Acceleration (optional)
-
-For significant performance improvements, install TorchSim:
-
-```bash
-pip install torch-sim-atomistic
-```
-
-**Note**: TorchSim requires Python 3.11 or higher. If you're using Python 3.10, TorchSim backends (`torchsim_mace`, `torchsim_uma`) will not be available.
-
-This enables up to 100x speedup for supported models through automatic batching and GPU acceleration. Available TorchSim backends:
-- `torchsim_mace`: TorchSim-accelerated MACE models
-- `torchsim_uma`: TorchSim-accelerated UMA models
-
-**Note**: If any ML backend is not installed, QME will provide clear error messages with installation instructions instead of falling back to mock implementations.
 
 ## Quick Start
 
-### Python API - Basic Usage
+QME provides three main commands:
 
-```python
-from qme import QMEOptimizer
+### 1. Structure Optimization (`qme opt`)
 
-# Initialize optimizer (automatically uses mock if UMA unavailable)
-qme = QMEOptimizer(model_name="uma-m-1p1")
-
-# Load structure
-atoms = qme.load_structure("molecule.xyz")
-
-# Optimize to minimum energy
-results = qme.optimize_minimum(
-    optimizer="BFGS",
-    fmax=0.01,
-    steps=200
-)
-
-# Save result
-if results['converged']:
-    qme.save_structure(results['optimized_atoms'], "optimized.xyz")
-    print(f"Optimization completed in {results['steps_taken']} steps")
-else:
-    print("Optimization did not converge")
+**Local optimization** - optimize a single structure:
+```bash
+qme opt molecule.xyz
 ```
 
-### Python API - TorchSim Acceleration
-
-```python
-from qme import QMEOptimizer
-
-# Initialize with TorchSim MACE for maximum performance
-qme = QMEOptimizer(
-    backend="torchsim_mace",
-    model_name="mace-omol-0",  # Good default for molecules
-    device="cuda"  # Use GPU for best performance
-)
-
-# Load structure
-atoms = qme.load_structure("molecule.xyz")
-
-# Optimize (with TorchSim acceleration)
-results = qme.optimize_minimum(
-    optimizer="BFGS",
-    fmax=0.01,
-    steps=200
-)
-
-# TorchSim provides significant speedup for large systems
-print(f"Optimization completed in {results['steps_taken']} steps")
+**Two-ended optimization** - interpolate between reactant and product, optimize minima:
+```bash
+qme opt reactant.xyz --product product.xyz
 ```
 
-### Command Line Interface
+### 2. Transition State Optimization (`qme tsopt`)
+
+**Local TS optimization** - optimize a transition state guess:
+```bash
+qme tsopt ts_guess.xyz
+```
+
+**Two-ended TS search** - find transition state between reactant and product:
+```bash
+qme tsopt reactant.xyz --product product.xyz
+```
+
+**NEB path optimization** - find minimum energy path:
+```bash
+qme tsopt reactant.xyz --product product.xyz --mode neb
+```
+
+### 3. Cache Management (`qme cache`)
 
 ```bash
-# Basic structure optimization (local minima)
-qme opt molecule.xyz --backend uma --fmax 0.01
-
-# Two-ended minima optimization (interpolate R->P and optimize minima along path)
-qme opt reactant.xyz --product product.xyz --interp geodesic --npoints 21 --backend aimnet2
-
-# Transition state search (local, requires SELLA)
-qme tsopt ts_guess.xyz --optimizer sella --fmax 0.05 --backend uma
-
-# Two-ended TS optimization (interpolate R->P and find TS along path)
-qme tsopt reactant.xyz --product product.xyz --interp geodesic --npoints 15 --backend mace
-
-# NEB path optimization (find minimum energy path between R and P)
-qme tsopt reactant.xyz --product product.xyz --mode neb --backend uma --npoints 11 --spring-constant 5.0
-
-# NEB with custom parameters for challenging systems
-qme tsopt reactant.xyz --product product.xyz --mode neb --npoints 21 --spring-constant 2.0 --fmax 0.01
-
-# Using different backends
-qme opt molecule.xyz --backend aimnet2 --model-name aimnet2_wb97m
-qme opt molecule.xyz --backend mace --model-name mace-omol-0
-qme opt molecule.xyz --backend so3lr  # Requires SO3LR installation
-
-# Using TorchSim acceleration (requires torch-sim-atomistic)
-qme opt molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda
-qme opt molecule.xyz --backend torchsim_uma --model-name uma-s-1p1 --device cuda
+qme cache info    # Show cached models
+qme cache clear   # Clear model cache
 ```
 
-### Test Installation
+## Command Options
 
-```bash
-pytest -q
-```
+### Common Options
 
-## Features in Detail
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--backend` | ML backend: `uma`, `aimnet2`, `mace`, `so3lr`, `mock` | `uma` |
+| `--model-name` | Specific model name for backend | Backend default |
+| `--device` | Compute device: `cpu`, `cuda` | Auto-detect |
+| `--fmax` | Force convergence threshold (eV/Å) | `0.05` |
+| `--steps` | Maximum optimization steps | `1000` |
+| `--optimizer` | Optimizer: `sella`, `lbfgs`, `bfgs`, `fire` | `sella` |
+| `--output` | Output file path | Auto-generated |
 
-### Multiple Neural Network Backends
-- **UMA**: Universal Materials Accelerator potentials from Meta AI (default backend)
-- **SO3LR**: SO(3) invariant neural networks
-- **AIMNET2**: Accurate neural network potentials for diverse molecular systems
-- **Mock Calculator**: Harmonic oscillator model for testing
+### Two-Ended Options
 
-### Optimization Algorithms
-- **L-BFGS**: Limited-memory quasi-Newton method (default for minima)
-- **BFGS**: Quasi-Newton method for fast convergence
-- **FIRE**: Fast Inertial Relaxation Engine
-- **SELLA**: Saddle point optimization for transition states
-- **NEB**: Nudged Elastic Band for reaction pathway optimization
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--npoints` | Number of interpolation points | `11` |
+| `--interp` | Interpolation method: `linear`, `geodesic` | `geodesic` |
 
-### NEB Parameters
-- **Spring Constant**: Controls path smoothness (default: 5.0 eV/Å²)
-  - Higher values: Smoother paths, may miss sharp transitions
-  - Lower values: More flexible paths, may have kinks
-  - Typical range: 1.0-10.0 eV/Å² depending on system
-- **Number of Images**: Path resolution (default: 11)
-  - More images: Better resolution, higher computational cost
-  - Fewer images: Faster computation, may miss details
+### NEB Options
 
-### Supported File Formats
-All ASE-compatible formats including XYZ, CIF, PDB, POSCAR, and more.
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--mode` | Mode: `interpolate`, `neb` | `interpolate` |
+| `--spring-constant` | NEB spring constant (eV/Å²) | `5.0` |
 
 ## Examples
 
-See the `examples/` directory for complete demonstrations:
-
-- `cli_demo.py`: Comprehensive CLI demonstration with all backends
-- `bh28_benchmark/`: Benchmark suite for barrier height calculations
-- `zimmermann93_benchmark/`: Additional benchmark examples
-- `example_files/`: Sample molecular structures for testing
-
-### Running the CLI Demo
+### Basic Structure Optimization
 
 ```bash
-# Run the comprehensive CLI demo
-python examples/cli_demo.py
+# Optimize with default UMA backend
+qme opt molecule.xyz
 
-# This will test all available backends with various optimization tasks
+# Use AIMNet2 backend with custom convergence
+qme opt molecule.xyz --backend aimnet2 --fmax 0.01
+
+# Use MACE backend on GPU
+qme opt molecule.xyz --backend mace --device cuda
 ```
 
-## Testing
+### Transition State Searches
 
-Run the test suite:
+```bash
+# Optimize TS guess
+qme tsopt ts_guess.xyz --fmax 0.03
+
+# Two-ended TS search with geodesic interpolation
+qme tsopt reactant.xyz --product product.xyz --npoints 15
+
+# NEB calculation with custom spring constant
+qme tsopt reactant.xyz --product product.xyz --mode neb --spring-constant 2.0
+```
+
+### Advanced Usage
+
+```bash
+# Apply constraints during optimization
+qme opt molecule.xyz --constraints "fix 0,1; harmonic_bond 2,3 k=5.0"
+
+# Set molecular charge and spin
+qme opt ion.xyz --default-charge 1 --default-spin 2
+
+# Use custom optimizer settings
+qme opt molecule.xyz --optimizer lbfgs --optimizer-kw maxstep=0.1
+```
+
+## Supported Backends
+
+| Backend | Description | Installation | Conflicts |
+|---------|-------------|--------------|-----------|
+| `uma` | Universal Materials Accelerator (default) | `pip install qme[uma]` | ⚠️ MACE (e3nn) |
+| `aimnet2` | Native PyTorch implementation | `pip install qme[aimnet2]` | ✅ None |
+| `mace` | Foundation models for molecules/materials | `pip install qme[mace]` | ⚠️ UMA (e3nn) |
+| `so3lr` | SO(3) invariant neural networks | `pip install qme[so3lr]` + separate install | ✅ None |
+| `mock` | Harmonic oscillator for testing | Built-in | ✅ None |
+
+### Dependency Conflicts
+
+- **UMA vs MACE**: Both depend on `e3nn` but require incompatible versions:
+  - UMA (fairchem-core) requires `e3nn>=0.5`
+  - MACE requires `e3nn==0.4.4`
+- **PyTorch versions**: Different backends may require different PyTorch versions:
+  - UMA may have issues with PyTorch 2.6+ due to `weights_only=True` default
+  - MACE works well with recent PyTorch versions
+- **Solution**: Install backends in separate environments or use individual installations
+
+### TorchSim Acceleration (Optional)
+
+For significant performance improvements on supported models:
+
+```bash
+pip install torch-sim-atomistic  # Requires Python 3.11+
+```
+
+Use TorchSim backends:
+```bash
+qme opt molecule.xyz --backend torchsim_mace --device cuda
+qme opt molecule.xyz --backend torchsim_uma --device cuda
+```
+
+## File Formats
+
+QME supports all ASE-compatible formats:
+- **XYZ**: Standard molecular coordinates
+- **CIF**: Crystallographic information files
+- **PDB**: Protein data bank format
+- **POSCAR**: VASP format
+- And many more via ASE
+
+## Requirements
+
+- Python 3.10 or higher
+- For TorchSim acceleration: Python 3.11+
+
+Core dependencies (automatically installed):
+- ASE ≥ 3.22.0
+- NumPy ≥ 1.20.0
+- Click ≥ 8.0.0
+- SELLA ≥ 2.0.0
+
+## Testing
 
 ```bash
 # Run all tests
 pytest
 
 # Run specific test categories
-pytest tests/test_backends_min_ts.py    # Backend functionality tests
-pytest tests/test_cli.py                # CLI command tests
-pytest tests/test_comprehensive_optimization.py  # Full optimization tests
-pytest tests/test_constraints.py        # Constraint handling tests
-pytest tests/test_frequencies.py        # Frequency analysis tests
-pytest tests/test_reaction.py           # Reaction pathway tests
-
-# Run with coverage
-pytest --cov=qme --cov-report=term-missing
+pytest tests/test_cli.py                    # CLI functionality
+pytest tests/test_backends_min_ts.py        # Backend tests
+pytest tests/test_comprehensive_optimization.py  # Optimization tests
 ```
 
-### Troubleshooting
+## Performance Tips
 
-#### Common Issues
+1. **Use GPU acceleration** when available: `--device cuda`
+2. **Enable TorchSim** for supported models (Python 3.11+)
+3. **Adjust convergence criteria** based on your accuracy needs
+4. **Use appropriate number of NEB images** (7-15 typically sufficient)
+5. **Cache models** are automatically managed for faster startup
 
-**Missing dependencies**: Install with `pip install qme[ml]` for full functionality.
+## Troubleshooting
 
-**SELLA missing**: SELLA is now a core dependency and should be automatically installed.
+### Common Issues
 
-**JAX backend warnings**: These are informational and can be safely ignored for CPU usage.
+**Backend not available**: Install required dependencies with per-backend installation (e.g., `pip install qme[uma]`)
 
-## Contributing
+**Dependency conflicts**: Use individual backend installations instead of `qme[ml]`:
+```bash
+# Instead of: pip install qme[ml]  # May cause conflicts
+# Use: pip install qme[uma]        # Install only UMA
+```
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Install development dependencies (`pip install -e .[dev]`)
-4. Run tests and linting (`pytest`, `black qme/ tests/`, `isort qme/ tests/`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+**e3nn version conflicts**: UMA and MACE cannot be installed together. Use separate environments:
+```bash
+# Environment 1: UMA only
+conda create -n qme-uma python=3.12
+conda activate qme-uma
+pip install qme[uma]
+
+# Environment 2: MACE only  
+conda create -n qme-mace python=3.12
+conda activate qme-mace
+pip install qme[mace]
+```
+
+**CUDA out of memory**: Use `--device cpu` or reduce system size
+
+**Convergence issues**: Try different optimizers (`--optimizer lbfgs`) or looser convergence (`--fmax 0.1`)
+
+**TorchSim not available**: Requires Python 3.11+, install with `pip install qme[torchsim]`
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Citation
-
-If you use QME in your research, please cite:
 
 ```bibtex
 @software{qme2025,
@@ -326,13 +282,3 @@ If you use QME in your research, please cite:
   url={https://github.com/rlaplaza-lab/qme}
 }
 ```
-
-## Acknowledgments
-
-- Inspired by [pysisyphus](https://github.com/eljost/pysisyphus) for reaction pathway methods
-- Built on [ASE](https://wiki.fysik.dtu.dk/ase/) for molecular structure handling
-- Integrates [SELLA](https://github.com/zadorlab/sella) for transition state optimization
-
-
-
-
