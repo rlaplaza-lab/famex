@@ -449,7 +449,7 @@ def main():
     parser.add_argument(
         "--backends",
         type=str,
-        default="mock,aimnet2,uma,so3lr,mace,torchsim,torchsim_mace,torchsim_fairchem",
+        default="mock,aimnet2,uma,so3lr,mace,torchsim_mace,torchsim_uma",
         help="Comma-separated list of backends to benchmark",
     )
     parser.add_argument(
@@ -475,7 +475,7 @@ def main():
     if len(sys.argv) == 1:
         # No arguments provided, use defaults
         args = argparse.Namespace(
-            backends="mock,aimnet2,uma,so3lr,mace,torchsim,torchsim_mace,torchsim_fairchem",
+            backends="mock,aimnet2,uma,so3lr,mace,torchsim_mace,torchsim_uma",
             device="cpu",
             output="timing_benchmark_results.json",
             verbose=False,

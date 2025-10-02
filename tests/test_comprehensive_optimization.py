@@ -33,16 +33,18 @@ AVAILABLE_BACKENDS = ["mock"]
 if deps.has("aimnet2"):
     try:
         from qme.potentials.aimnet2_potential import AIMNet2Potential
+
         # If we can import the real class, add it to available backends
         AVAILABLE_BACKENDS.append("aimnet2")
     except ImportError:
         # AIMNet2 not properly available, skip it
         pass
 
-# Check MACE - only add if it can create a real calculator  
+# Check MACE - only add if it can create a real calculator
 if deps.has("mace"):
     try:
         from qme.potentials.mace_potential import MACEPotential
+
         # If we can import the real class, add it to available backends
         AVAILABLE_BACKENDS.append("mace")
     except ImportError:
@@ -53,6 +55,7 @@ if deps.has("mace"):
 if deps.has("fairchem"):
     try:
         from qme.potentials.uma_potential import UMAPotential
+
         # If we can import the real class, add it to available backends
         AVAILABLE_BACKENDS.append("uma")
     except ImportError:

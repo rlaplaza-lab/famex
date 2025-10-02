@@ -39,6 +39,7 @@ def _backend_available(name: str) -> bool:
             return False
         try:
             from qme.potentials.aimnet2_potential import AIMNet2Potential
+
             return True
         except ImportError:
             return False
@@ -48,6 +49,7 @@ def _backend_available(name: str) -> bool:
             return False
         try:
             from qme.potentials.mace_potential import MACEPotential
+
             return True
         except ImportError:
             return False
@@ -57,10 +59,11 @@ def _backend_available(name: str) -> bool:
             return False
         try:
             from qme.potentials.uma_potential import UMAPotential
+
             return True
         except ImportError:
             return False
-    if name in ["torchsim", "torchsim_mace", "torchsim_fairchem"]:
+    if name in ["torchsim_mace", "torchsim_uma"]:
         return deps.has("torch_sim") and deps.has("torch")
     return deps.has(name)
 
