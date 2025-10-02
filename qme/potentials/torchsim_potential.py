@@ -76,6 +76,13 @@ class TorchSimPotential(BasePotential):
             torch = deps.get("torch")
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
+        # Set default model name based on backend if not provided
+        if model_name is None:
+            if backend.lower() == "mace":
+                model_name = "mace-omol-0"  # Good default for molecules
+            elif backend.lower() in ["fairchem", "uma"]:
+                model_name = "uma-s-1p1"  # Good default for molecules
+
         # Initialize base class
         super().__init__(model_name=model_name, device=device, **kwargs)
 
@@ -118,8 +125,6 @@ class TorchSimPotential(BasePotential):
 
     def _load_mace_model(self):
         """Load MACE model through TorchSim."""
-        if self.model_name is None:
-            self.model_name = "mace-omol-0"  # Good default for molecules
 
         # Load MACE model through TorchSim
         from mace.calculators.foundations_models import mace_mp, mace_off, mace_omol
@@ -195,8 +200,6 @@ class TorchSimPotential(BasePotential):
 
     def _load_fairchem_model(self):
         """Load Fairchem model through TorchSim."""
-        if self.model_name is None:
-            self.model_name = "uma-s-1p1"  # Good default for molecules
 
         try:
             # Try to load Fairchem model through TorchSim
