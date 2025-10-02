@@ -3,8 +3,7 @@
 This module provides small, stable factories and class names for the
 potential backends. Heavy backends are imported only when their optional
 dependencies are available (via ``qme.dependencies.deps``). When a backend
-is unavailable the factory returns a ``MockCalculator`` and a clear
-warning is emitted.
+is unavailable, a clear ImportError is raised with installation instructions.
 """
 
 from importlib import import_module
@@ -46,18 +45,10 @@ except ImportError:  # pragma: no cover - tests expect MockCalculator
     MockCalculator = _MissingMock
 
 
-def _make_fallback_factory(backend_name: str) -> Callable[..., object]:
-    """Return a factory that warns and returns a configured MockCalculator."""
-
-    def _factory(**kwargs):
-        deps.warn_fallback(backend_name, reason="implementation not available")
-        return MockCalculator(backend=backend_name, **kwargs)
-
-    return _factory
 
 
 # Helper to attempt to import a concrete backend module and pull symbols.
-# If the concrete module is not importable, return fallback factory/class.
+# If the concrete module is not importable, raise a clear ImportError.
 def _import_backend(
     module_name: str, cls_name: str, func_name: str, backend_label: str
 ):

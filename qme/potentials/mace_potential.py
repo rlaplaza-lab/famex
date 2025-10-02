@@ -88,14 +88,9 @@ class MACEPotential(BasePotential):
                     self._calc = mace_omol(device=self.device or "cpu")
 
             except ImportError as e:
-                deps.warn_fallback(
-                    "mace",
-                    f"MACE not available ({e}). Install with: pip install mace-torch",
+                raise ImportError(
+                    f"MACE not available ({e}). Install with: pip install mace-torch"
                 )
-                # Fall back to mock calculator
-                from qme.potentials import MockCalculator
-
-                self._calc = MockCalculator(backend="mace")
 
     def _get_backend_name(self) -> str:
         """Get the backend name for this calculator."""

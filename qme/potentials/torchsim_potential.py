@@ -112,14 +112,9 @@ class TorchSimPotential(BasePotential):
                     raise ValueError(f"Unsupported TorchSim backend: {self.backend}")
 
         except Exception as e:
-            deps.warn_fallback(
-                "torchsim",
-                f"TorchSim not available ({e}). Install with: pip install torch-sim-atomistic",
+            raise ImportError(
+                f"TorchSim not available ({e}). Install with: pip install torch-sim-atomistic"
             )
-            # Fall back to mock calculator
-            from qme.potentials import MockCalculator
-
-            self._calc = MockCalculator(backend="torchsim")
 
     def _load_mace_model(self):
         """Load MACE model through TorchSim."""
@@ -214,21 +209,9 @@ class TorchSimPotential(BasePotential):
             )
 
         except ImportError as e:
-            # If TorchSim Fairchem is not available, fall back to regular Fairchem
-            deps.warn_fallback(
-                "torchsim_fairchem",
-                f"TorchSim Fairchem not available ({e}). Using regular Fairchem calculator.",
+            raise ImportError(
+                f"TorchSim Fairchem not available ({e}). Install with: pip install torch-sim-atomistic"
             )
-
-            # Use regular Fairchem calculator as fallback
-            from fairchem.core import FAIRChemCalculator, pretrained_mlip
-
-            get_predict_unit = pretrained_mlip.get_predict_unit
-
-            # Load the model using regular Fairchem
-            device_param = "cuda" if self.device == "cuda" else "cpu"
-            predictor = get_predict_unit(self.model_name, device=device_param)
-            self._model = FAIRChemCalculator(predictor, task_name="omol")
 
     def _atoms_to_state(self, atoms: Atoms):
         """Convert ASE Atoms to TorchSim state."""
