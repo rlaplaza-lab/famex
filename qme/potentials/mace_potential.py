@@ -102,7 +102,8 @@ class MACEPotential(BasePotential):
                 ):
                     raise ImportError(
                         f"MACE compatibility issue with e3nn versions. "
-                        f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn {self._get_e3nn_version()} is installed. "
+                        f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn "
+                        f"{self._get_e3nn_version()} is installed. "
                         f"This causes serialization format incompatibilities. "
                         f"\n\nWorkaround options:"
                         f"\n1. Use a separate environment with e3nn==0.4.4 for MACE"
@@ -146,7 +147,8 @@ class MACEPotential(BasePotential):
             if any(phrase in str(e) for phrase in ["_compiled_main", "tensor size"]):
                 raise ImportError(
                     f"MACE calculation failed due to e3nn compatibility issues. "
-                    f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn {self._get_e3nn_version()} is installed. "
+                    f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn "
+                    f"{self._get_e3nn_version()} is installed. "
                     f"\n\nWorkaround options:"
                     f"\n1. Use a separate environment with e3nn==0.4.4 for MACE"
                     f"\n2. Use UMA backend instead (compatible with current e3nn)"
@@ -178,7 +180,8 @@ class MACEPotential(BasePotential):
             if any(phrase in str(e) for phrase in ["_compiled_main", "tensor size"]):
                 raise ImportError(
                     f"MACE calculation failed due to e3nn compatibility issues. "
-                    f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn {self._get_e3nn_version()} is installed. "
+                    f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn "
+                    f"{self._get_e3nn_version()} is installed. "
                     f"\n\nWorkaround options:"
                     f"\n1. Use a separate environment with e3nn==0.4.4 for MACE"
                     f"\n2. Use UMA backend instead (compatible with current e3nn)"

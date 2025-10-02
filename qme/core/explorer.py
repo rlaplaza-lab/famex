@@ -18,12 +18,15 @@ Implementation notes:
 """
 
 import warnings
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 from ase import Atoms
+from ase.io import write
 
 from qme.core.calculator_setup import create_calculator
 from qme.core.constraint_parser import parse_constraints
+from qme.core.geometry import read_geometry
 from qme.core.local_strategies import local_minima_runner, local_ts_runner
 from qme.core.twoended_strategies import (
     twoended_minima_runner,
@@ -430,6 +433,344 @@ class Explorer:
     def optimize_ts(self, fmax: float = 0.05, steps: int = 1000, **kwargs):
         """Run a local transition-state optimization (ASE-like convenience method)."""
         return self.run(mode="ts", fmax=fmax, steps=steps, **kwargs)
+
+    # --- Additional convenience methods for compatibility ---
+    @classmethod
+    def from_file(
+        cls,
+        filename: Union[str, Path],
+        backend: str = "uma",
+        model_name: Optional[str] = None,
+        model_path: Optional[str] = None,
+        device: Optional[str] = None,
+        default_charge: int = 0,
+        default_spin: int = 1,
+        **kwargs,
+    ) -> "Explorer":
+        """Create Explorer instance from a geometry file.
+
+        Parameters
+        ----------
+        filename : str or Path
+            Path to geometry file (xyz, cif, pdb, etc.)
+        backend, model_name, model_path, device, default_charge, default_spin
+            Same as Explorer constructor
+        **kwargs
+            Additional arguments passed to Explorer constructor
+
+        Returns
+        -------
+        Explorer
+            New Explorer instance with loaded geometry
+        """
+        geom = read_geometry(filename)
+        if isinstance(geom, list):
+            geom = geom[0]
+        return cls(
+            atoms=geom,
+            backend=backend,
+            model_name=model_name,
+            model_path=model_path,
+            device=device,
+            default_charge=default_charge,
+            default_spin=default_spin,
+            **kwargs,
+        )
+
+    def load_structure(self, filename_or_geom):
+        """Load structure from file or geometry object and update atoms_list.
+
+        Parameters
+        ----------
+        filename_or_geom : str, Path, or Atoms
+            File path or geometry object to load
+
+        Returns
+        -------
+        Atoms
+            Loaded geometry
+        """
+        if isinstance(filename_or_geom, (str, Path)):
+            geom = read_geometry(filename_or_geom)
+        else:
+            geom = filename_or_geom
+
+        if isinstance(geom, list):
+            geom = geom[0]
+
+        # Update the atoms_list to contain this new geometry
+        self.atoms_list = [geom]
+        return geom
+
+    def save_structure(
+        self, atoms: Atoms, output_file: Union[str, Path], format: Optional[str] = None
+    ):
+        """Save structure to file.
+
+        Parameters
+        ----------
+        atoms : Atoms
+            Structure to save
+        output_file : str or Path
+            Output file path
+        format : str, optional
+            File format (inferred from extension if None)
+        """
+        output_file = Path(output_file)
+
+        try:
+            if format is not None:
+                write(output_file, atoms, format=format)
+            else:
+                write(output_file, atoms)
+        except Exception as e:
+            raise RuntimeError(f"Failed to save structure to {output_file}: {e}")
+
+    def calculate_frequencies(
+        self,
+        atoms: Optional[Atoms] = None,
+        delta: float = 0.01,
+        method: str = "auto",
+        temperature: float = 298.15,
+        save_hessian: bool = True,
+        indices: Optional[List[int]] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Calculate vibrational frequencies and thermodynamic properties.
+
+        Parameters
+        ----------
+        atoms : Atoms, optional
+            Structure to analyze (uses first in atoms_list if None)
+        delta : float
+            Finite difference step size for Hessian calculation
+        method : str
+            Method for Hessian calculation ("auto", "numerical")
+        temperature : float
+            Temperature for thermodynamic properties (K)
+        save_hessian : bool
+            Whether to include Hessian matrix in results
+        indices : list of int, optional
+            Atom indices to include in calculation (all if None)
+        **kwargs
+            Additional arguments passed to FrequencyAnalysis
+
+        Returns
+        -------
+        dict
+            Dictionary containing frequencies, normal modes, thermodynamic properties, etc.
+        """
+        from qme.analysis.frequency import FrequencyAnalysis
+
+        if atoms is None:
+            if not self.atoms_list:
+                raise RuntimeError("No structure available for frequency calculation")
+            atoms = self.atoms_list[0]
+
+        if getattr(atoms, "calc", None) is None:
+            self._create_and_attach_calculator(atoms)
+
+        freq_analysis = FrequencyAnalysis(
+            atoms=atoms, calculator=atoms.calc, delta=delta, indices=indices
+        )
+        hessian = freq_analysis.calculate_hessian(method=method)
+        frequencies, normal_modes = freq_analysis.diagonalize_hessian()
+        vib_frequencies = freq_analysis.get_frequencies()
+        vib_normal_modes = freq_analysis.get_normal_modes()
+        thermo = freq_analysis.get_thermodynamic_properties(temperature)
+        ts_analysis = freq_analysis.is_transition_state()
+
+        results = {
+            "frequencies": vib_frequencies.tolist(),
+            "all_frequencies": frequencies.tolist(),
+            "normal_modes": vib_normal_modes.tolist(),
+            "zero_point_energy": freq_analysis.get_zero_point_energy(),
+            "thermodynamic_properties": thermo,
+            "ts_analysis": ts_analysis,
+            "is_ts": ts_analysis["is_transition_state"],
+            "method_used": method,
+            "delta": delta,
+            "temperature": temperature,
+            "n_atoms": len(atoms),
+            "indices": indices if indices is not None else list(range(len(atoms))),
+        }
+        if save_hessian:
+            results["hessian"] = hessian.tolist()
+
+        return results
+
+    # --- Backward compatibility methods ---
+    def optimize_minimum(
+        self, atoms=None, optimizer=None, fmax=0.05, steps=1000, **kwargs
+    ):
+        """Backward compatibility method for optimize_minimum.
+
+        Parameters
+        ----------
+        atoms : Atoms, optional
+            Structure to optimize (loads if provided, uses existing if None)
+        optimizer : str, optional
+            Optimizer name (overrides local_optimizer_name)
+        fmax : float
+            Force convergence threshold
+        steps : int
+            Maximum optimization steps
+        **kwargs
+            Additional arguments
+
+        Returns
+        -------
+        dict
+            Results dictionary with converged, final_energy, optimized_atoms, etc.
+        """
+        from qme.core.validation import (
+            validate_atoms_structure,
+            validate_optimization_parameters,
+        )
+
+        # Handle backward compatibility: if atoms is passed, load it
+        if atoms is not None:
+            self.load_structure(atoms)
+
+        if not self.atoms_list:
+            raise RuntimeError(
+                "No structure loaded. Call load_structure() first or pass atoms parameter."
+            )
+
+        # Use first atoms in list for single optimization
+        target_atoms = self.atoms_list[0]
+
+        # Validate input parameters
+        local_opt_name = (optimizer or self.local_optimizer_name).lower()
+        validate_optimization_parameters(fmax, steps, local_opt_name)
+        validate_atoms_structure(target_atoms, "optimization")
+
+        # Allow callers to pass optimizer_kwargs inside kwargs
+        old_optimizer_kwargs = self.optimizer_kwargs.copy()
+        self.optimizer_kwargs.update(kwargs.get("optimizer_kwargs", {}))
+
+        try:
+            res = self.run(
+                mode="minima",
+                fmax=fmax,
+                steps=steps,
+                local_optimizer_name=local_opt_name,
+            )
+            optimized = res[0] if isinstance(res, list) and len(res) == 1 else res
+
+            energy = None
+            try:
+                energy = float(optimized.get_potential_energy())
+            except Exception:
+                energy = None
+            try:
+                forces = optimized.get_forces()
+                max_force = float(abs(forces).max())
+            except Exception:
+                max_force = None
+
+            return {
+                "converged": True,
+                "final_energy": energy,
+                "steps_taken": None,
+                "optimized_atoms": optimized,
+                "max_force": max_force,
+            }
+        finally:
+            # Restore original optimizer_kwargs
+            self.optimizer_kwargs = old_optimizer_kwargs
+
+    def find_transition_state(
+        self, atoms=None, fmax=0.05, steps=1000, **kwargs
+    ) -> Dict[str, Any]:
+        """Backward compatibility method for transition state optimization.
+
+        Parameters
+        ----------
+        atoms : Atoms, optional
+            Structure to optimize (loads if provided, uses existing if None)
+        fmax : float
+            Force convergence threshold
+        steps : int
+            Maximum optimization steps
+        **kwargs
+            Additional arguments including ts_method, ts_kwargs, etc.
+
+        Returns
+        -------
+        dict
+            Results dictionary with converged, final_energy, ts_atoms, etc.
+        """
+        from qme.core.validation import (
+            validate_atoms_structure,
+            validate_optimization_parameters,
+        )
+
+        # Handle backward compatibility: if atoms is passed, load it
+        if atoms is not None:
+            self.load_structure(atoms)
+
+        if not self.atoms_list:
+            raise RuntimeError(
+                "No structure loaded. Call load_structure() first or pass atoms parameter."
+            )
+
+        # Use first atoms in list for single TS optimization
+        target_atoms = self.atoms_list[0]
+
+        # Validate input parameters
+        local_opt_name = kwargs.get("local_optimizer_name", self.local_optimizer_name)
+        validate_optimization_parameters(fmax, steps, local_opt_name)
+        validate_atoms_structure(target_atoms, "transition state search")
+
+        # Update TS settings from kwargs
+        old_ts_method = getattr(self, "ts_method", None)
+        old_ts_kwargs = self.ts_kwargs.copy()
+
+        if "ts_method" in kwargs:
+            self.ts_method = kwargs["ts_method"]
+        if "ts_kwargs" in kwargs:
+            self.ts_kwargs.update(kwargs["ts_kwargs"])
+
+        try:
+            res = self.run(
+                mode="ts",
+                fmax=fmax,
+                steps=steps,
+                local_optimizer_name=local_opt_name,
+            )
+            optimized = res[0] if isinstance(res, list) and len(res) == 1 else res
+
+            energy = None
+            try:
+                energy = float(optimized.get_potential_energy())
+            except Exception:
+                energy = None
+            try:
+                forces = optimized.get_forces()
+                max_force = float(abs(forces).max())
+            except Exception:
+                max_force = None
+
+            return {
+                "converged": True,
+                "final_energy": energy,
+                "steps_taken": None,
+                "optimized_atoms": optimized,
+                "ts_atoms": optimized,  # Alias for backward compatibility
+                "max_force": max_force,
+            }
+        finally:
+            # Restore original settings
+            if old_ts_method is not None:
+                self.ts_method = old_ts_method
+            self.ts_kwargs = old_ts_kwargs
+
+    def ts_opt(self, atoms=None, fmax=0.05, steps=1000, **kwargs) -> Dict[str, Any]:
+        """Alias for find_transition_state for backward compatibility."""
+        if atoms is not None:
+            self.load_structure(atoms)
+        return self.find_transition_state(fmax=fmax, steps=steps, **kwargs)
 
 
 __all__ = ["Explorer"]

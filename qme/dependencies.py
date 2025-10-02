@@ -159,7 +159,7 @@ class DependencyManager:
         package_mapping = {
             "torch": "torch",
             "sella": "sella",
-            "aimnet2": "torch",  # AIMNet2 only needs torch
+            "aimnet2": "torch_cluster",  # AIMNet2 needs torch_cluster (which implies torch)
             "fairchem": "fairchem.core",
             "uma": "fairchem.core",  # UMA uses fairchem-core
             "so3lr": "so3lr",
@@ -169,9 +169,9 @@ class DependencyManager:
 
         package_name = package_mapping.get(name.lower(), name.lower())
 
-        # Special case for aimnet2 - always True since we have native implementation
+        # Special case for aimnet2 - check torch_cluster availability
         if name.lower() == "aimnet2":
-            return self._check_availability_lazy("torch")
+            return self._check_availability_lazy("torch_cluster")
 
         return self._check_availability_lazy(package_name)
 
@@ -189,7 +189,7 @@ class DependencyManager:
         commands = {
             "torch": "torch",
             "sella": "sella",
-            "aimnet2": "torch",  # Native implementation only needs torch
+            "aimnet2": "torch torch-cluster",  # AIMNet2 needs both torch and torch-cluster
             "fairchem": "fairchem-core",
             "so3lr": "so3lr  # See installation instructions in README",
             "mace": "mace-torch",

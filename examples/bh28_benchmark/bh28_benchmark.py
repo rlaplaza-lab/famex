@@ -37,7 +37,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-import qme
+from qme import Explorer
 from qme.dependencies import HAS_SELLA, deps
 
 # Add parent directory to path for backend_utils
@@ -46,7 +46,7 @@ parent_dir = script_dir.parent
 if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
-from backend_utils import (
+from backend_utils import (  # noqa: E402
     filter_available_backends,
     get_available_ml_backends,
     print_backend_summary,
@@ -198,10 +198,6 @@ class BH28Benchmark:
                     reaction_data = {}
 
                     # Create fresh optimizer for each reaction (ensures consistency across backends)
-                    with suppress_verbose_output():
-                        optimizer = qme.QMEOptimizer(
-                            backend=backend, model_name=model_name
-                        )
 
                     try:
                         # 1. Optimize reactant minima
@@ -221,8 +217,12 @@ class BH28Benchmark:
 
                         for i, reactant in enumerate(reactants):
                             with suppress_verbose_output():
-                                result = optimizer.optimize_minimum(
+                                optimizer = Explorer(
                                     atoms=reactant,
+                                    backend=backend,
+                                    model_name=model_name,
+                                )
+                                result = optimizer.optimize_minimum(
                                     optimizer="LBFGS",
                                     steps=500,
                                     fmax=0.01,
@@ -259,8 +259,13 @@ class BH28Benchmark:
                                 start_time = time.time()
 
                                 with suppress_verbose_output():
-                                    ts_result = optimizer.find_transition_state(
-                                        atoms=ts_atoms, steps=500, fmax=0.01
+                                    ts_optimizer = Explorer(
+                                        atoms=ts_atoms,
+                                        backend=backend,
+                                        model_name=model_name,
+                                    )
+                                    ts_result = ts_optimizer.find_transition_state(
+                                        steps=500, fmax=0.01
                                     )
 
                                 ts_time = time.time() - start_time
@@ -561,7 +566,8 @@ class BH28Benchmark:
         print("\n🚀 Starting Comprehensive BH28 Benchmark")
         print(f"🔬 Backends: {', '.join(backends)}")
         print(
-            f"⚗️  Reactions: {len(reactions)} ({', '.join(reactions[:3])}{'...' if len(reactions) > 3 else ''})"
+            f"⚗️  Reactions: {len(reactions)} "
+            f"({', '.join(reactions[:3])}{'...' if len(reactions) > 3 else ''})"
         )
 
         start_time = time.time()

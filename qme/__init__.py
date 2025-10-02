@@ -14,11 +14,10 @@ Key Features:
 Example:
     Basic usage for geometry optimization:
 
-    >>> from qme import QMEOptimizer
-    >>> qme = QMEOptimizer(backend="aimnet2", model_name="aimnet2")
-    >>> atoms = qme.load_structure("molecule.xyz")
-    >>> results = qme.optimize_minimum()
-    >>> qme.save_structure(results['optimized_atoms'], "optimized.xyz")
+    >>> from qme import Explorer
+    >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2", model_name="aimnet2")
+    >>> results = explorer.optimize_minimum()
+    >>> explorer.save_structure(results['optimized_atoms'], "optimized.xyz")
 """
 
 __version__ = "0.1.0"
@@ -30,7 +29,11 @@ def __getattr__(name):
 
     _LAZY_IMPORTS = {
         # core
-        "QMEOptimizer": (f"{__name__}.core.convenience", "QMEOptimizer"),
+        "Explorer": (f"{__name__}.core.explorer", "Explorer"),
+        "QMEOptimizer": (
+            f"{__name__}.core.explorer",
+            "Explorer",
+        ),  # Backward compatibility alias
         "minimize_structure": (f"{__name__}.core", "minimize_structure"),
         # settings
         "config": (f"{__name__}.settings", "config"),
@@ -86,7 +89,8 @@ def __getattr__(name):
 
 __all__ = [
     # Core classes
-    "QMEOptimizer",
+    "Explorer",
+    "QMEOptimizer",  # Backward compatibility alias for Explorer
     "minimize_structure",
     "Geometry",
     "Reaction",

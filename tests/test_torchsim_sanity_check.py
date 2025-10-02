@@ -49,7 +49,10 @@ class TestTorchSimSanityCheck:
                 expected_mace_default = "mace-omol-0"
                 assert (
                     regular_mace.model_name == expected_mace_default
-                ), f"Regular MACE default should be {expected_mace_default}, got {regular_mace.model_name}"
+                ), (
+                    f"Regular MACE default should be {expected_mace_default}, "
+                    f"got {regular_mace.model_name}"
+                )
 
                 if deps.has("torch_sim"):
                     try:
@@ -58,7 +61,10 @@ class TestTorchSimSanityCheck:
                         )
                         assert (
                             torchsim_mace.model_name == expected_mace_default
-                        ), f"TorchSim MACE default should be {expected_mace_default}, got {torchsim_mace.model_name}"
+                        ), (
+                            f"TorchSim MACE default should be {expected_mace_default}, "
+                            f"got {torchsim_mace.model_name}"
+                        )
 
                         print(f"✅ MACE defaults consistent: {expected_mace_default}")
                     except ImportError:
@@ -73,7 +79,10 @@ class TestTorchSimSanityCheck:
                 expected_uma_default = "uma-s-1p1"
                 assert (
                     regular_uma.model_name == expected_uma_default
-                ), f"Regular UMA default should be {expected_uma_default}, got {regular_uma.model_name}"
+                ), (
+                    f"Regular UMA default should be {expected_uma_default}, "
+                    f"got {regular_uma.model_name}"
+                )
 
                 if deps.has("torch_sim"):
                     try:
@@ -82,7 +91,10 @@ class TestTorchSimSanityCheck:
                         )
                         assert (
                             torchsim_uma.model_name == expected_uma_default
-                        ), f"TorchSim UMA default should be {expected_uma_default}, got {torchsim_uma.model_name}"
+                        ), (
+                            f"TorchSim UMA default should be {expected_uma_default}, "
+                            f"got {torchsim_uma.model_name}"
+                        )
 
                         print(f"✅ UMA defaults consistent: {expected_uma_default}")
                     except ImportError:
@@ -146,20 +158,23 @@ class TestTorchSimSanityCheck:
             print(f"  Regular energy: {regular_energy:.6f} eV")
             print(f"  TorchSim energy: {torchsim_energy:.6f} eV")
 
-            # For now, just log the differences - we can tighten tolerances once we know expected behavior
+            # For now, just log the differences - we can tighten tolerances once we 
+            # know expected behavior
             if energy_diff > energy_tolerance:
                 print(
-                    f"⚠️  Energy difference ({energy_diff:.6f}) exceeds tolerance ({energy_tolerance})"
+                    f"⚠️  Energy difference ({energy_diff:.6f}) "
+                    f"exceeds tolerance ({energy_tolerance})"
                 )
             else:
-                print(f"✅ Energy difference within tolerance")
+                print("✅ Energy difference within tolerance")
 
             if force_diff > force_tolerance:
                 print(
-                    f"⚠️  Force difference ({force_diff:.6f}) exceeds tolerance ({force_tolerance})"
+                    f"⚠️  Force difference ({force_diff:.6f}) "
+                    f"exceeds tolerance ({force_tolerance})"
                 )
             else:
-                print(f"✅ Force difference within tolerance")
+                print("✅ Force difference within tolerance")
 
             # For initial implementation, we'll be lenient and just ensure calculations complete
             # Later we can tighten these assertions based on observed behavior
@@ -208,7 +223,7 @@ class TestTorchSimSanityCheck:
                 try:
                     regular_calc._load_calculator()
                     torchsim_calc._load_calculator()
-                except:
+                except Exception:  # Use specific exception type
                     # If loading fails, skip this test
                     continue
 
@@ -234,7 +249,7 @@ class TestTorchSimSanityCheck:
                     "forces" in torchsim_props
                 ), f"{torchsim_backend} should support forces"
 
-                print(f"✅ Both backends support required properties")
+                print("✅ Both backends support required properties")
 
             except ImportError as e:
                 if "load_config" in str(e) or "FairchemModel" in str(e):
@@ -312,7 +327,7 @@ class TestTorchSimSanityCheck:
                 regular_calc, "default_spin"
             ), "Regular UMA should have default_spin"
 
-            print(f"✅ Regular UMA handles charge/spin correctly")
+            print("✅ Regular UMA handles charge/spin correctly")
 
             if qme.calculator_registry.is_backend_available("torchsim_uma"):
                 try:
@@ -337,7 +352,7 @@ class TestTorchSimSanityCheck:
                     ), "Default spins should match"
 
                     print(
-                        f"✅ TorchSim UMA handles charge/spin consistently with regular UMA"
+                        "✅ TorchSim UMA handles charge/spin consistently with regular UMA"
                     )
 
                 except ImportError as e:
@@ -383,7 +398,10 @@ class TestTorchSimSanityCheck:
                 # Both should have the same model name
                 assert (
                     regular_calc.model_name == torchsim_calc.model_name
-                ), f"Model names don't match: {regular_calc.model_name} vs {torchsim_calc.model_name}"
+                ), (
+                    f"Model names don't match: {regular_calc.model_name} "
+                    f"vs {torchsim_calc.model_name}"
+                )
 
                 print(
                     f"✅ {regular_backend} and {torchsim_backend} model loading behavior consistent"
@@ -413,15 +431,17 @@ class TestTorchSimSanityCheck:
                 torchsim_backend
             )
 
-            print(f"\nBackend availability:")
+            print("\nBackend availability:")
             print(f"  {regular_backend}: {'✅' if regular_available else '❌'}")
             print(f"  {torchsim_backend}: {'✅' if torchsim_available else '❌'}")
 
-            # If regular backend is available but TorchSim is not, it should be due to missing torch_sim
+            # If regular backend is available but TorchSim is not, it should be due to 
+            # missing torch_sim
             if regular_available and not torchsim_available:
                 if not deps.has("torch_sim"):
                     print(
-                        f"  ℹ️  {torchsim_backend} unavailable due to missing torch_sim (expected)"
+                        f"  ℹ️  {torchsim_backend} unavailable due to missing "
+                        f"torch_sim (expected)"
                     )
                 else:
                     print(

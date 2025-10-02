@@ -249,7 +249,8 @@ class TorchSimPotential(BasePotential):
 
         except ImportError as e:
             raise ImportError(
-                f"TorchSim Fairchem not available ({e}). Install with: pip install torch-sim-atomistic"
+                f"TorchSim Fairchem not available ({e}). "
+                f"Install with: pip install torch-sim-atomistic"
             )
 
     def _atoms_to_state(self, atoms: Atoms):
@@ -440,8 +441,6 @@ class TorchSimPotential(BasePotential):
                 atoms.calc = self._model
 
                 # Calculate properties
-                from ase.calculators.calculator import all_changes
-
                 self._model.calculate(
                     atoms, properties=properties, system_changes=all_changes
                 )
@@ -482,8 +481,6 @@ class TorchSimPotential(BasePotential):
                 atoms.calc = self._model
 
                 # Calculate properties
-                from ase.calculators.calculator import all_changes
-
                 self._model.calculate(
                     atoms, properties=["energy", "forces"], system_changes=all_changes
                 )
