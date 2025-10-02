@@ -239,7 +239,7 @@ class CalculatorRegistry:
                 return False
             try:
                 from qme.potentials.torchsim_potential import TorchSimPotential
-                
+
                 # Test if TorchSim MACE can actually be loaded (check for e3nn compatibility)
                 test_calc = TorchSimPotential(backend="mace", device="cpu")
                 test_calc._load_calculator()
@@ -255,13 +255,15 @@ class CalculatorRegistry:
             ):
                 return False
             try:
-                # Additional check for fairchem compatibility
-                from fairchem.core.common.utils import setup_imports, setup_logging
-
                 from qme.potentials.torchsim_potential import TorchSimPotential
-
+                
+                # Test if TorchSim UMA can actually be loaded (check for FairChem compatibility)
+                test_calc = TorchSimPotential(backend="fairchem", device="cpu")
+                test_calc._load_calculator()
                 return True
-            except ImportError:
+            except (ImportError, ValueError):
+                # ImportError: missing dependencies
+                # ValueError: FairChem compatibility issue
                 return False
         else:
             return backend in self._registry
