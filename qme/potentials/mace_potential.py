@@ -62,45 +62,76 @@ class MACEPotential(BasePotential):
                 "Install with: pip install torch"
             )
 
+        # Apply e3nn compatibility patches for MACE model loading
+        from qme.potentials.e3nn_compatibility import E3NNCompatibilityContext
+        from qme.potentials.e3nn_linear_patch import E3NNLinearPatchContext
+
         with quiet_backend_loading("mace", self.model_name, None, self.device):
-            try:
-                # Try to import MACE calculators
-                if self.model_name == "mace-omol-0":
-                    from mace.calculators import mace_omol
+            with E3NNCompatibilityContext(), E3NNLinearPatchContext():
+                try:
+                    # Try to import MACE calculators
+                    if self.model_name == "mace-omol-0":
+                        from mace.calculators import mace_omol
 
-                    self._calc = mace_omol(device=self.device or "cpu")
-                elif self.model_name and self.model_name.startswith("mace-mp"):
-                    from mace.calculators import mace_mp
+                        self._calc = mace_omol(device=self.device or "cpu")
+                    elif self.model_name and self.model_name.startswith("mace-mp"):
+                        from mace.calculators import mace_mp
 
-                    # Extract model size from model name (e.g., mace-mp-medium -> medium)
-                    model_size = self.model_name.replace("mace-mp-", "") or "medium"
-                    self._calc = mace_mp(model=model_size, device=self.device or "cpu")
-                elif self.model_name and self.model_name.startswith("mace-off"):
-                    from mace.calculators import mace_off
+                        # Extract model size from model name (e.g., mace-mp-medium -> medium)
+                        model_size = self.model_name.replace("mace-mp-", "") or "medium"
+                        self._calc = mace_mp(
+                            model=model_size, device=self.device or "cpu"
+                        )
+                    elif self.model_name and self.model_name.startswith("mace-off"):
+                        from mace.calculators import mace_off
 
-                    # Extract model size from model name (e.g., mace-off-medium -> medium)
-                    model_size = self.model_name.replace("mace-off-", "") or "medium"
-                    self._calc = mace_off(model=model_size, device=self.device or "cpu")
-                else:
-                    # Default to MACE-OMOL for unknown model names
-                    from mace.calculators import mace_omol
+                        # Extract model size from model name (e.g., mace-off-medium -> medium)
+                        model_size = (
+                            self.model_name.replace("mace-off-", "") or "medium"
+                        )
+                        self._calc = mace_off(
+                            model=model_size, device=self.device or "cpu"
+                        )
+                    else:
+                        # Default to MACE-OMOL for unknown model names
+                        from mace.calculators import mace_omol
 
-                    self._calc = mace_omol(device=self.device or "cpu")
+                        self._calc = mace_omol(device=self.device or "cpu")
 
-            except ImportError as e:
-                raise ImportError(
-                    f"MACE not available ({e}). Install with: pip install mace-torch"
-                )
-            except ValueError as e:
-                if "too many values to unpack" in str(e):
+                except ImportError as e:
                     raise ImportError(
-                        f"MACE version compatibility issue with e3nn. "
-                        f"MACE 0.3.14 requires e3nn==0.4.4, but a newer e3nn version is installed. "
-                        f"This is a known dependency conflict between MACE and FairChem requirements. "
-                        f"Error: {e}"
+                        f"MACE not available ({e}). Install with: pip install mace-torch"
                     )
-                else:
-                    raise
+                except (ValueError, AttributeError, RuntimeError) as e:
+                    if any(
+                        phrase in str(e)
+                        for phrase in [
+                            "too many values to unpack",
+                            "_compiled_main",
+                            "tensor size",
+                        ]
+                    ):
+                        raise ImportError(
+                            f"MACE compatibility issue with e3nn versions. "
+                            f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn {self._get_e3nn_version()} is installed. "
+                            f"This causes serialization format incompatibilities. "
+                            f"\n\nWorkaround options:"
+                            f"\n1. Use a separate environment with e3nn==0.4.4 for MACE"
+                            f"\n2. Use UMA backend instead (compatible with current e3nn)"
+                            f"\n3. Wait for MACE update compatible with e3nn 0.5+"
+                            f"\n\nOriginal error: {e}"
+                        )
+                    else:
+                        raise
+
+    def _get_e3nn_version(self) -> str:
+        """Get the installed e3nn version."""
+        try:
+            import e3nn
+
+            return e3nn.__version__
+        except (ImportError, AttributeError):
+            return "unknown"
 
     def _get_backend_name(self) -> str:
         """Get the backend name for this calculator."""
@@ -120,7 +151,21 @@ class MACEPotential(BasePotential):
             raise RuntimeError("Failed to load MACE calculator")
 
         # Delegate to the underlying MACE calculator
-        self._calc.calculate(self.atoms, properties, system_changes)
+        try:
+            self._calc.calculate(self.atoms, properties, system_changes)
+        except (AttributeError, RuntimeError) as e:
+            if any(phrase in str(e) for phrase in ["_compiled_main", "tensor size"]):
+                raise ImportError(
+                    f"MACE calculation failed due to e3nn compatibility issues. "
+                    f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn {self._get_e3nn_version()} is installed. "
+                    f"\n\nWorkaround options:"
+                    f"\n1. Use a separate environment with e3nn==0.4.4 for MACE"
+                    f"\n2. Use UMA backend instead (compatible with current e3nn)"
+                    f"\n3. Wait for MACE update compatible with e3nn 0.5+"
+                    f"\n\nOriginal error: {e}"
+                )
+            else:
+                raise
 
         # Copy results from underlying calculator
         try:
@@ -138,7 +183,21 @@ class MACEPotential(BasePotential):
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
-        return super().get_potential_energy(atoms, force_consistent)
+        try:
+            return super().get_potential_energy(atoms, force_consistent)
+        except (AttributeError, RuntimeError) as e:
+            if any(phrase in str(e) for phrase in ["_compiled_main", "tensor size"]):
+                raise ImportError(
+                    f"MACE calculation failed due to e3nn compatibility issues. "
+                    f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn {self._get_e3nn_version()} is installed. "
+                    f"\n\nWorkaround options:"
+                    f"\n1. Use a separate environment with e3nn==0.4.4 for MACE"
+                    f"\n2. Use UMA backend instead (compatible with current e3nn)"
+                    f"\n3. Wait for MACE update compatible with e3nn 0.5+"
+                    f"\n\nOriginal error: {e}"
+                )
+            else:
+                raise
 
     def get_forces(self, atoms=None):
         """Get forces on atoms."""
