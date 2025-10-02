@@ -26,11 +26,11 @@ from ase.build import molecule
 
 # Import standardized backend utilities
 from backend_utils import (
-    get_available_backends,
-    filter_available_backends,
-    print_backend_summary,
     AVAILABLE_BACKENDS,
-    AVAILABLE_ML_BACKENDS
+    AVAILABLE_ML_BACKENDS,
+    filter_available_backends,
+    get_available_backends,
+    print_backend_summary,
 )
 
 # Suppress warnings for cleaner output
@@ -39,6 +39,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Import QME components (already imported in backend_utils)
 import qme
+
 QMEOptimizer = qme.QMEOptimizer
 deps = qme.deps
 calculator_registry = qme.calculator_registry
@@ -485,13 +486,15 @@ def main():
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
         available_backends = filter_available_backends(requested_backends, verbose=True)
-        
+
         if not available_backends:
-            print("\nNo requested backends are available! Please install required dependencies.")
+            print(
+                "\nNo requested backends are available! Please install required dependencies."
+            )
             return
     else:
         available_backends = get_available_backends(verbose=True)
-        
+
         if not available_backends:
             print("\nNo backends available! Please install required dependencies.")
             return

@@ -180,6 +180,10 @@ class CalculatorRegistry:
     def is_backend_available(self, backend: str) -> bool:
         """Check if a backend is available and can create real calculators.
 
+        Uses fast dependency-based checking to avoid expensive calculator instantiation
+        while still catching most compatibility issues through version analysis and
+        import checking.
+
         Parameters:
         -----------
         backend : str
@@ -191,98 +195,10 @@ class CalculatorRegistry:
             True if backend is available and can create real calculators,
             False otherwise
         """
-        if backend == "mock":
-            return True
-        elif backend == "so3lr":
-            if not deps.has("so3lr"):
-                return False
-            try:
-                from qme.potentials.so3lr_potential import SO3LRPotential
+        # Use the new efficient backend availability checker
+        from qme.backend_availability import is_backend_available
 
-                return True
-            except ImportError:
-                return False
-        elif backend == "uma":
-            if not (deps.has("fairchem") and deps.has("torch")):
-                return False
-            try:
-                from qme.potentials.uma_potential import UMAPotential
-
-                return True
-            except ImportError:
-                return False
-        elif backend == "aimnet2":
-            if not deps.has("torch"):
-                return False
-            try:
-                from qme.potentials.aimnet2_potential import AIMNet2Potential
-
-                return True
-            except ImportError:
-                return False
-        elif backend == "mace":
-            if not (deps.has("mace") and deps.has("torch")):
-                return False
-            try:
-                from ase.build import molecule
-
-                from qme.potentials.mace_potential import MACEPotential
-
-                # Test if MACE can actually perform calculations (comprehensive check)
-                test_calc = MACEPotential(device="cpu")
-                test_calc._load_calculator()
-
-                # Test a simple calculation to catch e3nn runtime errors
-                atoms = molecule("H2")
-                atoms.calc = test_calc
-                atoms.get_potential_energy()  # This will fail if e3nn is incompatible
-
-                return True
-            except (ImportError, ValueError, AttributeError, RuntimeError):
-                # ImportError: missing dependencies
-                # ValueError/AttributeError/RuntimeError: e3nn compatibility issues
-                return False
-        elif backend == "torchsim_mace":
-            if not (deps.has("torch_sim") and deps.has("torch")):
-                return False
-            try:
-                from ase.build import molecule
-
-                from qme.potentials.torchsim_potential import TorchSimPotential
-
-                # Test if TorchSim MACE can actually perform calculations (comprehensive check)
-                test_calc = TorchSimPotential(backend="mace", device="cpu")
-                test_calc._load_calculator()
-
-                # Test a simple calculation to catch e3nn runtime errors
-                atoms = molecule("H2")
-                atoms.calc = test_calc
-                atoms.get_potential_energy()  # This will fail if e3nn is incompatible
-
-                return True
-            except (ImportError, ValueError, AttributeError, RuntimeError):
-                # ImportError: missing dependencies
-                # ValueError/AttributeError/RuntimeError: e3nn compatibility issues
-                return False
-        elif backend == "torchsim_uma":
-            # TorchSim UMA requires torch_sim, torch, AND fairchem
-            if not (
-                deps.has("torch_sim") and deps.has("torch") and deps.has("fairchem")
-            ):
-                return False
-            try:
-                from qme.potentials.torchsim_potential import TorchSimPotential
-
-                # Test if TorchSim UMA can actually be loaded (check for FairChem compatibility)
-                test_calc = TorchSimPotential(backend="fairchem", device="cpu")
-                test_calc._load_calculator()
-                return True
-            except (ImportError, ValueError):
-                # ImportError: missing dependencies
-                # ValueError: FairChem compatibility issue
-                return False
-        else:
-            return backend in self._registry
+        return is_backend_available(backend)
 
 
 # Global calculator registry instance
