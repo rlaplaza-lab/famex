@@ -10,7 +10,7 @@ cost of integrating potentials through ASE interfaces.
 Usage:
     conda run -n py312 python timing_benchmark.py [--backends BACKEND1,BACKEND2,...]
     conda run -n py312 python timing_benchmark.py [--device DEVICE]
-    
+
 Features:
     - Geometry optimization performance measurement
     - Frequency analysis timing
@@ -50,15 +50,17 @@ def get_available_ml_backends() -> List[str]:
     """Get list of available ML backends (excluding mock)."""
     available = []
     ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma"]
-    
+
     for backend in ml_backends:
         if calculator_registry.is_backend_available(backend):
             available.append(backend)
-    
+
     return available
 
 
-def filter_available_backends(requested_backends: List[str], verbose: bool = False) -> List[str]:
+def filter_available_backends(
+    requested_backends: List[str], verbose: bool = False
+) -> List[str]:
     """Filter requested backends to only available ones."""
     available = []
     for backend in requested_backends:
@@ -355,7 +357,7 @@ def print_summary(results_list: List[Dict[str, Any]]):
     print(f"\n{'='*120}")
     print("BENCHMARK SUMMARY")
     print(f"{'='*120}")
-    
+
     # Print legend first, before the table
     print("📊 COLUMN DEFINITIONS:")
     print("   E1st    = Energy (1st call, includes model loading)")
@@ -414,10 +416,10 @@ def print_summary(results_list: List[Dict[str, Any]]):
         print(f"{'='*80}")
 
         for results in available_results:
-            backend_name = results['backend'].upper()
+            backend_name = results["backend"].upper()
             print(f"\n📈 {backend_name} PERFORMANCE BREAKDOWN")
             print(f"{'-'*50}")
-            
+
             timings = results["timings"]
             total = timings.get("total", 0)
             opt_results = results.get("optimization_results", {})
@@ -437,7 +439,9 @@ def print_summary(results_list: List[Dict[str, Any]]):
                 time_val = timings.get(step_key, 0)
                 if time_val is not None and time_val > 0:
                     percentage = (time_val / total) * 100 if total > 0 else 0
-                    print(f"  {step_display:<30}: {time_val:>8.3f}s ({percentage:>5.1f}%)")
+                    print(
+                        f"  {step_display:<30}: {time_val:>8.3f}s ({percentage:>5.1f}%)"
+                    )
 
             # Optimization metrics
             steps_taken = opt_results.get("steps_taken", 0)
@@ -450,14 +454,14 @@ def print_summary(results_list: List[Dict[str, Any]]):
                 print(f"  {'Optimization Steps':<30}: {steps_taken:>8}")
                 if avg_time_per_step is not None and avg_time_per_step > 0:
                     print(f"  {'Time per Step':<30}: {avg_time_per_step:>8.4f}s")
-            
+
             if final_energy is not None:
                 print(f"  {'Final Energy':<30}: {final_energy:>8.3f} eV")
-            
+
             if converged is not None:
                 status = "✅ Yes" if str(converged) == "True" else "❌ No"
                 print(f"  {'Converged':<30}: {status:>8}")
-            
+
             print(f"  {'='*48}")
             print(f"  {'TOTAL TIME':<30}: {total:>8.3f}s")
 
@@ -483,9 +487,9 @@ Examples:
   conda run -n py312 python timing_benchmark.py
   conda run -n py312 python timing_benchmark.py --backends aimnet2,uma
   conda run -n py312 python timing_benchmark.py --device cuda --verbose
-        """
+        """,
     )
-    
+
     parser.add_argument(
         "--backends",
         type=str,
@@ -505,9 +509,7 @@ Examples:
         help="Output file for results (default: timing_benchmark_results.json)",
     )
     parser.add_argument(
-        "--verbose", 
-        action="store_true", 
-        help="Print detailed progress information"
+        "--verbose", action="store_true", help="Print detailed progress information"
     )
 
     args = parser.parse_args()

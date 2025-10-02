@@ -181,6 +181,7 @@ def require_ml_backends(min_count: int = 1) -> List[str]:
         print("  - SO3LR: pip install so3lr")
         print("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
         import sys
+
         sys.exit(1)
 
     return available
@@ -260,7 +261,9 @@ def require_any_backend(backends: List[str]):
         # If pytest not available, just check availability
         available = [b for b in backends if is_backend_available(b)]
         if not available:
-            raise ImportError(f"None of the required backends are available: {backends}")
+            raise ImportError(
+                f"None of the required backends are available: {backends}"
+            )
         return available
 
     available = [b for b in backends if is_backend_available(b)]

@@ -130,7 +130,9 @@ class BH28Benchmark:
         print(f"Dataset: {self.dataset_dir}")
         print(f"Output: {self.output_dir}")
         print(f"Available reactions: {len(self.reference_barriers)}")
-        print("Note: SO3LR has known molecular size limitations and may skip some reactions")
+        print(
+            "Note: SO3LR has known molecular size limitations and may skip some reactions"
+        )
 
     def load_structure(self, filename: str) -> Atoms:
         """Load molecular structure from XYZ file."""
@@ -160,8 +162,15 @@ class BH28Benchmark:
     def get_available_backends(self) -> List[str]:
         """Get list of available QME backends (excluding mock)."""
         available = []
-        ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma"]
-        
+        ml_backends = [
+            "aimnet2",
+            "uma",
+            "so3lr",
+            "mace",
+            "torchsim_mace",
+            "torchsim_uma",
+        ]
+
         for backend in ml_backends:
             if calculator_registry.is_backend_available(backend):
                 available.append(backend)
@@ -174,8 +183,10 @@ class BH28Benchmark:
             )
 
         return available
-    
-    def filter_available_backends(self, requested_backends: List[str], verbose: bool = False) -> List[str]:
+
+    def filter_available_backends(
+        self, requested_backends: List[str], verbose: bool = False
+    ) -> List[str]:
         """Filter requested backends to only available ones."""
         available = []
         for backend in requested_backends:
@@ -185,7 +196,9 @@ class BH28Benchmark:
                 print(f"Warning: Backend '{backend}' not available, skipping")
         return available
 
-    def print_backend_summary(self, backends: List[str], title: str = "Available Backends"):
+    def print_backend_summary(
+        self, backends: List[str], title: str = "Available Backends"
+    ):
         """Print a formatted summary of backends."""
         print(f"\n📋 {title}")
         print("-" * 50)
@@ -392,9 +405,7 @@ class BH28Benchmark:
                             backend == "so3lr"
                             and "vmap got inconsistent sizes" in error_msg
                         ):
-                            print(
-                                "  ⚠️  Skipped: SO3LR molecular size incompatibility"
-                            )
+                            print("  ⚠️  Skipped: SO3LR molecular size incompatibility")
                             reaction_data = {
                                 "success": False,
                                 "error": "SO3LR molecular size incompatibility",
@@ -478,7 +489,9 @@ class BH28Benchmark:
 
             # Report skipped and failed reactions
             if skipped_count > 0:
-                print(f"⚠️  Skipped reactions (known incompatibilities): {skipped_count}")
+                print(
+                    f"⚠️  Skipped reactions (known incompatibilities): {skipped_count}"
+                )
             if failed_count > 0:
                 print(f"❌ Failed reactions: {failed_count}")
 
@@ -616,7 +629,7 @@ Examples:
   conda run -n py312 python bh28_benchmark.py --quick
   conda run -n py312 python bh28_benchmark.py --quicker
   conda run -n py312 python bh28_benchmark.py --analyze
-        """
+        """,
     )
 
     parser.add_argument(
@@ -662,7 +675,7 @@ Examples:
 
     # Determine backends to test
     available_backends = benchmark.get_available_backends()
-    
+
     if args.backends:
         backends = benchmark.filter_available_backends(args.backends, verbose=True)
         if not backends:
