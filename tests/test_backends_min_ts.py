@@ -7,7 +7,7 @@ from ase.io import write
 from click.testing import CliRunner
 
 from qme.cli import main
-from qme.dependencies import deps
+from tests.backend_utils import AVAILABLE_BACKENDS
 
 
 def _make_xyz(tmpdir: str, fname: str = "mol.xyz") -> str:
@@ -25,21 +25,8 @@ def _make_xyz(tmpdir: str, fname: str = "mol.xyz") -> str:
     return path
 
 
-# Comprehensive backend list including TorchSim backends
-BACKENDS = ["mock", "aimnet2", "mace", "uma", "torchsim_mace", "torchsim_uma"]
-
-
-def _backend_available(name: str) -> bool:
-    """Check if a backend is truly available (can create real calculators, not just mock fallbacks)."""
-    import qme
-
-    return qme.calculator_registry.is_backend_available(name)
-
-
-@pytest.mark.parametrize("backend", BACKENDS)
+@pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
 def test_minima_runs_across_backends(backend: str):
-    if not _backend_available(backend):
-        pytest.skip(f"Backend {backend} not available in this environment")
 
     runner = CliRunner()
     with tempfile.TemporaryDirectory() as tmp:
@@ -62,10 +49,8 @@ def test_minima_runs_across_backends(backend: str):
         assert os.path.exists(out)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
+@pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
 def test_ts_runs_across_backends(backend: str):
-    if not _backend_available(backend):
-        pytest.skip(f"Backend {backend} not available in this environment")
 
     runner = CliRunner()
     with tempfile.TemporaryDirectory() as tmp:
@@ -88,10 +73,8 @@ def test_ts_runs_across_backends(backend: str):
         assert os.path.exists(os.path.join(tmp, out))
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
+@pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
 def test_neb_runs_across_backends(backend: str):
-    if not _backend_available(backend):
-        pytest.skip(f"Backend {backend} not available in this environment")
 
     runner = CliRunner()
     with tempfile.TemporaryDirectory() as tmp:

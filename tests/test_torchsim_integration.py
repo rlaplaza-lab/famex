@@ -17,6 +17,7 @@ from ase.build import molecule
 
 import qme
 from qme.dependencies import deps
+from tests.backend_utils import AVAILABLE_TORCHSIM_BACKENDS, require_backend
 
 
 class TestTorchSimIntegration:
@@ -51,8 +52,7 @@ class TestTorchSimIntegration:
 
     def test_torchsim_calculator_creation(self):
         """Test TorchSim calculator creation."""
-        if not deps.has("torch_sim"):
-            pytest.skip("TorchSim not available")
+        require_backend("torchsim_mace")  # This will skip if TorchSim is not available
 
         # Test TorchSim MACE calculator
         calc_mace = qme.calculator_registry.create_calculator(
@@ -92,8 +92,7 @@ class TestTorchSimIntegration:
 
     def test_torchsim_energy_calculation(self):
         """Test TorchSim energy calculation."""
-        if not qme.calculator_registry.is_backend_available("torchsim_mace"):
-            pytest.skip("TorchSim MACE not available")
+        require_backend("torchsim_mace")
 
         # Create a simple molecule
         benzene = molecule("C6H6")
@@ -113,8 +112,7 @@ class TestTorchSimIntegration:
 
     def test_torchsim_forces_calculation(self):
         """Test TorchSim forces calculation."""
-        if not qme.calculator_registry.is_backend_available("torchsim_mace"):
-            pytest.skip("TorchSim MACE not available")
+        require_backend("torchsim_mace")
 
         # Create a simple molecule
         benzene = molecule("C6H6")
@@ -135,8 +133,7 @@ class TestTorchSimIntegration:
 
     def test_torchsim_optimization(self):
         """Test TorchSim optimization workflow."""
-        if not qme.calculator_registry.is_backend_available("torchsim_mace"):
-            pytest.skip("TorchSim MACE not available")
+        require_backend("torchsim_mace")
 
         # Create a simple molecule with slight distortion
         benzene = molecule("C6H6")
@@ -162,8 +159,7 @@ class TestTorchSimIntegration:
 
     def test_torchsim_cli_integration(self):
         """Test TorchSim CLI integration."""
-        if not qme.calculator_registry.is_backend_available("torchsim_mace"):
-            pytest.skip("TorchSim MACE not available")
+        require_backend("torchsim_mace")
 
         from click.testing import CliRunner
 
@@ -205,8 +201,7 @@ class TestTorchSimIntegration:
 
     def test_torchsim_performance_comparison(self):
         """Test TorchSim performance compared to standard backends."""
-        if not qme.calculator_registry.is_backend_available("torchsim_mace"):
-            pytest.skip("TorchSim MACE not available")
+        require_backend("torchsim_mace")
 
         import time
 
