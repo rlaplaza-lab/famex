@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 """
-Zimmermann-93 Two-Ended (NEB-like) TS Benchmark
+QME Zimmermann-93 Benchmark - Two-Ended Transition State Search
 
-This benchmark runs two-ended (reactant -> product) transition state searches
-across available ML backends in QME. For each reaction in the provided dataset
-it:
-  - loads reactant and product geometries
-  - interpolates an initial path and (optionally) optimizes it with a
-    simplified NEB-like procedure
-  - picks the highest-energy image as a TS guess and runs a TS optimization
-    (SElLA-based if available)
-  - compares the located TS geometry to the reference TS (RMSD after alignment)
+This benchmark runs two-ended (reactant → product) transition state searches
+across available ML backends in QME. For each reaction in the provided dataset:
+  - Loads reactant and product geometries
+  - Interpolates an initial path and (optionally) optimizes it with NEB-like procedure
+  - Picks the highest-energy image as a TS guess and runs TS optimization
+  - Compares the located TS geometry to the reference TS (RMSD after alignment)
 
 Usage:
-    python zimmermann93_benchmark.py --quicker           # Single reaction (fastest)
-    python zimmermann93_benchmark.py --quick             # Representative subset
-    python zimmermann93_benchmark.py --backends uma mace # Specific backends
-    python zimmermann93_benchmark.py                     # Full benchmark
+    conda run -n py312 python zimmermann93_benchmark.py [--quick|--quicker]
+    conda run -n py312 python zimmermann93_benchmark.py --backends uma,mace
+    conda run -n py312 python zimmermann93_benchmark.py --npoints 15
 
+Features:
+    - Two-ended transition state search evaluation
+    - NEB-like path optimization capabilities
+    - Geometry comparison with reference structures
+    - Comprehensive backend performance analysis
 """
 
 import argparse
@@ -35,20 +36,14 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-from qme import Explorer
-from qme.dependencies import HAS_SELLA, deps
-
-# Add parent directory to path for backend_utils
-script_dir = Path(__file__).parent
-parent_dir = script_dir.parent
-if str(parent_dir) not in sys.path:
-    sys.path.insert(0, str(parent_dir))
-
-from backend_utils import (  # noqa: E402
-    filter_available_backends,
-    get_available_ml_backends,
-    print_backend_summary,
-)
+# Import QME components
+try:
+    from qme import Explorer, calculator_registry
+    from qme.dependencies import HAS_SELLA
+except ImportError as e:
+    print(f"❌ Error importing QME: {e}")
+    print("   Please ensure QME is installed and accessible")
+    sys.exit(1)
 
 # Quiet noisy backends
 logging.getLogger("jax").setLevel(logging.WARNING)
@@ -191,10 +186,12 @@ class Zimmermann93Benchmark:
 
         self.results: Dict[str, Dict] = {}
 
-        print("⚗️  Zimmermann-93 NEB/Two-ended TS Benchmark")
-        print(f"📁 Dataset dir: {self.dataset_dir}")
-        print(f"📊 Output dir: {self.output_dir}")
-        print(f"🔢 Reactions discovered: {len(self.reactions)}")
+        print("=" * 80)
+        print("QME Zimmermann-93 Benchmark - Two-Ended Transition State Search")
+        print("=" * 80)
+        print(f"Dataset dir: {self.dataset_dir}")
+        print(f"Output dir: {self.output_dir}")
+        print(f"Reactions discovered: {len(self.reactions)}")
 
     def load_structure(self, filename: str) -> Atoms:
         filepath = self.dataset_dir / filename
@@ -213,7 +210,13 @@ class Zimmermann93Benchmark:
         return self.load_structure(ts_file)
 
     def get_available_backends(self) -> List[str]:
-        available = get_available_ml_backends()
+        """Get list of available ML backends (excluding mock)."""
+        available = []
+        ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma"]
+        
+        for backend in ml_backends:
+            if calculator_registry.is_backend_available(backend):
+                available.append(backend)
 
         if not available:
             raise RuntimeError(
@@ -221,6 +224,24 @@ class Zimmermann93Benchmark:
                 "The mock backend is excluded as it cannot optimize transition states."
             )
         return available
+    
+    def filter_available_backends(self, requested_backends: List[str], verbose: bool = False) -> List[str]:
+        """Filter requested backends to only available ones."""
+        available = []
+        for backend in requested_backends:
+            if calculator_registry.is_backend_available(backend):
+                available.append(backend)
+            elif verbose:
+                print(f"Warning: Backend '{backend}' not available, skipping")
+        return available
+
+    def print_backend_summary(self, backends: List[str], title: str = "Available Backends"):
+        """Print a formatted summary of backends."""
+        print(f"\n📋 {title}")
+        print("-" * 50)
+        for i, backend in enumerate(backends, 1):
+            print(f"  {i}. {backend}")
+        print(f"Total: {len(backends)} backends")
 
     def run_benchmark(
         self,
@@ -235,7 +256,8 @@ class Zimmermann93Benchmark:
         results: Dict[str, Dict] = {}
 
         for backend in backends:
-            print(f"\n🔧 Backend: {backend}")
+            print(f"\nBackend: {backend.upper()}")
+            print("-" * 60)
             backend_results: Dict[str, Dict] = {}
 
             # Use None for auto-detection of model
@@ -243,7 +265,7 @@ class Zimmermann93Benchmark:
 
             try:
                 for reaction in reactions:
-                    print(f"  ▶ Reaction: {reaction}")
+                    print(f"  Reaction: {reaction}")
                     reaction_data: Dict = {}
 
                     try:
@@ -363,7 +385,7 @@ class Zimmermann93Benchmark:
                             )
 
                             print(
-                                f"    ✓ TS guess index: {max_idx}, RMSD -> ref: {rmsd:.4f}"
+                                f"    ✓ TS guess index: {max_idx}, RMSD to ref: {rmsd:.4f} Å"
                             )
 
                     except Exception as e:
@@ -384,13 +406,14 @@ class Zimmermann93Benchmark:
     def analyze_performance(self, backends: List[str]) -> Dict:
         """Analyze performance metrics across backends."""
         print(f"\n{'='*80}")
-        print("📊 PERFORMANCE ANALYSIS")
+        print("PERFORMANCE ANALYSIS")
         print(f"{'='*80}")
 
         analysis = {}
 
         for backend in backends:
-            print(f"\n🔧 Backend: {backend.upper()}")
+            print(f"\nBackend: {backend.upper()}")
+            print("-" * 50)
             backend_data = self.results.get(backend, {})
 
             # Collect successful TS calculations
@@ -423,24 +446,25 @@ class Zimmermann93Benchmark:
                     "std_rmsd": np.std(rmsds) if rmsds else 0,
                 }
 
-                print(f"  📈 Transition States ({ts_stats['count']} reactions):")
-                print(f"     Mean RMSD: {ts_stats['mean_rmsd']:.4f} Å")
-                print(f"     Max RMSD:  {ts_stats['max_rmsd']:.4f} Å")
-                print(f"     Std RMSD:  {ts_stats['std_rmsd']:.4f} Å")
+                print(f"Transition States ({ts_stats['count']} reactions):")
+                print(f"  Mean RMSD: {ts_stats['mean_rmsd']:.4f} Å")
+                print(f"  Max RMSD:  {ts_stats['max_rmsd']:.4f} Å")
+                print(f"  Std RMSD:  {ts_stats['std_rmsd']:.4f} Å")
             else:
                 ts_stats = {"count": 0}
-                print("  ❌ No successful transition state calculations")
+                print("❌ No successful transition state calculations")
 
             # Report skipped and failed reactions
             if skipped_count > 0:
-                print(f"  ⚠️  Skipped reactions: {skipped_count}")
+                print(f"⚠️  Skipped reactions: {skipped_count}")
             if failed_count > 0:
-                print(f"  ❌ Failed reactions: {failed_count}")
+                print(f"❌ Failed reactions: {failed_count}")
 
             analysis[backend] = {"ts_statistics": ts_stats}
 
         # Cross-backend comparison
-        print("\n🏆 BACKEND COMPARISON")
+        print("\nBACKEND COMPARISON")
+        print("-" * 50)
         print(f"{'Backend':<12} {'Success':<8} {'Mean RMSD':<12} {'Max RMSD':<12}")
         print("-" * 50)
 
@@ -490,46 +514,94 @@ class Zimmermann93Benchmark:
         serializable = convert(self.results)
         with open(out, "w") as f:
             json.dump(serializable, f, indent=2)
-        print(f"💾 Results written to: {out}")
+        print(f"\nResults saved to: {out}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Zimmermann-93 two-ended TS benchmark")
-    parser.add_argument("--backends", nargs="+", default=None)
-    parser.add_argument("--reactions", nargs="+", default=None)
-    parser.add_argument("--quick", action="store_true")
+    """Main entry point for the benchmark."""
+    parser = argparse.ArgumentParser(
+        description="QME Zimmermann-93 Benchmark - Two-Ended Transition State Search",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  conda run -n py312 python zimmermann93_benchmark.py
+  conda run -n py312 python zimmermann93_benchmark.py --backends aimnet2,uma
+  conda run -n py312 python zimmermann93_benchmark.py --quick
+  conda run -n py312 python zimmermann93_benchmark.py --quicker
+  conda run -n py312 python zimmermann93_benchmark.py --npoints 15
+        """
+    )
+    
+    parser.add_argument(
+        "--backends", 
+        nargs="+", 
+        help="QME backends to test (default: all available)"
+    )
+    parser.add_argument(
+        "--reactions", 
+        nargs="+", 
+        help="Specific reactions to test (default: all reactions)"
+    )
+    parser.add_argument(
+        "--quick", 
+        action="store_true",
+        help="Run quick benchmark with representative subset of reactions"
+    )
     parser.add_argument(
         "--quicker",
         action="store_true",
         help="Run quicker benchmark with single reaction for very fast testing",
     )
-    parser.add_argument("--output-dir", default="benchmark_results")
-    parser.add_argument("--npoints", type=int, default=11)
     parser.add_argument(
-        "--interp-method", choices=["linear", "geodesic"], default="geodesic"
+        "--output-dir", 
+        default="benchmark_results",
+        help="Output directory for results (default: benchmark_results)"
     )
     parser.add_argument(
-        "--no-optimize-path", dest="optimize_path", action="store_false"
+        "--npoints", 
+        type=int, 
+        default=11,
+        help="Number of points in interpolated path (default: 11)"
     )
-    parser.add_argument("--fmax", type=float, default=0.01)
-    parser.add_argument("--steps", type=int, default=300)
+    parser.add_argument(
+        "--interp-method", 
+        choices=["linear", "geodesic"], 
+        default="geodesic",
+        help="Interpolation method (default: geodesic)"
+    )
+    parser.add_argument(
+        "--no-optimize-path", 
+        dest="optimize_path", 
+        action="store_false",
+        help="Skip path optimization step"
+    )
+    parser.add_argument(
+        "--fmax", 
+        type=float, 
+        default=0.01,
+        help="Force convergence criterion (default: 0.01)"
+    )
+    parser.add_argument(
+        "--steps", 
+        type=int, 
+        default=300,
+        help="Maximum optimization steps (default: 300)"
+    )
 
     args = parser.parse_args()
 
     benchmark = Zimmermann93Benchmark(dataset_dir=None, output_dir=args.output_dir)
     available_backends = benchmark.get_available_backends()
-    backends = args.backends if args.backends else available_backends
-
-    # Filter to only available backends
+    
     if args.backends:
-        backends = filter_available_backends(args.backends, verbose=True)
+        backends = benchmark.filter_available_backends(args.backends, verbose=True)
         if not backends:
             print("❌ No requested backends are available!")
             return 1
     else:
         backends = available_backends
 
-    print_backend_summary(backends, "Benchmarking Backends")
+    benchmark.print_backend_summary(backends, "Benchmarking Backends")
 
     if args.quicker:
         reactions = benchmark.quicker_reactions
@@ -549,6 +621,13 @@ def main():
         print(f"❌ Invalid reactions: {invalid_rxn}")
         return 1
 
+    print(f"\nConfiguration:")
+    print(f"  NPoints: {args.npoints}")
+    print(f"  Interpolation: {args.interp_method}")
+    print(f"  Optimize path: {args.optimize_path}")
+    print(f"  Force max: {args.fmax}")
+    print(f"  Max steps: {args.steps}")
+
     benchmark.run_benchmark(
         backends,
         reactions,
@@ -564,7 +643,7 @@ def main():
 
     # Save results
     benchmark.save_results()
-    print("\n✨ Zimmermann-93 benchmark finished")
+    print("\n✅ Benchmark completed successfully!")
     return 0
 
 

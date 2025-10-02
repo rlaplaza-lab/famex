@@ -1,6 +1,8 @@
-# TorchSim Integration for QME
+# TorchSim Integration (Developer Documentation)
 
-This document describes the integration of TorchSim into QME, providing significant performance improvements for machine learning potential calculations.
+> **Note**: This document contains technical implementation details for developers. For user-facing TorchSim documentation, see [TorchSim Acceleration](user_guide/torchsim_acceleration.md).
+
+This document describes the technical implementation of TorchSim integration in QME, providing significant performance improvements for machine learning potential calculations.
 
 ## Overview
 

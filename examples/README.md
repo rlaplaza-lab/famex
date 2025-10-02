@@ -82,10 +82,34 @@ All examples support the full range of QME backends:
 
 ## Running Examples
 
-All examples should be run using the conda py312 environment:
+All examples should be run using the conda py312 environment and follow a standardized interface:
 
 ```bash
-conda run -n py312 python <example_script.py>
+conda run -n py312 python <example_script.py> [options]
+```
+
+### Common Interface
+
+All examples now provide:
+- **Consistent help**: Use `--help` to see available options
+- **Backend selection**: Use `--backends backend1,backend2` to test specific backends
+- **Standardized output**: Clean, professional formatting with consistent messaging
+- **Self-contained**: No external utility dependencies - each example is independent
+
+### Quick Start Examples
+
+```bash
+# Run with all available backends
+conda run -n py312 python cli_demo.py
+conda run -n py312 python timing_benchmark.py
+
+# Run with specific backends
+conda run -n py312 python cli_demo.py --backends aimnet2,uma
+conda run -n py312 python timing_benchmark.py --backends mace --verbose
+
+# Run quick benchmarks
+conda run -n py312 python bh28_benchmark/bh28_benchmark.py --quick
+conda run -n py312 python zimmermann93_benchmark/zimmermann93_benchmark.py --quicker
 ```
 
 ## Understanding Results

@@ -491,7 +491,7 @@ class AIMNet2Potential(BasePotential):
 
     def _load_calculator(self):
         """Load the AIMNET2 model directly."""
-        from qme.potentials.logging_utils import quiet_backend_loading
+        from qme.logging_utils import quiet_backend_loading
 
         try:
             # Ensure model_name is not None

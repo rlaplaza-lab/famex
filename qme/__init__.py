@@ -34,7 +34,6 @@ def __getattr__(name):
             f"{__name__}.core.explorer",
             "Explorer",
         ),  # Backward compatibility alias
-        "minimize_structure": (f"{__name__}.core", "minimize_structure"),
         # settings
         "config": (f"{__name__}.settings", "config"),
         "get_default_backend": (f"{__name__}.settings", "get_default_backend"),
@@ -91,7 +90,6 @@ __all__ = [
     # Core classes
     "Explorer",
     "QMEOptimizer",  # Backward compatibility alias for Explorer
-    "minimize_structure",
     "Geometry",
     "Reaction",
     # Frequency analysis

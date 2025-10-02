@@ -1,8 +1,23 @@
 #!/usr/bin/env python3
 """
-Demo script showing QME CLI functionality with comprehensive backend comparison.
+QME CLI Demo - Comprehensive Backend Comparison
+
+This example demonstrates QME's command-line interface capabilities by running
+various optimization tasks across all available ML backends and comparing their
+performance and reliability.
+
+Usage:
+    conda run -n py312 python cli_demo.py [--backends BACKEND1,BACKEND2,...]
+    
+Features:
+    - Structure optimization using 'opt' command
+    - Transition state optimization using 'tsopt' command  
+    - Two-ended optimization workflows
+    - NEB path optimization
+    - Comprehensive backend performance comparison
 """
 
+import argparse
 import os
 import subprocess
 import sys
@@ -10,24 +25,47 @@ import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from backend_utils import (
-    get_available_ml_backends,
-    print_backend_summary,
-    require_ml_backends,
-)
-
 # Disable ASE GUI to prevent popup windows
 os.environ["DISPLAY"] = ""
 os.environ["MPLBACKEND"] = "Agg"
 
+# Import QME for backend detection
+try:
+    from qme import calculator_registry
+except ImportError as e:
+    print(f"❌ Error importing QME: {e}")
+    print("   Please ensure QME is installed and accessible")
+    sys.exit(1)
+
+
+def get_available_ml_backends() -> List[str]:
+    """Get list of available ML backends (excluding mock)."""
+    available = []
+    ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma"]
+    
+    for backend in ml_backends:
+        if calculator_registry.is_backend_available(backend):
+            available.append(backend)
+    
+    return available
+
+
+def print_backend_summary(backends: List[str], title: str = "Available Backends"):
+    """Print a formatted summary of backends."""
+    print(f"\n📋 {title}")
+    print("-" * 50)
+    for i, backend in enumerate(backends, 1):
+        print(f"  {i}. {backend}")
+    print(f"Total: {len(backends)} backends")
+
 
 def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]:
     """Run a CLI command and report results."""
-    print(f"\n{'='*80}")
-    print(f"🔧 Backend: {backend}")
-    print(f"📋 Task: {desc}")
-    print(f"💻 Command: {' '.join(cmd)}")
-    print(f"{'='*80}")
+    print(f"\n{'='*60}")
+    print(f"Backend: {backend.upper()}")
+    print(f"Task: {desc}")
+    print(f"Command: {' '.join(cmd)}")
+    print("-" * 60)
 
     try:
         start_time = time.time()
@@ -47,16 +85,16 @@ def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]
         end_time = time.time()
         runtime = end_time - start_time
 
-        print(f"⏱️  Runtime: {runtime:.2f} seconds")
-        print(f"🚦 Exit code: {result.returncode}")
+        print(f"Runtime: {runtime:.2f} seconds")
+        print(f"Exit code: {result.returncode}")
 
         if result.returncode == 0:
-            print("✅ SUCCESS")
+            print("Status: ✅ SUCCESS")
             return True, runtime, result.stdout, result.stderr
         else:
-            print("❌ FAILED")
+            print("Status: ❌ FAILED")
             if result.stderr:
-                print("STDERR:")
+                print("Error output:")
                 print(
                     result.stderr[:500] + "..."
                     if len(result.stderr) > 500
@@ -65,7 +103,7 @@ def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]
             return False, runtime, result.stdout, result.stderr
 
     except subprocess.TimeoutExpired as e:
-        print(f"❌ TIMEOUT after {timeout} seconds")
+        print(f"Status: ❌ TIMEOUT after {timeout} seconds")
         # Clean up the process if it's still running
         if hasattr(e, "subprocess") and e.subprocess:
             try:
@@ -75,7 +113,7 @@ def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]
                 pass
         return False, timeout, "", f"Command timed out after {timeout} seconds"
     except Exception as e:
-        print(f"❌ ERROR: {e}")
+        print(f"Status: ❌ ERROR - {e}")
         return False, 0.0, "", str(e)
 
 
@@ -184,26 +222,38 @@ def create_example_commands(
     ]
 
 
-def demo_cli():
-    """Demonstrate QME CLI with new commands using default settings."""
+def demo_cli(backends: List[str] = None):
+    """Demonstrate QME CLI with commands using default settings."""
 
-    print("🚀 QME CLI Demo: Testing opt, tsopt, and neb commands")
     print("=" * 80)
+    print("QME CLI Demo - Comprehensive Backend Comparison")
+    print("=" * 80)
+    print("Testing: opt, tsopt, two-ended, and NEB commands")
 
     # Ensure no config file interferes with defaults
     config_file = Path("qme.json")
     if config_file.exists():
         print(
-            "⚠️ Found qme.json config file - temporarily moving it for pure defaults test"
+            "\nFound qme.json config file - temporarily moving it for pure defaults test"
         )
         config_file.rename("qme.json.temp")
-        print("✅ Using built-in defaults only")
+        print("Using built-in defaults only")
 
     # Get available ML backends
     try:
-        available_backends = get_available_ml_backends()
+        if backends:
+            # Filter requested backends to only available ones
+            available_backends = []
+            for backend in backends:
+                if calculator_registry.is_backend_available(backend):
+                    available_backends.append(backend)
+                else:
+                    print(f"Warning: Backend '{backend}' not available, skipping")
+        else:
+            available_backends = get_available_ml_backends()
+        
         if not available_backends:
-            print("❌ No ML backends available for comparison.")
+            print("\n❌ No ML backends available for comparison.")
             print("Please install at least one ML backend:")
             print("  - UMA: pip install fairchem-core")
             print("  - MACE: pip install mace-torch")
@@ -211,7 +261,8 @@ def demo_cli():
             print("  - SO3LR: pip install so3lr")
             print("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
             return False
-        print_backend_summary(available_backends, "Available ML Backends")
+        
+        print_backend_summary(available_backends, "Testing Backends")
     except Exception as e:
         print(f"❌ Error detecting backends: {e}")
         return False
@@ -302,14 +353,12 @@ def demo_cli():
 
     # Overall comparison summary
     print(f"\n{'='*80}")
-    print("🏆 COMPREHENSIVE BACKEND COMPARISON")
+    print("COMPREHENSIVE BACKEND COMPARISON")
     print(f"{'='*80}")
 
-    print("📊 Backend Performance Comparison:")
-    print(
-        f"{'Backend':<10} {'Success':<8} {'Failed':<8} {'Total Time':<12} {'Avg Time/Task':<15}"
-    )
-    print("-" * 60)
+    print("\nBackend Performance Summary:")
+    print(f"{'Backend':<12} {'Success':<8} {'Failed':<8} {'Total Time':<12} {'Avg Time/Task':<15}")
+    print("-" * 70)
 
     for backend in available_backends:
         results = backend_results[backend]
@@ -319,7 +368,7 @@ def demo_cli():
             else 0
         )
         print(
-            f"{backend:<10} {results['successful']:<8} {results['failed']:<8} "
+            f"{backend:<12} {results['successful']:<8} {results['failed']:<8} "
             f"{results['total_time']:<12.2f} {avg_time:<15.2f}"
         )
 
@@ -335,17 +384,17 @@ def demo_cli():
         best_backend = max(
             successful_backends, key=lambda x: (x[1]["successful"], -x[1]["total_time"])
         )
-        print(f"\n🥇 Best performing backend: {best_backend[0].upper()}")
+        print(f"\nBest performing backend: {best_backend[0].upper()}")
         print(
-            f'   - Success rate: '
-            f'{best_backend[1]["successful"]}/{total_examples_per_backend} examples'
+            f"  Success rate: "
+            f"{best_backend[1]['successful']}/{total_examples_per_backend} examples"
         )
         print(
-            f'   - Average time per task: '
-            f'{best_backend[1]["total_time"]/total_examples_per_backend:.2f}s'
+            f"  Average time per task: "
+            f"{best_backend[1]['total_time']/total_examples_per_backend:.2f}s"
         )
 
-    print(f"\n⏱️  Total benchmark time: {total_time:.2f} seconds")
+    print(f"\nTotal benchmark time: {total_time:.2f} seconds")
 
     # Check if all backends had some success
     total_successful = sum(
@@ -359,24 +408,53 @@ def demo_cli():
     temp_config = Path("qme.json.temp")
     if temp_config.exists():
         temp_config.rename("qme.json")
-        print("✅ Restored qme.json config file")
+        print("\nRestored qme.json config file")
 
     if success_rate > 0.7:  # 70% success rate threshold
-        print("🎉 Overall demo successful! New CLI commands working properly.")
+        print("\n✅ Overall demo successful! CLI commands working properly.")
         return True
     else:
-        print(f"⚠️  Demo completed with {success_rate:.1%} success rate.")
+        print(f"\n⚠️  Demo completed with {success_rate:.1%} success rate.")
         print("   Some backends may need attention or dependencies.")
         return success_rate > 0.3  # At least 30% working
 
 
-if __name__ == "__main__":
+def main():
+    """Main entry point with argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="QME CLI Demo - Comprehensive Backend Comparison",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  conda run -n py312 python cli_demo.py
+  conda run -n py312 python cli_demo.py --backends aimnet2,uma
+  conda run -n py312 python cli_demo.py --backends mace
+        """
+    )
+    
+    parser.add_argument(
+        "--backends",
+        type=str,
+        help="Comma-separated list of backends to test (default: all available)"
+    )
+    
+    args = parser.parse_args()
+    
+    # Parse backends if provided
+    backends = None
+    if args.backends:
+        backends = [b.strip() for b in args.backends.split(",")]
+    
     try:
-        success = demo_cli()
-        sys.exit(0 if success else 1)
+        success = demo_cli(backends)
+        return 0 if success else 1
     except KeyboardInterrupt:
-        print("\n\n🛑 Demo interrupted by user")
-        sys.exit(1)
+        print("\n\nDemo interrupted by user")
+        return 1
     except Exception as e:
-        print(f"\n\n💥 Unexpected error: {e}")
-        sys.exit(1)
+        print(f"\nUnexpected error: {e}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
