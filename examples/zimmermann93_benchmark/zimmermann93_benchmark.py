@@ -45,9 +45,9 @@ if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
 from backend_utils import (
-    get_available_ml_backends,
     filter_available_backends,
-    print_backend_summary
+    get_available_ml_backends,
+    print_backend_summary,
 )
 
 # Quiet noisy backends
@@ -214,7 +214,7 @@ class Zimmermann93Benchmark:
 
     def get_available_backends(self) -> List[str]:
         available = get_available_ml_backends()
-        
+
         if not available:
             raise RuntimeError(
                 "No ML backends available for benchmarking. "
@@ -524,7 +524,7 @@ def main():
             return 1
     else:
         backends = available_backends
-    
+
     print_backend_summary(backends, "Benchmarking Backends")
 
     if args.quicker:

@@ -16,8 +16,8 @@ os.environ["MPLBACKEND"] = "Agg"
 
 from backend_utils import (
     get_available_ml_backends,
+    print_backend_summary,
     require_ml_backends,
-    print_backend_summary
 )
 
 

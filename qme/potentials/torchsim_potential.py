@@ -138,55 +138,50 @@ class TorchSimPotential(BasePotential):
     def _load_mace_model(self):
         """Load MACE model through TorchSim."""
 
-        # Apply e3nn compatibility patch for MACE model loading
-        from qme.potentials.e3nn_compatibility import E3NNCompatibilityContext
-        from qme.potentials.e3nn_linear_patch import E3NNLinearPatchContext
+        try:
+            # Load MACE model through TorchSim
+            from mace.calculators.foundations_models import (
+                mace_mp,
+                mace_off,
+                mace_omol,
+            )
+            from torch_sim.models.mace import MaceModel
 
-        with E3NNCompatibilityContext(), E3NNLinearPatchContext():
-            try:
-                # Load MACE model through TorchSim
-                from mace.calculators.foundations_models import (
-                    mace_mp,
-                    mace_off,
-                    mace_omol,
+            if self.model_name == "mace-omol-0":
+                mace_model = mace_omol(return_raw_model=True)
+            elif self.model_name.startswith("mace-mp"):
+                model_size = self.model_name.replace("mace-mp-", "") or "medium"
+                mace_model = mace_mp(model=model_size, return_raw_model=True)
+            elif self.model_name.startswith("mace-off"):
+                model_size = self.model_name.replace("mace-off-", "") or "medium"
+                mace_model = mace_off(model=model_size, return_raw_model=True)
+            else:
+                # Default to MACE-OMOL
+                mace_model = mace_omol(return_raw_model=True)
+
+            # Create TorchSim MACE model
+            torch_device = deps.get("torch").device(self.device)
+            mace_model = mace_model.to(torch_device)
+            self._mace_model = MaceModel(model=mace_model, device=torch_device)
+
+        except (ValueError, AttributeError, RuntimeError) as e:
+            if any(
+                phrase in str(e)
+                for phrase in [
+                    "too many values to unpack",
+                    "_compiled_main",
+                    "tensor size",
+                ]
+            ):
+                raise ImportError(
+                    f"TorchSim MACE compatibility issue with e3nn versions. "
+                    f"MACE models require e3nn==0.4.4 but e3nn 0.5+ is installed. "
+                    f"This affects both regular MACE and TorchSim MACE backends. "
+                    f"Use UMA backend or separate environment with e3nn==0.4.4. "
+                    f"Error: {e}"
                 )
-                from torch_sim.models.mace import MaceModel
-
-                if self.model_name == "mace-omol-0":
-                    mace_model = mace_omol(return_raw_model=True)
-                elif self.model_name.startswith("mace-mp"):
-                    model_size = self.model_name.replace("mace-mp-", "") or "medium"
-                    mace_model = mace_mp(model=model_size, return_raw_model=True)
-                elif self.model_name.startswith("mace-off"):
-                    model_size = self.model_name.replace("mace-off-", "") or "medium"
-                    mace_model = mace_off(model=model_size, return_raw_model=True)
-                else:
-                    # Default to MACE-OMOL
-                    mace_model = mace_omol(return_raw_model=True)
-
-                # Create TorchSim MACE model
-                torch_device = deps.get("torch").device(self.device)
-                mace_model = mace_model.to(torch_device)
-                self._mace_model = MaceModel(model=mace_model, device=torch_device)
-
-            except (ValueError, AttributeError, RuntimeError) as e:
-                if any(
-                    phrase in str(e)
-                    for phrase in [
-                        "too many values to unpack",
-                        "_compiled_main",
-                        "tensor size",
-                    ]
-                ):
-                    raise ImportError(
-                        f"TorchSim MACE compatibility issue with e3nn versions. "
-                        f"MACE models require e3nn==0.4.4 but e3nn 0.5+ is installed. "
-                        f"This affects both regular MACE and TorchSim MACE backends. "
-                        f"Use UMA backend or separate environment with e3nn==0.4.4. "
-                        f"Error: {e}"
-                    )
-                else:
-                    raise
+            else:
+                raise
 
         # Monkey-patch both the TorchSim wrapper and the underlying MACE model
         original_macemodel_forward = self._mace_model.forward
