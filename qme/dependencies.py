@@ -161,6 +161,7 @@ class DependencyManager:
             "sella": "sella",
             "aimnet2": "torch",  # AIMNet2 only needs torch
             "fairchem": "fairchem.core",
+            "uma": "fairchem.core",  # UMA uses fairchem-core
             "so3lr": "so3lr",
             "mace": "mace.calculators",
             "torch_sim": "torch_sim",
