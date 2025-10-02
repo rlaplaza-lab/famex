@@ -401,14 +401,10 @@ class TestFileIO:
     @pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
     def test_xyz_file_workflow(self, backend):
         """Test complete XYZ file workflow."""
-        if backend == "uma" and not deps.has("fairchem"):
-            pytest.skip("UMA backend not available")
-        elif backend == "so3lr" and not deps.has("so3lr"):
-            pytest.skip("SO3LR backend not available")
-        elif backend == "aimnet2" and not deps.has("aimnet2"):
-            pytest.skip("AIMNET2 backend not available")
-        elif backend == "mace" and not deps.has("mace"):
-            pytest.skip("MACE backend not available")
+        import qme
+        
+        if not qme.calculator_registry.is_backend_available(backend):
+            pytest.skip(f"{backend} backend not available")
 
         try:
             optimizer = qme.QMEOptimizer(backend=backend)

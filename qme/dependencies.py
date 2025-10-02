@@ -197,7 +197,6 @@ class DependencyManager:
         return commands.get(name.lower(), name.lower())
 
 
-
 # Global dependency manager instance
 deps = DependencyManager()
 
