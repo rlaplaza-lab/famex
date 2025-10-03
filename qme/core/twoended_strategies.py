@@ -590,6 +590,7 @@ def _run_simple_neb(
     """Run a simple NEB optimization on the given path.
 
     This implements a basic NEB algorithm with spring forces and force projection.
+    Uses batch evaluation when available for improved performance.
     """
     import numpy as np
     from ase.optimize import BFGS
@@ -601,26 +602,56 @@ def _run_simple_neb(
         warnings.warn(f"Could not select optimizer '{local_optimizer_name}': {e}")
         OptClass = BFGS  # Fallback to ASE BFGS
 
+    # Check if we can use batch evaluation
+    calculator = path[0].calc if path[0].calc is not None else None
+    supports_batch = (
+        calculator is not None 
+        and hasattr(calculator, 'calculate_batch') 
+        and hasattr(calculator, 'supports_batch_evaluation')
+        and calculator.supports_batch_evaluation
+    )
+
+    if supports_batch:
+        print(f"Using batch evaluation for NEB optimization with {len(path)} images")
+
     # NEB optimization loop
     for step in range(steps):
         # Calculate energies and forces for all images
         energies = []
         forces_list = []
 
-        for atoms in path:
+        if supports_batch:
+            # Use batch evaluation for better performance
             try:
-                energy = atoms.get_potential_energy()
-                forces = atoms.get_forces()
-                energies.append(energy)
-                forces_list.append(forces)
+                batch_results = calculator.calculate_batch(
+                    path, properties=["energy", "forces"]
+                )
+                
+                for result in batch_results:
+                    energies.append(result.get("energy", float("inf")))
+                    forces_list.append(result.get("forces", np.zeros((len(path[0]), 3))))
+                    
             except Exception as e:
-                warnings.warn(f"Failed to calculate energy/forces: {e}")
-                energies.append(float("inf"))
-                forces_list.append(np.zeros((len(atoms), 3)))
+                warnings.warn(f"Batch evaluation failed, falling back to individual calculations: {e}")
+                supports_batch = False  # Disable batch for future iterations
+        
+        if not supports_batch:
+            # Fallback to individual calculations
+            for atoms in path:
+                try:
+                    energy = atoms.get_potential_energy()
+                    forces = atoms.get_forces()
+                    energies.append(energy)
+                    forces_list.append(forces)
+                except Exception as e:
+                    warnings.warn(f"Failed to calculate energy/forces: {e}")
+                    energies.append(float("inf"))
+                    forces_list.append(np.zeros((len(atoms), 3)))
 
         # Check convergence
         max_force = max(np.linalg.norm(forces, axis=1).max() for forces in forces_list)
         if max_force < fmax:
+            print(f"NEB converged after {step + 1} steps (max force: {max_force:.6f})")
             break
 
         # Apply NEB forces
