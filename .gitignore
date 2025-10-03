@@ -149,6 +149,7 @@ cython_debug/
 *.png
 *.pdf
 *.log
+timing_benchmark_results.json
 
 # Temporary files
 tmp/
