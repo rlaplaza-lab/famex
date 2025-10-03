@@ -468,7 +468,11 @@ def print_summary(results_list: List[Dict[str, Any]]):
 
 def save_results(results_list: List[Dict[str, Any]], output_file: str):
     """Save benchmark results to JSON file."""
-    output_path = Path(output_file)
+    # If output_file is just a filename, save it in the examples directory
+    if not Path(output_file).is_absolute() and "/" not in output_file:
+        output_path = Path(__file__).parent / output_file
+    else:
+        output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(output_path, "w") as f:
@@ -506,7 +510,7 @@ Examples:
         "--output",
         type=str,
         default="timing_benchmark_results.json",
-        help="Output file for results (default: timing_benchmark_results.json)",
+        help="Output file for results (default: timing_benchmark_results.json in examples directory)",
     )
     parser.add_argument(
         "--verbose", action="store_true", help="Print detailed progress information"
