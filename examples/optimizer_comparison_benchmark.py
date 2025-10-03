@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-QME Timing Benchmark - Performance Analysis
+QME Optimizer Comparison Benchmark
 
-This benchmark evaluates the performance of different QME backends for geometry
-optimization and frequency analysis using benzene as a test case. It measures
-timing for each part of the process to identify bottlenecks, particularly the
-cost of integrating potentials through ASE interfaces.
+This benchmark compares the performance of different optimizers (sella, geometric, lbfgs, bfgs, fire)
+for geometry optimization and transition state finding using QME backends. It focuses specifically
+on optimizer performance rather than backend comparison.
 
 Usage:
-    conda run -n py312 python timing_benchmark.py [--backends BACKEND1,BACKEND2,...]
-    conda run -n py312 python timing_benchmark.py [--device DEVICE]
+    conda run -n py312 python optimizer_comparison_benchmark.py [--backends BACKEND1,BACKEND2,...]
+    conda run -n py312 python optimizer_comparison_benchmark.py [--optimizers OPT1,OPT2,...]
+    conda run -n py312 python optimizer_comparison_benchmark.py [--test-ts]
 
 Features:
-    - Geometry optimization performance measurement
-    - Frequency analysis timing
-    - Individual energy and force calculation benchmarks
-    - Detailed timing breakdown and performance comparison
-    - Comprehensive backend comparison
+    - Optimizer performance comparison for geometry optimization
+    - Transition state optimization comparison
+    - Step count and convergence analysis
+    - Timing per optimization step
+    - Detailed optimizer-specific metrics
 """
 
 import argparse
@@ -97,33 +97,31 @@ def create_benzene_molecule() -> Atoms:
     return benzene
 
 
-def time_function(func, *args, **kwargs):
-    """Time a function call and return result and timing."""
-    start_time = time.perf_counter()
-    result = func(*args, **kwargs)
-    end_time = time.perf_counter()
-    return result, end_time - start_time
-
-
-def benchmark_backend(
+def benchmark_optimizer(
     backend: str,
+    optimizer: str,
     device: str = "cpu",
     model_name: Optional[str] = None,
     verbose: bool = True,
+    test_ts: bool = False,
 ) -> Dict[str, Any]:
     """
-    Benchmark a single backend for optimization and frequency analysis.
+    Benchmark a single backend with a specific optimizer for optimization and frequency analysis.
 
     Parameters:
     -----------
     backend : str
         Backend name (e.g., 'mock', 'aimnet2', 'uma', 'so3lr', 'mace')
+    optimizer : str
+        Optimizer name (e.g., 'sella', 'geometric', 'lbfgs', 'bfgs')
     device : str
         Device to use ('cpu' or 'cuda')
     model_name : str, optional
         Specific model name to use
     verbose : bool
         Whether to print progress information
+    test_ts : bool
+        Whether to test transition state optimization
 
     Returns:
     --------
@@ -133,14 +131,18 @@ def benchmark_backend(
     if verbose:
         print(f"\n{'='*60}")
         print(f"Backend: {backend.upper()}")
+        print(f"Optimizer: {optimizer.upper()}")
         print(f"Device: {device}")
         print(f"Model: {model_name or 'default'}")
+        print(f"Test Type: {'Transition State' if test_ts else 'Minima'}")
         print("-" * 60)
 
     results = {
         "backend": backend,
+        "optimizer": optimizer,
         "device": device,
         "model_name": model_name,
+        "test_ts": test_ts,
         "available": False,
         "error": None,
         "timings": {},
@@ -177,6 +179,7 @@ def benchmark_backend(
             device=device,
             default_charge=0,
             default_spin=1,
+            local_optimizer=optimizer,
         )
 
         init_time = time.perf_counter() - init_start
@@ -249,21 +252,40 @@ def benchmark_backend(
             print(f"Single force calculation time: {force_time:.3f} seconds")
             print(f"Max force: {max_force:.6f} eV/Å")
 
-        # Geometry optimization
+        # Geometry optimization (minima or transition state)
         if verbose:
-            print("Running geometry optimization...")
+            opt_type = "transition state optimization" if test_ts else "geometry optimization"
+            print(f"Running {opt_type}...")
         opt_start = time.perf_counter()
 
-        # We need to capture the step count directly from the ASE optimizer
-        # since QME's convenience layer doesn't return it
-        steps_taken = 0
-
-        # Create the optimizer manually to capture step count
-        from ase.optimize import BFGS
-
-        opt = BFGS(explorer.atoms_list[0])
-        opt.run(fmax=0.01, steps=1000)
-        steps_taken = opt.get_number_of_steps()
+        # Use QME's optimization methods
+        if test_ts:
+            # For TS optimization, create a TS guess by slightly distorting the molecule
+            ts_guess = benzene.copy()
+            positions = ts_guess.get_positions()
+            # Add some distortion to create a TS-like geometry
+            positions[0, 0] += 0.2  # Move first carbon
+            positions[1, 0] -= 0.2  # Move second carbon
+            ts_guess.set_positions(positions)
+            
+            # Update explorer with TS guess
+            explorer.atoms_list = [ts_guess]
+            explorer._create_and_attach_calculator(ts_guess)
+            
+            opt_result = explorer.find_transition_state(fmax=0.01, steps=1000)
+            steps_taken = opt_result.get("steps_taken", 0)
+            converged = opt_result.get("converged", False)
+            final_energy = opt_result.get("final_energy", None)
+            max_force = opt_result.get("max_force", None)
+            optimized_atoms = opt_result.get("optimized_atoms", ts_guess)
+        else:
+            # Minima optimization
+            opt_result = explorer.optimize_minimum(fmax=0.01, steps=1000)
+            steps_taken = opt_result.get("steps_taken", 0)
+            converged = opt_result.get("converged", False)
+            final_energy = opt_result.get("final_energy", None)
+            max_force = opt_result.get("max_force", None)
+            optimized_atoms = opt_result.get("optimized_atoms", benzene)
 
         opt_time = time.perf_counter() - opt_start
 
@@ -273,20 +295,19 @@ def benchmark_backend(
         else:
             avg_time_per_step = None
 
-        # Get optimization results for compatibility
-        atoms = explorer.atoms_list[0]
-        forces = atoms.get_forces()
-        max_force = float(np.max(np.abs(forces)))
-
-        # Flatten forces for converged() method
-        forces_flat = forces.flatten()
+        # Get final forces for verification
+        if optimized_atoms is not None:
+            final_forces = optimized_atoms.get_forces()
+            final_max_force = float(np.max(np.abs(final_forces)))
+        else:
+            final_max_force = max_force
 
         opt_results = {
-            "converged": opt.converged(forces_flat),
-            "final_energy": float(atoms.get_potential_energy()),
+            "converged": converged,
+            "final_energy": final_energy,
             "steps_taken": steps_taken,
-            "optimized_atoms": atoms,
-            "max_force": max_force,
+            "optimized_atoms": optimized_atoms,
+            "max_force": final_max_force,
         }
 
         results["timings"]["optimization"] = opt_time
@@ -312,7 +333,23 @@ def benchmark_backend(
             print("Running frequency analysis...")
         freq_start = time.perf_counter()
 
-        freq_results = explorer.calculate_frequencies(
+        # Use optimized atoms for frequency analysis
+        if optimized_atoms is not None:
+            # Create a new explorer with optimized atoms
+            freq_explorer = Explorer(
+                atoms=optimized_atoms,
+                backend=backend,
+                model_name=model_name,
+                device=device,
+                default_charge=0,
+                default_spin=1,
+                local_optimizer=optimizer,
+            )
+            freq_explorer._create_and_attach_calculator(optimized_atoms)
+        else:
+            freq_explorer = explorer
+
+        freq_results = freq_explorer.calculate_frequencies(
             delta=0.01,
             method="auto",
             temperature=298.15,
@@ -352,31 +389,31 @@ def benchmark_backend(
     return results
 
 
-def print_summary(results_list: List[Dict[str, Any]]):
-    """Print a summary table of all benchmark results."""
-    print(f"\n{'='*120}")
-    print("BENCHMARK SUMMARY")
-    print(f"{'='*120}")
+def print_optimizer_summary(results_list: List[Dict[str, Any]]):
+    """Print a summary table focused on optimizer comparison."""
+    print(f"\n{'='*140}")
+    print("OPTIMIZER COMPARISON SUMMARY")
+    print(f"{'='*140}")
 
     # Print legend first, before the table
     print("📊 COLUMN DEFINITIONS:")
-    print("   E1st    = Energy (1st call, includes model loading)")
-    print("   E2nd    = Energy (2nd call, pure evaluation)")
-    print("   Init    = Initialization time")
-    print("   Opt     = Total optimization time")
-    print("   Freq    = Frequency analysis time")
-    print("   Forces  = Single force calculation time")
-    print("   Steps   = Number of optimization steps taken")
-    print("   Avg/Step = Average time per optimization step")
-    print(f"{'-'*120}")
+    print("   Backend  = ML backend used")
+    print("   Optimizer = Optimization algorithm")
+    print("   Type     = Minima (M) or Transition State (TS)")
+    print("   Converged = Whether optimization converged")
+    print("   Steps    = Number of optimization steps")
+    print("   Time/Step = Average time per optimization step")
+    print("   Total    = Total optimization time")
+    print("   Final E  = Final energy (eV)")
+    print("   Max F    = Maximum force (eV/Å)")
+    print(f"{'-'*140}")
 
     # Header
     print(
-        f"{'Backend':<12} {'Available':<10} {'Total (s)':<10} {'Init (s)':<10} "
-        f"{'Opt (s)':<10} {'Freq (s)':<10} {'E1st (s)':<10} {'E2nd (s)':<10} "
-        f"{'Forces (s)':<10} {'Steps':<8} {'Avg/Step (s)':<12}"
+        f"{'Backend':<12} {'Optimizer':<12} {'Type':<4} {'Converged':<10} {'Steps':<8} "
+        f"{'Time/Step (s)':<14} {'Total (s)':<10} {'Final E (eV)':<12} {'Max F (eV/Å)':<12}"
     )
-    print("=" * 120)
+    print("=" * 140)
 
     # Results
     for results in results_list:
@@ -385,90 +422,88 @@ def print_summary(results_list: List[Dict[str, Any]]):
             opt_results = results.get("optimization_results", {})
             steps_taken = opt_results.get("steps_taken", 0)
             avg_time_per_step = timings.get("avg_time_per_step", 0)
+            optimizer = results.get("optimizer", "unknown")
+            test_type = "TS" if results.get("test_ts", False) else "M"
+            converged = opt_results.get("converged", False)
+            final_energy = opt_results.get("final_energy", None)
+            max_force = opt_results.get("max_force", None)
 
             print(
-                f"{results['backend']:<12} {'Yes':<10} "
-                f"{timings.get('total', 0):<10.3f} "
-                f"{timings.get('initialization', 0):<10.3f} "
+                f"{results['backend']:<12} {optimizer:<12} {test_type:<4} "
+                f"{'Yes' if converged else 'No':<10} {steps_taken:<8} "
+                f"{avg_time_per_step:<14.4f} "
                 f"{timings.get('optimization', 0):<10.3f} "
-                f"{timings.get('frequency_analysis', 0):<10.3f} "
-                f"{timings.get('single_energy_first', 0):<10.3f} "
-                f"{timings.get('single_energy_second', 0):<10.3f} "
-                f"{timings.get('single_forces', 0):<10.3f} "
-                f"{steps_taken:<8} "
-                f"{avg_time_per_step:<12.4f}"
-                if avg_time_per_step is not None
-                else f"{'N/A':<12}"
+                f"{final_energy:<12.3f} "
+                f"{max_force:<12.6f}"
+                if avg_time_per_step is not None and final_energy is not None and max_force is not None
+                else f"{results['backend']:<12} {optimizer:<12} {test_type:<4} "
+                     f"{'Yes' if converged else 'No':<10} {steps_taken:<8} "
+                     f"{'N/A':<14} {timings.get('optimization', 0):<10.3f} "
+                     f"{'N/A':<12} {'N/A':<12}"
             )
         else:
+            optimizer = results.get("optimizer", "unknown")
+            test_type = "TS" if results.get("test_ts", False) else "M"
             print(
-                f"{results['backend']:<12} {'No':<10} "
-                f"{'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<10} "
-                f"{'N/A':<10} {'N/A':<10} {'N/A':<10} {'N/A':<8} {'N/A':<12}"
+                f"{results['backend']:<12} {optimizer:<12} {test_type:<4} "
+                f"{'N/A':<10} {'N/A':<8} {'N/A':<14} {'N/A':<10} {'N/A':<12} {'N/A':<12}"
             )
 
-    print("=" * 120)
+    print("=" * 140)
 
-    # Detailed breakdown for available backends
+    # Optimizer performance analysis
     available_results = [r for r in results_list if r["available"]]
     if available_results:
-        print("\n🔍 DETAILED BREAKDOWN")
+        print("\n🔍 OPTIMIZER PERFORMANCE ANALYSIS")
         print(f"{'='*80}")
 
-        for results in available_results:
-            backend_name = results["backend"].upper()
-            print(f"\n📈 {backend_name} PERFORMANCE BREAKDOWN")
+        # Group by optimizer
+        optimizer_groups = {}
+        for result in available_results:
+            opt_name = result.get("optimizer", "unknown")
+            if opt_name not in optimizer_groups:
+                optimizer_groups[opt_name] = []
+            optimizer_groups[opt_name].append(result)
+
+        for opt_name, opt_results in optimizer_groups.items():
+            print(f"\n📈 {opt_name.upper()} OPTIMIZER PERFORMANCE")
             print(f"{'-'*50}")
 
-            timings = results["timings"]
-            total = timings.get("total", 0)
-            opt_results = results.get("optimization_results", {})
+            # Calculate statistics
+            steps_list = [r["optimization_results"].get("steps_taken", 0) for r in opt_results]
+            time_per_step_list = [r["timings"].get("avg_time_per_step", 0) for r in opt_results if r["timings"].get("avg_time_per_step") is not None]
+            total_time_list = [r["timings"].get("optimization", 0) for r in opt_results]
+            converged_list = [r["optimization_results"].get("converged", False) for r in opt_results]
 
-            # Timing breakdown with percentages
-            individual_steps = [
-                ("initialization", "Initialization"),
-                ("structure_loading", "Calculator Attachment"),
-                ("single_energy_first", "Energy (1st call + model loading)"),
-                ("single_energy_second", "Energy (2nd call, pure eval)"),
-                ("single_forces", "Force Calculation"),
-                ("optimization", "Geometry Optimization"),
-                ("frequency_analysis", "Frequency Analysis"),
-            ]
+            if steps_list:
+                print(f"  {'Average Steps':<30}: {np.mean(steps_list):>8.1f} ± {np.std(steps_list):>6.1f}")
+                print(f"  {'Min Steps':<30}: {min(steps_list):>8}")
+                print(f"  {'Max Steps':<30}: {max(steps_list):>8}")
 
-            for step_key, step_display in individual_steps:
-                time_val = timings.get(step_key, 0)
-                if time_val is not None and time_val > 0:
-                    percentage = (time_val / total) * 100 if total > 0 else 0
-                    print(
-                        f"  {step_display:<30}: {time_val:>8.3f}s ({percentage:>5.1f}%)"
-                    )
+            if time_per_step_list:
+                print(f"  {'Avg Time/Step':<30}: {np.mean(time_per_step_list):>8.4f}s ± {np.std(time_per_step_list):>6.4f}s")
+                print(f"  {'Min Time/Step':<30}: {min(time_per_step_list):>8.4f}s")
+                print(f"  {'Max Time/Step':<30}: {max(time_per_step_list):>8.4f}s")
 
-            # Optimization metrics
-            steps_taken = opt_results.get("steps_taken", 0)
-            avg_time_per_step = timings.get("avg_time_per_step", 0)
-            final_energy = opt_results.get("final_energy", None)
-            converged = opt_results.get("converged", None)
+            if total_time_list:
+                print(f"  {'Avg Total Time':<30}: {np.mean(total_time_list):>8.3f}s ± {np.std(total_time_list):>6.3f}s")
+                print(f"  {'Min Total Time':<30}: {min(total_time_list):>8.3f}s")
+                print(f"  {'Max Total Time':<30}: {max(total_time_list):>8.3f}s")
 
-            print(f"  {'-'*48}")
-            if steps_taken > 0:
-                print(f"  {'Optimization Steps':<30}: {steps_taken:>8}")
-                if avg_time_per_step is not None and avg_time_per_step > 0:
-                    print(f"  {'Time per Step':<30}: {avg_time_per_step:>8.4f}s")
+            if converged_list:
+                convergence_rate = sum(converged_list) / len(converged_list) * 100
+                print(f"  {'Convergence Rate':<30}: {convergence_rate:>8.1f}%")
 
-            if final_energy is not None:
-                print(f"  {'Final Energy':<30}: {final_energy:>8.3f} eV")
-
-            if converged is not None:
-                status = "✅ Yes" if str(converged) == "True" else "❌ No"
-                print(f"  {'Converged':<30}: {status:>8}")
-
-            print(f"  {'='*48}")
-            print(f"  {'TOTAL TIME':<30}: {total:>8.3f}s")
+            print(f"  {'Total Tests':<30}: {len(opt_results):>8}")
 
 
 def save_results(results_list: List[Dict[str, Any]], output_file: str):
     """Save benchmark results to JSON file."""
-    output_path = Path(output_file)
+    # If output_file is just a filename, save it in the examples directory
+    if not Path(output_file).is_absolute() and "/" not in output_file:
+        output_path = Path(__file__).parent / output_file
+    else:
+        output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(output_path, "w") as f:
@@ -478,15 +513,17 @@ def save_results(results_list: List[Dict[str, Any]], output_file: str):
 
 
 def main():
-    """Main function to run the timing benchmark."""
+    """Main function to run the optimizer comparison benchmark."""
     parser = argparse.ArgumentParser(
-        description="QME Timing Benchmark - Performance Analysis",
+        description="QME Optimizer Comparison Benchmark",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  conda run -n py312 python timing_benchmark.py
-  conda run -n py312 python timing_benchmark.py --backends aimnet2,uma
-  conda run -n py312 python timing_benchmark.py --device cuda --verbose
+  conda run -n py312 python optimizer_comparison_benchmark.py
+  conda run -n py312 python optimizer_comparison_benchmark.py --backends aimnet2,uma
+  conda run -n py312 python optimizer_comparison_benchmark.py --optimizers sella,geometric
+  conda run -n py312 python optimizer_comparison_benchmark.py --test-ts --optimizers sella,geometric
+  conda run -n py312 python optimizer_comparison_benchmark.py --device cuda --verbose
         """,
     )
 
@@ -494,6 +531,16 @@ Examples:
         "--backends",
         type=str,
         help="Comma-separated list of backends to benchmark (default: all available)",
+    )
+    parser.add_argument(
+        "--optimizers",
+        type=str,
+        help="Comma-separated list of optimizers to benchmark (default: sella,geometric)",
+    )
+    parser.add_argument(
+        "--test-ts",
+        action="store_true",
+        help="Test transition state optimization instead of minima optimization",
     )
     parser.add_argument(
         "--device",
@@ -505,8 +552,8 @@ Examples:
     parser.add_argument(
         "--output",
         type=str,
-        default="timing_benchmark_results.json",
-        help="Output file for results (default: timing_benchmark_results.json)",
+        default="optimizer_comparison_results.json",
+        help="Output file for results (default: optimizer_comparison_results.json in examples directory)",
     )
     parser.add_argument(
         "--verbose", action="store_true", help="Print detailed progress information"
@@ -515,7 +562,7 @@ Examples:
     args = parser.parse_args()
 
     print("=" * 80)
-    print("QME Timing Benchmark - Performance Analysis")
+    print("QME Optimizer Comparison Benchmark")
     print("=" * 80)
 
     # Determine which backends to test
@@ -540,45 +587,69 @@ Examples:
             print("   - TorchSim: pip install torch-sim-atomistic")
             return 1
 
+    # Determine which optimizers to test
+    if args.optimizers:
+        requested_optimizers = [o.strip() for o in args.optimizers.split(",")]
+        # Filter to only available optimizers
+        available_optimizers = []
+        for opt in requested_optimizers:
+            if opt.lower() in ["sella", "geometric", "lbfgs", "bfgs", "fire"]:
+                available_optimizers.append(opt.lower())
+            else:
+                print(f"Warning: Unknown optimizer '{opt}', skipping")
+    else:
+        # Default optimizers
+        available_optimizers = ["sella", "geometric"]
+
     print_backend_summary(available_backends, "Benchmarking Backends")
+    print(f"\nOptimizers: {', '.join(available_optimizers)}")
+    print(f"Test Type: {'Transition State' if args.test_ts else 'Minima'}")
     print(f"\nConfiguration:")
     print(f"  Device: {args.device}")
     print(f"  Output: {args.output}")
     print(f"  Verbose: {args.verbose}")
 
-    print(f"\nRunning benchmarks for {len(available_backends)} backend(s)...")
+    print(f"\nRunning benchmarks for {len(available_backends)} backend(s) × {len(available_optimizers)} optimizer(s)...")
 
     # Run benchmarks
     results_list = []
     for backend in available_backends:
-        try:
-            results = benchmark_backend(
-                backend=backend, device=args.device, verbose=args.verbose
-            )
-            results_list.append(results)
-        except KeyboardInterrupt:
-            print("\nBenchmark interrupted by user.")
-            break
-        except Exception as e:
-            print(f"\nUnexpected error with {backend}: {e}")
-            results_list.append(
-                {
-                    "backend": backend,
-                    "available": False,
-                    "error": str(e),
-                    "timings": {},
-                    "optimization_results": {},
-                    "frequency_results": {},
-                }
-            )
+        for optimizer in available_optimizers:
+            try:
+                results = benchmark_optimizer(
+                    backend=backend,
+                    optimizer=optimizer,
+                    device=args.device,
+                    verbose=args.verbose,
+                    test_ts=args.test_ts,
+                )
+                results_list.append(results)
+            except KeyboardInterrupt:
+                print("\nBenchmark interrupted by user.")
+                break
+            except Exception as e:
+                print(f"\nUnexpected error with {backend}+{optimizer}: {e}")
+                results_list.append(
+                    {
+                        "backend": backend,
+                        "optimizer": optimizer,
+                        "device": args.device,
+                        "test_ts": args.test_ts,
+                        "available": False,
+                        "error": str(e),
+                        "timings": {},
+                        "optimization_results": {},
+                        "frequency_results": {},
+                    }
+                )
 
     # Print summary
-    print_summary(results_list)
+    print_optimizer_summary(results_list)
 
     # Save results
     save_results(results_list, args.output)
 
-    print("\n✅ Benchmark completed successfully!")
+    print("\n✅ Optimizer comparison benchmark completed successfully!")
     return 0
 
 
