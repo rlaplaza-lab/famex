@@ -20,7 +20,7 @@ Comprehensive performance benchmark for QME backends analyzing:
 python timing_benchmark.py
 
 # Run with specific backends
-python timing_benchmark.py --backends mock,aimnet2,uma,torchsim_mace
+python timing_benchmark.py --backends aimnet2,uma,torchsim_mace
 
 # Run on GPU (if available)
 python timing_benchmark.py --device cuda
@@ -65,9 +65,8 @@ python zimmermann93_benchmark.py --quick
 ## Backend Coverage
 
 All examples support the full range of QME backends:
-- **Mock**: Always available (for testing)
+- **UMA**: Default backend (Meta AI, general purpose, requires fairchem-core and PyTorch)
 - **AIMNet2**: Requires PyTorch
-- **UMA**: Requires fairchem-core and PyTorch  
 - **SO3LR**: Requires so3lr package
 - **MACE**: Requires mace-torch and PyTorch
 - **TorchSim variants**: torchsim_mace, torchsim_fairchem (requires torch-sim-atomistic)
