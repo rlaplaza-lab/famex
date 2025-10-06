@@ -141,9 +141,7 @@ class Explorer:
             aliases=["local:ts"],
         )
 
-        # Two-ended runners are available regardless; callers will be
-        # validated at run time (requires two or more Atoms). We expose
-        # both TS-guess and minima variants.
+        # Two-ended runners are available
         self.register_strategy(
             "twoended:ts",
             twoended_ts_guess_runner,
@@ -428,11 +426,45 @@ class Explorer:
     # --- Convenience wrappers mirroring ASE Optimizer ergonomics ---
     def optimize_minima(self, fmax: float = 0.05, steps: int = 1000, **kwargs):
         """Run a local minima optimization (ASE-like convenience method)."""
-        return self.run(mode="minima", fmax=fmax, steps=steps, **kwargs)
+        res = self.run(mode="minima", fmax=fmax, steps=steps, **kwargs)
+        
+        # Handle new return format from strategies
+        if isinstance(res, list) and len(res) == 1:
+            strategy_result = res[0]
+        else:
+            strategy_result = res
+        
+        # Check if strategy returned a dict with step tracking info
+        if isinstance(strategy_result, dict):
+            return strategy_result
+        else:
+            # Fallback for old format - return basic info
+            return {
+                "optimized_atoms": strategy_result,
+                "steps_taken": None,
+                "converged": True,
+            }
 
     def optimize_ts(self, fmax: float = 0.05, steps: int = 1000, **kwargs):
         """Run a local transition-state optimization (ASE-like convenience method)."""
-        return self.run(mode="ts", fmax=fmax, steps=steps, **kwargs)
+        res = self.run(mode="ts", fmax=fmax, steps=steps, **kwargs)
+        
+        # Handle new return format from strategies
+        if isinstance(res, list) and len(res) == 1:
+            strategy_result = res[0]
+        else:
+            strategy_result = res
+        
+        # Check if strategy returned a dict with step tracking info
+        if isinstance(strategy_result, dict):
+            return strategy_result
+        else:
+            # Fallback for old format - return basic info
+            return {
+                "optimized_atoms": strategy_result,
+                "steps_taken": None,
+                "converged": True,
+            }
 
     # --- Additional convenience methods for compatibility ---
     @classmethod
@@ -623,178 +655,6 @@ class Explorer:
 
         return results
 
-    # --- Backward compatibility methods ---
-    def optimize_minimum(
-        self, atoms=None, optimizer=None, fmax=0.05, steps=1000, **kwargs
-    ):
-        """Backward compatibility method for optimize_minimum.
-
-        Parameters
-        ----------
-        atoms : Atoms, optional
-            Structure to optimize (loads if provided, uses existing if None)
-        optimizer : str, optional
-            Optimizer name (overrides local_optimizer_name)
-        fmax : float
-            Force convergence threshold
-        steps : int
-            Maximum optimization steps
-        **kwargs
-            Additional arguments
-
-        Returns
-        -------
-        dict
-            Results dictionary with converged, final_energy, optimized_atoms, etc.
-        """
-        from qme.core.validation import (
-            validate_atoms_structure,
-            validate_optimization_parameters,
-        )
-
-        # Handle backward compatibility: if atoms is passed, load it
-        if atoms is not None:
-            self.load_structure(atoms)
-
-        if not self.atoms_list:
-            raise RuntimeError(
-                "No structure loaded. Call load_structure() first or pass atoms parameter."
-            )
-
-        # Use first atoms in list for single optimization
-        target_atoms = self.atoms_list[0]
-
-        # Validate input parameters
-        local_opt_name = (optimizer or self.local_optimizer_name).lower()
-        validate_optimization_parameters(fmax, steps, local_opt_name)
-        validate_atoms_structure(target_atoms, "optimization")
-
-        # Allow callers to pass optimizer_kwargs inside kwargs
-        old_optimizer_kwargs = self.optimizer_kwargs.copy()
-        self.optimizer_kwargs.update(kwargs.get("optimizer_kwargs", {}))
-
-        try:
-            res = self.run(
-                mode="minima",
-                fmax=fmax,
-                steps=steps,
-                local_optimizer_name=local_opt_name,
-            )
-            optimized = res[0] if isinstance(res, list) and len(res) == 1 else res
-
-            energy = None
-            try:
-                energy = float(optimized.get_potential_energy())
-            except Exception:
-                energy = None
-            try:
-                forces = optimized.get_forces()
-                max_force = float(abs(forces).max())
-            except Exception:
-                max_force = None
-
-            return {
-                "converged": True,
-                "final_energy": energy,
-                "steps_taken": None,
-                "optimized_atoms": optimized,
-                "max_force": max_force,
-            }
-        finally:
-            # Restore original optimizer_kwargs
-            self.optimizer_kwargs = old_optimizer_kwargs
-
-    def find_transition_state(
-        self, atoms=None, fmax=0.05, steps=1000, **kwargs
-    ) -> Dict[str, Any]:
-        """Backward compatibility method for transition state optimization.
-
-        Parameters
-        ----------
-        atoms : Atoms, optional
-            Structure to optimize (loads if provided, uses existing if None)
-        fmax : float
-            Force convergence threshold
-        steps : int
-            Maximum optimization steps
-        **kwargs
-            Additional arguments including ts_method, ts_kwargs, etc.
-
-        Returns
-        -------
-        dict
-            Results dictionary with converged, final_energy, ts_atoms, etc.
-        """
-        from qme.core.validation import (
-            validate_atoms_structure,
-            validate_optimization_parameters,
-        )
-
-        # Handle backward compatibility: if atoms is passed, load it
-        if atoms is not None:
-            self.load_structure(atoms)
-
-        if not self.atoms_list:
-            raise RuntimeError(
-                "No structure loaded. Call load_structure() first or pass atoms parameter."
-            )
-
-        # Use first atoms in list for single TS optimization
-        target_atoms = self.atoms_list[0]
-
-        # Validate input parameters
-        local_opt_name = kwargs.get("local_optimizer_name", self.local_optimizer_name)
-        validate_optimization_parameters(fmax, steps, local_opt_name)
-        validate_atoms_structure(target_atoms, "transition state search")
-
-        # Update TS settings from kwargs
-        old_ts_method = getattr(self, "ts_method", None)
-        old_ts_kwargs = self.ts_kwargs.copy()
-
-        if "ts_method" in kwargs:
-            self.ts_method = kwargs["ts_method"]
-        if "ts_kwargs" in kwargs:
-            self.ts_kwargs.update(kwargs["ts_kwargs"])
-
-        try:
-            res = self.run(
-                mode="ts",
-                fmax=fmax,
-                steps=steps,
-                local_optimizer_name=local_opt_name,
-            )
-            optimized = res[0] if isinstance(res, list) and len(res) == 1 else res
-
-            energy = None
-            try:
-                energy = float(optimized.get_potential_energy())
-            except Exception:
-                energy = None
-            try:
-                forces = optimized.get_forces()
-                max_force = float(abs(forces).max())
-            except Exception:
-                max_force = None
-
-            return {
-                "converged": True,
-                "final_energy": energy,
-                "steps_taken": None,
-                "optimized_atoms": optimized,
-                "ts_atoms": optimized,  # Alias for backward compatibility
-                "max_force": max_force,
-            }
-        finally:
-            # Restore original settings
-            if old_ts_method is not None:
-                self.ts_method = old_ts_method
-            self.ts_kwargs = old_ts_kwargs
-
-    def ts_opt(self, atoms=None, fmax=0.05, steps=1000, **kwargs) -> Dict[str, Any]:
-        """Alias for find_transition_state for backward compatibility."""
-        if atoms is not None:
-            self.load_structure(atoms)
-        return self.find_transition_state(fmax=fmax, steps=steps, **kwargs)
 
 
 __all__ = ["Explorer"]

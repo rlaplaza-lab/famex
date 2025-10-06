@@ -336,8 +336,8 @@ class Zimmermann93Benchmark:
                                         backend=backend,
                                         model_name=model_name,
                                     )
-                                    ts_result = ts_optimizer.find_transition_state(
-                                        fmax=fmax, steps=steps
+                                    ts_result = ts_optimizer.run(
+                                        mode="ts", fmax=fmax, steps=steps
                                     )
                                     ts_success = ts_result.get(
                                         "converged", False

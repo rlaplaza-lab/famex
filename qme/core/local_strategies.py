@@ -56,6 +56,11 @@ def local_minima_runner(
     The runner uses the explorer helpers to attach calculators and
     constraints. It selects a sensible local optimizer based on
     `explorer.optimizer_name` and falls back to LBFGS/BFGS/FIRE as needed.
+    
+    Returns
+    -------
+    dict
+        Dictionary containing optimized atoms and step count information
     """
     if explorer is None:
         raise ValueError("explorer must be provided to default_minima_runner")
@@ -69,6 +74,9 @@ def local_minima_runner(
         atoms_iter = atoms_list
 
     results = []
+    step_counts = []
+    converged_flags = []
+    
     for atoms in atoms_iter:
         try:
             explorer._create_and_attach_calculator(atoms)
@@ -84,9 +92,32 @@ def local_minima_runner(
 
         opt = opt_class(atoms, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
+        
+        # Get step count and convergence status
+        steps_taken = opt.get_number_of_steps()
+        try:
+            converged = opt.converged()
+        except TypeError:
+            # Some optimizers need gradient argument
+            forces = atoms.get_forces()
+            converged = opt.converged(forces.flatten())
+        
         results.append(atoms)
+        step_counts.append(steps_taken)
+        converged_flags.append(converged)
 
-    return results[0] if single_input and results else results
+    if single_input and results:
+        return {
+            "optimized_atoms": results[0],
+            "steps_taken": step_counts[0],
+            "converged": converged_flags[0],
+        }
+    else:
+        return {
+            "optimized_atoms": results,
+            "steps_taken": step_counts,
+            "converged": converged_flags,
+        }
 
 
 def local_ts_runner(
@@ -101,6 +132,11 @@ def local_ts_runner(
 
     Uses the explorer helpers to attach calculators and constraints before
     running the chosen optimizer.
+    
+    Returns
+    -------
+    dict
+        Dictionary containing optimized atoms and step count information
     """
     if explorer is None:
         raise ValueError("explorer must be provided to default_ts_runner")
@@ -114,6 +150,9 @@ def local_ts_runner(
         atoms_iter = atoms_list
 
     results = []
+    step_counts = []
+    converged_flags = []
+    
     for atoms in atoms_iter:
         try:
             explorer._create_and_attach_calculator(atoms)
@@ -129,6 +168,29 @@ def local_ts_runner(
 
         opt = opt_class(atoms, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
+        
+        # Get step count and convergence status
+        steps_taken = opt.get_number_of_steps()
+        try:
+            converged = opt.converged()
+        except TypeError:
+            # Some optimizers need gradient argument
+            forces = atoms.get_forces()
+            converged = opt.converged(forces.flatten())
+        
         results.append(atoms)
+        step_counts.append(steps_taken)
+        converged_flags.append(converged)
 
-    return results[0] if single_input and results else results
+    if single_input and results:
+        return {
+            "optimized_atoms": results[0],
+            "steps_taken": step_counts[0],
+            "converged": converged_flags[0],
+        }
+    else:
+        return {
+            "optimized_atoms": results,
+            "steps_taken": step_counts,
+            "converged": converged_flags,
+        }

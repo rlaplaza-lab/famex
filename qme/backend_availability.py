@@ -6,9 +6,7 @@ that avoids expensive calculator instantiation while still catching most
 compatibility issues.
 """
 
-import importlib.util
-import warnings
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 
 from qme.dependencies import deps
 
@@ -282,3 +280,78 @@ def get_available_backends(include_mock: bool = True) -> List[str]:
 def clear_availability_cache():
     """Clear the availability cache."""
     _checker.clear_cache()
+
+
+# Backend categorization constants
+ALL_BACKENDS = [
+    "mock",
+    "aimnet2",
+    "mace",
+    "uma",
+    "so3lr",
+    "torchsim_mace",
+    "torchsim_uma",
+]
+
+ML_BACKENDS = ["aimnet2", "mace", "uma", "so3lr", "torchsim_mace", "torchsim_uma"]
+
+TORCHSIM_BACKENDS = ["torchsim_mace", "torchsim_uma"]
+
+REGULAR_BACKENDS = ["mock", "aimnet2", "mace", "uma", "so3lr"]
+
+
+def get_available_ml_backends(include_torchsim: bool = True, verbose: bool = False) -> List[str]:
+    """Get list of ML backends that are available (excludes mock)."""
+    available = get_available_backends(include_mock=False)
+    if not include_torchsim:
+        available = [b for b in available if b not in TORCHSIM_BACKENDS]
+    return available
+
+
+def get_available_torchsim_backends(verbose: bool = False) -> List[str]:
+    """Get list of TorchSim backends that are available."""
+    available = []
+    for backend in TORCHSIM_BACKENDS:
+        if is_backend_available(backend):
+            available.append(backend)
+            if verbose:
+                print(f"  ✅ {backend}")
+        elif verbose:
+            print(f"  ❌ {backend} (dependencies missing or incompatible)")
+    return available
+
+
+def get_backend_pairs() -> List[tuple[str, str]]:
+    """Get pairs of (regular_backend, torchsim_backend) for comparison testing."""
+    pairs = []
+    
+    # Check MACE pair
+    if is_backend_available("mace") and is_backend_available("torchsim_mace"):
+        pairs.append(("mace", "torchsim_mace"))
+    
+    # Check UMA pair
+    if is_backend_available("uma") and is_backend_available("torchsim_uma"):
+        pairs.append(("uma", "torchsim_uma"))
+    
+    return pairs
+
+
+def require_backend(backend: str):
+    """Decorator/function to require a specific backend for a test."""
+    try:
+        import pytest
+    except ImportError:
+        # If pytest not available, just check availability
+        if not is_backend_available(backend):
+            raise ImportError(f"Backend {backend} not available in this environment")
+        return
+
+    if not is_backend_available(backend):
+        pytest.skip(f"Backend {backend} not available in this environment")
+
+
+# Pre-computed lists for convenience
+AVAILABLE_BACKENDS = get_available_backends()
+AVAILABLE_ML_BACKENDS = get_available_ml_backends()
+AVAILABLE_TORCHSIM_BACKENDS = get_available_torchsim_backends()
+AVAILABLE_BACKEND_PAIRS = get_backend_pairs()

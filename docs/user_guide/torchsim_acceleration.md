@@ -85,7 +85,7 @@ explorer = qme.Explorer.from_file(
     device="cuda"
 )
 
-result = explorer.optimize_minimum()
+result = explorer.run(mode="minima")
 print(f"Optimized energy: {result['final_energy']:.6f} eV")
 
 # TorchSim Fairchem
@@ -292,7 +292,7 @@ qme.config.set_log_level("DEBUG")
 
 # This will show detailed TorchSim operations
 explorer = qme.Explorer.from_file("molecule.xyz", backend="torchsim_mace")
-result = explorer.optimize_minimum()
+result = explorer.run(mode="minima")
 ```
 
 ## Advanced Features
@@ -352,7 +352,7 @@ for backend in backends:
     
     start_time = time.time()
     explorer = qme.Explorer.from_atoms(atoms, backend=backend, device="cuda")
-    result = explorer.optimize_minimum()
+    result = explorer.run(mode="minima")
     end_time = time.time()
     
     print(f"{backend}: {end_time - start_time:.2f}s, "

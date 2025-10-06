@@ -16,7 +16,7 @@ Example:
 
     >>> from qme import Explorer
     >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2", model_name="aimnet2")
-    >>> results = explorer.optimize_minimum()
+    >>> results = explorer.run(mode="minima")
     >>> explorer.save_structure(results['optimized_atoms'], "optimized.xyz")
 """
 
@@ -30,14 +30,6 @@ def __getattr__(name):
     _LAZY_IMPORTS = {
         # core
         "Explorer": (f"{__name__}.core.explorer", "Explorer"),
-        "QMEOptimizer": (
-            f"{__name__}.core.explorer",
-            "Explorer",
-        ),  # Backward compatibility alias
-        # settings
-        "config": (f"{__name__}.settings", "config"),
-        "get_default_backend": (f"{__name__}.settings", "get_default_backend"),
-        "get_default_model": (f"{__name__}.settings", "get_default_model"),
         # dependencies
         "deps": (f"{__name__}.dependencies", "deps"),
         # core types / IO
@@ -89,7 +81,6 @@ def __getattr__(name):
 __all__ = [
     # Core classes
     "Explorer",
-    "QMEOptimizer",  # Backward compatibility alias for Explorer
     "Geometry",
     "Reaction",
     # Frequency analysis
@@ -99,11 +90,8 @@ __all__ = [
     # Base classes and registry
     "BasePotential",
     "calculator_registry",
-    # Configuration and dependencies
-    "config",
+    # Dependencies
     "deps",
-    "get_default_backend",
-    "get_default_model",
     # I/O functions
     "read_geometry",
     "write_geometry",
@@ -136,10 +124,6 @@ except Exception:
     # Leave it to lazy import machinery if something goes wrong
     pass
 
-try:
-    from .settings import config as config
-except Exception:
-    pass
 
 try:
     from .dependencies import deps as deps

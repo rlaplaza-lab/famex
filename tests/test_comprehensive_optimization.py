@@ -21,14 +21,14 @@ import pytest
 
 from qme import Explorer
 from qme.dependencies import deps
-from tests.backend_utils import AVAILABLE_BACKENDS
+from qme.backend_availability import get_available_backends
 from tests.test_utils import StandardTestAssertions, TestMoleculeFactory
 
 
 class TestMinimaOptimization:
     """Test minima optimization across all available backends."""
 
-    @pytest.fixture(params=AVAILABLE_BACKENDS)
+    @pytest.fixture(params=get_available_backends())
     def backend(self, request):
         """Parametrized fixture for available backends."""
         return request.param
@@ -39,17 +39,23 @@ class TestMinimaOptimization:
         optimizer = Explorer(atoms=h2, backend=backend)
 
         start_time = time.time()
-        result = optimizer.optimize_minimum(optimizer="BFGS", fmax=0.05, steps=20)
+        result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=20)
         optimization_time = time.time() - start_time
 
+        # Handle list return format from run() method
+        if isinstance(result, list) and len(result) > 0:
+            strategy_result = result[0]
+        else:
+            strategy_result = result
+
         # Use standardized assertions
-        StandardTestAssertions.assert_optimization_result(result)
+        StandardTestAssertions.assert_optimization_result(strategy_result)
         StandardTestAssertions.assert_reasonable_geometry(
-            result["optimized_atoms"], backend
+            strategy_result["optimized_atoms"], backend
         )
 
         # Check H-H distance
-        final_distance = result["optimized_atoms"].get_distance(0, 1)
+        final_distance = strategy_result["optimized_atoms"].get_distance(0, 1)
         if backend == "mock":
             assert 0.5 < final_distance < 2.5
         else:
@@ -57,7 +63,7 @@ class TestMinimaOptimization:
 
         print(
             f"Backend {backend}: H2 optimization took {optimization_time:.3f}s, "
-            f"{result['steps_taken']} steps, final H-H distance: {final_distance:.3f} Å"
+            f"{strategy_result['steps_taken']} steps, final H-H distance: {final_distance:.3f} Å"
         )
 
     def test_water_optimization(self, backend):
@@ -66,17 +72,23 @@ class TestMinimaOptimization:
         optimizer = Explorer(atoms=water, backend=backend)
 
         start_time = time.time()
-        result = optimizer.optimize_minimum(optimizer="BFGS", fmax=0.05, steps=50)
+        result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50)
         optimization_time = time.time() - start_time
 
+        # Handle list return format from run() method
+        if isinstance(result, list) and len(result) > 0:
+            strategy_result = result[0]
+        else:
+            strategy_result = result
+
         # Use standardized assertions
-        StandardTestAssertions.assert_optimization_result(result)
+        StandardTestAssertions.assert_optimization_result(strategy_result)
         StandardTestAssertions.assert_reasonable_geometry(
-            result["optimized_atoms"], backend
+            strategy_result["optimized_atoms"], backend
         )
 
         # Check O-H distances
-        final_atoms = result["optimized_atoms"]
+        final_atoms = strategy_result["optimized_atoms"]
         oh1_dist = final_atoms.get_distance(0, 1)
         oh2_dist = final_atoms.get_distance(0, 2)
 
@@ -89,7 +101,7 @@ class TestMinimaOptimization:
 
         print(
             f"Backend {backend}: H2O optimization took {optimization_time:.3f}s, "
-            f"{result['steps_taken']} steps, O-H distances: {oh1_dist:.3f}, {oh2_dist:.3f} Å"
+            f"{strategy_result['steps_taken']} steps, O-H distances: {oh1_dist:.3f}, {oh2_dist:.3f} Å"
         )
 
     def test_methane_optimization(self, backend):
@@ -98,17 +110,23 @@ class TestMinimaOptimization:
         optimizer = Explorer(atoms=methane, backend=backend)
 
         start_time = time.time()
-        result = optimizer.optimize_minimum(optimizer="BFGS", fmax=0.05, steps=50)
+        result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50)
         optimization_time = time.time() - start_time
 
+        # Handle list return format from run() method
+        if isinstance(result, list) and len(result) > 0:
+            strategy_result = result[0]
+        else:
+            strategy_result = result
+
         # Use standardized assertions
-        StandardTestAssertions.assert_optimization_result(result)
+        StandardTestAssertions.assert_optimization_result(strategy_result)
         StandardTestAssertions.assert_reasonable_geometry(
-            result["optimized_atoms"], backend
+            strategy_result["optimized_atoms"], backend
         )
 
         # Check C-H distances
-        final_atoms = result["optimized_atoms"]
+        final_atoms = strategy_result["optimized_atoms"]
         ch_distances = [final_atoms.get_distance(0, i) for i in range(1, 5)]
 
         if backend == "mock":
@@ -120,14 +138,14 @@ class TestMinimaOptimization:
 
         print(
             f"Backend {backend}: CH4 optimization took {optimization_time:.3f}s, "
-            f"{result['steps_taken']} steps, avg C-H distance: {np.mean(ch_distances):.3f} Å"
+            f"{strategy_result['steps_taken']} steps, avg C-H distance: {np.mean(ch_distances):.3f} Å"
         )
 
 
 class TestTransitionStateOptimization:
     """Test transition state optimization across all available backends."""
 
-    @pytest.fixture(params=AVAILABLE_BACKENDS)
+    @pytest.fixture(params=get_available_backends())
     def backend(self, request):
         """Parametrized fixture for available backends."""
         # Ensure SELLA is available for transition state optimization
@@ -141,29 +159,35 @@ class TestTransitionStateOptimization:
         optimizer = Explorer(atoms=water_ts_guess, backend=backend)
 
         start_time = time.time()
-        result = optimizer.ts_opt(fmax=0.1, steps=50)
+        result = optimizer.run(mode="ts", fmax=0.1, steps=50)
         optimization_time = time.time() - start_time
 
+        # Handle list return format from run() method
+        if isinstance(result, list) and len(result) > 0:
+            strategy_result = result[0]
+        else:
+            strategy_result = result
+
         # Use standardized assertions
-        StandardTestAssertions.assert_optimization_result(result)
+        StandardTestAssertions.assert_optimization_result(strategy_result)
         StandardTestAssertions.assert_reasonable_geometry(
-            result["optimized_atoms"], backend
+            strategy_result["optimized_atoms"], backend
         )
 
         # Check O-H distances
-        final_atoms = result["optimized_atoms"]
+        final_atoms = strategy_result["optimized_atoms"]
         oh1_dist = final_atoms.get_distance(0, 1)  # O-H (dissociating)
         oh2_dist = final_atoms.get_distance(0, 2)  # O-H (staying)
 
         # Dissociating H should be farther
-        if result.get("converged", False) and backend != "mock":
+        if strategy_result.get("converged", False) and backend != "mock":
             assert oh1_dist > oh2_dist  # Dissociating H should be farther
             assert oh1_dist > 1.5  # Should be stretched
             assert 0.8 < oh2_dist < 1.5  # Remaining OH should be reasonable
 
         print(
             f"Backend {backend}: H2O dissociation TS took {optimization_time:.3f}s, "
-            f"{result['steps_taken']} steps, O-H distances: {oh1_dist:.3f}, {oh2_dist:.3f} Å"
+            f"{strategy_result['steps_taken']} steps, O-H distances: {oh1_dist:.3f}, {oh2_dist:.3f} Å"
         )
 
     def test_sn2_like_ts(self, backend):
@@ -173,35 +197,41 @@ class TestTransitionStateOptimization:
         optimizer = Explorer(atoms=sn2_ts_guess, backend=backend)
 
         start_time = time.time()
-        result = optimizer.ts_opt(fmax=0.1, steps=50)
+        result = optimizer.run(mode="ts", fmax=0.1, steps=50)
         optimization_time = time.time() - start_time
 
+        # Handle list return format from run() method
+        if isinstance(result, list) and len(result) > 0:
+            strategy_result = result[0]
+        else:
+            strategy_result = result
+
         # Use standardized assertions
-        StandardTestAssertions.assert_optimization_result(result)
+        StandardTestAssertions.assert_optimization_result(strategy_result)
         StandardTestAssertions.assert_reasonable_geometry(
-            result["optimized_atoms"], backend
+            strategy_result["optimized_atoms"], backend
         )
 
         # Check key distances for SN2 mechanism
-        final_atoms = result["optimized_atoms"]
+        final_atoms = strategy_result["optimized_atoms"]
         cf_dist = final_atoms.get_distance(0, 1)  # C-F (forming)
         ccl_dist = final_atoms.get_distance(0, 2)  # C-Cl (breaking)
 
-        if result.get("converged", False) and backend != "mock":
+        if strategy_result.get("converged", False) and backend != "mock":
             # In TS, both bonds should be elongated (but allow some flexibility)
             assert 1.0 < cf_dist < 3.5  # Forming bond (more lenient)
             assert 1.0 < ccl_dist < 4.0  # Breaking bond (more lenient)
 
         print(
             f"Backend {backend}: SN2-like TS took {optimization_time:.3f}s, "
-            f"{result['steps_taken']} steps, C-F: {cf_dist:.3f} Å, C-Cl: {ccl_dist:.3f} Å"
+            f"{strategy_result['steps_taken']} steps, C-F: {cf_dist:.3f} Å, C-Cl: {ccl_dist:.3f} Å"
         )
 
 
 class TestFileIO:
     """Test file I/O functionality across backends."""
 
-    @pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
+    @pytest.mark.parametrize("backend", get_available_backends())
     def test_xyz_file_workflow(self, backend):
         """Test complete XYZ file workflow."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -216,8 +246,13 @@ class TestFileIO:
             optimizer = Explorer.from_file(str(input_file), backend=backend)
 
             # Optimize and save
-            result = optimizer.optimize_minimum(fmax=0.05, steps=30)
-            optimizer.save_structure(result["optimized_atoms"], str(output_file))
+            result = optimizer.run(mode="minima", fmax=0.05, steps=30)
+            # Handle list return format from run() method
+            if isinstance(result, list) and len(result) > 0:
+                strategy_result = result[0]
+            else:
+                strategy_result = result
+            optimizer.save_structure(strategy_result["optimized_atoms"], str(output_file))
 
             # Verify output file
             assert output_file.exists()
@@ -265,13 +300,18 @@ class TestBackendConsistency:
         """Test that all backends give reasonable H2 results."""
         results = {}
 
-        for backend in AVAILABLE_BACKENDS:
+        for backend in get_available_backends():
             try:
                 h2 = TestMoleculeFactory.get_h2_stretched()
                 optimizer = Explorer(atoms=h2, backend=backend)
 
-                result = optimizer.optimize_minimum(fmax=0.05, steps=50)
-                final_distance = result["optimized_atoms"].get_distance(0, 1)
+                result = optimizer.run(mode="minima", fmax=0.05, steps=50)
+                # Handle list return format from run() method
+                if isinstance(result, list) and len(result) > 0:
+                    strategy_result = result[0]
+                else:
+                    strategy_result = result
+                final_distance = strategy_result["optimized_atoms"].get_distance(0, 1)
                 results[backend] = final_distance
 
             except (ImportError, Exception):

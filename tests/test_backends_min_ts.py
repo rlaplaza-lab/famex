@@ -12,14 +12,14 @@ import pytest
 from click.testing import CliRunner
 
 from qme.cli import main
-from tests.backend_utils import AVAILABLE_BACKENDS
+from qme.backend_availability import get_available_backends
 from tests.test_utils import TestMoleculeFactory
 
 
 class TestBackendCLI:
     """Test CLI functionality across all available backends."""
 
-    @pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
+    @pytest.mark.parametrize("backend", get_available_backends())
     def test_minima_optimization_cli(self, backend: str):
         """Test minima optimization via CLI across all backends."""
         runner = CliRunner()
@@ -49,7 +49,7 @@ class TestBackendCLI:
             out_path = os.path.splitext(xyz_path)[0] + ".opt.xyz"
             assert os.path.exists(out_path), f"Output file not created: {out_path}"
 
-    @pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
+    @pytest.mark.parametrize("backend", get_available_backends())
     def test_transition_state_optimization_cli(self, backend: str):
         """Test transition state optimization via CLI across all backends."""
         runner = CliRunner()
@@ -81,7 +81,7 @@ class TestBackendCLI:
                 os.path.join(tmp, out_path)
             ), f"Output file not created: {out_path}"
 
-    @pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
+    @pytest.mark.parametrize("backend", get_available_backends())
     def test_neb_optimization_cli(self, backend: str):
         """Test NEB optimization via CLI across all backends."""
         runner = CliRunner()

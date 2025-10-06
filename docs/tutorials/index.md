@@ -168,7 +168,7 @@ import qme
 
 # Basic optimization
 explorer = qme.Explorer.from_file("molecule.xyz")
-result = explorer.optimize_minimum()
+result = explorer.run(mode="minima")
 
 # Save results
 explorer.save_structure(result['optimized_atoms'], "optimized.xyz")

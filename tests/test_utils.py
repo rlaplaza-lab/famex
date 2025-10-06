@@ -170,7 +170,9 @@ class StandardTestAssertions:
         for key in expected_keys:
             assert key in result, f"Missing key '{key}' in optimization result"
 
-        assert isinstance(result["converged"], bool), "converged should be boolean"
+        # Handle both Python bool and numpy bool types
+        import numpy as np
+        assert isinstance(result["converged"], (bool, np.bool_)), "converged should be boolean"
         assert isinstance(
             result["optimized_atoms"], Atoms
         ), "optimized_atoms should be Atoms object"
