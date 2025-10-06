@@ -32,6 +32,8 @@ os.environ["MPLBACKEND"] = "Agg"
 # Import QME for backend detection
 try:
     from qme.backend_availability import is_backend_available
+    # Import device utilities
+    from device_utils import get_optimal_device, print_device_info
 except ImportError as e:
     print(f"❌ Error importing QME: {e}")
     print("   Please ensure QME is installed and accessible")

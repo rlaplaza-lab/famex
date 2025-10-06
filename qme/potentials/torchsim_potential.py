@@ -463,37 +463,43 @@ class TorchSimPotential(BasePotential):
         if hasattr(self._model, "forward"):
             try:
                 # Try TorchSim's native batching (works on both CPU and GPU)
-                if hasattr(self._torch_sim, 'batch_states'):
+                if hasattr(self._torch_sim, "batch_states"):
                     # Use TorchSim's built-in batching
                     batch_state = self._torch_sim.batch_states(states)
                     batch_results = self._model(batch_state)
-                    self._batch_results = self._split_batch_results(batch_results, len(states))
+                    self._batch_results = self._split_batch_results(
+                        batch_results, len(states)
+                    )
                     return states[0]
-                
+
                 # Fallback: Manual batching for TorchSim models
                 elif len(states) > 1:
                     # Create a proper batch by concatenating states
                     batch_state = self._create_manual_batch(states)
                     batch_results = self._model(batch_state)
-                    self._batch_results = self._split_batch_results(batch_results, len(states))
+                    self._batch_results = self._split_batch_results(
+                        batch_results, len(states)
+                    )
                     return states[0]
-                
+
                 else:
                     # Single state - process normally
                     result = self._model(states[0])
                     self._batch_results = [result]
                     return states[0]
-                    
+
             except Exception as e:
                 # Fallback to individual processing if batching fails
-                print(f"Warning: TorchSim batching failed ({e}), falling back to individual processing")
+                print(
+                    "Warning: TorchSim batching failed ({}), falling back to individual processing".format(e)
+                )
                 batch_results = []
                 for state in states:
                     result = self._model(state)
                     batch_results.append(result)
                 self._batch_results = batch_results
                 return states[0]
-        
+
         else:
             # Regular calculator fallback (CPU compatible)
             self._batch_results = self._fallback_individual_calculations(states)
@@ -502,63 +508,67 @@ class TorchSimPotential(BasePotential):
     def _create_manual_batch(self, states):
         """Create a manual batch for TorchSim when native batching isn't available."""
         torch = deps.get("torch")
-        
+
         # Extract common properties
         batch_positions = []
         batch_numbers = []
         batch_charges = []
         batch_spins = []
-        
+
         for state in states:
             batch_positions.append(state.positions)
             batch_numbers.append(state.numbers)
-            batch_charges.append(getattr(state, 'charge', self.default_charge))
-            batch_spins.append(getattr(state, 'spin', self.default_spin))
-        
+            batch_charges.append(getattr(state, "charge", self.default_charge))
+            batch_spins.append(getattr(state, "spin", self.default_spin))
+
         # Create batch tensors
         device = torch.device(self.device)
         dtype = torch.float64 if self.backend.lower() == "mace" else torch.float32
-        
+
         # Pad to same size and stack
         max_atoms = max(len(pos) for pos in batch_positions)
-        
+
         padded_positions = []
         padded_numbers = []
-        
+
         for pos, num in zip(batch_positions, batch_numbers):
             if len(pos) < max_atoms:
                 # Pad with zeros
                 pad_size = max_atoms - len(pos)
-                pos_padded = torch.cat([
-                    torch.tensor(pos, dtype=dtype, device=device),
-                    torch.zeros(pad_size, 3, dtype=dtype, device=device)
-                ])
-                num_padded = torch.cat([
-                    torch.tensor(num, dtype=torch.long, device=device),
-                    torch.zeros(pad_size, dtype=torch.long, device=device)
-                ])
+                pos_padded = torch.cat(
+                    [
+                        torch.tensor(pos, dtype=dtype, device=device),
+                        torch.zeros(pad_size, 3, dtype=dtype, device=device),
+                    ]
+                )
+                num_padded = torch.cat(
+                    [
+                        torch.tensor(num, dtype=torch.long, device=device),
+                        torch.zeros(pad_size, dtype=torch.long, device=device),
+                    ]
+                )
             else:
                 pos_padded = torch.tensor(pos, dtype=dtype, device=device)
                 num_padded = torch.tensor(num, dtype=torch.long, device=device)
-            
+
             padded_positions.append(pos_padded)
             padded_numbers.append(num_padded)
-        
+
         # Stack into batch
         batch_positions = torch.stack(padded_positions)
         batch_numbers = torch.stack(padded_numbers)
         batch_charges = torch.tensor(batch_charges, dtype=dtype, device=device)
         batch_spins = torch.tensor(batch_spins, dtype=dtype, device=device)
-        
+
         # Create batch state (this depends on TorchSim's state format)
         # For now, we'll create a simple batch state that mimics the individual state structure
         batch_state = type(states[0])(
             positions=batch_positions,
             numbers=batch_numbers,
             charge=batch_charges,
-            spin=batch_spins
+            spin=batch_spins,
         )
-        
+
         return batch_state
 
     def _fallback_individual_calculations(self, states):
@@ -567,23 +577,25 @@ class TorchSimPotential(BasePotential):
         for state in states:
             atoms = self._state_to_atoms(state)
             atoms.calc = self._model
-            
+
             # Calculate properties
-            self._model.calculate(atoms, properties=["energy", "forces"], system_changes=all_changes)
-            
+            self._model.calculate(
+                atoms, properties=["energy", "forces"], system_changes=all_changes
+            )
+
             result = {
                 "energy": self._model.results.get("energy", 0.0),
                 "forces": self._model.results.get("forces", np.zeros((len(atoms), 3))),
             }
             batch_results.append(result)
-        
+
         return batch_results
 
     def _split_batch_results(self, batch_results, n_structures, properties=None):
         """Split batch results back to individual structure results."""
         if properties is None:
             properties = ["energy", "forces"]
-            
+
         results = []
 
         # Handle different batch result formats
@@ -602,7 +614,7 @@ class TorchSimPotential(BasePotential):
                     # Single energy for all structures
                     for i in range(n_structures):
                         results.append({"energy": float(energies)})
-            
+
             if "forces" in batch_results:
                 forces = batch_results["forces"]
                 if hasattr(forces, "shape") and len(forces.shape) > 2:
@@ -621,14 +633,14 @@ class TorchSimPotential(BasePotential):
                             results[i]["forces"] = forces_np
                         else:
                             results.append({"forces": forces_np})
-        
+
         elif isinstance(batch_results, list):
             # List of individual results
             for i in range(n_structures):
                 structure_results = {}
                 if i < len(batch_results):
                     result = batch_results[i]
-                    
+
                     if "energy" in properties and "energy" in result:
                         energy = result["energy"]
                         if hasattr(energy, "dim") and energy.dim() == 0:
@@ -642,9 +654,9 @@ class TorchSimPotential(BasePotential):
                             structure_results["forces"] = forces.detach().cpu().numpy()
                         else:
                             structure_results["forces"] = forces
-                
+
                 results.append(structure_results)
-        
+
         else:
             # Fallback: create empty results
             for i in range(n_structures):

@@ -38,12 +38,16 @@ from ase.io import read
 
 # Import QME components
 try:
-    from qme import Explorer, calculator_registry
+    from qme.calculator_registry import calculator_registry
+    from qme.core.explorer import Explorer
     from qme.dependencies import HAS_SELLA
 except ImportError as e:
     print(f"❌ Error importing QME: {e}")
     print("   Please ensure QME is installed and accessible")
     sys.exit(1)
+
+# Import device utilities
+from device_utils import get_optimal_device, print_device_info
 
 # Suppress verbose logging from dependencies early
 logging.getLogger("jax").setLevel(logging.WARNING)
@@ -593,7 +597,7 @@ class BH28Benchmark:
 
     def run_benchmark(self, backends: List[str], reactions: List[str]):
         """Run the complete benchmark suite."""
-        print(f"\nStarting BH28 Benchmark")
+        print("\nStarting BH28 Benchmark")
         print(f"Backends: {', '.join(backends)}")
         print(
             f"Reactions: {len(reactions)} "

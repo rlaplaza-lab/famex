@@ -34,12 +34,16 @@ from ase.build import molecule
 
 # Import QME components
 try:
-    from qme import Explorer, calculator_registry
     from qme.analysis.frequency import FrequencyAnalysis
+    from qme.calculator_registry import calculator_registry
+    from qme.core.explorer import Explorer
 except ImportError as e:
     print(f"❌ Error importing QME: {e}")
     print("   Please ensure QME is installed and accessible")
     sys.exit(1)
+
+# Import device utilities
+from device_utils import get_optimal_device, print_device_info
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -107,7 +111,7 @@ def time_function(func, *args, **kwargs):
 
 def benchmark_backend(
     backend: str,
-    device: str = "cpu",
+    device: Optional[str] = None,
     model_name: Optional[str] = None,
     verbose: bool = True,
 ) -> Dict[str, Any]:
@@ -118,8 +122,8 @@ def benchmark_backend(
     -----------
     backend : str
         Backend name (e.g., 'mock', 'aimnet2', 'uma', 'so3lr', 'mace')
-    device : str
-        Device to use ('cpu' or 'cuda')
+    device : str, optional
+        Device to use ('cpu' or 'cuda'). Auto-detected if None.
     model_name : str, optional
         Specific model name to use
     verbose : bool
@@ -130,10 +134,13 @@ def benchmark_backend(
     Dict[str, Any]
         Benchmark results including timings for each step
     """
+    # Auto-detect optimal device
+    device = get_optimal_device(device)
+
     if verbose:
         print(f"\n{'='*60}")
         print(f"Backend: {backend.upper()}")
-        print(f"Device: {device}")
+        print_device_info(device)
         print(f"Model: {model_name or 'default'}")
         print("-" * 60)
 
@@ -153,12 +160,12 @@ def benchmark_backend(
         if not calculator_registry.is_backend_available(backend):
             results["error"] = f"Backend {backend} not available (dependencies missing)"
             if verbose:
-                print(f"Status: ❌ Backend not available")
+                print("Status: ❌ Backend not available")
             return results
 
         results["available"] = True
         if verbose:
-            print(f"Status: ✅ Backend available")
+            print("Status: ✅ Backend available")
 
         # Create benzene molecule
         if verbose:
@@ -342,7 +349,7 @@ def benchmark_backend(
 
         if verbose:
             print(f"\nTotal time: {total_time:.3f} seconds")
-            print(f"Status: ✅ Completed successfully")
+            print("Status: ✅ Completed successfully")
 
     except Exception as e:
         results["error"] = str(e)
@@ -498,9 +505,9 @@ Examples:
     parser.add_argument(
         "--device",
         type=str,
-        default="cpu",
+        default=None,
         choices=["cpu", "cuda"],
-        help="Device to use for calculations (default: cpu)",
+        help="Device to use for calculations (default: auto-detect CUDA if available)",
     )
     parser.add_argument(
         "--output",
@@ -541,7 +548,7 @@ Examples:
             return 1
 
     print_backend_summary(available_backends, "Benchmarking Backends")
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Device: {args.device}")
     print(f"  Output: {args.output}")
     print(f"  Verbose: {args.verbose}")

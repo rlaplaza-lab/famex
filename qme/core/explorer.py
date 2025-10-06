@@ -532,11 +532,11 @@ class Explorer:
                     symbols=atoms.symbols,
                     positions=atoms.positions,
                     cell=atoms.cell,
-                    pbc=atoms.pbc
+                    pbc=atoms.pbc,
                 )
                 # Copy over essential info
-                if hasattr(atoms, 'info') and atoms.info:
-                    for key in ['charge', 'spin']:
+                if hasattr(atoms, "info") and atoms.info:
+                    for key in ["charge", "spin"]:
                         if key in atoms.info:
                             clean_atoms.info[key] = atoms.info[key]
 

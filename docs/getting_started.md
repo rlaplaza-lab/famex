@@ -15,20 +15,20 @@ Due to dependency conflicts between ML packages, we recommend installing backend
 
 ```bash
 # UMA backend (Meta AI, default)
-pip install qme-ml-ml[uma]
+pip install qme-ml[uma]
 
 # AIMNet2 backend (native PyTorch)
-pip install qme-ml-ml[aimnet2]
+pip install qme-ml[aimnet2]
 
 # MACE backend (foundation models)
-pip install qme-ml-ml[mace]
+pip install qme-ml[mace]
 
 # SO3LR backend
-pip install qme-ml-ml[so3lr]
+pip install qme-ml[so3lr]
 pip install so3lr  # Install from PyPI or source
 
 # TorchSim acceleration (Python 3.11+ only)
-pip install qme-ml-ml[torchsim]
+pip install qme-ml[torchsim]
 ```
 
 ### Development Installation
@@ -147,7 +147,7 @@ Now that you have QME working, explore more features:
 
 ### Backend Not Available
 ```
-Error: Backend 'uma' not available. Install with: pip install qme-ml-ml[uma]
+Error: Backend 'uma' not available. Install with: pip install qme-ml[uma]
 ```
 **Solution**: Install the required backend dependencies.
 
