@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-QME Optimizer Comparison Benchmark
+QME TS Optimizer Benchmark - Transition State Optimizer Comparison
 
-This benchmark compares the performance of different optimizers
-(sella, geometric, lbfgs, bfgs, fire) for geometry optimization and
-transition state finding using QME backends. It focuses specifically
-on optimizer performance rather than backend comparison.
+This benchmark compares the performance of different transition state optimizers
+(sella and geometric) for transition state finding using various QME ML backends.
+It focuses specifically on TS optimization to evaluate which optimizers work best
+for finding transition states across different ML backends.
 
 Usage:
     conda run -n py312 python optimizer_comparison_benchmark.py [--backends BACKEND1,BACKEND2,...]
     conda run -n py312 python optimizer_comparison_benchmark.py [--optimizers OPT1,OPT2,...]
-    conda run -n py312 python optimizer_comparison_benchmark.py [--test-ts]
+    conda run -n py312 python optimizer_comparison_benchmark.py [--device DEVICE]
 
 Features:
-    - Optimizer performance comparison for geometry optimization
-    - Transition state optimization comparison
-    - Step count and convergence analysis
-    - Timing per optimization step
-    - Detailed optimizer-specific metrics
+    - Transition state optimizer comparison (sella vs geometric)
+    - All available ML backends tested
+    - Detailed timing and convergence analysis
+    - TS-specific optimization evaluation
+    - Focus on TS finding capabilities
 """
 
 import argparse
@@ -558,8 +558,8 @@ def main():
     """Main function to run the optimizer comparison benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
-        name="Optimizer Comparison Benchmark",
-        description="Optimizer Performance Analysis",
+        name="TS Optimizer Benchmark",
+        description="Transition State Optimizer Comparison",
         epilog=create_standard_epilog("benchmark")
     )
     
@@ -569,12 +569,7 @@ def main():
     parser.add_argument(
         "--optimizers",
         type=str,
-        help="Comma-separated list of optimizers to benchmark (default: sella,geometric)",
-    )
-    parser.add_argument(
-        "--test-ts",
-        action="store_true",
-        help="Test transition state optimization instead of minima optimization",
+        help="Comma-separated list of TS optimizers to benchmark (default: sella,geometric)",
     )
     
     args = parser.parse_args()
@@ -603,23 +598,23 @@ def main():
             print("   - TorchSim: pip install torch-sim-atomistic")
             return 1
 
-    # Determine which optimizers to test
+    # Determine which TS optimizers to test
     if args.optimizers:
         requested_optimizers = [o.strip() for o in args.optimizers.split(",")]
-        # Filter to only available optimizers
+        # Filter to only available TS optimizers
         available_optimizers = []
         for opt in requested_optimizers:
-            if opt.lower() in ["sella", "geometric", "lbfgs", "bfgs", "fire"]:
+            if opt.lower() in ["sella", "geometric"]:
                 available_optimizers.append(opt.lower())
             else:
-                print(f"Warning: Unknown optimizer '{opt}', skipping")
+                print(f"Warning: Unknown TS optimizer '{opt}', skipping. Available: sella, geometric")
     else:
-        # Default optimizers
+        # Default TS optimizers
         available_optimizers = ["sella", "geometric"]
 
     interface.print_backend_summary(available_backends, "Benchmarking Backends")
-    print(f"\nOptimizers: {', '.join(available_optimizers)}")
-    print(f"Test Type: {'Transition State' if args.test_ts else 'Minima'}")
+    print(f"\nTS Optimizers: {', '.join(available_optimizers)}")
+    print(f"Test Type: Transition State")
     
     # Get device info
     device = interface.get_device_info(args.device)
@@ -628,7 +623,7 @@ def main():
         "Device": device,
         "Output": args.output or interface.get_default_output_file(),
         "Verbose": args.verbose,
-        "Test Type": "Transition State" if args.test_ts else "Minima"
+        "Test Type": "Transition State"
     }
     interface.print_configuration(config)
 
@@ -648,7 +643,7 @@ def main():
                     optimizer=optimizer,
                     device=device,
                     verbose=args.verbose,
-                    test_ts=args.test_ts,
+                    test_ts=True,  # Always TS optimization
                 )
                 results_list.append(results)
             except KeyboardInterrupt:

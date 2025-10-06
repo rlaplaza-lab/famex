@@ -1,13 +1,14 @@
-# Optimizer Comparison Benchmark - Optimizer Performance Analysis
+# TS Optimizer Benchmark - Transition State Optimizer Comparison
 
-Compares the performance of different optimizers (sella, geometric, lbfgs, bfgs, fire) for geometry optimization and transition state finding.
+Compares the performance of different transition state optimizers (sella and geometric) for transition state finding using various QME ML backends. Focuses specifically on TS optimization to evaluate which optimizers work best for finding transition states.
 
 ## Features
 
-- Optimizer performance comparison for geometry optimization
-- Transition state optimization testing
+- Transition state optimizer comparison (sella vs geometric)
+- All available ML backends tested
 - Detailed timing and convergence analysis
-- Comprehensive optimizer evaluation
+- TS-specific optimization evaluation
+- Focus on TS finding capabilities
 
 ## Usage
 
@@ -19,8 +20,8 @@ conda run -n py312 python optimizer_comparison_benchmark.py
 # Run with specific backends
 conda run -n py312 python optimizer_comparison_benchmark.py --backends uma,aimnet2
 
-# Test transition state optimization
-conda run -n py312 python optimizer_comparison_benchmark.py --test-ts
+# Test specific TS optimizers
+conda run -n py312 python optimizer_comparison_benchmark.py --optimizers sella,geometric
 ```
 
 ### Advanced Usage
@@ -28,8 +29,8 @@ conda run -n py312 python optimizer_comparison_benchmark.py --test-ts
 # Run on GPU
 conda run -n py312 python optimizer_comparison_benchmark.py --device cuda
 
-# Test specific optimizers
-conda run -n py312 python optimizer_comparison_benchmark.py --optimizers sella,geometric,lbfgs
+# Test specific TS optimizers
+conda run -n py312 python optimizer_comparison_benchmark.py --optimizers sella,geometric
 
 # Verbose output
 conda run -n py312 python optimizer_comparison_benchmark.py --verbose
@@ -55,13 +56,10 @@ conda run -n py312 python optimizer_comparison_benchmark.py --verbose
 - **SO3LR**: SO(3) neural networks for research
 - **TorchSim variants**: Maximum performance acceleration
 
-## Supported Optimizers
+## Supported TS Optimizers
 
 - **Sella**: Specialized for transition state optimization
-- **Geometric**: General purpose geometry optimization
-- **LBFGS**: Limited-memory BFGS for large systems
-- **BFGS**: Broyden-Fletcher-Goldfarb-Shanno algorithm
-- **FIRE**: Fast Inertial Relaxation Engine
+- **Geometric**: General purpose geometry optimization (TS capable)
 
 ## Output
 

@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-QME Timing Benchmark - Performance Analysis
+QME Timing Benchmark - ML Backend Performance Analysis
 
-This benchmark evaluates the performance of different QME backends for geometry
-optimization and frequency analysis using benzene as a test case. It measures
-timing for each part of the process to identify bottlenecks, particularly the
-cost of integrating potentials through ASE interfaces.
+This benchmark evaluates the performance of different QME ML backends for simple
+geometry optimization and frequency analysis using benzene as a test case. All
+backends use the same default optimizer (BFGS) to ensure fair comparison of
+backend performance rather than optimizer differences.
 
 Usage:
     conda run -n py312 python timing_benchmark.py [--backends BACKEND1,BACKEND2,...]
     conda run -n py312 python timing_benchmark.py [--device DEVICE]
 
 Features:
-    - Geometry optimization performance measurement
-    - Frequency analysis timing
+    - Simple geometry optimization + frequency analysis
+    - All backends use same default optimizer (BFGS)
     - Individual energy and force calculation benchmarks
     - Detailed timing breakdown and performance comparison
-    - Comprehensive backend comparison
+    - ML backend performance comparison (not optimizer comparison)
 """
 
 import argparse

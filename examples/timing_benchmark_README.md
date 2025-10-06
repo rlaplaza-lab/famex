@@ -1,13 +1,14 @@
-# Timing Benchmark - Performance Analysis
+# Timing Benchmark - ML Backend Performance Analysis
 
-Comprehensive performance benchmark for QME backends analyzing geometry optimization, frequency analysis, and individual energy/force calculations.
+Comprehensive performance benchmark for QME ML backends using simple geometry optimization and frequency analysis. All backends use the same default optimizer (BFGS) to ensure fair comparison of backend performance rather than optimizer differences.
 
 ## Features
 
-- Geometry optimization of benzene
-- Frequency analysis (Hessian calculation) 
+- Simple geometry optimization + frequency analysis
+- All backends use same default optimizer (BFGS)
 - Individual energy and force calculations
 - Detailed timing breakdown and performance comparison
+- ML backend performance comparison (not optimizer comparison)
 
 ## Usage
 
