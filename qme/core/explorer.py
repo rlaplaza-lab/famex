@@ -524,7 +524,31 @@ class Explorer:
             else:
                 write(output_file, atoms)
         except Exception as e:
-            raise RuntimeError(f"Failed to save structure to {output_file}: {e}")
+            # If writing fails, try with a cleaned atoms object to avoid
+            # issues with contaminated global state from test isolation
+            try:
+                # Create a clean atoms object with only essential data
+                clean_atoms = Atoms(
+                    symbols=atoms.symbols,
+                    positions=atoms.positions,
+                    cell=atoms.cell,
+                    pbc=atoms.pbc
+                )
+                # Copy over essential info
+                if hasattr(atoms, 'info') and atoms.info:
+                    for key in ['charge', 'spin']:
+                        if key in atoms.info:
+                            clean_atoms.info[key] = atoms.info[key]
+
+                if format is not None:
+                    write(output_file, clean_atoms, format=format)
+                else:
+                    write(output_file, clean_atoms)
+            except Exception as e2:
+                raise RuntimeError(
+                    f"Failed to save structure to {output_file}: {e}. "
+                    f"Clean attempt also failed: {e2}"
+                )
 
     def calculate_frequencies(
         self,

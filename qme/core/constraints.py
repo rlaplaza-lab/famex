@@ -320,7 +320,7 @@ def validate_atom_indices(atom_indices: List[int], atoms: Atoms) -> bool:
         if not isinstance(idx, int):
             raise ValueError(f"Atom index must be integer, got {type(idx)}")
         if idx < 0 or idx >= n_atoms:
-            raise ValueError(f"Atom index {idx} out of range [0, {n_atoms-1}]")
+            raise ValueError(f"Atom index {idx} out of range [0, {n_atoms - 1}]")
 
     return True
 

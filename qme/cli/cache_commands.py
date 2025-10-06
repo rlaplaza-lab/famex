@@ -30,7 +30,7 @@ def info():
         click.echo("Cached models:")
         for model in info["models"]:
             click.echo(
-                f"  - {model['model_name']} ({model['size'] / (1024*1024):.2f} MB)"
+                f"  - {model['model_name']} ({model['size'] / (1024 * 1024):.2f} MB)"
             )
     else:
         click.echo("No models cached.")

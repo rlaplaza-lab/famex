@@ -610,7 +610,7 @@ class HessianCalculator:
                 hessian[:, j] = -(forces_plus - forces_minus) / (2 * self.delta)
 
                 if world.rank == 0:
-                    print(f"  Completed coordinate {j+1}/{n_coords}")
+                    print(f"  Completed coordinate {j + 1}/{n_coords}")
 
         elif self.method == "forward":
             # Forward differences: H_ij = (F_i(+δj) - F_i(0)) / δ
@@ -626,7 +626,7 @@ class HessianCalculator:
                 hessian[:, j] = -(forces_displaced - forces_ref) / self.delta
 
                 if world.rank == 0:
-                    print(f"  Completed coordinate {j+1}/{n_coords}")
+                    print(f"  Completed coordinate {j + 1}/{n_coords}")
         else:
             raise ValueError(f"Unknown finite difference method: {self.method}")
 
