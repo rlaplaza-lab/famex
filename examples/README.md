@@ -17,26 +17,28 @@ Demonstrates QME's command-line interface capabilities by running various optimi
 - Comprehensive backend performance comparison
 
 ### 2. Timing Benchmark (`timing_benchmark.py`)
-**Performance Analysis**
+**ML Backend Performance Analysis**
 
-Comprehensive performance benchmark for QME backends analyzing geometry optimization, frequency analysis, and individual energy/force calculations.
+Comprehensive performance benchmark for QME ML backends using simple geometry optimization and frequency analysis. All backends use the same default optimizer (BFGS) to ensure fair comparison of backend performance.
 
 **Features:**
-- Geometry optimization of benzene
-- Frequency analysis (Hessian calculation) 
+- Simple geometry optimization + frequency analysis
+- All backends use same default optimizer (BFGS)
 - Individual energy and force calculations
 - Detailed timing breakdown and performance comparison
+- ML backend performance comparison (not optimizer comparison)
 
-### 3. Optimizer Comparison (`optimizer_comparison_benchmark.py`)
-**Optimizer Performance Analysis**
+### 3. TS Optimizer Benchmark (`optimizer_comparison_benchmark.py`)
+**Transition State Optimizer Comparison**
 
-Compares the performance of different optimizers (sella, geometric, lbfgs, bfgs, fire) for geometry optimization and transition state finding.
+Compares the performance of different transition state optimizers (sella and geometric) for transition state finding using various QME ML backends.
 
 **Features:**
-- Optimizer performance comparison for geometry optimization
-- Transition state optimization testing
+- Transition state optimizer comparison (sella vs geometric)
+- All available ML backends tested
 - Detailed timing and convergence analysis
-- Comprehensive optimizer evaluation
+- TS-specific optimization evaluation
+- Focus on TS finding capabilities
 
 ### 4. BH28 Benchmark (`bh28_benchmark/`)
 **Chemical Accuracy Evaluation**
