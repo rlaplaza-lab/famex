@@ -3,6 +3,7 @@
 **Quick mechanistic exploration using machine learning potentials for molecular geometry optimization and transition state searches.**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-tested-green.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](docs/index.md)
 
@@ -56,6 +57,8 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 - 📊 **Analysis Tools**: Frequency analysis and thermodynamics
 - 🖥️ **Dual Interface**: Command-line and Python API
 - 📁 **File Support**: XYZ, CIF, PDB, and more via ASE
+- 🛡️ **Robust I/O**: Handles problematic molecular data gracefully
+- ✅ **Python 3.12**: Fully tested and compatible
 
 ## 📋 Common Commands
 

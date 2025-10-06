@@ -368,10 +368,41 @@ class TestFileIO:
                 assert output_file.exists()
                 final_atoms = optimizer.load_structure(str(output_file))
                 assert len(final_atoms) == 2
+                
+                # Test that the saved structure has reasonable geometry
+                final_distance = final_atoms.get_distance(0, 1)
+                assert 0.5 < final_distance < 2.0, f"Unreasonable H-H distance: {final_distance}"
 
         except ImportError as e:
             # This should not happen with pre-filtered backends, but just in case
             pytest.fail(f"Unexpected ImportError for available backend {backend}: {e}")
+
+    def test_save_structure_robustness(self):
+        """Test that save_structure handles problematic atoms objects gracefully."""
+        from ase import Atoms
+        import numpy as np
+        
+        # Create a problematic atoms object that might cause XYZ writing issues
+        h2 = Atoms(["H", "H"], positions=[[0, 0, 0], [1.0, 0, 0]])
+        
+        # Add some potentially problematic arrays
+        h2.arrays['test_array'] = np.array([[1, 2, 3], [4, 5, 6]])
+        h2.info['charge'] = 0
+        h2.info['spin'] = 1
+        
+        optimizer = Explorer(h2, backend="mock")
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_file = Path(tmpdir) / "test_output.xyz"
+            
+            # This should work even with problematic arrays due to the fallback mechanism
+            optimizer.save_structure(h2, str(output_file))
+            
+            # Verify the file was created and is readable
+            assert output_file.exists()
+            loaded_atoms = optimizer.load_structure(str(output_file))
+            assert len(loaded_atoms) == 2
+            assert list(loaded_atoms.symbols) == list(h2.symbols)
 
 
 # Removed TestOptimizerComparison class to reduce test suite size
