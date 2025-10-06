@@ -17,7 +17,8 @@ from ase.build import molecule
 
 from qme import Explorer, calculator_registry
 from qme.dependencies import deps
-from tests.backend_utils import AVAILABLE_TORCHSIM_BACKENDS, require_backend
+from qme.backend_availability import get_available_backends
+from tests.test_utils import BackendTestMixin
 
 
 class TestTorchSimIntegration:
@@ -52,7 +53,7 @@ class TestTorchSimIntegration:
 
     def test_torchsim_calculator_creation(self):
         """Test TorchSim calculator creation."""
-        require_backend("torchsim_mace")  # This will skip if TorchSim is not available
+        BackendTestMixin.require_backend("torchsim_mace")  # This will skip if TorchSim is not available
 
         # Test TorchSim MACE calculator
         calc_mace = calculator_registry.create_calculator(
@@ -92,7 +93,7 @@ class TestTorchSimIntegration:
 
     def test_torchsim_energy_calculation(self):
         """Test TorchSim energy calculation."""
-        require_backend("torchsim_mace")
+        BackendTestMixin.require_backend("torchsim_mace")
 
         # Create a simple molecule
         benzene = molecule("C6H6")
@@ -112,7 +113,7 @@ class TestTorchSimIntegration:
 
     def test_torchsim_forces_calculation(self):
         """Test TorchSim forces calculation."""
-        require_backend("torchsim_mace")
+        BackendTestMixin.require_backend("torchsim_mace")
 
         # Create a simple molecule
         benzene = molecule("C6H6")
@@ -133,7 +134,7 @@ class TestTorchSimIntegration:
 
     def test_torchsim_optimization(self):
         """Test TorchSim optimization workflow."""
-        require_backend("torchsim_mace")
+        BackendTestMixin.require_backend("torchsim_mace")
 
         # Create a simple molecule with slight distortion
         benzene = molecule("C6H6")
@@ -151,17 +152,23 @@ class TestTorchSimIntegration:
         )
 
         # Optimize (structure already loaded in constructor)
-        result = qme_opt.optimize_minimum(
-            optimizer="BFGS", fmax=0.05, steps=10  # Small number for testing
+        result = qme_opt.run(
+            mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=10  # Small number for testing
         )
 
-        assert result is not None
-        assert "converged" in result
-        print(f"TorchSim optimization converged: {result['converged']}")
+        # Handle list return format from run() method
+        if isinstance(result, list) and len(result) > 0:
+            strategy_result = result[0]
+        else:
+            strategy_result = result
+
+        assert strategy_result is not None
+        assert "converged" in strategy_result
+        print(f"TorchSim optimization converged: {strategy_result['converged']}")
 
     def test_torchsim_cli_integration(self):
         """Test TorchSim CLI integration."""
-        require_backend("torchsim_mace")
+        BackendTestMixin.require_backend("torchsim_mace")
 
         from click.testing import CliRunner
 
@@ -203,7 +210,7 @@ class TestTorchSimIntegration:
 
     def test_torchsim_performance_comparison(self):
         """Test TorchSim performance compared to standard backends."""
-        require_backend("torchsim_mace")
+        BackendTestMixin.require_backend("torchsim_mace")
 
         import time
 

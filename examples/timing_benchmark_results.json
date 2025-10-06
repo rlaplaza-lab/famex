@@ -1,43 +1,43 @@
 [
   {
     "backend": "uma",
-    "device": "cpu",
+    "device": "cuda",
     "model_name": null,
     "available": true,
     "error": null,
     "timings": {
-      "initialization": 4.414992872625589e-06,
-      "structure_loading": 0.00011472600453998893,
-      "single_energy_first": 5.442046491996734,
-      "single_energy_second": 0.0002805700059980154,
-      "single_energy": 0.0002805700059980154,
-      "single_forces": 0.00015546800568699837,
-      "optimization": 3.3439819649938727,
-      "avg_time_per_step": 0.2572293819226056,
-      "frequency_analysis": 19.10646227899997,
-      "total": 28.15055586692828
+      "initialization": 1.4719997125212103e-05,
+      "structure_loading": 0.0002452489934512414,
+      "single_energy_first": 4.560463927999081,
+      "single_energy_second": 0.0001618489986867644,
+      "single_energy": 0.0001618489986867644,
+      "single_forces": 0.0001071900042006746,
+      "optimization": 2.6209445060012513,
+      "avg_time_per_step": 0.18721032185723224,
+      "frequency_analysis": 3.833518034000008,
+      "total": 11.202827646849723
     },
     "optimization_results": {
       "converged": "True",
-      "final_energy": -6319.221238575663,
-      "max_force": 0.00957180093973875,
-      "steps_taken": 13
+      "final_energy": -6319.221256337847,
+      "max_force": 0.008869488723576069,
+      "steps_taken": 14
     },
     "frequency_results": {
       "n_frequencies": 30,
       "frequencies": [
-        419.0954037653141,
-        480.1567039698508,
-        617.5341714214385,
-        644.2150621193559,
-        686.5500913402583,
-        758.7414683853731,
-        877.9577468368789,
-        897.6886447210702,
-        971.8210045814627,
-        987.0432537470189
+        419.04887613962745,
+        480.1387180295455,
+        617.5187919329917,
+        644.2419816239989,
+        686.5668568546963,
+        758.6958747730812,
+        877.9075496492158,
+        897.7157334812506,
+        971.9069238294919,
+        987.0456426668954
       ],
-      "zero_point_energy": 2.749492605252019,
+      "zero_point_energy": 2.749504012869224,
       "is_transition_state": false,
       "method_used": "auto"
     }

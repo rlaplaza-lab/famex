@@ -486,7 +486,7 @@ class TestMyBackend:
         
         atoms = molecule("H2O")
         explorer = Explorer.from_atoms(atoms, backend="my_backend")
-        result = explorer.optimize_minimum(steps=10)  # Short test
+        result = explorer.run(mode="minima", steps=10)  # Short test
         
         assert "optimized_atoms" in result
         assert "final_energy" in result

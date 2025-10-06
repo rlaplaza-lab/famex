@@ -27,6 +27,7 @@ dependencies = [
     "click>=8.0.0",
     "requests>=2.25.0",
     "sella>=2.0.0",
+    "geometric>=0.9.7",
 ]
 
 [project.optional-dependencies]

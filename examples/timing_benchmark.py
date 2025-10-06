@@ -19,9 +19,7 @@ Features:
     - ML backend performance comparison (not optimizer comparison)
 """
 
-import argparse
 import json
-import os
 import sys
 import time
 import warnings
@@ -51,38 +49,12 @@ warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 
-def get_available_ml_backends() -> List[str]:
-    """Get list of available ML backends (excluding mock)."""
-    available = []
-    ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma"]
-
-    for backend in ml_backends:
-        if calculator_registry.is_backend_available(backend):
-            available.append(backend)
-
-    return available
+# Use consolidated backend availability from qme.backend_availability
+from qme.backend_availability import get_available_ml_backends
 
 
-def filter_available_backends(
-    requested_backends: List[str], verbose: bool = False
-) -> List[str]:
-    """Filter requested backends to only available ones."""
-    available = []
-    for backend in requested_backends:
-        if calculator_registry.is_backend_available(backend):
-            available.append(backend)
-        elif verbose:
-            print(f"Warning: Backend '{backend}' not available, skipping")
-    return available
-
-
-def print_backend_summary(backends: List[str], title: str = "Available Backends"):
-    """Print a formatted summary of backends."""
-    print(f"\n📋 {title}")
-    print("-" * 50)
-    for i, backend in enumerate(backends, 1):
-        print(f"  {i}. {backend}")
-    print(f"Total: {len(backends)} backends")
+# Use common interface for standardized functions
+from common_interface import QMEExampleInterface
 
 
 def create_benzene_molecule() -> Atoms:
@@ -257,23 +229,38 @@ def benchmark_backend(
             print(f"Single force calculation time: {force_time:.3f} seconds")
             print(f"Max force: {max_force:.6f} eV/Å")
 
-        # Geometry optimization
+        # Geometry optimization using Explorer strategies
         if verbose:
             print("Running geometry optimization...")
         opt_start = time.perf_counter()
 
-        # We need to capture the step count directly from the ASE optimizer
-        # since QME's convenience layer doesn't return it
-        steps_taken = 0
-
-        # Create the optimizer manually to capture step count
-        from ase.optimize import BFGS
-
-        opt = BFGS(explorer.atoms_list[0])
-        opt.run(fmax=0.01, steps=1000)
-        steps_taken = opt.get_number_of_steps()
+        # Use Explorer's run method with proper strategy
+        results = explorer.run(
+            mode="minima",
+            fmax=0.01,
+            steps=1000,
+            local_optimizer_name="BFGS",
+        )
 
         opt_time = time.perf_counter() - opt_start
+
+        # Handle results from Explorer's run method
+        # For local strategies, run() returns a list of results
+        if isinstance(results, list) and len(results) == 1:
+            strategy_result = results[0]
+        else:
+            strategy_result = results
+        
+        # Extract step tracking information from strategy result
+        if isinstance(strategy_result, dict):
+            steps_taken = strategy_result.get("steps_taken", 0)
+            converged = strategy_result.get("converged", False)
+            optimized_atoms = strategy_result.get("optimized_atoms", explorer.atoms_list[0])
+        else:
+            # Fallback for old format
+            steps_taken = 0
+            converged = True
+            optimized_atoms = strategy_result
 
         # Calculate average time per optimization step
         if isinstance(steps_taken, (int, float)) and steps_taken > 0:
@@ -281,19 +268,15 @@ def benchmark_backend(
         else:
             avg_time_per_step = None
 
-        # Get optimization results for compatibility
-        atoms = explorer.atoms_list[0]
-        forces = atoms.get_forces()
+        # Get optimization results
+        forces = optimized_atoms.get_forces()
         max_force = float(np.max(np.abs(forces)))
 
-        # Flatten forces for converged() method
-        forces_flat = forces.flatten()
-
         opt_results = {
-            "converged": opt.converged(forces_flat),
-            "final_energy": float(atoms.get_potential_energy()),
+            "converged": converged,
+            "final_energy": float(optimized_atoms.get_potential_energy()),
             "steps_taken": steps_taken,
-            "optimized_atoms": atoms,
+            "optimized_atoms": optimized_atoms,
             "max_force": max_force,
         }
 

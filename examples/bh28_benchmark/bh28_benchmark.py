@@ -256,8 +256,9 @@ class BH28Benchmark:
                                     backend=backend,
                                     model_name=model_name,
                                 )
-                                result = optimizer.optimize_minimum(
-                                    optimizer="LBFGS",
+                                result = optimizer.run(
+                                    mode="minima",
+                                    local_optimizer_name="LBFGS",
                                     steps=500,
                                     fmax=0.01,
                                 )
@@ -298,8 +299,8 @@ class BH28Benchmark:
                                         backend=backend,
                                         model_name=model_name,
                                     )
-                                    ts_result = ts_optimizer.find_transition_state(
-                                        steps=500, fmax=0.01
+                                    ts_result = ts_optimizer.run(
+                                        mode="ts", steps=500, fmax=0.01
                                     )
 
                                 ts_time = time.time() - start_time

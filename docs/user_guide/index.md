@@ -52,7 +52,7 @@ import qme
 
 # Load and optimize a structure
 explorer = qme.Explorer.from_file("molecule.xyz", backend="uma")
-result = explorer.optimize_minimum()
+result = explorer.run(mode="minima")
 explorer.save_structure(result['optimized_atoms'], "optimized.xyz")
 ```
 

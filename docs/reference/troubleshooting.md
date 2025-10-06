@@ -447,7 +447,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 import qme
 explorer = qme.Explorer.from_file("molecule.xyz")
-result = explorer.optimize_minimum()
+result = explorer.run(mode="minima")
 ```
 
 ### Log Analysis

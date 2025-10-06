@@ -16,7 +16,14 @@ from ase.build import molecule
 
 import qme
 from qme.dependencies import deps
-from tests.backend_utils import AVAILABLE_BACKEND_PAIRS, require_backend
+from qme.backend_availability import get_available_backends
+from tests.test_utils import BackendTestMixin
+
+# Define available backend pairs for testing
+AVAILABLE_BACKEND_PAIRS = [
+    ("mace", "torchsim_mace"),
+    ("uma", "torchsim_uma"),
+]
 
 
 class TestTorchSimSanityCheck:
