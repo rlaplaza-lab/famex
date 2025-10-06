@@ -43,7 +43,8 @@ except ImportError as e:
     print("   Please ensure QME is installed and accessible")
     sys.exit(1)
 
-# Import device utilities
+# Import common interface
+from common_interface import QMEExampleInterface, create_standard_epilog
 from device_utils import get_optimal_device, print_device_info
 
 # Suppress warnings for cleaner output
@@ -555,24 +556,16 @@ def save_results(results_list: List[Dict[str, Any]], output_file: str):
 
 def main():
     """Main function to run the optimizer comparison benchmark."""
-    parser = argparse.ArgumentParser(
-        description="QME Optimizer Comparison Benchmark",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  conda run -n py312 python optimizer_comparison_benchmark.py
-  conda run -n py312 python optimizer_comparison_benchmark.py --backends aimnet2,uma
-  conda run -n py312 python optimizer_comparison_benchmark.py --optimizers sella,geometric
-  conda run -n py312 python optimizer_comparison_benchmark.py --test-ts --optimizers sella,geometric
-  conda run -n py312 python optimizer_comparison_benchmark.py --device cuda --verbose
-        """,
+    # Create standardized interface
+    interface = QMEExampleInterface(
+        name="Optimizer Comparison Benchmark",
+        description="Optimizer Performance Analysis",
+        epilog=create_standard_epilog("benchmark")
     )
-
-    parser.add_argument(
-        "--backends",
-        type=str,
-        help="Comma-separated list of backends to benchmark (default: all available)",
-    )
+    
+    parser = interface.create_parser()
+    
+    # Add optimizer-specific arguments
     parser.add_argument(
         "--optimizers",
         type=str,
@@ -583,43 +576,25 @@ Examples:
         action="store_true",
         help="Test transition state optimization instead of minima optimization",
     )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default=None,
-        choices=["cpu", "cuda"],
-        help="Device to use for calculations (default: auto-detect CUDA if available)",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="optimizer_comparison_results.json",
-        help="Output file for results (default: optimizer_comparison_results.json)",
-    )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Print detailed progress information"
-    )
-
+    
     args = parser.parse_args()
 
-    print("=" * 80)
-    print("QME Optimizer Comparison Benchmark")
-    print("=" * 80)
+    interface.print_header()
 
     # Determine which backends to test
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
-        available_backends = filter_available_backends(requested_backends, verbose=True)
+        available_backends = interface.filter_available_backends(requested_backends, verbose=True)
 
         if not available_backends:
-            print("\n❌ No requested backends are available!")
+            interface.print_error("No requested backends are available!")
             print("   Please install required dependencies.")
             return 1
     else:
-        available_backends = get_available_ml_backends()
+        available_backends = interface.get_available_ml_backends()
 
         if not available_backends:
-            print("\n❌ No ML backends available!")
+            interface.print_error("No ML backends available!")
             print("   Please install at least one ML backend:")
             print("   - UMA: pip install fairchem-core")
             print("   - MACE: pip install mace-torch")
@@ -642,13 +617,20 @@ Examples:
         # Default optimizers
         available_optimizers = ["sella", "geometric"]
 
-    print_backend_summary(available_backends, "Benchmarking Backends")
+    interface.print_backend_summary(available_backends, "Benchmarking Backends")
     print(f"\nOptimizers: {', '.join(available_optimizers)}")
     print(f"Test Type: {'Transition State' if args.test_ts else 'Minima'}")
-    print("\nConfiguration:")
-    print(f"  Device: {args.device}")
-    print(f"  Output: {args.output}")
-    print(f"  Verbose: {args.verbose}")
+    
+    # Get device info
+    device = interface.get_device_info(args.device)
+    
+    config = {
+        "Device": device,
+        "Output": args.output or interface.get_default_output_file(),
+        "Verbose": args.verbose,
+        "Test Type": "Transition State" if args.test_ts else "Minima"
+    }
+    interface.print_configuration(config)
 
     print(
         "\nRunning benchmarks for {} backend(s) × {} optimizer(s)...".format(
@@ -664,7 +646,7 @@ Examples:
                 results = benchmark_optimizer(
                     backend=backend,
                     optimizer=optimizer,
-                    device=args.device,
+                    device=device,
                     verbose=args.verbose,
                     test_ts=args.test_ts,
                 )
@@ -692,9 +674,9 @@ Examples:
     print_optimizer_summary(results_list)
 
     # Save results
-    save_results(results_list, args.output)
+    save_results(results_list, args.output or interface.get_default_output_file())
 
-    print("\n✅ Optimizer comparison benchmark completed successfully!")
+    interface.print_success()
     return 0
 
 
