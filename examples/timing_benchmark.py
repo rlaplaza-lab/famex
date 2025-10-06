@@ -42,7 +42,8 @@ except ImportError as e:
     print("   Please ensure QME is installed and accessible")
     sys.exit(1)
 
-# Import device utilities
+# Import common interface
+from common_interface import QMEExampleInterface, create_standard_epilog
 from device_utils import get_optimal_device, print_device_info
 
 # Suppress warnings for cleaner output
@@ -486,59 +487,32 @@ def save_results(results_list: List[Dict[str, Any]], output_file: str):
 
 def main():
     """Main function to run the timing benchmark."""
-    parser = argparse.ArgumentParser(
-        description="QME Timing Benchmark - Performance Analysis",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  conda run -n py312 python timing_benchmark.py
-  conda run -n py312 python timing_benchmark.py --backends aimnet2,uma
-  conda run -n py312 python timing_benchmark.py --device cuda --verbose
-        """,
+    # Create standardized interface
+    interface = QMEExampleInterface(
+        name="Timing Benchmark",
+        description="Performance Analysis",
+        epilog=create_standard_epilog("timing")
     )
-
-    parser.add_argument(
-        "--backends",
-        type=str,
-        help="Comma-separated list of backends to benchmark (default: all available)",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default=None,
-        choices=["cpu", "cuda"],
-        help="Device to use for calculations (default: auto-detect CUDA if available)",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="timing_benchmark_results.json",
-        help="Output file for results (default: timing_benchmark_results.json)",
-    )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Print detailed progress information"
-    )
-
+    
+    parser = interface.create_parser()
     args = parser.parse_args()
 
-    print("=" * 80)
-    print("QME Timing Benchmark - Performance Analysis")
-    print("=" * 80)
+    interface.print_header()
 
     # Determine which backends to test
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
-        available_backends = filter_available_backends(requested_backends, verbose=True)
+        available_backends = interface.filter_available_backends(requested_backends, verbose=True)
 
         if not available_backends:
-            print("\n❌ No requested backends are available!")
+            interface.print_error("No requested backends are available!")
             print("   Please install required dependencies.")
             return 1
     else:
-        available_backends = get_available_ml_backends()
+        available_backends = interface.get_available_ml_backends()
 
         if not available_backends:
-            print("\n❌ No ML backends available!")
+            interface.print_error("No ML backends available!")
             print("   Please install at least one ML backend:")
             print("   - UMA: pip install fairchem-core")
             print("   - MACE: pip install mace-torch")
@@ -547,11 +521,17 @@ Examples:
             print("   - TorchSim: pip install torch-sim-atomistic")
             return 1
 
-    print_backend_summary(available_backends, "Benchmarking Backends")
-    print("\nConfiguration:")
-    print(f"  Device: {args.device}")
-    print(f"  Output: {args.output}")
-    print(f"  Verbose: {args.verbose}")
+    interface.print_backend_summary(available_backends, "Benchmarking Backends")
+    
+    # Get device info
+    device = interface.get_device_info(args.device)
+    
+    config = {
+        "Device": device,
+        "Output": args.output or interface.get_default_output_file(),
+        "Verbose": args.verbose
+    }
+    interface.print_configuration(config)
 
     print(f"\nRunning benchmarks for {len(available_backends)} backend(s)...")
 
@@ -560,14 +540,14 @@ Examples:
     for backend in available_backends:
         try:
             results = benchmark_backend(
-                backend=backend, device=args.device, verbose=args.verbose
+                backend=backend, device=device, verbose=args.verbose
             )
             results_list.append(results)
         except KeyboardInterrupt:
             print("\nBenchmark interrupted by user.")
             break
         except Exception as e:
-            print(f"\nUnexpected error with {backend}: {e}")
+            interface.print_error(f"Unexpected error with {backend}: {e}")
             results_list.append(
                 {
                     "backend": backend,
@@ -583,9 +563,9 @@ Examples:
     print_summary(results_list)
 
     # Save results
-    save_results(results_list, args.output)
+    save_results(results_list, args.output or interface.get_default_output_file())
 
-    print("\n✅ Benchmark completed successfully!")
+    interface.print_success()
     return 0
 
 

@@ -6,9 +6,6 @@ This example demonstrates QME's command-line interface capabilities by running
 various optimization tasks across all available ML backends and comparing their
 performance and reliability.
 
-Usage:
-    conda run -n py312 python cli_demo.py [--backends BACKEND1,BACKEND2,...]
-
 Features:
     - Structure optimization using 'opt' command
     - Transition state optimization using 'tsopt' command
@@ -17,7 +14,6 @@ Features:
     - Comprehensive backend performance comparison
 """
 
-import argparse
 import os
 import subprocess
 import sys
@@ -29,27 +25,8 @@ from typing import Dict, List, Tuple
 os.environ["DISPLAY"] = ""
 os.environ["MPLBACKEND"] = "Agg"
 
-# Import QME for backend detection
-try:
-    from qme.backend_availability import is_backend_available
-    # Import device utilities
-    from device_utils import get_optimal_device, print_device_info
-except ImportError as e:
-    print(f"❌ Error importing QME: {e}")
-    print("   Please ensure QME is installed and accessible")
-    sys.exit(1)
-
-
-def get_available_ml_backends() -> List[str]:
-    """Get list of available ML backends (excluding mock)."""
-    available = []
-    ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma"]
-
-    for backend in ml_backends:
-        if is_backend_available(backend):
-            available.append(backend)
-
-    return available
+# Import common interface
+from common_interface import QMEExampleInterface, create_standard_epilog
 
 
 def print_backend_summary(backends: List[str], title: str = "Available Backends"):
@@ -224,13 +201,13 @@ def create_example_commands(
     ]
 
 
-def demo_cli(backends: List[str] = None):
+def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
     """Demonstrate QME CLI with commands using default settings."""
-
-    print("=" * 80)
-    print("QME CLI Demo - Comprehensive Backend Comparison")
-    print("=" * 80)
-    print("Testing: opt, tsopt, two-ended, and NEB commands")
+    
+    if interface is None:
+        interface = QMEExampleInterface("CLI Demo", "Comprehensive Backend Comparison")
+    
+    interface.print_header("Testing: opt, tsopt, two-ended, and NEB commands")
 
     # Ensure no config file interferes with defaults
     config_file = Path("qme.json")
@@ -244,18 +221,12 @@ def demo_cli(backends: List[str] = None):
     # Get available ML backends
     try:
         if backends:
-            # Filter requested backends to only available ones
-            available_backends = []
-            for backend in backends:
-                if is_backend_available(backend):
-                    available_backends.append(backend)
-                else:
-                    print(f"Warning: Backend '{backend}' not available, skipping")
+            available_backends = interface.filter_available_backends(backends, verbose=True)
         else:
-            available_backends = get_available_ml_backends()
+            available_backends = interface.get_available_ml_backends()
 
         if not available_backends:
-            print("\n❌ No ML backends available for comparison.")
+            interface.print_error("No ML backends available for comparison.")
             print("Please install at least one ML backend:")
             print("  - UMA: pip install fairchem-core")
             print("  - MACE: pip install mace-torch")
@@ -264,9 +235,9 @@ def demo_cli(backends: List[str] = None):
             print("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
             return False
 
-        print_backend_summary(available_backends, "Testing Backends")
+        interface.print_backend_summary(available_backends, "Testing Backends")
     except Exception as e:
-        print(f"❌ Error detecting backends: {e}")
+        interface.print_error(f"Error detecting backends: {e}")
         return False
 
     # Ensure we're in the right directory structure
@@ -425,23 +396,14 @@ def demo_cli(backends: List[str] = None):
 
 def main():
     """Main entry point with argument parsing."""
-    parser = argparse.ArgumentParser(
-        description="QME CLI Demo - Comprehensive Backend Comparison",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  conda run -n py312 python cli_demo.py
-  conda run -n py312 python cli_demo.py --backends aimnet2,uma
-  conda run -n py312 python cli_demo.py --backends mace
-        """,
+    # Create standardized interface
+    interface = QMEExampleInterface(
+        name="CLI Demo",
+        description="Comprehensive Backend Comparison",
+        epilog=create_standard_epilog("demo")
     )
-
-    parser.add_argument(
-        "--backends",
-        type=str,
-        help="Comma-separated list of backends to test (default: all available)",
-    )
-
+    
+    parser = interface.create_parser()
     args = parser.parse_args()
 
     # Parse backends if provided
@@ -450,7 +412,7 @@ Examples:
         backends = [b.strip() for b in args.backends.split(",")]
 
     try:
-        success = demo_cli(backends)
+        success = demo_cli(backends, interface)
         return 0 if success else 1
     except KeyboardInterrupt:
         print("\n\nDemo interrupted by user")
