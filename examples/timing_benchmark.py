@@ -491,9 +491,9 @@ def main():
     interface = QMEExampleInterface(
         name="Timing Benchmark",
         description="Performance Analysis",
-        epilog=create_standard_epilog("timing")
+        epilog=create_standard_epilog("timing"),
     )
-    
+
     parser = interface.create_parser()
     args = parser.parse_args()
 
@@ -502,7 +502,9 @@ def main():
     # Determine which backends to test
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
-        available_backends = interface.filter_available_backends(requested_backends, verbose=True)
+        available_backends = interface.filter_available_backends(
+            requested_backends, verbose=True
+        )
 
         if not available_backends:
             interface.print_error("No requested backends are available!")
@@ -522,14 +524,14 @@ def main():
             return 1
 
     interface.print_backend_summary(available_backends, "Benchmarking Backends")
-    
+
     # Get device info
     device = interface.get_device_info(args.device)
-    
+
     config = {
         "Device": device,
         "Output": args.output or interface.get_default_output_file(),
-        "Verbose": args.verbose
+        "Verbose": args.verbose,
     }
     interface.print_configuration(config)
 
