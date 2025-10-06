@@ -24,7 +24,7 @@ python bh28_benchmark.py
 python bh28_benchmark.py --quick
 
 # Test specific backends
-python bh28_benchmark.py --backends mock so3lr uma
+python bh28_benchmark.py --backends so3lr uma
 
 # Test specific reactions
 python bh28_benchmark.py --reactions BHDIV_3 PXBH_2 CADBH_1
