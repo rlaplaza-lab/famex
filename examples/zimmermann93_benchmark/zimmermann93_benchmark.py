@@ -45,6 +45,9 @@ except ImportError as e:
     print("   Please ensure QME is installed and accessible")
     sys.exit(1)
 
+# Import device utilities
+from device_utils import get_optimal_device, print_device_info
+
 # Quiet noisy backends
 logging.getLogger("jax").setLevel(logging.WARNING)
 logging.getLogger("numexpr").setLevel(logging.WARNING)
@@ -630,7 +633,7 @@ Examples:
         print(f"❌ Invalid reactions: {invalid_rxn}")
         return 1
 
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  NPoints: {args.npoints}")
     print(f"  Interpolation: {args.interp_method}")
     print(f"  Optimize path: {args.optimize_path}")

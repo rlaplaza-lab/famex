@@ -605,9 +605,9 @@ def _run_simple_neb(
     # Check if we can use batch evaluation
     calculator = path[0].calc if path[0].calc is not None else None
     supports_batch = (
-        calculator is not None 
-        and hasattr(calculator, 'calculate_batch') 
-        and hasattr(calculator, 'supports_batch_evaluation')
+        calculator is not None
+        and hasattr(calculator, "calculate_batch")
+        and hasattr(calculator, "supports_batch_evaluation")
         and calculator.supports_batch_evaluation
     )
 
@@ -626,15 +626,19 @@ def _run_simple_neb(
                 batch_results = calculator.calculate_batch(
                     path, properties=["energy", "forces"]
                 )
-                
+
                 for result in batch_results:
                     energies.append(result.get("energy", float("inf")))
-                    forces_list.append(result.get("forces", np.zeros((len(path[0]), 3))))
-                    
+                    forces_list.append(
+                        result.get("forces", np.zeros((len(path[0]), 3)))
+                    )
+
             except Exception as e:
-                warnings.warn(f"Batch evaluation failed, falling back to individual calculations: {e}")
+                warnings.warn(
+                    f"Batch evaluation failed, falling back to individual calculations: {e}"
+                )
                 supports_batch = False  # Disable batch for future iterations
-        
+
         if not supports_batch:
             # Fallback to individual calculations
             for atoms in path:

@@ -1,109 +1,130 @@
+"""
+Test backend functionality across all available backends.
+
+This module tests basic CLI functionality (minima, TS, NEB) across
+all available backends to ensure they work correctly.
+"""
+
 import os
 import tempfile
 
 import pytest
-from ase import Atoms
-from ase.io import write
 from click.testing import CliRunner
 
 from qme.cli import main
 from tests.backend_utils import AVAILABLE_BACKENDS
+from tests.test_utils import TestMoleculeFactory
 
 
-def _make_xyz(tmpdir: str, fname: str = "mol.xyz") -> str:
-    # Water molecule with mild distortion
-    atoms = Atoms(
-        "H2O",
-        positions=[
-            [0.000, 0.000, 0.000],
-            [0.950, 0.000, 0.000],
-            [-0.239, 0.927, 0.000],
-        ],
-    )
-    path = os.path.join(tmpdir, fname)
-    write(path, atoms)
-    return path
+class TestBackendCLI:
+    """Test CLI functionality across all available backends."""
 
+    @pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
+    def test_minima_optimization_cli(self, backend: str):
+        """Test minima optimization via CLI across all backends."""
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as tmp:
+            # Create test molecule
+            atoms = TestMoleculeFactory.get_water_distorted()
+            xyz_path = os.path.join(tmp, "test.xyz")
+            atoms.write(xyz_path)
 
-@pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
-def test_minima_runs_across_backends(backend: str):
+            # Run optimization
+            result = runner.invoke(
+                main,
+                [
+                    "opt",
+                    xyz_path,
+                    "--backend",
+                    backend,
+                    "--optimizer",
+                    "lbfgs",
+                    "--steps",
+                    "5",
+                ],
+            )
 
-    runner = CliRunner()
-    with tempfile.TemporaryDirectory() as tmp:
-        xyz = _make_xyz(tmp)
-        result = runner.invoke(
-            main,
-            [
-                "opt",
-                xyz,
-                "--backend",
-                backend,
-                "--optimizer",
-                "lbfgs",
-                "--steps",
-                "5",
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        out = os.path.splitext(xyz)[0] + ".opt.xyz"
-        assert os.path.exists(out)
+            # Verify success
+            assert result.exit_code == 0, f"CLI failed: {result.output}"
+            out_path = os.path.splitext(xyz_path)[0] + ".opt.xyz"
+            assert os.path.exists(out_path), f"Output file not created: {out_path}"
 
+    @pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
+    def test_transition_state_optimization_cli(self, backend: str):
+        """Test transition state optimization via CLI across all backends."""
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as tmp:
+            # Create test molecule
+            atoms = TestMoleculeFactory.get_water_distorted()
+            xyz_path = os.path.join(tmp, "test.xyz")
+            atoms.write(xyz_path)
 
-@pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
-def test_ts_runs_across_backends(backend: str):
+            # Run TS optimization
+            result = runner.invoke(
+                main,
+                [
+                    "tsopt",
+                    xyz_path,
+                    "--backend",
+                    backend,
+                    "--optimizer",
+                    "lbfgs",
+                    "--steps",
+                    "3",
+                ],
+            )
 
-    runner = CliRunner()
-    with tempfile.TemporaryDirectory() as tmp:
-        xyz = _make_xyz(tmp)
-        result = runner.invoke(
-            main,
-            [
-                "tsopt",
-                xyz,
-                "--backend",
-                backend,
-                "--optimizer",
-                "lbfgs",
-                "--steps",
-                "3",
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        out = os.path.splitext(os.path.basename(xyz))[0] + ".ts.xyz"
-        assert os.path.exists(os.path.join(tmp, out))
+            # Verify success
+            assert result.exit_code == 0, f"CLI failed: {result.output}"
+            out_path = os.path.splitext(os.path.basename(xyz_path))[0] + ".ts.xyz"
+            assert os.path.exists(
+                os.path.join(tmp, out_path)
+            ), f"Output file not created: {out_path}"
 
+    @pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
+    def test_neb_optimization_cli(self, backend: str):
+        """Test NEB optimization via CLI across all backends."""
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as tmp:
+            # Create reactant and product structures
+            reactant_atoms = TestMoleculeFactory.get_water_distorted()
+            product_atoms = TestMoleculeFactory.get_water_distorted()
+            # Slightly modify product
+            pos = product_atoms.get_positions()
+            pos[1, 0] += 0.1  # Move H atom slightly
+            product_atoms.set_positions(pos)
 
-@pytest.mark.parametrize("backend", AVAILABLE_BACKENDS)
-def test_neb_runs_across_backends(backend: str):
+            reactant_path = os.path.join(tmp, "reactant.xyz")
+            product_path = os.path.join(tmp, "product.xyz")
+            reactant_atoms.write(reactant_path)
+            product_atoms.write(product_path)
 
-    runner = CliRunner()
-    with tempfile.TemporaryDirectory() as tmp:
-        # Create reactant and product structures
-        reactant_path = _make_xyz(tmp, "reactant.xyz")
-        product_path = _make_xyz(tmp, "product.xyz")
+            # Run NEB optimization
+            result = runner.invoke(
+                main,
+                [
+                    "tsopt",
+                    reactant_path,
+                    "--product",
+                    product_path,
+                    "--mode",
+                    "neb",
+                    "--backend",
+                    backend,
+                    "--npoints",
+                    "5",
+                    "--steps",
+                    "5",
+                    "--fmax",
+                    "0.1",
+                    "--spring-constant",
+                    "1.0",
+                ],
+            )
 
-        # Run NEB optimization using tsopt with --mode neb
-        result = runner.invoke(
-            main,
-            [
-                "tsopt",
-                reactant_path,
-                "--product",
-                product_path,
-                "--mode",
-                "neb",
-                "--backend",
-                backend,
-                "--npoints",
-                "5",  # Small number for fast testing
-                "--steps",
-                "5",  # Very few steps for testing
-                "--fmax",
-                "0.1",  # Relaxed convergence for testing
-                "--spring-constant",
-                "1.0",  # Lower spring constant for faster testing
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        out = os.path.splitext(os.path.basename(reactant_path))[0] + ".neb.xyz"
-        assert os.path.exists(os.path.join(tmp, out))
+            # Verify success
+            assert result.exit_code == 0, f"CLI failed: {result.output}"
+            out_path = os.path.splitext(os.path.basename(reactant_path))[0] + ".neb.xyz"
+            assert os.path.exists(
+                os.path.join(tmp, out_path)
+            ), f"Output file not created: {out_path}"

@@ -1,0 +1,47 @@
+[
+  {
+    "backend": "mock",
+    "optimizer": "bfgs",
+    "device": "cuda",
+    "model_name": null,
+    "test_ts": false,
+    "available": true,
+    "error": null,
+    "timings": {
+      "initialization": 1.8030001228908077e-05,
+      "structure_loading": 0.00011425999764469452,
+      "single_energy_first": 0.0010959829996863846,
+      "single_energy_second": 0.0009647930019127671,
+      "single_energy": 0.0009647930019127671,
+      "single_forces": 0.0009324520033260342,
+      "optimization": 12.976209142001608,
+      "avg_time_per_step": null,
+      "frequency_analysis": 1.0361029410014453,
+      "total": 14.016402394008765
+    },
+    "optimization_results": {
+      "converged": true,
+      "final_energy": 1.1811386990361585,
+      "max_force": 0.0072989069992156486,
+      "steps_taken": null
+    },
+    "frequency_results": {
+      "n_frequencies": 30,
+      "frequencies": [
+        92.08457527050737,
+        92.71385509279285,
+        94.19451131960709,
+        156.33661753338774,
+        186.12721579455763,
+        187.60976476753984,
+        196.15919986381948,
+        196.58242961392227,
+        198.02535668961664,
+        199.9006044956472
+      ],
+      "zero_point_energy": 1.0037034281120834,
+      "is_transition_state": false,
+      "method_used": "auto"
+    }
+  }
+]
