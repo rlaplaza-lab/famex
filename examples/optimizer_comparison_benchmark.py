@@ -142,8 +142,8 @@ def benchmark_optimizer(
         print("Backend: {}".format(backend.upper()))
         print("Optimizer: {}".format(optimizer.upper()))
         print_device_info(device)
-        print("Model: {}".format(model_name or 'default'))
-        print("Test Type: {}".format('Transition State' if test_ts else 'Minima'))
+        print("Model: {}".format(model_name or "default"))
+        print("Test Type: {}".format("Transition State" if test_ts else "Minima"))
         print("-" * 60)
 
     results = {
@@ -517,7 +517,9 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
             if time_per_step_list:
                 print(
                     "  {:<30}: {:.4f}s ± {:.4f}s".format(
-                        "Avg Time/Step", np.mean(time_per_step_list), np.std(time_per_step_list)
+                        "Avg Time/Step",
+                        np.mean(time_per_step_list),
+                        np.std(time_per_step_list),
                     )
                 )
                 print(f"  {'Min Time/Step':<30}: {min(time_per_step_list):>8.4f}s")
@@ -526,7 +528,9 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
             if total_time_list:
                 print(
                     "  {:<30}: {:.3f}s ± {:.3f}s".format(
-                        "Avg Total Time", np.mean(total_time_list), np.std(total_time_list)
+                        "Avg Total Time",
+                        np.mean(total_time_list),
+                        np.std(total_time_list),
                     )
                 )
                 print(f"  {'Min Total Time':<30}: {min(total_time_list):>8.3f}s")
@@ -560,18 +564,18 @@ def main():
     interface = QMEExampleInterface(
         name="TS Optimizer Benchmark",
         description="Transition State Optimizer Comparison",
-        epilog=create_standard_epilog("benchmark")
+        epilog=create_standard_epilog("benchmark"),
     )
-    
+
     parser = interface.create_parser()
-    
+
     # Add optimizer-specific arguments
     parser.add_argument(
         "--optimizers",
         type=str,
         help="Comma-separated list of TS optimizers to benchmark (default: sella,geometric)",
     )
-    
+
     args = parser.parse_args()
 
     interface.print_header()
@@ -579,7 +583,9 @@ def main():
     # Determine which backends to test
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
-        available_backends = interface.filter_available_backends(requested_backends, verbose=True)
+        available_backends = interface.filter_available_backends(
+            requested_backends, verbose=True
+        )
 
         if not available_backends:
             interface.print_error("No requested backends are available!")
@@ -607,23 +613,25 @@ def main():
             if opt.lower() in ["sella", "geometric"]:
                 available_optimizers.append(opt.lower())
             else:
-                print(f"Warning: Unknown TS optimizer '{opt}', skipping. Available: sella, geometric")
+                print(
+                    f"Warning: Unknown TS optimizer '{opt}', skipping. Available: sella, geometric"
+                )
     else:
         # Default TS optimizers
         available_optimizers = ["sella", "geometric"]
 
     interface.print_backend_summary(available_backends, "Benchmarking Backends")
     print(f"\nTS Optimizers: {', '.join(available_optimizers)}")
-    print(f"Test Type: Transition State")
-    
+    print("Test Type: Transition State")
+
     # Get device info
     device = interface.get_device_info(args.device)
-    
+
     config = {
         "Device": device,
         "Output": args.output or interface.get_default_output_file(),
         "Verbose": args.verbose,
-        "Test Type": "Transition State"
+        "Test Type": "Transition State",
     }
     interface.print_configuration(config)
 

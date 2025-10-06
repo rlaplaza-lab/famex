@@ -26,7 +26,12 @@ os.environ["DISPLAY"] = ""
 os.environ["MPLBACKEND"] = "Agg"
 
 # Import common interface
-from common_interface import QMEExampleInterface, create_standard_epilog
+try:
+    from common_interface import QMEExampleInterface, create_standard_epilog
+except ImportError:
+    print("❌ Error importing common interface")
+    print("   Please ensure you're running from the examples directory")
+    sys.exit(1)
 
 
 def print_backend_summary(backends: List[str], title: str = "Available Backends"):
@@ -203,10 +208,10 @@ def create_example_commands(
 
 def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
     """Demonstrate QME CLI with commands using default settings."""
-    
+
     if interface is None:
         interface = QMEExampleInterface("CLI Demo", "Comprehensive Backend Comparison")
-    
+
     interface.print_header("Testing: opt, tsopt, two-ended, and NEB commands")
 
     # Ensure no config file interferes with defaults
@@ -221,7 +226,9 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
     # Get available ML backends
     try:
         if backends:
-            available_backends = interface.filter_available_backends(backends, verbose=True)
+            available_backends = interface.filter_available_backends(
+                backends, verbose=True
+            )
         else:
             available_backends = interface.get_available_ml_backends()
 
@@ -400,9 +407,9 @@ def main():
     interface = QMEExampleInterface(
         name="CLI Demo",
         description="Comprehensive Backend Comparison",
-        epilog=create_standard_epilog("demo")
+        epilog=create_standard_epilog("demo"),
     )
-    
+
     parser = interface.create_parser()
     args = parser.parse_args()
 

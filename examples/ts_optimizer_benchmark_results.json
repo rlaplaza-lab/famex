@@ -1,0 +1,66 @@
+[
+  {
+    "backend": "uma",
+    "optimizer": "sella",
+    "device": "cuda",
+    "model_name": null,
+    "test_ts": true,
+    "available": true,
+    "error": null,
+    "timings": {
+      "initialization": 1.5580000763293356e-05,
+      "structure_loading": 0.0002541599969845265,
+      "single_energy_first": 4.677588546001061,
+      "single_energy_second": 0.00018046999684884213,
+      "single_energy": 0.00018046999684884213,
+      "single_forces": 0.00013808000221615657,
+      "optimization": 151.6931087390003,
+      "avg_time_per_step": null,
+      "frequency_analysis": 4.254264965002221,
+      "total": 160.62573100999725
+    },
+    "optimization_results": {
+      "converged": true,
+      "final_energy": -6314.521238051142,
+      "max_force": 0.003938411362469196,
+      "steps_taken": null
+    },
+    "frequency_results": {
+      "n_frequencies": 30,
+      "frequencies": [
+        0.5200246135936385,
+        317.9743907712022,
+        428.01182400986045,
+        552.826850465843,
+        618.9540911752056,
+        711.883368918187,
+        737.2713903044139,
+        833.1821345550607,
+        861.0728186903872,
+        894.3070774416162
+      ],
+      "zero_point_energy": 2.59766391059685,
+      "is_transition_state": false,
+      "method_used": "auto"
+    }
+  },
+  {
+    "backend": "uma",
+    "optimizer": "geometric",
+    "device": "cuda",
+    "model_name": null,
+    "test_ts": true,
+    "available": true,
+    "error": "Unknown optimizer: geometric\n\n\ud83d\udca1 Suggestion: Use one of: sella, lbfgs, bfgs, fire",
+    "timings": {
+      "initialization": 8.049999451031908e-06,
+      "structure_loading": 2.8130001737736166e-05,
+      "single_energy_first": 0.00010751999798230827,
+      "single_energy_second": 6.183999721542932e-05,
+      "single_energy": 6.183999721542932e-05,
+      "single_forces": 6.76300005579833e-05
+    },
+    "optimization_results": {},
+    "frequency_results": {}
+  }
+]
