@@ -34,7 +34,7 @@ qme opt --help
 
 ### Backend Not Available
 
-**Problem**: 
+**Problem**:
 ```
 Error: Backend 'uma' not available. Available backends: ['mock']
 ```
@@ -45,7 +45,7 @@ Error: Backend 'uma' not available. Available backends: ['mock']
 ```bash
 # Install specific backend
 pip install qme-ml-ml[uma]        # UMA backend
-pip install qme-ml-ml[aimnet2]    # AIMNet2 backend  
+pip install qme-ml-ml[aimnet2]    # AIMNet2 backend
 pip install qme-ml-ml[mace]       # MACE backend
 pip install qme-ml-ml[so3lr]      # SO3LR backend
 pip install qme-ml-ml[torchsim]   # TorchSim backends
@@ -70,7 +70,7 @@ conda create -n qme-uma python=3.12
 conda activate qme-uma
 pip install qme-ml-ml[uma]
 
-conda create -n qme-mace python=3.12  
+conda create -n qme-mace python=3.12
 conda activate qme-mace
 pip install qme-ml-ml[mace]
 
@@ -429,7 +429,7 @@ Error: Invalid value for '--fmax': 'abc' is not a valid float
 # Correct
 qme opt molecule.xyz --fmax 0.05
 
-# Incorrect  
+# Incorrect
 qme opt molecule.xyz --fmax abc
 ```
 

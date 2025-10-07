@@ -281,6 +281,31 @@ def clear_availability_cache():
     _checker.clear_cache()
 
 
+def get_backend_error_message(backend: str) -> str:
+    """Get a clear error message for why backend is unavailable.
+
+    Args:
+        backend: Backend name
+
+    Returns:
+        str: Human-readable error message with installation instructions
+    """
+    reason = get_availability_reason(backend)
+
+    install_commands = {
+        "aimnet2": "pip install qme-ml[aimnet2]",
+        "uma": "pip install qme-ml[uma]",
+        "mace": "pip install qme-ml[mace]",
+        "so3lr": "pip install qme-ml[so3lr]",
+        "torchsim_mace": "pip install qme-ml[torchsim]",
+        "torchsim_uma": "pip install qme-ml[torchsim,uma]",
+    }
+
+    cmd = install_commands.get(backend, f"pip install qme-ml[{backend}]")
+
+    return f"Backend '{backend}' is not available.\n" f"Reason: {reason}\n" f"Install with: {cmd}"
+
+
 # Backend categorization constants
 ALL_BACKENDS = [
     "mock",

@@ -224,7 +224,7 @@ Use the registry system for new components:
 ```python
 # Register strategies, backends, etc.
 explorer.register_strategy(
-    "my_strategy", 
+    "my_strategy",
     my_function,
     strategy_type="local"
 )
@@ -261,7 +261,7 @@ class MyAnalysis:
     def __init__(self, atoms, calculator):
         self.atoms = atoms
         self.calculator = calculator
-    
+
     def run(self):
         # Implement analysis
         pass

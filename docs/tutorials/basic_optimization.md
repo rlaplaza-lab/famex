@@ -115,17 +115,17 @@ for backend in backends:
         print(f"\n--- Testing {backend} ---")
         explorer = qme.Explorer.from_atoms(atoms.copy(), backend=backend)
         result = explorer.run(mode="minima")
-        
+
         results[backend] = {
             'final_energy': result['final_energy'],
             'n_steps': result['n_steps'],
             'converged': result['converged']
         }
-        
+
         print(f"Energy: {result['final_energy']:.6f} eV")
         print(f"Steps: {result['n_steps']}")
         print(f"Converged: {result['converged']}")
-        
+
     except Exception as e:
         print(f"Error with {backend}: {e}")
 
@@ -292,7 +292,7 @@ print(f"Ammonia final energy: {result2['final_energy']:.6f} eV")
 # Method 3: With custom settings
 print("\n=== Custom settings ===")
 explorer3 = qme.Explorer.from_file(
-    "water.xyz", 
+    "water.xyz",
     backend="aimnet2",
     device="cpu"
 )
@@ -324,7 +324,7 @@ def safe_optimization(filename, backend="aimnet2"):
     try:
         explorer = qme.Explorer.from_file(filename, backend=backend)
         result = explorer.run(mode="minima")
-        
+
         if result['converged']:
             print(f"✅ Optimization converged in {result['n_steps']} steps")
             print(f"Final energy: {result['final_energy']:.6f} eV")
@@ -332,7 +332,7 @@ def safe_optimization(filename, backend="aimnet2"):
         else:
             print("⚠️ Optimization did not converge")
             return None
-            
+
     except FileNotFoundError:
         print(f"❌ File {filename} not found")
         return None

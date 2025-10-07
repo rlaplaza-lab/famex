@@ -7,7 +7,7 @@ This comprehensive guide explains how to add support for new machine learning po
 Adding a new backend involves multiple integration points throughout the QME codebase:
 
 1. **Implementing the calculator interface**
-2. **Handling dependencies gracefully** 
+2. **Handling dependencies gracefully**
 3. **Registering the backend in multiple locations**
 4. **Adding comprehensive tests**
 5. **Updating documentation and examples**
@@ -33,10 +33,10 @@ from qme.dependencies import deps
 
 class MyPotential(BasePotential):
     """My custom ML potential calculator."""
-    
+
     def __init__(self, model_name: str = "default", device: str = "cpu", **kwargs):
         """Initialize the calculator.
-        
+
         Args:
             model_name: Name of the model to load
             device: Compute device ("cpu" or "cuda")
@@ -45,49 +45,49 @@ class MyPotential(BasePotential):
         super().__init__()
         self.model_name = model_name
         self.device = device
-        
+
         # Try to load the ML framework
         self.ml_package = deps.get_dependency("my_ml_package")
         if self.ml_package is None:
             raise ImportError("my_ml_package not available")
-            
+
         # Load the model
         self.model = self._load_model()
-        
+
     def _load_model(self):
         """Load the ML model."""
         # Implementation specific to your ML package
         model = self.ml_package.load_model(self.model_name)
         model.to(self.device)
         return model
-        
-    def calculate(self, atoms: Atoms, properties: List[str] = None, 
+
+    def calculate(self, atoms: Atoms, properties: List[str] = None,
                   system_changes: List[str] = None):
         """Calculate properties using the ML potential.
-        
+
         This is the main ASE Calculator interface method.
         """
         if properties is None:
             properties = ["energy", "forces"]
-            
+
         # Convert ASE atoms to model input format
         model_input = self._atoms_to_input(atoms)
-        
+
         # Run model prediction
         predictions = self.model(model_input)
-        
+
         # Store results in ASE format
         self.results = {}
-        
+
         if "energy" in properties:
             self.results["energy"] = predictions["energy"].item()
-            
+
         if "forces" in properties:
             self.results["forces"] = predictions["forces"].detach().numpy()
-            
+
         # Update atoms object
         atoms.calc = self
-        
+
     def _atoms_to_input(self, atoms: Atoms) -> Dict[str, Any]:
         """Convert ASE Atoms to model input format."""
         # Implementation specific to your model's expected input
@@ -112,7 +112,7 @@ Every backend must implement:
 Backends may also implement:
 
 - `get_potential_energy()`: Direct energy calculation
-- `get_forces()`: Direct force calculation  
+- `get_forces()`: Direct force calculation
 - `get_stress()`: Stress tensor calculation
 - `supports_batch_evaluation`: Property for batch support
 
@@ -131,7 +131,7 @@ def __init__(self, **kwargs):
     # Try to load optional dependency
     self.torch = deps.get_dependency("torch")
     self.my_package = deps.get_dependency("my_ml_package")
-    
+
     if self.my_package is None:
         raise ImportError(
             "my_ml_package not available. Install with: pip install my_ml_package"
@@ -163,15 +163,15 @@ Create a factory function that handles initialization and fallbacks:
 
 def get_my_calculator(model_name: str = "default", device: str = "cpu", **kwargs):
     """Get My ML potential calculator.
-    
+
     Args:
         model_name: Model to load
         device: Compute device
         **kwargs: Additional parameters
-        
+
     Returns:
         Calculator instance
-        
+
     Raises:
         ImportError: If required dependencies are not available
     """
@@ -219,7 +219,7 @@ Add factory function and exports:
 # Add to __all__ list
 __all__ = [
     # ... existing exports ...
-    "MyPotential", 
+    "MyPotential",
     "get_my_calculator",
 ]
 
@@ -294,7 +294,7 @@ _DEPENDENCY_MAP = {
     # ... existing dependencies ...
     "my_ml_package": {
         "import_name": "my_ml_package",
-        "pip_name": "my-ml-package", 
+        "pip_name": "my-ml-package",
         "description": "My ML Package for molecular potentials"
     },
 }
@@ -329,7 +329,7 @@ _LAZY_IMPORTS = {
 __all__ = [
     # ... existing exports ...
     "MyPotential",
-    "get_my_calculator", 
+    "get_my_calculator",
 ]
 ```
 
@@ -348,7 +348,7 @@ def _load_model(self):
         else:
             # Download model if needed
             model = self._download_model()
-            
+
         return model
     except Exception as e:
         raise RuntimeError(f"Failed to load model {self.model_name}: {e}")
@@ -374,7 +374,7 @@ AVAILABLE_MODELS = {
     },
     "my_large": {
         "description": "Large model for high accuracy",
-        "size": "100MB", 
+        "size": "100MB",
         "accuracy": "High"
     }
 }
@@ -396,7 +396,7 @@ Update the hardcoded backend lists in ALL example files:
 # examples/timing_benchmark.py
 ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma", "my_backend"]
 
-# examples/cli_demo.py  
+# examples/cli_demo.py
 ml_backends = ["aimnet2", "uma", "so3lr", "mace", "torchsim_mace", "torchsim_uma", "my_backend"]
 
 # examples/bh28_benchmark/bh28_benchmark.py
@@ -428,7 +428,7 @@ Update ALL documentation that mentions backend lists:
 
 ```markdown
 # docs/user_guide/backends.md - Add your backend to the table
-# docs/tutorials/basic_optimization.md - Add to backend comparison examples  
+# docs/tutorials/basic_optimization.md - Add to backend comparison examples
 # docs/reference/troubleshooting.md - Add troubleshooting for your backend
 # README.md - Add to supported backends table
 ```
@@ -456,41 +456,41 @@ from qme.potentials.my_potential import get_my_calculator, MyPotential
 
 class TestMyBackend:
     """Test My ML backend."""
-    
+
     def test_calculator_creation(self):
         """Test that calculator can be created."""
         calc = get_my_calculator()
         assert calc is not None
-        
+
     def test_energy_calculation(self):
         """Test energy calculation."""
         atoms = molecule("H2O")
         calc = get_my_calculator()
         atoms.calc = calc
-        
+
         energy = atoms.get_potential_energy()
         assert isinstance(energy, float)
-        
+
     def test_force_calculation(self):
         """Test force calculation."""
         atoms = molecule("H2O")
         calc = get_my_calculator()
         atoms.calc = calc
-        
+
         forces = atoms.get_forces()
         assert forces.shape == (len(atoms), 3)
-        
+
     def test_optimization(self):
         """Test that optimization works."""
         from qme import Explorer
-        
+
         atoms = molecule("H2O")
         explorer = Explorer.from_atoms(atoms, backend="my_backend")
         result = explorer.run(mode="minima", steps=10)  # Short test
-        
+
         assert "optimized_atoms" in result
         assert "final_energy" in result
-        
+
     @pytest.mark.skipif(
         not _backend_available("my_backend"),
         reason="MyML backend not available"
@@ -542,7 +542,7 @@ pip install my-ml-package    # Or direct installation
 qme opt molecule.xyz --backend my_backend --model-name my_small
 
 # Python API
-explorer = qme.Explorer.from_file("molecule.xyz", 
+explorer = qme.Explorer.from_file("molecule.xyz",
                                   backend="my_backend",
                                   model_name="my_small")
 ```
@@ -561,14 +561,14 @@ Document your classes and functions:
 ```python
 class MyPotential(BasePotential):
     """My ML potential calculator.
-    
+
     This calculator provides interface to My ML Package for
     molecular property prediction.
-    
+
     Attributes:
         model_name: Name of the loaded model
         device: Compute device (cpu/cuda)
-        
+
     Example:
         >>> calc = MyPotential(model_name="my_small", device="cpu")
         >>> atoms.calc = calc
@@ -618,7 +618,7 @@ def __init__(self, device="auto", **kwargs):
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
     self.device = device
-    
+
     # Move model to device
     self.model.to(self.device)
 ```
@@ -630,7 +630,7 @@ def __init__(self, device="auto", **kwargs):
 def supports_batch_evaluation(self):
     """Whether this calculator supports batch evaluation."""
     return True
-    
+
 def calculate_batch(self, atoms_list, properties=None):
     """Calculate properties for multiple structures."""
     # Implement batch calculation for performance

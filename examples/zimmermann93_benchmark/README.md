@@ -47,7 +47,7 @@ conda run -n py312 python zimmermann93_benchmark.py --quick
 The benchmark uses a subset of the Zimmermann-93 dataset containing diverse organic reactions with:
 
 - **Reactant structures** (`*_reactant.xyz`)
-- **Product structures** (`*_product.xyz`)  
+- **Product structures** (`*_product.xyz`)
 - **Reference transition states** (`*_ts.xyz`)
 
 Each reaction tests the ability to find transition states connecting known reactant and product structures, which is a common scenario in computational chemistry.

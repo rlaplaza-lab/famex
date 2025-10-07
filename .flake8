@@ -1,19 +1,21 @@
 [flake8]
 max-line-length = 100
-extend-ignore = 
+extend-ignore =
     # Line break before binary operator (conflicts with black)
     W503,
-    # Line break after binary operator (conflicts with black)  
+    # Line break after binary operator (conflicts with black)
     W504,
     # Whitespace before ':' (conflicts with black)
-    E203
+    E203,
+    # Missing whitespace around arithmetic operator (in f-strings)
+    E226,
     # Trailing whitespaces
-    W291
+    W291,
     # Unused local variable
-    F841
+    F841,
     # Unused import
     F401
-exclude = 
+exclude =
     .git,
     __pycache__,
     build,

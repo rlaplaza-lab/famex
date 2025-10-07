@@ -288,22 +288,22 @@ Use Google-style docstrings:
 ```python
 def optimize_structure(atoms, fmax=0.05, steps=1000):
     """Optimize molecular structure to minimum energy.
-    
+
     Args:
         atoms: ASE Atoms object to optimize
         fmax: Force convergence threshold in eV/Å
         steps: Maximum number of optimization steps
-        
+
     Returns:
         dict: Optimization results with keys:
             - 'optimized_atoms': Optimized ASE Atoms object
             - 'final_energy': Final energy in eV
             - 'converged': Whether optimization converged
-            
+
     Raises:
         ValueError: If atoms object is invalid
         RuntimeError: If optimization fails to converge
-        
+
     Example:
         >>> from ase.build import molecule
         >>> atoms = molecule('H2O')

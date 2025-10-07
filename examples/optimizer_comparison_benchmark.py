@@ -197,7 +197,7 @@ def _benchmark_optimization(
 
         # Check if optimizer is suitable for this task
         if suitable_optimizers and optimizer.lower() not in suitable_optimizers:
-            task = 'TS' if test_ts else 'minima'
+            task = "TS" if test_ts else "minima"
             results["error"] = (
                 f"Optimizer {optimizer} not suitable for {task} optimization. "
                 f"Suitable: {', '.join(suitable_optimizers)}"
@@ -418,8 +418,7 @@ def _benchmark_optimization(
             if not is_valid_result:
                 if verbose:
                     print(
-                        f"⚠️  WARNING: Expected TS but found {n_imaginary} "
-                        "imaginary frequencies"
+                        f"⚠️  WARNING: Expected TS but found {n_imaginary} " "imaginary frequencies"
                     )
                     if n_imaginary == 0:
                         print("   This suggests the optimizer found a minimum instead of a TS")
@@ -530,12 +529,8 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
 
             # Handle None values for formatting
             steps_str = str(steps_taken) if steps_taken is not None else "N/A"
-            avg_time_str = (
-                f"{avg_time_per_step:.4f}" if avg_time_per_step is not None else "N/A"
-            )
-            final_energy_str = (
-                f"{final_energy:.3f}" if final_energy is not None else "N/A"
-            )
+            avg_time_str = f"{avg_time_per_step:.4f}" if avg_time_per_step is not None else "N/A"
+            final_energy_str = f"{final_energy:.3f}" if final_energy is not None else "N/A"
             max_force_str = f"{max_force:.6f}" if max_force is not None else "N/A"
             valid_result_str = "Yes" if is_valid_result else "No"
 
@@ -637,9 +632,7 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
             # Quality analysis based on task type
             if any(r.get("test_ts", False) for r in opt_results):
                 # TS-specific analysis
-                ts_results = [
-                    r for r in opt_results if r.get("test_ts", False)
-                ]
+                ts_results = [r for r in opt_results if r.get("test_ts", False)]
                 if ts_results:
                     valid_result_list = [
                         r["frequency_results"].get("is_valid_result", False)
@@ -647,9 +640,7 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
                         if "frequency_results" in r
                     ]
                     if valid_result_list:
-                        ts_success_rate = (
-                            sum(valid_result_list) / len(valid_result_list) * 100
-                        )
+                        ts_success_rate = sum(valid_result_list) / len(valid_result_list) * 100
                         print(f"  {'TS Success Rate':<30}: {ts_success_rate:>8.1f}%")
 
                     # Imaginary frequency analysis
@@ -663,9 +654,7 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
                         print(f"  {'Avg Imaginary Freq':<30}: {avg_imag:>8.1f}")
             else:
                 # Minima-specific analysis
-                minima_results = [
-                    r for r in opt_results if not r.get("test_ts", False)
-                ]
+                minima_results = [r for r in opt_results if not r.get("test_ts", False)]
                 if minima_results:
                     valid_result_list = [
                         r["frequency_results"].get("is_valid_result", False)
@@ -673,9 +662,7 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
                         if "frequency_results" in r
                     ]
                     if valid_result_list:
-                        minima_success_rate = (
-                            sum(valid_result_list) / len(valid_result_list) * 100
-                        )
+                        minima_success_rate = sum(valid_result_list) / len(valid_result_list) * 100
                         print(f"  {'Minima Success Rate':<30}: {minima_success_rate:>8.1f}%")
 
             print(f"  {'Total Tests':<30}: {len(opt_results):>8}")
@@ -753,7 +740,8 @@ def main():
                 ts_optimizers.append(opt.lower())
             else:
                 print(
-                    "Warning: Unknown optimizer '" f"{opt}', skipping. "
+                    "Warning: Unknown optimizer '"
+                    f"{opt}', skipping. "
                     "Available: lbfgs, bfgs, fire (minima), sella (TS)"
                 )
     else:
@@ -808,9 +796,7 @@ def main():
                     print("\nBenchmark interrupted by user.")
                     break
                 except Exception as e:
-                    print(
-                        f"\nUnexpected error with {backend}+{optimizer} (minima): {e}"
-                    )
+                    print(f"\nUnexpected error with {backend}+{optimizer} (minima): {e}")
                     results_list.append(
                         {
                             "backend": backend,
@@ -844,9 +830,7 @@ def main():
                     print("\nBenchmark interrupted by user.")
                     break
                 except Exception as e:
-                    print(
-                        f"\nUnexpected error with {backend}+{optimizer} (TS): {e}"
-                    )
+                    print(f"\nUnexpected error with {backend}+{optimizer} (TS): {e}")
                     results_list.append(
                         {
                             "backend": backend,

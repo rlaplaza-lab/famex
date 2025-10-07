@@ -166,7 +166,6 @@ temp/
 # ASE trajectory files
 *.traj
 
-# Output files from optimizations  
+# Output files from optimizations
 *.opt.*
 *.ts.*
-

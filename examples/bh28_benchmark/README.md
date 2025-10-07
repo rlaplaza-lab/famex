@@ -74,11 +74,11 @@ Results are saved to `benchmark_results/bh28_benchmark_results.json` and include
 
 ```
 🏆 BACKEND COMPARISON
-Backend      Success  MAE (eV)   RMSE (eV)   Avg Time  
+Backend      Success  MAE (eV)   RMSE (eV)   Avg Time
 -----------------------------------------------------------------
-so3lr        4/6      0.324      0.456       4.4s      
-uma          5/6      0.245      0.312       2.1s      
-aimnet2      6/6      0.156      0.198       1.8s      
+so3lr        4/6      0.324      0.456       4.4s
+uma          5/6      0.245      0.312       2.1s
+aimnet2      6/6      0.156      0.198       1.8s
 ```
 
 ## Directory Structure

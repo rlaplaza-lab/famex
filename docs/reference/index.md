@@ -54,7 +54,7 @@ Frequently asked questions about QME usage, installation, and best practices.
 
 **Backend Selection**:
 - **Testing**: Use `mock` backend
-- **General use**: Start with `aimnet2` 
+- **General use**: Start with `aimnet2`
 - **High accuracy**: Try `mace` models
 - **Maximum speed**: Use `torchsim_*` with GPU
 

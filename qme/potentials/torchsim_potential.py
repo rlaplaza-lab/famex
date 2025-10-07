@@ -468,7 +468,8 @@ class TorchSimPotential(BasePotential):
             except Exception as e:
                 # Fallback to individual processing if batching fails
                 print(
-                    "Warning: TorchSim batching failed (" f"{e}), "
+                    "Warning: TorchSim batching failed ("
+                    f"{e}), "
                     "falling back to individual processing"
                 )
                 batch_results = []
