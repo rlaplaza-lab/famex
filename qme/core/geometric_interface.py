@@ -136,6 +136,10 @@ class GeometricOptimizer(Optimizer):
         params.convergence_energy = self.geometric_kwargs["convergence"]["energy"]
         params.convergence_step = self.geometric_kwargs["convergence"]["step"]
         params.trust = self.geometric_kwargs["trust"]
+        # Explicitly set xyzout to None to prevent file output issues
+        params.xyzout = None
+        # Disable frequency analysis to prevent the NoneType.replace() error
+        params.frequency = False
 
         # Set initial Hessian if provided
         if self.initial_hessian is not None:
