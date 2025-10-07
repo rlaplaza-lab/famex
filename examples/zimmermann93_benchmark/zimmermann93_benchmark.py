@@ -336,13 +336,8 @@ class Zimmermann93Benchmark:
                                         backend=backend,
                                         model_name=model_name,
                                     )
-<<<<<<< HEAD
                                     ts_result = ts_optimizer.run(
                                         mode="ts", fmax=fmax, steps=steps
-=======
-                                    ts_result = ts_optimizer.optimize_ts(
-                                        fmax=fmax, steps=steps
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
                                     )
                                     ts_success = ts_result.get(
                                         "converged", False

@@ -256,13 +256,9 @@ class BH28Benchmark:
                                     backend=backend,
                                     model_name=model_name,
                                 )
-<<<<<<< HEAD
                                 result = optimizer.run(
                                     mode="minima",
                                     local_optimizer_name="LBFGS",
-=======
-                                result = optimizer.optimize_minima(
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
                                     steps=500,
                                     fmax=0.01,
                                 )

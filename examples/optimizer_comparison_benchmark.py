@@ -376,7 +376,6 @@ def _benchmark_optimization(
             converged = getattr(optimized_atoms, 'converged', True)  # Assume converged if no info
             final_energy = optimized_atoms.get_potential_energy() if optimized_atoms.calc else None
             max_force = None  # Will calculate below
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
         opt_time = time.perf_counter() - opt_start
 

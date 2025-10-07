@@ -18,26 +18,16 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from ase import Atoms
 
 from qme import Explorer
-from qme.dependencies import deps
-<<<<<<< HEAD
 from qme.backend_availability import get_available_backends
+from qme.dependencies import deps
 from tests.test_utils import StandardTestAssertions, TestMoleculeFactory
-=======
-from tests.backend_utils import AVAILABLE_BACKENDS, AVAILABLE_ML_BACKENDS
-
-# Define optimizers to test - limit to 2 most important ones
-OPTIMIZERS = ["BFGS", "LBFGS"]
 
 
 class TestSystemDefinitions:
     """Define test molecular systems with distorted initial geometries."""
-
-    @staticmethod
-    def get_h2_stretched():
-        """H2 molecule with stretched bond (equilibrium ~0.74 Å)."""
-        return Atoms(["H", "H"], positions=[[0, 0, 0], [2.0, 0, 0]])
 
     @staticmethod
     def get_water_distorted():
@@ -123,7 +113,6 @@ class TestSystemDefinitions:
                 [0.0, -0.5, -1.0],  # H
             ],
         )
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
 
 class TestMinimaOptimization:
@@ -139,9 +128,10 @@ class TestMinimaOptimization:
         h2 = TestMoleculeFactory.get_h2_stretched()
         optimizer = Explorer(atoms=h2, backend=backend)
 
-<<<<<<< HEAD
         start_time = time.time()
-        result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=20)
+        result = optimizer.run(
+            mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=20
+        )
         optimization_time = time.time() - start_time
 
         # Handle list return format from run() method
@@ -155,51 +145,22 @@ class TestMinimaOptimization:
         StandardTestAssertions.assert_reasonable_geometry(
             strategy_result["optimized_atoms"], backend
         )
-=======
-            start_time = time.time()
-            result = optimizer.optimize_minima(fmax=0.05, steps=20)  # Reduced steps
-            optimization_time = time.time() - start_time
-
-            # Check basic results - new API returns list of atoms
-            assert result is not None
-            assert isinstance(result, list)
-            assert len(result) == 1
-            final_atoms = result[0]  # Get first (and only) atoms object
-            assert hasattr(final_atoms, "get_distance")  # Should be Atoms object
-            final_distance = final_atoms.get_distance(0, 1)
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
-
-        # Check H-H distance
+        # Check H-H distance on standardized result
         final_distance = strategy_result["optimized_atoms"].get_distance(0, 1)
         if backend == "mock":
             assert 0.5 < final_distance < 2.5
         else:
             assert 0.6 < final_distance < 1.2
 
-<<<<<<< HEAD
-        print(
-            f"Backend {backend}: H2 optimization took {optimization_time:.3f}s, "
-            f"{strategy_result['steps_taken']} steps, final H-H distance: {final_distance:.3f} Å"
-        )
-=======
-            print(
-                f"Backend {backend}: H2 optimization took {optimization_time:.3f}s, "
-                f"final H-H distance: {final_distance:.3f} Å"
-            )
-
-        except ImportError as e:
-            # This should not happen with pre-filtered backends, but just in case
-            pytest.fail(f"Unexpected ImportError for available backend {backend}: {e}")
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
-
     def test_water_optimization(self, backend):
         """Test H2O optimization across all backends."""
         water = TestMoleculeFactory.get_water_distorted()
         optimizer = Explorer(atoms=water, backend=backend)
 
-<<<<<<< HEAD
         start_time = time.time()
-        result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50)
+        result = optimizer.run(
+            mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50
+        )
         optimization_time = time.time() - start_time
 
         # Handle list return format from run() method
@@ -207,18 +168,6 @@ class TestMinimaOptimization:
             strategy_result = result[0]
         else:
             strategy_result = result
-=======
-            start_time = time.time()
-            result = optimizer.optimize_minima(fmax=0.05, steps=50)
-            optimization_time = time.time() - start_time
-
-            # Check convergence - new API returns list of atoms
-            assert result is not None
-            assert isinstance(result, list)
-            assert len(result) == 1
-            final_atoms = result[0]  # Get first (and only) atoms object
-            assert hasattr(final_atoms, "get_distance")  # Should be Atoms object
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
@@ -231,23 +180,17 @@ class TestMinimaOptimization:
         oh1_dist = final_atoms.get_distance(0, 1)
         oh2_dist = final_atoms.get_distance(0, 2)
 
-<<<<<<< HEAD
         if backend == "mock":
             assert 0.4 < oh1_dist < 2.0
             assert 0.4 < oh2_dist < 2.0
         else:
             assert 0.85 < oh1_dist < 1.6
             assert 0.85 < oh2_dist < 1.6
-=======
-            print(
-                f"Backend {backend}: H2O optimization took {optimization_time:.3f}s, "
-                f"O-H distances: {oh1_dist:.3f}, {oh2_dist:.3f} Å"
-            )
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
         print(
             f"Backend {backend}: H2O optimization took {optimization_time:.3f}s, "
-            f"{strategy_result['steps_taken']} steps, O-H distances: {oh1_dist:.3f}, {oh2_dist:.3f} Å"
+            f"{strategy_result['steps_taken']} steps, O-H distances: {oh1_dist:.3f}, "
+            f"{oh2_dist:.3f} Å"
         )
 
     def test_methane_optimization(self, backend):
@@ -255,9 +198,10 @@ class TestMinimaOptimization:
         methane = TestMoleculeFactory.get_methane_distorted()
         optimizer = Explorer(atoms=methane, backend=backend)
 
-<<<<<<< HEAD
         start_time = time.time()
-        result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50)
+        result = optimizer.run(
+            mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50
+        )
         optimization_time = time.time() - start_time
 
         # Handle list return format from run() method
@@ -265,18 +209,6 @@ class TestMinimaOptimization:
             strategy_result = result[0]
         else:
             strategy_result = result
-=======
-            start_time = time.time()
-            result = optimizer.optimize_minima(fmax=0.05, steps=50)
-            optimization_time = time.time() - start_time
-
-            # Check convergence - new API returns list of atoms
-            assert result is not None
-            assert isinstance(result, list)
-            assert len(result) == 1
-            final_atoms = result[0]  # Get first (and only) atoms object
-            assert hasattr(final_atoms, "get_distance")  # Should be Atoms object
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
@@ -288,34 +220,24 @@ class TestMinimaOptimization:
         final_atoms = strategy_result["optimized_atoms"]
         ch_distances = [final_atoms.get_distance(0, i) for i in range(1, 5)]
 
-<<<<<<< HEAD
         if backend == "mock":
             for dist in ch_distances:
                 assert 0.18 < dist <= 2.0
         else:
             for dist in ch_distances:
                 assert 0.95 < dist < 1.25
-=======
-            print(
-                f"Backend {backend}: CH4 optimization took {optimization_time:.3f}s, "
-                f"avg C-H distance: {np.mean(ch_distances):.3f} Å"
-            )
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
         print(
             f"Backend {backend}: CH4 optimization took {optimization_time:.3f}s, "
-            f"{strategy_result['steps_taken']} steps, avg C-H distance: {np.mean(ch_distances):.3f} Å"
+            f"{strategy_result['steps_taken']} steps, avg C-H distance: "
+            f"{np.mean(ch_distances):.3f} Å"
         )
 
 
 class TestTransitionStateOptimization:
     """Test transition state optimization across all available backends."""
 
-<<<<<<< HEAD
     @pytest.fixture(params=get_available_backends())
-=======
-    @pytest.fixture(params=AVAILABLE_ML_BACKENDS)
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
     def backend(self, request):
         """Parametrized fixture for available ML backends (excluding mock for TS)."""
         # Ensure SELLA is available for transition state optimization
@@ -328,18 +250,9 @@ class TestTransitionStateOptimization:
         water_ts_guess = TestMoleculeFactory.get_water_dissociation_ts_guess()
         optimizer = Explorer(atoms=water_ts_guess, backend=backend)
 
-<<<<<<< HEAD
         start_time = time.time()
         result = optimizer.run(mode="ts", fmax=0.1, steps=50)
         optimization_time = time.time() - start_time
-=======
-            start_time = time.time()
-            result = optimizer.optimize_ts(
-                fmax=0.1,  # Slightly looser convergence for complex system
-                steps=50,  # Reduced steps for faster testing
-            )
-            optimization_time = time.time() - start_time
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
         # Handle list return format from run() method
         if isinstance(result, list) and len(result) > 0:
@@ -353,7 +266,6 @@ class TestTransitionStateOptimization:
             strategy_result["optimized_atoms"], backend
         )
 
-<<<<<<< HEAD
         # Check O-H distances
         final_atoms = strategy_result["optimized_atoms"]
         oh1_dist = final_atoms.get_distance(0, 1)  # O-H (dissociating)
@@ -364,23 +276,11 @@ class TestTransitionStateOptimization:
             assert oh1_dist > oh2_dist  # Dissociating H should be farther
             assert oh1_dist > 1.5  # Should be stretched
             assert 0.8 < oh2_dist < 1.5  # Remaining OH should be reasonable
-=======
-            # Dissociating H should be farther
-            if backend != "mock":
-                assert oh1_dist > oh2_dist  # Dissociating H should be farther
-                assert oh1_dist > 1.5  # Should be stretched
-                assert 0.8 < oh2_dist < 1.5  # Remaining OH should be reasonable
-
-            print(
-                f"Backend {backend}: H2O dissociation TS took "
-                f"{optimization_time:.3f}s, "
-                f"O-H distances: {oh1_dist:.3f}, {oh2_dist:.3f} Å"
-            )
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
         print(
             f"Backend {backend}: H2O dissociation TS took {optimization_time:.3f}s, "
-            f"{strategy_result['steps_taken']} steps, O-H distances: {oh1_dist:.3f}, {oh2_dist:.3f} Å"
+            f"{strategy_result['steps_taken']} steps, O-H distances: "
+            f"{oh1_dist:.3f}, {oh2_dist:.3f} Å"
         )
 
     def test_optimizer_comparison(self):
@@ -392,10 +292,11 @@ class TestTransitionStateOptimization:
 
         # Test Sella optimizer with proper ML backend
         # Use first available ML backend for TS optimization
-        if not AVAILABLE_ML_BACKENDS:
+        ml_backends = get_available_backends(include_mock=False)
+        if not ml_backends:
             pytest.skip("No ML backends available for TS optimization")
 
-        ml_backend = AVAILABLE_ML_BACKENDS[0]
+        ml_backend = ml_backends[0]
         sella_optimizer = Explorer(
             atoms=water_ts_guess.copy(), backend=ml_backend, local_optimizer="sella"
         )
@@ -433,7 +334,6 @@ class TestTransitionStateOptimization:
         sn2_ts_guess = TestMoleculeFactory.get_sn2_like_ts_guess()
         optimizer = Explorer(atoms=sn2_ts_guess, backend=backend)
 
-<<<<<<< HEAD
         start_time = time.time()
         result = optimizer.run(mode="ts", fmax=0.1, steps=50)
         optimization_time = time.time() - start_time
@@ -443,16 +343,6 @@ class TestTransitionStateOptimization:
             strategy_result = result[0]
         else:
             strategy_result = result
-=======
-            start_time = time.time()
-            result = optimizer.optimize_ts(fmax=0.1, steps=50)
-            optimization_time = time.time() - start_time
-
-            # Check convergence - new API returns atoms directly
-            assert result is not None
-            assert hasattr(result, "get_distance")  # Should be Atoms object
-            final_atoms = result
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
@@ -460,7 +350,6 @@ class TestTransitionStateOptimization:
             strategy_result["optimized_atoms"], backend
         )
 
-<<<<<<< HEAD
         # Check key distances for SN2 mechanism
         final_atoms = strategy_result["optimized_atoms"]
         cf_dist = final_atoms.get_distance(0, 1)  # C-F (forming)
@@ -470,21 +359,11 @@ class TestTransitionStateOptimization:
             # In TS, both bonds should be elongated (but allow some flexibility)
             assert 1.0 < cf_dist < 3.5  # Forming bond (more lenient)
             assert 1.0 < ccl_dist < 4.0  # Breaking bond (more lenient)
-=======
-            # In TS, both bonds should be elongated
-            if backend != "mock":
-                assert 1.3 < cf_dist < 3.0  # Forming bond
-                assert 1.5 < ccl_dist < 3.5  # Breaking bond
-
-            print(
-                f"Backend {backend}: SN2-like TS took {optimization_time:.3f}s, "
-                f"C-F: {cf_dist:.3f} Å, C-Cl: {ccl_dist:.3f} Å"
-            )
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
         print(
             f"Backend {backend}: SN2-like TS took {optimization_time:.3f}s, "
-            f"{strategy_result['steps_taken']} steps, C-F: {cf_dist:.3f} Å, C-Cl: {ccl_dist:.3f} Å"
+            f"{strategy_result['steps_taken']} steps, C-F: {cf_dist:.3f} Å, "
+            f"C-Cl: {ccl_dist:.3f} Å"
         )
 
 
@@ -512,24 +391,20 @@ class TestFileIO:
                 strategy_result = result[0]
             else:
                 strategy_result = result
-            optimizer.save_structure(strategy_result["optimized_atoms"], str(output_file))
+            optimizer.save_structure(
+                strategy_result["optimized_atoms"], str(output_file)
+            )
 
             # Verify output file
             assert output_file.exists()
             final_atoms = optimizer.load_structure(str(output_file))
             assert len(final_atoms) == 2
 
-<<<<<<< HEAD
             # Test that the saved structure has reasonable geometry
             final_distance = final_atoms.get_distance(0, 1)
             assert (
                 0.5 < final_distance < 2.0
             ), f"Unreasonable H-H distance: {final_distance}"
-=======
-                # Optimize and save
-                result = optimizer.optimize_minima(fmax=0.05, steps=30)
-                optimizer.save_structure(result, str(output_file))
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
     def test_save_structure_robustness(self):
         """Test that save_structure handles problematic atoms objects gracefully."""
@@ -549,7 +424,8 @@ class TestFileIO:
         with tempfile.TemporaryDirectory() as tmpdir:
             output_file = Path(tmpdir) / "test_output.xyz"
 
-            # This should work even with problematic arrays due to the fallback mechanism
+            # This should work even with problematic arrays due to the fallback
+            # mechanism
             optimizer.save_structure(h2, str(output_file))
 
             # Verify the file was created and is readable
@@ -571,7 +447,6 @@ class TestBackendConsistency:
                 h2 = TestMoleculeFactory.get_h2_stretched()
                 optimizer = Explorer(atoms=h2, backend=backend)
 
-<<<<<<< HEAD
                 result = optimizer.run(mode="minima", fmax=0.05, steps=50)
                 # Handle list return format from run() method
                 if isinstance(result, list) and len(result) > 0:
@@ -579,13 +454,6 @@ class TestBackendConsistency:
                 else:
                     strategy_result = result
                 final_distance = strategy_result["optimized_atoms"].get_distance(0, 1)
-=======
-                result = optimizer.optimize_minima(fmax=0.05, steps=50)
-                assert isinstance(result, list)
-                assert len(result) == 1
-                final_atoms = result[0]  # Get first (and only) atoms object
-                final_distance = final_atoms.get_distance(0, 1)
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
                 results[backend] = final_distance
 
             except (ImportError, Exception):
