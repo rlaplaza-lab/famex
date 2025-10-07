@@ -5,9 +5,9 @@ import pytest
 from ase import Atoms
 from ase.build import molecule
 
+from qme.backend_availability import get_available_backends
 from qme.core.explorer import Explorer
 from qme.dependencies import deps
-from tests.backend_utils import AVAILABLE_ML_BACKENDS
 
 
 class TestGeometricOptimizer:
@@ -33,13 +33,9 @@ class TestGeometricOptimizer:
             pytest.skip("geomeTRIC not available")
 
         # Test with mock backend to avoid ML model dependencies
-        optimizer = Explorer(
-            atoms=water_molecule, backend="mock", local_optimizer="geometric"
-        )
+        optimizer = Explorer(atoms=water_molecule, backend="mock", local_optimizer="geometric")
 
-        result = optimizer.optimize_minima(
-            fmax=0.1, steps=10  # Small number for testing
-        )
+        result = optimizer.optimize_minima(fmax=0.1, steps=10)  # Small number for testing
 
         assert result is not None
         assert isinstance(result, list)
@@ -54,7 +50,8 @@ class TestGeometricOptimizer:
             pytest.skip("geomeTRIC not available")
 
         # Skip if no ML backends available for TS optimization
-        if not AVAILABLE_ML_BACKENDS:
+        ml_backends = get_available_backends(include_mock=False)
+        if not ml_backends:
             pytest.skip("No ML backends available for TS optimization")
 
         # Create a TS guess (stretched H2O)
@@ -66,7 +63,7 @@ class TestGeometricOptimizer:
 
         optimizer = Explorer(
             atoms=ts_guess,
-            backend=AVAILABLE_ML_BACKENDS[0],  # Use first available ML backend
+            backend=ml_backends[0],  # Use first available ML backend
             local_optimizer="geometric",
         )
 
@@ -89,9 +86,7 @@ class TestGeometricOptimizer:
             atoms=water_molecule.copy(), backend="mock", local_optimizer="geometric"
         )
 
-        sella_opt = Explorer(
-            atoms=water_molecule.copy(), backend="mock", local_optimizer="sella"
-        )
+        sella_opt = Explorer(atoms=water_molecule.copy(), backend="mock", local_optimizer="sella")
 
         # Run both optimizations
         geometric_result = geometric_opt.optimize_minima(fmax=0.1, steps=10)
@@ -134,9 +129,7 @@ class TestGeometricOptimizer:
                 local_optimizer="geometric",
             )
 
-            result = optimizer.optimize_minima(
-                fmax=0.1, steps=5  # Very small number for testing
-            )
+            result = optimizer.optimize_minima(fmax=0.1, steps=5)  # Very small number for testing
 
             assert result is not None
             assert isinstance(result, list)
@@ -174,7 +167,8 @@ class TestGeometricOptimizer:
             pytest.skip("geomeTRIC not available")
 
         # Skip if no ML backends available for TS optimization
-        if not AVAILABLE_ML_BACKENDS:
+        ml_backends = get_available_backends(include_mock=False)
+        if not ml_backends:
             pytest.skip("No ML backends available for TS optimization")
 
         # Create TS guess
@@ -185,7 +179,7 @@ class TestGeometricOptimizer:
 
         optimizer = Explorer(
             atoms=ts_guess,
-            backend=AVAILABLE_ML_BACKENDS[0],  # Use first available ML backend
+            backend=ml_backends[0],  # Use first available ML backend
             local_optimizer="geometric",
             ts_kwargs={
                 "trust": 0.05,
@@ -231,7 +225,8 @@ class TestGeometricOptimizer:
             pytest.skip("geomeTRIC not available")
 
         # Skip if no ML backends available for TS optimization
-        if not AVAILABLE_ML_BACKENDS:
+        ml_backends = get_available_backends(include_mock=False)
+        if not ml_backends:
             pytest.skip("No ML backends available for TS optimization")
 
         # Create TS guess (stretched H2O)
@@ -245,7 +240,7 @@ class TestGeometricOptimizer:
 
         optimizer = Explorer(
             atoms=ts_guess,
-            backend=AVAILABLE_ML_BACKENDS[0],  # Use first available ML backend
+            backend=ml_backends[0],  # Use first available ML backend
             local_optimizer="geometric",
             initial_hessian=hessian,
         )

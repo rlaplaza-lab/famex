@@ -16,8 +16,8 @@ from ase import Atoms
 from ase.build import molecule
 
 from qme import Explorer, calculator_registry
-from qme.dependencies import deps
 from qme.backend_availability import get_available_backends
+from qme.dependencies import deps
 from tests.test_utils import BackendTestMixin
 
 
@@ -47,13 +47,13 @@ class TestTorchSimIntegration:
             # Note: We don't assert specific availability expectations here because
             # backends may be unavailable due to compatibility issues (e.g., e3nn version conflicts)
             # The important thing is that the availability check doesn't crash
-            assert isinstance(
-                available, bool
-            ), f"Backend {backend} availability should be boolean"
+            assert isinstance(available, bool), f"Backend {backend} availability should be boolean"
 
     def test_torchsim_calculator_creation(self):
         """Test TorchSim calculator creation."""
-        BackendTestMixin.require_backend("torchsim_mace")  # This will skip if TorchSim is not available
+        BackendTestMixin.require_backend(
+            "torchsim_mace"
+        )  # This will skip if TorchSim is not available
 
         # Test TorchSim MACE calculator
         calc_mace = calculator_registry.create_calculator(
@@ -153,7 +153,10 @@ class TestTorchSimIntegration:
 
         # Optimize (structure already loaded in constructor)
         result = qme_opt.run(
-            mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=10  # Small number for testing
+            mode="minima",
+            local_optimizer_name="BFGS",
+            fmax=0.05,
+            steps=10,  # Small number for testing
         )
 
         # Handle list return format from run() method

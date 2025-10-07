@@ -47,9 +47,7 @@ except ImportError:  # pragma: no cover - tests expect MockCalculator
 
 # Helper to attempt to import a concrete backend module and pull symbols.
 # If the concrete module is not importable, raise a clear ImportError.
-def _import_backend(
-    module_name: str, cls_name: str, func_name: str, backend_label: str
-):
+def _import_backend(module_name: str, cls_name: str, func_name: str, backend_label: str):
     try:
         module = import_module(f"qme.potentials.{module_name}")
         cls = getattr(module, cls_name)
@@ -86,9 +84,7 @@ SO3LRPotential = None
 
 def get_so3lr_calculator(**kwargs):
     if not deps.has("so3lr"):
-        raise ImportError(
-            "SO3LR backend requires so3lr. Install with: pip install so3lr"
-        )
+        raise ImportError("SO3LR backend requires so3lr. Install with: pip install so3lr")
     try:
         from qme.potentials.so3lr_potential import SO3LRPotential
 
@@ -103,9 +99,7 @@ AIMNet2Potential = None
 
 def get_aimnet2_calculator(**kwargs):
     if not deps.has("torch"):
-        raise ImportError(
-            "AIMNet2 backend requires torch. Install with: pip install torch"
-        )
+        raise ImportError("AIMNet2 backend requires torch. Install with: pip install torch")
     try:
         from qme.potentials.aimnet2_potential import AIMNet2Potential
 
@@ -120,9 +114,7 @@ MACEPotential = None
 
 def get_mace_calculator(**kwargs):
     if not deps.has("mace"):
-        raise ImportError(
-            "MACE backend requires mace-torch. Install with: pip install mace-torch"
-        )
+        raise ImportError("MACE backend requires mace-torch. Install with: pip install mace-torch")
     try:
         from qme.potentials.mace_potential import MACEPotential
 

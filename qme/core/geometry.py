@@ -172,9 +172,7 @@ class Geometry(Atoms):
         """
         return self.get_angle(atom1, atom2, atom3) * 180.0 / np.pi
 
-    def get_dihedral_degrees(
-        self, atom1: int, atom2: int, atom3: int, atom4: int
-    ) -> float:
+    def get_dihedral_degrees(self, atom1: int, atom2: int, atom3: int, atom4: int) -> float:
         """Get dihedral angle between four atoms in degrees.
 
         Parameters
@@ -295,14 +293,9 @@ def read_gaussian_input(filename: str) -> (Atoms, str):
     elif "opt" in route_line:
         job_type = "minimize"
     else:
-        raise ValueError(
-            "Could not determine job type. Route line must contain 'opt' or 'opt=ts'."
-        )
+        raise ValueError("Could not determine job type. Route line must contain 'opt' or 'opt=ts'.")
 
-    if (
-        charge_mult_line_index >= len(lines)
-        or not lines[charge_mult_line_index].strip()
-    ):
+    if charge_mult_line_index >= len(lines) or not lines[charge_mult_line_index].strip():
         # This handles cases with no title or compact input
         # Let's search for the charge/multiplicity line after the route line
         for i in range(charge_mult_line_index - 2, len(lines)):

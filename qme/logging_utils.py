@@ -84,9 +84,7 @@ def suppress_ml_warnings():
     class FilteredStderr:
         def write(self, text):
             # Check if message should be suppressed
-            should_suppress = any(
-                pattern in text for pattern in verbose_filter.SUPPRESSED_PATTERNS
-            )
+            should_suppress = any(pattern in text for pattern in verbose_filter.SUPPRESSED_PATTERNS)
             if not should_suppress and len(text.strip()) > 0:
                 original_stderr.write(text)
                 captured_messages.append(text)

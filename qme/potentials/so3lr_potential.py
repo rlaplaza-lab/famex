@@ -71,9 +71,7 @@ class SO3LRPotential(BasePotential):
 
         from qme.logging_utils import quiet_backend_loading
 
-        with quiet_backend_loading(
-            "so3lr", self.model_name, self.model_path, self.device
-        ):
+        with quiet_backend_loading("so3lr", self.model_name, self.model_path, self.device):
             # Get SO3LR module
             so3lr = deps.get("so3lr")
             if so3lr is None:
@@ -167,6 +165,4 @@ def get_so3lr_calculator(
     SO3LRPotential
         Configured SO3LR calculator
     """
-    return SO3LRPotential(
-        model_path=model_path, model_name=model_name, device=device, **kwargs
-    )
+    return SO3LRPotential(model_path=model_path, model_name=model_name, device=device, **kwargs)

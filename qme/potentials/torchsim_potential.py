@@ -67,8 +67,7 @@ class TorchSimPotential(BasePotential):
 
         if not deps.has("torch"):
             raise ImportError(
-                "PyTorch is required for TorchSimPotential. "
-                "Install with: pip install torch"
+                "PyTorch is required for TorchSimPotential. " "Install with: pip install torch"
             )
 
         # Set device if not provided
@@ -140,11 +139,7 @@ class TorchSimPotential(BasePotential):
 
         try:
             # Load MACE model through TorchSim
-            from mace.calculators.foundations_models import (
-                mace_mp,
-                mace_off,
-                mace_omol,
-            )
+            from mace.calculators.foundations_models import mace_mp, mace_off, mace_omol
             from torch_sim.models.mace import MaceModel
 
             if self.model_name == "mace-omol-0":
@@ -211,9 +206,7 @@ class TorchSimPotential(BasePotential):
                     spin_value = float(atoms.info["spin"])
                 else:
                     spin_value = float(self.default_spin)
-                data["total_spin"] = torch.tensor(
-                    [spin_value], device=torch_device, dtype=dtype
-                )
+                data["total_spin"] = torch.tensor([spin_value], device=torch_device, dtype=dtype)
 
             if "total_charge" not in data:
                 # Get charge from atoms.info or use default
@@ -243,9 +236,7 @@ class TorchSimPotential(BasePotential):
 
             # For now, we'll use the regular Fairchem approach since TorchSim Fairchem
             # has compatibility issues with the current fairchem-core version
-            raise ImportError(
-                "TorchSim Fairchem not compatible with current fairchem-core version"
-            )
+            raise ImportError("TorchSim Fairchem not compatible with current fairchem-core version")
 
         except ImportError as e:
             raise ImportError(
@@ -270,14 +261,10 @@ class TorchSimPotential(BasePotential):
             atoms_copy.center(vacuum=10.0)
 
         if self._state is None:
-            self._state = self._torch_sim.io.atoms_to_state(
-                atoms_copy, device=device, dtype=dtype
-            )
+            self._state = self._torch_sim.io.atoms_to_state(atoms_copy, device=device, dtype=dtype)
         else:
             # Update existing state
-            self._state = self._torch_sim.io.atoms_to_state(
-                atoms_copy, device=device, dtype=dtype
-            )
+            self._state = self._torch_sim.io.atoms_to_state(atoms_copy, device=device, dtype=dtype)
 
         # Enable gradients for positions (needed for force calculations)
         self._state.positions.requires_grad_(True)
@@ -346,9 +333,7 @@ class TorchSimPotential(BasePotential):
             if energy.dim() == 0:
                 self.results["energy"] = float(energy)
             else:
-                self.results["energy"] = float(
-                    energy[0]
-                )  # Take first system if batched
+                self.results["energy"] = float(energy[0])  # Take first system if batched
 
         if "forces" in properties and "forces" in results:
             forces = results["forces"]
@@ -425,9 +410,7 @@ class TorchSimPotential(BasePotential):
             batch_results = self._model(batch_state)
 
             # Split results back to individual structures
-            return self._split_batch_results(
-                self._batch_results, len(atoms_list), properties
-            )
+            return self._split_batch_results(self._batch_results, len(atoms_list), properties)
         else:
             # Regular calculator - use individual calculations
             batch_results = []
@@ -441,9 +424,7 @@ class TorchSimPotential(BasePotential):
                 atoms.calc = self._model
 
                 # Calculate properties
-                self._model.calculate(
-                    atoms, properties=properties, system_changes=all_changes
-                )
+                self._model.calculate(atoms, properties=properties, system_changes=all_changes)
 
                 # Extract results
                 result = {}
@@ -467,9 +448,7 @@ class TorchSimPotential(BasePotential):
                     # Use TorchSim's built-in batching
                     batch_state = self._torch_sim.batch_states(states)
                     batch_results = self._model(batch_state)
-                    self._batch_results = self._split_batch_results(
-                        batch_results, len(states)
-                    )
+                    self._batch_results = self._split_batch_results(batch_results, len(states))
                     return states[0]
 
                 # Fallback: Manual batching for TorchSim models
@@ -477,9 +456,7 @@ class TorchSimPotential(BasePotential):
                     # Create a proper batch by concatenating states
                     batch_state = self._create_manual_batch(states)
                     batch_results = self._model(batch_state)
-                    self._batch_results = self._split_batch_results(
-                        batch_results, len(states)
-                    )
+                    self._batch_results = self._split_batch_results(batch_results, len(states))
                     return states[0]
 
                 else:
@@ -671,9 +648,7 @@ def get_torchsim_mace_calculator(
     **kwargs,
 ) -> TorchSimPotential:
     """Convenience function for TorchSim MACE calculator."""
-    return TorchSimPotential(
-        model_name=model_name, device=device, backend="mace", **kwargs
-    )
+    return TorchSimPotential(model_name=model_name, device=device, backend="mace", **kwargs)
 
 
 def get_torchsim_uma_calculator(
@@ -682,6 +657,4 @@ def get_torchsim_uma_calculator(
     **kwargs,
 ) -> TorchSimPotential:
     """Convenience function for TorchSim UMA calculator."""
-    return TorchSimPotential(
-        model_name=model_name, device=device, backend="fairchem", **kwargs
-    )
+    return TorchSimPotential(model_name=model_name, device=device, backend="fairchem", **kwargs)

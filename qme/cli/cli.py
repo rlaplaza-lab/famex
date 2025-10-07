@@ -54,9 +54,7 @@ def _common_explorer_options(f):
             help="Backend: uma|so3lr|aimnet2|mace|torchsim|torchsim_mace|torchsim_fairchem|mock",
         ),
         click.option("--model-name", default=None, help="Model name for backend"),
-        click.option(
-            "--model-path", default=None, help="Path to model file (if applicable)"
-        ),
+        click.option("--model-path", default=None, help="Path to model file (if applicable)"),
         click.option("--device", default=None, help="Device: cpu|cuda"),
         click.option(
             "--default-charge",
@@ -128,12 +126,8 @@ def _common_explorer_options(f):
     default=None,
     help="Output optimized XYZ path",
 )
-@click.option(
-    "--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold"
-)
-@click.option(
-    "--steps", type=int, default=1000, show_default=True, help="Max optimization steps"
-)
+@click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
+@click.option("--steps", type=int, default=1000, show_default=True, help="Max optimization steps")
 @click.option(
     "--npoints",
     type=int,
@@ -176,9 +170,7 @@ def opt(
     ts_kwargs = parse_kv_pairs(list(ts_kw))
 
     if quiet:
-        ctx = quiet_backend_loading(
-            backend, model_name, model_path, device, show_model_info=True
-        )
+        ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
         from contextlib import nullcontext
 
@@ -202,11 +194,14 @@ def opt(
                 constraints=constraints,
             )
             results = exp.run(mode="minima", fmax=fmax, steps=steps)
-            result_atoms = (
-                results
-                if isinstance(results, Atoms)
-                else (results[0] if results else atoms)
-            )
+            if isinstance(results, Atoms):
+                result_atoms = results
+            elif isinstance(results, dict):
+                result_atoms = results.get("optimized_atoms", atoms)
+            elif isinstance(results, (list, tuple)) and results:
+                result_atoms = results[0]
+            else:
+                result_atoms = atoms
         else:
             exp = Explorer(
                 atoms=[atoms, p_atoms],
@@ -254,12 +249,8 @@ def opt(
     default=None,
     help="Output TS XYZ path",
 )
-@click.option(
-    "--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold"
-)
-@click.option(
-    "--steps", type=int, default=1000, show_default=True, help="Max optimization steps"
-)
+@click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
+@click.option("--steps", type=int, default=1000, show_default=True, help="Max optimization steps")
 @click.option(
     "--npoints",
     type=int,
@@ -318,9 +309,7 @@ def tsopt(
     ts_kwargs = parse_kv_pairs(list(ts_kw))
 
     if quiet:
-        ctx = quiet_backend_loading(
-            backend, model_name, model_path, device, show_model_info=True
-        )
+        ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
         from contextlib import nullcontext
 
@@ -344,11 +333,14 @@ def tsopt(
                 constraints=constraints,
             )
             results = exp.run(mode="ts", fmax=fmax, steps=steps)
-            ts_atoms = (
-                results
-                if isinstance(results, Atoms)
-                else (results[0] if results else r_atoms)
-            )
+            if isinstance(results, Atoms):
+                ts_atoms = results
+            elif isinstance(results, dict):
+                ts_atoms = results.get("optimized_atoms", r_atoms)
+            elif isinstance(results, (list, tuple)) and results:
+                ts_atoms = results[0]
+            else:
+                ts_atoms = r_atoms
         else:
             # Two-ended case - determine target based on mode
             if mode == "neb":
@@ -397,9 +389,7 @@ def tsopt(
     if mode == "neb":
         out = output_path or (out_base + ".neb.xyz")
         write_atoms(ts_atoms, out)
-        click.echo(
-            f"NEB optimization completed. Saved {len(ts_atoms)} images to: {out}"
-        )
+        click.echo(f"NEB optimization completed. Saved {len(ts_atoms)} images to: {out}")
     else:
         out = output_path or (out_base + ".ts.xyz")
         write_atoms(ts_atoms, out)

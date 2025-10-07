@@ -32,14 +32,10 @@ class BasePotential:
         self.results: dict = {}
 
         # Default implemented properties; subclasses may override
-        self.implemented_properties: List[str] = kwargs.get(
-            "implemented_properties", []
-        )
+        self.implemented_properties: List[str] = kwargs.get("implemented_properties", [])
 
         # Batch evaluation support
-        self._supports_batch_evaluation: bool = kwargs.get(
-            "supports_batch_evaluation", False
-        )
+        self._supports_batch_evaluation: bool = kwargs.get("supports_batch_evaluation", False)
 
     def calculate(
         self,

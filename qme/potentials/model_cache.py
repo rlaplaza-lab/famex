@@ -94,9 +94,7 @@ class ModelCache:
         # Verify file integrity if checksum is available
         if "checksum" in cache_entry:
             if not self._verify_checksum(cached_path, cache_entry["checksum"]):
-                print(
-                    f"Warning: Cached model {model_name} failed checksum verification"
-                )
+                print(f"Warning: Cached model {model_name} failed checksum verification")
                 cached_path.unlink()
                 del self.metadata[model_hash]
                 self._save_metadata()

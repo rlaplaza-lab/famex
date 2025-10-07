@@ -80,9 +80,7 @@ def suppress_verbose_output():
 class BH28Benchmark:
     """Comprehensive benchmark suite for QME on the BH28 database."""
 
-    def __init__(
-        self, dataset_dir: str = "bh28_dataset", output_dir: str = "benchmark_results"
-    ):
+    def __init__(self, dataset_dir: str = "bh28_dataset", output_dir: str = "benchmark_results"):
         """Initialize comprehensive benchmark."""
         self.dataset_dir = Path(dataset_dir)
         self.output_dir = Path(output_dir)
@@ -134,9 +132,7 @@ class BH28Benchmark:
         print(f"Dataset: {self.dataset_dir}")
         print(f"Output: {self.output_dir}")
         print(f"Available reactions: {len(self.reference_barriers)}")
-        print(
-            "Note: SO3LR has known molecular size limitations and may skip some reactions"
-        )
+        print("Note: SO3LR has known molecular size limitations and may skip some reactions")
 
     def load_structure(self, filename: str) -> Atoms:
         """Load molecular structure from XYZ file."""
@@ -200,9 +196,7 @@ class BH28Benchmark:
                 print(f"Warning: Backend '{backend}' not available, skipping")
         return available
 
-    def print_backend_summary(
-        self, backends: List[str], title: str = "Available Backends"
-    ):
+    def print_backend_summary(self, backends: List[str], title: str = "Available Backends"):
         """Print a formatted summary of backends."""
         print(f"\n📋 {title}")
         print("-" * 50)
@@ -265,9 +259,7 @@ class BH28Benchmark:
                             optimized_reactants.append(result["optimized_atoms"])
                             reactant_energies.append(result["final_energy"])
 
-                            reactant_label = (
-                                f"reactant_{i+1}" if len(reactants) > 1 else "reactant"
-                            )
+                            reactant_label = f"reactant_{i+1}" if len(reactants) > 1 else "reactant"
                             print(
                                 f"  ✅ {reactant_label}: {result['final_energy']:.6f} eV "
                                 f"({result['steps_taken']} steps)"
@@ -299,14 +291,7 @@ class BH28Benchmark:
                                         backend=backend,
                                         model_name=model_name,
                                     )
-<<<<<<< HEAD
-                                    ts_result = ts_optimizer.run(
-                                        mode="ts", steps=500, fmax=0.01
-=======
-                                    ts_result = ts_optimizer.optimize_ts(
-                                        steps=500, fmax=0.01
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
-                                    )
+                                    ts_result = ts_optimizer.run(mode="ts", steps=500, fmax=0.01)
 
                                 ts_time = time.time() - start_time
                                 reaction_data.update(
@@ -316,15 +301,11 @@ class BH28Benchmark:
                                         "ts_time": ts_time,
                                         "ts_steps": ts_result["steps_taken"],
                                         "ts_success": True,
-                                        "ts_converged": ts_result.get(
-                                            "converged", True
-                                        ),
+                                        "ts_converged": ts_result.get("converged", True),
                                     }
                                 )
 
-                                status = (
-                                    "✅" if ts_result.get("converged", True) else "⚠️"
-                                )
+                                status = "✅" if ts_result.get("converged", True) else "⚠️"
                                 print(
                                     f"  {status} TS: {ts_result['final_energy']:.6f} eV "
                                     f"({ts_result['steps_taken']} steps)"
@@ -345,20 +326,12 @@ class BH28Benchmark:
                                             "ts_method": "single_point",
                                         }
                                     )
-                                    print(
-                                        f"  📊 TS (single-point fallback): {ts_energy:.6f} eV"
-                                    )
+                                    print(f"  📊 TS (single-point fallback): {ts_energy:.6f} eV")
                                 except Exception as e2:
-                                    print(
-                                        f"  ❌ TS single-point also failed: {str(e2)}"
-                                    )
-                                    reaction_data.update(
-                                        {"ts_success": False, "ts_error": str(e)}
-                                    )
+                                    print(f"  ❌ TS single-point also failed: {str(e2)}")
+                                    reaction_data.update({"ts_success": False, "ts_error": str(e)})
                         else:
-                            print(
-                                "  ⚠️  SELLA not available - using single-point TS energy"
-                            )
+                            print("  ⚠️  SELLA not available - using single-point TS energy")
                             try:
                                 ts_atoms = self.get_transition_state(reaction)
                                 ts_atoms.calc = optimizer.calculator
@@ -374,23 +347,15 @@ class BH28Benchmark:
                                 print(f"  📊 TS (single-point): {ts_energy:.6f} eV")
                             except Exception as e:
                                 print(f"  ❌ TS single-point failed: {str(e)}")
-                                reaction_data.update(
-                                    {"ts_success": False, "ts_error": str(e)}
-                                )
+                                reaction_data.update({"ts_success": False, "ts_error": str(e)})
 
                         # 3. Calculate barrier height from optimized structures
-                        if reaction_data.get("ts_success") and reaction_data.get(
-                            "minima_success"
-                        ):
-                            barrier_height = (
-                                reaction_data["ts_energy"] - total_reactant_energy
-                            )
+                        if reaction_data.get("ts_success") and reaction_data.get("minima_success"):
+                            barrier_height = reaction_data["ts_energy"] - total_reactant_energy
                             ref_barrier = self.reference_barriers[reaction]
                             error = barrier_height - ref_barrier
                             relative_error = (
-                                (error / ref_barrier) * 100
-                                if ref_barrier != 0
-                                else float("inf")
+                                (error / ref_barrier) * 100 if ref_barrier != 0 else float("inf")
                             )
 
                             reaction_data.update(
@@ -411,10 +376,7 @@ class BH28Benchmark:
 
                     except Exception as e:
                         error_msg = str(e)
-                        if (
-                            backend == "so3lr"
-                            and "vmap got inconsistent sizes" in error_msg
-                        ):
+                        if backend == "so3lr" and "vmap got inconsistent sizes" in error_msg:
                             print("  ⚠️  Skipped: SO3LR molecular size incompatibility")
                             reaction_data = {
                                 "success": False,
@@ -499,9 +461,7 @@ class BH28Benchmark:
 
             # Report skipped and failed reactions
             if skipped_count > 0:
-                print(
-                    f"⚠️  Skipped reactions (known incompatibilities): {skipped_count}"
-                )
+                print(f"⚠️  Skipped reactions (known incompatibilities): {skipped_count}")
             if failed_count > 0:
                 print(f"❌ Failed reactions: {failed_count}")
 
@@ -535,9 +495,7 @@ class BH28Benchmark:
         # Cross-backend comparison
         print("\nBACKEND COMPARISON")
         print("-" * 65)
-        print(
-            f"{'Backend':<12} {'Success':<8} {'MAE (eV)':<10} {'RMSE (eV)':<11} {'Avg Time':<10}"
-        )
+        print(f"{'Backend':<12} {'Success':<8} {'MAE (eV)':<10} {'RMSE (eV)':<11} {'Avg Time':<10}")
         print("-" * 65)
 
         for backend in backends:
@@ -562,18 +520,14 @@ class BH28Benchmark:
                 else "N/A"
             )
 
-            print(
-                f"{backend:<12} {success_rate:<8} {mae:<10} {rmse:<11} {avg_time:<10}"
-            )
+            print(f"{backend:<12} {success_rate:<8} {mae:<10} {rmse:<11} {avg_time:<10}")
 
         return analysis
 
     def _convert_to_serializable(self, obj):
         """Recursively convert objects to JSON-serializable format."""
         if isinstance(obj, dict):
-            return {
-                key: self._convert_to_serializable(value) for key, value in obj.items()
-            }
+            return {key: self._convert_to_serializable(value) for key, value in obj.items()}
         elif isinstance(obj, list):
             return [self._convert_to_serializable(item) for item in obj]
         elif isinstance(obj, np.ndarray):

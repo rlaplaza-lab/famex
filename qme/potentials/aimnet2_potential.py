@@ -67,9 +67,7 @@ def get_model_path(model_name: str) -> str:
 
     # Try to use cached model first
     try:
-        model_url = (
-            f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
-        )
+        model_url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
         cached_path = download_and_cache_model(model_name, model_url)
         return str(cached_path)
     except Exception as e:
@@ -131,9 +129,9 @@ def nblist_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256):
 
     max_num_neighbors = max_nb
     while True:
-        sparse_nb = radius_graph(
-            coord, batch=mol_idx, r=cutoff, max_num_neighbors=max_nb
-        ).to(torch.int32)
+        sparse_nb = radius_graph(coord, batch=mol_idx, r=cutoff, max_num_neighbors=max_nb).to(
+            torch.int32
+        )
         nnb = torch.unique(sparse_nb[0], return_counts=True)[1]
         if nnb.numel() == 0:
             break
@@ -184,9 +182,9 @@ def generate_neighbor_list_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256
 
     # Generate sparse neighbor list using torch_cluster
     while True:
-        sparse_nb = radius_graph(
-            coord, batch=mol_idx, r=cutoff, max_num_neighbors=max_nb
-        ).to(torch.int32)
+        sparse_nb = radius_graph(coord, batch=mol_idx, r=cutoff, max_num_neighbors=max_nb).to(
+            torch.int32
+        )
         nnb = torch.unique(sparse_nb[0], return_counts=True)[1]
         if nnb.numel() == 0:
             max_num_neighbors = 0
@@ -206,18 +204,14 @@ def generate_neighbor_list_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256
     return dense_nb
 
 
-def generate_neighbor_list_numpy(
-    positions: np.ndarray, cutoff: float, max_neighbors: int = 128
-):
+def generate_neighbor_list_numpy(positions: np.ndarray, cutoff: float, max_neighbors: int = 128):
     """
     Fallback neighbor list generation using numpy.
     """
     n_atoms = len(positions)
 
     # Calculate pairwise distances
-    distances = np.linalg.norm(
-        positions[:, np.newaxis, :] - positions[np.newaxis, :, :], axis=2
-    )
+    distances = np.linalg.norm(positions[:, np.newaxis, :] - positions[np.newaxis, :, :], axis=2)
 
     # Find neighbors within cutoff (excluding self-interactions with 0.1 Å threshold)
     neighbors = (distances < cutoff) & (distances > 0.1)
@@ -285,9 +279,7 @@ class NativeAIMNet2Calculator:
         for k in self.keys_in:
             if k not in data:
                 raise ValueError(f"Missing required key '{k}' in input data")
-            ret[k] = torch.as_tensor(
-                data[k], device=self.device, dtype=self.keys_in[k]
-            ).detach()
+            ret[k] = torch.as_tensor(data[k], device=self.device, dtype=self.keys_in[k]).detach()
 
         # Optional keys
         for k in self.keys_in_optional:
@@ -325,9 +317,7 @@ class NativeAIMNet2Calculator:
         """Prepare molecule index for single molecule."""
         if "mol_idx" not in data:
             n_atoms = data["coord"].shape[0]
-            data["mol_idx"] = torch.zeros(
-                n_atoms, device=self.device, dtype=torch.int64
-            )
+            data["mol_idx"] = torch.zeros(n_atoms, device=self.device, dtype=torch.int64)
         return data
 
     def pad_input(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -343,9 +333,7 @@ class NativeAIMNet2Calculator:
 
         return data
 
-    def unpad_output(
-        self, data: Dict[str, Any], original_n_atoms: int
-    ) -> Dict[str, Any]:
+    def unpad_output(self, data: Dict[str, Any], original_n_atoms: int) -> Dict[str, Any]:
         """Remove padding from output tensors using AIMNet2 logic."""
         atom_feature_keys = ["coord", "numbers", "charges", "forces"]
         for k in atom_feature_keys:
@@ -353,9 +341,7 @@ class NativeAIMNet2Calculator:
                 data[k] = maybe_unpad_dim0(data[k], original_n_atoms)
         return data
 
-    def set_grad_tensors(
-        self, data: Dict[str, Any], forces: bool = False
-    ) -> Dict[str, Any]:
+    def set_grad_tensors(self, data: Dict[str, Any], forces: bool = False) -> Dict[str, Any]:
         """Set up gradients for force calculation."""
         self._saved_for_grad = {}
         if forces:
@@ -365,15 +351,9 @@ class NativeAIMNet2Calculator:
 
     def calculate_forces(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate forces using automatic differentiation."""
-        if (
-            "forces" not in data
-            and self._saved_for_grad
-            and "coord" in self._saved_for_grad
-        ):
+        if "forces" not in data and self._saved_for_grad and "coord" in self._saved_for_grad:
             energy = data["energy"].sum()
-            grad = torch.autograd.grad(
-                energy, self._saved_for_grad["coord"], create_graph=False
-            )[0]
+            grad = torch.autograd.grad(energy, self._saved_for_grad["coord"], create_graph=False)[0]
             data["forces"] = -grad
         return data
 
@@ -468,8 +448,7 @@ class AIMNet2Potential(BasePotential):
         # Check dependencies
         if not deps.has("torch"):
             raise ImportError(
-                "PyTorch is required for AIMNET2 potentials. "
-                "Install with: pip install torch"
+                "PyTorch is required for AIMNET2 potentials. " "Install with: pip install torch"
             )
 
         # Set device if not provided
@@ -504,9 +483,7 @@ class AIMNet2Potential(BasePotential):
 
             model_path = get_model_path(self.model_name)
 
-            with quiet_backend_loading(
-                "aimnet2", self.model_name, model_path, self.device
-            ):
+            with quiet_backend_loading("aimnet2", self.model_name, model_path, self.device):
                 self._calc = NativeAIMNet2Calculator(model_path, device=self.device)
 
         except Exception as e:

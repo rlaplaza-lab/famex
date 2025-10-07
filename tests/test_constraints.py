@@ -14,9 +14,7 @@ from qme.core.constraints import (
 
 class TestConstraintManager:
     def setup_method(self):
-        self.atoms = Atoms(
-            "H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]]
-        )
+        self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
         self.constraint_manager = QMEConstraintManager(self.atoms)
 
     def test_initialization(self):
@@ -33,9 +31,7 @@ class TestConstraintManager:
     def test_add_harmonic_bond_constraint(self):
         self.constraint_manager.add_harmonic_constraint("bond", [0, 1], 5.0)
         assert len(self.constraint_manager.constraints) == 1
-        assert isinstance(
-            self.constraint_manager.constraints[0], HarmonicBondConstraint
-        )
+        assert isinstance(self.constraint_manager.constraints[0], HarmonicBondConstraint)
 
         info = self.constraint_manager.get_constraint_info()
         assert len(info["harmonic_constraints"]) == 1
@@ -47,9 +43,7 @@ class TestConstraintManager:
     def test_add_harmonic_angle_constraint(self):
         self.constraint_manager.add_harmonic_constraint("angle", [1, 0, 2], 2.0)
         assert len(self.constraint_manager.constraints) == 1
-        assert isinstance(
-            self.constraint_manager.constraints[0], HarmonicAngleConstraint
-        )
+        assert isinstance(self.constraint_manager.constraints[0], HarmonicAngleConstraint)
 
     def test_invalid_constraint_type(self):
         with pytest.raises(ValueError):
@@ -58,9 +52,7 @@ class TestConstraintManager:
 
 class TestConstraintParsing:
     def setup_method(self):
-        self.atoms = Atoms(
-            "H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]]
-        )
+        self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
 
     def test_parse_fixed_atoms(self):
         cm = parse_constraint_string("fix 0", self.atoms)
@@ -82,9 +74,7 @@ class TestConstraintParsing:
 
 class TestConstraintValidation:
     def setup_method(self):
-        self.atoms = Atoms(
-            "H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]]
-        )
+        self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
 
     def test_validate_valid_indices(self):
         assert validate_atom_indices([0, 1, 2], self.atoms) is True
@@ -100,9 +90,7 @@ class TestConstraintValidation:
 
 class TestHarmonicConstraintInternals:
     def setup_method(self):
-        self.atoms = Atoms(
-            "H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]]
-        )
+        self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
 
     def test_bond_reference_calculation(self):
         c = HarmonicBondConstraint([0, 1], self.atoms, 5.0)

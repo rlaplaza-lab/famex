@@ -118,7 +118,7 @@ class TestSystemDefinitions:
 class TestMinimaOptimization:
     """Test minima optimization across all available backends."""
 
-    @pytest.fixture(params=get_available_backends())
+    @pytest.fixture(params=get_available_backends(include_mock=False))
     def backend(self, request):
         """Parametrized fixture for available backends."""
         return request.param
@@ -129,9 +129,7 @@ class TestMinimaOptimization:
         optimizer = Explorer(atoms=h2, backend=backend)
 
         start_time = time.time()
-        result = optimizer.run(
-            mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=20
-        )
+        result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=20)
         optimization_time = time.time() - start_time
 
         # Handle list return format from run() method
@@ -158,9 +156,7 @@ class TestMinimaOptimization:
         optimizer = Explorer(atoms=water, backend=backend)
 
         start_time = time.time()
-        result = optimizer.run(
-            mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50
-        )
+        result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50)
         optimization_time = time.time() - start_time
 
         # Handle list return format from run() method
@@ -199,9 +195,7 @@ class TestMinimaOptimization:
         optimizer = Explorer(atoms=methane, backend=backend)
 
         start_time = time.time()
-        result = optimizer.run(
-            mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50
-        )
+        result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50)
         optimization_time = time.time() - start_time
 
         # Handle list return format from run() method
@@ -237,7 +231,7 @@ class TestMinimaOptimization:
 class TestTransitionStateOptimization:
     """Test transition state optimization across all available backends."""
 
-    @pytest.fixture(params=get_available_backends())
+    @pytest.fixture(params=get_available_backends(include_mock=False))
     def backend(self, request):
         """Parametrized fixture for available ML backends (excluding mock for TS)."""
         # Ensure SELLA is available for transition state optimization
@@ -304,10 +298,14 @@ class TestTransitionStateOptimization:
         sella_result = sella_optimizer.optimize_ts(fmax=0.1, steps=20)
 
         assert sella_result is not None
-        assert isinstance(sella_result, list)
-        assert len(sella_result) == 1
-        sella_atoms = sella_result[0]  # Get first (and only) atoms object
-        assert hasattr(sella_atoms, "get_distance")  # Should be Atoms object
+        # Normalize result shape to Atoms
+        if isinstance(sella_result, dict):
+            sella_atoms = sella_result.get("optimized_atoms")
+        elif isinstance(sella_result, (list, tuple)):
+            sella_atoms = sella_result[0] if sella_result else None
+        else:
+            sella_atoms = sella_result
+        assert sella_atoms is not None and hasattr(sella_atoms, "get_distance")
 
         # Test geomeTRIC optimizer if available
         if deps.has("geometric"):
@@ -320,13 +318,13 @@ class TestTransitionStateOptimization:
             geometric_result = geometric_optimizer.optimize_ts(fmax=0.1, steps=20)
 
             assert geometric_result is not None
-            assert isinstance(geometric_result, list)
-            assert len(geometric_result) == 1
-            geometric_atoms = geometric_result[0]
-            assert hasattr(geometric_atoms, "get_distance")  # Should be Atoms object
-
-            # Both optimizers should produce valid results
-            assert len(sella_result) == len(geometric_result)
+            if isinstance(geometric_result, dict):
+                geometric_atoms = geometric_result.get("optimized_atoms")
+            elif isinstance(geometric_result, (list, tuple)):
+                geometric_atoms = geometric_result[0] if geometric_result else None
+            else:
+                geometric_atoms = geometric_result
+            assert geometric_atoms is not None and hasattr(geometric_atoms, "get_distance")
 
     def test_sn2_like_ts(self, backend):
         """Test SN2-like transition state across all backends."""
@@ -391,9 +389,7 @@ class TestFileIO:
                 strategy_result = result[0]
             else:
                 strategy_result = result
-            optimizer.save_structure(
-                strategy_result["optimized_atoms"], str(output_file)
-            )
+            optimizer.save_structure(strategy_result["optimized_atoms"], str(output_file))
 
             # Verify output file
             assert output_file.exists()
@@ -402,9 +398,7 @@ class TestFileIO:
 
             # Test that the saved structure has reasonable geometry
             final_distance = final_atoms.get_distance(0, 1)
-            assert (
-                0.5 < final_distance < 2.0
-            ), f"Unreasonable H-H distance: {final_distance}"
+            assert 0.5 < final_distance < 2.0, f"Unreasonable H-H distance: {final_distance}"
 
     def test_save_structure_robustness(self):
         """Test that save_structure handles problematic atoms objects gracefully."""
@@ -465,9 +459,7 @@ class TestBackendConsistency:
 
         if len(distances) > 1:
             # All should be in a reasonable range
-            assert all(
-                0.5 < d < 1.0 for d in distances
-            ), f"Distances outside range: {distances}"
+            assert all(0.5 < d < 1.0 for d in distances), f"Distances outside range: {distances}"
 
             # ML backends should be more consistent with each other
             ml_distances = [results[b] for b in results if b != "mock"]

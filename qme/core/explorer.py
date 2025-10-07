@@ -213,9 +213,7 @@ class Explorer:
                     geom_charge if geom_charge is not None else self.default_charge
                 )
             if "spin" not in atoms.info:
-                atoms.info["spin"] = (
-                    geom_mult if geom_mult is not None else self.default_spin
-                )
+                atoms.info["spin"] = geom_mult if geom_mult is not None else self.default_spin
 
         calc = create_calculator(
             backend=self.backend,
@@ -343,8 +341,7 @@ class Explorer:
                 "two-ended",
             ):
                 warnings.warn(
-                    "Two-ended strategy expects interpolation; "
-                    "forcing mode to 'interpolate'"
+                    "Two-ended strategy expects interpolation; " "forcing mode to 'interpolate'"
                 )
                 effective_mode = "interpolate"
 
@@ -362,9 +359,7 @@ class Explorer:
                 preferred = ["twoended:minima", "twoended-minima"]
 
             strategies = getattr(self, "_strategies", {})
-            strategy_key = next(
-                (k for k in preferred if k in strategies), preferred[-1]
-            )
+            strategy_key = next((k for k in preferred if k in strategies), preferred[-1])
 
         else:
             # Local strategies support minima and ts (if registered)
@@ -379,9 +374,7 @@ class Explorer:
                 preferred = ["local:minima", "minima"]
 
             strategies = getattr(self, "_strategies", {})
-            strategy_key = next(
-                (k for k in preferred if k in strategies), preferred[-1]
-            )
+            strategy_key = next((k for k in preferred if k in strategies), preferred[-1])
 
         # If the caller passed an explicit runner, use it; otherwise look up
         # the registered strategy entry.
@@ -398,9 +391,7 @@ class Explorer:
                     f"Requested strategy: {self.strategy}, mode: {effective_mode}"
                 )
             runner = entry.get("func") if isinstance(entry, dict) else entry
-            strategy_type = (
-                entry.get("type", "global") if isinstance(entry, dict) else "global"
-            )
+            strategy_type = entry.get("type", "global") if isinstance(entry, dict) else "global"
         else:
             # If runner provided directly, we assume caller knows what they're doing
             strategy_type = "global"
@@ -431,9 +422,7 @@ class Explorer:
 
         if strategy_type == "two-ended":
             if len(self.atoms_list) < 2:
-                raise ValueError(
-                    "Two-ended strategies require two or more Atoms objects"
-                )
+                raise ValueError("Two-ended strategies require two or more Atoms objects")
             return runner(self.atoms_list, **call_kwargs)
 
         # global/default: pass the full list as-is
@@ -637,5 +626,6 @@ class Explorer:
             results["hessian"] = hessian.tolist()
 
         return results
+
 
 __all__ = ["Explorer"]

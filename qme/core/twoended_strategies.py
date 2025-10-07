@@ -17,19 +17,13 @@ from typing import Any, List, Optional, Sequence, Union
 import numpy as np
 from ase import Atoms
 
-from qme.core.local_strategies import (
-    _get_local_optimizer_class,
-    _validate_ts_optimization_setup,
-)
+from qme.core.local_strategies import _get_local_optimizer_class, _validate_ts_optimization_setup
 from qme.core.reaction import Reaction
 
 
 def _supports_batch_evaluation(calculator):
     """Check if calculator supports batch evaluation."""
-    return (
-        hasattr(calculator, "supports_batch_evaluation")
-        and calculator.supports_batch_evaluation
-    )
+    return hasattr(calculator, "supports_batch_evaluation") and calculator.supports_batch_evaluation
 
 
 def path_generator(
@@ -160,9 +154,7 @@ def twoended_ts_guess_runner(
 
     # Try to compute energies using the Reaction helper by constructing a dummy Reaction
     if len(path) < 2:
-        raise ValueError(
-            "Need at least two frames in interpolated path to locate TS guess"
-        )
+        raise ValueError("Need at least two frames in interpolated path to locate TS guess")
 
     # Use the Reaction class between endpoints to access calculate_path_energies
     reaction = Reaction(path[0], path[-1], calculator=getattr(path[0], "calc", None))
@@ -269,9 +261,7 @@ def twoended_minima_runner(
             continue
         left = energies[i - 1] if i - 1 >= 0 else float("inf")
         right = energies[i + 1] if i + 1 < len(energies) else float("inf")
-        if (not math.isnan(left) and e < left) and (
-            not math.isnan(right) and e < right
-        ):
+        if (not math.isnan(left) and e < left) and (not math.isnan(right) and e < right):
             minima_idxs.append(i)
 
     # If no strict local minima found, pick the global minimum
@@ -328,9 +318,7 @@ class BatchNEBOptimizer:
     for all NEB images simultaneously.
     """
 
-    def __init__(
-        self, path, calculator, fmax=0.05, steps=1000, spring_constant=5.0, **kwargs
-    ):
+    def __init__(self, path, calculator, fmax=0.05, steps=1000, spring_constant=5.0, **kwargs):
         """Initialize batch NEB optimizer."""
         self.path = [atoms.copy() for atoms in path]
         self.calculator = calculator
@@ -345,10 +333,7 @@ class BatchNEBOptimizer:
 
     def optimize(self):
         """Optimize NEB path using batch evaluation."""
-        print(
-            f"Optimizing NEB path with {len(self.path)} images using "
-            f"batch evaluation..."
-        )
+        print(f"Optimizing NEB path with {len(self.path)} images using " f"batch evaluation...")
 
         for step in range(self.steps):
             # Calculate forces for all images in one batch
@@ -368,9 +353,7 @@ class BatchNEBOptimizer:
             # Check convergence
             max_force = max(np.max(np.abs(force)) for force in neb_forces)
             if max_force < self.fmax:
-                print(
-                    f"NEB converged after {step + 1} steps (max force: {max_force:.6f})"
-                )
+                print(f"NEB converged after {step + 1} steps (max force: {max_force:.6f})")
                 break
 
         return self.path
@@ -395,22 +378,14 @@ class BatchNEBOptimizer:
         """Calculate spring forces for image i."""
         if i == 0:
             # First image: spring to next
-            return self.spring_constant * (
-                self.path[i + 1].positions - self.path[i].positions
-            )
+            return self.spring_constant * (self.path[i + 1].positions - self.path[i].positions)
         elif i == len(self.path) - 1:
             # Last image: spring to previous
-            return self.spring_constant * (
-                self.path[i - 1].positions - self.path[i].positions
-            )
+            return self.spring_constant * (self.path[i - 1].positions - self.path[i].positions)
         else:
             # Middle images: spring to both neighbors
-            f_prev = self.spring_constant * (
-                self.path[i - 1].positions - self.path[i].positions
-            )
-            f_next = self.spring_constant * (
-                self.path[i + 1].positions - self.path[i].positions
-            )
+            f_prev = self.spring_constant * (self.path[i - 1].positions - self.path[i].positions)
+            f_next = self.spring_constant * (self.path[i + 1].positions - self.path[i].positions)
             return f_prev + f_next
 
     def _nudge_forces(self, forces, spring_forces):
@@ -634,20 +609,15 @@ def _run_simple_neb(
         if supports_batch:
             # Use batch evaluation for better performance
             try:
-                batch_results = calculator.calculate_batch(
-                    path, properties=["energy", "forces"]
-                )
+                batch_results = calculator.calculate_batch(path, properties=["energy", "forces"])
 
                 for result in batch_results:
                     energies.append(result.get("energy", float("inf")))
-                    forces_list.append(
-                        result.get("forces", np.zeros((len(path[0]), 3)))
-                    )
+                    forces_list.append(result.get("forces", np.zeros((len(path[0]), 3))))
 
             except Exception as e:
                 warnings.warn(
-                    f"Batch evaluation failed, falling back to individual "
-                    f"calculations: {e}"
+                    f"Batch evaluation failed, falling back to individual " f"calculations: {e}"
                 )
                 supports_batch = False  # Disable batch for future iterations
 

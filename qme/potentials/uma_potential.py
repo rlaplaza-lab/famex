@@ -93,9 +93,7 @@ class UMAPotential(BasePotential):
                 else:
                     device_param = "cpu"
 
-                self.predictor = pretrained_mlip.get_predict_unit(
-                    model_name, device=device_param
-                )
+                self.predictor = pretrained_mlip.get_predict_unit(model_name, device=device_param)
 
                 # Try to force consistent precision to avoid dtype mismatches
                 if hasattr(self.predictor, "model"):
@@ -146,9 +144,7 @@ class UMAPotential(BasePotential):
         except RuntimeError as e:
             if "expected scalar type Double but found Float" in str(
                 e
-            ) or "mat1 and mat2 must have the same dtype, but got Double and Float" in str(
-                e
-            ):
+            ) or "mat1 and mat2 must have the same dtype, but got Double and Float" in str(e):
                 # Try to set model to use float32 precision consistently
                 if self.predictor is not None and hasattr(self.predictor, "model"):
                     # Force model to float32

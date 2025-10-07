@@ -25,10 +25,7 @@ from qme.core.validation import QMEError
 
 def _supports_batch_evaluation(calculator):
     """Check if calculator supports batch evaluation."""
-    return (
-        hasattr(calculator, "supports_batch_evaluation")
-        and calculator.supports_batch_evaluation
-    )
+    return hasattr(calculator, "supports_batch_evaluation") and calculator.supports_batch_evaluation
 
 
 class FrequencyAnalysis:
@@ -401,14 +398,10 @@ class FrequencyAnalysis:
             "n_near_zero_frequencies": n_near_zero,
             "all_frequencies": frequencies.tolist(),
             "threshold": threshold,
-            "assessment": self._assess_stationary_point(
-                n_imaginary, n_near_zero, threshold
-            ),
+            "assessment": self._assess_stationary_point(n_imaginary, n_near_zero, threshold),
         }
 
-    def _assess_stationary_point(
-        self, n_imaginary: int, n_near_zero: int, threshold: float
-    ) -> str:
+    def _assess_stationary_point(self, n_imaginary: int, n_near_zero: int, threshold: float) -> str:
         """Assess type of stationary point based on frequency analysis."""
         if n_imaginary == 0:
             return "Minimum (no imaginary frequencies)"
@@ -443,9 +436,7 @@ class FrequencyAnalysis:
         self._zero_point_energy = zpe
         return zpe
 
-    def get_thermodynamic_properties(
-        self, temperature: float = 298.15
-    ) -> Dict[str, float]:
+    def get_thermodynamic_properties(self, temperature: float = 298.15) -> Dict[str, float]:
         """
         Calculate thermodynamic properties at given temperature.
 
@@ -476,9 +467,7 @@ class FrequencyAnalysis:
         internal_energy = thermo.get_internal_energy(temperature, verbose=False)
 
         # Calculate heat capacity manually since ASE doesn't provide it
-        thermo_props = ThermodynamicProperties(
-            real_frequencies, self.atoms, temperature
-        )
+        thermo_props = ThermodynamicProperties(real_frequencies, self.atoms, temperature)
         heat_capacity = thermo_props.heat_capacity_vibrational()
 
         return {
@@ -590,9 +579,7 @@ class HessianCalculator:
         n_coords = 3 * n_atoms
         hessian = np.zeros((n_coords, n_coords))
 
-        print(
-            f"Calculating Hessian for {n_atoms} atoms using {self.method} differences..."
-        )
+        print(f"Calculating Hessian for {n_atoms} atoms using {self.method} differences...")
 
         if self.method == "central":
             # Central differences: H_ij = (F_i(+δj) - F_i(-δj)) / (2δ)
@@ -620,9 +607,7 @@ class HessianCalculator:
                 atom_j = self.indices[j // 3]
                 coord_j = j % 3
 
-                forces_displaced = self._get_forces_displaced(
-                    atom_j, coord_j, self.delta
-                )
+                forces_displaced = self._get_forces_displaced(atom_j, coord_j, self.delta)
                 hessian[:, j] = -(forces_displaced - forces_ref) / self.delta
 
                 if world.rank == 0:
@@ -784,9 +769,7 @@ class BatchFrequencyAnalysis(FrequencyAnalysis):
         """Calculate Hessian matrix using batch evaluation when available."""
         if method == "auto":
             method = (
-                "batch"
-                if _supports_batch_evaluation(self.calculator)
-                else "finite_differences"
+                "batch" if _supports_batch_evaluation(self.calculator) else "finite_differences"
             )
 
         if method == "batch":

@@ -142,17 +142,14 @@ class GeometricOptimizer(Optimizer):
             expected_shape = (3 * len(self.atoms), 3 * len(self.atoms))
             if self.initial_hessian.shape != expected_shape:
                 raise ValueError(
-                    f"Hessian must be {expected_shape} but got "
-                    f"{self.initial_hessian.shape}"
+                    f"Hessian must be {expected_shape} but got " f"{self.initial_hessian.shape}"
                 )
             params.hessian = self.initial_hessian.copy()
 
         # Run geomeTRIC optimization
         try:
             # Get initial coordinates in Bohr
-            coords = (
-                self.atoms.get_positions().flatten() * 1.8897259886
-            )  # Angstrom to Bohr
+            coords = self.atoms.get_positions().flatten() * 1.8897259886  # Angstrom to Bohr
 
             # Create internal coordinates
             IC = geo_opt.DelocalizedInternalCoordinates(
@@ -176,15 +173,11 @@ class GeometricOptimizer(Optimizer):
                 try:
                     optimizer.optimizeGeometry()
                     # Check if optimization converged using geomeTRIC's state system
-                    converged = (
-                        getattr(optimizer, "state", None) == 2
-                    )  # OPT_STATE.CONVERGED = 2
+                    converged = getattr(optimizer, "state", None) == 2  # OPT_STATE.CONVERGED = 2
                 except Exception as opt_error:
                     # geomeTRIC might raise an exception even when it converges
                     # Check if we can still get results using the state system
-                    converged = (
-                        getattr(optimizer, "state", None) == 2
-                    )  # OPT_STATE.CONVERGED = 2
+                    converged = getattr(optimizer, "state", None) == 2  # OPT_STATE.CONVERGED = 2
 
                     # Check if this is a GeomOptNotConvergedError
                     from geometric.errors import GeomOptNotConvergedError
@@ -214,15 +207,11 @@ class GeometricOptimizer(Optimizer):
                                 # If there's progress, the optimization might have
                                 # converged
                                 # Check if the final step was successful
-                                converged = (
-                                    True  # Assume convergence if there's progress
-                                )
+                                converged = True  # Assume convergence if there's progress
                                 pass  # Don't warn, just continue
                             else:
                                 # Only warn if it truly didn't converge
-                                warnings.warn(
-                                    f"geomeTRIC optimization failed: {opt_error}"
-                                )
+                                warnings.warn(f"geomeTRIC optimization failed: {opt_error}")
                                 return False
                     else:
                         # Other exceptions - check convergence state
@@ -261,9 +250,7 @@ class GeometricOptimizer(Optimizer):
                         self.converged = converged
                         return converged
                     else:
-                        warnings.warn(
-                            "geomeTRIC optimization did not return valid results"
-                        )
+                        warnings.warn("geomeTRIC optimization did not return valid results")
                         return False
 
         except Exception as e:
