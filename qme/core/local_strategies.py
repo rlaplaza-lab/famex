@@ -12,6 +12,41 @@ from typing import Any, List
 from qme.dependencies import deps
 
 
+def _validate_ts_optimization_setup(backend: str, optimizer_name: str):
+    """Validate that TS optimization is using appropriate calculator and optimizer.
+
+    This function hardcodes restrictions to prevent using mock calculators or
+    unsuitable optimizers for transition state optimization tasks.
+
+    Parameters
+    ----------
+    backend : str
+        The calculator backend being used
+    optimizer_name : str
+        The optimizer being used
+
+    Raises
+    ------
+    ValueError
+        If the setup is unsuitable for TS optimization
+    """
+    # Hardcoded restrictions for TS optimization
+    FORBIDDEN_BACKENDS_FOR_TS = {"mock"}
+    FORBIDDEN_OPTIMIZERS_FOR_TS = {"lbfgs", "l-bfgs", "l_bfgs", "bfgs", "fire"}
+
+    if backend.lower() in FORBIDDEN_BACKENDS_FOR_TS:
+        raise ValueError(
+            f"Backend '{backend}' is not suitable for transition state optimization. "
+            f"Use a real ML potential backend (uma, aimnet2, mace, so3lr) instead."
+        )
+
+    if optimizer_name.lower() in FORBIDDEN_OPTIMIZERS_FOR_TS:
+        raise ValueError(
+            f"Optimizer '{optimizer_name}' is not suitable for transition state "
+            f"optimization. Use 'sella' or 'geometric' optimizers for TS searches."
+        )
+
+
 def _get_local_optimizer_class(name: str):
     """Map a short name to an ASE optimizer class or SELLA's Sella.
 
@@ -23,6 +58,11 @@ def _get_local_optimizer_class(name: str):
         from sella import Sella
 
         return Sella
+
+    if name == "geometric":
+        from qme.core.geometric_interface import GeometricOptimizer
+
+        return GeometricOptimizer
 
     try:
         if name in ("lbfgs", "l-bfgs", "l_bfgs"):
@@ -89,6 +129,16 @@ def local_minima_runner(
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 0)
+        elif local_optimizer_name.lower() == "geometric":
+            # geomeTRIC-specific kwargs for minima search
+            opt_kwargs = dict(opt_kwargs)
+            opt_kwargs.setdefault("order", 0)
+            # Check if Hessian is provided in explorer
+            if (
+                hasattr(explorer, "initial_hessian")
+                and explorer.initial_hessian is not None
+            ):
+                opt_kwargs["hessian"] = explorer.initial_hessian
 
         opt = opt_class(atoms, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
@@ -140,6 +190,10 @@ def local_ts_runner(
     """
     if explorer is None:
         raise ValueError("explorer must be provided to default_ts_runner")
+
+    # Validate TS optimization setup - hardcoded restrictions
+    _validate_ts_optimization_setup(explorer.backend, local_optimizer_name)
+
     opt_class = _get_local_optimizer_class(local_optimizer_name)
     # Accept either a single Atoms instance or a list of them
     single_input = False
@@ -165,6 +219,16 @@ def local_ts_runner(
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 1)
+        elif local_optimizer_name.lower() == "geometric":
+            # geomeTRIC-specific kwargs for TS search
+            opt_kwargs = dict(opt_kwargs)
+            opt_kwargs.setdefault("order", 1)
+            # Check if Hessian is provided in explorer
+            if (
+                hasattr(explorer, "initial_hessian")
+                and explorer.initial_hessian is not None
+            ):
+                opt_kwargs["hessian"] = explorer.initial_hessian
 
         opt = opt_class(atoms, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)

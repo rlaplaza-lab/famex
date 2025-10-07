@@ -49,7 +49,7 @@ class TestBackendCLI:
             out_path = os.path.splitext(xyz_path)[0] + ".opt.xyz"
             assert os.path.exists(out_path), f"Output file not created: {out_path}"
 
-    @pytest.mark.parametrize("backend", get_available_backends())
+    @pytest.mark.parametrize("backend", get_available_backends(include_mock=False))
     def test_transition_state_optimization_cli(self, backend: str):
         """Test transition state optimization via CLI across all backends."""
         runner = CliRunner()
@@ -59,6 +59,7 @@ class TestBackendCLI:
             xyz_path = os.path.join(tmp, "test.xyz")
             atoms.write(xyz_path)
 
+<<<<<<< HEAD
             # Run TS optimization
             result = runner.invoke(
                 main,
@@ -68,7 +69,7 @@ class TestBackendCLI:
                     "--backend",
                     backend,
                     "--optimizer",
-                    "lbfgs",
+                    "sella",
                     "--steps",
                     "3",
                 ],

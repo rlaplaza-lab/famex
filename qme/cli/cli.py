@@ -23,8 +23,10 @@ os.environ.setdefault("MPLBACKEND", "Agg")
         "  qme cache : Manage model cache\n\n"
         "Examples:\n"
         "  qme opt reactant.xyz --backend aimnet2 --optimizer sella --fmax 0.03\n"
+        "  qme opt reactant.xyz --backend aimnet2 --optimizer geometric --fmax 0.03\n"
         "  qme opt reactant.xyz --product product.xyz --interp geodesic --npoints 21\n"
         "  qme tsopt ts_guess.xyz --optimizer sella --ts-kw order=1\n"
+        "  qme tsopt ts_guess.xyz --optimizer geometric --ts-kw order=1\n"
         "  qme tsopt r.xyz --product p.xyz --interp geodesic --npoints 15\n"
         "  qme tsopt r.xyz --product p.xyz --mode neb --npoints 11 --spring-constant 5.0\n"
         "  qme opt molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n"
@@ -75,7 +77,7 @@ def _common_explorer_options(f):
             "local_optimizer",
             default="sella",
             show_default=True,
-            help="Local optimizer: sella|lbfgs|bfgs|fire",
+            help="Local optimizer: sella|geometric|lbfgs|bfgs|fire",
         ),
         click.option(
             "--optimizer-kw",

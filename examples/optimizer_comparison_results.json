@@ -1,0 +1,47 @@
+[
+  {
+    "backend": "mock",
+    "optimizer": "sella",
+    "device": "cpu",
+    "model_name": null,
+    "test_ts": false,
+    "available": true,
+    "error": null,
+    "timings": {
+      "initialization": 1.645299926167354e-05,
+      "structure_loading": 0.00013643999773194082,
+      "single_energy_first": 0.0015806039991730358,
+      "single_energy_second": 0.0014655029990535695,
+      "single_energy": 0.0014655029990535695,
+      "single_forces": 0.001477951998822391,
+      "optimization": 97.33509384799981,
+      "avg_time_per_step": null,
+      "frequency_analysis": 1.839074083000014,
+      "total": 99.18031038599293
+    },
+    "optimization_results": {
+      "converged": true,
+      "final_energy": 2.4331015090641017,
+      "max_force": 0.009652747753665732,
+      "steps_taken": 0
+    },
+    "frequency_results": {
+      "n_frequencies": 30,
+      "frequencies": [
+        -221.20418604237582,
+        -199.51193942465264,
+        -198.36837797193672,
+        -111.97465039569775,
+        -10.660842165509882,
+        -2.911453140861364,
+        1.3859794600502128e-05,
+        1.9327959994692535e-05,
+        3.64611894858502e-05,
+        10.972553992641656
+      ],
+      "zero_point_energy": 0.8565316857470786,
+      "is_transition_state": false,
+      "method_used": "auto"
+    }
+  }
+]
