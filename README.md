@@ -44,11 +44,7 @@ import qme
 
 # Optimize a structure
 explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2")
-<<<<<<< HEAD
 result = explorer.run(mode="minima")
-=======
-result = explorer.optimize_minima()
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 print(f"Final energy: {result['final_energy']:.6f} eV")
 ```
 

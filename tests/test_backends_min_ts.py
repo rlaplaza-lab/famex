@@ -59,7 +59,6 @@ class TestBackendCLI:
             xyz_path = os.path.join(tmp, "test.xyz")
             atoms.write(xyz_path)
 
-<<<<<<< HEAD
             # Run TS optimization
             result = runner.invoke(
                 main,

@@ -114,11 +114,7 @@ for backend in backends:
     try:
         print(f"\n--- Testing {backend} ---")
         explorer = qme.Explorer.from_atoms(atoms.copy(), backend=backend)
-<<<<<<< HEAD
         result = explorer.run(mode="minima")
-=======
-        result = explorer.optimize_minima()
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
         
         results[backend] = {
             'final_energy': result['final_energy'],
@@ -274,11 +270,7 @@ from ase.build import molecule
 # Method 1: From file
 print("=== Optimizing from file ===")
 explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2")
-<<<<<<< HEAD
 result = explorer.run(mode="minima")
-=======
-result = explorer.optimize_minima()
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
 print(f"Initial energy: {result['initial_energy']:.6f} eV")
 print(f"Final energy: {result['final_energy']:.6f} eV")
@@ -331,11 +323,7 @@ def safe_optimization(filename, backend="aimnet2"):
     """Safely optimize a structure with error handling."""
     try:
         explorer = qme.Explorer.from_file(filename, backend=backend)
-<<<<<<< HEAD
         result = explorer.run(mode="minima")
-=======
-        result = explorer.optimize_minima()
->>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
         
         if result['converged']:
             print(f"✅ Optimization converged in {result['n_steps']} steps")
