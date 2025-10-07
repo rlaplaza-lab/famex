@@ -11,7 +11,7 @@ The **Zimmermann-93 Benchmark** (`zimmermann93_benchmark.py`) tests QME backends
 1. **Interpolates reaction paths** between reactant and product structures (geodesic interpolation)
 2. **Optimizes paths** with simplified NEB-like routines (when available)
 3. **Identifies TS candidates** by selecting highest-energy interpolated images
-4. **Optimizes transition states** using QME's `find_transition_state` method
+4. **Optimizes transition states** using QME's Explorer with transition state optimization
 5. **Compares geometries** by computing RMSD between located and reference TS structures
 6. **Analyzes success rates** and geometric accuracy across backends
 

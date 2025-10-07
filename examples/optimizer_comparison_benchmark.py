@@ -331,35 +331,52 @@ def _benchmark_optimization(
                 local_optimizer_name=optimizer,
             )
 
-        # Handle results from Explorer's run method
         # For local strategies, run() returns a list of results
         if isinstance(run_results, list) and len(run_results) == 1:
-            strategy_result = run_results[0]
+            optimized_atoms = run_results[0]
         else:
-            strategy_result = run_results
-        
-        # Debug output
-        if verbose:
-            print(f"DEBUG: run_results type: {type(run_results)}")
-            print(f"DEBUG: strategy_result type: {type(strategy_result)}")
-            if isinstance(strategy_result, dict):
-                print(f"DEBUG: strategy_result keys: {list(strategy_result.keys())}")
-        
-        # Extract step tracking information from strategy result
-        if isinstance(strategy_result, dict):
-            steps_taken = strategy_result.get("steps_taken", 0)
-            converged = strategy_result.get("converged", False)
-            optimized_atoms = strategy_result.get("optimized_atoms", explorer.atoms_list[0])
-        else:
-            # Fallback for old format
-            steps_taken = 0
-            converged = True
-            optimized_atoms = strategy_result
-        
-        # Get final energy and forces
+            optimized_atoms = run_results
+
+        # Basic metadata (if strategies start returning dicts, update accordingly)
+        steps_taken = getattr(optimized_atoms, "steps_taken", 0)
+        converged = getattr(optimized_atoms, "converged", True)
         final_energy = float(optimized_atoms.get_potential_energy())
-        final_forces = optimized_atoms.get_forces()
-        max_force = float(np.max(np.abs(final_forces)))
+        max_force = float(np.max(np.abs(optimized_atoms.get_forces())))
+            # For TS optimization, create a TS guess by slightly distorting the molecule
+            ts_guess = benzene.copy()
+            positions = ts_guess.get_positions()
+            # Add some distortion to create a TS-like geometry
+            positions[0, 0] += 0.2  # Move first carbon
+            positions[1, 0] -= 0.2  # Move second carbon
+            ts_guess.set_positions(positions)
+            
+            # Update explorer with TS guess
+            explorer.atoms_list = [ts_guess]
+            explorer._create_and_attach_calculator(ts_guess)
+            
+            opt_result = explorer.optimize_ts(fmax=0.01, steps=1000)
+            # New API returns list of atoms
+            assert isinstance(opt_result, list)
+            assert len(opt_result) == 1
+            optimized_atoms = opt_result[0]
+            # Extract metadata from the atoms object if available
+            steps_taken = getattr(optimized_atoms, 'steps_taken', 0)
+            converged = getattr(optimized_atoms, 'converged', True)  # Assume converged if no info
+            final_energy = optimized_atoms.get_potential_energy() if optimized_atoms.calc else None
+            max_force = None  # Will calculate below
+        else:
+            # Minima optimization
+            opt_result = explorer.optimize_minima(fmax=0.01, steps=1000)
+            # New API returns list of atoms
+            assert isinstance(opt_result, list)
+            assert len(opt_result) == 1
+            optimized_atoms = opt_result[0]
+            # Extract metadata from the atoms object if available
+            steps_taken = getattr(optimized_atoms, 'steps_taken', 0)
+            converged = getattr(optimized_atoms, 'converged', True)  # Assume converged if no info
+            final_energy = optimized_atoms.get_potential_energy() if optimized_atoms.calc else None
+            max_force = None  # Will calculate below
+>>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 
         opt_time = time.perf_counter() - opt_start
 
@@ -867,3 +884,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

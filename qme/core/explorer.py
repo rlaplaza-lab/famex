@@ -21,6 +21,7 @@ import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
+import numpy as np
 from ase import Atoms
 from ase.io import write
 
@@ -44,7 +45,8 @@ class Explorer:
     atoms
         Single :class:`ase.Atoms` or a sequence of Atoms to operate on.
     backend
-        Calculator backend key (e.g., ``uma``, ``aimnet2``, ``mace``, ``so3lr``, ``mock``).
+        Calculator backend key (e.g., ``uma``, ``aimnet2``, ``mace``, ``so3lr``,
+        ``mock``).
     model_name, model_path, device
         Forwarded to calculator factory when applicable.
     default_charge, default_spin
@@ -91,6 +93,7 @@ class Explorer:
         ts_method: Optional[str] = None,
         ts_kwargs: Optional[Dict[str, Any]] = None,
         constraints: Optional[Union[str, List, Dict]] = None,
+        initial_hessian: Optional[np.ndarray] = None,
         auto_register: bool = True,
     ):
         if isinstance(atoms, Atoms):
@@ -118,6 +121,7 @@ class Explorer:
         self.ts_kwargs = ts_kwargs or {}
 
         self.constraints_spec = constraints
+        self.initial_hessian = initial_hessian
 
         # Auto-register default strategies unless caller opts out
         if getattr(self, "_strategies", None) is None:
@@ -160,7 +164,7 @@ class Explorer:
             "twoended:neb",
             twoended_neb_runner,
             strategy_type="two-ended",
-            description="Nudged Elastic Band (NEB) path optimization with geodesic interpolation",
+            description="NEB path optimization with geodesic interpolation",
             aliases=["neb", "twoended-neb"],
         )
 
@@ -287,7 +291,7 @@ class Explorer:
                 self._strategies[alias] = entry
 
     def list_strategies(self, kind: Optional[str] = None) -> Dict[str, Dict[str, str]]:
-        """List available strategies; optionally filter by kind (local/two-ended/global)."""
+        """List available strategies; optionally filter by kind."""
         out: Dict[str, Dict[str, str]] = {}
         for key, meta in getattr(self, "_strategies", {}).items():
             if kind is None or meta.get("type") == kind:
@@ -307,7 +311,7 @@ class Explorer:
             ``runner`` is not provided. Typically ``minima`` or ``ts`` for
             local strategies, or ``interpolate`` for two-ended.
         runner
-            Optional callable to execute directly (signature: ``runner(atoms_list, **kwargs)``).
+            Optional callable to execute directly.
         **kwargs
             Forwarded to the runner; Explorer injects ``explorer=self`` and
             ``local_optimizer_name`` defaults.
@@ -339,11 +343,12 @@ class Explorer:
                 "two-ended",
             ):
                 warnings.warn(
-                    "Two-ended strategy expects interpolation; forcing mode to 'interpolate'"
+                    "Two-ended strategy expects interpolation; "
+                    "forcing mode to 'interpolate'"
                 )
                 effective_mode = "interpolate"
 
-            # Choose between TS-guess path refinement, minima refinement, or NEB along the path
+            # Choose between TS-guess path refinement, minima refinement, or NEB
             if self.target in (
                 "ts",
                 "transition",
@@ -405,6 +410,17 @@ class Explorer:
         call_kwargs.setdefault("explorer", self)
         call_kwargs.setdefault("local_optimizer_name", self.local_optimizer_name)
 
+        # Validate TS optimization setup - hardcoded restrictions
+        if effective_mode in (
+            "ts",
+            "transition",
+            "transition-state",
+            "transition_state",
+        ):
+            from qme.core.local_strategies import _validate_ts_optimization_setup
+
+            _validate_ts_optimization_setup(self.backend, self.local_optimizer_name)
+
         # Dispatch according to strategy type
         if strategy_type == "local":
             results = []
@@ -426,47 +442,13 @@ class Explorer:
     # --- Convenience wrappers mirroring ASE Optimizer ergonomics ---
     def optimize_minima(self, fmax: float = 0.05, steps: int = 1000, **kwargs):
         """Run a local minima optimization (ASE-like convenience method)."""
-        res = self.run(mode="minima", fmax=fmax, steps=steps, **kwargs)
-        
-        # Handle new return format from strategies
-        if isinstance(res, list) and len(res) == 1:
-            strategy_result = res[0]
-        else:
-            strategy_result = res
-        
-        # Check if strategy returned a dict with step tracking info
-        if isinstance(strategy_result, dict):
-            return strategy_result
-        else:
-            # Fallback for old format - return basic info
-            return {
-                "optimized_atoms": strategy_result,
-                "steps_taken": None,
-                "converged": True,
-            }
+        return self.run(mode="minima", fmax=fmax, steps=steps, **kwargs)
 
     def optimize_ts(self, fmax: float = 0.05, steps: int = 1000, **kwargs):
         """Run a local transition-state optimization (ASE-like convenience method)."""
-        res = self.run(mode="ts", fmax=fmax, steps=steps, **kwargs)
-        
-        # Handle new return format from strategies
-        if isinstance(res, list) and len(res) == 1:
-            strategy_result = res[0]
-        else:
-            strategy_result = res
-        
-        # Check if strategy returned a dict with step tracking info
-        if isinstance(strategy_result, dict):
-            return strategy_result
-        else:
-            # Fallback for old format - return basic info
-            return {
-                "optimized_atoms": strategy_result,
-                "steps_taken": None,
-                "converged": True,
-            }
+        return self.run(mode="ts", fmax=fmax, steps=steps, **kwargs)
 
-    # --- Additional convenience methods for compatibility ---
+    # --- Additional convenience methods ---
     @classmethod
     def from_file(
         cls,
@@ -614,7 +596,8 @@ class Explorer:
         Returns
         -------
         dict
-            Dictionary containing frequencies, normal modes, thermodynamic properties, etc.
+            Dictionary containing frequencies, normal modes, thermodynamic
+            properties, etc.
         """
         from qme.analysis.frequency import FrequencyAnalysis
 
@@ -654,7 +637,5 @@ class Explorer:
             results["hessian"] = hessian.tolist()
 
         return results
-
-
 
 __all__ = ["Explorer"]

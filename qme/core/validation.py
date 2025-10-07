@@ -248,7 +248,7 @@ def validate_optimization_parameters(fmax: float, steps: int, optimizer: str):
             suggestion="steps must be positive (e.g., 1000).",
         )
 
-    valid_optimizers = ["sella", "lbfgs", "bfgs", "fire"]
+    valid_optimizers = ["sella", "geometric", "lbfgs", "bfgs", "fire"]
     if optimizer.lower() not in valid_optimizers:
         raise ValidationError(
             f"Unknown optimizer: {optimizer}",

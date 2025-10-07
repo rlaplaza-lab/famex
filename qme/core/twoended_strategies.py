@@ -17,7 +17,10 @@ from typing import Any, List, Optional, Sequence, Union
 import numpy as np
 from ase import Atoms
 
-from qme.core.local_strategies import _get_local_optimizer_class
+from qme.core.local_strategies import (
+    _get_local_optimizer_class,
+    _validate_ts_optimization_setup,
+)
 from qme.core.reaction import Reaction
 
 
@@ -133,6 +136,10 @@ def twoended_ts_guess_runner(
     and attempts a local TS optimization using the explorer's calculator
     helpers and the same optimizer selection logic as `_local_ts_runner`.
     """
+    # Validate TS optimization setup - hardcoded restrictions
+    if explorer is not None:
+        _validate_ts_optimization_setup(explorer.backend, local_optimizer_name)
+
     # Generate stitched path (or single-segment path)
     path = path_generator(
         atoms_list,
@@ -296,6 +303,9 @@ def twoended_minima_runner(
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 0)
+        elif local_optimizer_name.lower() == "geometric":
+            opt_kwargs = dict(opt_kwargs)
+            opt_kwargs.setdefault("order", 0)
 
         opt = opt_class(geom, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
@@ -336,7 +346,8 @@ class BatchNEBOptimizer:
     def optimize(self):
         """Optimize NEB path using batch evaluation."""
         print(
-            f"Optimizing NEB path with {len(self.path)} images using batch evaluation..."
+            f"Optimizing NEB path with {len(self.path)} images using "
+            f"batch evaluation..."
         )
 
         for step in range(self.steps):
@@ -635,7 +646,8 @@ def _run_simple_neb(
 
             except Exception as e:
                 warnings.warn(
-                    f"Batch evaluation failed, falling back to individual calculations: {e}"
+                    f"Batch evaluation failed, falling back to individual "
+                    f"calculations: {e}"
                 )
                 supports_batch = False  # Disable batch for future iterations
 

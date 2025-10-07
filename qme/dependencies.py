@@ -66,6 +66,10 @@ class DependencyManager:
                     from sella import Sella
 
                     self._cache["sella"] = Sella
+                elif name == "geometric":
+                    import geometric
+
+                    self._cache["geometric"] = geometric
                 elif name == "so3lr":
                     import so3lr
 
@@ -159,6 +163,7 @@ class DependencyManager:
         package_mapping = {
             "torch": "torch",
             "sella": "sella",
+            "geometric": "geometric",
             "aimnet2": "torch_cluster",  # AIMNet2 needs torch_cluster (which implies torch)
             "fairchem": "fairchem.core",
             "uma": "fairchem.core",  # UMA uses fairchem-core
@@ -189,6 +194,7 @@ class DependencyManager:
         commands = {
             "torch": "torch",
             "sella": "sella",
+            "geometric": "geometric",
             "aimnet2": "torch torch-cluster",  # AIMNet2 needs both torch and torch-cluster
             "fairchem": "fairchem-core",
             "so3lr": "so3lr  # See installation instructions in README",
@@ -207,6 +213,8 @@ def __getattr__(name):
     """Support for lazy loading of module-level attributes."""
     if name == "HAS_SELLA":
         return deps.has("sella")
+    elif name == "HAS_GEOMETRIC":
+        return deps.has("geometric")
     elif name == "HAS_TORCH":
         return deps.has("torch")
     elif name == "HAS_AIMNET2":

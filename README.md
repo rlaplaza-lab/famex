@@ -1,6 +1,6 @@
 # QME: Quick Mechanistic Exploration
 
-**Quick mechanistic exploration using machine learning potentials for molecular geometry optimization and transition state searches.**
+**Quick mechanistic exploration using machine learning potentials for molecular geometry optimization and transition state searches with Sella and geomeTRIC optimizers.**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-tested-green.svg)](https://www.python.org/downloads/)
@@ -44,7 +44,11 @@ import qme
 
 # Optimize a structure
 explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2")
+<<<<<<< HEAD
 result = explorer.run(mode="minima")
+=======
+result = explorer.optimize_minima()
+>>>>>>> 20afbbd (feat: Implement hardcoded TS optimization restrictions and clean API)
 print(f"Final energy: {result['final_energy']:.6f} eV")
 ```
 
@@ -53,7 +57,7 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 - 🧪 **Multiple ML Backends**: UMA, AIMNet2, MACE, SO3LR, TorchSim
 - ⚡ **GPU Acceleration**: CUDA support with up to 100x speedup
 - 🎯 **Optimization Methods**: Local and two-ended strategies  
-- 🔄 **Transition States**: Advanced TS search with NEB
+- 🔄 **Transition States**: Advanced TS search with Sella and geomeTRIC optimizers
 - 📊 **Analysis Tools**: Frequency analysis and thermodynamics
 - 🖥️ **Dual Interface**: Command-line and Python API
 - 📁 **File Support**: XYZ, CIF, PDB, and more via ASE
@@ -68,11 +72,13 @@ qme opt molecule.xyz
 qme opt reactant.xyz --product product.xyz
 
 # Transition state search  
-qme tsopt ts_guess.xyz
+qme tsopt ts_guess.xyz --optimizer sella
+qme tsopt ts_guess.xyz --optimizer geometric
 qme tsopt reactant.xyz --product product.xyz --mode neb
 
 # Different backends and settings
 qme opt molecule.xyz --backend mace --device cuda --fmax 0.01
+qme opt molecule.xyz --backend aimnet2 --optimizer geometric --fmax 0.01
 
 # Cache management
 qme cache info
@@ -111,6 +117,18 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 | `mock` | Harmonic oscillator | Testing and development | Built-in |
 
 > **Note**: UMA and MACE cannot be installed together due to dependency conflicts. Use separate environments or choose one.
+
+## ⚙️ Supported Optimizers
+
+| Optimizer | Description | Best For | Transition States |
+|-----------|-------------|----------|-------------------|
+| `sella` | Modern saddle point optimizer | General TS searches | ✅ Yes |
+| `geometric` | Translation-Rotation Internal Coordinates | Complex molecules, internal coordinates | ✅ Yes |
+| `lbfgs` | Limited-memory BFGS | Fast minima optimization | ❌ No |
+| `bfgs` | Broyden-Fletcher-Goldfarb-Shanno | Standard optimization | ❌ No |
+| `fire` | Fast Inertial Relaxation Engine | Quick relaxation | ❌ No |
+
+> **Note**: Sella and geomeTRIC are the recommended optimizers for transition state searches. geomeTRIC uses internal coordinates which can be more efficient for complex molecular systems.
 
 ## 🧪 Testing and Development
 
