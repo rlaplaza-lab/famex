@@ -45,7 +45,8 @@ except ImportError as e:
 
 # Import common interface
 from common_interface import QMEExampleInterface, create_standard_epilog
-from device_utils import get_optimal_device, print_device_info
+
+from qme.utils.device import get_optimal_device, print_device_info
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)

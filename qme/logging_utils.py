@@ -143,15 +143,12 @@ def print_model_info(
         click.echo(f"Device: {device}")
         if device == "cuda":
             try:
-                # Only import torch if we're actually using CUDA
-                from qme.dependencies import deps
+                from qme.utils.device import get_device_info
 
-                if deps.has("torch"):
-                    torch = deps.get("torch")
-                    if torch.cuda.is_available():
-                        gpu_name = torch.cuda.get_device_name(0)
-                        click.echo(f"GPU: {gpu_name}")
-            except Exception as m:
+                device_info = get_device_info(device)
+                if device_info["gpu_name"]:
+                    click.echo(f"GPU: {device_info['gpu_name']}")
+            except Exception:
                 pass  # Don't let GPU info fail the whole process
 
     click.echo("─" * 40)

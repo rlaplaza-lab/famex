@@ -72,8 +72,9 @@ class TorchSimPotential(BasePotential):
 
         # Set device if not provided
         if device is None:
-            torch = deps.get("torch")
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            from qme.utils.device import get_optimal_device
+
+            device = get_optimal_device()
 
         # Set default model name based on backend if not provided
         if model_name is None:
