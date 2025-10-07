@@ -86,11 +86,13 @@ class TestTorchSimIntegration:
 
     def test_torchsim_fallback_behavior(self):
         """Test TorchSim error behavior when not available."""
-        if not deps.has("torch_sim"):
+        from qme.backend_availability import is_backend_available
+
+        if not is_backend_available("torchsim_mace"):
             # Should raise ImportError with clear message when TorchSim is not available
             with pytest.raises(
                 ImportError,
-                match="TorchSim MACE calculator requires torch-sim-atomistic",
+                match="Backend 'torchsim_mace' is not available",
             ):
                 calculator_registry.create_calculator(
                     backend="torchsim_mace", model_name="mace-omol-0", device="cpu"

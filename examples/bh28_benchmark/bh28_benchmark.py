@@ -47,7 +47,7 @@ except ImportError as e:
     sys.exit(1)
 
 # Import device utilities
-from device_utils import get_optimal_device, print_device_info
+from qme.utils.device import get_optimal_device, print_device_info
 
 # Suppress verbose logging from dependencies early
 logging.getLogger("jax").setLevel(logging.WARNING)

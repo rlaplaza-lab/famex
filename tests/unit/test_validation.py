@@ -157,14 +157,14 @@ class TestDeviceValidation:
 
     def test_validate_device_parameter_cuda_unavailable(self):
         """Test validation with CUDA requested but unavailable."""
-        # Mock torch to simulate CUDA unavailable
-        import sys
+        # Mock the deps system to simulate torch unavailable
         from unittest.mock import patch
 
-        with patch.dict(sys.modules, {"torch": None}):
+        with patch("qme.dependencies.deps") as mock_deps:
+            mock_deps.has.return_value = False
             with pytest.raises(ValidationError) as exc_info:
                 validate_device_parameter("cuda", "aimnet2")
-            assert "PyTorch not available" in str(exc_info.value)
+            assert "PyTorch not available to check CUDA" in str(exc_info.value)
 
 
 class TestFileValidation:

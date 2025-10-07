@@ -261,30 +261,15 @@ def validate_device_parameter(device: Optional[str], backend: str):
     ValidationError
         If device parameter is invalid
     """
-    if device is None:
-        return  # None is valid (auto-detect)
+    try:
+        from qme.utils.device import validate_device
 
-    valid_devices = ["cpu", "cuda", "gpu"]
-    if device.lower() not in valid_devices:
+        validate_device(device)
+    except ValueError as e:
         raise ValidationError(
-            f"Invalid device: {device}",
-            suggestion=f"Use one of: {', '.join(valid_devices)} or None for auto-detection.",
+            f"Invalid device for {backend}: {e}",
+            suggestion="Use device='cpu', 'cuda', or None for auto-detection.",
         )
-
-    if device.lower() in ["cuda", "gpu"]:
-        try:
-            import torch
-
-            if not torch.cuda.is_available():
-                raise ValidationError(
-                    f"CUDA device requested but CUDA is not available for {backend}.",
-                    suggestion="Use device='cpu' or install CUDA-enabled PyTorch.",
-                )
-        except ImportError:
-            raise ValidationError(
-                f"PyTorch not available to check CUDA for {backend}.",
-                suggestion="Install PyTorch or use device='cpu'.",
-            )
 
 
 def validate_file_format(filepath: Union[str, Path], supported_formats: List[str]):

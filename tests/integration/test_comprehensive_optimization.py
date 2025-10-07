@@ -23,96 +23,9 @@ from ase import Atoms
 from qme import Explorer
 from qme.backend_availability import get_available_backends
 from qme.dependencies import deps
-from tests.test_utils import StandardTestAssertions, TestMoleculeFactory
+from tests.test_utils import StandardTestAssertions, TestMoleculeFactory, TestResultHandler
 
-
-class TestSystemDefinitions:
-    """Define test molecular systems with distorted initial geometries."""
-
-    @staticmethod
-    def get_water_distorted():
-        """Water molecule with distorted geometry."""
-        return Atoms(
-            ["O", "H", "H"],
-            positions=[
-                [0.0, 0.0, 0.0],  # O
-                [1.5, 0.0, 0.0],  # H (stretched)
-                [-0.3, 1.3, 0.0],  # H (stretched, bent)
-            ],
-        )
-
-    @staticmethod
-    def get_methane_distorted():
-        """Methane molecule with distorted tetrahedral geometry."""
-        return Atoms(
-            ["C", "H", "H", "H", "H"],
-            positions=[
-                [0.0, 0.0, 0.0],  # C
-                [1.5, 0.0, 0.0],  # H (stretched)
-                [0.0, 1.5, 0.0],  # H (stretched)
-                [0.0, 0.0, 1.5],  # H (stretched)
-                [-1.0, -1.0, -1.0],  # H (displaced)
-            ],
-        )
-
-    @staticmethod
-    def get_ethane_distorted():
-        """Ethane molecule with distorted geometry."""
-        return Atoms(
-            ["C", "C", "H", "H", "H", "H", "H", "H"],
-            positions=[
-                [0.0, 0.0, 0.0],  # C
-                [2.0, 0.0, 0.0],  # C (stretched C-C)
-                [-0.7, 1.2, 0.0],  # H
-                [-0.7, -0.6, 1.0],  # H
-                [-0.7, -0.6, -1.0],  # H
-                [2.7, 1.2, 0.0],  # H
-                [2.7, -0.6, 1.0],  # H
-                [2.7, -0.6, -1.0],  # H
-            ],
-        )
-
-    @staticmethod
-    def get_methanol_distorted():
-        """Methanol molecule with distorted geometry."""
-        return Atoms(
-            ["C", "O", "H", "H", "H", "H"],
-            positions=[
-                [0.0, 0.0, 0.0],  # C
-                [1.7, 0.0, 0.0],  # O (stretched C-O)
-                [2.5, 0.0, 0.0],  # H (O-H)
-                [-0.7, 1.2, 0.0],  # H
-                [-0.7, -0.6, 1.0],  # H
-                [-0.7, -0.6, -1.0],  # H
-            ],
-        )
-
-    @staticmethod
-    def get_water_dissociation_ts_guess():
-        """Water dissociation TS guess (H2O -> H + OH)."""
-        return Atoms(
-            "H2O",
-            positions=[
-                [0.0, 0.0, 0.0],  # O
-                [2.5, 0.0, 0.0],  # H (dissociating, far)
-                [-0.5, 0.8, 0.0],  # H (staying)
-            ],
-        )
-
-    @staticmethod
-    def get_sn2_like_ts_guess():
-        """Simple SN2-like transition state guess (F- + CH3Cl -> FCH3 + Cl-)."""
-        return Atoms(
-            "CH3FCl",
-            positions=[
-                [0.0, 0.0, 0.0],  # C (center)
-                [-2.5, 0.0, 0.0],  # F (approaching nucleophile)
-                [2.5, 0.0, 0.0],  # Cl (leaving group)
-                [0.0, 1.1, 0.0],  # H
-                [0.0, -0.5, 1.0],  # H
-                [0.0, -0.5, -1.0],  # H
-            ],
-        )
+# TestSystemDefinitions class removed - using TestMoleculeFactory instead
 
 
 class TestMinimaOptimization:
@@ -132,19 +45,15 @@ class TestMinimaOptimization:
         result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=20)
         optimization_time = time.time() - start_time
 
-        # Handle list return format from run() method
-        if isinstance(result, list) and len(result) > 0:
-            strategy_result = result[0]
-        else:
-            strategy_result = result
+        # Use standardized result handling
+        strategy_result = TestResultHandler.normalize_result(result)
+        final_atoms = TestResultHandler.extract_atoms(result)
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
-        StandardTestAssertions.assert_reasonable_geometry(
-            strategy_result["optimized_atoms"], backend
-        )
+        StandardTestAssertions.assert_reasonable_geometry(final_atoms, backend)
         # Check H-H distance on standardized result
-        final_distance = strategy_result["optimized_atoms"].get_distance(0, 1)
+        final_distance = final_atoms.get_distance(0, 1)
         if backend == "mock":
             assert 0.5 < final_distance < 2.5
         else:
@@ -159,20 +68,15 @@ class TestMinimaOptimization:
         result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50)
         optimization_time = time.time() - start_time
 
-        # Handle list return format from run() method
-        if isinstance(result, list) and len(result) > 0:
-            strategy_result = result[0]
-        else:
-            strategy_result = result
+        # Use standardized result handling
+        strategy_result = TestResultHandler.normalize_result(result)
+        final_atoms = TestResultHandler.extract_atoms(result)
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
-        StandardTestAssertions.assert_reasonable_geometry(
-            strategy_result["optimized_atoms"], backend
-        )
+        StandardTestAssertions.assert_reasonable_geometry(final_atoms, backend)
 
         # Check O-H distances
-        final_atoms = strategy_result["optimized_atoms"]
         oh1_dist = final_atoms.get_distance(0, 1)
         oh2_dist = final_atoms.get_distance(0, 2)
 
@@ -198,20 +102,15 @@ class TestMinimaOptimization:
         result = optimizer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.05, steps=50)
         optimization_time = time.time() - start_time
 
-        # Handle list return format from run() method
-        if isinstance(result, list) and len(result) > 0:
-            strategy_result = result[0]
-        else:
-            strategy_result = result
+        # Use standardized result handling
+        strategy_result = TestResultHandler.normalize_result(result)
+        final_atoms = TestResultHandler.extract_atoms(result)
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
-        StandardTestAssertions.assert_reasonable_geometry(
-            strategy_result["optimized_atoms"], backend
-        )
+        StandardTestAssertions.assert_reasonable_geometry(final_atoms, backend)
 
         # Check C-H distances
-        final_atoms = strategy_result["optimized_atoms"]
         ch_distances = [final_atoms.get_distance(0, i) for i in range(1, 5)]
 
         if backend == "mock":
@@ -248,20 +147,15 @@ class TestTransitionStateOptimization:
         result = optimizer.run(mode="ts", fmax=0.1, steps=50)
         optimization_time = time.time() - start_time
 
-        # Handle list return format from run() method
-        if isinstance(result, list) and len(result) > 0:
-            strategy_result = result[0]
-        else:
-            strategy_result = result
+        # Use standardized result handling
+        strategy_result = TestResultHandler.normalize_result(result)
+        final_atoms = TestResultHandler.extract_atoms(result)
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
-        StandardTestAssertions.assert_reasonable_geometry(
-            strategy_result["optimized_atoms"], backend
-        )
+        StandardTestAssertions.assert_reasonable_geometry(final_atoms, backend)
 
         # Check O-H distances
-        final_atoms = strategy_result["optimized_atoms"]
         oh1_dist = final_atoms.get_distance(0, 1)  # O-H (dissociating)
         oh2_dist = final_atoms.get_distance(0, 2)  # O-H (staying)
 
@@ -286,7 +180,7 @@ class TestTransitionStateOptimization:
         if not deps.has("sella"):
             pytest.skip("SELLA not available for optimizer comparison")
 
-        water_ts_guess = TestSystemDefinitions.get_water_dissociation_ts_guess()
+        water_ts_guess = TestMoleculeFactory.get_water_dissociation_ts_guess()
 
         # Test Sella optimizer with proper ML backend
         # Use first available ML backend for TS optimization
@@ -349,20 +243,15 @@ class TestTransitionStateOptimization:
         result = optimizer.run(mode="ts", fmax=0.1, steps=50)
         optimization_time = time.time() - start_time
 
-        # Handle list return format from run() method
-        if isinstance(result, list) and len(result) > 0:
-            strategy_result = result[0]
-        else:
-            strategy_result = result
+        # Use standardized result handling
+        strategy_result = TestResultHandler.normalize_result(result)
+        final_atoms = TestResultHandler.extract_atoms(result)
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
-        StandardTestAssertions.assert_reasonable_geometry(
-            strategy_result["optimized_atoms"], backend
-        )
+        StandardTestAssertions.assert_reasonable_geometry(final_atoms, backend)
 
         # Check key distances for SN2 mechanism
-        final_atoms = strategy_result["optimized_atoms"]
         cf_dist = final_atoms.get_distance(0, 1)  # C-F (forming)
         ccl_dist = final_atoms.get_distance(0, 2)  # C-Cl (breaking)
 
@@ -397,12 +286,9 @@ class TestFileIO:
 
             # Optimize and save
             result = optimizer.run(mode="minima", fmax=0.05, steps=30)
-            # Handle list return format from run() method
-            if isinstance(result, list) and len(result) > 0:
-                strategy_result = result[0]
-            else:
-                strategy_result = result
-            optimizer.save_structure(strategy_result["optimized_atoms"], str(output_file))
+            # Use standardized result handling
+            final_atoms = TestResultHandler.extract_atoms(result)
+            optimizer.save_structure(final_atoms, str(output_file))
 
             # Verify output file
             assert output_file.exists()
@@ -415,8 +301,6 @@ class TestFileIO:
 
     def test_save_structure_robustness(self):
         """Test that save_structure handles problematic atoms objects gracefully."""
-        import numpy as np
-        from ase import Atoms
 
         # Create a problematic atoms object that might cause XYZ writing issues
         h2 = Atoms(["H", "H"], positions=[[0, 0, 0], [1.0, 0, 0]])
@@ -455,12 +339,9 @@ class TestBackendConsistency:
                 optimizer = Explorer(atoms=h2, backend=backend)
 
                 result = optimizer.run(mode="minima", fmax=0.05, steps=50)
-                # Handle list return format from run() method
-                if isinstance(result, list) and len(result) > 0:
-                    strategy_result = result[0]
-                else:
-                    strategy_result = result
-                final_distance = strategy_result["optimized_atoms"].get_distance(0, 1)
+                # Use standardized result handling
+                final_atoms = TestResultHandler.extract_atoms(result)
+                final_distance = final_atoms.get_distance(0, 1)
                 results[backend] = final_distance
 
             except (ImportError, Exception):

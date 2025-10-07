@@ -85,6 +85,38 @@ class TestMoleculeFactory:
             ],
         )
 
+    @staticmethod
+    def get_ethane_distorted() -> Atoms:
+        """Ethane molecule with distorted geometry."""
+        return Atoms(
+            ["C", "C", "H", "H", "H", "H", "H", "H"],
+            positions=[
+                [0.0, 0.0, 0.0],  # C
+                [2.0, 0.0, 0.0],  # C (stretched C-C)
+                [-0.7, 1.2, 0.0],  # H
+                [-0.7, -0.6, 1.0],  # H
+                [-0.7, -0.6, -1.0],  # H
+                [2.7, 1.2, 0.0],  # H
+                [2.7, -0.6, 1.0],  # H
+                [2.7, -0.6, -1.0],  # H
+            ],
+        )
+
+    @staticmethod
+    def get_methanol_distorted() -> Atoms:
+        """Methanol molecule with distorted geometry."""
+        return Atoms(
+            ["C", "O", "H", "H", "H", "H"],
+            positions=[
+                [0.0, 0.0, 0.0],  # C
+                [1.7, 0.0, 0.0],  # O (stretched C-O)
+                [2.5, 0.0, 0.0],  # H (O-H)
+                [-0.7, 1.2, 0.0],  # H
+                [-0.7, -0.6, 1.0],  # H
+                [-0.7, -0.6, -1.0],  # H
+            ],
+        )
+
 
 class TestFileManager:
     """Utility for managing test files and temporary directories."""
@@ -114,24 +146,11 @@ class BackendTestMixin:
         if backend == "mock":
             return True
 
-        # Check dependencies first
-        if backend == "aimnet2" and not deps.has("aimnet2"):
-            return False
-        if backend == "mace" and not deps.has("mace"):
-            return False
-        if backend == "uma" and not deps.has("fairchem"):
-            return False
-        if backend == "so3lr" and not deps.has("so3lr"):
-            return False
-        if backend in ["torchsim_mace", "torchsim_uma"]:
-            return deps.has("torch_sim") and deps.has("torch")
+        # Use the sophisticated backend availability checker
+        # which handles dependency conflicts and version issues
+        from qme.backend_availability import is_backend_available
 
-        # Try to create calculator to verify availability
-        try:
-            calc = qme.calculator_registry.create_calculator(backend)
-            return calc is not None
-        except (ImportError, Exception):
-            return False
+        return is_backend_available(backend)
 
     @staticmethod
     def get_available_backends() -> List[str]:
@@ -152,6 +171,26 @@ class BackendTestMixin:
         """Skip test if backend is not available."""
         if not BackendTestMixin.check_backend_availability(backend):
             pytest.skip(f"Backend {backend} not available")
+
+
+class TestResultHandler:
+    """Utility class for handling test results consistently."""
+
+    @staticmethod
+    def normalize_result(result) -> dict:
+        """Normalize optimization result to standard dictionary format."""
+        # Handle list return format from run() method
+        if isinstance(result, list) and len(result) > 0:
+            strategy_result = result[0]
+        else:
+            strategy_result = result
+        return strategy_result
+
+    @staticmethod
+    def extract_atoms(result) -> Atoms:
+        """Extract Atoms object from optimization result."""
+        normalized_result = TestResultHandler.normalize_result(result)
+        return normalized_result["optimized_atoms"]
 
 
 class StandardTestAssertions:

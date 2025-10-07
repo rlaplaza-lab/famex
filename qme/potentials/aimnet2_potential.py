@@ -453,7 +453,9 @@ class AIMNet2Potential(BasePotential):
 
         # Set device if not provided
         if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            from qme.utils.device import get_optimal_device
+
+            device = get_optimal_device()
 
         # Initialize base class
         super().__init__(model_name=model_name, device=device, **kwargs)

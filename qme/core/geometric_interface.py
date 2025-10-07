@@ -144,7 +144,9 @@ class GeometricOptimizer(Optimizer):
                 raise ValueError(
                     f"Hessian must be {expected_shape} but got " f"{self.initial_hessian.shape}"
                 )
-            params.hessian = self.initial_hessian.copy()
+            # Store the Hessian data and set hessian to 'first' to use it
+            params.hess_data = self.initial_hessian.copy()
+            params.hessian = "first"
 
         # Run geomeTRIC optimization
         try:
@@ -173,11 +175,17 @@ class GeometricOptimizer(Optimizer):
                 try:
                     optimizer.optimizeGeometry()
                     # Check if optimization converged using geomeTRIC's state system
-                    converged = getattr(optimizer, "state", None) == 2  # OPT_STATE.CONVERGED = 2
+                    state = getattr(optimizer, "state", None)
+                    converged = state is not None and (
+                        state == 2 if np.isscalar(state) else (state == 2).any()
+                    )
                 except Exception as opt_error:
                     # geomeTRIC might raise an exception even when it converges
                     # Check if we can still get results using the state system
-                    converged = getattr(optimizer, "state", None) == 2  # OPT_STATE.CONVERGED = 2
+                    state = getattr(optimizer, "state", None)
+                    converged = state is not None and (
+                        state == 2 if np.isscalar(state) else (state == 2).any()
+                    )
 
                     # Check if this is a GeomOptNotConvergedError
                     from geometric.errors import GeomOptNotConvergedError
@@ -203,7 +211,7 @@ class GeometricOptimizer(Optimizer):
                             # Sometimes the state is not set correctly but the
                             # optimization
                             # actually converged
-                            if hasattr(optimizer, "progress") and optimizer.progress:
+                            if hasattr(optimizer, "progress") and optimizer.progress is not None:
                                 # If there's progress, the optimization might have
                                 # converged
                                 # Check if the final step was successful
