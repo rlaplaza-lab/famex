@@ -63,9 +63,7 @@ def get_available_backends(
     if verbose:
         backends_to_check = ALL_BACKENDS if include_mock else ML_BACKENDS
         if not include_torchsim:
-            backends_to_check = [
-                b for b in backends_to_check if b not in TORCHSIM_BACKENDS
-            ]
+            backends_to_check = [b for b in backends_to_check if b not in TORCHSIM_BACKENDS]
 
         for backend in backends_to_check:
             is_available = backend in available
@@ -78,9 +76,7 @@ def get_available_backends(
     return available
 
 
-def get_available_ml_backends(
-    include_torchsim: bool = True, verbose: bool = False
-) -> List[str]:
+def get_available_ml_backends(include_torchsim: bool = True, verbose: bool = False) -> List[str]:
     """Get list of ML backends that are available (excludes mock)."""
     return get_available_backends(
         include_mock=False, include_torchsim=include_torchsim, verbose=verbose
@@ -100,9 +96,7 @@ def get_available_torchsim_backends(verbose: bool = False) -> List[str]:
     return available
 
 
-def filter_available_backends(
-    requested_backends: List[str], verbose: bool = False
-) -> List[str]:
+def filter_available_backends(requested_backends: List[str], verbose: bool = False) -> List[str]:
     """
     Filter a list of requested backends to only include those that are available.
 
@@ -171,9 +165,7 @@ def require_ml_backends(min_count: int = 1) -> List[str]:
     available = get_available_ml_backends()
 
     if len(available) < min_count:
-        print(
-            f"❌ Need at least {min_count} ML backend(s), but only {len(available)} available."
-        )
+        print(f"❌ Need at least {min_count} ML backend(s), but only {len(available)} available.")
         print("Please install additional ML backends:")
         print("  - UMA: pip install fairchem-core")
         print("  - MACE: pip install mace-torch")
@@ -198,9 +190,7 @@ def print_backend_summary(backends: List[str], title: str = "Backend Summary"):
 
     # Categorize backends
     mock_backends = [b for b in backends if b == "mock"]
-    ml_backends = [
-        b for b in backends if b in ML_BACKENDS and b not in TORCHSIM_BACKENDS
-    ]
+    ml_backends = [b for b in backends if b in ML_BACKENDS and b not in TORCHSIM_BACKENDS]
     torchsim_backends = [b for b in backends if b in TORCHSIM_BACKENDS]
 
     if mock_backends:
@@ -261,9 +251,7 @@ def require_any_backend(backends: List[str]):
         # If pytest not available, just check availability
         available = [b for b in backends if is_backend_available(b)]
         if not available:
-            raise ImportError(
-                f"None of the required backends are available: {backends}"
-            )
+            raise ImportError(f"None of the required backends are available: {backends}")
         return available
 
     available = [b for b in backends if is_backend_available(b)]
@@ -303,4 +291,3 @@ AVAILABLE_BACKENDS = get_available_backends()
 AVAILABLE_ML_BACKENDS = get_available_ml_backends()
 AVAILABLE_TORCHSIM_BACKENDS = get_available_torchsim_backends()
 AVAILABLE_BACKEND_PAIRS = get_backend_pairs()
-

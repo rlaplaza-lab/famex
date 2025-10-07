@@ -11,8 +11,8 @@ import tempfile
 import pytest
 from click.testing import CliRunner
 
-from qme.cli import main
 from qme.backend_availability import get_available_backends
+from qme.cli import main
 from tests.test_utils import TestMoleculeFactory
 
 

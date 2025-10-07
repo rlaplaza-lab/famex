@@ -145,9 +145,7 @@ class BackendTestMixin:
             "torchsim_mace",
             "torchsim_uma",
         ]
-        return [
-            b for b in all_backends if BackendTestMixin.check_backend_availability(b)
-        ]
+        return [b for b in all_backends if BackendTestMixin.check_backend_availability(b)]
 
     @staticmethod
     def require_backend(backend: str) -> None:
@@ -160,9 +158,7 @@ class StandardTestAssertions:
     """Standardized assertion methods for common test patterns."""
 
     @staticmethod
-    def assert_optimization_result(
-        result: dict, expected_keys: Optional[List[str]] = None
-    ) -> None:
+    def assert_optimization_result(result: dict, expected_keys: Optional[List[str]] = None) -> None:
         """Assert that optimization result has expected structure."""
         if expected_keys is None:
             expected_keys = ["converged", "optimized_atoms"]
@@ -172,6 +168,7 @@ class StandardTestAssertions:
 
         # Handle both Python bool and numpy bool types
         import numpy as np
+
         assert isinstance(result["converged"], (bool, np.bool_)), "converged should be boolean"
         assert isinstance(
             result["optimized_atoms"], Atoms
@@ -215,18 +212,14 @@ class StandardTestAssertions:
 
         if backend != "mock":
             # Real ML potentials should give reasonable energies
-            assert (
-                -1000 < energy < 1000
-            ), f"Energy out of reasonable range: {energy:.3f} eV"
+            assert -1000 < energy < 1000, f"Energy out of reasonable range: {energy:.3f} eV"
 
     @staticmethod
     def assert_forces_reasonable(forces, backend: str = "mock") -> None:
         """Assert that forces are reasonable."""
         assert not (forces != forces).any(), "Forces should not contain NaN"
         assert not (forces == float("inf")).any(), "Forces should not contain infinity"
-        assert not (
-            forces == float("-inf")
-        ).any(), "Forces should not contain negative infinity"
+        assert not (forces == float("-inf")).any(), "Forces should not contain negative infinity"
 
         if backend != "mock":
             # Real ML potentials should give reasonable forces

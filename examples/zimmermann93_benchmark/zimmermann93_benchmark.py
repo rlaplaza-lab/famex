@@ -131,9 +131,7 @@ def compute_rmsd_flexible(ref_atoms, opt_atoms) -> float:
 
     for i, sym in enumerate(ref_syms):
         # candidate indices in opt with same symbol and not used
-        candidates = [
-            j for j, s in enumerate(opt_syms) if s == sym and j not in used_opt
-        ]
+        candidates = [j for j, s in enumerate(opt_syms) if s == sym and j not in used_opt]
         if not candidates:
             # cannot find a matching element type
             return float("nan")
@@ -159,9 +157,7 @@ def compute_rmsd_flexible(ref_atoms, opt_atoms) -> float:
 class Zimmermann93Benchmark:
     """Benchmark suite for two-ended TS search on Zimmermann-93 dataset."""
 
-    def __init__(
-        self, dataset_dir: Optional[str] = None, output_dir: str = "benchmark_results"
-    ):
+    def __init__(self, dataset_dir: Optional[str] = None, output_dir: str = "benchmark_results"):
         # Use dataset in same directory by default
         if dataset_dir is None:
             dataset_dir = str(Path(__file__).parent / "zimmermann93_dataset")
@@ -247,9 +243,7 @@ class Zimmermann93Benchmark:
                 print(f"Warning: Backend '{backend}' not available, skipping")
         return available
 
-    def print_backend_summary(
-        self, backends: List[str], title: str = "Available Backends"
-    ):
+    def print_backend_summary(self, backends: List[str], title: str = "Available Backends"):
         """Print a formatted summary of backends."""
         print(f"\n📋 {title}")
         print("-" * 50)
@@ -322,9 +316,7 @@ class Zimmermann93Benchmark:
                             # Pick highest energy image as TS guess
                             max_idx = int(np.nanargmax(energies))
                             ts_guess_geom = path[max_idx]
-                            ts_guess_atoms = (
-                                ts_guess_geom  # Geometry objects are ASE-compatible
-                            )
+                            ts_guess_atoms = ts_guess_geom  # Geometry objects are ASE-compatible
 
                             # TS optimization will be done with fresh optimizer
 
@@ -336,12 +328,10 @@ class Zimmermann93Benchmark:
                                         backend=backend,
                                         model_name=model_name,
                                     )
-                                    ts_result = ts_optimizer.run(
-                                        mode="ts", fmax=fmax, steps=steps
+                                    ts_result = ts_optimizer.run(mode="ts", fmax=fmax, steps=steps)
+                                    ts_success = ts_result.get("converged", False) or ts_result.get(
+                                        "ts_converged", False
                                     )
-                                    ts_success = ts_result.get(
-                                        "converged", False
-                                    ) or ts_result.get("ts_converged", False)
                                     ts_opt_atoms = ts_result.get(
                                         "optimized_atoms"
                                     ) or ts_result.get("ts_atoms")
@@ -398,9 +388,7 @@ class Zimmermann93Benchmark:
                                 }
                             )
 
-                            print(
-                                f"    ✓ TS guess index: {max_idx}, RMSD to ref: {rmsd:.4f} Å"
-                            )
+                            print(f"    ✓ TS guess index: {max_idx}, RMSD to ref: {rmsd:.4f} Å")
 
                     except Exception as e:
                         reaction_data = {"success": False, "error": str(e)}
@@ -495,16 +483,8 @@ class Zimmermann93Benchmark:
                 ]
             )
             success_rate = f"{stats.get('count', 0)}/{total_attempted}"
-            mean_rmsd = (
-                f"{stats.get('mean_rmsd', 0):.4f}"
-                if stats.get("count", 0) > 0
-                else "N/A"
-            )
-            max_rmsd = (
-                f"{stats.get('max_rmsd', 0):.4f}"
-                if stats.get("count", 0) > 0
-                else "N/A"
-            )
+            mean_rmsd = f"{stats.get('mean_rmsd', 0):.4f}" if stats.get("count", 0) > 0 else "N/A"
+            max_rmsd = f"{stats.get('max_rmsd', 0):.4f}" if stats.get("count", 0) > 0 else "N/A"
 
             print(f"{backend:<12} {success_rate:<8} {mean_rmsd:<12} {max_rmsd:<12}")
 
@@ -625,9 +605,7 @@ Examples:
         reactions = benchmark.reactions
 
     invalid_rxn = [
-        r
-        for r in reactions
-        if (benchmark.dataset_dir / f"{r}_reactant.xyz").exists() is False
+        r for r in reactions if (benchmark.dataset_dir / f"{r}_reactant.xyz").exists() is False
     ]
     if invalid_rxn:
         print(f"❌ Invalid reactions: {invalid_rxn}")

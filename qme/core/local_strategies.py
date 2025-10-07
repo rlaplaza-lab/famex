@@ -96,7 +96,7 @@ def local_minima_runner(
     The runner uses the explorer helpers to attach calculators and
     constraints. It selects a sensible local optimizer based on
     `explorer.optimizer_name` and falls back to LBFGS/BFGS/FIRE as needed.
-    
+
     Returns
     -------
     dict
@@ -116,7 +116,7 @@ def local_minima_runner(
     results = []
     step_counts = []
     converged_flags = []
-    
+
     for atoms in atoms_iter:
         try:
             explorer._create_and_attach_calculator(atoms)
@@ -134,15 +134,12 @@ def local_minima_runner(
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("order", 0)
             # Check if Hessian is provided in explorer
-            if (
-                hasattr(explorer, "initial_hessian")
-                and explorer.initial_hessian is not None
-            ):
+            if hasattr(explorer, "initial_hessian") and explorer.initial_hessian is not None:
                 opt_kwargs["hessian"] = explorer.initial_hessian
 
         opt = opt_class(atoms, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
-        
+
         # Get step count and convergence status
         steps_taken = opt.get_number_of_steps()
         try:
@@ -151,7 +148,7 @@ def local_minima_runner(
             # Some optimizers need gradient argument
             forces = atoms.get_forces()
             converged = opt.converged(forces.flatten())
-        
+
         results.append(atoms)
         step_counts.append(steps_taken)
         converged_flags.append(converged)
@@ -182,7 +179,7 @@ def local_ts_runner(
 
     Uses the explorer helpers to attach calculators and constraints before
     running the chosen optimizer.
-    
+
     Returns
     -------
     dict
@@ -206,7 +203,7 @@ def local_ts_runner(
     results = []
     step_counts = []
     converged_flags = []
-    
+
     for atoms in atoms_iter:
         try:
             explorer._create_and_attach_calculator(atoms)
@@ -224,15 +221,12 @@ def local_ts_runner(
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("order", 1)
             # Check if Hessian is provided in explorer
-            if (
-                hasattr(explorer, "initial_hessian")
-                and explorer.initial_hessian is not None
-            ):
+            if hasattr(explorer, "initial_hessian") and explorer.initial_hessian is not None:
                 opt_kwargs["hessian"] = explorer.initial_hessian
 
         opt = opt_class(atoms, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
-        
+
         # Get step count and convergence status
         steps_taken = opt.get_number_of_steps()
         try:
@@ -241,7 +235,7 @@ def local_ts_runner(
             # Some optimizers need gradient argument
             forces = atoms.get_forces()
             converged = opt.converged(forces.flatten())
-        
+
         results.append(atoms)
         step_counts.append(steps_taken)
         converged_flags.append(converged)

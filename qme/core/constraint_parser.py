@@ -45,10 +45,7 @@ def parse_constraints(
         constraint_manager = parse_constraint_string(constraint_specs, atoms)
     elif isinstance(constraint_specs, list):
         # Handle list of pre-made ASE constraints
-        if all(
-            hasattr(c, "__call__") or hasattr(c, "adjust_positions")
-            for c in constraint_specs
-        ):
+        if all(hasattr(c, "__call__") or hasattr(c, "adjust_positions") for c in constraint_specs):
             # Already ASE constraints
             return constraint_specs
         else:
@@ -58,16 +55,12 @@ def parse_constraints(
                 if isinstance(spec, str):
                     constraint_strings.append(spec)
                 else:
-                    raise ValueError(
-                        f"Unsupported constraint specification in list: {spec}"
-                    )
+                    raise ValueError(f"Unsupported constraint specification in list: {spec}")
 
             constraint_str = "; ".join(constraint_strings)
             constraint_manager = parse_constraint_string(constraint_str, atoms)
     else:
-        raise ValueError(
-            f"Unsupported constraint specification type: {type(constraint_specs)}"
-        )
+        raise ValueError(f"Unsupported constraint specification type: {type(constraint_specs)}")
 
     # Apply constraints to atoms and get ASE constraint list
     constraint_manager.apply_constraints(atoms)

@@ -38,12 +38,28 @@ def load_atoms_from_xyz(path: str) -> Atoms:
     return atoms
 
 
+def _coerce_to_atoms(obj) -> Atoms:
+    """Best-effort conversion of various result shapes into an ASE Atoms."""
+    if isinstance(obj, Atoms):
+        return obj
+    # Strategy dict result
+    if isinstance(obj, dict) and "optimized_atoms" in obj:
+        return obj["optimized_atoms"]
+    # List/tuple of Atoms (take first)
+    if isinstance(obj, (list, tuple)) and obj and isinstance(obj[0], Atoms):
+        return obj[0]
+    # Path string to an XYZ; try to read
+    if isinstance(obj, str) and os.path.exists(obj):
+        return ase_read(obj)
+    raise TypeError(f"Cannot coerce object of type {type(obj)} to ASE Atoms")
+
+
 def write_atoms(atoms: Atoms, out_path: Optional[str]) -> Optional[str]:
     if not out_path:
         return None
     # Ensure output directory exists
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
-    ase_write(out_path, atoms)
+    ase_write(out_path, _coerce_to_atoms(atoms))
     return out_path
 
 

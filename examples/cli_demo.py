@@ -79,11 +79,7 @@ def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]
             print("Status: ❌ FAILED")
             if result.stderr:
                 print("Error output:")
-                print(
-                    result.stderr[:500] + "..."
-                    if len(result.stderr) > 500
-                    else result.stderr
-                )
+                print(result.stderr[:500] + "..." if len(result.stderr) > 500 else result.stderr)
             return False, runtime, result.stdout, result.stderr
 
     except subprocess.TimeoutExpired as e:
@@ -101,9 +97,7 @@ def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]
         return False, 0.0, "", str(e)
 
 
-def create_example_commands(
-    example_files: Path, backend: str, steps: int = 500
-) -> List[Dict]:
+def create_example_commands(example_files: Path, backend: str, steps: int = 500) -> List[Dict]:
     """Create example commands for a specific backend using default settings."""
     return [
         {
@@ -217,18 +211,14 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
     # Ensure no config file interferes with defaults
     config_file = Path("qme.json")
     if config_file.exists():
-        print(
-            "\nFound qme.json config file - temporarily moving it for pure defaults test"
-        )
+        print("\nFound qme.json config file - temporarily moving it for pure defaults test")
         config_file.rename("qme.json.temp")
         print("Using built-in defaults only")
 
     # Get available ML backends
     try:
         if backends:
-            available_backends = interface.filter_available_backends(
-                backends, verbose=True
-            )
+            available_backends = interface.filter_available_backends(backends, verbose=True)
         else:
             available_backends = interface.get_available_ml_backends()
 
@@ -250,9 +240,7 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
     # Ensure we're in the right directory structure
     examples_dir = Path("examples")
     if not examples_dir.exists():
-        print(
-            "❌ Examples directory not found. Make sure to run from qme root directory."
-        )
+        print("❌ Examples directory not found. Make sure to run from qme root directory.")
         return False
 
     example_files = examples_dir / "example_files"
@@ -275,9 +263,7 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
     # Performance tracking
     backend_results = {}
     total_start_time = time.time()
-    total_examples_per_backend = (
-        5  # opt, tsopt, twoended, tsopt_twoended, and neb commands
-    )
+    total_examples_per_backend = 5  # opt, tsopt, twoended, tsopt_twoended, and neb commands
     steps = 500  # Reduced steps for faster testing
 
     # Run examples for each backend
@@ -299,9 +285,7 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
 
         for i, example in enumerate(examples, 1):
             print(f"\n📋 Example {i}/{len(examples)} for {backend}")
-            success, runtime, stdout, stderr = run_command(
-                example["cmd"], example["desc"], backend
-            )
+            success, runtime, stdout, stderr = run_command(example["cmd"], example["desc"], backend)
 
             backend_results[backend]["examples"].append(
                 {
@@ -337,18 +321,12 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
     print(f"{'='*80}")
 
     print("\nBackend Performance Summary:")
-    print(
-        f"{'Backend':<12} {'Success':<8} {'Failed':<8} {'Total Time':<12} {'Avg Time/Task':<15}"
-    )
+    print(f"{'Backend':<12} {'Success':<8} {'Failed':<8} {'Total Time':<12} {'Avg Time/Task':<15}")
     print("-" * 70)
 
     for backend in available_backends:
         results = backend_results[backend]
-        avg_time = (
-            results["total_time"] / len(results["examples"])
-            if results["examples"]
-            else 0
-        )
+        avg_time = results["total_time"] / len(results["examples"]) if results["examples"] else 0
         print(
             f"{backend:<12} {results['successful']:<8} {results['failed']:<8} "
             f"{results['total_time']:<12.2f} {avg_time:<15.2f}"
@@ -379,9 +357,7 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
     print(f"\nTotal benchmark time: {total_time:.2f} seconds")
 
     # Check if all backends had some success
-    total_successful = sum(
-        results["successful"] for results in backend_results.values()
-    )
+    total_successful = sum(results["successful"] for results in backend_results.values())
     total_tests = len(available_backends) * total_examples_per_backend
 
     success_rate = total_successful / total_tests if total_tests > 0 else 0

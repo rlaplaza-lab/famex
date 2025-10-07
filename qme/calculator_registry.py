@@ -40,16 +40,10 @@ class CalculatorRegistry:
             is_class: bool = False
 
         self._lazy_registry: Dict[str, LazyBackend] = {
-            "so3lr": LazyBackend(
-                module="qme.potentials", function="get_so3lr_calculator"
-            ),
+            "so3lr": LazyBackend(module="qme.potentials", function="get_so3lr_calculator"),
             "uma": LazyBackend(module="qme.potentials", function="get_uma_calculator"),
-            "aimnet2": LazyBackend(
-                module="qme.potentials", function="get_aimnet2_calculator"
-            ),
-            "mace": LazyBackend(
-                module="qme.potentials", function="get_mace_calculator"
-            ),
+            "aimnet2": LazyBackend(module="qme.potentials", function="get_aimnet2_calculator"),
+            "mace": LazyBackend(module="qme.potentials", function="get_mace_calculator"),
             "torchsim_mace": LazyBackend(
                 module="qme.potentials", function="get_torchsim_mace_calculator"
             ),
@@ -154,9 +148,7 @@ class CalculatorRegistry:
             from qme.core.validation import BackendError
 
             # Get actually available backends (not just registered ones)
-            available = [
-                b for b in self.get_available_backends() if self.is_backend_available(b)
-            ]
+            available = [b for b in self.get_available_backends() if self.is_backend_available(b)]
             raise BackendError(backend, available, "calculator creation")
 
         factory_func = self._registry[backend]

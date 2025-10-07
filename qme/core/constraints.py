@@ -54,13 +54,9 @@ class QMEConstraintManager:
                 atom_indices, self.reference_atoms, force_constant
             )
         elif constraint_type == "bond":
-            constraint = HarmonicBondConstraint(
-                atom_indices, self.reference_atoms, force_constant
-            )
+            constraint = HarmonicBondConstraint(atom_indices, self.reference_atoms, force_constant)
         elif constraint_type == "angle":
-            constraint = HarmonicAngleConstraint(
-                atom_indices, self.reference_atoms, force_constant
-            )
+            constraint = HarmonicAngleConstraint(atom_indices, self.reference_atoms, force_constant)
         else:
             raise ValueError(f"Unknown constraint type: {constraint_type}")
 
@@ -243,9 +239,7 @@ class HarmonicAngleConstraint:
         return []
 
 
-def parse_constraint_string(
-    constraint_str: str, reference_atoms: Atoms
-) -> QMEConstraintManager:
+def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> QMEConstraintManager:
     """
     Parse constraint from string specification.
 
@@ -265,9 +259,7 @@ def parse_constraint_string(
     constraint_manager = QMEConstraintManager(reference_atoms)
 
     # Split multiple constraints separated by semicolons
-    constraint_specs = [
-        spec.strip() for spec in constraint_str.split(";") if spec.strip()
-    ]
+    constraint_specs = [spec.strip() for spec in constraint_str.split(";") if spec.strip()]
 
     for spec in constraint_specs:
         parts = spec.strip().split()
@@ -291,9 +283,7 @@ def parse_constraint_string(
                 if part.startswith("k="):
                     force_constant = float(part.replace("k=", ""))
 
-            constraint_manager.add_harmonic_constraint(
-                harmonic_type, atom_indices, force_constant
-            )
+            constraint_manager.add_harmonic_constraint(harmonic_type, atom_indices, force_constant)
 
         else:
             raise ValueError(f"Unknown constraint type: {constraint_type}")

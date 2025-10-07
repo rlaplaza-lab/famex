@@ -22,9 +22,7 @@ class MACEPotential(BasePotential):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(
-        self, model_name: Optional[str] = None, device: Optional[str] = None, **kwargs
-    ):
+    def __init__(self, model_name: Optional[str] = None, device: Optional[str] = None, **kwargs):
         """
         Initialize MACE potential calculator.
 
@@ -58,8 +56,7 @@ class MACEPotential(BasePotential):
 
         if not deps.has("torch"):
             raise ImportError(
-                "PyTorch is required for MACE backend. "
-                "Install with: pip install torch"
+                "PyTorch is required for MACE backend. " "Install with: pip install torch"
             )
 
         with quiet_backend_loading("mace", self.model_name, None, self.device):
@@ -88,9 +85,7 @@ class MACEPotential(BasePotential):
                     self._calc = mace_omol(device=self.device or "cpu")
 
             except ImportError as e:
-                raise ImportError(
-                    f"MACE not available ({e}). Install with: pip install mace-torch"
-                )
+                raise ImportError(f"MACE not available ({e}). Install with: pip install mace-torch")
             except (ValueError, AttributeError, RuntimeError) as e:
                 if any(
                     phrase in str(e)

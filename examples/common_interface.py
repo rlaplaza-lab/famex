@@ -70,6 +70,7 @@ class QMEExampleInterface:
     def get_available_ml_backends(self) -> List[str]:
         """Get list of available ML backends (excluding mock)."""
         from qme.backend_availability import get_available_ml_backends
+
         return get_available_ml_backends()
 
     def filter_available_backends(
@@ -93,9 +94,7 @@ class QMEExampleInterface:
             print(f"{subtitle}")
         print("=" * 80)
 
-    def print_backend_summary(
-        self, backends: List[str], title: str = "Available Backends"
-    ):
+    def print_backend_summary(self, backends: List[str], title: str = "Available Backends"):
         """Print standardized backend summary."""
         print(f"\n📋 {title}")
         print("-" * 50)

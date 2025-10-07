@@ -26,9 +26,7 @@ class QMEError(Exception):
 class DependencyError(QMEError):
     """Raised when required dependencies are not available."""
 
-    def __init__(
-        self, dependency: str, purpose: str, install_command: Optional[str] = None
-    ):
+    def __init__(self, dependency: str, purpose: str, install_command: Optional[str] = None):
         message = f"Missing dependency '{dependency}' required for {purpose}."
         suggestion = f"Install with: {install_command or f'pip install {dependency}'}"
         super().__init__(message, suggestion)
@@ -39,9 +37,7 @@ class DependencyError(QMEError):
 class BackendError(QMEError):
     """Raised when backend-related errors occur."""
 
-    def __init__(
-        self, backend: str, available_backends: List[str], context: str = "calculation"
-    ):
+    def __init__(self, backend: str, available_backends: List[str], context: str = "calculation"):
         message = f"Backend '{backend}' is not available for {context}."
         suggestion = f"Available backends: {', '.join(available_backends)}"
         super().__init__(message, suggestion)
@@ -75,10 +71,7 @@ def get_dependency_error_message(dependency: str, purpose: str) -> str:
 
 def get_backend_error_message(backend: str, available_backends: List[str]) -> str:
     """Get standardized backend error message."""
-    return (
-        f"Unknown backend: {backend}. "
-        f"Available backends: {', '.join(available_backends)}"
-    )
+    return f"Unknown backend: {backend}. " f"Available backends: {', '.join(available_backends)}"
 
 
 def validate_atoms_compatibility(atoms1, atoms2, context: str = "operation"):
@@ -139,9 +132,7 @@ def validate_file_exists(filepath, purpose: str = "operation"):
         raise ValidationError(f"Empty file for {purpose}: {filepath}")
 
 
-def validate_model_parameters(
-    model_name: Optional[str], model_path: Optional[str], backend: str
-):
+def validate_model_parameters(model_name: Optional[str], model_path: Optional[str], backend: str):
     """Validate model parameters for a given backend.
 
     Parameters:
@@ -164,8 +155,7 @@ def validate_model_parameters(
 
     if backend in ["uma", "aimnet2"] and model_path:
         raise ValidationError(
-            f"model_path is not supported for {backend} backend. "
-            f"Use model_name instead.",
+            f"model_path is not supported for {backend} backend. " f"Use model_name instead.",
             suggestion="Remove the model_path parameter and use model_name instead.",
         )
 

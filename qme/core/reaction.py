@@ -234,9 +234,7 @@ class Reaction:
 
         return coords
 
-    def _optimize_path(
-        self, path_geometries: List[Geometry], calculator
-    ) -> List[Geometry]:
+    def _optimize_path(self, path_geometries: List[Geometry], calculator) -> List[Geometry]:
         """
         Optimize path using simplified NEB-like forces.
 
@@ -259,9 +257,7 @@ class Reaction:
 
         return path_geometries
 
-    def find_transition_state_guess(
-        self, method: str = "geodesic", npoints: int = 11
-    ) -> Geometry:
+    def find_transition_state_guess(self, method: str = "geodesic", npoints: int = 11) -> Geometry:
         """
         Find a good initial guess for transition state search.
 
@@ -282,9 +278,7 @@ class Reaction:
         middle_idx = len(path) // 2
         return path[middle_idx]
 
-    def get_rmsd_profile(
-        self, path_geometries: List[Geometry]
-    ) -> tuple[List[float], List[float]]:
+    def get_rmsd_profile(self, path_geometries: List[Geometry]) -> tuple[List[float], List[float]]:
         """
         Calculate RMSD profile along reaction path.
 

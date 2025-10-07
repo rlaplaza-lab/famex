@@ -40,48 +40,40 @@ except ImportError as e:
     print("   Please ensure QME is installed and accessible")
     sys.exit(1)
 
-# Import common interface
+# Common interface and device utils
 from common_interface import QMEExampleInterface, create_standard_epilog
 from device_utils import get_optimal_device, print_device_info
+
+# Backend availability helpers
+from qme.backend_availability import get_available_ml_backends
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 
-# Use consolidated backend availability from qme.backend_availability
-from qme.backend_availability import get_available_ml_backends
-
-
-# Use common interface for standardized functions
-from common_interface import QMEExampleInterface
-
-
 def create_minima_structure() -> Atoms:
     """Create a structure for minima optimization using example files."""
-    from ase.io import read
     import os
-    
+
+    from ase.io import read
+
     # Use the reactant structure as starting point for minima optimization
-    # Get the directory where this script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    structure = read(
-        os.path.join(script_dir, "example_files", "reaction_001_reactant.xyz")
-    )
+    structure = read(os.path.join(script_dir, "example_files", "reaction_001_reactant.xyz"))
     return structure
 
 
 def create_ts_structure() -> Atoms:
     """Create a transition state structure for TS optimization using example files."""
-    from ase.io import read
     import os
-    
+
+    from ase.io import read
+
     # Use the actual TS structure from example files
     # Get the directory where this script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    structure = read(
-        os.path.join(script_dir, "example_files", "reaction_001_ts.xyz")
-    )
+    structure = read(os.path.join(script_dir, "example_files", "reaction_001_ts.xyz"))
     return structure
 
 
@@ -94,7 +86,7 @@ def benchmark_minima_optimizer(
 ) -> Dict[str, Any]:
     """
     Benchmark a single backend with a specific optimizer for minima optimization.
-    
+
     Only suitable optimizers: LBFGS, BFGS, FIRE
     """
     return _benchmark_optimization(
@@ -105,7 +97,7 @@ def benchmark_minima_optimizer(
         verbose=verbose,
         test_ts=False,
         create_structure_func=create_minima_structure,
-        suitable_optimizers=["lbfgs", "bfgs", "fire"]
+        suitable_optimizers=["lbfgs", "bfgs", "fire"],
     )
 
 
@@ -118,7 +110,7 @@ def benchmark_ts_optimizer(
 ) -> Dict[str, Any]:
     """
     Benchmark a single backend with a specific optimizer for transition state optimization.
-    
+
     Only suitable optimizers: Sella
     """
     return _benchmark_optimization(
@@ -129,7 +121,7 @@ def benchmark_ts_optimizer(
         verbose=verbose,
         test_ts=True,
         create_structure_func=create_ts_structure,
-        suitable_optimizers=["sella"]
+        suitable_optimizers=["sella"],
     )
 
 
@@ -140,7 +132,7 @@ def _benchmark_optimization(
     model_name: Optional[str] = None,
     verbose: bool = True,
     test_ts: bool = False,
-    create_structure_func = None,
+    create_structure_func=None,
     suitable_optimizers: List[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -205,7 +197,9 @@ def _benchmark_optimization(
 
         # Check if optimizer is suitable for this task
         if suitable_optimizers and optimizer.lower() not in suitable_optimizers:
-            results["error"] = f"Optimizer {optimizer} not suitable for {'TS' if test_ts else 'minima'} optimization. Suitable: {suitable_optimizers}"
+            results["error"] = (
+                f"Optimizer {optimizer} not suitable for {'TS' if test_ts else 'minima'} optimization. Suitable: {suitable_optimizers}"
+            )
             if verbose:
                 print(f"Status: ❌ {results['error']}")
             return results
@@ -257,9 +251,7 @@ def _benchmark_optimization(
 
         # Test single energy calculation (first call - includes calculator initialization)
         if verbose:
-            print(
-                "Testing single energy calculation (first call - includes model loading)..."
-            )
+            print("Testing single energy calculation (first call - includes model loading)...")
         energy_first_start = time.perf_counter()
 
         energy = explorer.atoms_list[0].get_potential_energy()
@@ -273,9 +265,7 @@ def _benchmark_optimization(
 
         # Test single energy calculation (second call - pure evaluation)
         if verbose:
-            print(
-                "Testing single energy calculation (second call - pure evaluation)..."
-            )
+            print("Testing single energy calculation (second call - pure evaluation)...")
         energy_second_start = time.perf_counter()
 
         energy2 = explorer.atoms_list[0].get_potential_energy()
@@ -307,9 +297,7 @@ def _benchmark_optimization(
 
         # Geometry optimization using Explorer strategies
         if verbose:
-            opt_type = (
-                "transition state optimization" if test_ts else "minima optimization"
-            )
+            opt_type = "transition state optimization" if test_ts else "minima optimization"
             print(f"Running {opt_type}...")
         opt_start = time.perf_counter()
 
@@ -342,40 +330,6 @@ def _benchmark_optimization(
         converged = getattr(optimized_atoms, "converged", True)
         final_energy = float(optimized_atoms.get_potential_energy())
         max_force = float(np.max(np.abs(optimized_atoms.get_forces())))
-            # For TS optimization, create a TS guess by slightly distorting the molecule
-            ts_guess = benzene.copy()
-            positions = ts_guess.get_positions()
-            # Add some distortion to create a TS-like geometry
-            positions[0, 0] += 0.2  # Move first carbon
-            positions[1, 0] -= 0.2  # Move second carbon
-            ts_guess.set_positions(positions)
-            
-            # Update explorer with TS guess
-            explorer.atoms_list = [ts_guess]
-            explorer._create_and_attach_calculator(ts_guess)
-            
-            opt_result = explorer.optimize_ts(fmax=0.01, steps=1000)
-            # New API returns list of atoms
-            assert isinstance(opt_result, list)
-            assert len(opt_result) == 1
-            optimized_atoms = opt_result[0]
-            # Extract metadata from the atoms object if available
-            steps_taken = getattr(optimized_atoms, 'steps_taken', 0)
-            converged = getattr(optimized_atoms, 'converged', True)  # Assume converged if no info
-            final_energy = optimized_atoms.get_potential_energy() if optimized_atoms.calc else None
-            max_force = None  # Will calculate below
-        else:
-            # Minima optimization
-            opt_result = explorer.optimize_minima(fmax=0.01, steps=1000)
-            # New API returns list of atoms
-            assert isinstance(opt_result, list)
-            assert len(opt_result) == 1
-            optimized_atoms = opt_result[0]
-            # Extract metadata from the atoms object if available
-            steps_taken = getattr(optimized_atoms, 'steps_taken', 0)
-            converged = getattr(optimized_atoms, 'converged', True)  # Assume converged if no info
-            final_energy = optimized_atoms.get_potential_energy() if optimized_atoms.calc else None
-            max_force = None  # Will calculate below
 
         opt_time = time.perf_counter() - opt_start
 
@@ -448,12 +402,12 @@ def _benchmark_optimization(
 
         freq_time = time.perf_counter() - freq_start
         results["timings"]["frequency_analysis"] = freq_time
-        
+
         # Enhanced validation based on task type
         frequencies = freq_results["frequencies"]
         n_imaginary = sum(1 for f in frequencies if f < 0)
         is_ts = freq_results["is_ts"]
-        
+
         # Quality check based on task type
         if test_ts:
             # For TS optimization: expect exactly 1 imaginary frequency
@@ -465,17 +419,23 @@ def _benchmark_optimization(
                     if n_imaginary == 0:
                         print("   This suggests the optimizer found a minimum instead of a TS")
                     elif n_imaginary > 1:
-                        print("   This suggests the structure is not a proper TS (too many imaginary frequencies)")
+                        print(
+                            "   This suggests the structure is not a proper TS (too many imaginary frequencies)"
+                        )
         else:
             # For minima optimization: expect 0 imaginary frequencies
             is_valid_result = (n_imaginary == 0) and not is_ts
             result_type = "minima"
             if not is_valid_result:
                 if verbose:
-                    print(f"⚠️  WARNING: Expected minima but found {n_imaginary} imaginary frequencies")
+                    print(
+                        f"⚠️  WARNING: Expected minima but found {n_imaginary} imaginary frequencies"
+                    )
                     if n_imaginary > 0:
-                        print("   This suggests the optimizer found a TS or saddle point instead of a minimum")
-        
+                        print(
+                            "   This suggests the optimizer found a TS or saddle point instead of a minimum"
+                        )
+
         results["frequency_results"] = {
             "n_frequencies": len(frequencies),
             "frequencies": frequencies[:10],  # First 10 frequencies
@@ -506,6 +466,7 @@ def _benchmark_optimization(
 
     except Exception as e:
         import traceback
+
         results["error"] = str(e)
         if verbose:
             print(f"Status: ❌ Error - {e}")
@@ -531,7 +492,9 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
     print("   Total    = Total optimization time")
     print("   Final E  = Final energy (eV)")
     print("   Max F    = Maximum force (eV/Å)")
-    print("   Valid Result = Whether result matches expected type (0 imag freq for minima, 1 for TS)")
+    print(
+        "   Valid Result = Whether result matches expected type (0 imag freq for minima, 1 for TS)"
+    )
     print(f"{'-'*150}")
 
     # Header
@@ -558,12 +521,8 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
 
             # Handle None values for formatting
             steps_str = str(steps_taken) if steps_taken is not None else "N/A"
-            avg_time_str = (
-                f"{avg_time_per_step:.4f}" if avg_time_per_step is not None else "N/A"
-            )
-            final_energy_str = (
-                f"{final_energy:.3f}" if final_energy is not None else "N/A"
-            )
+            avg_time_str = f"{avg_time_per_step:.4f}" if avg_time_per_step is not None else "N/A"
+            final_energy_str = f"{final_energy:.3f}" if final_energy is not None else "N/A"
             max_force_str = f"{max_force:.6f}" if max_force is not None else "N/A"
             valid_result_str = "Yes" if is_valid_result else "No"
 
@@ -665,18 +624,18 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
                 ts_results = [r for r in opt_results if r.get("test_ts", False)]
                 if ts_results:
                     valid_result_list = [
-                        r["frequency_results"].get("is_valid_result", False) 
-                        for r in ts_results 
+                        r["frequency_results"].get("is_valid_result", False)
+                        for r in ts_results
                         if "frequency_results" in r
                     ]
                     if valid_result_list:
                         ts_success_rate = sum(valid_result_list) / len(valid_result_list) * 100
                         print(f"  {'TS Success Rate':<30}: {ts_success_rate:>8.1f}%")
-                    
+
                     # Imaginary frequency analysis
                     n_imag_list = [
                         r["frequency_results"].get("n_imaginary_frequencies", 0)
-                        for r in ts_results 
+                        for r in ts_results
                         if "frequency_results" in r
                     ]
                     if n_imag_list:
@@ -687,8 +646,8 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
                 minima_results = [r for r in opt_results if not r.get("test_ts", False)]
                 if minima_results:
                     valid_result_list = [
-                        r["frequency_results"].get("is_valid_result", False) 
-                        for r in minima_results 
+                        r["frequency_results"].get("is_valid_result", False)
+                        for r in minima_results
                         if "frequency_results" in r
                     ]
                     if valid_result_list:
@@ -738,9 +697,7 @@ def main():
     # Determine which backends to test
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
-        available_backends = interface.filter_available_backends(
-            requested_backends, verbose=True
-        )
+        available_backends = interface.filter_available_backends(requested_backends, verbose=True)
 
         if not available_backends:
             interface.print_error("No requested backends are available!")
@@ -802,7 +759,7 @@ def main():
 
     # Run benchmarks
     results_list = []
-    
+
     # Part 1: Minima optimization
     if minima_optimizers:
         print(f"\n{'='*80}")
@@ -836,7 +793,7 @@ def main():
                             "frequency_results": {},
                         }
                     )
-    
+
     # Part 2: Transition state optimization
     if ts_optimizers:
         print(f"\n{'='*80}")
@@ -883,4 +840,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

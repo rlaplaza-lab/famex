@@ -49,12 +49,11 @@ warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 
-# Use consolidated backend availability from qme.backend_availability
-from qme.backend_availability import get_available_ml_backends
-
-
 # Use common interface for standardized functions
 from common_interface import QMEExampleInterface
+
+# Use consolidated backend availability from qme.backend_availability
+from qme.backend_availability import get_available_ml_backends
 
 
 def create_benzene_molecule() -> Atoms:
@@ -181,9 +180,7 @@ def benchmark_backend(
 
         # Test single energy calculation (first call - includes calculator initialization)
         if verbose:
-            print(
-                "Testing single energy calculation (first call - includes model loading)..."
-            )
+            print("Testing single energy calculation (first call - includes model loading)...")
         energy_first_start = time.perf_counter()
 
         energy = explorer.atoms_list[0].get_potential_energy()
@@ -197,9 +194,7 @@ def benchmark_backend(
 
         # Test single energy calculation (second call - pure evaluation)
         if verbose:
-            print(
-                "Testing single energy calculation (second call - pure evaluation)..."
-            )
+            print("Testing single energy calculation (second call - pure evaluation)...")
         energy_second_start = time.perf_counter()
 
         energy2 = explorer.atoms_list[0].get_potential_energy()
@@ -250,7 +245,7 @@ def benchmark_backend(
             strategy_result = results[0]
         else:
             strategy_result = results
-        
+
         # Extract step tracking information from strategy result
         if isinstance(strategy_result, dict):
             steps_taken = strategy_result.get("steps_taken", 0)
@@ -430,9 +425,7 @@ def print_summary(results_list: List[Dict[str, Any]]):
                 time_val = timings.get(step_key, 0)
                 if time_val is not None and time_val > 0:
                     percentage = (time_val / total) * 100 if total > 0 else 0
-                    print(
-                        f"  {step_display:<30}: {time_val:>8.3f}s ({percentage:>5.1f}%)"
-                    )
+                    print(f"  {step_display:<30}: {time_val:>8.3f}s ({percentage:>5.1f}%)")
 
             # Optimization metrics
             steps_taken = opt_results.get("steps_taken", 0)
@@ -485,9 +478,7 @@ def main():
     # Determine which backends to test
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
-        available_backends = interface.filter_available_backends(
-            requested_backends, verbose=True
-        )
+        available_backends = interface.filter_available_backends(requested_backends, verbose=True)
 
         if not available_backends:
             interface.print_error("No requested backends are available!")
@@ -524,9 +515,7 @@ def main():
     results_list = []
     for backend in available_backends:
         try:
-            results = benchmark_backend(
-                backend=backend, device=device, verbose=args.verbose
-            )
+            results = benchmark_backend(backend=backend, device=device, verbose=args.verbose)
             results_list.append(results)
         except KeyboardInterrupt:
             print("\nBenchmark interrupted by user.")

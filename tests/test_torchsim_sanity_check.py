@@ -15,8 +15,8 @@ import pytest
 from ase.build import molecule
 
 import qme
-from qme.dependencies import deps
 from qme.backend_availability import get_available_backends
+from qme.dependencies import deps
 from tests.test_utils import BackendTestMixin
 
 # Define available backend pairs for testing
@@ -61,9 +61,7 @@ class TestTorchSimSanityCheck:
 
                 if deps.has("torch_sim"):
                     try:
-                        torchsim_mace = qme.calculator_registry.create_calculator(
-                            "torchsim_mace"
-                        )
+                        torchsim_mace = qme.calculator_registry.create_calculator("torchsim_mace")
                         assert torchsim_mace.model_name == expected_mace_default, (
                             f"TorchSim MACE default should be {expected_mace_default}, "
                             f"got {torchsim_mace.model_name}"
@@ -87,9 +85,7 @@ class TestTorchSimSanityCheck:
 
                 if deps.has("torch_sim"):
                     try:
-                        torchsim_uma = qme.calculator_registry.create_calculator(
-                            "torchsim_uma"
-                        )
+                        torchsim_uma = qme.calculator_registry.create_calculator("torchsim_uma")
                         assert torchsim_uma.model_name == expected_uma_default, (
                             f"TorchSim UMA default should be {expected_uma_default}, "
                             f"got {torchsim_uma.model_name}"
@@ -118,9 +114,7 @@ class TestTorchSimSanityCheck:
 
         try:
             # Create calculators
-            regular_calc = qme.calculator_registry.create_calculator(
-                regular_backend, device="cpu"
-            )
+            regular_calc = qme.calculator_registry.create_calculator(regular_backend, device="cpu")
             torchsim_calc = qme.calculator_registry.create_calculator(
                 torchsim_backend, device="cpu"
             )
@@ -148,12 +142,8 @@ class TestTorchSimSanityCheck:
             force_tolerance = 1e-2  # 0.01 eV/Å
 
             print(f"\n{backend_pair[0]} vs {backend_pair[1]} on H2O:")
-            print(
-                f"  Energy difference: {energy_diff:.6f} eV (tolerance: {energy_tolerance})"
-            )
-            print(
-                f"  Max force difference: {force_diff:.6f} eV/Å (tolerance: {force_tolerance})"
-            )
+            print(f"  Energy difference: {energy_diff:.6f} eV (tolerance: {energy_tolerance})")
+            print(f"  Max force difference: {force_diff:.6f} eV/Å (tolerance: {force_tolerance})")
             print(f"  Regular energy: {regular_energy:.6f} eV")
             print(f"  TorchSim energy: {torchsim_energy:.6f} eV")
 
@@ -179,12 +169,8 @@ class TestTorchSimSanityCheck:
             # Later we can tighten these assertions based on observed behavior
             assert not np.isnan(regular_energy), "Regular backend produced NaN energy"
             assert not np.isnan(torchsim_energy), "TorchSim backend produced NaN energy"
-            assert not np.any(
-                np.isnan(regular_forces)
-            ), "Regular backend produced NaN forces"
-            assert not np.any(
-                np.isnan(torchsim_forces)
-            ), "TorchSim backend produced NaN forces"
+            assert not np.any(np.isnan(regular_forces)), "Regular backend produced NaN forces"
+            assert not np.any(np.isnan(torchsim_forces)), "TorchSim backend produced NaN forces"
 
         except ImportError as e:
             pytest.skip(f"Backend {backend_pair} not fully available: {e}")
@@ -210,12 +196,8 @@ class TestTorchSimSanityCheck:
                 continue
 
             try:
-                regular_calc = qme.calculator_registry.create_calculator(
-                    regular_backend
-                )
-                torchsim_calc = qme.calculator_registry.create_calculator(
-                    torchsim_backend
-                )
+                regular_calc = qme.calculator_registry.create_calculator(regular_backend)
+                torchsim_calc = qme.calculator_registry.create_calculator(torchsim_backend)
 
                 # Trigger calculator loading by accessing the _calc attribute
                 # This ensures implemented_properties is populated
@@ -235,18 +217,10 @@ class TestTorchSimSanityCheck:
                 print(f"  TorchSim: {sorted(torchsim_props)}")
 
                 # Both should at least support energy and forces
-                assert (
-                    "energy" in regular_props
-                ), f"{regular_backend} should support energy"
-                assert (
-                    "forces" in regular_props
-                ), f"{regular_backend} should support forces"
-                assert (
-                    "energy" in torchsim_props
-                ), f"{torchsim_backend} should support energy"
-                assert (
-                    "forces" in torchsim_props
-                ), f"{torchsim_backend} should support forces"
+                assert "energy" in regular_props, f"{regular_backend} should support energy"
+                assert "forces" in regular_props, f"{regular_backend} should support forces"
+                assert "energy" in torchsim_props, f"{torchsim_backend} should support energy"
+                assert "forces" in torchsim_props, f"{torchsim_backend} should support forces"
 
                 print("✅ Both backends support required properties")
 
@@ -280,12 +254,8 @@ class TestTorchSimSanityCheck:
                     torchsim_backend, device="cpu"
                 )
 
-                assert (
-                    regular_calc.device == "cpu"
-                ), f"{regular_backend} device should be 'cpu'"
-                assert (
-                    torchsim_calc.device == "cpu"
-                ), f"{torchsim_backend} device should be 'cpu'"
+                assert regular_calc.device == "cpu", f"{regular_backend} device should be 'cpu'"
+                assert torchsim_calc.device == "cpu", f"{torchsim_backend} device should be 'cpu'"
 
                 print(
                     f"✅ {regular_backend} and {torchsim_backend} both handle CPU device correctly"
@@ -300,9 +270,7 @@ class TestTorchSimSanityCheck:
     def test_charge_spin_handling_consistency(self):
         """Test that both backends handle charge and spin consistently."""
 
-        if not (
-            deps.has("fairchem") and qme.calculator_registry.is_backend_available("uma")
-        ):
+        if not (deps.has("fairchem") and qme.calculator_registry.is_backend_available("uma")):
             pytest.skip("UMA backends not available for charge/spin testing")
 
         # Create a molecule with specific charge and spin
@@ -311,20 +279,14 @@ class TestTorchSimSanityCheck:
         atoms.info["spin"] = 2
 
         try:
-            regular_calc = qme.calculator_registry.create_calculator(
-                "uma", device="cpu"
-            )
+            regular_calc = qme.calculator_registry.create_calculator("uma", device="cpu")
 
             # Check that regular backend handles charge/spin
             atoms.calc = regular_calc
 
             # Verify the calculator has the charge/spin attributes
-            assert hasattr(
-                regular_calc, "default_charge"
-            ), "Regular UMA should have default_charge"
-            assert hasattr(
-                regular_calc, "default_spin"
-            ), "Regular UMA should have default_spin"
+            assert hasattr(regular_calc, "default_charge"), "Regular UMA should have default_charge"
+            assert hasattr(regular_calc, "default_spin"), "Regular UMA should have default_spin"
 
             print("✅ Regular UMA handles charge/spin correctly")
 
@@ -350,9 +312,7 @@ class TestTorchSimSanityCheck:
                         regular_calc.default_spin == torchsim_calc.default_spin
                     ), "Default spins should match"
 
-                    print(
-                        "✅ TorchSim UMA handles charge/spin consistently with regular UMA"
-                    )
+                    print("✅ TorchSim UMA handles charge/spin consistently with regular UMA")
 
                 except ImportError as e:
                     if "load_config" in str(e):
@@ -387,12 +347,8 @@ class TestTorchSimSanityCheck:
                 )
 
                 # Both should be created successfully
-                assert (
-                    regular_calc is not None
-                ), f"{regular_backend} calculator creation failed"
-                assert (
-                    torchsim_calc is not None
-                ), f"{torchsim_backend} calculator creation failed"
+                assert regular_calc is not None, f"{regular_backend} calculator creation failed"
+                assert torchsim_calc is not None, f"{torchsim_backend} calculator creation failed"
 
                 # Both should have the same model name
                 assert regular_calc.model_name == torchsim_calc.model_name, (
@@ -421,12 +377,8 @@ class TestTorchSimSanityCheck:
         ]
 
         for regular_backend, torchsim_backend in backend_pairs:
-            regular_available = qme.calculator_registry.is_backend_available(
-                regular_backend
-            )
-            torchsim_available = qme.calculator_registry.is_backend_available(
-                torchsim_backend
-            )
+            regular_available = qme.calculator_registry.is_backend_available(regular_backend)
+            torchsim_available = qme.calculator_registry.is_backend_available(torchsim_backend)
 
             print("\nBackend availability:")
             print(f"  {regular_backend}: {'✅' if regular_available else '❌'}")
@@ -441,9 +393,7 @@ class TestTorchSimSanityCheck:
                         f"torch_sim (expected)"
                     )
                 else:
-                    print(
-                        f"  ⚠️  {torchsim_backend} unavailable despite torch_sim being present"
-                    )
+                    print(f"  ⚠️  {torchsim_backend} unavailable despite torch_sim being present")
 
             # Both should be consistent in their availability detection
             # (This is more of a logging test than an assertion)

@@ -6,6 +6,7 @@ that avoids expensive calculator instantiation while still catching most
 compatibility issues.
 """
 
+import importlib
 from typing import Dict, List, Optional
 
 from qme.dependencies import deps
@@ -120,9 +121,7 @@ class BackendAvailabilityChecker:
         """Check basic package dependencies for a backend."""
         requirements = {
             "mock": [],
-            "aimnet2": [
-                "aimnet2"
-            ],  # Use backend name, deps.has() will handle the mapping
+            "aimnet2": ["aimnet2"],  # Use backend name, deps.has() will handle the mapping
             "uma": ["fairchem", "torch"],
             "so3lr": ["so3lr"],
             "mace": ["mace", "torch"],
@@ -324,15 +323,15 @@ def get_available_torchsim_backends(verbose: bool = False) -> List[str]:
 def get_backend_pairs() -> List[tuple[str, str]]:
     """Get pairs of (regular_backend, torchsim_backend) for comparison testing."""
     pairs = []
-    
+
     # Check MACE pair
     if is_backend_available("mace") and is_backend_available("torchsim_mace"):
         pairs.append(("mace", "torchsim_mace"))
-    
+
     # Check UMA pair
     if is_backend_available("uma") and is_backend_available("torchsim_uma"):
         pairs.append(("uma", "torchsim_uma"))
-    
+
     return pairs
 
 
