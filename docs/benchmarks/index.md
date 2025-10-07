@@ -12,7 +12,7 @@ Comprehensive evaluation of QME backends on the BH28 database of chemical reacti
 - 28 diverse chemical reactions with reference values from high-level quantum chemistry
 - Compares backend performance across different reaction types
 
-### [Zimmermann-93 Benchmark](zimmermann93.md)  
+### [Zimmermann-93 Benchmark](zimmermann93.md)
 Two-ended transition state search benchmark using the Zimmermann-93 dataset.
 
 **Features:**
@@ -54,7 +54,7 @@ cd examples/bh28_benchmark
 python bh28_benchmark.py --quick
 
 # Zimmermann-93 TS benchmark
-cd examples/zimmermann93_benchmark  
+cd examples/zimmermann93_benchmark
 python zimmermann93_benchmark.py --quick
 ```
 
@@ -76,7 +76,7 @@ python zimmermann93_benchmark.py --quick
 #### For Accuracy (BH28 Results)
 Lower MAE/RMSE values indicate better agreement with high-level quantum chemistry:
 - **Excellent**: MAE < 0.1 eV
-- **Good**: MAE 0.1-0.3 eV  
+- **Good**: MAE 0.1-0.3 eV
 - **Acceptable**: MAE 0.3-0.5 eV
 - **Poor**: MAE > 0.5 eV
 

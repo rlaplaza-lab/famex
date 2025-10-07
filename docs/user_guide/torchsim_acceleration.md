@@ -91,7 +91,7 @@ print(f"Optimized energy: {result['final_energy']:.6f} eV")
 # TorchSim Fairchem
 explorer = qme.Explorer.from_file(
     "molecule.xyz",
-    backend="torchsim_fairchem", 
+    backend="torchsim_fairchem",
     model_name="equiformer_v2_31M_s2ef_all_md",
     device="cuda"
 )
@@ -160,7 +160,7 @@ Based on TorchSim benchmarks and QME integration:
 ### Standard Backends May Be Better For:
 - **Small test calculations** (< 20 atoms)
 - **Quick prototyping** and development
-- **CPU-only environments** 
+- **CPU-only environments**
 - **Compatibility testing** with other tools
 - **Systems without TorchSim dependencies**
 
@@ -349,12 +349,12 @@ molecule_name = "C6H6"
 
 for backend in backends:
     atoms = molecule(molecule_name)
-    
+
     start_time = time.time()
     explorer = qme.Explorer.from_atoms(atoms, backend=backend, device="cuda")
     result = explorer.run(mode="minima")
     end_time = time.time()
-    
+
     print(f"{backend}: {end_time - start_time:.2f}s, "
           f"Energy: {result['final_energy']:.6f} eV")
 ```
@@ -381,7 +381,7 @@ TorchSim integration in QME is actively developed. Planned features include:
 TorchSim acceleration in QME provides:
 
 - ✅ **Significant speedups** for ML potential calculations
-- ✅ **Easy integration** with existing QME workflows  
+- ✅ **Easy integration** with existing QME workflows
 - ✅ **Automatic fallback** when TorchSim unavailable
 - ✅ **GPU optimization** for maximum performance
 - ✅ **Memory management** for large-scale calculations

@@ -45,12 +45,12 @@ jobs:
         pip install -e .[dev]
         # Install ML dependencies for SO3LR tests
         pip install torch --index-url https://download.pytorch.org/whl/cpu
-        
+
     - name: Verify installation
       run: |
         python -c "import qme; print('QME version:', qme.__version__)"
         python -c "from qme.core.explorer import Explorer; print('QME imports successful')"
-        
+
     - name: Run linting
       run: |
         # Check code formatting (warnings only, don't fail workflow)
@@ -111,21 +111,21 @@ jobs:
         H       0.757000    0.586000    0.000000
         H      -0.757000    0.586000    0.000000
         EOF
-        
+
         # Test that the CLI commands are available
         echo "Testing CLI command availability..."
         qme opt --help > /dev/null && echo "✓ opt command available"
         qme tsopt --help > /dev/null && echo "✓ tsopt command available"
         qme cache --help > /dev/null && echo "✓ cache command available"
-        
+
         # Test cache functionality (should always work)
         echo "Testing cache functionality..."
         qme cache info && echo "✓ Cache info command works"
-        
+
         # Test that CLI can handle missing backends gracefully
         echo "Testing backend error handling..."
         qme opt test_water.xyz --backend uma --steps 1 --output test_output.xyz || echo "✓ UMA backend properly handled (not available)"
-        
+
         echo "✓ CLI smoke test completed successfully"
 
   build-docs:

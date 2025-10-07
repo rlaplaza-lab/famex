@@ -16,7 +16,7 @@ QME provides an intuitive interface for molecular optimization using state-of-th
 ```bash
 # Recommended: Install with a specific backend
 pip install qme-ml[aimnet2]    # Fast and reliable
-pip install qme-ml[mace]       # High accuracy  
+pip install qme-ml[mace]       # High accuracy
 pip install qme-ml[uma]        # General purpose
 pip install qme-ml[torchsim]   # Maximum performance (Python 3.11+)
 ```
@@ -28,7 +28,7 @@ pip install qme-ml[torchsim]   # Maximum performance (Python 3.11+)
 ```bash
 # Create a water molecule (water.xyz)
 echo "3
-Water molecule  
+Water molecule
 O    0.000000    0.000000    0.117283
 H    0.000000    0.758602   -0.469132
 H    0.000000   -0.758602   -0.469132" > water.xyz
@@ -52,7 +52,7 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 
 - 🧪 **Multiple ML Backends**: UMA, AIMNet2, MACE, SO3LR, TorchSim
 - ⚡ **GPU Acceleration**: CUDA support with up to 100x speedup
-- 🎯 **Optimization Methods**: Local and two-ended strategies  
+- 🎯 **Optimization Methods**: Local and two-ended strategies
 - 🔄 **Transition States**: Advanced TS search with Sella and geomeTRIC optimizers
 - 📊 **Analysis Tools**: Frequency analysis and thermodynamics
 - 🖥️ **Dual Interface**: Command-line and Python API
@@ -67,7 +67,7 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 qme opt molecule.xyz
 qme opt reactant.xyz --product product.xyz
 
-# Transition state search  
+# Transition state search
 qme tsopt ts_guess.xyz --optimizer sella
 qme tsopt ts_guess.xyz --optimizer geometric
 qme tsopt reactant.xyz --product product.xyz --mode neb
@@ -132,7 +132,7 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 # Run tests
 pytest tests/
 
-# Development installation  
+# Development installation
 git clone https://github.com/rlaplaza-lab/qme.git
 cd qme
 pip install -e .[dev]

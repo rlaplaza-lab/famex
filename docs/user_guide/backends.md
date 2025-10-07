@@ -87,7 +87,7 @@ pip install qme-ml-ml[mace]
 
 ### Models
 - `mace-mp-0-small`: Materials Project small model
-- `mace-mp-0-medium`: Materials Project medium model  
+- `mace-mp-0-medium`: Materials Project medium model
 - `mace-mp-0-large`: Materials Project large model
 - `mace-off-small`: Organic chemistry small model
 - `mace-off-medium`: Organic chemistry medium model
@@ -99,8 +99,8 @@ pip install qme-ml-ml[mace]
 qme opt molecule.xyz --backend mace --model-name mace-mp-0-medium
 
 # Python API
-explorer = qme.Explorer.from_file("molecule.xyz", 
-                                  backend="mace", 
+explorer = qme.Explorer.from_file("molecule.xyz",
+                                  backend="mace",
                                   model_name="mace-mp-0-medium")
 ```
 
@@ -171,11 +171,11 @@ pip install qme-ml-ml[torchsim]  # Requires Python 3.11+
 # TorchSim MACE
 qme opt molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda
 
-# TorchSim Fairchem  
+# TorchSim Fairchem
 qme opt molecule.xyz --backend torchsim_fairchem --model-name equiformer_v2_31M_s2ef_all_md
 
 # Python API
-explorer = qme.Explorer.from_file("molecule.xyz", 
+explorer = qme.Explorer.from_file("molecule.xyz",
                                   backend="torchsim_mace",
                                   model_name="mace-omol-0",
                                   device="cuda")
@@ -230,7 +230,7 @@ conda create -n qme-uma python=3.12
 conda activate qme-uma
 pip install qme-ml-ml[uma]
 
-# Environment 2: MACE only  
+# Environment 2: MACE only
 conda create -n qme-mace python=3.12
 conda activate qme-mace
 pip install qme-ml-ml[mace]

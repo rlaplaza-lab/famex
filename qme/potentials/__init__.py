@@ -66,10 +66,10 @@ UMAPotential = None
 
 
 def get_uma_calculator(**kwargs):
-    if not (deps.has("fairchem") or deps.has("uma")):
-        raise ImportError(
-            "UMA backend requires fairchem-core. Install with: pip install fairchem-core"
-        )
+    from qme.backend_availability import get_backend_error_message, is_backend_available
+
+    if not is_backend_available("uma"):
+        raise ImportError(get_backend_error_message("uma"))
     try:
         from qme.potentials.uma_potential import UMAPotential
 
@@ -83,8 +83,10 @@ SO3LRPotential = None
 
 
 def get_so3lr_calculator(**kwargs):
-    if not deps.has("so3lr"):
-        raise ImportError("SO3LR backend requires so3lr. Install with: pip install so3lr")
+    from qme.backend_availability import get_backend_error_message, is_backend_available
+
+    if not is_backend_available("so3lr"):
+        raise ImportError(get_backend_error_message("so3lr"))
     try:
         from qme.potentials.so3lr_potential import SO3LRPotential
 
@@ -98,8 +100,10 @@ AIMNet2Potential = None
 
 
 def get_aimnet2_calculator(**kwargs):
-    if not deps.has("torch"):
-        raise ImportError("AIMNet2 backend requires torch. Install with: pip install torch")
+    from qme.backend_availability import get_backend_error_message, is_backend_available
+
+    if not is_backend_available("aimnet2"):
+        raise ImportError(get_backend_error_message("aimnet2"))
     try:
         from qme.potentials.aimnet2_potential import AIMNet2Potential
 
@@ -113,8 +117,10 @@ MACEPotential = None
 
 
 def get_mace_calculator(**kwargs):
-    if not deps.has("mace"):
-        raise ImportError("MACE backend requires mace-torch. Install with: pip install mace-torch")
+    from qme.backend_availability import get_backend_error_message, is_backend_available
+
+    if not is_backend_available("mace"):
+        raise ImportError(get_backend_error_message("mace"))
     try:
         from qme.potentials.mace_potential import MACEPotential
 
@@ -128,11 +134,10 @@ TorchSimPotential = None
 
 
 def get_torchsim_calculator(**kwargs):
-    if not deps.has("torch_sim"):
-        raise ImportError(
-            "TorchSim backend requires torch-sim-atomistic. "
-            "Install with: pip install torch-sim-atomistic"
-        )
+    from qme.backend_availability import get_backend_error_message, is_backend_available
+
+    if not is_backend_available("torchsim_mace"):
+        raise ImportError(get_backend_error_message("torchsim_mace"))
     try:
         from qme.potentials.torchsim_potential import TorchSimPotential
 
@@ -142,11 +147,10 @@ def get_torchsim_calculator(**kwargs):
 
 
 def get_torchsim_mace_calculator(**kwargs):
-    if not deps.has("torch_sim"):
-        raise ImportError(
-            "TorchSim MACE calculator requires torch-sim-atomistic. "
-            "Install with: pip install torch-sim-atomistic"
-        )
+    from qme.backend_availability import get_backend_error_message, is_backend_available
+
+    if not is_backend_available("torchsim_mace"):
+        raise ImportError(get_backend_error_message("torchsim_mace"))
     try:
         from qme.potentials.torchsim_potential import (
             get_torchsim_mace_calculator as _get_torchsim_mace_calculator,
@@ -158,17 +162,10 @@ def get_torchsim_mace_calculator(**kwargs):
 
 
 def get_torchsim_uma_calculator(**kwargs):
-    if not deps.has("torch_sim"):
-        raise ImportError(
-            "TorchSim UMA calculator requires torch-sim-atomistic. "
-            "Install with: pip install torch-sim-atomistic"
-        )
-    if not deps.has("fairchem"):
-        raise ImportError(
-            "TorchSim UMA calculator requires fairchem-core. "
-            "Install with: pip install "
-            "fairchem-core"
-        )
+    from qme.backend_availability import get_backend_error_message, is_backend_available
+
+    if not is_backend_available("torchsim_uma"):
+        raise ImportError(get_backend_error_message("torchsim_uma"))
     try:
         from qme.potentials.torchsim_potential import (
             get_torchsim_uma_calculator as _get_torchsim_uma_calculator,

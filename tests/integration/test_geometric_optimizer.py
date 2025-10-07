@@ -39,8 +39,11 @@ class TestGeometricOptimizer:
 
         assert result is not None
         assert isinstance(result, list)
-        assert len(result) == 1  # Should return list with one atoms object
-        final_atoms = result[0]  # Get first (and only) atoms object
+        assert len(result) == 1  # Should return list with one result dict
+        result_dict = result[0]  # Get first (and only) result dictionary
+        assert isinstance(result_dict, dict)
+        assert "optimized_atoms" in result_dict
+        final_atoms = result_dict["optimized_atoms"]  # Extract Atoms object
         assert hasattr(final_atoms, "get_distance")  # Should be Atoms object
         assert len(final_atoms) == 3  # H2O has 3 atoms
 
@@ -71,8 +74,11 @@ class TestGeometricOptimizer:
 
         assert result is not None
         assert isinstance(result, list)
-        assert len(result) == 1  # Should return list with one atoms object
-        final_atoms = result[0]  # Get first (and only) atoms object
+        assert len(result) == 1  # Should return list with one result dict
+        result_dict = result[0]  # Get first (and only) result dictionary
+        assert isinstance(result_dict, dict)
+        assert "optimized_atoms" in result_dict
+        final_atoms = result_dict["optimized_atoms"]  # Extract Atoms object
         assert hasattr(final_atoms, "get_distance")  # Should be Atoms object
         assert len(final_atoms) == 3  # H2O has 3 atoms
 
@@ -99,8 +105,15 @@ class TestGeometricOptimizer:
         assert isinstance(sella_result, list)
         assert len(geometric_result) == 1
         assert len(sella_result) == 1
-        geometric_atoms = geometric_result[0]
-        sella_atoms = sella_result[0]
+
+        # Extract Atoms objects from result dictionaries
+        geometric_dict = geometric_result[0]
+        sella_dict = sella_result[0]
+        assert isinstance(geometric_dict, dict)
+        assert isinstance(sella_dict, dict)
+
+        geometric_atoms = geometric_dict["optimized_atoms"]
+        sella_atoms = sella_dict["optimized_atoms"]
         assert hasattr(geometric_atoms, "get_distance")  # Should be Atoms object
         assert hasattr(sella_atoms, "get_distance")  # Should be Atoms object
 
@@ -134,7 +147,9 @@ class TestGeometricOptimizer:
             assert result is not None
             assert isinstance(result, list)
             assert len(result) == 1
-            final_atoms = result[0]
+            result_dict = result[0]
+            assert isinstance(result_dict, dict)
+            final_atoms = result_dict["optimized_atoms"]
             assert hasattr(final_atoms, "get_distance")  # Should be Atoms object
 
     def test_geometric_optimizer_parameters(self, water_molecule):
@@ -158,7 +173,9 @@ class TestGeometricOptimizer:
         assert result is not None
         assert isinstance(result, list)
         assert len(result) == 1
-        final_atoms = result[0]
+        result_dict = result[0]
+        assert isinstance(result_dict, dict)
+        final_atoms = result_dict["optimized_atoms"]
         assert hasattr(final_atoms, "get_distance")  # Should be Atoms object
 
     def test_geometric_ts_parameters(self, water_molecule):
@@ -192,7 +209,9 @@ class TestGeometricOptimizer:
         assert result is not None
         assert isinstance(result, list)
         assert len(result) == 1
-        final_atoms = result[0]
+        result_dict = result[0]
+        assert isinstance(result_dict, dict)
+        final_atoms = result_dict["optimized_atoms"]
         assert hasattr(final_atoms, "get_distance")  # Should be Atoms object
 
     def test_geometric_with_hessian_input(self, water_molecule):
@@ -215,7 +234,9 @@ class TestGeometricOptimizer:
         assert result is not None
         assert isinstance(result, list)
         assert len(result) == 1
-        final_atoms = result[0]
+        result_dict = result[0]
+        assert isinstance(result_dict, dict)
+        final_atoms = result_dict["optimized_atoms"]
         assert hasattr(final_atoms, "get_distance")  # Should be Atoms object
         assert len(final_atoms) == 3  # H2O has 3 atoms
 
@@ -250,6 +271,8 @@ class TestGeometricOptimizer:
         assert result is not None
         assert isinstance(result, list)
         assert len(result) == 1
-        final_atoms = result[0]
+        result_dict = result[0]
+        assert isinstance(result_dict, dict)
+        final_atoms = result_dict["optimized_atoms"]
         assert hasattr(final_atoms, "get_distance")  # Should be Atoms object
         assert len(final_atoms) == 3  # H2O has 3 atoms

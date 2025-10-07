@@ -7,7 +7,7 @@ strategy implementations easier to test and replace.
 """
 
 import warnings
-from typing import Any, List
+from typing import Any, List, Optional
 
 from qme.dependencies import deps
 
@@ -83,6 +83,43 @@ def _get_local_optimizer_class(name: str):
     raise ValueError(f"Unknown optimizer name: {name}")
 
 
+def _get_step_count(optimizer) -> Optional[int]:
+    """Extract step count from various optimizer types.
+
+    Args:
+        optimizer: The optimizer instance
+
+    Returns:
+        int or None: Number of steps taken
+    """
+    if hasattr(optimizer, "get_number_of_steps"):
+        return optimizer.get_number_of_steps()
+    return getattr(optimizer, "step_count", None)
+
+
+def _get_convergence_status(optimizer, atoms) -> bool:
+    """Extract convergence status from various optimizer types.
+
+    Args:
+        optimizer: The optimizer instance
+        atoms: ASE Atoms object
+
+    Returns:
+        bool: True if converged, False otherwise
+    """
+    converged_attr = getattr(optimizer, "converged", None)
+
+    if callable(converged_attr):
+        try:
+            return converged_attr()
+        except TypeError:
+            # Some optimizers need gradient argument
+            forces = atoms.get_forces()
+            return converged_attr(forces.flatten())
+
+    return bool(converged_attr)
+
+
 def local_minima_runner(
     atoms_list: List[Any],
     fmax=0.05,
@@ -140,23 +177,9 @@ def local_minima_runner(
         opt = opt_class(atoms, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
 
-        # Get step count and convergence status
-        steps_taken = (
-            opt.get_number_of_steps()
-            if hasattr(opt, "get_number_of_steps")
-            else getattr(opt, "step_count", None)
-        )
-        # Convergence may be a method or a boolean attribute depending on optimizer
-        converged_attr = getattr(opt, "converged", None)
-        if callable(converged_attr):
-            try:
-                converged = converged_attr()
-            except TypeError:
-                # Some optimizers need gradient argument
-                forces = atoms.get_forces()
-                converged = converged_attr(forces.flatten())
-        else:
-            converged = bool(converged_attr)
+        # Get step count and convergence status using helpers
+        steps_taken = _get_step_count(opt)
+        converged = _get_convergence_status(opt, atoms)
 
         results.append(atoms)
         step_counts.append(steps_taken)
@@ -236,21 +259,9 @@ def local_ts_runner(
         opt = opt_class(atoms, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
 
-        # Get step count and convergence status
-        steps_taken = (
-            opt.get_number_of_steps()
-            if hasattr(opt, "get_number_of_steps")
-            else getattr(opt, "step_count", None)
-        )
-        converged_attr = getattr(opt, "converged", None)
-        if callable(converged_attr):
-            try:
-                converged = converged_attr()
-            except TypeError:
-                forces = atoms.get_forces()
-                converged = converged_attr(forces.flatten())
-        else:
-            converged = bool(converged_attr)
+        # Get step count and convergence status using helpers
+        steps_taken = _get_step_count(opt)
+        converged = _get_convergence_status(opt, atoms)
 
         results.append(atoms)
         step_counts.append(steps_taken)
