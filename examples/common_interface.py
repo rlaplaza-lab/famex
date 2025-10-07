@@ -154,10 +154,10 @@ def create_standard_epilog(example_type: str) -> str:
 Examples:
   # Run with all available backends
   conda run -n py312 python cli_demo.py
-  
+
   # Run with specific backends
   conda run -n py312 python cli_demo.py --backends uma,aimnet2
-  
+
   # Run with verbose output
   conda run -n py312 python cli_demo.py --verbose
         """
@@ -167,10 +167,10 @@ Examples:
 Examples:
   # Run with all available backends
   conda run -n py312 python timing_benchmark.py
-  
+
   # Run with specific backends
   conda run -n py312 python timing_benchmark.py --backends uma,aimnet2
-  
+
   # Run on GPU
   conda run -n py312 python timing_benchmark.py --device cuda --verbose
         """
@@ -180,10 +180,10 @@ Examples:
 Examples:
   # Run with all available backends
   conda run -n py312 python benchmark.py
-  
+
   # Run with specific backends
   conda run -n py312 python benchmark.py --backends uma,aimnet2
-  
+
   # Quick test
   conda run -n py312 python benchmark.py --quick --verbose
         """
@@ -193,10 +193,10 @@ Examples:
 Examples:
   # Run with default settings
   conda run -n py312 python example.py
-  
+
   # Run with specific backends
   conda run -n py312 python example.py --backends uma,aimnet2
-  
+
   # Run with verbose output
   conda run -n py312 python example.py --verbose
         """

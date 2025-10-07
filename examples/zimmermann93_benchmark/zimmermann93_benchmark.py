@@ -295,12 +295,16 @@ class Zimmermann93Benchmark:
                                     backend=backend,
                                     model_name=model_name,
                                 )
-                                # Get calculator from the explorer
+                                # Ensure calculator exists on a real Atoms
+                                if getattr(qme_opt.atoms_list[0], "calc", None) is None:
+                                    qme_opt._create_and_attach_calculator(qme_opt.atoms_list[0])
                                 qme_calc = qme_opt.atoms_list[0].calc
                                 reaction_obj.set_calculator(qme_calc)
                             except Exception:
                                 # fallback to mock calculator
                                 mock_opt = Explorer(atoms=reactant, backend="mock")
+                                if getattr(mock_opt.atoms_list[0], "calc", None) is None:
+                                    mock_opt._create_and_attach_calculator(mock_opt.atoms_list[0])
                                 reaction_obj.set_calculator(mock_opt.atoms_list[0].calc)
 
                             path = reaction_obj.interpolate(
@@ -315,8 +319,21 @@ class Zimmermann93Benchmark:
 
                             # Pick highest energy image as TS guess
                             max_idx = int(np.nanargmax(energies))
-                            ts_guess_geom = path[max_idx]
-                            ts_guess_atoms = ts_guess_geom  # Geometry objects are ASE-compatible
+                            ts_guess_atoms = path[max_idx]
+                            # Ensure ASE Atoms and attach calculator for single-point if needed
+                            try:
+                                # Will raise if object is not Atoms-like
+                                _ = ts_guess_atoms.get_positions()
+                            except Exception:
+                                # If the path returns geometry-like, coerce via Atoms constructor
+                                from ase import Atoms as _Atoms
+
+                                ts_guess_atoms = _Atoms(
+                                    symbols=reactant.get_chemical_symbols(),
+                                    positions=np.array(ts_guess_atoms),
+                                    cell=reactant.cell,
+                                    pbc=reactant.pbc,
+                                )
 
                             # TS optimization will be done with fresh optimizer
 
@@ -329,12 +346,20 @@ class Zimmermann93Benchmark:
                                         model_name=model_name,
                                     )
                                     ts_result = ts_optimizer.run(mode="ts", fmax=fmax, steps=steps)
-                                    ts_success = ts_result.get("converged", False) or ts_result.get(
-                                        "ts_converged", False
-                                    )
-                                    ts_opt_atoms = ts_result.get(
-                                        "optimized_atoms"
-                                    ) or ts_result.get("ts_atoms")
+                                    # Normalize TS result
+                                    if isinstance(ts_result, list) and len(ts_result) == 1:
+                                        ts_result = ts_result[0]
+                                    if isinstance(ts_result, dict):
+                                        ts_opt_atoms = ts_result.get(
+                                            "optimized_atoms", ts_guess_atoms
+                                        )
+                                        ts_success = bool(
+                                            ts_result.get("converged", False)
+                                            or ts_result.get("ts_converged", False)
+                                        )
+                                    else:
+                                        ts_opt_atoms = ts_result
+                                        ts_success = True
                                 except Exception as e:
                                     ts_success = False
                                     ts_result = {"error": str(e)}
@@ -348,7 +373,8 @@ class Zimmermann93Benchmark:
                                         backend=backend,
                                         model_name=model_name,
                                     )
-                                    ts_guess_atoms.calc = ts_optimizer.calculator
+                                    if getattr(ts_guess_atoms, "calc", None) is None:
+                                        ts_optimizer._create_and_attach_calculator(ts_guess_atoms)
                                     with suppress_verbose_output():
                                         energy = ts_guess_atoms.get_potential_energy()
                                     ts_result = {
@@ -495,13 +521,43 @@ class Zimmermann93Benchmark:
 
         # convert numpy etc
         def convert(obj):
+            # Handle ASE Atoms-like objects
+            try:
+                from ase import Atoms as _Atoms  # local import in case ASE missing
+
+                if isinstance(obj, _Atoms):
+                    return {
+                        "formula": obj.get_chemical_formula(),
+                        "positions": obj.get_positions().tolist(),
+                        "symbols": obj.get_chemical_symbols(),
+                    }
+            except Exception:
+                pass
+
+            # Handle generic geometry-like objects that expose get_positions
+            if hasattr(obj, "get_positions") and callable(getattr(obj, "get_positions")):
+                try:
+                    pos = obj.get_positions()
+                    return {
+                        "positions": np.array(pos).tolist(),
+                    }
+                except Exception:
+                    pass
             if isinstance(obj, np.ndarray):
                 return obj.tolist()
             if isinstance(obj, (np.integer, np.floating)):
                 return float(obj)
+            # numpy boolean scalars
+            try:
+                if isinstance(obj, np.bool_):
+                    return bool(obj)
+            except Exception:
+                pass
             if isinstance(obj, dict):
                 return {k: convert(v) for k, v in obj.items()}
             if isinstance(obj, list):
+                return [convert(i) for i in obj]
+            if isinstance(obj, tuple):
                 return [convert(i) for i in obj]
             return obj
 
