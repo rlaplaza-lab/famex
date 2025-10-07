@@ -23,6 +23,19 @@ Example:
 __version__ = "0.1.0"
 __author__ = "QME Development Team"
 
+# Ensure headless operation by default to avoid GUI popups from ASE/matplotlib
+try:
+    import os as _os
+
+    _os.environ.setdefault("MPLBACKEND", "Agg")
+    # Some environments still try to connect to X; empty DISPLAY helps prevent that
+    _os.environ.setdefault("DISPLAY", "")
+    # Qt-based backends should also be disabled
+    _os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+except Exception:
+    # Environment setting is best-effort; ignore failures
+    pass
+
 
 def __getattr__(name):
     import importlib

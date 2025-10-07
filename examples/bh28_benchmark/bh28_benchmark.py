@@ -256,14 +256,35 @@ class BH28Benchmark:
                                     steps=500,
                                     fmax=0.01,
                                 )
-                            optimized_reactants.append(result["optimized_atoms"])
-                            reactant_energies.append(result["final_energy"])
+                            # Normalize result shape (Explorer.run returns [dict] for local)
+                            if isinstance(result, list) and len(result) == 1:
+                                result = result[0]
+                            if isinstance(result, dict):
+                                optimized = result.get("optimized_atoms", reactant)
+                                steps_taken = result.get("steps_taken", None)
+                            else:
+                                optimized = result
+                                steps_taken = None
+
+                            # Compute energy from atoms to avoid relying on dict keys
+                            try:
+                                energy_val = float(optimized.get_potential_energy())
+                            except Exception:
+                                # Attach calculator if missing and retry
+                                optimizer._create_and_attach_calculator(optimized)
+                                energy_val = float(optimized.get_potential_energy())
+
+                            optimized_reactants.append(optimized)
+                            reactant_energies.append(energy_val)
 
                             reactant_label = f"reactant_{i+1}" if len(reactants) > 1 else "reactant"
-                            print(
-                                f"  ✅ {reactant_label}: {result['final_energy']:.6f} eV "
-                                f"({result['steps_taken']} steps)"
-                            )
+                            if steps_taken is None:
+                                print(f"  ✅ {reactant_label}: {energy_val:.6f} eV")
+                            else:
+                                print(
+                                    f"  ✅ {reactant_label}: {energy_val:.6f} eV "
+                                    f"({steps_taken} steps)"
+                                )
 
                         total_reactant_energy = sum(reactant_energies)
                         minima_time = time.time() - start_time
@@ -294,22 +315,45 @@ class BH28Benchmark:
                                     ts_result = ts_optimizer.run(mode="ts", steps=500, fmax=0.01)
 
                                 ts_time = time.time() - start_time
+
+                                # Normalize TS result
+                                if isinstance(ts_result, list) and len(ts_result) == 1:
+                                    ts_result = ts_result[0]
+                                if isinstance(ts_result, dict):
+                                    ts_atoms_opt = ts_result.get("optimized_atoms", ts_atoms)
+                                    ts_steps = ts_result.get("steps_taken", None)
+                                    ts_conv = bool(ts_result.get("converged", True))
+                                else:
+                                    ts_atoms_opt = ts_result
+                                    ts_steps = None
+                                    ts_conv = True
+
+                                # Compute energy
+                                try:
+                                    ts_energy_val = float(ts_atoms_opt.get_potential_energy())
+                                except Exception:
+                                    ts_optimizer._create_and_attach_calculator(ts_atoms_opt)
+                                    ts_energy_val = float(ts_atoms_opt.get_potential_energy())
+
                                 reaction_data.update(
                                     {
-                                        "optimized_ts": ts_result["ts_atoms"],
-                                        "ts_energy": ts_result["final_energy"],
+                                        "optimized_ts": ts_atoms_opt,
+                                        "ts_energy": ts_energy_val,
                                         "ts_time": ts_time,
-                                        "ts_steps": ts_result["steps_taken"],
+                                        "ts_steps": ts_steps,
                                         "ts_success": True,
-                                        "ts_converged": ts_result.get("converged", True),
+                                        "ts_converged": ts_conv,
                                     }
                                 )
 
-                                status = "✅" if ts_result.get("converged", True) else "⚠️"
-                                print(
-                                    f"  {status} TS: {ts_result['final_energy']:.6f} eV "
-                                    f"({ts_result['steps_taken']} steps)"
-                                )
+                                status = "✅" if ts_conv else "⚠️"
+                                if ts_steps is None:
+                                    print(f"  {status} TS: {ts_energy_val:.6f} eV")
+                                else:
+                                    print(
+                                        f"  {status} TS: {ts_energy_val:.6f} eV "
+                                        f"({ts_steps} steps)"
+                                    )
 
                             except Exception as e:
                                 print(f"  ❌ TS optimization failed: {str(e)}")
@@ -334,7 +378,11 @@ class BH28Benchmark:
                             print("  ⚠️  SELLA not available - using single-point TS energy")
                             try:
                                 ts_atoms = self.get_transition_state(reaction)
-                                ts_atoms.calc = optimizer.calculator
+                                # Attach calculator for single-point evaluation
+                                try:
+                                    ts_atoms.calc = optimizer.atoms_list[0].calc
+                                except Exception:
+                                    optimizer._create_and_attach_calculator(ts_atoms)
                                 with suppress_verbose_output():
                                     ts_energy = ts_atoms.get_potential_energy()
                                 reaction_data.update(

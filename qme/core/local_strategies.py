@@ -141,13 +141,22 @@ def local_minima_runner(
         opt.run(fmax=fmax, steps=steps)
 
         # Get step count and convergence status
-        steps_taken = opt.get_number_of_steps()
-        try:
-            converged = opt.converged()
-        except TypeError:
-            # Some optimizers need gradient argument
-            forces = atoms.get_forces()
-            converged = opt.converged(forces.flatten())
+        steps_taken = (
+            opt.get_number_of_steps()
+            if hasattr(opt, "get_number_of_steps")
+            else getattr(opt, "step_count", None)
+        )
+        # Convergence may be a method or a boolean attribute depending on optimizer
+        converged_attr = getattr(opt, "converged", None)
+        if callable(converged_attr):
+            try:
+                converged = converged_attr()
+            except TypeError:
+                # Some optimizers need gradient argument
+                forces = atoms.get_forces()
+                converged = converged_attr(forces.flatten())
+        else:
+            converged = bool(converged_attr)
 
         results.append(atoms)
         step_counts.append(steps_taken)
@@ -228,13 +237,20 @@ def local_ts_runner(
         opt.run(fmax=fmax, steps=steps)
 
         # Get step count and convergence status
-        steps_taken = opt.get_number_of_steps()
-        try:
-            converged = opt.converged()
-        except TypeError:
-            # Some optimizers need gradient argument
-            forces = atoms.get_forces()
-            converged = opt.converged(forces.flatten())
+        steps_taken = (
+            opt.get_number_of_steps()
+            if hasattr(opt, "get_number_of_steps")
+            else getattr(opt, "step_count", None)
+        )
+        converged_attr = getattr(opt, "converged", None)
+        if callable(converged_attr):
+            try:
+                converged = converged_attr()
+            except TypeError:
+                forces = atoms.get_forces()
+                converged = converged_attr(forces.flatten())
+        else:
+            converged = bool(converged_attr)
 
         results.append(atoms)
         step_counts.append(steps_taken)

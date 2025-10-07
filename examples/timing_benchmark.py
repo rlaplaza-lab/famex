@@ -30,6 +30,9 @@ import numpy as np
 from ase import Atoms
 from ase.build import molecule
 
+# Use consolidated backend availability from qme.backend_availability
+from qme.backend_availability import get_available_ml_backends
+
 # Import QME components
 try:
     from qme.analysis.frequency import FrequencyAnalysis
@@ -49,11 +52,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 
-# Use common interface for standardized functions
-from common_interface import QMEExampleInterface
-
-# Use consolidated backend availability from qme.backend_availability
-from qme.backend_availability import get_available_ml_backends
+# QMEExampleInterface already imported above; remove duplicate import
 
 
 def create_benzene_molecule() -> Atoms:
@@ -230,7 +229,7 @@ def benchmark_backend(
         opt_start = time.perf_counter()
 
         # Use Explorer's run method with proper strategy
-        results = explorer.run(
+        run_results = explorer.run(
             mode="minima",
             fmax=0.01,
             steps=1000,
@@ -241,10 +240,10 @@ def benchmark_backend(
 
         # Handle results from Explorer's run method
         # For local strategies, run() returns a list of results
-        if isinstance(results, list) and len(results) == 1:
-            strategy_result = results[0]
+        if isinstance(run_results, list) and len(run_results) == 1:
+            strategy_result = run_results[0]
         else:
-            strategy_result = results
+            strategy_result = run_results
 
         # Extract step tracking information from strategy result
         if isinstance(strategy_result, dict):

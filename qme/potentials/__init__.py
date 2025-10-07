@@ -166,7 +166,8 @@ def get_torchsim_uma_calculator(**kwargs):
     if not deps.has("fairchem"):
         raise ImportError(
             "TorchSim UMA calculator requires fairchem-core. "
-            "Install with: pip install fairchem-core"
+            "Install with: pip install "
+            "fairchem-core"
         )
     try:
         from qme.potentials.torchsim_potential import (
