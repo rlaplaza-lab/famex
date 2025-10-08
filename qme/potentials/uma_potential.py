@@ -11,11 +11,23 @@ from qme.potentials.base_potential import BasePotential
 
 
 class UMAPotential(BasePotential):
-    """
-    ASE Calculator interface for UMA (Universal Model for Atoms) potential.
+    """ASE Calculator interface for UMA (Universal Model for Atoms) potential.
 
     This calculator provides an interface to use UMA machine learning potentials
     for molecular property prediction and geometry optimization.
+
+    Parameters
+    ----------
+    model_name : str, default "uma-s-1p1"
+        Name of the UMA model to load
+    device : str, optional
+        Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
+    default_charge : int, default 0
+        Default charge to use if not specified in atoms.info
+    default_spin : int, default 1
+        Default spin multiplicity to use if not specified in atoms.info
+    **kwargs
+        Additional arguments passed to BasePotential
     """
 
     implemented_properties = ["energy", "forces"]
@@ -31,16 +43,16 @@ class UMAPotential(BasePotential):
         """
         Initialize UMA potential calculator.
 
-        Parameters:
-        -----------
-        model_name : str
-            Name of the UMA model to load (default: "uma-s-1p1")
+        Parameters
+        ----------
+        model_name : str, default "uma-s-1p1"
+            Name of the UMA model to load
         device : str, optional
             Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
-        default_charge : int
-            Default charge to use if not specified in atoms.info (default: 0)
-        default_spin : int
-            Default spin multiplicity to use if not specified in atoms.info (default: 1)
+        default_charge : int, default 0
+            Default charge to use if not specified in atoms.info
+        default_spin : int, default 1
+            Default spin multiplicity to use if not specified in atoms.info
         """
 
         # Don't check dependencies here - let _load_calculator handle it

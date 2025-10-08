@@ -19,6 +19,41 @@ def create_calculator(
 ):
     """Create calculator based on backend using the registry.
 
+    Parameters
+    ----------
+    backend : str
+        Backend name (e.g., 'uma', 'aimnet2', 'mace', 'so3lr', 'mock')
+    model_name : Optional[str]
+        Name of the model to use
+    model_path : Optional[str]
+        Path to model file (for local models)
+    device : Optional[str]
+        Device for computations ('cpu', 'cuda')
+    default_charge : int
+        Default charge for the system
+    default_spin : int
+        Default spin multiplicity for the system
+    charge : Optional[int], default None
+        Explicit charge (overrides default_charge if provided)
+    mult : Optional[int], default None
+        Explicit spin multiplicity (overrides default_spin if provided)
+    use_cache : bool, default True
+        Whether to use cached calculator instances
+
+    Returns
+    -------
+    Calculator
+        Configured calculator instance
+
+    Raises
+    ------
+    BackendError
+        If backend is not available or cannot create calculator
+    ValueError
+        If parameters are invalid
+
+    Notes
+    -----
     New parameters `charge` and `mult` (optional) are forwarded to
     backends that accept explicit molecular charge / multiplicity
     constructor arguments (for example AIMNet2). Older backends that

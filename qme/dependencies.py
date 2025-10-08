@@ -33,18 +33,32 @@ class _DependencyContext:
 
 
 class DependencyManager:
-    """Manages optional dependencies with lazy loading and consistent error handling."""
+    """Manages optional dependencies with lazy loading and consistent error handling.
+
+    This class provides a centralized way to handle optional dependencies
+    across the QME codebase, with lazy loading to avoid importing heavy
+    ML backends until actually needed.
+    """
 
     def __init__(self):
         self._cache: Dict[str, Any] = {}
         self._availability_cache: Dict[str, bool] = {}
 
     def _check_availability_lazy(self, package_name: str) -> bool:
-        """
-        Lazily check if a package is available without importing it.
+        """Lazily check if a package is available without importing it.
 
         This uses importlib.util.find_spec to check package availability
         without actually importing the module, avoiding heavy imports.
+
+        Parameters
+        ----------
+        package_name : str
+            Name of the package to check
+
+        Returns
+        -------
+        bool
+            True if package is available, False otherwise
         """
         if package_name not in self._availability_cache:
             try:
@@ -55,7 +69,20 @@ class DependencyManager:
         return self._availability_cache[package_name]
 
     def _load_dependency(self, name: str, fallback_value: Any = None) -> Any:
-        """Load a dependency only when it's actually needed."""
+        """Load a dependency only when it's actually needed.
+
+        Parameters
+        ----------
+        name : str
+            Name of the dependency to load
+        fallback_value : Any, optional
+            Value to return if import fails
+
+        Returns
+        -------
+        Any
+            The loaded module or fallback value
+        """
         if name not in self._cache:
             try:
                 if name == "torch":
@@ -103,20 +130,25 @@ class DependencyManager:
         return self._cache[name]
 
     def require_multiple(self, *deps_names, purpose="this functionality"):
-        """
-        Require multiple dependencies, raising DependencyError if any are missing.
+        """Require multiple dependencies, raising DependencyError if any are missing.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         *deps_names : str
             Names of required dependencies
-        purpose : str
+        purpose : str, default "this functionality"
             Description of what the dependencies are needed for
 
-        Returns:
-        --------
-        dict or module : If one dependency, returns the module directly.
-                        If multiple, returns dict mapping name -> module.
+        Returns
+        -------
+        dict or module
+            If one dependency, returns the module directly.
+            If multiple, returns dict mapping name -> module.
+
+        Raises
+        ------
+        DependencyError
+            If any required dependencies are missing
         """
         from qme.core.validation import DependencyError
 

@@ -15,25 +15,25 @@ Compares the performance of different transition state optimizers (sella and geo
 ### Basic Usage
 ```bash
 # Run with all available backends
-conda run -n py312 python optimizer_comparison_benchmark.py
+python optimizer_comparison_benchmark.py
 
 # Run with specific backends
-conda run -n py312 python optimizer_comparison_benchmark.py --backends uma,aimnet2
+python optimizer_comparison_benchmark.py --backends uma,aimnet2
 
 # Test specific TS optimizers
-conda run -n py312 python optimizer_comparison_benchmark.py --optimizers sella,geometric
+python optimizer_comparison_benchmark.py --optimizers sella,geometric
 ```
 
 ### Advanced Usage
 ```bash
 # Run on GPU
-conda run -n py312 python optimizer_comparison_benchmark.py --device cuda
+python optimizer_comparison_benchmark.py --device cuda
 
 # Test specific TS optimizers
-conda run -n py312 python optimizer_comparison_benchmark.py --optimizers sella,geometric
+python optimizer_comparison_benchmark.py --optimizers sella,geometric
 
 # Verbose output
-conda run -n py312 python optimizer_comparison_benchmark.py --verbose
+python optimizer_comparison_benchmark.py --verbose
 ```
 
 ## Command Line Options

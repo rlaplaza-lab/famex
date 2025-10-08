@@ -92,9 +92,16 @@ def _get_step_count(optimizer) -> Optional[int]:
     Returns:
         int or None: Number of steps taken
     """
+    # For GeometricOptimizer, prioritize step_count attribute over get_number_of_steps()
+    # because get_number_of_steps() returns 0 by default from ASE Optimizer base class
+    if hasattr(optimizer, "step_count") and optimizer.step_count is not None:
+        return optimizer.step_count
+
+    # Fallback to ASE's get_number_of_steps() for other optimizers
     if hasattr(optimizer, "get_number_of_steps"):
         return optimizer.get_number_of_steps()
-    return getattr(optimizer, "step_count", None)
+
+    return None
 
 
 def _get_convergence_status(optimizer, atoms) -> bool:
@@ -156,7 +163,9 @@ def local_minima_runner(
 
     for atoms in atoms_iter:
         try:
-            explorer._create_and_attach_calculator(atoms)
+            # Only create and attach calculator if atoms doesn't already have one
+            if getattr(atoms, "calc", None) is None:
+                explorer._create_and_attach_calculator(atoms)
         except Exception as e:
             warnings.warn(f"Failed to create calculator for a structure: {e}")
         explorer._apply_constraints(atoms)
@@ -238,7 +247,9 @@ def local_ts_runner(
 
     for atoms in atoms_iter:
         try:
-            explorer._create_and_attach_calculator(atoms)
+            # Only create and attach calculator if atoms doesn't already have one
+            if getattr(atoms, "calc", None) is None:
+                explorer._create_and_attach_calculator(atoms)
         except Exception as e:
             warnings.warn(f"Failed to create calculator for a structure: {e}")
         explorer._apply_constraints(atoms)

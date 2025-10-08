@@ -6,11 +6,15 @@ import contextlib
 import logging
 import sys
 import warnings
-from typing import Optional
+from typing import Generator, List, Optional
 
 
 class VerboseFilter(logging.Filter):
-    """Filter to suppress verbose messages from ML backends."""
+    """Filter to suppress verbose messages from ML backends.
+
+    This filter prevents verbose output from machine learning libraries
+    during QME operations, keeping the output clean and focused.
+    """
 
     SUPPRESSED_LOGGERS = [
         "numexpr.utils",
@@ -31,8 +35,19 @@ class VerboseFilter(logging.Filter):
         "Environment variable",
     ]
 
-    def filter(self, record):
-        """Filter out verbose messages from ML backends."""
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Filter out verbose messages from ML backends.
+
+        Parameters
+        ----------
+        record : logging.LogRecord
+            Log record to filter
+
+        Returns
+        -------
+        bool
+            True if message should be shown, False if suppressed
+        """
         # Check if logger is in suppressed list
         for logger_name in self.SUPPRESSED_LOGGERS:
             if record.name.startswith(logger_name):
@@ -48,7 +63,7 @@ class VerboseFilter(logging.Filter):
 
 
 @contextlib.contextmanager
-def suppress_ml_warnings():
+def suppress_ml_warnings() -> Generator[List[str], None, None]:
     """
     Context manager to suppress verbose warnings and info messages from ML backends.
 
@@ -82,17 +97,17 @@ def suppress_ml_warnings():
     captured_messages = []
 
     class FilteredStderr:
-        def write(self, text):
+        def write(self, text: str) -> None:
             # Check if message should be suppressed
             should_suppress = any(pattern in text for pattern in verbose_filter.SUPPRESSED_PATTERNS)
             if not should_suppress and len(text.strip()) > 0:
                 original_stderr.write(text)
                 captured_messages.append(text)
 
-        def flush(self):
+        def flush(self) -> None:
             original_stderr.flush()
 
-        def close(self):
+        def close(self) -> None:
             # Delegate close to original stderr if it has a close method
             if hasattr(original_stderr, "close"):
                 original_stderr.close()
@@ -113,12 +128,12 @@ def print_model_info(
     model_name: Optional[str] = None,
     model_path: Optional[str] = None,
     device: Optional[str] = None,
-):
+) -> None:
     """
     Print clean model information for the user.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     backend : str
         Name of the ML backend
     model_name : str, optional
@@ -161,12 +176,12 @@ def quiet_backend_loading(
     model_path: Optional[str] = None,
     device: Optional[str] = None,
     show_model_info: bool = True,
-):
+) -> Generator[List[str], None, None]:
     """
     Context manager for quiet backend loading with optional model info display.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     backend : str
         Name of the backend being loaded
     model_name : str, optional
@@ -175,8 +190,13 @@ def quiet_backend_loading(
         Model path to display
     device : str, optional
         Device to display
-    show_model_info : bool
-        Whether to show model information (default: True)
+    show_model_info : bool, default True
+        Whether to show model information
+
+    Yields
+    ------
+    List[str]
+        List of captured messages during backend loading
     """
     if show_model_info:
         print_model_info(backend, model_name, model_path, device)

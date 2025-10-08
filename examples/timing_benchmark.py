@@ -8,8 +8,8 @@ backends use the same default optimizer (BFGS) to ensure fair comparison of
 backend performance rather than optimizer differences.
 
 Usage:
-    conda run -n py312 python timing_benchmark.py [--backends BACKEND1,BACKEND2,...]
-    conda run -n py312 python timing_benchmark.py [--device DEVICE]
+    python timing_benchmark.py [--backends BACKEND1,BACKEND2,...]
+    python timing_benchmark.py [--device DEVICE]
 
 Features:
     - Simple geometry optimization + frequency analysis

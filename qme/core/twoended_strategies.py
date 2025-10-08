@@ -104,8 +104,15 @@ def _attach_calculators_if_explorer(explorer: Any, reactant: Atoms, product: Ato
     Returns the calculator instance or None if creation failed.
     """
     try:
-        calc_r = explorer._create_and_attach_calculator(reactant)
-        calc_p = explorer._create_and_attach_calculator(product)
+        # Only create and attach calculator if atoms doesn't already have one
+        if getattr(reactant, "calc", None) is None:
+            calc_r = explorer._create_and_attach_calculator(reactant)
+        else:
+            calc_r = reactant.calc
+        if getattr(product, "calc", None) is None:
+            calc_p = explorer._create_and_attach_calculator(product)
+        else:
+            calc_p = product.calc
         # Prefer the reactant calculator if both were created
         return calc_r or calc_p
     except Exception:
@@ -181,7 +188,9 @@ def twoended_ts_guess_runner(
         # Ensure explorer attaches calculator
         if explorer is not None:
             try:
-                explorer._create_and_attach_calculator(geom)
+                # Only create and attach calculator if atoms doesn't already have one
+                if getattr(geom, "calc", None) is None:
+                    explorer._create_and_attach_calculator(geom)
             except Exception:
                 warnings.warn("Failed to attach calculator to TS guess")
         # Apply constraints if any
@@ -283,7 +292,9 @@ def twoended_minima_runner(
         # Attach calculator via explorer if available
         if explorer is not None:
             try:
-                explorer._create_and_attach_calculator(geom)
+                # Only create and attach calculator if atoms doesn't already have one
+                if getattr(geom, "calc", None) is None:
+                    explorer._create_and_attach_calculator(geom)
             except Exception:
                 warnings.warn("Failed to attach calculator to minima guess")
             explorer._apply_constraints(geom)
@@ -545,7 +556,9 @@ def twoended_neb_runner(
     if explorer is not None:
         for i, atoms in enumerate(path):
             try:
-                explorer._create_and_attach_calculator(atoms)
+                # Only create and attach calculator if atoms doesn't already have one
+                if getattr(atoms, "calc", None) is None:
+                    explorer._create_and_attach_calculator(atoms)
                 explorer._apply_constraints(atoms)
             except Exception as e:
                 warnings.warn(f"Failed to attach calculator to image {i}: {e}")
