@@ -15,22 +15,22 @@ Comprehensive performance benchmark for QME ML backends using simple geometry op
 ### Basic Usage
 ```bash
 # Run with all available backends
-conda run -n py312 python timing_benchmark.py
+python timing_benchmark.py
 
 # Run with specific backends
-conda run -n py312 python timing_benchmark.py --backends uma,aimnet2
+python timing_benchmark.py --backends uma,aimnet2
 
 # Run with verbose output
-conda run -n py312 python timing_benchmark.py --verbose
+python timing_benchmark.py --verbose
 ```
 
 ### Advanced Usage
 ```bash
 # Run on GPU
-conda run -n py312 python timing_benchmark.py --device cuda
+python timing_benchmark.py --device cuda
 
 # Specify output file
-conda run -n py312 python timing_benchmark.py --output my_results.json
+python timing_benchmark.py --output my_results.json
 ```
 
 ## Command Line Options

@@ -153,52 +153,52 @@ def create_standard_epilog(example_type: str) -> str:
         return """
 Examples:
   # Run with all available backends
-  conda run -n py312 python cli_demo.py
+  python cli_demo.py
 
   # Run with specific backends
-  conda run -n py312 python cli_demo.py --backends uma,aimnet2
+  python cli_demo.py --backends uma,aimnet2
 
   # Run with verbose output
-  conda run -n py312 python cli_demo.py --verbose
+  python cli_demo.py --verbose
         """
 
     elif example_type == "timing":
         return """
 Examples:
   # Run with all available backends
-  conda run -n py312 python timing_benchmark.py
+  python timing_benchmark.py
 
   # Run with specific backends
-  conda run -n py312 python timing_benchmark.py --backends uma,aimnet2
+  python timing_benchmark.py --backends uma,aimnet2
 
   # Run on GPU
-  conda run -n py312 python timing_benchmark.py --device cuda --verbose
+  python timing_benchmark.py --device cuda --verbose
         """
 
     elif example_type == "benchmark":
         return """
 Examples:
   # Run with all available backends
-  conda run -n py312 python benchmark.py
+  python benchmark.py
 
   # Run with specific backends
-  conda run -n py312 python benchmark.py --backends uma,aimnet2
+  python benchmark.py --backends uma,aimnet2
 
   # Quick test
-  conda run -n py312 python benchmark.py --quick --verbose
+  python benchmark.py --quick --verbose
         """
 
     else:
         return """
 Examples:
   # Run with default settings
-  conda run -n py312 python example.py
+  python example.py
 
   # Run with specific backends
-  conda run -n py312 python example.py --backends uma,aimnet2
+  python example.py --backends uma,aimnet2
 
   # Run with verbose output
-  conda run -n py312 python example.py --verbose
+  python example.py --verbose
         """
 
 

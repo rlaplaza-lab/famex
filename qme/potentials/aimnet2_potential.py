@@ -47,7 +47,23 @@ MODEL_REGISTRY = {
 
 
 def get_model_path(model_name: str) -> str:
-    """Get the path to a model file, downloading if necessary."""
+    """Get the path to a model file, downloading if necessary.
+
+    Parameters
+    ----------
+    model_name : str
+        Name of the model or path to model file
+
+    Returns
+    -------
+    str
+        Path to the model file
+
+    Notes
+    -----
+    If model_name is a file path, returns it directly. Otherwise, looks up
+    the model in the registry and downloads it if necessary.
+    """
     from qme.potentials.model_cache import download_and_cache_model
 
     # Direct file path
@@ -413,12 +429,24 @@ class NativeAIMNet2Calculator:
 
 
 class AIMNet2Potential(BasePotential):
-    """
-    ASE Calculator interface for AIMNET2 neural network potential.
+    """ASE Calculator interface for AIMNET2 neural network potential.
 
     AIMNET2 provides accurate and versatile neural network potentials for
     molecular property prediction and geometry optimization, excelling at
     modeling neutral, charged, organic, and elemental-organic systems.
+
+    Parameters
+    ----------
+    model_name : str, default "aimnet2"
+        Name/path of AIMNET2 model to use
+    device : str, optional
+        Device for computations ('cpu', 'cuda'). Auto-detected if None.
+    charge : int, default 0
+        Total charge of the system
+    mult : int, default 1
+        Spin multiplicity (2S + 1)
+    **kwargs
+        Additional arguments passed to BasePotential
     """
 
     def __init__(
@@ -431,17 +459,17 @@ class AIMNet2Potential(BasePotential):
     ):
         """Initialize AIMNET2 potential calculator.
 
-        Parameters:
-        -----------
-        model_name : str
-            Name/path of AIMNET2 model to use. Default: 'aimnet2'
+        Parameters
+        ----------
+        model_name : str, default "aimnet2"
+            Name/path of AIMNET2 model to use
         device : str, optional
             Device for computations ('cpu', 'cuda'). Auto-detected if None.
-        charge : int
-            Molecular charge. Default: 0
-        mult : int
-            Spin multiplicity. Default: 1
-        **kwargs :
+        charge : int, default 0
+            Molecular charge
+        mult : int, default 1
+            Spin multiplicity
+        **kwargs
             Additional arguments passed to parent Calculator
         """
 

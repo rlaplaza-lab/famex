@@ -12,13 +12,13 @@ def get_optimal_device(device: Optional[str] = None) -> str:
     """
     Get the optimal device for computation.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     device : str, optional
         Explicitly requested device. If None, auto-detects.
 
-    Returns:
-    --------
+    Returns
+    -------
     str
         Device to use ('cpu' or 'cuda')
     """
@@ -44,8 +44,8 @@ def print_device_info(device: str) -> None:
     """
     Print device information for user feedback.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     device : str
         Device being used
     """
@@ -57,7 +57,7 @@ def print_device_info(device: str) -> None:
                 torch = deps.get("torch")
                 if torch.cuda.is_available():
                     gpu_name = torch.cuda.get_device_name(0)
-                    print("🚀 Using CUDA device: {}".format(gpu_name))
+                    print(f"🚀 Using CUDA device: {gpu_name}")
                 else:
                     print("⚠️  CUDA requested but not available, falling back to CPU")
             else:
@@ -74,18 +74,18 @@ def validate_device(device: Optional[str]) -> str:
 
     This function consolidates device validation logic from across the codebase.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     device : str, optional
         Device specification to validate
 
-    Returns:
-    --------
+    Returns
+    -------
     str
         Validated and normalized device string
 
-    Raises:
-    -------
+    Raises
+    ------
     ValueError
         If device parameter is invalid
     """
@@ -97,8 +97,9 @@ def validate_device(device: Optional[str]) -> str:
 
     if device not in valid_devices:
         raise ValueError(
-            f"Invalid device: {device}. "
-            f"Use one of: {', '.join(valid_devices)} or None for auto-detection."
+            f"Invalid device '{device}'. "
+            f"Supported devices: {', '.join(valid_devices)} or None for auto-detection. "
+            f"Example: device='cpu' or device='cuda'"
         )
 
     # Normalize 'gpu' to 'cuda'
@@ -112,18 +113,23 @@ def validate_device(device: Optional[str]) -> str:
 
             if not deps.has("torch"):
                 raise ValueError(
-                    "PyTorch not available to check CUDA. " "Install PyTorch or use device='cpu'."
+                    "PyTorch not available to check CUDA availability. "
+                    "Please install PyTorch or use device='cpu'. "
+                    "Try: pip install torch"
                 )
 
             torch = deps.get("torch")
             if not torch.cuda.is_available():
                 raise ValueError(
-                    "CUDA device requested but CUDA is not available. "
-                    "Use device='cpu' or install CUDA-enabled PyTorch."
+                    "CUDA device requested but CUDA is not available on this system. "
+                    "Please use device='cpu' or install CUDA-enabled PyTorch. "
+                    "Try: pip install torch --index-url https://download.pytorch.org/whl/cu118"
                 )
         except ImportError:
             raise ValueError(
-                "PyTorch not available to check CUDA. " "Install PyTorch or use device='cpu'."
+                "PyTorch not available to check CUDA availability. "
+                "Please install PyTorch or use device='cpu'. "
+                "Try: pip install torch"
             )
 
     return device
@@ -133,13 +139,13 @@ def get_device_info(device: str) -> dict:
     """
     Get detailed device information.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     device : str
         Device to get information for
 
-    Returns:
-    --------
+    Returns
+    -------
     dict
         Dictionary containing device information
     """

@@ -28,7 +28,19 @@ Comprehensive performance benchmark for QME ML backends using simple geometry op
 - Detailed timing breakdown and performance comparison
 - ML backend performance comparison (not optimizer comparison)
 
-### 3. TS Optimizer Benchmark (`optimizer_comparison_benchmark.py`)
+### 3. Minima Optimizer Benchmark (`minima_optimizer_benchmark.py`)
+**Minima Optimization Comparison**
+
+Compares the performance of different minima optimizers (lbfgs, bfgs, fire) for minima finding using various QME ML backends.
+
+**Features:**
+- Minima optimizer comparison (lbfgs, bfgs, fire)
+- All available ML backends tested
+- Detailed timing and convergence analysis
+- Minima-specific optimization evaluation
+- Focus on minima finding capabilities
+
+### 4. TS Optimizer Benchmark (`ts_optimizer_benchmark.py`)
 **Transition State Optimizer Comparison**
 
 Compares the performance of different transition state optimizers (sella and geometric) for transition state finding using various QME ML backends.
@@ -40,7 +52,18 @@ Compares the performance of different transition state optimizers (sella and geo
 - TS-specific optimization evaluation
 - Focus on TS finding capabilities
 
-### 4. BH28 Benchmark (`bh28_benchmark/`)
+### 5. Combined Optimizer Benchmark (`optimizer_comparison_benchmark.py`)
+**Combined Minima and TS Optimizer Comparison**
+
+Legacy benchmark that compares both minima and TS optimizers across all ML backends. For focused testing, use the specialized benchmarks above.
+
+**Features:**
+- Combined minima (lbfgs, bfgs, fire) and TS (sella, geometric) optimizer comparison
+- All available ML backends tested
+- Detailed timing and convergence analysis
+- Both minima and TS optimization evaluation
+
+### 6. BH28 Benchmark (`bh28_benchmark/`)
 **Chemical Accuracy Evaluation**
 
 Comprehensive evaluation of QME backends on the BH28 database of chemical reaction barrier heights.
@@ -51,7 +74,7 @@ Comprehensive evaluation of QME backends on the BH28 database of chemical reacti
 - Provides accuracy analysis (MAE, RMSE) for different backends
 - Tests 28 diverse chemical reactions
 
-### 5. Zimmermann-93 Benchmark (`zimmermann93_benchmark/`)
+### 7. Zimmermann-93 Benchmark (`zimmermann93_benchmark/`)
 **Two-Ended Transition State Search**
 
 Two-ended transition state search benchmark using the Zimmermann-93 dataset.
@@ -79,35 +102,41 @@ All examples follow a consistent command-line interface:
 
 ```bash
 # Run with all available backends
-conda run -n py312 python [example_name].py
+python [example_name].py
 
 # Run with specific backends
-conda run -n py312 python [example_name].py --backends uma,aimnet2
+python [example_name].py --backends uma,aimnet2
 
 # Run with verbose output
-conda run -n py312 python [example_name].py --verbose
+python [example_name].py --verbose
 
 # Run on GPU
-conda run -n py312 python [example_name].py --device cuda
+python [example_name].py --device cuda
 ```
 
 ### Quick Start Examples
 
 ```bash
 # CLI Demo - Test all backends
-conda run -n py312 python cli_demo.py
+python cli_demo.py
 
 # Timing Benchmark - Performance analysis
-conda run -n py312 python timing_benchmark.py --device cuda --verbose
+python timing_benchmark.py --device cuda --verbose
 
-# Optimizer Comparison - Test different optimizers
-conda run -n py312 python optimizer_comparison_benchmark.py --test-ts
+# Minima Optimizer Comparison - Test minima optimizers
+python minima_optimizer_benchmark.py --backends uma,aimnet2
+
+# TS Optimizer Comparison - Test TS optimizers
+python ts_optimizer_benchmark.py --backends uma,aimnet2
+
+# Combined Optimizer Comparison - Test all optimizers
+python optimizer_comparison_benchmark.py --backends uma,aimnet2
 
 # BH28 Benchmark - Chemical accuracy
-conda run -n py312 python bh28_benchmark/bh28_benchmark.py --quick
+python bh28_benchmark/bh28_benchmark.py --quick
 
 # Zimmermann-93 Benchmark - Two-ended TS search
-conda run -n py312 python zimmermann93_benchmark/zimmermann93_benchmark.py --quicker
+python zimmermann93_benchmark/zimmermann93_benchmark.py --quicker
 ```
 
 ## Supported Backends
@@ -129,6 +158,9 @@ conda run -n py312 python zimmermann93_benchmark/zimmermann93_benchmark.py --qui
 ## Supporting Files
 
 - **`common_interface.py`**: Standardized interface utilities
+- **`minima_optimizer_benchmark.py`**: Focused minima optimizer comparison
+- **`ts_optimizer_benchmark.py`**: Focused TS optimizer comparison
+- **`optimizer_comparison_benchmark.py`**: Combined minima and TS optimizer comparison
 - **`device_utils.py`**: Automatic device detection utilities
 - **`example_files/`**: Sample molecular structure files (XYZ format)
 - **`README_TEMPLATE.md`**: Template for creating new example READMEs

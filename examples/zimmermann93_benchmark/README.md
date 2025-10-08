@@ -30,8 +30,7 @@ python zimmermann93_benchmark.py
 # Analysis only (load existing results)
 python zimmermann93_benchmark.py --analyze
 
-# Run with conda environment
-conda run -n py312 python zimmermann93_benchmark.py --quick
+python zimmermann93_benchmark.py --quick
 ```
 
 ### Command Line Options
@@ -111,7 +110,7 @@ zimmermann93_benchmark/
 - **QME package**: Base QME installation
 - **ML backends**: At least one of: UMA (`fairchem-core`), SO3LR, AIMNet2, MACE
 - **Transition states**: SELLA optimizer (`pip install sella`) - highly recommended for reliable TS optimization
-- **Python environment**: conda py312 environment recommended
+- **Python environment**: Python 3.10+ recommended
 
 ## Understanding Results
 

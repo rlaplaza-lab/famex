@@ -1,154 +1,50 @@
 [
   {
     "backend": "aimnet2",
-    "optimizer": "lbfgs",
-    "device": "cpu",
-    "model_name": null,
-    "test_ts": false,
-    "available": true,
-    "error": "'dict' object has no attribute 'get_potential_energy'",
-    "timings": {
-      "initialization": 1.895600144052878e-05,
-      "structure_loading": 0.007870879999245517,
-      "single_energy_first": 0.10278047999599949,
-      "single_energy_second": 0.00467355499858968,
-      "single_energy": 0.00467355499858968,
-      "single_forces": 0.012703385997156147
-    },
-    "optimization_results": {},
-    "frequency_results": {}
-  },
-  {
-    "backend": "aimnet2",
-    "optimizer": "bfgs",
-    "device": "cpu",
-    "model_name": null,
-    "test_ts": false,
-    "available": true,
-    "error": "'dict' object has no attribute 'get_potential_energy'",
-    "timings": {
-      "initialization": 1.9635001081041992e-05,
-      "structure_loading": 9.087000216823071e-05,
-      "single_energy_first": 0.09393000099953497,
-      "single_energy_second": 0.006885358001454733,
-      "single_energy": 0.006885358001454733,
-      "single_forces": 0.01653566500317538
-    },
-    "optimization_results": {},
-    "frequency_results": {}
-  },
-  {
-    "backend": "aimnet2",
-    "optimizer": "fire",
-    "device": "cpu",
-    "model_name": null,
-    "test_ts": false,
-    "available": true,
-    "error": "'dict' object has no attribute 'get_potential_energy'",
-    "timings": {
-      "initialization": 1.446300302632153e-05,
-      "structure_loading": 0.00011005299893440679,
-      "single_energy_first": 0.08687720000307309,
-      "single_energy_second": 0.004748535000544507,
-      "single_energy": 0.004748535000544507,
-      "single_forces": 0.014649323005869519
-    },
-    "optimization_results": {},
-    "frequency_results": {}
-  },
-  {
-    "backend": "so3lr",
-    "optimizer": "lbfgs",
-    "device": "cpu",
-    "model_name": null,
-    "test_ts": false,
-    "available": true,
-    "error": "'dict' object has no attribute 'get_potential_energy'",
-    "timings": {
-      "initialization": 1.5022000297904015e-05,
-      "structure_loading": 0.0003184140005032532,
-      "single_energy_first": 12.911098887001572,
-      "single_energy_second": 0.00037637499917764217,
-      "single_energy": 0.00037637499917764217,
-      "single_forces": 0.00011354700109222904
-    },
-    "optimization_results": {},
-    "frequency_results": {}
-  },
-  {
-    "backend": "so3lr",
-    "optimizer": "bfgs",
-    "device": "cpu",
-    "model_name": null,
-    "test_ts": false,
-    "available": true,
-    "error": "'dict' object has no attribute 'get_potential_energy'",
-    "timings": {
-      "initialization": 1.2750002497341484e-05,
-      "structure_loading": 2.7134999982081354e-05,
-      "single_energy_first": 4.449972821996198,
-      "single_energy_second": 0.00020422499801497906,
-      "single_energy": 0.00020422499801497906,
-      "single_forces": 0.00010156299686059356
-    },
-    "optimization_results": {},
-    "frequency_results": {}
-  },
-  {
-    "backend": "so3lr",
-    "optimizer": "fire",
-    "device": "cpu",
-    "model_name": null,
-    "test_ts": false,
-    "available": true,
-    "error": "'dict' object has no attribute 'get_potential_energy'",
-    "timings": {
-      "initialization": 1.3128999853506684e-05,
-      "structure_loading": 2.7223002689424902e-05,
-      "single_energy_first": 4.307643202999316,
-      "single_energy_second": 0.00018229200213681906,
-      "single_energy": 0.00018229200213681906,
-      "single_forces": 8.563599840272218e-05
-    },
-    "optimization_results": {},
-    "frequency_results": {}
-  },
-  {
-    "backend": "aimnet2",
     "optimizer": "sella",
     "device": "cpu",
     "model_name": null,
     "test_ts": true,
     "available": true,
-    "error": "'dict' object has no attribute 'get_potential_energy'",
+    "error": null,
     "timings": {
-      "initialization": 1.2270000297576189e-05,
-      "structure_loading": 7.24400015315041e-05,
-      "single_energy_first": 0.1033595620028791,
-      "single_energy_second": 0.005965428994386457,
-      "single_energy": 0.005965428994386457,
-      "single_forces": 0.013414294000540394
+      "initialization": 1.9459999748505652e-05,
+      "structure_loading": 0.007498467999539571,
+      "single_energy_first": 0.13101342400113936,
+      "single_energy_second": 0.007062696997309104,
+      "single_energy": 0.007062696997309104,
+      "single_forces": 0.017648215998633532,
+      "optimization": 12.84701119500096,
+      "avg_time_per_step": 0.7557065408824094,
+      "frequency_analysis": 1.0271524930030864,
+      "total": 14.800175190880134
     },
-    "optimization_results": {},
-    "frequency_results": {}
-  },
-  {
-    "backend": "so3lr",
-    "optimizer": "sella",
-    "device": "cpu",
-    "model_name": null,
-    "test_ts": true,
-    "available": true,
-    "error": "'dict' object has no attribute 'get_potential_energy'",
-    "timings": {
-      "initialization": 1.3511998986359686e-05,
-      "structure_loading": 2.8069996915291995e-05,
-      "single_energy_first": 7.396071691997349,
-      "single_energy_second": 0.00022365500626619905,
-      "single_energy": 0.00022365500626619905,
-      "single_forces": 0.00010500000644242391
+    "optimization_results": {
+      "converged": "True",
+      "final_energy": -4467.312900337113,
+      "max_force": 0.004260361194610596,
+      "steps_taken": 17
     },
-    "optimization_results": {},
-    "frequency_results": {}
+    "frequency_results": {
+      "n_frequencies": 30,
+      "frequencies": [
+        2.578080991553019,
+        104.6013962614396,
+        267.1956378155388,
+        333.6923780108342,
+        438.4666129248608,
+        517.6237347853299,
+        578.8119729117886,
+        621.9695671161411,
+        745.5964825080661,
+        773.1616889643914
+      ],
+      "zero_point_energy": 2.7578114375962315,
+      "is_transition_state": false,
+      "is_valid_result": false,
+      "n_imaginary_frequencies": 0,
+      "method_used": "auto",
+      "result_type": "TS"
+    }
   }
 ]

@@ -10,9 +10,9 @@ across available ML backends in QME. For each reaction in the provided dataset:
   - Compares the located TS geometry to the reference TS (RMSD after alignment)
 
 Usage:
-    conda run -n py312 python zimmermann93_benchmark.py [--quick|--quicker]
-    conda run -n py312 python zimmermann93_benchmark.py --backends uma,mace
-    conda run -n py312 python zimmermann93_benchmark.py --npoints 15
+    python zimmermann93_benchmark.py [--quick|--quicker]
+    python zimmermann93_benchmark.py --backends uma,mace
+    python zimmermann93_benchmark.py --npoints 15
 
 Features:
     - Two-ended transition state search evaluation
@@ -574,11 +574,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  conda run -n py312 python zimmermann93_benchmark.py
-  conda run -n py312 python zimmermann93_benchmark.py --backends aimnet2,uma
-  conda run -n py312 python zimmermann93_benchmark.py --quick
-  conda run -n py312 python zimmermann93_benchmark.py --quicker
-  conda run -n py312 python zimmermann93_benchmark.py --npoints 15
+  python zimmermann93_benchmark.py
+  python zimmermann93_benchmark.py --backends aimnet2,uma
+  python zimmermann93_benchmark.py --quick
+  python zimmermann93_benchmark.py --quicker
+  python zimmermann93_benchmark.py --npoints 15
         """,
     )
 

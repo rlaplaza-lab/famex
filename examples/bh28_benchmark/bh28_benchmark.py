@@ -7,9 +7,9 @@ chemical reaction barrier heights with reference values from high-level quantum
 chemistry calculations (CCSDT(Q)/CBS level).
 
 Usage:
-    conda run -n py312 python bh28_benchmark.py [--quick|--quicker]
-    conda run -n py312 python bh28_benchmark.py --backends uma,mace
-    conda run -n py312 python bh28_benchmark.py --analyze
+    python bh28_benchmark.py [--quick|--quicker]
+    python bh28_benchmark.py --backends uma,mace
+    python bh28_benchmark.py --analyze
 
 Features:
     - Optimizes reactant minima using various QME backends
@@ -636,11 +636,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  conda run -n py312 python bh28_benchmark.py
-  conda run -n py312 python bh28_benchmark.py --backends aimnet2,uma
-  conda run -n py312 python bh28_benchmark.py --quick
-  conda run -n py312 python bh28_benchmark.py --quicker
-  conda run -n py312 python bh28_benchmark.py --analyze
+  python bh28_benchmark.py
+  python bh28_benchmark.py --backends aimnet2,uma
+  python bh28_benchmark.py --quick
+  python bh28_benchmark.py --quicker
+  python bh28_benchmark.py --analyze
         """,
     )
 

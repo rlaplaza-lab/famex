@@ -11,6 +11,15 @@ from typing import Dict, List, Optional
 
 from qme.dependencies import deps
 
+# Backend name constants
+BACKEND_MOCK = "mock"
+BACKEND_AIMNET2 = "aimnet2"
+BACKEND_UMA = "uma"
+BACKEND_MACE = "mace"
+BACKEND_SO3LR = "so3lr"
+BACKEND_TORCHSIM_MACE = "torchsim_mace"
+BACKEND_TORCHSIM_UMA = "torchsim_uma"
+
 
 def _check_package_conflict(
     package1: str, package2: str, conflict_packages: Dict[str, str]
@@ -29,11 +38,11 @@ def _check_package_conflict(
     # Known conflicts
     conflicts = {
         (
-            "mace",
+            BACKEND_MACE,
             "fairchem",
         ): "MACE 0.3.14 requires e3nn==0.4.4, but FairChem 2.7.0 requires e3nn>=0.5",
         (
-            "mace",
+            BACKEND_MACE,
             "torchsim",
         ): "MACE models with TorchSim affected by e3nn version conflicts",
     }
@@ -58,7 +67,7 @@ def _check_e3nn_conflict() -> Optional[str]:
     Returns:
         Error message if conflict detected, None otherwise
     """
-    if not (deps.has("mace") and deps.has("fairchem")):
+    if not (deps.has(BACKEND_MACE) and deps.has("fairchem")):
         return None
 
     try:
@@ -120,13 +129,13 @@ class BackendAvailabilityChecker:
     def _check_basic_dependencies(self, backend: str) -> bool:
         """Check basic package dependencies for a backend."""
         requirements = {
-            "mock": [],
-            "aimnet2": ["aimnet2"],  # Use backend name, deps.has() will handle the mapping
-            "uma": ["fairchem", "torch"],
-            "so3lr": ["so3lr"],
-            "mace": ["mace", "torch"],
-            "torchsim_mace": ["torch_sim", "torch"],
-            "torchsim_uma": ["torch_sim", "torch", "fairchem"],
+            BACKEND_MOCK: [],
+            BACKEND_AIMNET2: ["aimnet2"],  # Use backend name, deps.has() will handle the mapping
+            BACKEND_UMA: ["fairchem", "torch"],
+            BACKEND_SO3LR: ["so3lr"],
+            BACKEND_MACE: ["mace", "torch"],
+            BACKEND_TORCHSIM_MACE: ["torch_sim", "torch"],
+            BACKEND_TORCHSIM_UMA: ["torch_sim", "torch", "fairchem"],
         }
 
         required = requirements.get(backend, [])
@@ -138,18 +147,18 @@ class BackendAvailabilityChecker:
         # are detected, we can assume they'll import successfully.
         # Only do actual imports for backends with complex import chains.
 
-        if backend in ["aimnet2", "uma", "so3lr"]:
+        if backend in [BACKEND_AIMNET2, BACKEND_UMA, BACKEND_SO3LR]:
             # These have simple import chains, skip expensive imports
             return None
 
         # Only do actual imports for complex backends
         try:
-            if backend == "mace":
+            if backend == BACKEND_MACE:
                 # Just check if the main module imports, don't instantiate
                 import mace.calculators
 
                 return None
-            elif backend in ["torchsim_mace", "torchsim_uma"]:
+            elif backend in [BACKEND_TORCHSIM_MACE, BACKEND_TORCHSIM_UMA]:
                 # Check TorchSim imports
                 import torch_sim
 
@@ -165,9 +174,9 @@ class BackendAvailabilityChecker:
 
         conflict = None
 
-        if backend in ["mace", "torchsim_mace"]:
+        if backend in [BACKEND_MACE, BACKEND_TORCHSIM_MACE]:
             conflict = _check_e3nn_conflict()
-        elif backend == "torchsim_uma":
+        elif backend == BACKEND_TORCHSIM_UMA:
             conflict = _check_torchsim_fairchem_conflict()
 
         self._conflict_cache[backend] = conflict
@@ -184,7 +193,7 @@ class BackendAvailabilityChecker:
             return self._cache[backend]
 
         # Always available
-        if backend == "mock":
+        if backend == BACKEND_MOCK:
             self._cache[backend] = True
             return True
 
@@ -209,17 +218,17 @@ class BackendAvailabilityChecker:
 
     def get_availability_reason(self, backend: str) -> str:
         """Get detailed reason why a backend is or isn't available."""
-        if backend == "mock":
+        if backend == BACKEND_MOCK:
             return "Always available"
 
         if not self._check_basic_dependencies(backend):
             requirements = {
-                "aimnet2": ["torch", "torch-cluster"],
-                "uma": ["fairchem-core", "torch"],
-                "so3lr": ["so3lr"],
-                "mace": ["mace-torch", "torch"],
-                "torchsim_mace": ["torch-sim-atomistic", "torch"],
-                "torchsim_uma": ["torch-sim-atomistic", "torch", "fairchem-core"],
+                BACKEND_AIMNET2: ["torch", "torch-cluster"],
+                BACKEND_UMA: ["fairchem-core", "torch"],
+                BACKEND_SO3LR: ["so3lr"],
+                BACKEND_MACE: ["mace-torch", "torch"],
+                BACKEND_TORCHSIM_MACE: ["torch-sim-atomistic", "torch"],
+                BACKEND_TORCHSIM_UMA: ["torch-sim-atomistic", "torch", "fairchem-core"],
             }
             required = requirements.get(backend, [])
             return f"Missing dependencies: {', '.join(required)}"
@@ -237,13 +246,13 @@ class BackendAvailabilityChecker:
     def get_available_backends(self, include_mock: bool = True) -> List[str]:
         """Get list of all available backends."""
         all_backends = [
-            "mock",
-            "aimnet2",
-            "uma",
-            "so3lr",
-            "mace",
-            "torchsim_mace",
-            "torchsim_uma",
+            BACKEND_MOCK,
+            BACKEND_AIMNET2,
+            BACKEND_UMA,
+            BACKEND_SO3LR,
+            BACKEND_MACE,
+            BACKEND_TORCHSIM_MACE,
+            BACKEND_TORCHSIM_UMA,
         ]
         if not include_mock:
             all_backends = all_backends[1:]  # Remove mock
@@ -293,12 +302,12 @@ def get_backend_error_message(backend: str) -> str:
     reason = get_availability_reason(backend)
 
     install_commands = {
-        "aimnet2": "pip install qme-ml[aimnet2]",
-        "uma": "pip install qme-ml[uma]",
-        "mace": "pip install qme-ml[mace]",
-        "so3lr": "pip install qme-ml[so3lr]",
-        "torchsim_mace": "pip install qme-ml[torchsim]",
-        "torchsim_uma": "pip install qme-ml[torchsim,uma]",
+        BACKEND_AIMNET2: "pip install qme-ml[aimnet2]",
+        BACKEND_UMA: "pip install qme-ml[uma]",
+        BACKEND_MACE: "pip install qme-ml[mace]",
+        BACKEND_SO3LR: "pip install qme-ml[so3lr]",
+        BACKEND_TORCHSIM_MACE: "pip install qme-ml[torchsim]",
+        BACKEND_TORCHSIM_UMA: "pip install qme-ml[torchsim,uma]",
     }
 
     cmd = install_commands.get(backend, f"pip install qme-ml[{backend}]")
@@ -308,20 +317,27 @@ def get_backend_error_message(backend: str) -> str:
 
 # Backend categorization constants
 ALL_BACKENDS = [
-    "mock",
-    "aimnet2",
-    "mace",
-    "uma",
-    "so3lr",
-    "torchsim_mace",
-    "torchsim_uma",
+    BACKEND_MOCK,
+    BACKEND_AIMNET2,
+    BACKEND_MACE,
+    BACKEND_UMA,
+    BACKEND_SO3LR,
+    BACKEND_TORCHSIM_MACE,
+    BACKEND_TORCHSIM_UMA,
 ]
 
-ML_BACKENDS = ["aimnet2", "mace", "uma", "so3lr", "torchsim_mace", "torchsim_uma"]
+ML_BACKENDS = [
+    BACKEND_AIMNET2,
+    BACKEND_MACE,
+    BACKEND_UMA,
+    BACKEND_SO3LR,
+    BACKEND_TORCHSIM_MACE,
+    BACKEND_TORCHSIM_UMA,
+]
 
-TORCHSIM_BACKENDS = ["torchsim_mace", "torchsim_uma"]
+TORCHSIM_BACKENDS = [BACKEND_TORCHSIM_MACE, BACKEND_TORCHSIM_UMA]
 
-REGULAR_BACKENDS = ["mock", "aimnet2", "mace", "uma", "so3lr"]
+REGULAR_BACKENDS = [BACKEND_MOCK, BACKEND_AIMNET2, BACKEND_MACE, BACKEND_UMA, BACKEND_SO3LR]
 
 
 def get_available_ml_backends(include_torchsim: bool = True, verbose: bool = False) -> List[str]:
@@ -350,12 +366,12 @@ def get_backend_pairs() -> List[tuple[str, str]]:
     pairs = []
 
     # Check MACE pair
-    if is_backend_available("mace") and is_backend_available("torchsim_mace"):
-        pairs.append(("mace", "torchsim_mace"))
+    if is_backend_available(BACKEND_MACE) and is_backend_available(BACKEND_TORCHSIM_MACE):
+        pairs.append((BACKEND_MACE, BACKEND_TORCHSIM_MACE))
 
     # Check UMA pair
-    if is_backend_available("uma") and is_backend_available("torchsim_uma"):
-        pairs.append(("uma", "torchsim_uma"))
+    if is_backend_available(BACKEND_UMA) and is_backend_available(BACKEND_TORCHSIM_UMA):
+        pairs.append((BACKEND_UMA, BACKEND_TORCHSIM_UMA))
 
     return pairs
 

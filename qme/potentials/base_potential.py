@@ -7,7 +7,9 @@ and provides a compatible ``calculate`` signature so subclasses can call
 setup work.
 """
 
-from typing import Any, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Union
+
+from ase import Atoms
 
 
 class BasePotential:
@@ -17,9 +19,31 @@ class BasePotential:
     an ASE Calculator wrapper. The base class stores commonly-used
     attributes and provides a no-op ``calculate`` implementation that
     performs standard setup.
+
+    Parameters
+    ----------
+    backend : str, default "generic"
+        Backend identifier (e.g., 'uma', 'mace', 'aimnet2', 'mock')
+    model_name : str, optional
+        Name of the model to use
+    device : str, optional
+        Device for computations ('cpu', 'cuda')
+    implemented_properties : list of str, default []
+        List of properties this calculator can compute
+    supports_batch_evaluation : bool, default False
+        Whether this calculator supports batch evaluation
+    **kwargs
+        Additional arguments for specific backends
     """
 
     def __init__(self, **kwargs: Any):
+        """Initialize the base potential calculator.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments for configuration
+        """
         # Generic backend label (e.g., 'uma', 'mace', 'aimnet2', 'mock')
         self.backend: str = kwargs.get("backend", "generic")
 
@@ -28,8 +52,8 @@ class BasePotential:
         self.device: Optional[str] = kwargs.get("device")
 
         # ASE-style state
-        self.atoms = None
-        self.results: dict = {}
+        self.atoms: Optional[Atoms] = None
+        self.results: Dict[str, Any] = {}
 
         # Default implemented properties; subclasses may override
         self.implemented_properties: List[str] = kwargs.get("implemented_properties", [])
@@ -39,10 +63,10 @@ class BasePotential:
 
     def calculate(
         self,
-        atoms=None,
+        atoms: Optional[Atoms] = None,
         properties: Optional[Sequence[str]] = None,
-        system_changes=None,
-    ):
+        system_changes: Optional[Any] = None,
+    ) -> None:
         """Base calculate method that performs minimal setup.
 
         Subclasses should call this via super().calculate(...) to ensure
@@ -58,7 +82,7 @@ class BasePotential:
         # ``self.results`` when appropriate.
         return
 
-    def _prepare_calculation(self, atoms=None):
+    def _prepare_calculation(self, atoms: Optional[Atoms] = None) -> Optional[Any]:
         """Prepare for a calculation by setting atoms and ensuring backend is loaded.
 
         Args:
@@ -72,14 +96,14 @@ class BasePotential:
             self.atoms = atoms
         return self.ensure_loaded()
 
-    def _backend_obj(self):
+    def _backend_obj(self) -> Optional[Any]:
         """Return the standardized backend calculator stored in ``self._calc``.
 
         If the attribute is not present or is None, return None.
         """
         return getattr(self, "_calc", None)
 
-    def ensure_loaded(self):
+    def ensure_loaded(self) -> Optional[Any]:
         """Ensure the underlying backend calculator is loaded.
 
         Calls subclass ``_load_calculator`` if no backend object is present.
@@ -95,7 +119,9 @@ class BasePotential:
 
         return self._backend_obj()
 
-    def get_potential_energy(self, atoms=None, force_consistent: bool = False):
+    def get_potential_energy(
+        self, atoms: Optional[Atoms] = None, force_consistent: bool = False
+    ) -> float:
         """Generic get_potential_energy that delegates to underlying backend.
 
         If the backend provides ``get_potential_energy`` it is delegated to.
@@ -116,7 +142,7 @@ class BasePotential:
         self.calculate(self.atoms, properties=["energy"], system_changes=None)
         return float(self.results.get("energy", 0.0))
 
-    def get_forces(self, atoms=None):
+    def get_forces(self, atoms: Optional[Atoms] = None) -> Optional[Any]:
         """Generic get_forces that delegates to underlying backend.
 
         If the backend provides ``get_forces`` it is delegated to. Otherwise a
@@ -135,22 +161,24 @@ class BasePotential:
         return self.results.get("forces")
 
     @property
-    def supports_batch_evaluation(self):
+    def supports_batch_evaluation(self) -> bool:
         """Whether this calculator supports batch evaluation."""
         return self._supports_batch_evaluation
 
-    def calculate_batch(self, atoms_list, properties=None):
+    def calculate_batch(
+        self, atoms_list: List[Atoms], properties: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
         """Calculate properties for a batch of structures.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         atoms_list : List[Atoms]
             List of ASE Atoms objects to calculate properties for
         properties : List[str], optional
             Properties to calculate (default: ["energy", "forces"])
 
-        Returns:
-        --------
+        Returns
+        -------
         List[dict]
             List of result dictionaries, one for each structure
         """

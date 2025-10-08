@@ -7,16 +7,49 @@ energies and harmonic forces so tests can run without heavy ML deps.
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 
+# Constants for mock potential calculations
+BOND_TOLERANCE_FACTOR = 1.25  # Multiplier for covalent radius cutoff
+MIN_BOND_CUTOFF = 2.0  # Minimum bond cutoff distance (Å)
+DEFAULT_FORCE_CONSTANT = 1.0  # Default harmonic force constant
+DEFAULT_ANGLE_FORCE_RATIO = 0.5  # Angle force constant as fraction of bond force constant
+
 
 class MockCalculator(Calculator):
-    """Simple mock calculator.
+    """Simple mock calculator for testing and CI.
 
-    Parameters (allowed): backend, force_constant, bond_length, charge, mult
+    This calculator implements a minimal ASE Calculator-like interface to return
+    simple energies and harmonic forces so tests can run without heavy ML dependencies.
+
+    Parameters
+    ----------
+    backend : str, default "generic"
+        Backend identifier for the mock calculator
+    force_constant : float, default 1.0
+        Force constant for harmonic potential calculations
+    charge : int, default 0
+        Total charge of the system
+    mult : int, default 1
+        Spin multiplicity (2S + 1)
+    **kwargs
+        Additional arguments passed to ASE Calculator
     """
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, backend: str = "generic", force_constant: float = 1.0, **kwargs):
+    def __init__(
+        self, backend: str = "generic", force_constant: float = DEFAULT_FORCE_CONSTANT, **kwargs
+    ):
+        """Initialize the mock calculator.
+
+        Parameters
+        ----------
+        backend : str, default "generic"
+            Backend identifier for the mock calculator
+        force_constant : float, default 1.0
+            Force constant for harmonic potential calculations
+        **kwargs
+            Additional arguments passed to ASE Calculator
+        """
         super().__init__(**kwargs)
         self.backend = backend
         self.force_constant = float(force_constant)
@@ -26,9 +59,28 @@ class MockCalculator(Calculator):
         # angle force constant (harmonic in angle space). Default is
         # moderately weaker than bond force to avoid over-constraining
         # small test systems.
-        self.k_angle = float(kwargs.get("k_angle", 0.5 * self.force_constant))
+        self.k_angle = float(kwargs.get("k_angle", DEFAULT_ANGLE_FORCE_RATIO * self.force_constant))
 
     def calculate(self, atoms=None, properties=None, system_changes=None):
+        """Calculate energy and forces using harmonic potential.
+
+        This method implements a simple harmonic potential based on covalent radii
+        to provide realistic energies and forces for testing purposes.
+
+        Parameters
+        ----------
+        atoms : ase.Atoms, optional
+            Atoms object to calculate properties for
+        properties : list of str, optional
+            Properties to calculate (energy, forces)
+        system_changes : list, optional
+            System changes since last calculation
+
+        Notes
+        -----
+        The calculation uses pairwise harmonic bonds based on covalent radii
+        and applies harmonic potential around equilibrium bond lengths.
+        """
         # Pairwise harmonic bond mock: find bonded pairs using covalent radii
         # and apply harmonic potential around equilibrium bond lengths.
         from ase.data import covalent_radii
@@ -45,7 +97,7 @@ class MockCalculator(Calculator):
                 # Use a tolerance factor; allow a generous minimum cutoff so
                 # stretched bonds (e.g., starting geometries) are still
                 # recognized by the mock calculator.
-                cutoff = max(r0 * 1.5 if r0 > 0 else 1.6, 2.0)
+                cutoff = max(r0 * BOND_TOLERANCE_FACTOR if r0 > 0 else 1.6, MIN_BOND_CUTOFF)
                 rij = positions[i] - positions[j]
                 dist = np.linalg.norm(rij)
                 if dist <= cutoff:

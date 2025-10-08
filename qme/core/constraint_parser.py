@@ -3,15 +3,16 @@
 from typing import Any, Dict, List, Optional, Union
 
 from ase import Atoms
+from ase.constraints import FixConstraint
 
 from qme.core.constraints import get_constraint_summary, parse_constraint_string
 
 
 def parse_constraints(
-    constraint_specs: Union[str, List, Dict],
+    constraint_specs: Union[str, List[str], List[FixConstraint], Dict[str, Any]],
     atoms: Atoms,
     verbose: bool = False,
-) -> List:
+) -> List[FixConstraint]:
     """
     Parse constraint specifications and return ASE-compatible constraints.
 
@@ -19,11 +20,22 @@ def parse_constraints(
     1. Fixed Atoms: Exactly fix atom positions
     2. Harmonic Constraints: Soft constraints based on initial geometry
 
-    Parameters:
-    - constraint_specs: Constraint specifications in various formats
-    - atoms: Atoms object (used as reference geometry)
-    - verbose: Print constraint information
+    Parameters
+    ----------
+    constraint_specs : str, list of str, list of FixConstraint, or dict
+        Constraint specifications in various formats
+    atoms : ase.Atoms
+        Atoms object (used as reference geometry)
+    verbose : bool, default False
+        Print constraint information
 
+    Returns
+    -------
+    List[FixConstraint]
+        List of ASE-compatible constraint objects
+
+    Notes
+    -----
     Supported string formats:
     - "fix 0,1,2,3": Fix atoms at indices 0,1,2,3
     - "harmonic_position 5,6 k=10.0": Harmonic position constraint for atoms 5,6
@@ -32,9 +44,6 @@ def parse_constraints(
 
     Multiple constraints can be separated by semicolons:
     - "fix 0,1; harmonic_bond 2,3 k=5.0"
-
-    Returns:
-        List of ASE-compatible constraint objects
     """
 
     if constraint_specs is None:

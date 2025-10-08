@@ -8,6 +8,12 @@ to ensure consistency across the codebase.
 from pathlib import Path
 from typing import List, Optional, Union
 
+# Validation constants
+MIN_ATOM_DISTANCE = 0.1  # Minimum allowed distance between atoms (Å)
+MAX_REASONABLE_ENERGY = 1000.0  # Maximum reasonable energy value (eV)
+MIN_REASONABLE_ENERGY = -1000.0  # Minimum reasonable energy value (eV)
+MAX_REASONABLE_FORCE = 100.0  # Maximum reasonable force magnitude (eV/Å)
+
 
 class QMEError(Exception):
     """Base exception class for QME-specific errors."""
@@ -77,15 +83,15 @@ def get_backend_error_message(backend: str, available_backends: List[str]) -> st
 def validate_atoms_compatibility(atoms1, atoms2, context: str = "operation"):
     """Validate that two Atoms objects are compatible.
 
-    Parameters:
-    -----------
-    atoms1, atoms2 : Atoms
+    Parameters
+    ----------
+    atoms1, atoms2 : ase.Atoms
         Atoms objects to compare
-    context : str
+    context : str, default "operation"
         Context for error message (e.g., "reaction", "interpolation")
 
-    Raises:
-    -------
+    Raises
+    ------
     ValidationError
         If atoms are not compatible
     """
@@ -107,15 +113,15 @@ def validate_atoms_compatibility(atoms1, atoms2, context: str = "operation"):
 def validate_file_exists(filepath, purpose: str = "operation"):
     """Validate that a file exists.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     filepath : str or Path
         Path to file to check
-    purpose : str
+    purpose : str, default "operation"
         Purpose for error message
 
-    Raises:
-    -------
+    Raises
+    ------
     FileNotFoundError
         If file does not exist
     ValidationError
@@ -194,7 +200,7 @@ def validate_atoms_structure(atoms, context: str = "calculation"):
 
         distances = pdist(positions)
         min_distance = distances.min()
-        if min_distance < 0.1:  # Less than 0.1 Å
+        if min_distance < MIN_ATOM_DISTANCE:
             raise ValidationError(
                 f"Atoms are too close (minimum distance: {min_distance:.3f} Å) for {context}.",
                 suggestion="Check for overlapping atoms or adjust the structure geometry.",

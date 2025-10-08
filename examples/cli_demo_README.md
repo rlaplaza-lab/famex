@@ -15,22 +15,22 @@ Demonstrates QME's command-line interface capabilities by running various optimi
 ### Basic Usage
 ```bash
 # Run with all available backends
-conda run -n py312 python cli_demo.py
+python cli_demo.py
 
 # Run with specific backends
-conda run -n py312 python cli_demo.py --backends uma,aimnet2
+python cli_demo.py --backends uma,aimnet2
 
 # Run with verbose output
-conda run -n py312 python cli_demo.py --verbose
+python cli_demo.py --verbose
 ```
 
 ### Advanced Usage
 ```bash
 # Run on GPU
-conda run -n py312 python cli_demo.py --device cuda
+python cli_demo.py --device cuda
 
 # Specify output file
-conda run -n py312 python cli_demo.py --output my_results.json
+python cli_demo.py --output my_results.json
 ```
 
 ## Command Line Options

@@ -32,8 +32,7 @@ python bh28_benchmark.py --reactions BHDIV_3 PXBH_2 CADBH_1
 # Analysis only (load existing results)
 python bh28_benchmark.py --analyze
 
-# Run with conda environment
-conda run -n py312 python bh28_benchmark.py --quick
+python bh28_benchmark.py --quick
 ```
 
 ### Command Line Options
@@ -100,7 +99,7 @@ bh28_benchmark/
 - **QME package**: Base QME installation
 - **ML backends**: At least one of: UMA (`fairchem-core`), SO3LR, AIMNet2, MACE
 - **Transition states**: SELLA optimizer (`pip install sella`) - recommended for proper TS optimization
-- **Python environment**: conda py312 environment recommended
+- **Python environment**: Python 3.10+ recommended
 
 ## Understanding Results
 

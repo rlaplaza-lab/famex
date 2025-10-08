@@ -57,7 +57,9 @@ def _import_backend(module_name: str, cls_name: str, func_name: str, backend_lab
         # If the backend is unavailable, raise a clear error instead of falling back to mock
         raise ImportError(
             f"Failed to import {backend_label} backend: {e}. "
-            f"Make sure all required dependencies are installed."
+            f"Please ensure all required dependencies are installed and "
+            f"compatible versions are used. "
+            f"See the QME documentation for installation instructions."
         )
 
 
@@ -75,7 +77,11 @@ def get_uma_calculator(**kwargs):
 
         return UMAPotential(**kwargs)
     except ImportError as e:
-        raise ImportError(f"Failed to import UMA backend: {e}")
+        raise ImportError(
+            f"Failed to import UMA backend: {e}. "
+            f"This may be due to missing FairChem dependencies or version conflicts. "
+            f"Try: pip install qme-ml[uma]"
+        )
 
 
 # SO3LR backend - lazy loading
@@ -92,7 +98,11 @@ def get_so3lr_calculator(**kwargs):
 
         return SO3LRPotential(**kwargs)
     except ImportError as e:
-        raise ImportError(f"Failed to import SO3LR backend: {e}")
+        raise ImportError(
+            f"Failed to import SO3LR backend: {e}. "
+            f"SO3LR requires JAX and must be installed separately from source. "
+            f"See the QME documentation for SO3LR installation instructions."
+        )
 
 
 # AIMNet2 backend - lazy loading
@@ -109,7 +119,11 @@ def get_aimnet2_calculator(**kwargs):
 
         return AIMNet2Potential(**kwargs)
     except ImportError as e:
-        raise ImportError(f"Failed to import AIMNet2 backend: {e}")
+        raise ImportError(
+            f"Failed to import AIMNet2 backend: {e}. "
+            f"AIMNet2 requires PyTorch and torch-cluster. "
+            f"Try: pip install qme-ml[aimnet2]"
+        )
 
 
 # MACE backend - lazy loading
@@ -126,7 +140,12 @@ def get_mace_calculator(**kwargs):
 
         return MACEPotential(**kwargs)
     except ImportError as e:
-        raise ImportError(f"Failed to import MACE backend: {e}")
+        raise ImportError(
+            f"Failed to import MACE backend: {e}. "
+            f"MACE requires PyTorch and mace-torch. "
+            f"Note: MACE cannot be installed with UMA due to e3nn version conflicts. "
+            f"Try: pip install qme-ml[mace]"
+        )
 
 
 # TorchSim backend - lazy loading
@@ -143,7 +162,11 @@ def get_torchsim_calculator(**kwargs):
 
         return TorchSimPotential(**kwargs)
     except ImportError as e:
-        raise ImportError(f"Failed to import TorchSim backend: {e}")
+        raise ImportError(
+            f"Failed to import TorchSim backend: {e}. "
+            f"TorchSim requires Python 3.11+ and torch-sim-atomistic. "
+            f"Try: pip install qme-ml[torchsim]"
+        )
 
 
 def get_torchsim_mace_calculator(**kwargs):
@@ -158,7 +181,11 @@ def get_torchsim_mace_calculator(**kwargs):
 
         return _get_torchsim_mace_calculator(**kwargs)
     except ImportError as e:
-        raise ImportError(f"Failed to import TorchSim MACE calculator: {e}")
+        raise ImportError(
+            f"Failed to import TorchSim MACE calculator: {e}. "
+            f"TorchSim MACE requires both MACE and TorchSim to be available. "
+            f"Try: pip install qme-ml[torchsim] (note: MACE conflicts with UMA)"
+        )
 
 
 def get_torchsim_uma_calculator(**kwargs):
@@ -173,4 +200,8 @@ def get_torchsim_uma_calculator(**kwargs):
 
         return _get_torchsim_uma_calculator(**kwargs)
     except ImportError as e:
-        raise ImportError(f"Failed to import TorchSim UMA calculator: {e}")
+        raise ImportError(
+            f"Failed to import TorchSim UMA calculator: {e}. "
+            f"TorchSim UMA requires both UMA and TorchSim to be available. "
+            f"Try: pip install qme-ml[torchsim,uma]"
+        )
