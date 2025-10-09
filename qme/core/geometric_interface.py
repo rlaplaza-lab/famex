@@ -211,7 +211,7 @@ class GeometricOptimizer(Optimizer):
                     f"{energy_val:>12.6f} {initial_fmax:>12.6f}"
                 )
 
-                # Run optimization - only catch GeomOptNotConvergedError
+                # Run optimization - catch GeomOptNotConvergedError and other exceptions
                 try:
                     optimizer.optimizeGeometry()
                 except GeomOptNotConvergedError:
@@ -223,72 +223,64 @@ class GeometricOptimizer(Optimizer):
                     )
                     self.converged = False
                     # Don't return yet - continue to coordinate extraction
+                except Exception as e:
+                    # Store the exception to re-raise after coordinate extraction
+                    optimization_exception = e
+                    self.step_count = getattr(
+                        optimizer,
+                        "Iteration",
+                        getattr(optimizer, "iter", getattr(optimizer, "iteration", 0)),
+                    )
+                    self.converged = False
+                    # Continue to coordinate extraction even if optimization failed
             finally:
                 # Restore original logging level
                 geometric_logger.setLevel(original_level)
 
             # Extract step count from geomeTRIC optimizer
-            # geomeTRIC stores the iteration count in different attributes
-            if hasattr(optimizer, "Iteration") and optimizer.Iteration is not None:
-                self.step_count = optimizer.Iteration
-            elif hasattr(optimizer, "iter") and optimizer.iter is not None:
-                self.step_count = optimizer.iter
-            elif hasattr(optimizer, "iteration") and optimizer.iteration is not None:
-                self.step_count = optimizer.iteration
-            elif hasattr(optimizer, "step_count") and optimizer.step_count is not None:
-                self.step_count = optimizer.step_count
-            elif hasattr(optimizer, "nsteps") and optimizer.nsteps is not None:
-                self.step_count = optimizer.nsteps
+            # The most reliable way is to count the optimization steps from progress.xyzs
+            if (hasattr(optimizer, "progress") and hasattr(optimizer.progress, "xyzs") and
+                    optimizer.progress.xyzs and hasattr(optimizer.progress.xyzs, "__len__")):
+                self.step_count = len(optimizer.progress.xyzs) - 1  # Subtract initial structure
             else:
-                # Fallback: try to get from history or progress
-                if hasattr(optimizer, "history") and optimizer.history:
-                    self.step_count = len(optimizer.history)
-                elif hasattr(optimizer, "xyzs") and optimizer.xyzs:
-                    self.step_count = len(optimizer.xyzs) - 1  # Subtract initial structure
-                elif hasattr(optimizer, "progress") and optimizer.progress:
-                    self.step_count = len(optimizer.progress)
-                else:
-                    # Last resort: check if there's a convergence log or similar
-                    # geomeTRIC sometimes stores step info in the molecule object
-                    if hasattr(molecule, "xyzs") and molecule.xyzs:
-                        self.step_count = len(molecule.xyzs) - 1  # Subtract initial structure
-                    else:
-                        self.step_count = 0
+                self.step_count = 0
 
-            # Check if optimization converged using geomeTRIC's state system
+            # Re-raise optimization exception if one occurred (before coordinate extraction)
+            if 'optimization_exception' in locals():
+                raise optimization_exception
+
+            # Update atoms with optimized geometry
+            # geomeTRIC stores the optimization history in optimizer.progress.xyzs (in Angstrom)
+            if (hasattr(optimizer, "progress") and hasattr(optimizer.progress, "xyzs") and
+                    optimizer.progress.xyzs and hasattr(optimizer.progress.xyzs, "__len__") and
+                    len(optimizer.progress.xyzs) > 0):
+                # Get the final optimized geometry from progress.xyzs (already in Angstrom)
+                final_xyz = optimizer.progress.xyzs[-1]
+                self.atoms.set_positions(final_xyz)
+            else:
+                raise RuntimeError("geomeTRIC optimization did not return valid results")
+
+            # Now check if optimization converged using geomeTRIC's state system
+            # geomeTRIC uses state=2 for converged, state=1 for not converged
             state = getattr(optimizer, "state", None)
             if state is None:
-                converged = False
+                # Fallback: check if forces are below threshold after updating coordinates
+                try:
+                    final_forces = self.atoms.get_forces()
+                    if hasattr(final_forces, "__array__"):
+                        max_force = float(np.max(np.abs(final_forces)))
+                        converged = max_force < fmax
+                    else:
+                        converged = False
+                except Exception:
+                    converged = False
             elif np.isscalar(state):
                 converged = state == 2
             else:
                 converged = (state == 2).any()
 
-            # Update atoms with optimized geometry
-            # geomeTRIC stores the final coordinates in the molecule object
-            if hasattr(molecule, "xyzs") and len(molecule.xyzs) > 0:
-                # Get the final optimized geometry from molecule.xyzs
-                final_xyz = molecule.xyzs[-1]
-                # Convert from Bohr to Angstrom
-                final_xyz_ang = final_xyz * Bohr  # Bohr to Angstrom
-                self.atoms.set_positions(final_xyz_ang.reshape(-1, 3))
-                self.converged = converged
-                return converged
-            elif hasattr(optimizer, "xyzs") and len(optimizer.xyzs) > 0:
-                # Fallback: check optimizer.xyzs
-                final_xyz = optimizer.xyzs[-1]
-                final_xyz_ang = final_xyz * Bohr  # Bohr to Angstrom
-                self.atoms.set_positions(final_xyz_ang.reshape(-1, 3))
-                self.converged = converged
-                return converged
-            elif hasattr(optimizer, "coords") and optimizer.coords is not None:
-                # Last resort: check optimizer.coords
-                final_xyz_ang = optimizer.coords * Bohr  # Bohr to Angstrom
-                self.atoms.set_positions(final_xyz_ang.reshape(-1, 3))
-                self.converged = converged
-                return converged
-            else:
-                raise RuntimeError("geomeTRIC optimization did not return valid results")
+            self.converged = converged
+            return converged
 
 
 class GeometricTSOptimizer(GeometricOptimizer):

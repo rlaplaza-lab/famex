@@ -52,16 +52,10 @@ Compares the performance of different transition state optimizers (sella and geo
 - TS-specific optimization evaluation
 - Focus on TS finding capabilities
 
-### 5. Combined Optimizer Benchmark (`optimizer_comparison_benchmark.py`)
+### 5. Optimizer Comparison Benchmark
 **Combined Minima and TS Optimizer Comparison**
 
-Legacy benchmark that compares both minima and TS optimizers across all ML backends. For focused testing, use the specialized benchmarks above.
-
-**Features:**
-- Combined minima (lbfgs, bfgs, fire) and TS (sella, geometric) optimizer comparison
-- All available ML backends tested
-- Detailed timing and convergence analysis
-- Both minima and TS optimization evaluation
+The optimizer comparison functionality is now split into specialized benchmarks above. Use `minima_optimizer_benchmark.py` for minima optimizer testing and `ts_optimizer_benchmark.py` for transition state optimizer testing.
 
 ### 6. BH28 Benchmark (`bh28_benchmark/`)
 **Chemical Accuracy Evaluation**
@@ -129,9 +123,6 @@ python minima_optimizer_benchmark.py --backends uma,aimnet2
 # TS Optimizer Comparison - Test TS optimizers
 python ts_optimizer_benchmark.py --backends uma,aimnet2
 
-# Combined Optimizer Comparison - Test all optimizers
-python optimizer_comparison_benchmark.py --backends uma,aimnet2
-
 # BH28 Benchmark - Chemical accuracy
 python bh28_benchmark/bh28_benchmark.py --quick
 
@@ -160,10 +151,7 @@ python zimmermann93_benchmark/zimmermann93_benchmark.py --quicker
 - **`common_interface.py`**: Standardized interface utilities
 - **`minima_optimizer_benchmark.py`**: Focused minima optimizer comparison
 - **`ts_optimizer_benchmark.py`**: Focused TS optimizer comparison
-- **`optimizer_comparison_benchmark.py`**: Combined minima and TS optimizer comparison
-- **`device_utils.py`**: Automatic device detection utilities
 - **`example_files/`**: Sample molecular structure files (XYZ format)
-- **`README_TEMPLATE.md`**: Template for creating new example READMEs
 
 ## Understanding Results
 

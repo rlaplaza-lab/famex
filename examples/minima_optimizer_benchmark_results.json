@@ -1,1 +1,194 @@
-[]
+[
+  {
+    "backend": "uma",
+    "optimizer": "lbfgs",
+    "device": "cuda",
+    "model_name": null,
+    "test_ts": false,
+    "available": true,
+    "error": null,
+    "timings": {
+      "initialization": 1.549001899547875e-05,
+      "structure_loading": 0.000215859996387735,
+      "single_energy_first": 4.59747903700918,
+      "single_energy_second": 0.0001830209803301841,
+      "single_energy": 0.0001830209803301841,
+      "single_forces": 0.00014950998593121767,
+      "optimization": 3.3498058970144484,
+      "avg_time_per_step": 0.13957524570893534,
+      "frequency_analysis": 4.348606362997089,
+      "total": 12.436213444691626
+    },
+    "optimization_results": {
+      "converged": "True",
+      "final_energy": -4464.067830642804,
+      "max_force": 0.008485064841806889,
+      "steps_taken": 24
+    },
+    "frequency_results": {
+      "n_frequencies": 30,
+      "frequencies": [
+        1.8205833633578992,
+        44.64584611933473,
+        98.27313410929688,
+        114.36478159335884,
+        141.48000981046488,
+        165.27789452141914,
+        652.8848285394424,
+        677.458683336719,
+        740.8212141480112,
+        753.1417638956573
+      ],
+      "zero_point_energy": 2.6534007919792466,
+      "is_transition_state": false,
+      "is_valid_result": true,
+      "n_imaginary_frequencies": 0,
+      "method_used": "auto",
+      "result_type": "minima"
+    }
+  },
+  {
+    "backend": "uma",
+    "optimizer": "bfgs",
+    "device": "cuda",
+    "model_name": null,
+    "test_ts": false,
+    "available": true,
+    "error": null,
+    "timings": {
+      "initialization": 1.5819998225197196e-05,
+      "structure_loading": 3.121999907307327e-05,
+      "single_energy_first": 0.0001243900042027235,
+      "single_energy_second": 6.424999446608126e-05,
+      "single_energy": 6.424999446608126e-05,
+      "single_forces": 0.00012092001270502806,
+      "optimization": 1.4716066389810294,
+      "avg_time_per_step": 0.061316943290876225,
+      "frequency_analysis": 4.937342883000383,
+      "total": 6.470687315275427
+    },
+    "optimization_results": {
+      "converged": "True",
+      "final_energy": -4464.067830165967,
+      "max_force": 0.00845975149422884,
+      "steps_taken": 24
+    },
+    "frequency_results": {
+      "n_frequencies": 30,
+      "frequencies": [
+        1.8772161633256932,
+        44.65397551608377,
+        98.26031949612548,
+        114.36641111182257,
+        141.48028238628126,
+        165.2754996673143,
+        652.8800895299844,
+        677.4444440132286,
+        740.8129269682553,
+        753.1426947604823
+      ],
+      "zero_point_energy": 2.6534020318599656,
+      "is_transition_state": false,
+      "is_valid_result": true,
+      "n_imaginary_frequencies": 0,
+      "method_used": "auto",
+      "result_type": "minima"
+    }
+  },
+  {
+    "backend": "uma",
+    "optimizer": "fire",
+    "device": "cuda",
+    "model_name": null,
+    "test_ts": false,
+    "available": true,
+    "error": null,
+    "timings": {
+      "initialization": 1.2420001439750195e-05,
+      "structure_loading": 3.518100129440427e-05,
+      "single_energy_first": 0.0001490800059400499,
+      "single_energy_second": 0.00011652999091893435,
+      "single_energy": 0.00011652999091893435,
+      "single_forces": 0.00012166000669822097,
+      "optimization": 1.4105187079985626,
+      "avg_time_per_step": 0.06132690034776359,
+      "frequency_analysis": 3.9769347539986484,
+      "total": 5.449331763342185
+    },
+    "optimization_results": {
+      "converged": "True",
+      "final_energy": -4464.066571554288,
+      "max_force": 0.009051915258169174,
+      "steps_taken": 23
+    },
+    "frequency_results": {
+      "n_frequencies": 30,
+      "frequencies": [
+        22.96064777745578,
+        48.72504487798979,
+        92.32302609417036,
+        95.832484129594,
+        141.17965989928837,
+        166.85366546673026,
+        652.9967147927807,
+        674.5437266073418,
+        740.5083293518762,
+        752.4362617761163
+      ],
+      "zero_point_energy": 2.652782481864439,
+      "is_transition_state": false,
+      "is_valid_result": true,
+      "n_imaginary_frequencies": 0,
+      "method_used": "auto",
+      "result_type": "minima"
+    }
+  },
+  {
+    "backend": "uma",
+    "optimizer": "geometric",
+    "device": "cuda",
+    "model_name": null,
+    "test_ts": false,
+    "available": true,
+    "error": null,
+    "timings": {
+      "initialization": 8.970004273578525e-06,
+      "structure_loading": 2.7559988666325808e-05,
+      "single_energy_first": 9.597098687663674e-05,
+      "single_energy_second": 7.678000838495791e-05,
+      "single_energy": 7.678000838495791e-05,
+      "single_forces": 6.541001494042575e-05,
+      "optimization": 2.2516391999961343,
+      "avg_time_per_step": 0.09381829999983893,
+      "frequency_analysis": 4.195794211002067,
+      "total": 6.541603182009567
+    },
+    "optimization_results": {
+      "converged": true,
+      "final_energy": -4464.069859108075,
+      "max_force": 0.00027893795049749315,
+      "steps_taken": 24
+    },
+    "frequency_results": {
+      "n_frequencies": 30,
+      "frequencies": [
+        29.731939000542898,
+        46.32286840702154,
+        101.09910681434876,
+        124.10178031421897,
+        126.88211484335025,
+        169.04663697860812,
+        647.9445312600324,
+        678.3368271912522,
+        744.501287685688,
+        753.6977828292364
+      ],
+      "zero_point_energy": 2.6553620936898326,
+      "is_transition_state": false,
+      "is_valid_result": true,
+      "n_imaginary_frequencies": 0,
+      "method_used": "auto",
+      "result_type": "minima"
+    }
+  }
+]

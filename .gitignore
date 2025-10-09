@@ -169,3 +169,5 @@ temp/
 # Output files from optimizations
 *.opt.*
 *.ts.*
+# Virtual environment should be excluded from version control
+py312_env/
