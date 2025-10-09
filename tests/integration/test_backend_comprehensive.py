@@ -91,14 +91,14 @@ class TestBackendMinimaOptimization:
         oh1_dist = final_atoms.get_distance(0, 1)
         oh2_dist = final_atoms.get_distance(0, 2)
 
-        assert 0.85 < oh1_dist < 1.1
-        assert 0.85 < oh2_dist < 1.1
-
         print(
             f"Backend {backend}: H2O optimization took {optimization_time:.3f}s, "
             f"{strategy_result['steps_taken']} steps, O-H distances: {oh1_dist:.3f}, "
             f"{oh2_dist:.3f} Å"
         )
+
+        assert 0.85 < oh1_dist < 1.1
+        assert 0.85 < oh2_dist < 1.1
 
     def test_methane_optimization(self, backend):
         """Test CH4 optimization across all backends."""
@@ -120,14 +120,14 @@ class TestBackendMinimaOptimization:
         # Check C-H distances
         ch_distances = [final_atoms.get_distance(0, i) for i in range(1, 5)]
 
-        for dist in ch_distances:
-            assert 0.95 < dist < 1.25
-
         print(
             f"Backend {backend}: CH4 optimization took {optimization_time:.3f}s, "
             f"{strategy_result['steps_taken']} steps, avg C-H distance: "
             f"{np.mean(ch_distances):.3f} Å"
         )
+
+        for dist in ch_distances:
+            assert 0.95 < dist < 1.25
 
 
 class TestBackendTransitionStateOptimization:
@@ -163,16 +163,15 @@ class TestBackendTransitionStateOptimization:
         oh2_dist = final_atoms.get_distance(0, 2)  # O-H (staying)
 
         # Dissociating H should be farther
-        if strategy_result.get("converged", False) and backend != "mock":
-            assert oh1_dist > oh2_dist  # Dissociating H should be farther
-            assert oh1_dist > 1.3
-            assert 0.8 < oh2_dist < 1.5  # Remaining OH should be reasonable
-
         print(
             f"Backend {backend}: H2O dissociation TS took {optimization_time:.3f}s, "
             f"{strategy_result['steps_taken']} steps, O-H distances: "
             f"{oh1_dist:.3f}, {oh2_dist:.3f} Å"
         )
+        if strategy_result.get("converged", False) and backend != "mock":
+            assert oh1_dist > oh2_dist  # Dissociating H should be farther
+            assert oh1_dist > 1.3
+            assert 0.8 < oh2_dist < 1.5  # Remaining OH should be reasonable
 
     def test_sn2_like_ts(self, backend):
         """Test SN2-like transition state across all backends."""
@@ -195,16 +194,16 @@ class TestBackendTransitionStateOptimization:
         cf_dist = final_atoms.get_distance(0, 1)  # C-F
         ccl_dist = final_atoms.get_distance(0, 2)  # C-Cl
 
-        if strategy_result.get("converged", False) and backend != "mock":
-            # Both should be reasonable bond distances
-            assert 1.1 < cf_dist < 1.7
-            assert 1.8 < ccl_dist < 2.5
-
         print(
             f"Backend {backend}: SN2-like TS took {optimization_time:.3f}s, "
             f"{strategy_result['steps_taken']} steps, C-F: {cf_dist:.3f}, "
             f"C-Cl: {ccl_dist:.3f} Å"
         )
+
+        if strategy_result.get("converged", False) and backend != "mock":
+            # Both should be reasonable bond distances
+            assert 1.1 < cf_dist < 1.7
+            assert 1.8 < ccl_dist < 2.5
 
 
 class TestBackendNEBOptimization:
