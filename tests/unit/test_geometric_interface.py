@@ -233,13 +233,6 @@ class TestGeometricOptimizerRun:
         self.atoms.calc = Mock()
         self.optimizer = GeometricOptimizer(self.atoms)
 
-    @pytest.mark.skip(reason="Complex to mock import errors properly")
-    def test_run_missing_geometric_import(self):
-        """Test behavior when geomeTRIC is not available."""
-        # This test is complex to mock properly due to import caching
-        # The import error handling is tested implicitly in integration tests
-        pass
-
     def test_run_missing_calculator(self):
         """Test behavior when atoms has no calculator."""
         atoms_no_calc = Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
@@ -1098,9 +1091,14 @@ class TestGeometricCoordinateHandling:
         from sella import Sella
 
         from qme.analysis.frequency import FrequencyAnalysis
-        from qme.potentials.uma_potential import UMAPotential
+        from qme.potentials.mock_potential import MockCalculator
 
-        calculator = UMAPotential()
+        calculator = MockCalculator()
+
+        # Store initial state for comparison (need to attach calculator first)
+        test_benzene.calc = calculator
+        initial_energy = test_benzene.get_potential_energy()
+        initial_positions = test_benzene.get_positions().copy()
 
         # Test with geometric optimizer
         atoms_geo = test_benzene.copy()
@@ -1125,6 +1123,38 @@ class TestGeometricCoordinateHandling:
         assert np.all(
             np.isfinite(sella_positions)
         ), "Sella optimizer should produce finite coordinates"
+
+        # STRINGENT CHECKS: Verify that optimizers actually optimized
+        geo_energy = atoms_geo.get_potential_energy()
+        sella_energy = atoms_sella.get_potential_energy()
+
+        geo_energy_change = abs(geo_energy - initial_energy)
+        sella_energy_change = abs(sella_energy - initial_energy)
+
+        geo_position_change = np.max(np.abs(geo_positions - initial_positions))
+        sella_position_change = np.max(np.abs(sella_positions - initial_positions))
+
+        print(
+            f"Geometric: Energy change = {geo_energy_change:.6f}, "
+            f"Position change = {geo_position_change:.6f}"
+        )
+        print(
+            f"Sella: Energy change = {sella_energy_change:.6f}, "
+            f"Position change = {sella_position_change:.6f}"
+        )
+
+        # Both optimizers should actually optimize (this will catch the GeometricOptimizer bug)
+        assert geo_energy_change > 1e-6, (
+            "GeometricOptimizer should actually change energy. "
+            "This test catches bugs where optimizers report steps but don't optimize."
+        )
+        assert geo_position_change > 1e-6, (
+            "GeometricOptimizer should actually change positions. "
+            "This test catches bugs where optimizers report steps but don't optimize."
+        )
+
+        assert sella_energy_change > 1e-6, "Sella optimizer should actually change energy"
+        assert sella_position_change > 1e-6, "Sella optimizer should actually change positions"
 
         # Verify both can be used for Hessian calculation
         for atoms, optimizer_name in [(atoms_geo, "geometric"), (atoms_sella, "sella")]:
