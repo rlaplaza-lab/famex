@@ -185,17 +185,21 @@ def twoended_ts_guess_runner(
 
     for idx in max_idxs:
         geom = path[idx]
+        # CRITICAL FIX: Make a copy of atoms before optimization to prevent in-place modifications
+        # that corrupt the coordinate system for subsequent Hessian calculations
+        geom_copy = geom.copy()
+
         # Ensure explorer attaches calculator
         if explorer is not None:
             try:
                 # Only create and attach calculator if atoms doesn't already have one
-                if getattr(geom, "calc", None) is None:
-                    explorer._create_and_attach_calculator(geom)
+                if getattr(geom_copy, "calc", None) is None:
+                    explorer._create_and_attach_calculator(geom_copy)
             except Exception:
                 warnings.warn("Failed to attach calculator to TS guess")
         # Apply constraints if any
         if explorer is not None:
-            explorer._apply_constraints(geom)
+            explorer._apply_constraints(geom_copy)
 
         opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
         if local_optimizer_name.lower() == "sella":
@@ -203,9 +207,9 @@ def twoended_ts_guess_runner(
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 1)
 
-        opt = opt_class(geom, **opt_kwargs)
+        opt = opt_class(geom_copy, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
-        ts_results.append(geom)
+        ts_results.append(geom_copy)
 
     # Return single geometry if single input expected shape
     # If original input was two Atoms, keep consistent and return single Geometry
@@ -289,15 +293,19 @@ def twoended_minima_runner(
 
     for idx in minima_idxs:
         geom = path[idx]
+        # CRITICAL FIX: Make a copy of atoms before optimization to prevent in-place modifications
+        # that corrupt the coordinate system for subsequent Hessian calculations
+        geom_copy = geom.copy()
+
         # Attach calculator via explorer if available
         if explorer is not None:
             try:
                 # Only create and attach calculator if atoms doesn't already have one
-                if getattr(geom, "calc", None) is None:
-                    explorer._create_and_attach_calculator(geom)
+                if getattr(geom_copy, "calc", None) is None:
+                    explorer._create_and_attach_calculator(geom_copy)
             except Exception:
                 warnings.warn("Failed to attach calculator to minima guess")
-            explorer._apply_constraints(geom)
+            explorer._apply_constraints(geom_copy)
 
         opt_kwargs = getattr(explorer, "optimizer_kwargs", {}) or {}
         if local_optimizer_name.lower() == "sella":
@@ -308,9 +316,9 @@ def twoended_minima_runner(
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("order", 0)
 
-        opt = opt_class(geom, **opt_kwargs)
+        opt = opt_class(geom_copy, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
-        results.append(geom)
+        results.append(geom_copy)
 
     # Return single geometry if original input was pair/endpoints
     if isinstance(atoms_list, Atoms) or (

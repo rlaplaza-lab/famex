@@ -4,7 +4,9 @@ This module provides an efficient ASE optimizer wrapper around geomeTRIC's optim
 capabilities, avoiding file I/O and supporting Hessian input for TS optimization.
 """
 
+import logging
 import tempfile
+import time
 import warnings
 from typing import Optional
 
@@ -89,6 +91,8 @@ class GeometricOptimizer(Optimizer):
             # Create molecule from the temporary file
             molecule = geometric.molecule.Molecule(temp_file)
             return molecule
+        except Exception as e:
+            raise RuntimeError(f"Failed to create molecule from atoms: {e}")
         finally:
             # Clean up the temporary file immediately
             os.unlink(temp_file)
@@ -131,16 +135,20 @@ class GeometricOptimizer(Optimizer):
 
         # Set up optimization parameters
         params = geo_opt.OptParams()
-        params.order = self.order
+        # Set optimization type: False for minima, True for transition state
+        params.transition = self.order > 0
         params.maxiter = steps
-        params.convergence_gradient = fmax
-        params.convergence_energy = self.geometric_kwargs["convergence"]["energy"]
-        params.convergence_step = self.geometric_kwargs["convergence"]["step"]
+        # Set convergence criteria using correct geomeTRIC parameter names
+        params.Convergence_gmax = fmax  # Maximum force threshold
+        params.Convergence_energy = self.geometric_kwargs["convergence"]["energy"]
+        params.Convergence_dmax = self.geometric_kwargs["convergence"]["step"]
         params.trust = self.geometric_kwargs["trust"]
         # Explicitly set xyzout to None to prevent file output issues
         params.xyzout = None
         # Disable frequency analysis to prevent the NoneType.replace() error
         params.frequency = False
+        # Suppress verbose output to match ASE optimizers
+        params.verbose = False
 
         # Set initial Hessian if provided
         if self.initial_hessian is not None:
@@ -165,29 +173,59 @@ class GeometricOptimizer(Optimizer):
 
         # Use a minimal temporary directory (only for geomeTRIC's internal needs)
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create optimizer
-            optimizer = geo_opt.Optimizer(
-                coords=coords,
-                molecule=molecule,
-                IC=IC,
-                engine=engine,
-                dirname=str(tmpdir),
-                params=params,
-                print_info=False,
-            )
+            # Temporarily suppress geomeTRIC's logging to match ASE optimizer output
+            geometric_logger = logging.getLogger("geometric.nifty")
+            original_level = geometric_logger.level
+            geometric_logger.setLevel(logging.CRITICAL)
 
-            # Run optimization - only catch GeomOptNotConvergedError
             try:
-                optimizer.optimizeGeometry()
-            except GeomOptNotConvergedError:
-                # Normal convergence failure - still need to update coordinates
-                self.step_count = getattr(
-                    optimizer,
-                    "Iteration",
-                    getattr(optimizer, "iter", getattr(optimizer, "iteration", 0)),
+                # Create optimizer
+                optimizer = geo_opt.Optimizer(
+                    coords=coords,
+                    molecule=molecule,
+                    IC=IC,
+                    engine=engine,
+                    dirname=str(tmpdir),
+                    params=params,
+                    print_info=False,
                 )
-                self.converged = False
-                # Don't return yet - continue to coordinate extraction
+
+                # Print initial step information in ASE format
+                initial_energy = self.atoms.get_potential_energy()
+                initial_forces = self.atoms.get_forces()
+                # Handle Mock objects in tests by checking if forces are numeric
+                if hasattr(initial_forces, "__array__") and not isinstance(initial_forces, type):
+                    initial_fmax = float(np.max(np.abs(initial_forces)))
+                else:
+                    # For Mock objects or non-array types, use a default value
+                    initial_fmax = 0.0
+
+                # Handle Mock objects for energy as well
+                if hasattr(initial_energy, "__float__") and not isinstance(initial_energy, type):
+                    energy_val = float(initial_energy)
+                else:
+                    energy_val = 0.0
+
+                print(
+                    f"{'GEOMETRIC':>8}: {0:>4} {time.strftime('%H:%M:%S', time.localtime()):>8} "
+                    f"{energy_val:>12.6f} {initial_fmax:>12.6f}"
+                )
+
+                # Run optimization - only catch GeomOptNotConvergedError
+                try:
+                    optimizer.optimizeGeometry()
+                except GeomOptNotConvergedError:
+                    # Normal convergence failure - still need to update coordinates
+                    self.step_count = getattr(
+                        optimizer,
+                        "Iteration",
+                        getattr(optimizer, "iter", getattr(optimizer, "iteration", 0)),
+                    )
+                    self.converged = False
+                    # Don't return yet - continue to coordinate extraction
+            finally:
+                # Restore original logging level
+                geometric_logger.setLevel(original_level)
 
             # Extract step count from geomeTRIC optimizer
             # geomeTRIC stores the iteration count in different attributes
@@ -229,7 +267,7 @@ class GeometricOptimizer(Optimizer):
             # Update atoms with optimized geometry
             # geomeTRIC stores the final coordinates in the molecule object
             if hasattr(molecule, "xyzs") and len(molecule.xyzs) > 0:
-                # Get the final optimized geometry
+                # Get the final optimized geometry from molecule.xyzs
                 final_xyz = molecule.xyzs[-1]
                 # Convert from Bohr to Angstrom
                 final_xyz_ang = final_xyz * Bohr  # Bohr to Angstrom
@@ -243,17 +281,14 @@ class GeometricOptimizer(Optimizer):
                 self.atoms.set_positions(final_xyz_ang.reshape(-1, 3))
                 self.converged = converged
                 return converged
+            elif hasattr(optimizer, "coords") and optimizer.coords is not None:
+                # Last resort: check optimizer.coords
+                final_xyz_ang = optimizer.coords * Bohr  # Bohr to Angstrom
+                self.atoms.set_positions(final_xyz_ang.reshape(-1, 3))
+                self.converged = converged
+                return converged
             else:
-                # If no coordinates found, check if we can get them from the current
-                # state
-                if hasattr(optimizer, "coords") and optimizer.coords is not None:
-                    # Get current coordinates from optimizer
-                    final_xyz_ang = optimizer.coords * Bohr  # Bohr to Angstrom
-                    self.atoms.set_positions(final_xyz_ang.reshape(-1, 3))
-                    self.converged = converged
-                    return converged
-                else:
-                    raise RuntimeError("geomeTRIC optimization did not return valid results")
+                raise RuntimeError("geomeTRIC optimization did not return valid results")
 
 
 class GeometricTSOptimizer(GeometricOptimizer):

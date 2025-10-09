@@ -162,13 +162,17 @@ def local_minima_runner(
     converged_flags = []
 
     for atoms in atoms_iter:
+        # CRITICAL FIX: Make a copy of atoms before optimization to prevent in-place modifications
+        # that corrupt the coordinate system for subsequent Hessian calculations
+        atoms_copy = atoms.copy()
+
         try:
             # Only create and attach calculator if atoms doesn't already have one
-            if getattr(atoms, "calc", None) is None:
-                explorer._create_and_attach_calculator(atoms)
+            if getattr(atoms_copy, "calc", None) is None:
+                explorer._create_and_attach_calculator(atoms_copy)
         except Exception as e:
             warnings.warn(f"Failed to create calculator for a structure: {e}")
-        explorer._apply_constraints(atoms)
+        explorer._apply_constraints(atoms_copy)
         opt_kwargs = getattr(explorer, "optimizer_kwargs", {}) or {}
         if local_optimizer_name.lower() == "sella":
             # Sella-specific kwargs for minima search
@@ -183,14 +187,14 @@ def local_minima_runner(
             if hasattr(explorer, "initial_hessian") and explorer.initial_hessian is not None:
                 opt_kwargs["hessian"] = explorer.initial_hessian
 
-        opt = opt_class(atoms, **opt_kwargs)
+        opt = opt_class(atoms_copy, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
 
         # Get step count and convergence status using helpers
         steps_taken = _get_step_count(opt)
-        converged = _get_convergence_status(opt, atoms)
+        converged = _get_convergence_status(opt, atoms_copy)
 
-        results.append(atoms)
+        results.append(atoms_copy)
         step_counts.append(steps_taken)
         converged_flags.append(converged)
 
@@ -246,13 +250,17 @@ def local_ts_runner(
     converged_flags = []
 
     for atoms in atoms_iter:
+        # CRITICAL FIX: Make a copy of atoms before optimization to prevent in-place modifications
+        # that corrupt the coordinate system for subsequent Hessian calculations
+        atoms_copy = atoms.copy()
+
         try:
             # Only create and attach calculator if atoms doesn't already have one
-            if getattr(atoms, "calc", None) is None:
-                explorer._create_and_attach_calculator(atoms)
+            if getattr(atoms_copy, "calc", None) is None:
+                explorer._create_and_attach_calculator(atoms_copy)
         except Exception as e:
             warnings.warn(f"Failed to create calculator for a structure: {e}")
-        explorer._apply_constraints(atoms)
+        explorer._apply_constraints(atoms_copy)
         opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
         if local_optimizer_name.lower() == "sella":
             # Sella-specific kwargs for TS search
@@ -267,14 +275,14 @@ def local_ts_runner(
             if hasattr(explorer, "initial_hessian") and explorer.initial_hessian is not None:
                 opt_kwargs["hessian"] = explorer.initial_hessian
 
-        opt = opt_class(atoms, **opt_kwargs)
+        opt = opt_class(atoms_copy, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
 
         # Get step count and convergence status using helpers
         steps_taken = _get_step_count(opt)
-        converged = _get_convergence_status(opt, atoms)
+        converged = _get_convergence_status(opt, atoms_copy)
 
-        results.append(atoms)
+        results.append(atoms_copy)
         step_counts.append(steps_taken)
         converged_flags.append(converged)
 
