@@ -133,7 +133,7 @@ class Explorer:
             local_minima_runner,
             strategy_type="local",
             description="Local minima optimization (ASE/LBFGS or SELLA)",
-            aliases=["local:minima"],
+            aliases=["local:minima", "local-minima"],
         )
 
         # Register local TS runner
@@ -142,7 +142,7 @@ class Explorer:
             local_ts_runner,
             strategy_type="local",
             description="Local transition-state optimization (SELLA preferred)",
-            aliases=["local:ts"],
+            aliases=["local:ts", "local-ts"],
         )
 
         # Two-ended runners are available
@@ -151,21 +151,21 @@ class Explorer:
             twoended_ts_guess_runner,
             strategy_type="two-ended",
             description="Two-ended TS guess via interpolation with local TS refinement",
-            aliases=["twoended-ts"],
+            aliases=["twoended:ts", "twoended-ts"],
         )
         self.register_strategy(
             "twoended:minima",
             twoended_minima_runner,
             strategy_type="two-ended",
             description="Two-ended minima optimization on low-energy frames",
-            aliases=["twoended-minima"],
+            aliases=["twoended:minima", "twoended-minima"],
         )
         self.register_strategy(
             "twoended:neb",
             twoended_neb_runner,
             strategy_type="two-ended",
             description="NEB path optimization with geodesic interpolation",
-            aliases=["neb", "twoended-neb"],
+            aliases=["twoended:neb", "twoended-neb"],
         )
 
     # --- Backend and constraints helpers
