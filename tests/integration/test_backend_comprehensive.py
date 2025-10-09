@@ -180,7 +180,7 @@ class TestBackendTransitionStateOptimization:
         optimizer = Explorer(atoms=sn2_ts_guess, backend=backend)
 
         start_time = time.time()
-        result = optimizer.run(mode="ts", fmax=0.1, steps=50)
+        result = optimizer.run(mode="ts", fmax=0.01, steps=50)
         optimization_time = time.time() - start_time
 
         # Use standardized result handling
