@@ -169,6 +169,33 @@ class Explorer:
         )
 
     # --- Backend and constraints helpers
+    def _get_effective_model_name(self) -> str:
+        """Get the effective model name that will actually be used by the backend.
+        
+        Returns the model name that will be used after applying backend-specific defaults.
+        """
+        if self.model_name is not None:
+            return self.model_name
+            
+        # Apply backend-specific defaults
+        if self.backend.lower() == "uma":
+            return "uma-s-1p1"
+        elif self.backend.lower() == "aimnet2":
+            return "aimnet2"
+        elif self.backend.lower() == "mace":
+            return "mace-omol-0"
+        elif self.backend.lower() == "torchsim_mace":
+            return "mace-omol-0"
+        elif self.backend.lower() == "torchsim_uma":
+            return "uma-s-1p1"
+        elif self.backend.lower() == "so3lr":
+            # SO3LR requires a model_path, not model_name
+            return self.model_path or "so3lr-model"
+        elif self.backend.lower() == "mock":
+            return "mock-model"
+        else:
+            return "default-model"
+
     def _create_and_attach_calculator(self, atoms: Atoms):
         """Create and attach an ASE calculator to ``atoms``.
 
@@ -218,7 +245,9 @@ class Explorer:
         # Show model initialization info when creating the first calculator
         if not hasattr(self, '_calculator_created'):
             from qme.logging_utils import print_model_info
-            print_model_info(self.backend, self.model_name, self.model_path, self.device)
+            # Get the effective model name that will actually be used
+            effective_model_name = self._get_effective_model_name()
+            print_model_info(self.backend, effective_model_name, self.model_path, self.device)
             self._calculator_created = True
 
         calc = create_calculator(
