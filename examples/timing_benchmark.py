@@ -110,7 +110,7 @@ def benchmark_backend(
     device = get_optimal_device(device)
 
     if verbose:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Backend: {backend.upper()}")
         print_device_info(device)
         print(f"Model: {model_name or 'default'}")
@@ -340,9 +340,9 @@ def benchmark_backend(
 
 def print_summary(results_list: List[Dict[str, Any]]):
     """Print a summary table of all benchmark results."""
-    print(f"\n{'='*120}")
+    print(f"\n{'=' * 120}")
     print("BENCHMARK SUMMARY")
-    print(f"{'='*120}")
+    print(f"{'=' * 120}")
 
     # Print legend first, before the table
     print("📊 COLUMN DEFINITIONS:")
@@ -354,7 +354,7 @@ def print_summary(results_list: List[Dict[str, Any]]):
     print("   Forces  = Single force calculation time")
     print("   Steps   = Number of optimization steps taken")
     print("   Avg/Step = Average time per optimization step")
-    print(f"{'-'*120}")
+    print(f"{'-' * 120}")
 
     # Header
     print(
@@ -399,12 +399,12 @@ def print_summary(results_list: List[Dict[str, Any]]):
     available_results = [r for r in results_list if r["available"]]
     if available_results:
         print("\n🔍 DETAILED BREAKDOWN")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
 
         for results in available_results:
             backend_name = results["backend"].upper()
             print(f"\n📈 {backend_name} PERFORMANCE BREAKDOWN")
-            print(f"{'-'*50}")
+            print(f"{'-' * 50}")
 
             timings = results["timings"]
             total = timings.get("total", 0)
@@ -433,7 +433,7 @@ def print_summary(results_list: List[Dict[str, Any]]):
             final_energy = opt_results.get("final_energy", None)
             converged = opt_results.get("converged", None)
 
-            print(f"  {'-'*48}")
+            print(f"  {'-' * 48}")
             if steps_taken > 0:
                 print(f"  {'Optimization Steps':<30}: {steps_taken:>8}")
                 if avg_time_per_step is not None and avg_time_per_step > 0:
@@ -446,7 +446,7 @@ def print_summary(results_list: List[Dict[str, Any]]):
                 status = "✅ Yes" if str(converged) == "True" else "❌ No"
                 print(f"  {'Converged':<30}: {status:>8}")
 
-            print(f"  {'='*48}")
+            print(f"  {'=' * 48}")
             print(f"  {'TOTAL TIME':<30}: {total:>8.3f}s")
 
 

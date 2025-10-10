@@ -206,9 +206,9 @@ class BH28Benchmark:
 
     def optimize_structures(self, reactions: List[str], backends: List[str]) -> Dict:
         """Optimize all structures (minima and TS) for given reactions and backends."""
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print("STRUCTURE OPTIMIZATION")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
 
         results = {}
 
@@ -277,7 +277,9 @@ class BH28Benchmark:
                             optimized_reactants.append(optimized)
                             reactant_energies.append(energy_val)
 
-                            reactant_label = f"reactant_{i+1}" if len(reactants) > 1 else "reactant"
+                            reactant_label = (
+                                f"reactant_{i + 1}" if len(reactants) > 1 else "reactant"
+                            )
                             if steps_taken is None:
                                 print(f"  ✅ {reactant_label}: {energy_val:.6f} eV")
                             else:
@@ -448,9 +450,9 @@ class BH28Benchmark:
 
     def analyze_performance(self, backends: List[str]) -> Dict:
         """Analyze performance metrics across backends."""
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print("PERFORMANCE ANALYSIS")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
 
         analysis = {}
 

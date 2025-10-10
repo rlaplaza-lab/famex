@@ -129,7 +129,7 @@ def _benchmark_optimization(
     device = get_optimal_device(device)
 
     if verbose:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("Backend: {}".format(backend.upper()))
         print("Optimizer: {}".format(optimizer.upper()))
         print_device_info(device)
@@ -417,15 +417,15 @@ def _benchmark_optimization(
 
 def print_frequency_analysis_summary(results_list: List[Dict[str, Any]]):
     """Print a detailed frequency analysis summary for minima optimization."""
-    print(f"\n{'='*120}")
+    print(f"\n{'=' * 120}")
     print("FREQUENCY ANALYSIS SUMMARY - MINIMA OPTIMIZATION")
-    print(f"{'='*120}")
+    print(f"{'=' * 120}")
 
     # Print legend
     print("📊 FREQUENCY VALIDATION:")
     print("   • Minima should have 0 imaginary frequencies (all positive)")
     print("   • Invalid results suggest optimization found a saddle point or TS")
-    print(f"{'-'*120}")
+    print(f"{'-' * 120}")
 
     # Header
     print(
@@ -479,7 +479,7 @@ def print_frequency_analysis_summary(results_list: List[Dict[str, Any]]):
     available_results = [r for r in results_list if r["available"] and "frequency_results" in r]
     if available_results:
         print("\n🔍 FREQUENCY VALIDATION STATISTICS")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Overall validation rate
         valid_count = sum(
@@ -504,9 +504,9 @@ def print_frequency_analysis_summary(results_list: List[Dict[str, Any]]):
 
 def print_optimizer_summary(results_list: List[Dict[str, Any]]):
     """Print a summary table focused on minima optimizer comparison."""
-    print(f"\n{'='*140}")
+    print(f"\n{'=' * 140}")
     print("MINIMA OPTIMIZER COMPARISON SUMMARY")
-    print(f"{'='*140}")
+    print(f"{'=' * 140}")
 
     # Print legend first, before the table
     print("📊 COLUMN DEFINITIONS:")
@@ -520,7 +520,7 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
     print("   Final E  = Final energy (eV)")
     print("   Max F    = Maximum force (eV/Å)")
     print("   Valid Result = Whether result matches expected type (0 imag freq for minima)")
-    print(f"{'-'*150}")
+    print(f"{'-' * 150}")
 
     # Header
     print(
@@ -576,7 +576,7 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
     available_results = [r for r in results_list if r["available"]]
     if available_results:
         print("\n🔍 MINIMA OPTIMIZER PERFORMANCE ANALYSIS")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
 
         # Group by optimizer
         optimizer_groups = {}
@@ -588,7 +588,7 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
 
         for opt_name, opt_results in optimizer_groups.items():
             print(f"\n📈 {opt_name.upper()} OPTIMIZER PERFORMANCE")
-            print(f"{'-'*50}")
+            print(f"{'-' * 50}")
 
             # Calculate statistics - filter out None values
             steps_list = [
@@ -759,9 +759,9 @@ def main():
     # Run benchmarks
     results_list = []
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("MINIMA OPTIMIZATION BENCHMARKS")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     for backend in available_backends:
         for optimizer in minima_optimizers:

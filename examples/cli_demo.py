@@ -45,7 +45,7 @@ def print_backend_summary(backends: List[str], title: str = "Available Backends"
 
 def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]:
     """Run a CLI command and report results."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Backend: {backend.upper()}")
     print(f"Task: {desc}")
     print(f"Command: {' '.join(cmd)}")
@@ -268,9 +268,9 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
 
     # Run examples for each backend
     for backend in available_backends:
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"🧪 TESTING BACKEND: {backend.upper()}")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
 
         backend_results[backend] = {
             "examples": [],
@@ -316,9 +316,9 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
     total_time = time.time() - total_start_time
 
     # Overall comparison summary
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("COMPREHENSIVE BACKEND COMPARISON")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     print("\nBackend Performance Summary:")
     print(f"{'Backend':<12} {'Success':<8} {'Failed':<8} {'Total Time':<12} {'Avg Time/Task':<15}")
@@ -351,7 +351,7 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
         )
         print(
             f"  Average time per task: "
-            f"{best_backend[1]['total_time']/total_examples_per_backend:.2f}s"
+            f"{best_backend[1]['total_time'] / total_examples_per_backend:.2f}s"
         )
 
     print(f"\nTotal benchmark time: {total_time:.2f} seconds")
