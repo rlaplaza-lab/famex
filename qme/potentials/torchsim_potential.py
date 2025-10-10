@@ -108,8 +108,13 @@ class TorchSimPotential(BasePotential):
             self._torch_sim = deps.get("torch_sim")
             torch = deps.get("torch")
 
+            # Don't show model info - let the outer context handle it
             with quiet_backend_loading(
-                "torchsim", self.model_name or self.backend, None, self.device
+                "torchsim",
+                self.model_name or self.backend,
+                None,
+                self.device,
+                show_model_info=False,
             ):
                 if self.backend.lower() == "mace":
                     self._load_mace_model()

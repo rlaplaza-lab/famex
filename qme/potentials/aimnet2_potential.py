@@ -513,7 +513,10 @@ class AIMNet2Potential(BasePotential):
 
             model_path = get_model_path(self.model_name)
 
-            with quiet_backend_loading("aimnet2", self.model_name, model_path, self.device):
+            # Don't show model info - let the outer context handle it
+            with quiet_backend_loading(
+                "aimnet2", self.model_name, model_path, self.device, show_model_info=False
+            ):
                 self._calc = NativeAIMNet2Calculator(model_path, device=self.device)
 
         except Exception as e:

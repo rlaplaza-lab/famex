@@ -5,8 +5,12 @@ Logging utilities for QME to manage verbose output from ML backends.
 import contextlib
 import logging
 import sys
+import threading
 import warnings
 from typing import Generator, List, Optional
+
+# Thread-local storage to track if we're already in a quiet_backend_loading context
+_quiet_context_local = threading.local()
 
 
 class VerboseFilter(logging.Filter):
@@ -169,6 +173,17 @@ def print_model_info(
     click.echo("─" * 40)
 
 
+def is_in_quiet_context() -> bool:
+    """Check if we're currently in a quiet_backend_loading context.
+
+    Returns
+    -------
+    bool
+        True if we're in a quiet context, False otherwise
+    """
+    return getattr(_quiet_context_local, 'in_quiet_context', False)
+
+
 @contextlib.contextmanager
 def quiet_backend_loading(
     backend: str,
@@ -198,8 +213,19 @@ def quiet_backend_loading(
     List[str]
         List of captured messages during backend loading
     """
-    if show_model_info:
-        print_model_info(backend, model_name, model_path, device)
+    # Check if we're already in a quiet context before setting the flag
+    was_already_in_context = is_in_quiet_context()
 
-    with suppress_ml_warnings() as captured:
-        yield captured
+    # Set the quiet context flag
+    _quiet_context_local.in_quiet_context = True
+
+    try:
+        # Only show model info if requested AND we weren't already in a quiet context
+        if show_model_info and not was_already_in_context:
+            print_model_info(backend, model_name, model_path, device)
+
+        with suppress_ml_warnings() as captured:
+            yield captured
+    finally:
+        # Clear the quiet context flag
+        _quiet_context_local.in_quiet_context = False

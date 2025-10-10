@@ -79,7 +79,10 @@ class UMAPotential(BasePotential):
 
         from qme.logging_utils import quiet_backend_loading
 
-        with quiet_backend_loading("uma", self.model_name, None, self.device):
+        # Don't show model info - let the outer context handle it
+        with quiet_backend_loading(
+            "uma", self.model_name, None, self.device, show_model_info=False
+        ):
             try:
                 # Check fairchem availability without forcing PyTorch import
                 if not deps.has("fairchem"):
