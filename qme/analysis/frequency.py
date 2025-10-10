@@ -341,8 +341,10 @@ class FrequencyAnalysis:
         if unit == "cm-1":
             return frequencies
         elif unit == "meV":
-            return frequencies * units._hplanck * units._c * 100 / units._e * 1000
+            # Convert cm^-1 to meV using ASE units
+            return frequencies * units.invcm * 1000  # Convert to meV
         elif unit == "THz":
+            # Convert cm^-1 to THz using ASE units
             return frequencies * units._c * 100 / 1e12
         else:
             raise ValueError(f"Unknown frequency unit: {unit}")
@@ -456,7 +458,7 @@ class FrequencyAnalysis:
 
         # Convert frequencies from cm^-1 to eV for HarmonicThermo
         # HarmonicThermo expects frequencies in eV
-        freq_eV = real_frequencies * units._hplanck * units._c * 100 / units._e
+        freq_eV = real_frequencies * units.invcm  # Convert cm^-1 to eV
 
         # Use ASE's HarmonicThermo for consistency
         thermo = HarmonicThermo(freq_eV)
@@ -711,7 +713,7 @@ class ThermodynamicProperties:
     def partition_function_vibrational(self) -> float:
         """Calculate vibrational partition function."""
         # Convert frequencies from cm^-1 to eV
-        freq_eV = self.frequencies * units._hplanck * units._c * 100 / units._e
+        freq_eV = self.frequencies * units.invcm  # Convert cm^-1 to eV
         kT = units.kB * self.temperature
 
         # q_vib = ∏ 1/(1 - exp(-hν/kT))
@@ -728,7 +730,7 @@ class ThermodynamicProperties:
     def heat_capacity_vibrational(self) -> float:
         """Calculate vibrational heat capacity."""
         # Convert frequencies from cm^-1 to eV
-        freq_eV = self.frequencies * units._hplanck * units._c * 100 / units._e
+        freq_eV = self.frequencies * units.invcm  # Convert cm^-1 to eV
         kT = units.kB * self.temperature
 
         cv_vib = 0.0
@@ -743,7 +745,7 @@ class ThermodynamicProperties:
     def entropy_vibrational(self) -> float:
         """Calculate vibrational entropy."""
         # Convert frequencies from cm^-1 to eV
-        freq_eV = self.frequencies * units._hplanck * units._c * 100 / units._e
+        freq_eV = self.frequencies * units.invcm  # Convert cm^-1 to eV
         kT = units.kB * self.temperature
 
         s_vib = 0.0

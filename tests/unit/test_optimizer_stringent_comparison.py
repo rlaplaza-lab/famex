@@ -147,7 +147,7 @@ class TestOptimizerStringentComparison:
                 print(f"Geometric max force: {max_force:.6f}")
 
                 # If converged, forces should be low
-                assert max_force < 0.1, (
+                assert max_force < 0.01, (
                     f"GeometricOptimizer claims convergence but max force is {max_force:.6f}. "
                     f"This indicates a bug in convergence detection."
                 )
@@ -205,16 +205,218 @@ class TestOptimizerStringentComparison:
             )
 
             # GeometricOptimizer TS should also optimize (this test will catch the bug)
-            assert energy_change_geo > 1e-6, (
-                "GeometricOptimizer TS should actually change energy"
-            )
-            assert position_change_geo > 1e-6, (
-                "GeometricOptimizer TS should actually change positions"
-            )
+            assert energy_change_geo > 1e-6, "GeometricOptimizer TS should actually change energy"
+            assert (
+                position_change_geo > 1e-6
+            ), "GeometricOptimizer TS should actually change positions"
         except (np.linalg.LinAlgError, RuntimeError) as e:
             # geomeTRIC can fail with numerical issues on certain geometries
             # This is a known limitation, not a bug in our code
             pytest.skip(f"geomeTRIC failed with numerical issues: {e}")
+
+    def test_optimizer_coordinate_and_frequency_comparison(self):
+        """Stringent comparison of final coordinates and frequencies between optimizers."""
+        from ase import Atoms
+
+        from qme.analysis.frequency import FrequencyAnalysis
+
+        # Create a more complex system for better comparison
+        # Benzene-like structure with 6 atoms
+        positions = np.array(
+            [
+                [0.0, 0.0, 0.0],  # C1
+                [1.4, 0.0, 0.0],  # C2
+                [2.1, 1.2, 0.0],  # C3
+                [1.4, 2.4, 0.0],  # C4
+                [0.0, 2.4, 0.0],  # C5
+                [-0.7, 1.2, 0.0],  # C6
+            ]
+        )
+
+        atoms = Atoms("C6", positions=positions)
+        atoms.calc = MockCalculator()
+
+        initial_energy = atoms.get_potential_energy()
+        initial_positions = atoms.get_positions().copy()
+
+        # Test multiple optimizers
+        optimizers_results = {}
+
+        # Test LBFGS
+        atoms_lbfgs = atoms.copy()
+        atoms_lbfgs.calc = MockCalculator()
+        lbfgs_opt = LBFGS(atoms_lbfgs)
+        lbfgs_opt.run(fmax=0.01, steps=50)
+        optimizers_results["LBFGS"] = {
+            "atoms": atoms_lbfgs,
+            "energy": atoms_lbfgs.get_potential_energy(),
+            "positions": atoms_lbfgs.get_positions(),
+            "forces": atoms_lbfgs.get_forces(),
+            "converged": lbfgs_opt.converged(atoms_lbfgs.get_forces().flatten()),
+        }
+
+        # Test GeometricOptimizer if available
+        if deps.has("geometric"):
+            atoms_geo = atoms.copy()
+            atoms_geo.calc = MockCalculator()
+            geo_opt = GeometricOptimizer(atoms_geo, order=0)
+            geo_opt.run(fmax=0.01, steps=50)
+            optimizers_results["Geometric"] = {
+                "atoms": atoms_geo,
+                "energy": atoms_geo.get_potential_energy(),
+                "positions": atoms_geo.get_positions(),
+                "forces": atoms_geo.get_forces(),
+                "converged": geo_opt.converged,
+            }
+
+        # Test Sella if available
+        if deps.has("sella"):
+            atoms_sella = atoms.copy()
+            atoms_sella.calc = MockCalculator()
+            sella_opt = Sella(atoms_sella, internal=True, order=0)
+            sella_opt.run(fmax=0.01, steps=50)
+            optimizers_results["Sella"] = {
+                "atoms": atoms_sella,
+                "energy": atoms_sella.get_potential_energy(),
+                "positions": atoms_sella.get_positions(),
+                "forces": atoms_sella.get_forces(),
+                "converged": sella_opt.converged,
+            }
+
+        # DETAILED COORDINATE COMPARISON
+        print("\n=== DETAILED COORDINATE COMPARISON ===")
+
+        # Compare final coordinates between optimizers
+        optimizer_names = list(optimizers_results.keys())
+        for i, name1 in enumerate(optimizer_names):
+            for name2 in optimizer_names[i + 1 :]:
+                pos1 = optimizers_results[name1]["positions"]
+                pos2 = optimizers_results[name2]["positions"]
+
+                # Maximum coordinate difference
+                max_coord_diff = np.max(np.abs(pos1 - pos2))
+                rms_coord_diff = np.sqrt(np.mean((pos1 - pos2) ** 2))
+
+                print(f"{name1} vs {name2}:")
+                print(f"  Max coordinate difference: {max_coord_diff:.6f} Å")
+                print(f"  RMS coordinate difference: {rms_coord_diff:.6f} Å")
+
+                # Check if coordinates are reasonably similar (within 0.1 Å)
+                # This allows for small differences due to different optimization paths
+                assert max_coord_diff < 0.1, (
+                    f"Final coordinates differ too much between {name1} and {name2}: "
+                    f"{max_coord_diff:.6f} Å. This suggests inconsistent optimization."
+                )
+
+        # DETAILED FORCE COMPARISON
+        print("\n=== DETAILED FORCE COMPARISON ===")
+
+        for name, results in optimizers_results.items():
+            forces = results["forces"]
+            max_force = np.max(np.abs(forces))
+            rms_force = np.sqrt(np.mean(forces**2))
+
+            print(f"{name}:")
+            print(f"  Max force: {max_force:.6f} eV/Å")
+            print(f"  RMS force: {rms_force:.6f} eV/Å")
+            print(f"  Converged: {results['converged']}")
+
+            # If optimizer claims convergence, forces should be low
+            if results["converged"]:
+                assert max_force < 0.05, (
+                    f"{name} claims convergence but max force is {max_force:.6f} eV/Å. "
+                    f"This suggests a bug in convergence detection."
+                )
+
+        # DETAILED FREQUENCY COMPARISON
+        print("\n=== DETAILED FREQUENCY COMPARISON ===")
+
+        frequency_results = {}
+        for name, results in optimizers_results.items():
+            try:
+                # Calculate frequencies using finite differences
+                freq_analysis = FrequencyAnalysis(
+                    atoms=results["atoms"], calculator=MockCalculator(), delta=0.01
+                )
+                frequencies = freq_analysis.get_frequencies()
+
+                # Filter out imaginary frequencies (negative values)
+                real_frequencies = frequencies[frequencies > 0]
+
+                frequency_results[name] = {
+                    "frequencies": frequencies,
+                    "real_frequencies": real_frequencies,
+                    "imaginary_count": np.sum(frequencies < 0),
+                    "lowest_real": np.min(real_frequencies) if len(real_frequencies) > 0 else None,
+                    "highest_real": np.max(real_frequencies) if len(real_frequencies) > 0 else None,
+                }
+
+                print(f"{name}:")
+                print(f"  Total frequencies: {len(frequencies)}")
+                print(f"  Imaginary frequencies: {frequency_results[name]['imaginary_count']}")
+                if frequency_results[name]["lowest_real"] is not None:
+                    print(
+                        "  Lowest real frequency: {:.2f} cm⁻¹".format(
+                            frequency_results[name]["lowest_real"]
+                        )
+                    )
+                    print(
+                        "  Highest real frequency: {:.2f} cm⁻¹".format(
+                            frequency_results[name]["highest_real"]
+                        )
+                    )
+
+            except Exception as e:
+                print(f"{name}: Frequency calculation failed: {e}")
+                # Don't fail the test for frequency calculation issues
+                # as this might be due to the mock calculator limitations
+                continue
+
+        # Compare frequencies between optimizers
+        freq_names = list(frequency_results.keys())
+        for i, name1 in enumerate(freq_names):
+            for name2 in freq_names[i + 1 :]:
+                if (
+                    frequency_results[name1]["real_frequencies"] is not None
+                    and frequency_results[name2]["real_frequencies"] is not None
+                ):
+
+                    freqs1 = frequency_results[name1]["real_frequencies"]
+                    freqs2 = frequency_results[name2]["real_frequencies"]
+
+                    if len(freqs1) == len(freqs2):
+                        # Compare frequencies (sort to handle different ordering)
+                        freqs1_sorted = np.sort(freqs1)
+                        freqs2_sorted = np.sort(freqs2)
+
+                        freq_diff = np.abs(freqs1_sorted - freqs2_sorted)
+                        max_freq_diff = np.max(freq_diff)
+                        rms_freq_diff = np.sqrt(np.mean(freq_diff**2))
+
+                        print(f"{name1} vs {name2} frequencies:")
+                        print(f"  Max frequency difference: {max_freq_diff:.2f} cm⁻¹")
+                        print(f"  RMS frequency difference: {rms_freq_diff:.2f} cm⁻¹")
+
+                        # Allow reasonable frequency differences (within 50 cm⁻¹)
+                        # This accounts for numerical differences in optimization
+                        assert max_freq_diff < 50.0, (
+                            f"Frequencies differ too much between {name1} and {name2}: "
+                            f"{max_freq_diff:.2f} cm⁻¹. This suggests inconsistent optimization."
+                        )
+
+        # ENERGY COMPARISON
+        print("\n=== ENERGY COMPARISON ===")
+
+        energies = [results["energy"] for results in optimizers_results.values()]
+        energy_range = max(energies) - min(energies)
+
+        print(f"Energy range across optimizers: {energy_range:.6f} eV")
+
+        # Energies should be reasonably similar (within 0.001 eV)
+        assert energy_range < 0.001, (
+            f"Final energies differ too much across optimizers: {energy_range:.6f} eV. "
+            f"This suggests inconsistent optimization to different minima."
+        )
 
     def test_optimizer_energy_monotonicity(self):
         """Test that optimizers show energy changes during optimization."""
@@ -261,3 +463,194 @@ class TestOptimizerStringentComparison:
                 f"{name} optimizer shows no energy change ({energy_change:.2e}). "
                 f"This indicates a bug where the optimizer reports steps but doesn't optimize."
             )
+
+    def test_optimizer_convergence_quality_comparison(self):
+        """Stringent comparison of convergence quality between optimizers."""
+        from ase import Atoms
+
+        # Create a more challenging system for convergence testing
+        # Distorted benzene-like structure
+        positions = np.array(
+            [
+                [0.0, 0.0, 0.0],  # C1
+                [1.5, 0.0, 0.0],  # C2 (stretched)
+                [2.2, 1.3, 0.0],  # C3 (distorted)
+                [1.5, 2.6, 0.0],  # C4 (stretched)
+                [0.0, 2.6, 0.0],  # C5 (stretched)
+                [-0.7, 1.3, 0.0],  # C6 (distorted)
+            ]
+        )
+
+        atoms = Atoms("C6", positions=positions)
+        atoms.calc = MockCalculator()
+
+        initial_energy = atoms.get_potential_energy()
+        initial_forces = atoms.get_forces()
+        initial_max_force = np.max(np.abs(initial_forces))
+
+        print(f"Initial energy: {initial_energy:.6f} eV")
+        print(f"Initial max force: {initial_max_force:.6f} eV/Å")
+
+        # Test multiple optimizers with different convergence criteria
+        convergence_results = {}
+
+        # Test LBFGS
+        atoms_lbfgs = atoms.copy()
+        atoms_lbfgs.calc = MockCalculator()
+        lbfgs_opt = LBFGS(atoms_lbfgs)
+        lbfgs_opt.run(fmax=0.01, steps=100)
+
+        convergence_results["LBFGS"] = {
+            "atoms": atoms_lbfgs,
+            "energy": atoms_lbfgs.get_potential_energy(),
+            "forces": atoms_lbfgs.get_forces(),
+            "max_force": np.max(np.abs(atoms_lbfgs.get_forces())),
+            "rms_force": np.sqrt(np.mean(atoms_lbfgs.get_forces() ** 2)),
+            "converged": lbfgs_opt.converged(atoms_lbfgs.get_forces().flatten()),
+            "steps": lbfgs_opt.get_number_of_steps(),
+        }
+
+        # Test GeometricOptimizer if available
+        if deps.has("geometric"):
+            atoms_geo = atoms.copy()
+            atoms_geo.calc = MockCalculator()
+            geo_opt = GeometricOptimizer(atoms_geo, order=0)
+            geo_opt.run(fmax=0.01, steps=100)
+
+            convergence_results["Geometric"] = {
+                "atoms": atoms_geo,
+                "energy": atoms_geo.get_potential_energy(),
+                "forces": atoms_geo.get_forces(),
+                "max_force": np.max(np.abs(atoms_geo.get_forces())),
+                "rms_force": np.sqrt(np.mean(atoms_geo.get_forces() ** 2)),
+                "converged": geo_opt.converged,
+                "steps": geo_opt.step_count,
+            }
+
+        # Test Sella if available
+        if deps.has("sella"):
+            atoms_sella = atoms.copy()
+            atoms_sella.calc = MockCalculator()
+            sella_opt = Sella(atoms_sella, internal=True, order=0)
+            sella_opt.run(fmax=0.01, steps=100)
+
+            convergence_results["Sella"] = {
+                "atoms": atoms_sella,
+                "energy": atoms_sella.get_potential_energy(),
+                "forces": atoms_sella.get_forces(),
+                "max_force": np.max(np.abs(atoms_sella.get_forces())),
+                "rms_force": np.sqrt(np.mean(atoms_sella.get_forces() ** 2)),
+                "converged": sella_opt.converged,
+                "steps": sella_opt.get_number_of_steps(),
+            }
+
+        # DETAILED CONVERGENCE ANALYSIS
+        print("\n=== CONVERGENCE QUALITY COMPARISON ===")
+
+        for name, results in convergence_results.items():
+            print(f"\n{name}:")
+            print(f"  Final energy: {results['energy']:.6f} eV")
+            print(f"  Energy change: {abs(results['energy'] - initial_energy):.6f} eV")
+            print(f"  Max force: {results['max_force']:.6f} eV/Å")
+            print(f"  RMS force: {results['rms_force']:.6f} eV/Å")
+            print(f"  Converged: {results['converged']}")
+            print(f"  Steps: {results['steps']}")
+
+            # Calculate force improvement
+            force_improvement = initial_max_force - results["max_force"]
+            print(f"  Force improvement: {force_improvement:.6f} eV/Å")
+
+            # Verify convergence claims
+            if results["converged"]:
+                assert results["max_force"] < 0.01, (
+                    f"{name} claims convergence but max force is {results['max_force']:.6f} eV/Å. "
+                    f"This suggests a bug in convergence detection."
+                )
+                print(f"  ✅ {name} properly converged")
+            else:
+                print(f"  ⚠️  {name} did not converge")
+
+        # CONVERGENCE EFFICIENCY COMPARISON
+        print("\n=== CONVERGENCE EFFICIENCY COMPARISON ===")
+
+        # Compare energy improvements
+        energy_improvements = {}
+        for name, results in convergence_results.items():
+            energy_improvement = initial_energy - results["energy"]
+            energy_improvements[name] = energy_improvement
+            print(f"{name}: Energy improvement = {energy_improvement:.6f} eV")
+
+        # Compare force improvements
+        force_improvements = {}
+        for name, results in convergence_results.items():
+            force_improvement = initial_max_force - results["max_force"]
+            force_improvements[name] = force_improvement
+            print(f"{name}: Force improvement = {force_improvement:.6f} eV/Å")
+
+        # CONVERGENCE CONSISTENCY CHECKS
+        print("\n=== CONVERGENCE CONSISTENCY CHECKS ===")
+
+        # Check that converged optimizers have similar final energies
+        converged_optimizers = [
+            (name, results) for name, results in convergence_results.items() if results["converged"]
+        ]
+
+        if len(converged_optimizers) >= 2:
+            converged_energies = [results["energy"] for _, results in converged_optimizers]
+            energy_range = max(converged_energies) - min(converged_energies)
+
+            print(f"Energy range among converged optimizers: {energy_range:.6f} eV")
+
+            # Converged optimizers should find similar energies (within 0.001 eV)
+            assert energy_range < 0.001, (
+                f"Converged optimizers found very different energies: {energy_range:.6f} eV. "
+                f"This suggests inconsistent convergence to different minima."
+            )
+
+            # Check that converged optimizers have similar final forces
+            converged_forces = [results["max_force"] for _, results in converged_optimizers]
+            force_range = max(converged_forces) - min(converged_forces)
+
+            print(f"Force range among converged optimizers: {force_range:.6f} eV/Å")
+
+            # Converged optimizers should have similar final forces (within 0.005 eV/Å)
+            assert force_range < 0.005, (
+                f"Converged optimizers have very different final forces: {force_range:.6f} eV/Å. "
+                f"This suggests inconsistent convergence quality."
+            )
+
+        # CONVERGENCE ROBUSTNESS TEST
+        print("\n=== CONVERGENCE ROBUSTNESS TEST ===")
+
+        # Test with tighter convergence criteria
+        tight_fmax = 0.001
+
+        for name, results in convergence_results.items():
+            if results["converged"]:
+                # Test if optimizer can achieve tighter convergence
+                test_atoms = atoms.copy()
+                test_atoms.calc = MockCalculator()
+
+                if name == "LBFGS":
+                    test_opt = LBFGS(test_atoms)
+                elif name == "Geometric" and deps.has("geometric"):
+                    test_opt = GeometricOptimizer(test_atoms, order=0)
+                elif name == "Sella" and deps.has("sella"):
+                    test_opt = Sella(test_atoms, internal=True, order=0)
+                else:
+                    continue
+
+                try:
+                    test_opt.run(fmax=tight_fmax, steps=50)
+                    tight_max_force = np.max(np.abs(test_atoms.get_forces()))
+
+                    print(f"{name} with tight convergence (fmax={tight_fmax}):")
+                    print(f"  Final max force: {tight_max_force:.6f} eV/Å")
+
+                    if tight_max_force < tight_fmax:
+                        print(f"  ✅ {name} can achieve tight convergence")
+                    else:
+                        print(f"  ⚠️  {name} struggles with tight convergence")
+
+                except Exception as e:
+                    print(f"  ❌ {name} failed with tight convergence: {e}")

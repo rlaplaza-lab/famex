@@ -8,9 +8,11 @@ import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 
 # Constants for mock potential calculations
+from ase.units import Ang, eV
+
 BOND_TOLERANCE_FACTOR = 1.25  # Multiplier for covalent radius cutoff
-MIN_BOND_CUTOFF = 2.0  # Minimum bond cutoff distance (Å)
-DEFAULT_FORCE_CONSTANT = 1.0  # Default harmonic force constant
+MIN_BOND_CUTOFF = 2.0 * Ang  # Minimum bond cutoff distance
+DEFAULT_FORCE_CONSTANT = 1.0 * eV / Ang**2  # Default harmonic force constant
 DEFAULT_ANGLE_FORCE_RATIO = 0.5  # Angle force constant as fraction of bond force constant
 
 

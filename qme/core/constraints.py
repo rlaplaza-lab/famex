@@ -14,6 +14,7 @@ from typing import Any, Dict, List
 import numpy as np
 from ase import Atoms
 from ase.constraints import FixAtoms, Hookean
+from ase.units import Ang, eV
 
 
 class QMEConstraintManager:
@@ -278,7 +279,7 @@ def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> QMEC
             atom_indices = [int(x.strip()) for x in parts[1].split(",")]
 
             # Parse force constant
-            force_constant = 10.0  # default
+            force_constant = 10.0 * eV / Ang**2  # default
             for part in parts[2:]:
                 if part.startswith("k="):
                     force_constant = float(part.replace("k=", ""))
