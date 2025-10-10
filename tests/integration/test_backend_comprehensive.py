@@ -472,12 +472,8 @@ class TestGeometricOptimizerIntegration:
         )
         sella_position_change = np.max(np.abs(sella_atoms.get_positions() - initial_positions))
 
-        print(
-            f"Geometric: Position change = {geometric_position_change:.6f}"
-        )
-        print(
-            f"Sella: Position change = {sella_position_change:.6f}"
-        )
+        print(f"Geometric: Position change = {geometric_position_change:.6f}")
+        print(f"Sella: Position change = {sella_position_change:.6f}")
 
         # Both optimizers should actually optimize (this will catch the GeometricOptimizer bug)
         assert geometric_position_change > 1e-6, (
@@ -485,6 +481,135 @@ class TestGeometricOptimizerIntegration:
             "This test catches bugs where optimizers report steps but don't optimize."
         )
         assert sella_position_change > 1e-6, "Sella optimizer should actually change positions"
+
+        # DETAILED COORDINATE COMPARISON
+        print("\n=== DETAILED COORDINATE COMPARISON ===")
+
+        geo_positions = geometric_atoms.get_positions()
+        sella_positions = sella_atoms.get_positions()
+
+        # Maximum coordinate difference
+        max_coord_diff = np.max(np.abs(geo_positions - sella_positions))
+        rms_coord_diff = np.sqrt(np.mean((geo_positions - sella_positions) ** 2))
+
+        print("Geometric vs Sella:")
+        print(f"  Max coordinate difference: {max_coord_diff:.6f} Å")
+        print(f"  RMS coordinate difference: {rms_coord_diff:.6f} Å")
+
+        # Check if coordinates are reasonably similar (within 0.1 Å)
+        assert max_coord_diff < 0.1, (
+            f"Final coordinates differ too much between Geometric and Sella: "
+            f"{max_coord_diff:.6f} Å. This suggests inconsistent optimization."
+        )
+
+        # DETAILED FORCE COMPARISON
+        print("\n=== DETAILED FORCE COMPARISON ===")
+
+        geo_forces = geometric_atoms.get_forces()
+        sella_forces = sella_atoms.get_forces()
+
+        geo_max_force = np.max(np.abs(geo_forces))
+        sella_max_force = np.max(np.abs(sella_forces))
+
+        geo_rms_force = np.sqrt(np.mean(geo_forces**2))
+        sella_rms_force = np.sqrt(np.mean(sella_forces**2))
+
+        print("Geometric:")
+        print(f"  Max force: {geo_max_force:.6f} eV/Å")
+        print(f"  RMS force: {geo_rms_force:.6f} eV/Å")
+
+        print("Sella:")
+        print(f"  Max force: {sella_max_force:.6f} eV/Å")
+        print(f"  RMS force: {sella_rms_force:.6f} eV/Å")
+
+        # DETAILED GEOMETRIC PROPERTY COMPARISON
+        print("\n=== DETAILED GEOMETRIC PROPERTY COMPARISON ===")
+
+        # Compare bond lengths
+        n_atoms = len(geometric_atoms)
+        bond_lengths_geo = []
+        bond_lengths_sella = []
+
+        for i in range(n_atoms):
+            for j in range(i + 1, n_atoms):
+                # Only consider bonds within reasonable distance (e.g., < 2.5 Å for C-C bonds)
+                if geometric_atoms.get_distance(i, j) < 2.5:
+                    bond_lengths_geo.append(geometric_atoms.get_distance(i, j))
+                    bond_lengths_sella.append(sella_atoms.get_distance(i, j))
+
+        if bond_lengths_geo and bond_lengths_sella:
+            bond_lengths_geo = np.array(bond_lengths_geo)
+            bond_lengths_sella = np.array(bond_lengths_sella)
+
+            max_bond_diff = np.max(np.abs(bond_lengths_geo - bond_lengths_sella))
+            rms_bond_diff = np.sqrt(np.mean((bond_lengths_geo - bond_lengths_sella) ** 2))
+
+            print("Bond lengths:")
+            print(f"  Number of bonds compared: {len(bond_lengths_geo)}")
+            print(f"  Max bond length difference: {max_bond_diff:.6f} Å")
+            print(f"  RMS bond length difference: {rms_bond_diff:.6f} Å")
+
+            # Bond lengths should be very similar (within 0.01 Å)
+            assert max_bond_diff < 0.01, (
+                f"Bond lengths differ too much between optimizers: "
+                f"{max_bond_diff:.6f} Å. This suggests inconsistent optimization."
+            )
+
+        # Compare angles (for molecules with at least 3 atoms)
+        if n_atoms >= 3:
+            angles_geo = []
+            angles_sella = []
+
+            for i in range(n_atoms):
+                for j in range(n_atoms):
+                    if i == j:
+                        continue
+                    for k in range(j + 1, n_atoms):
+                        if k == i:
+                            continue
+                        # Calculate angle i-j-k
+                        angle_geo = geometric_atoms.get_angle(i, j, k)
+                        angle_sella = sella_atoms.get_angle(i, j, k)
+
+                        # Only consider angles that are not close to 0 or 180 degrees
+                        if 10 < angle_geo < 170 and 10 < angle_sella < 170:
+                            angles_geo.append(angle_geo)
+                            angles_sella.append(angle_sella)
+
+            if angles_geo and angles_sella:
+                angles_geo = np.array(angles_geo)
+                angles_sella = np.array(angles_sella)
+
+                max_angle_diff = np.max(np.abs(angles_geo - angles_sella))
+                rms_angle_diff = np.sqrt(np.mean((angles_geo - angles_sella) ** 2))
+
+                print("Angles:")
+                print(f"  Number of angles compared: {len(angles_geo)}")
+                print(f"  Max angle difference: {max_angle_diff:.2f}°")
+                print(f"  RMS angle difference: {rms_angle_diff:.2f}°")
+
+                # Angles should be reasonably similar (within 5°)
+                assert max_angle_diff < 5.0, (
+                    f"Angles differ too much between optimizers: "
+                    f"{max_angle_diff:.2f}°. This suggests inconsistent optimization."
+                )
+
+        # ENERGY COMPARISON
+        print("\n=== ENERGY COMPARISON ===")
+
+        geo_energy = geometric_atoms.get_potential_energy()
+        sella_energy = sella_atoms.get_potential_energy()
+        energy_diff = abs(geo_energy - sella_energy)
+
+        print(f"Geometric energy: {geo_energy:.6f} eV")
+        print(f"Sella energy: {sella_energy:.6f} eV")
+        print(f"Energy difference: {energy_diff:.6f} eV")
+
+        # Energies should be reasonably similar (within 0.001 eV)
+        assert energy_diff < 0.001, (
+            f"Final energies differ too much between optimizers: {energy_diff:.6f} eV. "
+            f"This suggests inconsistent optimization to different minima."
+        )
 
 
 class TestBackendPerformanceComparison:

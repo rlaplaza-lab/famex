@@ -74,7 +74,7 @@ qme opt benzene.xyz
 
 This will:
 - Use the default UMA backend
-- Optimize to a force convergence of 0.05 eV/Å
+- Optimize to a force convergence of 0.05 eV/Å (using ASE units)
 - Save the optimized structure to `benzene_opt_uma.xyz`
 
 ### 2. Try Different Backends

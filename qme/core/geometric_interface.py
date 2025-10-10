@@ -239,21 +239,35 @@ class GeometricOptimizer(Optimizer):
 
             # Extract step count from geomeTRIC optimizer
             # The most reliable way is to count the optimization steps from progress.xyzs
-            if (hasattr(optimizer, "progress") and hasattr(optimizer.progress, "xyzs") and
-                    optimizer.progress.xyzs and hasattr(optimizer.progress.xyzs, "__len__")):
-                self.step_count = len(optimizer.progress.xyzs) - 1  # Subtract initial structure
-            else:
-                self.step_count = 0
+            # Only set if not already set in exception handlers
+            if not hasattr(self, "step_count") or self.step_count == 0:
+                if (
+                    hasattr(optimizer, "progress")
+                    and hasattr(optimizer.progress, "xyzs")
+                    and optimizer.progress.xyzs
+                    and hasattr(optimizer.progress.xyzs, "__len__")
+                ):
+                    self.step_count = len(optimizer.progress.xyzs) - 1  # Subtract initial structure
+                else:
+                    self.step_count = getattr(
+                        optimizer,
+                        "Iteration",
+                        getattr(optimizer, "iter", getattr(optimizer, "iteration", 0)),
+                    )
 
             # Re-raise optimization exception if one occurred (before coordinate extraction)
-            if 'optimization_exception' in locals():
+            if "optimization_exception" in locals():
                 raise optimization_exception
 
             # Update atoms with optimized geometry
             # geomeTRIC stores the optimization history in optimizer.progress.xyzs (in Angstrom)
-            if (hasattr(optimizer, "progress") and hasattr(optimizer.progress, "xyzs") and
-                    optimizer.progress.xyzs and hasattr(optimizer.progress.xyzs, "__len__") and
-                    len(optimizer.progress.xyzs) > 0):
+            if (
+                hasattr(optimizer, "progress")
+                and hasattr(optimizer.progress, "xyzs")
+                and optimizer.progress.xyzs
+                and hasattr(optimizer.progress.xyzs, "__len__")
+                and len(optimizer.progress.xyzs) > 0
+            ):
                 # Get the final optimized geometry from progress.xyzs (already in Angstrom)
                 final_xyz = optimizer.progress.xyzs[-1]
                 self.atoms.set_positions(final_xyz)

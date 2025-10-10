@@ -9,10 +9,12 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 # Validation constants
-MIN_ATOM_DISTANCE = 0.1  # Minimum allowed distance between atoms (Å)
-MAX_REASONABLE_ENERGY = 1000.0  # Maximum reasonable energy value (eV)
-MIN_REASONABLE_ENERGY = -1000.0  # Minimum reasonable energy value (eV)
-MAX_REASONABLE_FORCE = 100.0  # Maximum reasonable force magnitude (eV/Å)
+from ase.units import Ang, eV
+
+MIN_ATOM_DISTANCE = 0.1 * Ang  # Minimum allowed distance between atoms
+MAX_REASONABLE_ENERGY = 1000.0 * eV  # Maximum reasonable energy value
+MIN_REASONABLE_ENERGY = -1000.0 * eV  # Minimum reasonable energy value
+MAX_REASONABLE_FORCE = 100.0 * eV / Ang  # Maximum reasonable force magnitude
 
 
 class QMEError(Exception):

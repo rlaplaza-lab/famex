@@ -46,7 +46,7 @@ qme opt water.xyz
 Backend: aimnet2 (AIMNet2)
 Device: cpu
 Optimizer: sella
-Convergence: 0.050 eV/Å
+Convergence: 0.050 eV/Å (using ASE units)
 
 📁 Loading structure from: water.xyz
 🧮 Attaching calculator...
@@ -357,13 +357,26 @@ except Exception as e:
 
 ### Energy Units
 - QME reports energies in **electronvolts (eV)**
-- Forces are in **eV/Å**
+- Forces are in **eV/Å** (using ASE units)
 - Typical optimization reduces energy by 0.01-0.1 eV for small molecules
 
 ### Convergence Criteria
-- **fmax**: Maximum force on any atom (default: 0.05 eV/Å)
+- **fmax**: Maximum force on any atom (default: 0.05 eV/Å, using ASE units)
 - Lower fmax = tighter convergence = more accurate but slower
 - Typical values: 0.1 (loose), 0.05 (default), 0.01 (tight)
+
+### ASE Units Integration
+QME uses ASE's unit system for all calculations. You can import and use ASE units in your code:
+
+```python
+from ase.units import eV, Ang, Bohr, Hartree, kcal, kJ
+
+# Examples:
+energy_ev = 1.0 * eV
+distance_ang = 1.5 * Ang
+force_ev_ang = 0.05 * eV / Ang
+energy_hartree = 0.0367493 * Hartree  # Convert eV to Hartree
+```
 
 ### Optimization Steps
 - Simple molecules: 5-20 steps
