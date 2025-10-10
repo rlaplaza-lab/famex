@@ -282,7 +282,12 @@ def _benchmark_optimization(
         # Extract step tracking information from strategy result
         if isinstance(strategy_result, dict):
             steps_taken = strategy_result.get("steps_taken", 0)
-            converged = strategy_result.get("converged", False)
+            converged_raw = strategy_result.get("converged", False)
+            # Ensure converged is always a boolean
+            if isinstance(converged_raw, str):
+                converged = converged_raw.lower() in ("true", "1", "yes")
+            else:
+                converged = bool(converged_raw)
             optimized_atoms = strategy_result.get("optimized_atoms", explorer.atoms_list[0])
         else:
             # Fallback for old format

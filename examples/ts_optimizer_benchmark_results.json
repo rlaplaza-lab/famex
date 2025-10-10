@@ -1,0 +1,21 @@
+[
+  {
+    "backend": "mock",
+    "optimizer": "sella",
+    "device": "cuda",
+    "model_name": null,
+    "test_ts": true,
+    "available": true,
+    "error": "Backend 'mock' is not suitable for transition state optimization. Use a real ML potential backend (uma, aimnet2, mace, so3lr) instead.",
+    "timings": {
+      "initialization": 1.607000012882054e-05,
+      "structure_loading": 0.00010556000052019954,
+      "single_energy_first": 0.0016312100015056785,
+      "single_energy_second": 0.0015072999995027203,
+      "single_energy": 0.0015072999995027203,
+      "single_forces": 0.001507319997472223
+    },
+    "optimization_results": {},
+    "frequency_results": {}
+  }
+]
