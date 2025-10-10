@@ -215,6 +215,12 @@ class Explorer:
             if "spin" not in atoms.info:
                 atoms.info["spin"] = geom_mult if geom_mult is not None else self.default_spin
 
+        # Show model initialization info when creating the first calculator
+        if not hasattr(self, '_calculator_created'):
+            from qme.logging_utils import print_model_info
+            print_model_info(self.backend, self.model_name, self.model_path, self.device)
+            self._calculator_created = True
+
         calc = create_calculator(
             backend=self.backend,
             model_name=self.model_name,
