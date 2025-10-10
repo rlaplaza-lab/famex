@@ -73,8 +73,15 @@ class _StepTrackingEngine:
         """Override to track optimization steps."""
         # Update atoms with new coordinates for step tracking
         if self._atoms_ref is not None:
+            # Preserve atoms.info dictionary to avoid losing charge/spin information
+            original_info = dict(self._atoms_ref.info) if hasattr(self._atoms_ref, 'info') and self._atoms_ref.info else {}
+            
             positions = coords.reshape(-1, 3) * Bohr  # Bohr to Angstrom
             self._atoms_ref.set_positions(positions)
+            
+            # Restore the original info dictionary to preserve charge/spin
+            if hasattr(self._atoms_ref, 'info') and original_info:
+                self._atoms_ref.info.update(original_info)
         
         # Delegate to the underlying engine for actual calculation
         return self._engine.calc_new(coords, dirname)

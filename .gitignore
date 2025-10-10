@@ -149,7 +149,14 @@ cython_debug/
 *.png
 *.pdf
 *.log
+# Benchmark results - should not be tracked
+*benchmark_results*.json
+*_benchmark_results.json
 timing_benchmark_results.json
+minima_optimizer_benchmark_results.json
+ts_optimizer_benchmark_results.json
+bh28_benchmark_results.json
+zimmermann93_benchmark_results.json
 
 # Temporary files
 tmp/
