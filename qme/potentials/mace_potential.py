@@ -59,7 +59,10 @@ class MACEPotential(BasePotential):
                 "PyTorch is required for MACE backend. " "Install with: pip install torch"
             )
 
-        with quiet_backend_loading("mace", self.model_name, None, self.device):
+        # Don't show model info - let the outer context handle it
+        with quiet_backend_loading(
+            "mace", self.model_name, None, self.device, show_model_info=False
+        ):
             try:
                 # Try to import MACE calculators
                 if self.model_name == "mace-omol-0":
