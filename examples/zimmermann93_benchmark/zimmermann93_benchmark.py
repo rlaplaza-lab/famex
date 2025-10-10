@@ -433,9 +433,9 @@ class Zimmermann93Benchmark:
 
     def analyze_performance(self, backends: List[str]) -> Dict:
         """Analyze performance metrics across backends."""
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print("PERFORMANCE ANALYSIS")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
 
         analysis = {}
 
