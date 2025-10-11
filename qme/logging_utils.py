@@ -229,3 +229,98 @@ def quiet_backend_loading(
     finally:
         # Clear the quiet context flag
         _quiet_context_local.in_quiet_context = False
+
+
+# QME logger configuration
+_qme_logging_configured = False
+_qme_log_level = logging.INFO
+
+
+def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
+    """Configure QME logging system.
+
+    Parameters
+    ----------
+    verbosity : int
+        Verbosity level:
+        - 0: WARNING and above (quiet)
+        - 1: INFO and above (normal, default)
+        - 2: DEBUG and above (verbose)
+    force : bool
+        Force reconfiguration even if already configured
+    """
+    global _qme_logging_configured, _qme_log_level
+
+    if _qme_logging_configured and not force:
+        return
+
+    # Map verbosity to log level
+    level_map = {
+        0: logging.WARNING,
+        1: logging.INFO,
+        2: logging.DEBUG,
+    }
+    log_level = level_map.get(verbosity, logging.INFO)
+    _qme_log_level = log_level
+
+    # Configure root QME logger
+    qme_logger = logging.getLogger('qme')
+    qme_logger.setLevel(log_level)
+
+    # Remove existing handlers to avoid duplicates
+    qme_logger.handlers.clear()
+
+    # Create console handler with custom formatting
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(log_level)
+
+    # Format: [QME] LEVEL: message
+    # For INFO: just the message (clean output)
+    # For DEBUG/WARNING/ERROR: include level
+    class QMEFormatter(logging.Formatter):
+        def format(self, record):
+            if record.levelno == logging.INFO:
+                return record.getMessage()
+            elif record.levelno == logging.DEBUG:
+                return f"[DEBUG] {record.getMessage()}"
+            elif record.levelno == logging.WARNING:
+                return f"⚠️  {record.getMessage()}"
+            elif record.levelno >= logging.ERROR:
+                return f"❌ {record.getMessage()}"
+            return record.getMessage()
+
+    handler.setFormatter(QMEFormatter())
+    qme_logger.addHandler(handler)
+
+    # Prevent propagation to root logger
+    qme_logger.propagate = False
+
+    _qme_logging_configured = True
+
+
+def get_qme_logger(name: str) -> logging.Logger:
+    """Get a QME logger for a specific module.
+
+    Parameters
+    ----------
+    name : str
+        Logger name, typically __name__ from the calling module
+
+    Returns
+    -------
+    logging.Logger
+        Configured logger instance
+    """
+    # Ensure name starts with 'qme.'
+    if not name.startswith('qme'):
+        if name == '__main__':
+            name = 'qme'
+        else:
+            name = f'qme.{name}'
+
+    return logging.getLogger(name)
+
+
+def get_qme_log_level() -> int:
+    """Get current QME logging level."""
+    return _qme_log_level

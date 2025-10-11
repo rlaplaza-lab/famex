@@ -96,6 +96,7 @@ class Explorer:
         constraints: Optional[Union[str, List, Dict]] = None,
         initial_hessian: Optional[np.ndarray] = None,
         auto_register: bool = True,
+        verbose: int = 1,
     ):
         if isinstance(atoms, Atoms):
             self.atoms_list: List[Atoms] = [atoms]
@@ -108,6 +109,11 @@ class Explorer:
         self.device = device
         self.default_charge = default_charge
         self.default_spin = default_spin
+        self.verbose = verbose
+
+        # Setup QME logging with specified verbosity
+        from qme.logging_utils import setup_qme_logging
+        setup_qme_logging(verbosity=verbose)
 
         self.local_optimizer_name = local_optimizer
         self.optimizer_kwargs = optimizer_kwargs or {}
@@ -446,6 +452,7 @@ class Explorer:
         call_kwargs = dict(kwargs)
         call_kwargs.setdefault("explorer", self)
         call_kwargs.setdefault("local_optimizer_name", self.local_optimizer_name)
+        call_kwargs.setdefault("verbose", self.verbose)
 
         # Validate TS optimization setup - hardcoded restrictions
         if effective_mode in (
@@ -494,6 +501,7 @@ class Explorer:
         device: Optional[str] = None,
         default_charge: int = 0,
         default_spin: int = 1,
+        verbose: int = 1,
         **kwargs,
     ) -> "Explorer":
         """Create Explorer instance from a geometry file.
@@ -523,6 +531,7 @@ class Explorer:
             device=device,
             default_charge=default_charge,
             default_spin=default_spin,
+            verbose=verbose,
             **kwargs,
         )
 

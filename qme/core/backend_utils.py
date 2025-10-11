@@ -15,6 +15,10 @@ except ImportError as e:
         "Make sure QME is properly installed or you're in the QME package directory."
     )
 
+from qme.logging_utils import get_qme_logger
+
+logger = get_qme_logger(__name__)
+
 
 # All possible backends that QME supports
 ALL_BACKENDS = [
@@ -68,10 +72,10 @@ def get_available_backends(
         for backend in backends_to_check:
             is_available = backend in available
             if is_available:
-                print(f"  ✅ {backend}")
+                logger.info(f"  ✅ {backend}")
             else:
                 reason = get_availability_reason(backend)
-                print(f"  ❌ {backend} ({reason})")
+                logger.info(f"  ❌ {backend} ({reason})")
 
     return available
 
@@ -90,9 +94,9 @@ def get_available_torchsim_backends(verbose: bool = False) -> List[str]:
         if qme.calculator_registry.is_backend_available(backend):
             available.append(backend)
             if verbose:
-                print(f"  ✅ {backend}")
+                logger.info(f"  ✅ {backend}")
         elif verbose:
-            print(f"  ❌ {backend} (dependencies missing or incompatible)")
+            logger.info(f"  ❌ {backend} (dependencies missing or incompatible)")
     return available
 
 
@@ -117,10 +121,10 @@ def filter_available_backends(requested_backends: List[str], verbose: bool = Fal
             unavailable.append(backend)
 
     if verbose and unavailable:
-        print(f"⚠️  Unavailable backends (skipped): {unavailable}")
+        logger.info(f"⚠️  Unavailable backends (skipped): {unavailable}")
 
     if verbose and available:
-        print(f"✅ Available backends: {available}")
+        logger.info(f"✅ Available backends: {available}")
 
     return available
 
@@ -165,13 +169,15 @@ def require_ml_backends(min_count: int = 1) -> List[str]:
     available = get_available_ml_backends()
 
     if len(available) < min_count:
-        print(f"❌ Need at least {min_count} ML backend(s), but only {len(available)} available.")
-        print("Please install additional ML backends:")
-        print("  - UMA: pip install fairchem-core")
-        print("  - MACE: pip install mace-torch")
-        print("  - AIMNet2: pip install aimnet2")
-        print("  - SO3LR: pip install so3lr")
-        print("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
+        logger.warning(
+            f"❌ Need at least {min_count} ML backend(s), but only {len(available)} available."
+        )
+        logger.info("Please install additional ML backends:")
+        logger.info("  - UMA: pip install fairchem-core")
+        logger.info("  - MACE: pip install mace-torch")
+        logger.info("  - AIMNet2: pip install aimnet2")
+        logger.info("  - SO3LR: pip install so3lr")
+        logger.info("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
         import sys
 
         sys.exit(1)
@@ -181,11 +187,11 @@ def require_ml_backends(min_count: int = 1) -> List[str]:
 
 def print_backend_summary(backends: List[str], title: str = "Backend Summary"):
     """Print a formatted summary of backend availability."""
-    print(f"\n{title}")
-    print("=" * len(title))
+    logger.info(f"\n{title}")
+    logger.info("=" * len(title))
 
     if not backends:
-        print("No backends available!")
+        logger.info("No backends available!")
         return
 
     # Categorize backends
@@ -194,13 +200,13 @@ def print_backend_summary(backends: List[str], title: str = "Backend Summary"):
     torchsim_backends = [b for b in backends if b in TORCHSIM_BACKENDS]
 
     if mock_backends:
-        print(f"Mock: {', '.join(mock_backends)}")
+        logger.info(f"Mock: {', '.join(mock_backends)}")
     if ml_backends:
-        print(f"ML: {', '.join(ml_backends)}")
+        logger.info(f"ML: {', '.join(ml_backends)}")
     if torchsim_backends:
-        print(f"TorchSim: {', '.join(torchsim_backends)}")
+        logger.info(f"TorchSim: {', '.join(torchsim_backends)}")
 
-    print(f"Total: {len(backends)} backend(s)")
+    logger.info(f"Total: {len(backends)} backend(s)")
 
 
 def is_backend_available(backend: str) -> bool:

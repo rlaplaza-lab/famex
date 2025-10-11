@@ -21,6 +21,9 @@ from ase.thermochemistry import HarmonicThermo
 from scipy.linalg import eigh
 
 from qme.core.validation import QMEError
+from qme.logging_utils import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 def _supports_batch_evaluation(calculator):
@@ -177,7 +180,7 @@ class FrequencyAnalysis:
         if not _supports_batch_evaluation(self.calculator):
             raise RuntimeError("Calculator does not support batch evaluation")
 
-        print("Using batch evaluation for Hessian calculation...")
+        logger.info("Using batch evaluation for Hessian calculation...")
 
         # Generate all displaced structures
         displaced_structures = self._generate_displaced_structures()
@@ -571,7 +574,7 @@ class FrequencyAnalysis:
             trajectory.append(atoms_displaced)
 
         write(filename, trajectory)
-        print(f"Normal mode trajectory written to {filename}")
+        logger.info(f"Normal mode trajectory written to {filename}")
 
 
 class HessianCalculator:
@@ -623,7 +626,7 @@ class HessianCalculator:
         n_coords = 3 * n_atoms
         hessian = np.zeros((n_coords, n_coords))
 
-        print(f"Calculating Hessian for {n_atoms} atoms using {self.method} differences...")
+        logger.info(f"Calculating Hessian for {n_atoms} atoms using {self.method} differences")
 
         if self.method == "central":
             # Central differences: H_ij = (F_i(+δj) - F_i(-δj)) / (2δ)
@@ -641,7 +644,7 @@ class HessianCalculator:
                 hessian[:, j] = -(forces_plus - forces_minus) / (2 * self.delta)
 
                 if world.rank == 0:
-                    print(f"  Completed coordinate {j + 1}/{n_coords}")
+                    logger.debug(f"Completed coordinate {j + 1}/{n_coords}")
 
         elif self.method == "forward":
             # Forward differences: H_ij = (F_i(+δj) - F_i(0)) / δ
@@ -655,14 +658,14 @@ class HessianCalculator:
                 hessian[:, j] = -(forces_displaced - forces_ref) / self.delta
 
                 if world.rank == 0:
-                    print(f"  Completed coordinate {j + 1}/{n_coords}")
+                    logger.debug(f"Completed coordinate {j + 1}/{n_coords}")
         else:
             raise ValueError(f"Unknown finite difference method: {self.method}")
 
         # Symmetrize Hessian
         hessian = 0.5 * (hessian + hessian.T)
 
-        print("Hessian calculation completed.")
+        logger.info("Hessian calculation completed")
         return hessian
 
     def _get_reference_forces(self) -> np.ndarray:
@@ -820,7 +823,7 @@ class BatchFrequencyAnalysis(FrequencyAnalysis):
         if not _supports_batch_evaluation(self.calculator):
             raise RuntimeError("Calculator does not support batch evaluation")
 
-        print("Using batch evaluation for Hessian calculation...")
+        logger.info("Using batch evaluation for Hessian calculation...")
 
         # Generate all displaced structures
         displaced_structures = self._generate_displaced_structures()

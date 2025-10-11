@@ -9,6 +9,9 @@ from ase import Atoms
 
 from qme.core.geometry import Geometry
 from qme.core.validation import validate_atoms_compatibility
+from qme.logging_utils import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 class Reaction:
@@ -249,7 +252,7 @@ class Reaction:
 
         # For now, just return the path as-is
         # A full NEB implementation would require more sophisticated force calculations
-        print("Note: Using simplified NEB-like algorithm for path optimization")
+        logger.info("Note: Using simplified NEB-like algorithm for path optimization")
 
         # Set calculators and calculate energies
         for geom in path_geometries:

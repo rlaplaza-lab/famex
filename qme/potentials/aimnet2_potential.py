@@ -15,6 +15,9 @@ from torch_cluster import radius_graph
 
 from qme.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+from qme.logging_utils import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 # Lazy torch import - will be None until needed
 _torch = None
@@ -68,7 +71,7 @@ def get_model_path(model_name: str) -> str:
 
     # Direct file path
     if os.path.isfile(model_name):
-        print(f"Found model file: {model_name}")
+        logger.info(f"Found model file: {model_name}")
         return model_name
 
     # Check aliases
@@ -88,7 +91,7 @@ def get_model_path(model_name: str) -> str:
         return str(cached_path)
     except Exception as e:
         # Fallback to old behavior if caching fails
-        print(f"Model caching failed, using fallback: {e}")
+        logger.debug(f"Model caching failed, using fallback: {e}")
 
         # Create local assets directory
         assets_dir = os.path.join(os.path.dirname(__file__), "assets")
@@ -99,12 +102,12 @@ def get_model_path(model_name: str) -> str:
         local_path = os.path.join(assets_dir, model_path)
 
         if os.path.isfile(local_path):
-            print(f"Found model file: {local_path}")
+            logger.info(f"Found model file: {local_path}")
             return local_path
 
         # Download from model zoo
         url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
-        print(f"Downloading model from {url}")
+        logger.info(f"Downloading model from {url}")
 
         try:
             response = requests.get(url)
@@ -114,7 +117,7 @@ def get_model_path(model_name: str) -> str:
             with open(local_path, "wb") as f:
                 f.write(response.content)
 
-            print(f"Saved to {local_path}")
+            logger.info(f"Saved to {local_path}")
             return local_path
 
         except Exception as e:

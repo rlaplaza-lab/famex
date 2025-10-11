@@ -7,6 +7,10 @@ ensuring consistent device handling across the entire QME codebase.
 
 from typing import Optional
 
+from qme.logging_utils import get_qme_logger
+
+logger = get_qme_logger(__name__)
+
 
 def get_optimal_device(device: Optional[str] = None) -> str:
     """
@@ -57,15 +61,15 @@ def print_device_info(device: str) -> None:
                 torch = deps.get("torch")
                 if torch.cuda.is_available():
                     gpu_name = torch.cuda.get_device_name(0)
-                    print(f"🚀 Using CUDA device: {gpu_name}")
+                    logger.info(f"🚀 Using CUDA device: {gpu_name}")
                 else:
-                    print("⚠️  CUDA requested but not available, falling back to CPU")
+                    logger.warning("⚠️  CUDA requested but not available, falling back to CPU")
             else:
-                print("⚠️  PyTorch not available, using CPU")
+                logger.warning("⚠️  PyTorch not available, using CPU")
         except ImportError:
-            print("⚠️  PyTorch not available, using CPU")
+            logger.warning("⚠️  PyTorch not available, using CPU")
     else:
-        print("💻 Using CPU device")
+        logger.info("💻 Using CPU device")
 
 
 def validate_device(device: Optional[str]) -> str:

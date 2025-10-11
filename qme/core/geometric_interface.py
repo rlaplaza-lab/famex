@@ -18,6 +18,10 @@ from ase import Atoms
 from ase.optimize.optimize import Optimizer
 from ase.units import Bohr
 
+from qme.logging_utils import get_qme_logger
+
+logger = get_qme_logger(__name__)
+
 
 class _DevNull:
     """Null output device to suppress unwanted output."""
@@ -214,7 +218,7 @@ class GeometricOptimizer(Optimizer):
     def _print_ase_format_steps(self, optimizer):
         """Print all optimization steps in ASE format at once."""
         # Print ASE format header
-        print("       Step     Time          Energy          fmax")
+        logger.info("       Step     Time          Energy          fmax")
 
         # Print all optimization steps in ASE format
         for i, coords in enumerate(optimizer.progress.xyzs):
@@ -233,7 +237,7 @@ class GeometricOptimizer(Optimizer):
             time_str = time.strftime("%H:%M:%S", time.localtime())
 
             # Print step information in ASE format
-            print(f"GEOMETRIC: {i:>4} {time_str:>8} " f"{energy_val:>12.6f} {fmax:>12.6f}")
+            logger.info(f"GEOMETRIC: {i:>4} {time_str:>8} " f"{energy_val:>12.6f} {fmax:>12.6f}")
 
     def _run_optimization(self, optimizer, step_engine):
         """Run the optimization and handle convergence."""
