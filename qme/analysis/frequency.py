@@ -80,6 +80,7 @@ class FrequencyAnalysis:
         self._normal_modes = None
         self._zero_point_energy = None
         self._is_calculated = False
+        self._direct_frequencies = None  # For direct frequency calculation
 
     def _determine_nfree(self) -> int:
         """Determine number of degrees of freedom to remove (translation + rotation)."""
@@ -137,7 +138,7 @@ class FrequencyAnalysis:
         Parameters:
         -----------
         method : str
-            Method to use: 'auto', 'direct', 'batch', or 'finite_differences'
+            Method to use: 'auto', 'direct_frequencies', 'direct', 'batch', or 'finite_differences'
 
         Returns:
         --------
@@ -145,16 +146,19 @@ class FrequencyAnalysis:
             Hessian matrix (3N x 3N for N atoms)
         """
         if method == "auto":
-            # Check if calculator supports batch evaluation (preferred for performance)
-            if _supports_batch_evaluation(self.calculator):
+            if self._supports_direct_frequencies():
+                method = "direct_frequencies"
+            elif _supports_batch_evaluation(self.calculator):
                 method = "batch"
-            # Check if calculator supports direct Hessian
             elif self._supports_direct_hessian():
                 method = "direct"
             else:
                 method = "finite_differences"
 
-        if method == "direct":
+        if method == "direct_frequencies":
+            self._hessian = np.eye(3 * len(self.indices))  # Dummy hessian
+            self._direct_frequencies = self._calculate_direct_frequencies()
+        elif method == "direct":
             self._hessian = self._calculate_direct_hessian()
         elif method == "batch":
             self._hessian = self._calculate_hessian_batch()
@@ -249,23 +253,53 @@ class FrequencyAnalysis:
 
     def _supports_direct_hessian(self) -> bool:
         """Check if calculator supports direct Hessian calculation."""
-        # Check if calculator has hessian method or supports analytical second derivatives
-        if hasattr(self.calculator, "get_hessian"):
+        if (
+            hasattr(self.calculator, "implemented_properties")
+            and "hessian" in self.calculator.implemented_properties
+        ):
             return True
-        if hasattr(self.calculator, "calculate_hessian"):
+
+        return hasattr(self.calculator, "get_hessian") or hasattr(
+            self.calculator, "calculate_hessian"
+        )
+
+    def _supports_direct_frequencies(self) -> bool:
+        """Check if calculator supports direct frequency calculation."""
+        if (
+            hasattr(self.calculator, "implemented_properties")
+            and "frequencies" in self.calculator.implemented_properties
+        ):
             return True
-        # For now, assume no direct Hessian support for ML potentials
-        # This can be extended when ML calculators implement analytical Hessians
-        return False
+
+        return hasattr(self.calculator, "get_frequencies") or hasattr(
+            self.calculator, "calculate_frequencies"
+        )
+
+    def _calculate_direct_frequencies(self) -> np.ndarray:
+        """Calculate frequencies directly from calculator (when supported)."""
+        if (
+            hasattr(self.calculator, "implemented_properties")
+            and "frequencies" in self.calculator.implemented_properties
+        ):
+            return self.calculator.get_property("frequencies", self.atoms)
+
+        if hasattr(self.calculator, "get_frequencies"):
+            return self.calculator.get_frequencies(self.atoms)
+        else:
+            return self.calculator.calculate_frequencies(self.atoms)
 
     def _calculate_direct_hessian(self) -> np.ndarray:
         """Calculate Hessian directly from calculator (when supported)."""
+        if (
+            hasattr(self.calculator, "implemented_properties")
+            and "hessian" in self.calculator.implemented_properties
+        ):
+            return self.calculator.get_property("hessian", self.atoms)
+
         if hasattr(self.calculator, "get_hessian"):
             return self.calculator.get_hessian(self.atoms)
-        elif hasattr(self.calculator, "calculate_hessian"):
-            return self.calculator.calculate_hessian(self.atoms)
         else:
-            raise QMEError("Calculator does not support direct Hessian calculation")
+            return self.calculator.calculate_hessian(self.atoms)
 
     def diagonalize_hessian(self) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -329,14 +363,22 @@ class FrequencyAnalysis:
         np.ndarray
             Vibrational frequencies, excluding translational and rotational modes
         """
-        if not self._is_calculated:
-            self.calculate_hessian()
-            self.diagonalize_hessian()
+        # Check if we have direct frequencies from calculator
+        if self._direct_frequencies is not None:
+            frequencies = self._direct_frequencies
+            # Remove translational and rotational modes
+            frequencies = frequencies[self.nfree :]
+        else:
+            if not self._is_calculated:
+                self.calculate_hessian()
+                self.diagonalize_hessian()
 
-        if self._frequencies is None:
-            raise QMEError("Frequencies not calculated")
+            if self._frequencies is None:
+                raise QMEError("Frequencies not calculated")
 
-        frequencies = self._frequencies[self.nfree :].copy()
+            frequencies = self._frequencies
+
+        # Convert units if needed
 
         if unit == "cm-1":
             return frequencies
@@ -654,18 +696,13 @@ class HessianCalculator:
         atoms_displaced = self.atoms.copy()
         atoms_displaced.positions[atom_index, direction] += displacement
 
-        # Create a fresh calculator instance to avoid caching issues
-        # Only recreate the calculator when it's the lightweight MockCalculator.
-        # Previously this branch tested for the presence of ``backend`` which
-        # many real calculators also expose (e.g., UMA), causing AttributeError
-        # when trying to read mock-specific attributes like ``force_constant``.
+        # Create fresh calculator instance to avoid caching issues with MockCalculator
         try:
             from qme.potentials.mock_potential import MockCalculator
-        except Exception:
+        except ImportError:
             MockCalculator = None
 
         if MockCalculator is not None and isinstance(self.calculator, MockCalculator):
-            # For MockCalculator, create a new instance with the same parameters
             calc = MockCalculator(
                 backend=self.calculator.backend,
                 force_constant=getattr(self.calculator, "force_constant", 1.0),
@@ -673,7 +710,6 @@ class HessianCalculator:
                 mult=getattr(self.calculator, "mult", 1),
             )
         else:
-            # For other calculators, reuse the same calculator instance
             calc = self.calculator
 
         atoms_displaced.calc = calc

@@ -181,7 +181,7 @@ def is_in_quiet_context() -> bool:
     bool
         True if we're in a quiet context, False otherwise
     """
-    return getattr(_quiet_context_local, 'in_quiet_context', False)
+    return getattr(_quiet_context_local, "in_quiet_context", False)
 
 
 @contextlib.contextmanager

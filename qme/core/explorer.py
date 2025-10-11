@@ -30,6 +30,7 @@ from qme.core.constraint_parser import parse_constraints
 from qme.core.geometry import read_geometry
 from qme.core.local_strategies import local_minima_runner, local_ts_runner
 from qme.core.twoended_strategies import (
+    twoended_cineb_runner,
     twoended_minima_runner,
     twoended_neb_runner,
     twoended_ts_guess_runner,
@@ -167,16 +168,23 @@ class Explorer:
             description="NEB path optimization with geodesic interpolation",
             aliases=["twoended:neb", "twoended-neb"],
         )
+        self.register_strategy(
+            "twoended:cineb",
+            twoended_cineb_runner,
+            strategy_type="two-ended",
+            description="Climbing Image NEB (CI-NEB) optimization with geodesic interpolation",
+            aliases=["twoended:cineb", "twoended-cineb", "cineb"],
+        )
 
     # --- Backend and constraints helpers
     def _get_effective_model_name(self) -> str:
         """Get the effective model name that will actually be used by the backend.
-        
+
         Returns the model name that will be used after applying backend-specific defaults.
         """
         if self.model_name is not None:
             return self.model_name
-            
+
         # Apply backend-specific defaults
         if self.backend.lower() == "uma":
             return "uma-s-1p1"
@@ -243,8 +251,9 @@ class Explorer:
                 atoms.info["spin"] = geom_mult if geom_mult is not None else self.default_spin
 
         # Show model initialization info when creating the first calculator
-        if not hasattr(self, '_calculator_created'):
+        if not hasattr(self, "_calculator_created"):
             from qme.logging_utils import print_model_info
+
             # Get the effective model name that will actually be used
             effective_model_name = self._get_effective_model_name()
             print_model_info(self.backend, effective_model_name, self.model_path, self.device)
@@ -380,7 +389,7 @@ class Explorer:
                 )
                 effective_mode = "interpolate"
 
-            # Choose between TS-guess path refinement, minima refinement, or NEB
+            # Choose between TS-guess path refinement, minima refinement, NEB, or CI-NEB
             if self.target in (
                 "ts",
                 "transition",
@@ -390,6 +399,8 @@ class Explorer:
                 preferred = ["twoended:ts", "twoended-ts"]
             elif self.target in ("neb", "nudged-elastic-band"):
                 preferred = ["twoended:neb", "neb", "twoended-neb"]
+            elif self.target in ("cineb", "climbing-image-neb", "ci-neb"):
+                preferred = ["twoended:cineb", "cineb", "twoended-cineb"]
             else:
                 preferred = ["twoended:minima", "twoended-minima"]
 

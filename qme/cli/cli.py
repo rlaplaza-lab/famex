@@ -19,7 +19,7 @@ os.environ.setdefault("MPLBACKEND", "Agg")
         "QME CLI: Quick mechanistic exploration with ML potentials.\n\n"
         "Commands:\n"
         "  qme opt   : Local or two-ended minima optimization from XYZ\n"
-        "  qme tsopt : Local or two-ended TS optimization from XYZ\n"
+        "  qme tsopt : Local or two-ended TS optimization (NEB/CI-NEB) from XYZ\n"
         "  qme cache : Manage model cache\n\n"
         "Examples:\n"
         "  qme opt reactant.xyz --backend aimnet2 --optimizer sella --fmax 0.03\n"
@@ -29,6 +29,7 @@ os.environ.setdefault("MPLBACKEND", "Agg")
         "  qme tsopt ts_guess.xyz --optimizer geometric --ts-kw order=1\n"
         "  qme tsopt r.xyz --product p.xyz --interp geodesic --npoints 15\n"
         "  qme tsopt r.xyz --product p.xyz --mode neb --npoints 11 --spring-constant 5.0\n"
+        "  qme tsopt r.xyz --product p.xyz --mode cineb --npoints 11 --spring-constant 5.0\n"
         "  qme opt molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n"
         "  qme opt molecule.xyz --backend torchsim_fairchem \\\n"
         "      --model-name equiformer_v2_31M_s2ef_all_md\n"
@@ -267,17 +268,17 @@ def opt(
 )
 @click.option(
     "--mode",
-    type=click.Choice(["interpolate", "neb"], case_sensitive=False),
+    type=click.Choice(["interpolate", "neb", "cineb"], case_sensitive=False),
     default="interpolate",
     show_default=True,
-    help="Two-ended mode: interpolate (TS guess) or neb (NEB path optimization)",
+    help="Two-ended mode: interpolate (TS guess), neb (NEB path optimization), or cineb (CI-NEB path optimization)",
 )
 @click.option(
     "--spring-constant",
     type=float,
     default=5.0,
     show_default=True,
-    help="Spring constant for NEB mode (only used with --mode neb)",
+    help="Spring constant for NEB/CI-NEB modes (only used with --mode neb or --mode cineb)",
 )
 @_common_explorer_options
 def tsopt(
@@ -374,6 +375,17 @@ def tsopt(
                     steps=steps,
                     spring_constant=spring_constant,
                 )
+            elif mode == "cineb":
+                # CI-NEB mode - return the full path with climbing image
+                ts_atoms = exp.run(
+                    mode="cineb",
+                    npoints=npoints,
+                    method=interp.lower(),
+                    fmax=fmax,
+                    steps=steps,
+                    spring_constant=spring_constant,
+                    climb=True,
+                )
             else:
                 # Interpolate mode - return single TS guess
                 ts_atoms = exp.run(
@@ -390,6 +402,10 @@ def tsopt(
         out = output_path or (out_base + ".neb.xyz")
         write_atoms(ts_atoms, out)
         click.echo(f"NEB optimization completed. Saved {len(ts_atoms)} images to: {out}")
+    elif mode == "cineb":
+        out = output_path or (out_base + ".cineb.xyz")
+        write_atoms(ts_atoms, out)
+        click.echo(f"CI-NEB optimization completed. Saved {len(ts_atoms)} images to: {out}")
     else:
         out = output_path or (out_base + ".ts.xyz")
         write_atoms(ts_atoms, out)

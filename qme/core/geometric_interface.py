@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 import warnings
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from typing import Optional
 
 import numpy as np
@@ -44,9 +44,7 @@ try:
     # Suppress geomeTRIC warnings at module level
     warnings.filterwarnings("ignore", category=UserWarning, module="geometric")
     warnings.filterwarnings("ignore", message=".*OutOfPlane atoms are the same.*")
-    warnings.filterwarnings(
-        "ignore", message=".*Warning: OutOfPlane atoms are the same.*"
-    )
+    warnings.filterwarnings("ignore", message=".*Warning: OutOfPlane atoms are the same.*")
 
     # Also suppress geomeTRIC's internal logging
     geometric_logger = logging.getLogger("geometric")
@@ -59,16 +57,16 @@ try:
     # Monkeypatch EngineASE to preserve charge and spin information
     # This fixes the issue where geomeTRIC doesn't transfer atoms.info metadata
     _original_enginease_init = geometric.ase_engine.EngineASE.__init__
-    
+
     def _patched_enginease_init(self, molecule, calculator):
         """Monkeypatched EngineASE.__init__ to preserve charge and spin info."""
         # Call the original __init__ method first
         _original_enginease_init(self, molecule, calculator)
-        
+
         # Ensure ase_atoms has charge and spin info to prevent UMA warnings
-        self.ase_atoms.info.setdefault('charge', 0)
-        self.ase_atoms.info.setdefault('spin', 1)
-    
+        self.ase_atoms.info.setdefault("charge", 0)
+        self.ase_atoms.info.setdefault("spin", 1)
+
     # Apply the monkeypatch
     geometric.ase_engine.EngineASE.__init__ = _patched_enginease_init
 
@@ -205,8 +203,7 @@ class GeometricOptimizer(Optimizer):
             expected_shape = (3 * len(self.atoms), 3 * len(self.atoms))
             if self.initial_hessian.shape != expected_shape:
                 raise ValueError(
-                    f"Hessian must be {expected_shape} but got "
-                    f"{self.initial_hessian.shape}"
+                    f"Hessian must be {expected_shape} but got " f"{self.initial_hessian.shape}"
                 )
             # Store the Hessian data and set hessian to 'first' to use it
             params.hess_data = self.initial_hessian.copy()
@@ -236,9 +233,7 @@ class GeometricOptimizer(Optimizer):
             time_str = time.strftime("%H:%M:%S", time.localtime())
 
             # Print step information in ASE format
-            print(
-                f"GEOMETRIC: {i:>4} {time_str:>8} " f"{energy_val:>12.6f} {fmax:>12.6f}"
-            )
+            print(f"GEOMETRIC: {i:>4} {time_str:>8} " f"{energy_val:>12.6f} {fmax:>12.6f}")
 
     def _run_optimization(self, optimizer, step_engine):
         """Run the optimization and handle convergence."""
@@ -386,7 +381,3 @@ def geometric_ts_optimizer(
 ) -> GeometricTSOptimizer:
     """Create geomeTRIC optimizer for transition state search."""
     return GeometricTSOptimizer(atoms, hessian=hessian, **kwargs)
-
-
-
-

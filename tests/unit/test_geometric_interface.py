@@ -4,11 +4,12 @@ This module tests the GeometricOptimizer and related classes to ensure they
 behave consistently with ASE optimizers and handle edge cases properly.
 """
 
+from unittest.mock import Mock, patch
+
 import numpy as np
 import pytest
 from ase import Atoms
 from ase.optimize.optimize import Optimizer
-from unittest.mock import Mock, patch
 
 from qme.core.geometric_interface import (
     GeometricOptimizer,
@@ -51,7 +52,7 @@ class TestGeometricOptimizerInit:
         """Test initialization with Hessian matrix."""
         hessian = np.eye(9) * 0.1
         optimizer = GeometricOptimizer(self.atoms, hessian=hessian)
-        
+
         assert optimizer.initial_hessian is not None
         np.testing.assert_array_equal(optimizer.initial_hessian, hessian)
 
@@ -122,7 +123,7 @@ class TestGeometricOptimizerRun:
                 self.optimizer.step_count = 5
                 final_positions = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]])
                 self.optimizer.atoms.set_positions(final_positions)
-                
+
             mock_run_opt.side_effect = mock_run_optimization
 
             result = self.optimizer.run(fmax=0.1, steps=50)
@@ -131,7 +132,7 @@ class TestGeometricOptimizerRun:
             assert result is True
             assert self.optimizer.converged is True
             assert self.optimizer.step_count == 5
-            
+
             # Check that convergence criteria were updated
             assert self.optimizer.geometric_kwargs["convergence"]["gradient"] == 0.1
             assert self.optimizer.geometric_kwargs["maxiter"] == 50
@@ -142,12 +143,13 @@ class TestGeometricOptimizerRun:
         optimizer = GeometricOptimizer(self.atoms, hessian=hessian)
 
         with patch.object(optimizer, "_run_optimization") as mock_run_opt:
+
             def mock_run_optimization(optimizer_obj, step_engine):
                 optimizer.converged = True
                 optimizer.step_count = 3
                 final_positions = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]])
                 optimizer.atoms.set_positions(final_positions)
-                
+
             mock_run_opt.side_effect = mock_run_optimization
 
             result = optimizer.run()
@@ -164,25 +166,30 @@ class TestGeometricOptimizerRun:
             with patch("geometric.optimize") as mock_opt:
                 with patch("geometric.optimize.DelocalizedInternalCoordinates"):
                     with patch("tempfile.TemporaryDirectory") as mock_tmpdir:
-                        with patch.object(optimizer, "_create_molecule_from_atoms") as mock_create_mol:
+                        with patch.object(
+                            optimizer, "_create_molecule_from_atoms"
+                        ) as mock_create_mol:
                             mock_molecule = Mock()
                             mock_molecule.na = 3
                             mock_create_mol.return_value = mock_molecule
 
                             mock_tmpdir.return_value.__enter__.return_value = "/tmp/test"
 
-                            with pytest.raises(ValueError, match="Hessian must be \\(9, 9\\) but got \\(6, 6\\)"):
+                            with pytest.raises(
+                                ValueError, match="Hessian must be \\(9, 9\\) but got \\(6, 6\\)"
+                            ):
                                 optimizer.run()
 
     def test_run_not_converged(self):
         """Test behavior when optimization does not converge."""
         with patch.object(self.optimizer, "_run_optimization") as mock_run_opt:
+
             def mock_run_optimization(optimizer, step_engine):
                 self.optimizer.converged = False
                 self.optimizer.step_count = 5
                 final_positions = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]])
                 self.optimizer.atoms.set_positions(final_positions)
-                
+
             mock_run_opt.side_effect = mock_run_optimization
 
             result = self.optimizer.run()
@@ -301,6 +308,7 @@ class TestASEOptimizerCompatibility:
 
         # Check that run method has correct signature
         import inspect
+
         run_signature = inspect.signature(optimizer.run)
         assert "fmax" in run_signature.parameters
         assert "steps" in run_signature.parameters
@@ -310,12 +318,13 @@ class TestASEOptimizerCompatibility:
         optimizer = GeometricOptimizer(self.atoms)
 
         with patch.object(optimizer, "_run_optimization") as mock_run_opt:
+
             def mock_run_optimization(optimizer_obj, step_engine):
                 optimizer.converged = True
                 optimizer.step_count = 5
                 final_positions = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]])
                 optimizer.atoms.set_positions(final_positions)
-                
+
             mock_run_opt.side_effect = mock_run_optimization
 
             result = optimizer.run()
@@ -343,12 +352,13 @@ class TestASEOptimizerCompatibility:
         assert optimizer.step_count == 0
 
         with patch.object(optimizer, "_run_optimization") as mock_run_opt:
+
             def mock_run_optimization(optimizer_obj, step_engine):
                 optimizer.converged = True
                 optimizer.step_count = 7
                 final_positions = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]])
                 optimizer.atoms.set_positions(final_positions)
-                
+
             mock_run_opt.side_effect = mock_run_optimization
 
             optimizer.run()
@@ -398,14 +408,24 @@ class TestGeometricCoordinateHandling:
     def test_benzene(self):
         """Create a benzene molecule for more complex tests."""
         symbols = ["C"] * 6 + ["H"] * 6
-        positions = np.array([
-            # Carbon atoms (distorted ring)
-            [1.39, 0.0, 0.0], [0.69, 1.20, 0.0], [-0.69, 1.20, 0.0],
-            [-1.39, 0.0, 0.0], [-0.69, -1.20, 0.0], [0.69, -1.20, 0.0],
-            # Hydrogen atoms
-            [2.47, 0.0, 0.0], [1.23, 2.13, 0.0], [-1.23, 2.13, 0.0],
-            [-2.47, 0.0, 0.0], [-1.23, -2.13, 0.0], [1.23, -2.13, 0.0],
-        ])
+        positions = np.array(
+            [
+                # Carbon atoms (distorted ring)
+                [1.39, 0.0, 0.0],
+                [0.69, 1.20, 0.0],
+                [-0.69, 1.20, 0.0],
+                [-1.39, 0.0, 0.0],
+                [-0.69, -1.20, 0.0],
+                [0.69, -1.20, 0.0],
+                # Hydrogen atoms
+                [2.47, 0.0, 0.0],
+                [1.23, 2.13, 0.0],
+                [-1.23, 2.13, 0.0],
+                [-2.47, 0.0, 0.0],
+                [-1.23, -2.13, 0.0],
+                [1.23, -2.13, 0.0],
+            ]
+        )
         return Atoms(symbols=symbols, positions=positions)
 
     def test_geometric_optimizer_preserves_original_atoms(self, test_molecule):
@@ -432,10 +452,14 @@ class TestGeometricCoordinateHandling:
 
         # Check that original positions were modified (optimization happened)
         optimized_positions = original_atoms.get_positions()
-        assert not np.allclose(original_positions, optimized_positions), "Optimization should have changed the positions"
+        assert not np.allclose(
+            original_positions, optimized_positions
+        ), "Optimization should have changed the positions"
 
         # Verify the optimized structure is reasonable
-        assert len(optimized_positions) == len(original_positions), "Number of atoms should be preserved"
+        assert len(optimized_positions) == len(
+            original_positions
+        ), "Number of atoms should be preserved"
         assert optimized_positions.shape == (3, 3), "Position array shape should be preserved"
 
     def test_geometric_optimizer_coordinate_consistency(self, test_benzene):
@@ -460,13 +484,21 @@ class TestGeometricCoordinateHandling:
         optimized_symbols = atoms.get_chemical_symbols()
 
         # Verify coordinate consistency
-        assert len(optimized_positions) == len(initial_positions), "Number of atoms should be preserved"
+        assert len(optimized_positions) == len(
+            initial_positions
+        ), "Number of atoms should be preserved"
         assert optimized_symbols == initial_symbols, "Atomic symbols should be preserved"
-        assert optimized_positions.shape == initial_positions.shape, "Position array shape should be preserved"
+        assert (
+            optimized_positions.shape == initial_positions.shape
+        ), "Position array shape should be preserved"
 
         # Verify coordinates are finite and reasonable
-        assert np.all(np.isfinite(optimized_positions)), "All optimized coordinates should be finite"
-        assert np.all(np.abs(optimized_positions) < 100), "Coordinates should be within reasonable range"
+        assert np.all(
+            np.isfinite(optimized_positions)
+        ), "All optimized coordinates should be finite"
+        assert np.all(
+            np.abs(optimized_positions) < 100
+        ), "Coordinates should be within reasonable range"
 
         # Verify some optimization occurred
         position_change = np.linalg.norm(optimized_positions - initial_positions)
@@ -494,12 +526,17 @@ class TestGeometricCoordinateHandling:
 
             # Verify Hessian is valid
             assert hessian is not None, "Hessian should be calculated successfully"
-            assert hessian.shape == (36, 36), f"Hessian should be 36x36 for 12 atoms, got {hessian.shape}"
+            assert hessian.shape == (
+                36,
+                36,
+            ), f"Hessian should be 36x36 for 12 atoms, got {hessian.shape}"
             assert np.all(np.isfinite(hessian)), "Hessian should contain only finite values"
 
             # Verify frequencies are reasonable
             expected_frequencies = 3 * len(atoms)  # 3N degrees of freedom
-            assert len(frequencies) == expected_frequencies, f"Should have {expected_frequencies} frequencies for {len(atoms)} atoms, got {len(frequencies)}"
+            assert (
+                len(frequencies) == expected_frequencies
+            ), f"Should have {expected_frequencies} frequencies for {len(atoms)} atoms, got {len(frequencies)}"
             assert np.all(np.isfinite(frequencies)), "All frequencies should be finite"
 
             # Check for reasonable frequency range (should have some real positive frequencies)

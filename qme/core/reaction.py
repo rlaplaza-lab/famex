@@ -121,6 +121,12 @@ class Reaction:
                 charge=self.reactant.charge,
                 mult=self.reactant.mult,
             )
+
+            # Set charge and spin in atoms.info to prevent UMA backend warnings
+            if hasattr(geom, "info") and geom.info is not None:
+                geom.info.setdefault("charge", self.reactant.charge)
+                geom.info.setdefault("spin", self.reactant.mult)
+
             if self.calculator is not None:
                 geom.calc = self.calculator
             path_geometries.append(geom)
@@ -248,12 +254,9 @@ class Reaction:
         # Set calculators and calculate energies
         for geom in path_geometries:
             geom.calc = calculator
-            try:
-                # Force energy calculation
-                energy = geom.get_potential_energy()
-                geom.energy = energy
-            except Exception:
-                pass
+            # Force energy calculation
+            energy = geom.get_potential_energy()
+            geom.energy = energy
 
         return path_geometries
 
@@ -362,10 +365,7 @@ class Reaction:
         for geom in path:
             if geom.calc is None:
                 geom.calc = self.calculator
-            try:
-                energies.append(geom.get_potential_energy())
-            except Exception:
-                energies.append(float("nan"))
+            energies.append(geom.get_potential_energy())
         return energies
 
     def __str__(self) -> str:

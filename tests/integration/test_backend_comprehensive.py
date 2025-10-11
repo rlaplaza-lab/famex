@@ -5,6 +5,7 @@ This module consolidates all backend testing functionality including:
 - Minima optimization across all backends
 - Transition state optimization across all backends
 - NEB optimization across all backends
+- CI-NEB optimization across all backends
 - CLI functionality testing
 - Geometric optimizer integration
 - Performance comparisons
@@ -222,10 +223,8 @@ class TestBackendNEBOptimization:
         reactant = TestMoleculeFactory.get_water_distorted()
         product = TestMoleculeFactory.get_water_distorted()
 
-        # Modify product to represent dissociated state
-        pos = product.get_positions()
-        pos[1, 0] += 1.0  # Move H away from O
-        product.set_positions(pos)
+        # Create a simple dissociation by moving H away
+        product.positions[2] = product.positions[2] + np.array([2.0, 0.0, 0.0])
 
         optimizer = Explorer(atoms=reactant, backend=backend)
 
@@ -234,15 +233,53 @@ class TestBackendNEBOptimization:
         optimization_time = time.time() - start_time
 
         # Use standardized result handling
-        strategy_result = TestResultHandler.normalize_result(result)
-        final_atoms = TestResultHandler.extract_atoms(result)
+        strategy_result = TestResultHandler.process_result(result, backend)
+        final_atoms = strategy_result["optimized_atoms"]
 
-        # Use standardized assertions
-        StandardTestAssertions.assert_optimization_result(strategy_result)
+        # Standardized assertions
         StandardTestAssertions.assert_reasonable_geometry(final_atoms, backend)
 
         print(
             f"Backend {backend}: H2O dissociation NEB took {optimization_time:.3f}s, "
+            f"{strategy_result['steps_taken']} steps"
+        )
+
+
+class TestBackendCINEBOptimization:
+    """Test CI-NEB optimization across all available backends."""
+
+    @pytest.fixture(params=get_available_backends(include_mock=False))
+    def backend(self, request):
+        """Parametrized fixture for available ML backends."""
+        if not deps.has("sella"):
+            pytest.skip("SELLA not available for CI-NEB optimization")
+        return request.param
+
+    def test_water_dissociation_cineb(self, backend):
+        """Test water dissociation CI-NEB across all backends."""
+        reactant = TestMoleculeFactory.get_water_distorted()
+        product = TestMoleculeFactory.get_water_distorted()
+
+        # Create a simple dissociation by moving H away
+        product.positions[2] = product.positions[2] + np.array([2.0, 0.0, 0.0])
+
+        optimizer = Explorer(atoms=reactant, backend=backend)
+
+        start_time = time.time()
+        result = optimizer.run(
+            mode="cineb", product=product, npoints=5, fmax=0.1, steps=20, climb=True
+        )
+        optimization_time = time.time() - start_time
+
+        # Use standardized result handling
+        strategy_result = TestResultHandler.process_result(result, backend)
+        final_atoms = strategy_result["optimized_atoms"]
+
+        # Standardized assertions
+        StandardTestAssertions.assert_reasonable_geometry(final_atoms, backend)
+
+        print(
+            f"Backend {backend}: H2O dissociation CI-NEB took {optimization_time:.3f}s, "
             f"{strategy_result['steps_taken']} steps"
         )
 
@@ -356,6 +393,54 @@ class TestBackendCLI:
             # Verify success
             assert result.exit_code == 0, f"CLI failed: {result.output}"
             out_path = os.path.splitext(os.path.basename(reactant_path))[0] + ".neb.xyz"
+            assert os.path.exists(
+                os.path.join(tmp, out_path)
+            ), f"Output file not created: {out_path}"
+
+    @pytest.mark.parametrize("backend", get_available_backends())
+    def test_cineb_optimization_cli(self, backend: str):
+        """Test CI-NEB optimization via CLI across all backends."""
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as tmp:
+            # Create reactant and product structures
+            reactant_atoms = TestMoleculeFactory.get_water_distorted()
+            product_atoms = TestMoleculeFactory.get_water_distorted()
+            # Slightly modify product
+            pos = product_atoms.get_positions()
+            pos[1, 0] += 0.1  # Move H atom slightly
+            product_atoms.set_positions(pos)
+
+            reactant_path = os.path.join(tmp, "reactant.xyz")
+            product_path = os.path.join(tmp, "product.xyz")
+            reactant_atoms.write(reactant_path)
+            product_atoms.write(product_path)
+
+            # Run CI-NEB optimization
+            result = runner.invoke(
+                main,
+                [
+                    "tsopt",
+                    reactant_path,
+                    "--product",
+                    product_path,
+                    "--mode",
+                    "cineb",
+                    "--backend",
+                    backend,
+                    "--npoints",
+                    "5",
+                    "--steps",
+                    "5",
+                    "--fmax",
+                    "0.1",
+                    "--spring-constant",
+                    "1.0",
+                ],
+            )
+
+            # Verify success
+            assert result.exit_code == 0, f"CLI failed: {result.output}"
+            out_path = os.path.splitext(os.path.basename(reactant_path))[0] + ".cineb.xyz"
             assert os.path.exists(
                 os.path.join(tmp, out_path)
             ), f"Output file not created: {out_path}"

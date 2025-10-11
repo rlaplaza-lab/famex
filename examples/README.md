@@ -14,6 +14,7 @@ Demonstrates QME's command-line interface capabilities by running various optimi
 - Transition state optimization using 'tsopt' command
 - Two-ended optimization workflows
 - NEB path optimization
+- CI-NEB (Climbing Image NEB) path optimization
 - Comprehensive backend performance comparison
 
 ### 2. Timing Benchmark (`timing_benchmark.py`)
@@ -76,7 +77,7 @@ Two-ended transition state search benchmark using the Zimmermann-93 dataset.
 **Features:**
 - Tests reactant→product transition state finding
 - Compares located TS geometries with reference structures
-- Evaluates NEB-like path optimization capabilities
+- Evaluates NEB and CI-NEB path optimization capabilities
 
 ## Standardized Interface
 

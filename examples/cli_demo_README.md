@@ -8,6 +8,7 @@ Demonstrates QME's command-line interface capabilities by running various optimi
 - Transition state optimization using 'tsopt' command
 - Two-ended optimization workflows
 - NEB path optimization
+- CI-NEB (Climbing Image NEB) path optimization
 - Comprehensive backend performance comparison
 
 ## Usage
@@ -53,7 +54,7 @@ python cli_demo.py --output my_results.json
 
 ## Output
 
-The CLI demo tests various QME commands and reports success/failure rates for each backend.
+The CLI demo tests various QME commands including NEB and CI-NEB path optimizations and reports success/failure rates for each backend.
 
 ### Results Format
 - Success/failure counts per backend
@@ -65,7 +66,7 @@ The CLI demo tests various QME commands and reports success/failure rates for ea
 ```
 ================================================================================
 QME CLI Demo
-Testing: opt, tsopt, two-ended, and NEB commands
+Testing: opt, tsopt, two-ended, NEB, and CI-NEB commands
 ================================================================================
 
 📋 Testing Backends

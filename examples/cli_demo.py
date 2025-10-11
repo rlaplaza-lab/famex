@@ -197,6 +197,31 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "--no-quiet",
             ],
         },
+        {
+            "desc": "CI-NEB path optimization using 'tsopt' with --mode cineb",
+            "cmd": [
+                "qme",
+                "tsopt",
+                str(example_files / "reaction_001_reactant.xyz"),
+                "--product",
+                str(example_files / "reaction_001_product.xyz"),
+                "--mode",
+                "cineb",
+                "--backend",
+                backend,
+                "--steps",
+                str(steps),
+                "--npoints",
+                "7",
+                "--interp",
+                "geodesic",
+                "--spring-constant",
+                "2.0",  # Moderate spring constant for demo
+                "--output",
+                f"test_cineb_{backend}.xyz",
+                "--no-quiet",
+            ],
+        },
     ]
 
 
@@ -206,7 +231,7 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
     if interface is None:
         interface = QMEExampleInterface("CLI Demo", "Comprehensive Backend Comparison")
 
-    interface.print_header("Testing: opt, tsopt, two-ended, and NEB commands")
+    interface.print_header("Testing: opt, tsopt, two-ended, NEB, and CI-NEB commands")
 
     # Ensure no config file interferes with defaults
     config_file = Path("qme.json")
@@ -263,7 +288,7 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
     # Performance tracking
     backend_results = {}
     total_start_time = time.time()
-    total_examples_per_backend = 5  # opt, tsopt, twoended, tsopt_twoended, and neb commands
+    total_examples_per_backend = 6  # opt, tsopt, twoended, tsopt_twoended, neb, and cineb commands
     steps = 500  # Reduced steps for faster testing
 
     # Run examples for each backend
