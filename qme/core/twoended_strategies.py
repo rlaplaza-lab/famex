@@ -12,7 +12,7 @@ of the stitched interpolated path).
 """
 
 import warnings
-from typing import Any, List, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from ase import Atoms
@@ -24,6 +24,133 @@ from qme.core.reaction import Reaction
 def _supports_batch_evaluation(calculator):
     """Check if calculator supports batch evaluation."""
     return hasattr(calculator, "supports_batch_evaluation") and calculator.supports_batch_evaluation
+
+
+def _ensure_charge_spin_info(atoms: Atoms, default_charge: int = 0, default_spin: int = 1):
+    """Ensure atoms.info has charge and spin information to prevent UMA backend warnings."""
+    if hasattr(atoms, "info") and atoms.info is not None:
+        atoms.info.setdefault("charge", default_charge)
+        atoms.info.setdefault("spin", default_spin)
+
+
+def _calculate_rmsd(atoms1: Atoms, atoms2: Atoms) -> float:
+    """Calculate RMSD between two Atoms objects.
+
+    Parameters
+    ----------
+    atoms1, atoms2 : Atoms
+        The two structures to compare
+
+    Returns
+    -------
+    float
+        RMSD in Angstroms
+    """
+    if len(atoms1) != len(atoms2):
+        return float("inf")
+
+    # Get positions
+    pos1 = atoms1.get_positions()
+    pos2 = atoms2.get_positions()
+
+    # Calculate RMSD
+    diff = pos1 - pos2
+    rmsd = np.sqrt(np.mean(np.sum(diff**2, axis=1)))
+
+    return rmsd
+
+
+def _filter_redundant_structures(
+    structures: List[Atoms],
+    input_structures: Optional[List[Atoms]] = None,
+    rmsd_threshold: float = 0.1,
+    energy_threshold: float = 0.001,
+    strategy_name: str = "strategy",
+) -> Tuple[List[Atoms], List[int], List[str]]:
+    """Filter redundant structures based on RMSD and energy similarity.
+
+    Parameters
+    ----------
+    structures : List[Atoms]
+        List of optimized structures to filter
+    input_structures : List[Atoms], optional
+        Original input structures for comparison
+    rmsd_threshold : float
+        RMSD threshold below which structures are considered redundant (Å)
+    energy_threshold : float
+        Energy threshold below which structures are considered redundant (eV)
+    strategy_name : str
+        Name of the strategy for warning messages
+
+    Returns
+    -------
+    Tuple[List[Atoms], List[int], List[str]]
+        (filtered_structures, removed_indices, warning_messages)
+    """
+    if not structures:
+        return [], [], []
+
+    filtered_structures = []
+    removed_indices = []
+    warning_messages = []
+
+    # Calculate energies for all structures
+    energies = []
+    for i, atoms in enumerate(structures):
+        try:
+            energy = atoms.get_potential_energy()
+            energies.append(energy)
+        except Exception:
+            energies.append(float("inf"))
+
+    # Check if we only have input structures
+    if input_structures is not None:
+        input_only = True
+        for struct in structures:
+            for input_struct in input_structures:
+                rmsd = _calculate_rmsd(struct, input_struct)
+                if rmsd > rmsd_threshold:
+                    input_only = False
+                    break
+            if not input_only:
+                break
+
+        if input_only:
+            warning_messages.append(
+                f"Warning: {strategy_name} only found input structures. "
+                f"No new optimized structures were discovered."
+            )
+
+    # Filter structures
+    for i, atoms in enumerate(structures):
+        is_redundant = False
+
+        # Check against already filtered structures
+        for j, filtered_atoms in enumerate(filtered_structures):
+            # RMSD check
+            rmsd = _calculate_rmsd(atoms, filtered_atoms)
+            if rmsd < rmsd_threshold:
+                # Energy check for very similar structures
+                if abs(energies[i] - energies[j]) < energy_threshold:
+                    is_redundant = True
+                    removed_indices.append(i)
+                    warning_messages.append(
+                        f"Warning: Removed redundant structure {i+1} "
+                        f"(RMSD: {rmsd:.3f} Å, ΔE: {abs(energies[i] - energies[j]):.3f} eV)"
+                    )
+                    break
+
+        if not is_redundant:
+            filtered_structures.append(atoms)
+
+    if removed_indices:
+        warning_messages.insert(
+            0,
+            f"Warning: {strategy_name} removed {len(removed_indices)} redundant structures "
+            f"out of {len(structures)} total structures.",
+        )
+
+    return filtered_structures, removed_indices, warning_messages
 
 
 def path_generator(
@@ -101,23 +228,194 @@ def path_generator(
 def _attach_calculators_if_explorer(explorer: Any, reactant: Atoms, product: Atoms):
     """Use explorer helpers to create a calculator and attach to endpoints.
 
-    Returns the calculator instance or None if creation failed.
+    Returns the calculator instance.
     """
-    try:
-        # Only create and attach calculator if atoms doesn't already have one
-        if getattr(reactant, "calc", None) is None:
-            calc_r = explorer._create_and_attach_calculator(reactant)
+    # Ensure charge and spin info are set in atoms.info before creating calculators
+    _ensure_charge_spin_info(reactant, explorer.default_charge, explorer.default_spin)
+    _ensure_charge_spin_info(product, explorer.default_charge, explorer.default_spin)
+
+    explorer._create_and_attach_calculator(reactant)
+    explorer._create_and_attach_calculator(product)
+    return reactant.calc
+
+
+def twoended_ts_guess_runner(
+    structures: List[Atoms],
+    input_structures: Optional[List[Atoms]] = None,
+    rmsd_threshold: float = 0.1,
+    energy_threshold: float = 0.001,
+    strategy_name: str = "strategy",
+) -> Tuple[List[Atoms], List[int], List[str]]:
+    """Filter redundant structures based on RMSD and energy similarity.
+
+    Parameters
+    ----------
+    structures : List[Atoms]
+        List of optimized structures to filter
+    input_structures : List[Atoms], optional
+        Original input structures for comparison
+    rmsd_threshold : float
+        RMSD threshold below which structures are considered redundant (Å)
+    energy_threshold : float
+        Energy threshold below which structures are considered redundant (eV)
+    strategy_name : str
+        Name of the strategy for warning messages
+
+    Returns
+    -------
+    Tuple[List[Atoms], List[int], List[str]]
+        (filtered_structures, removed_indices, warning_messages)
+    """
+    if not structures:
+        return [], [], []
+
+    filtered_structures = []
+    removed_indices = []
+    warning_messages = []
+
+    # Calculate energies for all structures
+    energies = []
+    for i, atoms in enumerate(structures):
+        try:
+            energy = atoms.get_potential_energy()
+            energies.append(energy)
+        except Exception:
+            energies.append(float("inf"))
+
+    # Check if we only have input structures
+    if input_structures is not None:
+        input_only = True
+        for struct in structures:
+            for input_struct in input_structures:
+                rmsd = _calculate_rmsd(struct, input_struct)
+                if rmsd > rmsd_threshold:
+                    input_only = False
+                    break
+            if not input_only:
+                break
+
+        if input_only:
+            warning_messages.append(
+                f"Warning: {strategy_name} only found input structures. "
+                f"No new optimized structures were discovered."
+            )
+
+    # Filter structures
+    for i, atoms in enumerate(structures):
+        is_redundant = False
+
+        # Check against already filtered structures
+        for j, filtered_atoms in enumerate(filtered_structures):
+            # RMSD check
+            rmsd = _calculate_rmsd(atoms, filtered_atoms)
+            if rmsd < rmsd_threshold:
+                # Energy check for very similar structures
+                if abs(energies[i] - energies[j]) < energy_threshold:
+                    is_redundant = True
+                    removed_indices.append(i)
+                    warning_messages.append(
+                        f"Warning: Removed redundant structure {i+1} "
+                        f"(RMSD: {rmsd:.3f} Å, ΔE: {abs(energies[i] - energies[j]):.3f} eV)"
+                    )
+                    break
+
+        if not is_redundant:
+            filtered_structures.append(atoms)
+
+    if removed_indices:
+        warning_messages.insert(
+            0,
+            f"Warning: {strategy_name} removed {len(removed_indices)} redundant structures "
+            f"out of {len(structures)} total structures.",
+        )
+
+    return filtered_structures, removed_indices, warning_messages
+
+
+def path_generator(
+    atoms_list: Union[Sequence[Atoms], Atoms],
+    npoints: int = 11,
+    method: str = "geodesic",
+    optimize_path: bool = True,
+    explorer: Optional[Any] = None,
+    calculator=None,
+    **kwargs,
+):
+    """Generate an interpolated path between two or more Atoms objects.
+
+    This simplified helper focuses on path construction only. It accepts
+    either two endpoints or a sequence of intermediate guesses. When more
+    than two structures are provided, each consecutive pair is interpolated
+    and the segments are stitched together to produce a single path of
+    approximately `npoints` frames.
+    """
+    # Normalize input and validate
+    if isinstance(atoms_list, Atoms):
+        raise ValueError(
+            "Two-ended strategies expect two or more Atoms objects, not a single Atoms"
+        )
+
+    seq = list(atoms_list)
+    if len(seq) < 2:
+        raise ValueError("Two-ended strategies require two or more Atoms objects")
+
+    # Simple two-end case
+    if len(seq) == 2:
+        r, p = seq[0], seq[1]
+        calc = calculator
+        if explorer is not None and calc is None:
+            calc = _attach_calculators_if_explorer(explorer, r, p)
+        reaction = Reaction(r, p, calculator=calc)
+        return reaction.interpolate(
+            npoints=npoints, method=method, optimize_path=optimize_path, calculator=calc
+        )
+
+    # Multi-segment: distribute frames across segments and stitch
+    segments = len(seq) - 1
+    if npoints < 2:
+        raise ValueError("Need at least 2 points for interpolation")
+
+    total_intervals = npoints - 1
+    base_intervals = total_intervals // segments
+    remainder = total_intervals % segments
+
+    per_segment_npoints = []
+    for i in range(segments):
+        intervals = base_intervals + (1 if i < remainder else 0)
+        per_segment_npoints.append(intervals + 1)
+
+    calc = calculator
+    if explorer is not None and calc is None:
+        calc = _attach_calculators_if_explorer(explorer, seq[0], seq[-1])
+
+    stitched_path = []
+    for i in range(segments):
+        r, p = seq[i], seq[i + 1]
+        nseg = per_segment_npoints[i]
+        reaction = Reaction(r, p, calculator=calc)
+        seg_path = reaction.interpolate(
+            npoints=nseg, method=method, optimize_path=optimize_path, calculator=calc
+        )
+        if i == 0:
+            stitched_path.extend(seg_path)
         else:
-            calc_r = reactant.calc
-        if getattr(product, "calc", None) is None:
-            calc_p = explorer._create_and_attach_calculator(product)
-        else:
-            calc_p = product.calc
-        # Prefer the reactant calculator if both were created
-        return calc_r or calc_p
-    except Exception:
-        warnings.warn("Failed to attach calculators via explorer")
-        return None
+            stitched_path.extend(seg_path[1:])
+
+    return stitched_path
+
+
+def _attach_calculators_if_explorer(explorer: Any, reactant: Atoms, product: Atoms):
+    """Use explorer helpers to create a calculator and attach to endpoints.
+
+    Returns the calculator instance.
+    """
+    # Ensure charge and spin info are set in atoms.info before creating calculators
+    _ensure_charge_spin_info(reactant, explorer.default_charge, explorer.default_spin)
+    _ensure_charge_spin_info(product, explorer.default_charge, explorer.default_spin)
+
+    explorer._create_and_attach_calculator(reactant)
+    explorer._create_and_attach_calculator(product)
+    return reactant.calc
 
 
 def twoended_ts_guess_runner(
@@ -136,6 +434,34 @@ def twoended_ts_guess_runner(
     logic as the interpolate runner, locates the highest-energy frame(s)
     and attempts a local TS optimization using the explorer's calculator
     helpers and the same optimizer selection logic as `_local_ts_runner`.
+
+    Parameters
+    ----------
+    atoms_list : Union[Sequence[Atoms], Atoms]
+        Two or more Atoms objects defining the path endpoints
+    npoints : int, default=11
+        Number of interpolation points
+    method : str, default="geodesic"
+        Interpolation method for initial path generation
+    explorer : Any, optional
+        Explorer instance for calculator and constraint management
+    fmax : float, default=0.05
+        Force convergence threshold
+    steps : int, default=1000
+        Maximum optimization steps
+    local_optimizer_name : str, default="sella"
+        Local optimizer to use for TS optimization
+    rmsd_threshold : float, default=0.1
+        RMSD threshold below which structures are considered redundant (Å)
+    energy_threshold : float, default=0.001
+        Energy threshold below which structures are considered redundant (eV)
+    **kwargs
+        Additional arguments passed to optimizer
+
+    Returns
+    -------
+    Union[Atoms, List[Atoms]]
+        Single optimized geometry for 2 atoms input, list for 3+ atoms input
     """
     # Validate TS optimization setup - hardcoded restrictions
     if explorer is not None:
@@ -189,16 +515,9 @@ def twoended_ts_guess_runner(
         # that corrupt the coordinate system for subsequent Hessian calculations
         geom_copy = geom.copy()
 
-        # Ensure explorer attaches calculator
+        # Attach calculator and apply constraints
         if explorer is not None:
-            try:
-                # Only create and attach calculator if atoms doesn't already have one
-                if getattr(geom_copy, "calc", None) is None:
-                    explorer._create_and_attach_calculator(geom_copy)
-            except Exception:
-                warnings.warn("Failed to attach calculator to TS guess")
-        # Apply constraints if any
-        if explorer is not None:
+            explorer._create_and_attach_calculator(geom_copy)
             explorer._apply_constraints(geom_copy)
 
         opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
@@ -210,6 +529,25 @@ def twoended_ts_guess_runner(
         opt = opt_class(geom_copy, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
         ts_results.append(geom_copy)
+
+    # Filter redundant structures and issue warnings
+    if ts_results:
+        # Convert atoms_list to list for comparison
+        input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
+
+        filtered_results, removed_indices, warnings_list = _filter_redundant_structures(
+            ts_results,
+            input_structures=input_atoms,
+            rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
+            energy_threshold=kwargs.get("energy_threshold", 0.001),
+            strategy_name="twoended:ts",
+        )
+
+        # Issue warnings
+        for warning_msg in warnings_list:
+            warnings.warn(warning_msg)
+
+        ts_results = filtered_results
 
     # Return single geometry if single input expected shape
     # If original input was two Atoms, keep consistent and return single Geometry
@@ -241,6 +579,34 @@ def twoended_minima_runner(
     energies along it, finds local minima (or global min if none), and
     runs a local minima optimization on those frames. Returns optimized
     geometries (single geometry if input was two endpoints, otherwise a list).
+
+    Parameters
+    ----------
+    atoms_list : Union[Sequence[Atoms], Atoms]
+        Two or more Atoms objects defining the path endpoints
+    npoints : int, default=11
+        Number of interpolation points
+    method : str, default="geodesic"
+        Interpolation method for initial path generation
+    explorer : Any, optional
+        Explorer instance for calculator and constraint management
+    fmax : float, default=0.05
+        Force convergence threshold
+    steps : int, default=1000
+        Maximum optimization steps
+    local_optimizer_name : str, default="sella"
+        Local optimizer to use for minima optimization
+    rmsd_threshold : float, default=0.1
+        RMSD threshold below which structures are considered redundant (Å)
+    energy_threshold : float, default=0.001
+        Energy threshold below which structures are considered redundant (eV)
+    **kwargs
+        Additional arguments passed to optimizer
+
+    Returns
+    -------
+    Union[Atoms, List[Atoms]]
+        Single optimized geometry for 2 atoms input, list for 3+ atoms input
     """
     path = path_generator(
         atoms_list,
@@ -297,14 +663,9 @@ def twoended_minima_runner(
         # that corrupt the coordinate system for subsequent Hessian calculations
         geom_copy = geom.copy()
 
-        # Attach calculator via explorer if available
+        # Attach calculator and apply constraints
         if explorer is not None:
-            try:
-                # Only create and attach calculator if atoms doesn't already have one
-                if getattr(geom_copy, "calc", None) is None:
-                    explorer._create_and_attach_calculator(geom_copy)
-            except Exception:
-                warnings.warn("Failed to attach calculator to minima guess")
+            explorer._create_and_attach_calculator(geom_copy)
             explorer._apply_constraints(geom_copy)
 
         opt_kwargs = getattr(explorer, "optimizer_kwargs", {}) or {}
@@ -320,6 +681,25 @@ def twoended_minima_runner(
         opt.run(fmax=fmax, steps=steps)
         results.append(geom_copy)
 
+    # Filter redundant structures and issue warnings
+    if results:
+        # Convert atoms_list to list for comparison
+        input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
+
+        filtered_results, removed_indices, warnings_list = _filter_redundant_structures(
+            results,
+            input_structures=input_atoms,
+            rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
+            energy_threshold=kwargs.get("energy_threshold", 0.001),
+            strategy_name="twoended:minima",
+        )
+
+        # Issue warnings
+        for warning_msg in warnings_list:
+            warnings.warn(warning_msg)
+
+        results = filtered_results
+
     # Return single geometry if original input was pair/endpoints
     if isinstance(atoms_list, Atoms) or (
         isinstance(atoms_list, (list, tuple)) and len(atoms_list) == 2
@@ -334,25 +714,52 @@ class BatchNEBOptimizer:
 
     This class implements a NEB optimization that leverages batch evaluation
     capabilities of calculators like TorchSim to calculate energies and forces
-    for all NEB images simultaneously.
+    for all NEB images simultaneously. Supports both regular NEB and CI-NEB.
     """
 
-    def __init__(self, path, calculator, fmax=0.05, steps=1000, spring_constant=5.0, **kwargs):
-        """Initialize batch NEB optimizer."""
+    def __init__(
+        self, path, calculator, fmax=0.05, steps=1000, spring_constant=5.0, climb=False, **kwargs
+    ):
+        """Initialize batch NEB optimizer.
+
+        Parameters
+        ----------
+        path : list of Atoms
+            Initial path for NEB optimization
+        calculator : Calculator
+            Calculator for energy/force calculations
+        fmax : float
+            Force convergence threshold
+        steps : int
+            Maximum optimization steps
+        spring_constant : float
+            Spring constant for NEB forces
+        climb : bool
+            Whether to enable CI-NEB climbing behavior
+        **kwargs
+            Additional optimizer parameters
+        """
         self.path = [atoms.copy() for atoms in path]
         self.calculator = calculator
         self.fmax = fmax
         self.steps = steps
         self.spring_constant = spring_constant
+        self.climb = climb
         self.kwargs = kwargs
+        self.climbing_image = None  # Will be determined dynamically
 
-        # Attach calculator to all images
+        # Ensure charge and spin info are set and attach calculator to all images
         for atoms in self.path:
+            # Set charge and spin info to prevent UMA backend warnings
+            _ensure_charge_spin_info(atoms)
             atoms.calc = calculator
 
     def optimize(self):
         """Optimize NEB path using batch evaluation."""
-        print(f"Optimizing NEB path with {len(self.path)} images using " f"batch evaluation...")
+        method_name = "CI-NEB" if self.climb else "NEB"
+        print(
+            f"Optimizing {method_name} path with {len(self.path)} images using batch evaluation..."
+        )
 
         for step in range(self.steps):
             # Calculate forces for all images in one batch
@@ -360,11 +767,23 @@ class BatchNEBOptimizer:
                 self.path, properties=["energy", "forces"]
             )
 
-            # Extract forces from batch results
+            # Extract energies and forces from batch results
+            energies = [result.get("energy", float("inf")) for result in batch_results]
             forces = [result["forces"] for result in batch_results]
 
-            # Apply NEB forces (spring + nudging)
-            neb_forces = self._apply_neb_forces(forces)
+            # Determine climbing image for CI-NEB
+            if self.climb and len(energies) > 2:
+                # Find the highest energy image (excluding endpoints)
+                valid_energies = [
+                    (i, e) for i, e in enumerate(energies[1:-1], 1) if not np.isnan(e)
+                ]
+                if valid_energies:
+                    self.climbing_image = max(valid_energies, key=lambda x: x[1])[0]
+                else:
+                    self.climbing_image = None
+
+            # Apply NEB forces (spring + nudging + climbing if enabled)
+            neb_forces = self._apply_neb_forces(forces, energies)
 
             # Update positions
             self._update_positions(neb_forces)
@@ -372,13 +791,17 @@ class BatchNEBOptimizer:
             # Check convergence
             max_force = max(np.max(np.abs(force)) for force in neb_forces)
             if max_force < self.fmax:
-                print(f"NEB converged after {step + 1} steps (max force: {max_force:.6f})")
+                print(
+                    f"{method_name} converged after {step + 1} steps (max force: {max_force:.6f})"
+                )
+                if self.climb and self.climbing_image is not None:
+                    print(f"Climbing image was image {self.climbing_image}")
                 break
 
         return self.path
 
-    def _apply_neb_forces(self, forces):
-        """Apply NEB forces (spring + nudging)."""
+    def _apply_neb_forces(self, forces, energies=None):
+        """Apply NEB forces (spring + nudging + climbing if enabled)."""
         neb_forces = []
 
         for i in range(len(self.path)):
@@ -389,7 +812,14 @@ class BatchNEBOptimizer:
                 # Middle images: spring forces + nudging
                 spring_f = self._spring_forces(i)
                 nudged_f = self._nudge_forces(forces[i], spring_f)
-                neb_forces.append(nudged_f)
+
+                # Apply climbing image behavior if enabled and this is the climbing image
+                if self.climb and self.climbing_image == i:
+                    # Invert the parallel component of the force for climbing
+                    climbing_f = self._apply_climbing_forces(forces[i], spring_f, i)
+                    neb_forces.append(climbing_f)
+                else:
+                    neb_forces.append(nudged_f)
 
         return neb_forces
 
@@ -422,6 +852,59 @@ class BatchNEBOptimizer:
 
         return perpendicular_forces + spring_forces
 
+    def _apply_climbing_forces(self, forces, spring_forces, index):
+        """Apply climbing image forces by inverting parallel component."""
+        # Calculate tangent vector for this image
+        tangent = self._calculate_tangent_for_climbing(index)
+        if tangent is None:
+            # Fallback to regular NEB forces if tangent calculation fails
+            return self._nudge_forces(forces, spring_forces)
+
+        # Project forces onto tangent (parallel component)
+        parallel_component = np.sum(forces.flatten() * tangent) * tangent
+        parallel_component = parallel_component.reshape(-1, 3)
+
+        # Invert parallel component for climbing (make it point uphill)
+        climbing_forces = forces - 2 * parallel_component + spring_forces
+
+        return climbing_forces
+
+    def _calculate_tangent_for_climbing(self, index):
+        """Calculate tangent vector for climbing image."""
+        if index <= 0 or index >= len(self.path) - 1:
+            return None
+
+        # Use energy-weighted tangent calculation
+        prev_pos = self.path[index - 1].positions
+        curr_pos = self.path[index].positions
+        next_pos = self.path[index + 1].positions
+
+        # Forward difference
+        forward = next_pos - curr_pos
+        # Backward difference
+        backward = curr_pos - prev_pos
+
+        # Energy-weighted tangent (same as regular NEB)
+        try:
+            curr_energy = self.path[index].get_potential_energy()
+            next_energy = self.path[index + 1].get_potential_energy()
+            prev_energy = self.path[index - 1].get_potential_energy()
+
+            if next_energy > prev_energy:
+                tangent = forward
+            else:
+                tangent = backward
+        except Exception:
+            # Fallback to simple average
+            tangent = (forward + backward) / 2
+
+        # Normalize
+        norm = np.linalg.norm(tangent)
+        if norm > 1e-10:
+            return tangent.flatten() / norm
+        else:
+            return None
+
     def _update_positions(self, forces, step_size=0.01):
         """Update positions using forces."""
         for i, (atoms, force) in enumerate(zip(self.path, forces)):
@@ -436,9 +919,13 @@ def _batch_neb_runner(
     fmax: float = 0.05,
     steps: int = 1000,
     spring_constant: float = 5.0,
+    climb: bool = False,
     **kwargs,
 ):
-    """Batch NEB runner for calculators that support batch evaluation."""
+    """Batch NEB runner for calculators that support batch evaluation.
+
+    Supports both regular NEB and CI-NEB depending on the climb parameter.
+    """
     # Generate initial path using geodesic interpolation
     path = path_generator(
         atoms_list,
@@ -456,11 +943,32 @@ def _batch_neb_runner(
         fmax=fmax,
         steps=steps,
         spring_constant=spring_constant,
+        climb=climb,
         **kwargs,
     )
 
     # Optimize using batch evaluation
     optimized_path = batch_neb.optimize()
+
+    # Filter redundant structures and issue warnings
+    if optimized_path:
+        # Convert atoms_list to list for comparison
+        input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
+
+        strategy_name = "twoended:cineb" if climb else "twoended:neb"
+        filtered_path, removed_indices, warnings_list = _filter_redundant_structures(
+            optimized_path,
+            input_structures=input_atoms,
+            rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
+            energy_threshold=kwargs.get("energy_threshold", 0.001),
+            strategy_name=strategy_name,
+        )
+
+        # Issue warnings
+        for warning_msg in warnings_list:
+            warnings.warn(warning_msg)
+
+        optimized_path = filtered_path
 
     return optimized_path
 
@@ -500,8 +1008,12 @@ def twoended_neb_runner(
         Maximum optimization steps
     local_optimizer_name : str, default="sella"
         Local optimizer to use for NEB optimization
-    spring_constant : float, default=0.1
+    spring_constant : float, default=5.0
         Spring constant for NEB spring forces
+    rmsd_threshold : float, default=0.1
+        RMSD threshold below which structures are considered redundant (Å)
+    energy_threshold : float, default=0.001
+        Energy threshold below which structures are considered redundant (eV)
     **kwargs
         Additional arguments passed to optimizer
 
@@ -562,14 +1074,9 @@ def twoended_neb_runner(
 
     # Attach calculators to all images
     if explorer is not None:
-        for i, atoms in enumerate(path):
-            try:
-                # Only create and attach calculator if atoms doesn't already have one
-                if getattr(atoms, "calc", None) is None:
-                    explorer._create_and_attach_calculator(atoms)
-                explorer._apply_constraints(atoms)
-            except Exception as e:
-                warnings.warn(f"Failed to attach calculator to image {i}: {e}")
+        for atoms in path:
+            explorer._create_and_attach_calculator(atoms)
+            explorer._apply_constraints(atoms)
 
     # Simple NEB implementation
     _run_simple_neb(
@@ -581,6 +1088,25 @@ def twoended_neb_runner(
         explorer=explorer,
         **kwargs,
     )
+
+    # Filter redundant structures and issue warnings
+    if path:
+        # Convert atoms_list to list for comparison
+        input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
+
+        filtered_path, removed_indices, warnings_list = _filter_redundant_structures(
+            path,
+            input_structures=input_atoms,
+            rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
+            energy_threshold=kwargs.get("energy_threshold", 0.001),
+            strategy_name="twoended:neb",
+        )
+
+        # Issue warnings
+        for warning_msg in warnings_list:
+            warnings.warn(warning_msg)
+
+        path = filtered_path
 
     return path
 
@@ -645,15 +1171,10 @@ def _run_simple_neb(
         if not supports_batch:
             # Fallback to individual calculations
             for atoms in path:
-                try:
-                    energy = atoms.get_potential_energy()
-                    forces = atoms.get_forces()
-                    energies.append(energy)
-                    forces_list.append(forces)
-                except Exception as e:
-                    warnings.warn(f"Failed to calculate energy/forces: {e}")
-                    energies.append(float("inf"))
-                    forces_list.append(np.zeros((len(atoms), 3)))
+                energy = atoms.get_potential_energy()
+                forces = atoms.get_forces()
+                energies.append(energy)
+                forces_list.append(forces)
 
         # Check convergence
         max_force = max(np.linalg.norm(forces, axis=1).max() for forces in forces_list)
@@ -754,5 +1275,291 @@ def _calculate_tangent(
         return None
 
 
+def twoended_cineb_runner(
+    atoms_list: Union[Sequence[Atoms], Atoms],
+    npoints: int = 11,
+    method: str = "geodesic",
+    explorer: Optional[Any] = None,
+    fmax: float = 0.05,
+    steps: int = 1000,
+    local_optimizer_name: str = "sella",
+    spring_constant: float = 5.0,
+    climb: bool = True,
+    **kwargs,
+):
+    """Climbing Image Nudged Elastic Band (CI-NEB) optimization using geodesic interpolation.
+
+    CI-NEB is an improved version of NEB where one image (usually the highest energy)
+    "climbs" uphill along the reaction coordinate by inverting the parallel component
+    of the force. This helps locate transition states more accurately.
+
+    Parameters
+    ----------
+    atoms_list : Union[Sequence[Atoms], Atoms]
+        Two or more Atoms objects defining the path endpoints
+    npoints : int, default=11
+        Number of images in the CI-NEB path
+    method : str, default="geodesic"
+        Interpolation method for initial path generation
+    explorer : Any, optional
+        Explorer instance for calculator and constraint management
+    fmax : float, default=0.05
+        Force convergence threshold
+    steps : int, default=1000
+        Maximum optimization steps
+    local_optimizer_name : str, default="sella"
+        Local optimizer to use for CI-NEB optimization
+    spring_constant : float, default=5.0
+        Spring constant for NEB spring forces
+    climb : bool, default=True
+        Whether to enable climbing image behavior
+    rmsd_threshold : float, default=0.1
+        RMSD threshold below which structures are considered redundant (Å)
+    energy_threshold : float, default=0.001
+        Energy threshold below which structures are considered redundant (eV)
+    **kwargs
+        Additional arguments passed to optimizer
+
+    Returns
+    -------
+    List[Atoms]
+        Optimized CI-NEB path (list of Atoms objects)
+    """
+    # Check if we should use batch evaluation
+    calculator = None
+    if explorer is not None:
+        # Create calculator using explorer's parameters
+        from qme.core.calculator_setup import create_calculator
+
+        calculator = create_calculator(
+            backend=explorer.backend,
+            model_name=explorer.model_name,
+            model_path=explorer.model_path,
+            device=explorer.device,
+            default_charge=explorer.default_charge,
+            default_spin=explorer.default_spin,
+        )
+
+    if calculator is not None and _supports_batch_evaluation(calculator):
+        # Use existing batch NEB optimizer with climbing enabled
+        return _batch_neb_runner(
+            atoms_list,
+            calculator=calculator,
+            npoints=npoints,
+            method=method,
+            fmax=fmax,
+            steps=steps,
+            spring_constant=spring_constant,
+            climb=climb,
+            **kwargs,
+        )
+
+    # Generate initial path using geodesic interpolation
+    path = path_generator(
+        atoms_list,
+        npoints=npoints,
+        method=method,
+        optimize_path=False,  # Don't optimize initially, we'll do CI-NEB
+        explorer=explorer,
+        **kwargs,
+    )
+
+    # Flatten nested segments if needed
+    if path and isinstance(path[0], list):
+        flat = []
+        for seg in path:
+            flat.extend(seg)
+        path = flat
+
+    if len(path) < 3:
+        raise ValueError("CI-NEB requires at least 3 images (npoints >= 3)")
+
+    # Attach calculators to all images
+    if explorer is not None:
+        for i, atoms in enumerate(path):
+            try:
+                # Only create and attach calculator if atoms doesn't already have one
+                if getattr(atoms, "calc", None) is None:
+                    explorer._create_and_attach_calculator(atoms)
+                explorer._apply_constraints(atoms)
+            except Exception as e:
+                warnings.warn(f"Failed to attach calculator to image {i}: {e}")
+
+    # Run CI-NEB optimization
+    _run_cineb(
+        path,
+        spring_constant=spring_constant,
+        fmax=fmax,
+        steps=steps,
+        local_optimizer_name=local_optimizer_name,
+        climb=climb,
+        explorer=explorer,
+        **kwargs,
+    )
+
+    # Filter redundant structures and issue warnings
+    if path:
+        # Convert atoms_list to list for comparison
+        input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
+
+        filtered_path, removed_indices, warnings_list = _filter_redundant_structures(
+            path,
+            input_structures=input_atoms,
+            rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
+            energy_threshold=kwargs.get("energy_threshold", 0.001),
+            strategy_name="twoended:cineb",
+        )
+
+        # Issue warnings
+        for warning_msg in warnings_list:
+            warnings.warn(warning_msg)
+
+        path = filtered_path
+
+    return path
+
+
+def _run_cineb(
+    path: List[Atoms],
+    spring_constant: float = 5.0,
+    fmax: float = 0.05,
+    steps: int = 1000,
+    local_optimizer_name: str = "sella",
+    climb: bool = True,
+    explorer: Optional[Any] = None,
+    **kwargs,
+):
+    """Run a CI-NEB optimization on the given path.
+
+    This implements a CI-NEB algorithm with spring forces, force projection,
+    and climbing image behavior. Uses batch evaluation when available for improved performance.
+    """
+    import numpy as np
+    from ase.optimize import BFGS
+
+    # Get optimizer class
+    try:
+        OptClass = _get_local_optimizer_class(local_optimizer_name)
+    except Exception as e:
+        warnings.warn(f"Could not select optimizer '{local_optimizer_name}': {e}")
+        OptClass = BFGS  # Fallback to ASE BFGS
+
+    # Check if we can use batch evaluation
+    calculator = path[0].calc if path[0].calc is not None else None
+    supports_batch = (
+        calculator is not None
+        and hasattr(calculator, "calculate_batch")
+        and hasattr(calculator, "supports_batch_evaluation")
+        and calculator.supports_batch_evaluation
+    )
+
+    if supports_batch:
+        print(f"Using batch evaluation for CI-NEB optimization with {len(path)} images")
+
+    climbing_image = None
+    print(
+        f"Starting CI-NEB optimization with {len(path)} images (climb={'enabled' if climb else 'disabled'})"
+    )
+
+    # CI-NEB optimization loop
+    for step in range(steps):
+        # Calculate energies and forces for all images
+        energies = []
+        forces_list = []
+
+        if supports_batch:
+            # Use batch evaluation for better performance
+            try:
+                batch_results = calculator.calculate_batch(path, properties=["energy", "forces"])
+
+                for result in batch_results:
+                    energies.append(result.get("energy", float("inf")))
+                    forces_list.append(result.get("forces", np.zeros((len(path[0]), 3))))
+
+            except Exception as e:
+                warnings.warn(
+                    f"Batch evaluation failed, falling back to individual " f"calculations: {e}"
+                )
+                supports_batch = False  # Disable batch for future iterations
+
+        if not supports_batch:
+            # Fallback to individual calculations
+            for atoms in path:
+                try:
+                    energy = atoms.get_potential_energy()
+                    forces = atoms.get_forces()
+                    energies.append(energy)
+                    forces_list.append(forces)
+                except Exception as e:
+                    warnings.warn(f"Failed to calculate energy/forces: {e}")
+                    energies.append(float("inf"))
+                    forces_list.append(np.zeros((len(atoms), 3)))
+
+        # Determine climbing image (highest energy image, excluding endpoints)
+        if climb and len(energies) > 2:
+            valid_energies = [(i, e) for i, e in enumerate(energies[1:-1], 1) if not np.isnan(e)]
+            if valid_energies:
+                climbing_image = max(valid_energies, key=lambda x: x[1])[0]
+            else:
+                climbing_image = None
+
+        # Check convergence
+        max_force = max(np.linalg.norm(forces, axis=1).max() for forces in forces_list)
+        if max_force < fmax:
+            print(f"CI-NEB converged after {step + 1} steps (max force: {max_force:.6f})")
+            if climbing_image is not None:
+                print(f"Climbing image was image {climbing_image}")
+            break
+
+        # Apply CI-NEB forces
+        for i in range(1, len(path) - 1):  # Skip endpoints
+            atoms = path[i]
+            forces = forces_list[i].copy()
+
+            # Spring forces
+            spring_force = _calculate_spring_force(path, i, spring_constant, energies)
+
+            # Project forces perpendicular to path (nudging)
+            tangent = _calculate_tangent(path, i, energies)
+            if tangent is not None:
+                # Remove component parallel to tangent
+                parallel_component = np.dot(forces.flatten(), tangent) * tangent
+                forces = forces.flatten() - parallel_component
+                forces = forces.reshape(-1, 3)
+
+            # Apply climbing image behavior if this is the climbing image
+            if climb and climbing_image == i:
+                # Invert the parallel component for climbing
+                if tangent is not None:
+                    parallel_component = np.dot(forces_list[i].flatten(), tangent) * tangent
+                    parallel_component = parallel_component.reshape(-1, 3)
+                    # Invert parallel component (make it point uphill)
+                    forces = forces - 2 * parallel_component
+
+            # Add spring forces
+            forces += spring_force
+
+            # Store forces in calculator results (ASE-compatible approach)
+            if atoms.calc is not None:
+                if not hasattr(atoms.calc, "results"):
+                    atoms.calc.results = {}
+                atoms.calc.results["forces"] = forces
+            else:
+                # Fallback: store in atoms info for compatibility
+                atoms.info["forces"] = forces
+
+        # Optimize each image (except endpoints)
+        for i in range(1, len(path) - 1):
+            atoms = path[i]
+            try:
+                opt = OptClass(atoms, **kwargs)
+                opt.run(fmax=fmax, steps=1)  # Single step per iteration
+            except Exception as e:
+                warnings.warn(f"Optimization failed for image {i}: {e}")
+
+
 __all__.append("twoended_minima_runner")
 __all__.append("twoended_neb_runner")
+__all__.append("twoended_cineb_runner")
+__all__.append("_filter_redundant_structures")
+__all__.append("_calculate_rmsd")

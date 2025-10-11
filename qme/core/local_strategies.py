@@ -166,12 +166,7 @@ def local_minima_runner(
         # that corrupt the coordinate system for subsequent Hessian calculations
         atoms_copy = atoms.copy()
 
-        try:
-            # Only create and attach calculator if atoms doesn't already have one
-            if getattr(atoms_copy, "calc", None) is None:
-                explorer._create_and_attach_calculator(atoms_copy)
-        except Exception as e:
-            warnings.warn(f"Failed to create calculator for a structure: {e}")
+        explorer._create_and_attach_calculator(atoms_copy)
         explorer._apply_constraints(atoms_copy)
         opt_kwargs = getattr(explorer, "optimizer_kwargs", {}) or {}
         if local_optimizer_name.lower() == "sella":
@@ -254,12 +249,7 @@ def local_ts_runner(
         # that corrupt the coordinate system for subsequent Hessian calculations
         atoms_copy = atoms.copy()
 
-        try:
-            # Only create and attach calculator if atoms doesn't already have one
-            if getattr(atoms_copy, "calc", None) is None:
-                explorer._create_and_attach_calculator(atoms_copy)
-        except Exception as e:
-            warnings.warn(f"Failed to create calculator for a structure: {e}")
+        explorer._create_and_attach_calculator(atoms_copy)
         explorer._apply_constraints(atoms_copy)
         opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
         if local_optimizer_name.lower() == "sella":
