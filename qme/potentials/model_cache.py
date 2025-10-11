@@ -14,6 +14,10 @@ from typing import Dict, Optional, Tuple
 
 import requests
 
+from qme.logging_utils import get_qme_logger
+
+logger = get_qme_logger(__name__)
+
 
 class ModelCache:
     """Persistent model cache with version checking and integrity validation."""
@@ -53,7 +57,7 @@ class ModelCache:
             with open(self.metadata_file, "w") as f:
                 json.dump(self.metadata, f, indent=2)
         except IOError as e:
-            print(f"Warning: Could not save cache metadata: {e}")
+            logger.warning(f"Could not save cache metadata: {e}")
 
     def _get_model_hash(self, model_name: str, model_url: str) -> str:
         """Generate a hash for model identification."""
@@ -94,13 +98,13 @@ class ModelCache:
         # Verify file integrity if checksum is available
         if "checksum" in cache_entry:
             if not self._verify_checksum(cached_path, cache_entry["checksum"]):
-                print(f"Warning: Cached model {model_name} failed checksum verification")
+                logger.warning(f"Cached model {model_name} failed checksum verification")
                 cached_path.unlink()
                 del self.metadata[model_hash]
                 self._save_metadata()
                 return None
 
-        print(f"Using cached model: {cached_path}")
+        logger.info(f"Using cached model: {cached_path}")
         return cached_path
 
     def cache_model(self, model_name: str, model_url: str, model_data: bytes) -> Path:
@@ -145,7 +149,7 @@ class ModelCache:
         }
         self._save_metadata()
 
-        print(f"Cached model: {cached_path}")
+        logger.info(f"Cached model: {cached_path}")
         return cached_path
 
     def _verify_checksum(self, file_path: Path, expected_checksum: str) -> bool:
@@ -242,7 +246,7 @@ def download_and_cache_model(model_name: str, model_url: str) -> Path:
         return cached_path
 
     # Download model
-    print(f"Downloading model {model_name} from {model_url}")
+    logger.info(f"Downloading model {model_name} from {model_url}")
     try:
         response = requests.get(model_url, timeout=30)
         response.raise_for_status()

@@ -6,6 +6,9 @@ from ase import Atoms
 from ase.constraints import FixConstraint
 
 from qme.core.constraints import get_constraint_summary, parse_constraint_string
+from qme.logging_utils import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 def parse_constraints(
@@ -76,11 +79,11 @@ def parse_constraints(
 
     if verbose:
         info = constraint_manager.get_constraint_info()
-        print("Applied constraints:")
+        logger.info("Applied constraints:")
         if info["fixed_atoms"]:
-            print(f"  Fixed atoms: {info['fixed_atoms']}")
+            logger.info(f"  Fixed atoms: {info['fixed_atoms']}")
         for hc in info["harmonic_constraints"]:
-            print(
+            logger.info(
                 f"  Harmonic {hc['type']}: atoms {hc['atoms']}, "
                 f"k={hc['force_constant']}, ref={hc['reference_value']:.3f}"
             )

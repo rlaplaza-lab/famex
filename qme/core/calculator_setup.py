@@ -16,6 +16,7 @@ def create_calculator(
     charge: Optional[int] = None,
     mult: Optional[int] = None,
     use_cache: bool = True,
+    verbose: int = 1,
 ):
     """Create calculator based on backend using the registry.
 
@@ -39,6 +40,8 @@ def create_calculator(
         Explicit spin multiplicity (overrides default_spin if provided)
     use_cache : bool, default True
         Whether to use cached calculator instances
+    verbose : int, default 1
+        Verbosity level for calculator creation (0=quiet, 1=normal, 2=verbose)
 
     Returns
     -------
