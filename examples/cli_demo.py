@@ -27,10 +27,10 @@ os.environ["MPLBACKEND"] = "Agg"
 
 # Import common interface
 try:
-    from common_interface import QMEExampleInterface, create_standard_epilog
+    from qme.examples import QMEExampleInterface, create_standard_epilog
 except ImportError:
     print("❌ Error importing common interface")
-    print("   Please ensure you're running from the examples directory")
+    print("   Please ensure QME is installed and accessible")
     sys.exit(1)
 
 

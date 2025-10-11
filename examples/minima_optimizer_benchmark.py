@@ -41,7 +41,7 @@ except ImportError as e:
     sys.exit(1)
 
 # Common interface and device utils
-from common_interface import QMEExampleInterface, create_standard_epilog
+from qme.examples import QMEExampleInterface, create_standard_epilog
 
 # Backend availability helpers
 from qme.backend_availability import get_available_ml_backends
