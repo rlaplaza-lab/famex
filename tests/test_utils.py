@@ -59,6 +59,36 @@ class TestMoleculeFactory:
         return molecule("C6H6")
 
     @staticmethod
+    def get_ethylene() -> Atoms:
+        """Ethylene molecule (C2H4) with planar geometry."""
+        return Atoms(
+            ["C", "C", "H", "H", "H", "H"],
+            positions=[
+                [0.0, 0.0, 0.0],      # C
+                [1.34, 0.0, 0.0],     # C (C=C bond)
+                [-0.7, 1.0, 0.0],     # H
+                [-0.7, -1.0, 0.0],    # H
+                [2.04, 1.0, 0.0],     # H
+                [2.04, -1.0, 0.0],    # H
+            ],
+        )
+
+    @staticmethod
+    def get_ethylene_twisted_ts_guess() -> Atoms:
+        """Ethylene twisted TS guess (90-degree rotation around C=C bond)."""
+        return Atoms(
+            ["C", "C", "H", "H", "H", "H"],
+            positions=[
+                [0.0, 0.0, 0.0],      # C
+                [1.34, 0.0, 0.0],     # C (C=C bond)
+                [-0.7, 0.0, 1.0],     # H (twisted up)
+                [-0.7, 0.0, -1.0],    # H (twisted down)
+                [2.04, 0.0, 1.0],     # H (twisted up)
+                [2.04, 0.0, -1.0],    # H (twisted down)
+            ],
+        )
+
+    @staticmethod
     def get_water_dissociation_ts_guess() -> Atoms:
         """Water dissociation TS guess (H2O -> H + OH)."""
         return Atoms(
@@ -191,6 +221,21 @@ class TestResultHandler:
         """Extract Atoms object from optimization result."""
         normalized_result = TestResultHandler.normalize_result(result)
         return normalized_result["optimized_atoms"]
+
+    @staticmethod
+    def process_result(result, backend: str) -> dict:
+        """Process optimization result and return standardized dictionary with atoms and metadata."""
+        # Handle list return format from run() method
+        if isinstance(result, list) and len(result) > 0:
+            strategy_result = result[0]
+        else:
+            strategy_result = result
+        
+        # Ensure we have the expected structure
+        assert isinstance(strategy_result, dict), f"Expected dict result, got {type(strategy_result)}"
+        assert "optimized_atoms" in strategy_result, "Missing 'optimized_atoms' in result"
+        
+        return strategy_result
 
 
 class StandardTestAssertions:

@@ -105,7 +105,7 @@ def _benchmark_optimization(
     Parameters:
     -----------
     backend : str
-        Backend name (e.g., 'mock', 'aimnet2', 'uma', 'so3lr', 'mace')
+        Backend name (e.g., 'mock', 'aimnet2', 'uma', 'so3lr', 'mace', 'orb')
     optimizer : str
         Optimizer name (e.g., 'sella', 'geometric')
     device : str, optional

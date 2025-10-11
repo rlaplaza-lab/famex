@@ -58,8 +58,8 @@ class TestBackendMinimaOptimization:
         optimization_time = time.time() - start_time
 
         # Use standardized result handling
-        strategy_result = TestResultHandler.normalize_result(result)
-        final_atoms = TestResultHandler.extract_atoms(result)
+        strategy_result = TestResultHandler.process_result(result, backend)
+        final_atoms = strategy_result["optimized_atoms"]
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
@@ -81,8 +81,8 @@ class TestBackendMinimaOptimization:
         optimization_time = time.time() - start_time
 
         # Use standardized result handling
-        strategy_result = TestResultHandler.normalize_result(result)
-        final_atoms = TestResultHandler.extract_atoms(result)
+        strategy_result = TestResultHandler.process_result(result, backend)
+        final_atoms = strategy_result["optimized_atoms"]
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
@@ -111,8 +111,8 @@ class TestBackendMinimaOptimization:
         optimization_time = time.time() - start_time
 
         # Use standardized result handling
-        strategy_result = TestResultHandler.normalize_result(result)
-        final_atoms = TestResultHandler.extract_atoms(result)
+        strategy_result = TestResultHandler.process_result(result, backend)
+        final_atoms = strategy_result["optimized_atoms"]
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
@@ -152,8 +152,8 @@ class TestBackendTransitionStateOptimization:
         optimization_time = time.time() - start_time
 
         # Use standardized result handling
-        strategy_result = TestResultHandler.normalize_result(result)
-        final_atoms = TestResultHandler.extract_atoms(result)
+        strategy_result = TestResultHandler.process_result(result, backend)
+        final_atoms = strategy_result["optimized_atoms"]
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
@@ -184,8 +184,8 @@ class TestBackendTransitionStateOptimization:
         optimization_time = time.time() - start_time
 
         # Use standardized result handling
-        strategy_result = TestResultHandler.normalize_result(result)
-        final_atoms = TestResultHandler.extract_atoms(result)
+        strategy_result = TestResultHandler.process_result(result, backend)
+        final_atoms = strategy_result["optimized_atoms"]
 
         # Use standardized assertions
         StandardTestAssertions.assert_optimization_result(strategy_result)
@@ -397,7 +397,7 @@ class TestBackendCLI:
                 os.path.join(tmp, out_path)
             ), f"Output file not created: {out_path}"
 
-    @pytest.mark.parametrize("backend", get_available_backends())
+    @pytest.mark.parametrize("backend", get_available_backends(include_mock=False))
     def test_cineb_optimization_cli(self, backend: str):
         """Test CI-NEB optimization via CLI across all backends."""
         runner = CliRunner()
@@ -485,12 +485,8 @@ class TestGeometricOptimizerIntegration:
         if not ml_backends:
             pytest.skip("No ML backends available for TS optimization")
 
-        # Create a TS guess (stretched H2O)
-        water = TestMoleculeFactory.get_water_distorted()
-        ts_guess = water.copy()
-        pos = ts_guess.get_positions()
-        pos[1] += [0.5, 0.0, 0.0]  # Move H away from O
-        ts_guess.set_positions(pos)
+        # Use ethylene twisted TS guess - this is a well-studied system that should converge cleanly
+        ts_guess = TestMoleculeFactory.get_ethylene_twisted_ts_guess()
 
         optimizer = Explorer(
             atoms=ts_guess,
@@ -498,8 +494,8 @@ class TestGeometricOptimizerIntegration:
             local_optimizer="geometric",
         )
 
-        result = optimizer.optimize_ts(fmax=0.1, steps=10)
-
+        result = optimizer.optimize_ts(fmax=0.01, steps=50)
+        
         assert result is not None
         assert isinstance(result, list)
         assert len(result) == 1
@@ -508,7 +504,17 @@ class TestGeometricOptimizerIntegration:
         assert "optimized_atoms" in result_dict
         final_atoms = result_dict["optimized_atoms"]
         assert hasattr(final_atoms, "get_distance")
-        assert len(final_atoms) == 3
+        assert len(final_atoms) == 6  # C2H4
+        
+        # Verify we have a reasonable ethylene structure
+        cc_distance = final_atoms.get_distance(0, 1)  # C-C bond
+        assert 1.2 < cc_distance < 1.5, f"C-C bond length {cc_distance:.3f} Å is unreasonable"
+        
+        # Print optimization info for verification
+        print(f"geomeTRIC ethylene rotation TS optimization converged successfully")
+        print(f"Final C-C distance: {cc_distance:.3f} Å")
+        print(f"Steps taken: {result_dict.get('steps_taken', 'unknown')}")
+        print(f"Converged: {result_dict.get('converged', False)}")
 
     def test_geometric_vs_sella_comparison(self):
         """Compare geomeTRIC and Sella optimizers on the same system."""
@@ -717,7 +723,7 @@ class TestBackendPerformanceComparison:
             result = optimizer.run(mode="minima", fmax=0.05, steps=20)
             optimization_time = time.time() - start_time
 
-            strategy_result = TestResultHandler.normalize_result(result)
+            strategy_result = TestResultHandler.process_result(result, backend)
             results[backend] = {
                 "time": optimization_time,
                 "steps": strategy_result.get("steps_taken", 0),

@@ -22,6 +22,8 @@ __all__ = [
     "get_aimnet2_calculator",
     "MACEPotential",
     "get_mace_calculator",
+    "OrbPotential",
+    "get_orb_calculator",
     "TorchSimPotential",
     "get_torchsim_calculator",
     "get_torchsim_mace_calculator",
@@ -204,4 +206,26 @@ def get_torchsim_uma_calculator(**kwargs):
             f"Failed to import TorchSim UMA calculator: {e}. "
             f"TorchSim UMA requires both UMA and TorchSim to be available. "
             f"Try: pip install qme-ml[torchsim,uma]"
+        )
+
+
+# Orb backend - lazy loading
+OrbPotential = None
+
+
+def get_orb_calculator(**kwargs):
+    from qme.backend_availability import get_backend_error_message, is_backend_available
+
+    if not is_backend_available("orb"):
+        raise ImportError(get_backend_error_message("orb"))
+    try:
+        from qme.potentials.orb_potential import OrbPotential
+
+        return OrbPotential(**kwargs)
+    except ImportError as e:
+        raise ImportError(
+            f"Failed to import Orb backend: {e}. "
+            f"Orb requires orb-models and PyTorch. "
+            f"Note: orb-models is a large package and may have compatibility issues. "
+            f"Try: pip install qme-ml[orb]"
         )

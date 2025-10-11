@@ -9,6 +9,7 @@ QME supports multiple machine learning potential backends, each with different s
 | `uma` | Universal Materials Accelerator (Meta AI) | `pip install qme-ml-ml[uma]` | General purpose, materials |
 | `aimnet2` | Native PyTorch implementation | `pip install qme-ml-ml[aimnet2]` | Molecules, fast inference |
 | `mace` | Foundation models for chemistry | `pip install qme-ml-ml[mace]` | High accuracy, diverse systems |
+| `orb` | Orbital Materials universal forcefield | `pip install qme-ml-ml[orb]` | Universal, molecules and materials |
 | `so3lr` | SO(3) invariant neural networks | `pip install qme-ml-ml[so3lr]` | Research, custom models |
 | `torchsim_*` | TorchSim accelerated backends | `pip install qme-ml-ml[torchsim]` | High performance, GPU |
 | `mock` | Harmonic oscillator for testing | Built-in | Testing, development |
@@ -114,6 +115,44 @@ explorer = qme.Explorer.from_file("molecule.xyz",
 - Conflicts with UMA due to e3nn version requirements
 - Larger models require more memory
 - Slower than some alternatives
+
+## Orb Backend
+
+**Orbital Materials** universal neural network forcefields for molecules and materials.
+
+### Installation
+```bash
+pip install qme-ml-ml[orb]
+```
+
+### Models
+- `orb-v3-conservative-omol`: Conservative molecular model (default)
+- `orb-v3-conservative-inf-omat`: Inference materials model
+- `orb-v2`: Orb v2 model
+
+### Usage
+```bash
+# Command line (charge and spin are required for OrbMol models)
+qme opt molecule.xyz --backend orb --charge 0 --spin 1
+
+# Python API
+explorer = qme.Explorer.from_file("molecule.xyz",
+                                  backend="orb",
+                                  charge=0,
+                                  spin=1)
+```
+
+### Strengths
+- Universal forcefield for both molecules and materials
+- High accuracy across diverse chemical systems
+- Conservative models for reliable predictions
+- Supports both molecular (OrbMol) and materials (OrbMat) variants
+
+### Limitations
+- Large package size (orb-models is a substantial download)
+- Requires charge and spin multiplicity specification
+- May have compatibility issues with other backends
+- Newer package with evolving ecosystem
 
 ## SO3LR Backend
 
@@ -238,13 +277,16 @@ pip install qme-ml-ml[mace]
 
 ### Compatibility Matrix
 
-| Backend | UMA | AIMNet2 | MACE | SO3LR | TorchSim |
-|---------|-----|---------|------|-------|----------|
-| UMA | ✅ | ✅ | ❌ | ✅ | ✅ |
-| AIMNet2 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| MACE | ❌ | ✅ | ✅ | ✅ | ✅ |
-| SO3LR | ✅ | ✅ | ✅ | ✅ | ✅ |
-| TorchSim | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Backend | UMA | AIMNet2 | MACE | Orb | SO3LR | TorchSim |
+|---------|-----|---------|------|-----|-------|----------|
+| UMA | ✅ | ✅ | ❌ | ⚠️ | ✅ | ✅ |
+| AIMNet2 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| MACE | ❌ | ✅ | ✅ | ⚠️ | ✅ | ✅ |
+| Orb | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
+| SO3LR | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| TorchSim | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+⚠️ = Potential compatibility issues due to package size or dependency conflicts
 
 ## Backend Selection Guide
 
@@ -255,13 +297,16 @@ pip install qme-ml-ml[aimnet2]
 ```
 
 ### For Production Use
-Use **UMA** for materials or **MACE** for molecules:
+Use **UMA** for materials, **MACE** for molecules, or **Orb** for universal coverage:
 ```bash
 # Materials and general purpose
 pip install qme-ml-ml[uma]
 
 # High accuracy molecules
 pip install qme-ml-ml[mace]
+
+# Universal forcefield (molecules and materials)
+pip install qme-ml-ml[orb]
 ```
 
 ### For Maximum Performance
