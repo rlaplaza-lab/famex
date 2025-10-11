@@ -56,6 +56,22 @@ try:
     nifty_logger = logging.getLogger("geometric.nifty")
     nifty_logger.setLevel(logging.CRITICAL)
 
+    # Monkeypatch EngineASE to preserve charge and spin information
+    # This fixes the issue where geomeTRIC doesn't transfer atoms.info metadata
+    _original_enginease_init = geometric.ase_engine.EngineASE.__init__
+    
+    def _patched_enginease_init(self, molecule, calculator):
+        """Monkeypatched EngineASE.__init__ to preserve charge and spin info."""
+        # Call the original __init__ method first
+        _original_enginease_init(self, molecule, calculator)
+        
+        # Ensure ase_atoms has charge and spin info to prevent UMA warnings
+        self.ase_atoms.info.setdefault('charge', 0)
+        self.ase_atoms.info.setdefault('spin', 1)
+    
+    # Apply the monkeypatch
+    geometric.ase_engine.EngineASE.__init__ = _patched_enginease_init
+
     GEOMETRIC_AVAILABLE = True
 except ImportError:
     # Will be handled when optimization is actually called
@@ -78,9 +94,8 @@ class _StepTrackingEngine:
     def calc_new(self, coords, dirname):
         """Override to track optimization steps."""
         # Update atoms with new coordinates for step tracking
-        if self._atoms_ref is not None:
-            positions = coords.reshape(-1, 3) * Bohr  # Bohr to Angstrom
-            self._atoms_ref.set_positions(positions)
+        positions = coords.reshape(-1, 3) * Bohr  # Bohr to Angstrom
+        self._atoms_ref.set_positions(positions)
 
         # Delegate to the underlying engine for actual calculation
         return self._engine.calc_new(coords, dirname)
@@ -201,11 +216,6 @@ class GeometricOptimizer(Optimizer):
 
     def _print_ase_format_steps(self, optimizer):
         """Print all optimization steps in ASE format at once."""
-        if not hasattr(optimizer, "progress") or not hasattr(
-            optimizer.progress, "xyzs"
-        ):
-            return
-
         # Print ASE format header
         print("       Step     Time          Energy          fmax")
 
@@ -253,22 +263,9 @@ class GeometricOptimizer(Optimizer):
             self.converged = False
             raise RuntimeError(f"Optimization failed: {e}") from e
 
-        # Extract step count from geomeTRIC's actual optimization steps
-        # Use the optimizer's actual step count if available
-        if hasattr(optimizer, "step_count"):
-            self.step_count = optimizer.step_count
-        elif hasattr(optimizer, "progress") and hasattr(optimizer.progress, "xyzs"):
-            # Count the number of optimization steps from the progress history
-            self.step_count = (
-                len(optimizer.progress.xyzs) - 1
-            )  # Subtract 1 for initial step
-        else:
-            # Fallback to our custom engine counter
-            self.step_count = max(0, step_engine.step_count)
-
-        # Ensure we have at least 1 step if optimization ran (even if converged)
-        if self.converged and self.step_count == 0:
-            self.step_count = 1
+        # Extract step count from geomeTRIC's optimization progress
+        self.step_count = len(optimizer.progress.xyzs) - 1  # Subtract 1 for initial step
+        self.step_count = max(0, self.step_count)  # Ensure non-negative
 
         # Print optimization steps in ASE format using captured progress data
         # Temporarily restore stdout to print ASE format steps
@@ -284,11 +281,8 @@ class GeometricOptimizer(Optimizer):
 
         # Check convergence using geomeTRIC's state system
         # geomeTRIC uses state=2 for converged, state=1 for not converged
-        state = getattr(optimizer, "state", None)
-        if state is not None:
-            self.converged = (
-                (state == 2).any() if hasattr(state, "__iter__") else state == 2
-            )
+        state = optimizer.state
+        self.converged = (state == 2).any() if hasattr(state, "__iter__") else state == 2
 
     def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:
         """Run geomeTRIC optimization efficiently without file I/O.
@@ -392,3 +386,7 @@ def geometric_ts_optimizer(
 ) -> GeometricTSOptimizer:
     """Create geomeTRIC optimizer for transition state search."""
     return GeometricTSOptimizer(atoms, hessian=hessian, **kwargs)
+
+
+
+
