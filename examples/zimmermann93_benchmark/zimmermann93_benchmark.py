@@ -3,11 +3,7 @@
 QME Zimmermann-93 Benchmark - Two-Ended Transition State Search
 
 This benchmark runs two-ended (reactant → product) transition state searches
-across available ML backends in QME. For each reaction in the provided dataset:
-  - Loads reactant and product geometries
-  - Interpolates an initial path and (optionally) optimizes it with NEB-like procedure
-  - Picks the highest-energy image as a TS guess and runs TS optimization
-  - Compares the located TS geometry to the reference TS (RMSD after alignment)
+across available ML backends in QME using the standardized Explorer API.
 
 Usage:
     python zimmermann93_benchmark.py [--quick|--quicker]
@@ -15,18 +11,17 @@ Usage:
     python zimmermann93_benchmark.py --npoints 15
 
 Features:
-    - Two-ended transition state search evaluation
-    - NEB-like path optimization capabilities
+    - Two-ended transition state search evaluation using Explorer API
     - Geometry comparison with reference structures
     - Comprehensive backend performance analysis
 """
 
-import argparse
 import json
 import logging
 import os
 import sys
 import time
+import warnings
 from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
@@ -39,14 +34,18 @@ from ase.io import read
 # Import QME components
 try:
     from qme import Explorer, calculator_registry
-    from qme.dependencies import HAS_SELLA
 except ImportError as e:
     print(f"❌ Error importing QME: {e}")
     print("   Please ensure QME is installed and accessible")
     sys.exit(1)
 
-# Import device utilities
-from qme.utils.device import get_optimal_device, print_device_info
+# Import common interface
+from qme.examples import QMEExampleInterface, create_standard_epilog
+
+# Suppress warnings for cleaner output
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 
 # Quiet noisy backends
 logging.getLogger("jax").setLevel(logging.WARNING)
@@ -71,18 +70,18 @@ def suppress_verbose_output():
         logging.getLogger().setLevel(old_level)
 
 
-def kabsch_align(reference: np.ndarray, target: np.ndarray) -> Tuple[np.ndarray, float]:
-    """Align target to reference using the Kabsch algorithm and return (aligned, rmsd).
+def compute_rmsd(reference: np.ndarray, target: np.ndarray) -> float:
+    """Compute RMSD between two coordinate arrays using Kabsch alignment.
 
-    Both arrays must be shape (N,3).
+    Both arrays must be shape (N,3) and represent the same atoms in the same order.
     """
-    # Center
+    # Center both structures
     ref_cent = reference.mean(axis=0)
     tar_cent = target.mean(axis=0)
     ref = reference - ref_cent
     tar = target - tar_cent
 
-    # Covariance
+    # Kabsch alignment
     C = np.dot(tar.T, ref)
     V, S, Wt = np.linalg.svd(C)
     d = np.sign(np.linalg.det(np.dot(V, Wt)))
@@ -90,68 +89,8 @@ def kabsch_align(reference: np.ndarray, target: np.ndarray) -> Tuple[np.ndarray,
     U = np.dot(np.dot(V, D), Wt)
 
     aligned = np.dot(tar, U.T)
-    aligned += ref_cent
-
-    rmsd = np.sqrt(np.mean(np.sum((aligned - reference) ** 2, axis=1)))
-    return aligned, float(rmsd)
-
-
-def compute_rmsd_flexible(ref_atoms, opt_atoms) -> float:
-    """Compute RMSD between two ASE Atoms-like objects.
-
-    Tries direct Kabsch when shapes and ordering match. If ordering differs but
-    atom counts and element types match, performs a greedy per-element matching
-    and then Kabsch-aligns the paired coordinates.
-
-    Returns float('nan') when a reliable pairing cannot be determined.
-    """
-    try:
-        ref_coords = np.array(ref_atoms.get_positions())
-        opt_coords = np.array(opt_atoms.get_positions())
-    except Exception:
-        return float("nan")
-
-    ref_syms = ref_atoms.get_chemical_symbols()
-    opt_syms = opt_atoms.get_chemical_symbols()
-
-    # Quick path: same shape and same symbol ordering
-    if ref_coords.shape == opt_coords.shape and ref_syms == opt_syms:
-        _, rmsd = kabsch_align(ref_coords, opt_coords)
-        return rmsd
-
-    # If different number of atoms, cannot compute
-    if ref_coords.shape[0] != opt_coords.shape[0]:
-        return float("nan")
-
-    n = ref_coords.shape[0]
-
-    # Attempt greedy per-element matching
-    paired_indices = [-1] * n
-    used_opt = set()
-
-    for i, sym in enumerate(ref_syms):
-        # candidate indices in opt with same symbol and not used
-        candidates = [j for j, s in enumerate(opt_syms) if s == sym and j not in used_opt]
-        if not candidates:
-            # cannot find a matching element type
-            return float("nan")
-
-        # choose closest by Euclidean distance (no rotation yet) as initial pairing
-        dists = [np.linalg.norm(ref_coords[i] - opt_coords[j]) for j in candidates]
-        jmin = candidates[int(np.argmin(dists))]
-        paired_indices[i] = jmin
-        used_opt.add(jmin)
-
-    # Construct ordered arrays according to pairing
-    opt_ordered = np.array([opt_coords[j] for j in paired_indices])
-    ref_ordered = ref_coords.copy()
-
-    # Final alignment and RMSD
-    try:
-        _, rmsd = kabsch_align(ref_ordered, opt_ordered)
-        return rmsd
-    except Exception:
-        return float("nan")
+    rmsd = np.sqrt(np.mean(np.sum((aligned - ref) ** 2, axis=1)))
+    return float(rmsd)
 
 
 class Zimmermann93Benchmark:
@@ -224,11 +163,6 @@ class Zimmermann93Benchmark:
             if calculator_registry.is_backend_available(backend):
                 available.append(backend)
 
-        if not available:
-            raise RuntimeError(
-                "No ML backends available for benchmarking. "
-                "The mock backend is excluded as it cannot optimize transition states."
-            )
         return available
 
     def filter_available_backends(
@@ -256,10 +190,9 @@ class Zimmermann93Benchmark:
         backends: List[str],
         reactions: List[str],
         npoints: int = 11,
-        interp_method: str = "geodesic",
-        optimize_path: bool = True,
         fmax: float = 0.01,
         steps: int = 300,
+        verbose: bool = False,
     ) -> Dict:
         results: Dict[str, Dict] = {}
 
@@ -268,156 +201,154 @@ class Zimmermann93Benchmark:
             print("-" * 60)
             backend_results: Dict[str, Dict] = {}
 
-            # Use None for auto-detection of model
-            model_name = None
-
             try:
                 for reaction in reactions:
                     print(f"  Reaction: {reaction}")
-                    reaction_data: Dict = {}
+                    reaction_data: Dict = {
+                        "timings": {},
+                        "optimization_results": {},
+                        "frequency_results": {},
+                    }
 
                     try:
+                        # Load endpoints
+                        load_start = time.perf_counter()
+                        reactant, product = self.get_reactant_and_product(reaction)
+                        load_time = time.perf_counter() - load_start
+                        reaction_data["timings"]["structure_loading"] = load_time
+
+                        # Initialize Explorer with both reactant and product for two-ended optimization
+                        init_start = time.perf_counter()
+                        explorer = Explorer(
+                            atoms=[reactant, product],
+                            backend=backend,
+                            strategy="two-ended",
+                            target="ts",
+                            mode="interpolate",
+                        )
+                        init_time = time.perf_counter() - init_start
+                        reaction_data["timings"]["initialization"] = init_time
+
+                        # Run two-ended TS optimization
+                        opt_start = time.perf_counter()
                         with suppress_verbose_output():
-                            # Will create optimizer per structure below
+                            ts_result = explorer.run(mode="ts", fmax=fmax, steps=steps)
+                        opt_time = time.perf_counter() - opt_start
+                        reaction_data["timings"]["optimization"] = opt_time
+                        
+                        # Normalize TS result
+                        if isinstance(ts_result, list) and len(ts_result) == 1:
+                            ts_result = ts_result[0]
+                        
+                        if isinstance(ts_result, dict):
+                            ts_opt_atoms = ts_result.get("optimized_atoms", reactant)
+                            ts_success = bool(ts_result.get("converged", False))
+                            steps_taken = ts_result.get("steps_taken", 0)
+                        else:
+                            ts_opt_atoms = ts_result
+                            ts_success = True
+                            steps_taken = 0
 
-                            # Load endpoints
-                            reactant, product = self.get_reactant_and_product(reaction)
+                        # Calculate average time per step
+                        if steps_taken > 0:
+                            avg_time_per_step = opt_time / steps_taken
+                        else:
+                            avg_time_per_step = None
 
-                            # Build Reaction object and interpolate
-                            from qme.core.reaction import Reaction
+                        # Get final energy and forces
+                        if ts_opt_atoms is not None:
+                            final_energy = float(ts_opt_atoms.get_potential_energy())
+                            forces = ts_opt_atoms.get_forces()
+                            max_force = float(np.max(np.abs(forces)))
+                        else:
+                            final_energy = None
+                            max_force = float("inf")
 
-                            reaction_obj = Reaction(reactant, product)
+                        reaction_data["optimization_results"] = {
+                            "converged": ts_success,
+                            "final_energy": final_energy,
+                            "max_force": max_force,
+                            "steps_taken": steps_taken,
+                        }
+                        reaction_data["timings"]["avg_time_per_step"] = avg_time_per_step
 
-                            # Set calculator for path generation/energies
+                        # Frequency analysis to verify TS character
+                        if ts_opt_atoms is not None and ts_success:
+                            freq_start = time.perf_counter()
                             try:
-                                qme_opt = Explorer(
-                                    atoms=reactant,
-                                    backend=backend,
-                                    model_name=model_name,
-                                )
-                                # Ensure calculator exists on a real Atoms
-                                if getattr(qme_opt.atoms_list[0], "calc", None) is None:
-                                    qme_opt._create_and_attach_calculator(qme_opt.atoms_list[0])
-                                qme_calc = qme_opt.atoms_list[0].calc
-                                reaction_obj.set_calculator(qme_calc)
-                            except Exception:
-                                # fallback to mock calculator
-                                mock_opt = Explorer(atoms=reactant, backend="mock")
-                                if getattr(mock_opt.atoms_list[0], "calc", None) is None:
-                                    mock_opt._create_and_attach_calculator(mock_opt.atoms_list[0])
-                                reaction_obj.set_calculator(mock_opt.atoms_list[0].calc)
-
-                            path = reaction_obj.interpolate(
-                                npoints=npoints,
-                                method=interp_method,
-                                optimize_path=optimize_path,
-                                calculator=reaction_obj.calculator,
-                            )
-
-                            # Evaluate energies along path
-                            energies = reaction_obj.calculate_path_energies(path)
-
-                            # Pick highest energy image as TS guess
-                            max_idx = int(np.nanargmax(energies))
-                            ts_guess_atoms = path[max_idx]
-                            # Ensure ASE Atoms and attach calculator for single-point if needed
-                            try:
-                                # Will raise if object is not Atoms-like
-                                _ = ts_guess_atoms.get_positions()
-                            except Exception:
-                                # If the path returns geometry-like, coerce via Atoms constructor
-                                from ase import Atoms as _Atoms
-
-                                ts_guess_atoms = _Atoms(
-                                    symbols=reactant.get_chemical_symbols(),
-                                    positions=np.array(ts_guess_atoms),
-                                    cell=reactant.cell,
-                                    pbc=reactant.pbc,
-                                )
-
-                            # TS optimization will be done with fresh optimizer
-
-                            ts_result = {}
-                            if HAS_SELLA:
-                                try:
-                                    ts_optimizer = Explorer(
-                                        atoms=ts_guess_atoms,
-                                        backend=backend,
-                                        model_name=model_name,
+                                with suppress_verbose_output():
+                                    freq_results = explorer.calculate_frequencies(
+                                        delta=0.01,
+                                        method="auto",
+                                        temperature=298.15,
+                                        save_hessian=False,
                                     )
-                                    ts_result = ts_optimizer.run(mode="ts", fmax=fmax, steps=steps)
-                                    # Normalize TS result
-                                    if isinstance(ts_result, list) and len(ts_result) == 1:
-                                        ts_result = ts_result[0]
-                                    if isinstance(ts_result, dict):
-                                        ts_opt_atoms = ts_result.get(
-                                            "optimized_atoms", ts_guess_atoms
-                                        )
-                                        ts_success = bool(
-                                            ts_result.get("converged", False)
-                                            or ts_result.get("ts_converged", False)
-                                        )
-                                    else:
-                                        ts_opt_atoms = ts_result
-                                        ts_success = True
-                                except Exception as e:
-                                    ts_success = False
-                                    ts_result = {"error": str(e)}
-                                    ts_opt_atoms = None
-                            else:
-                                # No SELLA: fallback to single-point energy evaluation only
-                                try:
-                                    # Create optimizer for single-point calculation
-                                    ts_optimizer = Explorer(
-                                        atoms=ts_guess_atoms,
-                                        backend=backend,
-                                        model_name=model_name,
-                                    )
-                                    if getattr(ts_guess_atoms, "calc", None) is None:
-                                        ts_optimizer._create_and_attach_calculator(ts_guess_atoms)
-                                    with suppress_verbose_output():
-                                        energy = ts_guess_atoms.get_potential_energy()
-                                    ts_result = {
-                                        "ts_energy": energy,
-                                        "method": "single_point",
-                                        "converged": False,
-                                    }
-                                    ts_success = False
-                                    ts_opt_atoms = ts_guess_atoms
-                                except Exception as e:
-                                    ts_result = {"error": str(e)}
-                                    ts_success = False
-                                    ts_opt_atoms = None
-
-                            # Compare geometry to reference TS (use flexible RMSD matcher)
-                            try:
-                                ref_ts = self.get_reference_ts(reaction)
-                                if ts_opt_atoms is not None:
-                                    rmsd = compute_rmsd_flexible(ref_ts, ts_opt_atoms)
-                                else:
-                                    rmsd = float("nan")
-                            except Exception:
-                                rmsd = float("nan")
-
-                            reaction_data.update(
-                                {
-                                    "path_max_idx": int(max_idx),
-                                    "path_energies": energies,
-                                    "ts_guess_energy": (
-                                        float(energies[max_idx])
-                                        if len(energies) > max_idx
-                                        else None
-                                    ),
-                                    "ts_result": ts_result,
-                                    "ts_success": bool(ts_success),
-                                    "ts_rmsd_to_reference": rmsd,
+                                freq_time = time.perf_counter() - freq_start
+                                reaction_data["timings"]["frequency_analysis"] = freq_time
+                                reaction_data["frequency_results"] = {
+                                    "n_frequencies": len(freq_results["frequencies"]),
+                                    "frequencies": freq_results["frequencies"][:10],  # First 10 frequencies
+                                    "zero_point_energy": freq_results["zero_point_energy"],
+                                    "is_transition_state": freq_results["is_ts"],
+                                    "method_used": freq_results["method_used"],
                                 }
-                            )
+                            except Exception as e:
+                                reaction_data["timings"]["frequency_analysis"] = None
+                                reaction_data["frequency_results"] = {"error": str(e)}
+                        else:
+                            reaction_data["timings"]["frequency_analysis"] = None
+                            reaction_data["frequency_results"] = {"skipped": "TS optimization failed"}
 
-                            print(f"    ✓ TS guess index: {max_idx}, RMSD to ref: {rmsd:.4f} Å")
+                        # Compare geometry to reference TS
+                        try:
+                            ref_ts = self.get_reference_ts(reaction)
+                            if ts_opt_atoms is not None:
+                                ref_coords = ref_ts.get_positions()
+                                opt_coords = ts_opt_atoms.get_positions()
+                                rmsd = compute_rmsd(ref_coords, opt_coords)
+                            else:
+                                rmsd = float("nan")
+                        except Exception:
+                            rmsd = float("nan")
+
+                        reaction_data.update(
+                            {
+                                "ts_result": ts_result,
+                                "ts_success": ts_success,
+                                "ts_rmsd_to_reference": rmsd,
+                                "success": True,
+                            }
+                        )
+
+                        # Calculate total time
+                        total_time = sum(v for v in reaction_data["timings"].values() if v is not None)
+                        reaction_data["timings"]["total"] = total_time
+
+                        # Print status
+                        freq_info = reaction_data["frequency_results"]
+                        if "is_transition_state" in freq_info:
+                            ts_verified = freq_info["is_transition_state"]
+                            ts_status = "✅ Verified TS" if ts_verified else "⚠️ Not verified as TS"
+                        else:
+                            ts_status = "❓ Not checked"
+
+                        print(f"    ✓ Optimization: {'Success' if ts_success else 'Failed'}")
+                        print(f"    ✓ Convergence: {ts_success}")
+                        print(f"    ✓ TS Character: {ts_status}")
+                        print(f"    ✓ RMSD to ref: {rmsd:.4f} Å")
+                        if verbose:
+                            print(f"    ✓ Steps: {steps_taken}, Time: {opt_time:.2f}s")
+                            if avg_time_per_step:
+                                print(f"    ✓ Avg time/step: {avg_time_per_step:.4f}s")
 
                     except Exception as e:
-                        reaction_data = {"success": False, "error": str(e)}
+                        reaction_data = {
+                            "success": False, 
+                            "error": str(e),
+                            "timings": {},
+                            "optimization_results": {},
+                            "frequency_results": {},
+                        }
                         print(f"    ❌ Reaction failed: {e}")
 
                     backend_results[reaction] = reaction_data
@@ -432,34 +363,60 @@ class Zimmermann93Benchmark:
         return results
 
     def analyze_performance(self, backends: List[str]) -> Dict:
-        """Analyze performance metrics across backends."""
-        print(f"\n{'=' * 80}")
-        print("PERFORMANCE ANALYSIS")
-        print(f"{'=' * 80}")
+        """Analyze performance metrics across backends with detailed statistics."""
+        print(f"\n{'=' * 120}")
+        print("DETAILED PERFORMANCE ANALYSIS")
+        print(f"{'=' * 120}")
 
         analysis = {}
 
         for backend in backends:
             print(f"\nBackend: {backend.upper()}")
-            print("-" * 50)
+            print("-" * 60)
             backend_data = self.results.get(backend, {})
 
             # Collect successful TS calculations
             successful_ts = []
-            skipped_count = 0
             failed_count = 0
+            converged_count = 0
+            ts_verified_count = 0
+            timing_stats = {"total": [], "optimization": [], "frequency": []}
+            step_stats = []
 
             for reaction, data in backend_data.items():
-                if isinstance(data, dict):
-                    if data.get("skipped"):
-                        skipped_count += 1
-                    elif not data.get("success", True):
+                if isinstance(data, dict) and not data.get("skipped"):
+                    if not data.get("success", True):
                         failed_count += 1
                     else:
-                        if data.get("ts_success"):
+                        # Check convergence
+                        opt_results = data.get("optimization_results", {})
+                        if opt_results.get("converged"):
+                            converged_count += 1
                             successful_ts.append(data)
+                            
+                            # Collect timing statistics
+                            timings = data.get("timings", {})
+                            if timings.get("total"):
+                                timing_stats["total"].append(timings["total"])
+                            if timings.get("optimization"):
+                                timing_stats["optimization"].append(timings["optimization"])
+                            if timings.get("frequency_analysis"):
+                                timing_stats["frequency"].append(timings["frequency_analysis"])
+                            
+                            # Collect step statistics
+                            steps = opt_results.get("steps_taken", 0)
+                            if steps > 0:
+                                step_stats.append(steps)
+                            
+                            # Check TS verification
+                            freq_results = data.get("frequency_results", {})
+                            if freq_results.get("is_transition_state"):
+                                ts_verified_count += 1
 
-            # Calculate TS statistics
+            # Calculate statistics
+            total_reactions = len([r for r in backend_data.values() 
+                                 if isinstance(r, dict) and not r.get("skipped")])
+            
             if successful_ts:
                 rmsds = [
                     data["ts_rmsd_to_reference"]
@@ -468,63 +425,106 @@ class Zimmermann93Benchmark:
                 ]
 
                 ts_stats = {
-                    "count": len(successful_ts),
+                    "total_reactions": total_reactions,
+                    "converged": converged_count,
+                    "ts_verified": ts_verified_count,
+                    "failed": failed_count,
+                    "convergence_rate": (converged_count / total_reactions * 100) if total_reactions > 0 else 0,
+                    "verification_rate": (ts_verified_count / converged_count * 100) if converged_count > 0 else 0,
                     "mean_rmsd": np.mean(rmsds) if rmsds else 0,
                     "max_rmsd": np.max(rmsds) if rmsds else 0,
                     "std_rmsd": np.std(rmsds) if rmsds else 0,
                 }
 
-                print(f"Transition States ({ts_stats['count']} reactions):")
+                print(f"📊 CONVERGENCE STATISTICS:")
+                print(f"  Total reactions: {ts_stats['total_reactions']}")
+                print(f"  Converged: {ts_stats['converged']} ({ts_stats['convergence_rate']:.1f}%)")
+                print(f"  TS Verified: {ts_stats['ts_verified']} ({ts_stats['verification_rate']:.1f}%)")
+                print(f"  Failed: {ts_stats['failed']}")
+
+                print(f"\n📏 GEOMETRY ACCURACY:")
                 print(f"  Mean RMSD: {ts_stats['mean_rmsd']:.4f} Å")
                 print(f"  Max RMSD:  {ts_stats['max_rmsd']:.4f} Å")
                 print(f"  Std RMSD:  {ts_stats['std_rmsd']:.4f} Å")
-            else:
-                ts_stats = {"count": 0}
-                print("❌ No successful transition state calculations")
 
-            # Report skipped and failed reactions
-            if skipped_count > 0:
-                print(f"⚠️  Skipped reactions: {skipped_count}")
-            if failed_count > 0:
-                print(f"❌ Failed reactions: {failed_count}")
+                # Timing statistics
+                if timing_stats["total"]:
+                    print(f"\n⏱️ TIMING STATISTICS:")
+                    print(f"  Total time: {np.mean(timing_stats['total']):.2f} ± {np.std(timing_stats['total']):.2f} s")
+                    if timing_stats["optimization"]:
+                        print(f"  Optimization: {np.mean(timing_stats['optimization']):.2f} ± {np.std(timing_stats['optimization']):.2f} s")
+                    if timing_stats["frequency"]:
+                        print(f"  Frequency analysis: {np.mean(timing_stats['frequency']):.2f} ± {np.std(timing_stats['frequency']):.2f} s")
+
+                # Step statistics
+                if step_stats:
+                    print(f"\n🔄 OPTIMIZATION STEPS:")
+                    print(f"  Mean steps: {np.mean(step_stats):.1f} ± {np.std(step_stats):.1f}")
+                    print(f"  Min steps: {np.min(step_stats)}")
+                    print(f"  Max steps: {np.max(step_stats)}")
+
+            else:
+                ts_stats = {
+                    "total_reactions": total_reactions,
+                    "converged": 0,
+                    "ts_verified": 0,
+                    "failed": failed_count,
+                    "convergence_rate": 0,
+                    "verification_rate": 0,
+                }
+                print("❌ No successful transition state calculations")
 
             analysis[backend] = {"ts_statistics": ts_stats}
 
-        # Cross-backend comparison
-        print("\nBACKEND COMPARISON")
-        print("-" * 50)
-        print(f"{'Backend':<12} {'Success':<8} {'Mean RMSD':<12} {'Max RMSD':<12}")
-        print("-" * 50)
+        # Comprehensive summary table
+        print(f"\n{'=' * 120}")
+        print("COMPREHENSIVE BACKEND COMPARISON")
+        print(f"{'=' * 120}")
 
+        # Print legend
+        print("📊 COLUMN DEFINITIONS:")
+        print("   Conv    = Number of converged optimizations")
+        print("   Rate    = Convergence rate (%)")
+        print("   Verified = Number vibrationally verified as TS")
+        print("   V-Rate  = TS verification rate (%)")
+        print("   Mean RMSD = Average RMSD to reference (Å)")
+        print("   Max RMSD = Maximum RMSD to reference (Å)")
+        print(f"{'-' * 120}")
+
+        # Header
+        print(
+            f"{'Backend':<12} {'Total':<6} {'Conv':<6} {'Rate':<6} "
+            f"{'Verified':<9} {'V-Rate':<7} {'Mean RMSD':<10} {'Max RMSD':<10}"
+        )
+        print("=" * 120)
+
+        # Results
         for backend in backends:
             stats = analysis.get(backend, {}).get("ts_statistics", {})
-
-            backend_reactions = self.results.get(backend, {})
-            total_attempted = len(
-                [
-                    r
-                    for r in backend_reactions
-                    if isinstance(backend_reactions[r], dict)
-                    and not backend_reactions[r].get("skipped", False)
-                ]
+            
+            print(
+                f"{backend:<12} "
+                f"{stats.get('total_reactions', 0):<6} "
+                f"{stats.get('converged', 0):<6} "
+                f"{stats.get('convergence_rate', 0):<6.1f} "
+                f"{stats.get('ts_verified', 0):<9} "
+                f"{stats.get('verification_rate', 0):<7.1f} "
+                f"{stats.get('mean_rmsd', 0):<10.4f} "
+                f"{stats.get('max_rmsd', 0):<10.4f}"
             )
-            success_rate = f"{stats.get('count', 0)}/{total_attempted}"
-            mean_rmsd = f"{stats.get('mean_rmsd', 0):.4f}" if stats.get("count", 0) > 0 else "N/A"
-            max_rmsd = f"{stats.get('max_rmsd', 0):.4f}" if stats.get("count", 0) > 0 else "N/A"
 
-            print(f"{backend:<12} {success_rate:<8} {mean_rmsd:<12} {max_rmsd:<12}")
+        print("=" * 120)
 
         return analysis
 
     def save_results(self, filename: str = "zimmermann93_benchmark_results.json"):
         out = self.output_dir / filename
 
-        # convert numpy etc
+        # Convert numpy and other non-serializable objects
         def convert(obj):
             # Handle ASE Atoms-like objects
             try:
-                from ase import Atoms as _Atoms  # local import in case ASE missing
-
+                from ase import Atoms as _Atoms
                 if isinstance(obj, _Atoms):
                     return {
                         "formula": obj.get_chemical_formula(),
@@ -543,22 +543,32 @@ class Zimmermann93Benchmark:
                     }
                 except Exception:
                     pass
+            
+            # Handle numpy arrays and scalars
             if isinstance(obj, np.ndarray):
                 return obj.tolist()
             if isinstance(obj, (np.integer, np.floating)):
                 return float(obj)
-            # numpy boolean scalars
+            
+            # Handle numpy boolean scalars
             try:
                 if isinstance(obj, np.bool_):
                     return bool(obj)
             except Exception:
                 pass
+            
+            # Handle None values in timing data
+            if obj is None:
+                return None
+                
+            # Recursively convert nested structures
             if isinstance(obj, dict):
                 return {k: convert(v) for k, v in obj.items()}
             if isinstance(obj, list):
                 return [convert(i) for i in obj]
             if isinstance(obj, tuple):
                 return [convert(i) for i in obj]
+            
             return obj
 
         serializable = convert(self.results)
@@ -569,22 +579,16 @@ class Zimmermann93Benchmark:
 
 def main():
     """Main entry point for the benchmark."""
-    parser = argparse.ArgumentParser(
-        description="QME Zimmermann-93 Benchmark - Two-Ended Transition State Search",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python zimmermann93_benchmark.py
-  python zimmermann93_benchmark.py --backends aimnet2,uma
-  python zimmermann93_benchmark.py --quick
-  python zimmermann93_benchmark.py --quicker
-  python zimmermann93_benchmark.py --npoints 15
-        """,
+    # Create standardized interface
+    interface = QMEExampleInterface(
+        name="Zimmermann-93 Benchmark",
+        description="Two-Ended Transition State Search",
+        epilog=create_standard_epilog("benchmark"),
     )
 
-    parser.add_argument(
-        "--backends", nargs="+", help="QME backends to test (default: all available)"
-    )
+    parser = interface.create_parser()
+    
+    # Add benchmark-specific arguments
     parser.add_argument(
         "--reactions",
         nargs="+",
@@ -612,18 +616,6 @@ Examples:
         help="Number of points in interpolated path (default: 11)",
     )
     parser.add_argument(
-        "--interp-method",
-        choices=["linear", "geodesic"],
-        default="geodesic",
-        help="Interpolation method (default: geodesic)",
-    )
-    parser.add_argument(
-        "--no-optimize-path",
-        dest="optimize_path",
-        action="store_false",
-        help="Skip path optimization step",
-    )
-    parser.add_argument(
         "--fmax",
         type=float,
         default=0.01,
@@ -638,18 +630,30 @@ Examples:
 
     args = parser.parse_args()
 
+    # Initialize benchmark
     benchmark = Zimmermann93Benchmark(dataset_dir=None, output_dir=args.output_dir)
-    available_backends = benchmark.get_available_backends()
 
+    interface.print_header("Two-Ended Transition State Search")
+
+    # Determine backends to test
     if args.backends:
-        backends = benchmark.filter_available_backends(args.backends, verbose=True)
+        requested_backends = [b.strip() for b in args.backends.split(",")]
+        backends = interface.filter_available_backends(requested_backends, verbose=True)
         if not backends:
-            print("❌ No requested backends are available!")
+            interface.print_error("No requested backends are available!")
             return 1
     else:
-        backends = available_backends
+        backends = interface.get_available_ml_backends()
+        if not backends:
+            interface.print_error("No ML backends available!")
+            print("Please install at least one ML backend:")
+            print("  - UMA: pip install fairchem-core")
+            print("  - MACE: pip install mace-torch")
+            print("  - AIMNet2: pip install aimnet2")
+            print("  - SO3LR: pip install so3lr")
+            return 1
 
-    benchmark.print_backend_summary(backends, "Benchmarking Backends")
+    interface.print_backend_summary(backends, "Benchmarking Backends")
 
     if args.quicker:
         reactions = benchmark.quicker_reactions
@@ -664,24 +668,26 @@ Examples:
         r for r in reactions if (benchmark.dataset_dir / f"{r}_reactant.xyz").exists() is False
     ]
     if invalid_rxn:
-        print(f"❌ Invalid reactions: {invalid_rxn}")
+        interface.print_error(f"Invalid reactions: {invalid_rxn}")
         return 1
 
-    print("\nConfiguration:")
-    print(f"  NPoints: {args.npoints}")
-    print(f"  Interpolation: {args.interp_method}")
-    print(f"  Optimize path: {args.optimize_path}")
-    print(f"  Force max: {args.fmax}")
-    print(f"  Max steps: {args.steps}")
+    # Print configuration
+    config = {
+        "NPoints": args.npoints,
+        "Force max": args.fmax,
+        "Max steps": args.steps,
+        "Verbose": args.verbose,
+        "Output": args.output_dir,
+    }
+    interface.print_configuration(config)
 
     benchmark.run_benchmark(
         backends,
         reactions,
         npoints=args.npoints,
-        interp_method=args.interp_method,
-        optimize_path=args.optimize_path,
         fmax=args.fmax,
         steps=args.steps,
+        verbose=args.verbose,
     )
 
     # Analyze performance
@@ -689,7 +695,8 @@ Examples:
 
     # Save results
     benchmark.save_results()
-    print("\n✅ Benchmark completed successfully!")
+
+    interface.print_success()
     return 0
 
 

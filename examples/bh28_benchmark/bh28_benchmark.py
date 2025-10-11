@@ -21,12 +21,12 @@ Features:
 Reference: A. Karton, J. Phys. Chem. A 2019, 123, 6720-6729
 """
 
-import argparse
 import json
 import logging
 import os
 import sys
 import time
+import warnings
 from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
@@ -38,16 +38,18 @@ from ase.io import read
 
 # Import QME components
 try:
-    from qme.calculator_registry import calculator_registry
-    from qme.core.explorer import Explorer
-    from qme.dependencies import HAS_SELLA
+    from qme import Explorer, calculator_registry
 except ImportError as e:
     print(f"❌ Error importing QME: {e}")
     print("   Please ensure QME is installed and accessible")
     sys.exit(1)
 
-# Import device utilities
-from qme.utils.device import get_optimal_device, print_device_info
+# Import common interface
+from qme.examples import QMEExampleInterface, create_standard_epilog
+
+# Suppress warnings for cleaner output
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Suppress verbose logging from dependencies early
 logging.getLogger("jax").setLevel(logging.WARNING)
@@ -175,13 +177,6 @@ class BH28Benchmark:
             if calculator_registry.is_backend_available(backend):
                 available.append(backend)
 
-        if not available:
-            raise RuntimeError(
-                "No ML backends available! Please install at least one ML backend. "
-                "The mock backend is excluded from benchmarking as it cannot optimize "
-                "transition states."
-            )
-
         return available
 
     def filter_available_backends(
@@ -204,7 +199,7 @@ class BH28Benchmark:
             print(f"  {i}. {backend}")
         print(f"Total: {len(backends)} backends")
 
-    def optimize_structures(self, reactions: List[str], backends: List[str]) -> Dict:
+    def optimize_structures(self, reactions: List[str], backends: List[str], verbose: bool = False) -> Dict:
         """Optimize all structures (minima and TS) for given reactions and backends."""
         print(f"\n{'=' * 80}")
         print("STRUCTURE OPTIMIZATION")
@@ -223,14 +218,19 @@ class BH28Benchmark:
             try:
                 for reaction in reactions:
                     print(f"\n  📍 {reaction}")
-                    reaction_data = {}
-
-                    # Create fresh optimizer for each reaction (ensures consistency across backends)
+                    reaction_data = {
+                        "timings": {},
+                        "optimization_results": {},
+                        "frequency_results": {},
+                    }
 
                     try:
-                        # 1. Optimize reactant minima
+                        # Load reactants
+                        load_start = time.perf_counter()
                         reactants = self.get_reactants(reaction)
                         is_bimolecular = reaction in self.bimolecular_reactions
+                        load_time = time.perf_counter() - load_start
+                        reaction_data["timings"]["structure_loading"] = load_time
 
                         # Brief molecular information
                         reactant_info = [r.get_chemical_formula() for r in reactants]
@@ -239,9 +239,11 @@ class BH28Benchmark:
                         else:
                             print(f"  Reactant: {reactant_info[0]}")
 
-                        start_time = time.time()
+                        # 1. Optimize reactant minima
+                        minima_start = time.perf_counter()
                         optimized_reactants = []
                         reactant_energies = []
+                        minima_steps_total = 0
 
                         for i, reactant in enumerate(reactants):
                             with suppress_verbose_output():
@@ -262,9 +264,14 @@ class BH28Benchmark:
                             if isinstance(result, dict):
                                 optimized = result.get("optimized_atoms", reactant)
                                 steps_taken = result.get("steps_taken", None)
+                                converged = result.get("converged", False)
                             else:
                                 optimized = result
                                 steps_taken = None
+                                converged = True
+
+                            if steps_taken:
+                                minima_steps_total += steps_taken
 
                             # Compute energy from atoms to avoid relying on dict keys
                             try:
@@ -280,149 +287,142 @@ class BH28Benchmark:
                             reactant_label = (
                                 f"reactant_{i + 1}" if len(reactants) > 1 else "reactant"
                             )
-                            if steps_taken is None:
-                                print(f"  ✅ {reactant_label}: {energy_val:.6f} eV")
-                            else:
-                                print(
-                                    f"  ✅ {reactant_label}: {energy_val:.6f} eV "
-                                    f"({steps_taken} steps)"
-                                )
+                            print(f"  ✅ {reactant_label}: {energy_val:.6f} eV ({'Converged' if converged else 'Failed'})")
+                            if verbose and steps_taken:
+                                print(f"    Steps: {steps_taken}")
 
                         total_reactant_energy = sum(reactant_energies)
-                        minima_time = time.time() - start_time
+                        minima_time = time.perf_counter() - minima_start
 
-                        reaction_data.update(
-                            {
-                                "is_bimolecular": is_bimolecular,
-                                "optimized_reactants": optimized_reactants,
-                                "reactant_energies": reactant_energies,
-                                "total_reactant_energy": total_reactant_energy,
-                                "minima_time": minima_time,
-                                "minima_success": True,
-                            }
-                        )
+                        reaction_data["timings"]["minima_optimization"] = minima_time
+                        reaction_data["optimization_results"].update({
+                            "minima_converged": True,
+                            "minima_steps": minima_steps_total,
+                            "total_reactant_energy": total_reactant_energy,
+                            "reactant_energies": reactant_energies,
+                        })
 
                         # 2. Optimize transition state
-                        if HAS_SELLA:
-                            try:
-                                ts_atoms = self.get_transition_state(reaction)
-                                start_time = time.time()
+                        try:
+                            ts_atoms = self.get_transition_state(reaction)
+                            ts_start = time.perf_counter()
 
-                                with suppress_verbose_output():
-                                    ts_optimizer = Explorer(
-                                        atoms=ts_atoms,
-                                        backend=backend,
-                                        model_name=model_name,
-                                    )
-                                    ts_result = ts_optimizer.run(mode="ts", steps=500, fmax=0.01)
-
-                                ts_time = time.time() - start_time
-
-                                # Normalize TS result
-                                if isinstance(ts_result, list) and len(ts_result) == 1:
-                                    ts_result = ts_result[0]
-                                if isinstance(ts_result, dict):
-                                    ts_atoms_opt = ts_result.get("optimized_atoms", ts_atoms)
-                                    ts_steps = ts_result.get("steps_taken", None)
-                                    ts_conv = bool(ts_result.get("converged", True))
-                                else:
-                                    ts_atoms_opt = ts_result
-                                    ts_steps = None
-                                    ts_conv = True
-
-                                # Compute energy
-                                try:
-                                    ts_energy_val = float(ts_atoms_opt.get_potential_energy())
-                                except Exception:
-                                    ts_optimizer._create_and_attach_calculator(ts_atoms_opt)
-                                    ts_energy_val = float(ts_atoms_opt.get_potential_energy())
-
-                                reaction_data.update(
-                                    {
-                                        "optimized_ts": ts_atoms_opt,
-                                        "ts_energy": ts_energy_val,
-                                        "ts_time": ts_time,
-                                        "ts_steps": ts_steps,
-                                        "ts_success": True,
-                                        "ts_converged": ts_conv,
-                                    }
+                            with suppress_verbose_output():
+                                ts_optimizer = Explorer(
+                                    atoms=ts_atoms,
+                                    backend=backend,
+                                    model_name=model_name,
                                 )
+                                ts_result = ts_optimizer.run(mode="ts", steps=500, fmax=0.01)
 
-                                status = "✅" if ts_conv else "⚠️"
-                                if ts_steps is None:
-                                    print(f"  {status} TS: {ts_energy_val:.6f} eV")
-                                else:
-                                    print(
-                                        f"  {status} TS: {ts_energy_val:.6f} eV "
-                                        f"({ts_steps} steps)"
-                                    )
+                            ts_time = time.perf_counter() - ts_start
 
-                            except Exception as e:
-                                print(f"  ❌ TS optimization failed: {str(e)}")
-                                # Fall back to single-point energy
+                            # Normalize TS result
+                            if isinstance(ts_result, list) and len(ts_result) == 1:
+                                ts_result = ts_result[0]
+                            if isinstance(ts_result, dict):
+                                ts_atoms_opt = ts_result.get("optimized_atoms", ts_atoms)
+                                ts_steps = ts_result.get("steps_taken", None)
+                                ts_conv = bool(ts_result.get("converged", False))
+                            else:
+                                ts_atoms_opt = ts_result
+                                ts_steps = None
+                                ts_conv = True
+
+                            # Compute energy
+                            try:
+                                ts_energy_val = float(ts_atoms_opt.get_potential_energy())
+                            except Exception:
+                                ts_optimizer._create_and_attach_calculator(ts_atoms_opt)
+                                ts_energy_val = float(ts_atoms_opt.get_potential_energy())
+
+                            reaction_data["timings"]["ts_optimization"] = ts_time
+                            reaction_data["optimization_results"].update({
+                                "ts_converged": ts_conv,
+                                "ts_steps": ts_steps,
+                                "ts_energy": ts_energy_val,
+                                "optimized_ts": ts_atoms_opt,
+                            })
+
+                            # Frequency analysis to verify TS character
+                            if ts_atoms_opt is not None and ts_conv:
+                                freq_start = time.perf_counter()
                                 try:
-                                    ts_atoms = self.get_transition_state(reaction)
-                                    ts_atoms.calc = optimizer.calculator
                                     with suppress_verbose_output():
-                                        ts_energy = ts_atoms.get_potential_energy()
-                                    reaction_data.update(
-                                        {
-                                            "ts_energy": ts_energy,
-                                            "ts_success": True,
-                                            "ts_method": "single_point",
-                                        }
-                                    )
-                                    print(f"  📊 TS (single-point fallback): {ts_energy:.6f} eV")
-                                except Exception as e2:
-                                    print(f"  ❌ TS single-point also failed: {str(e2)}")
-                                    reaction_data.update({"ts_success": False, "ts_error": str(e)})
-                        else:
-                            print("  ⚠️  SELLA not available - using single-point TS energy")
-                            try:
-                                ts_atoms = self.get_transition_state(reaction)
-                                # Attach calculator for single-point evaluation
-                                try:
-                                    ts_atoms.calc = optimizer.atoms_list[0].calc
-                                except Exception:
-                                    optimizer._create_and_attach_calculator(ts_atoms)
-                                with suppress_verbose_output():
-                                    ts_energy = ts_atoms.get_potential_energy()
-                                reaction_data.update(
-                                    {
-                                        "ts_energy": ts_energy,
-                                        "ts_success": True,
-                                        "ts_method": "single_point",
+                                        freq_results = ts_optimizer.calculate_frequencies(
+                                            delta=0.01,
+                                            method="auto",
+                                            temperature=298.15,
+                                            save_hessian=False,
+                                        )
+                                    freq_time = time.perf_counter() - freq_start
+                                    reaction_data["timings"]["frequency_analysis"] = freq_time
+                                    reaction_data["frequency_results"] = {
+                                        "n_frequencies": len(freq_results["frequencies"]),
+                                        "frequencies": freq_results["frequencies"][:10],  # First 10 frequencies
+                                        "zero_point_energy": freq_results["zero_point_energy"],
+                                        "is_transition_state": freq_results["is_ts"],
+                                        "method_used": freq_results["method_used"],
                                     }
-                                )
-                                print(f"  📊 TS (single-point): {ts_energy:.6f} eV")
-                            except Exception as e:
-                                print(f"  ❌ TS single-point failed: {str(e)}")
-                                reaction_data.update({"ts_success": False, "ts_error": str(e)})
+                                except Exception as e:
+                                    reaction_data["timings"]["frequency_analysis"] = None
+                                    reaction_data["frequency_results"] = {"error": str(e)}
+                            else:
+                                reaction_data["timings"]["frequency_analysis"] = None
+                                reaction_data["frequency_results"] = {"skipped": "TS optimization failed"}
+
+                            # Print status
+                            freq_info = reaction_data["frequency_results"]
+                            if "is_transition_state" in freq_info:
+                                ts_verified = freq_info["is_transition_state"]
+                                ts_status = "✅ Verified TS" if ts_verified else "⚠️ Not verified as TS"
+                            else:
+                                ts_status = "❓ Not checked"
+
+                            status = "✅" if ts_conv else "⚠️"
+                            print(f"  {status} TS: {ts_energy_val:.6f} eV ({'Converged' if ts_conv else 'Failed'})")
+                            print(f"  TS Character: {ts_status}")
+                            if verbose and ts_steps:
+                                print(f"    Steps: {ts_steps}, Time: {ts_time:.2f}s")
+
+                        except Exception as e:
+                            print(f"  ❌ TS optimization failed: {str(e)}")
+                            reaction_data["optimization_results"].update({
+                                "ts_success": False,
+                                "ts_error": str(e),
+                            })
+                            reaction_data["timings"]["ts_optimization"] = None
+                            reaction_data["timings"]["frequency_analysis"] = None
+                            reaction_data["frequency_results"] = {"skipped": "TS optimization failed"}
 
                         # 3. Calculate barrier height from optimized structures
-                        if reaction_data.get("ts_success") and reaction_data.get("minima_success"):
-                            barrier_height = reaction_data["ts_energy"] - total_reactant_energy
+                        opt_results = reaction_data["optimization_results"]
+                        if opt_results.get("ts_converged") and opt_results.get("minima_converged"):
+                            barrier_height = opt_results["ts_energy"] - opt_results["total_reactant_energy"]
                             ref_barrier = self.reference_barriers[reaction]
                             error = barrier_height - ref_barrier
                             relative_error = (
                                 (error / ref_barrier) * 100 if ref_barrier != 0 else float("inf")
                             )
 
-                            reaction_data.update(
-                                {
-                                    "barrier_height": barrier_height,
-                                    "reference_barrier": ref_barrier,
-                                    "absolute_error": error,
-                                    "relative_error": relative_error,
-                                    "barrier_success": True,
-                                }
-                            )
+                            reaction_data["optimization_results"].update({
+                                "barrier_height": barrier_height,
+                                "reference_barrier": ref_barrier,
+                                "absolute_error": error,
+                                "relative_error": relative_error,
+                                "barrier_success": True,
+                            })
 
                             print(
                                 f"  📊 Barrier: {barrier_height:.3f} eV | "
                                 f"Ref: {ref_barrier:.3f} eV | "
                                 f"Error: {error:+.3f} eV ({relative_error:+.1f}%)"
                             )
+
+                        # Calculate total time
+                        total_time = sum(v for v in reaction_data["timings"].values() if v is not None)
+                        reaction_data["timings"]["total"] = total_time
+                        reaction_data["success"] = True
 
                     except Exception as e:
                         error_msg = str(e)
@@ -432,10 +432,19 @@ class BH28Benchmark:
                                 "success": False,
                                 "error": "SO3LR molecular size incompatibility",
                                 "skipped": True,
+                                "timings": {},
+                                "optimization_results": {},
+                                "frequency_results": {},
                             }
                         else:
                             print(f"  ❌ Failed: {error_msg}")
-                            reaction_data = {"success": False, "error": error_msg}
+                            reaction_data = {
+                                "success": False,
+                                "error": error_msg,
+                                "timings": {},
+                                "optimization_results": {},
+                                "frequency_results": {},
+                            }
 
                     backend_results[reaction] = reaction_data
 
@@ -449,40 +458,73 @@ class BH28Benchmark:
         return results
 
     def analyze_performance(self, backends: List[str]) -> Dict:
-        """Analyze performance metrics across backends."""
-        print(f"\n{'=' * 80}")
-        print("PERFORMANCE ANALYSIS")
-        print(f"{'=' * 80}")
+        """Analyze performance metrics across backends with detailed statistics."""
+        print(f"\n{'=' * 120}")
+        print("DETAILED PERFORMANCE ANALYSIS")
+        print(f"{'=' * 120}")
 
         analysis = {}
 
         for backend in backends:
             print(f"\nBackend: {backend.upper()}")
-            print("-" * 50)
+            print("-" * 60)
             backend_data = self.results.get(backend, {})
 
-            # Collect successful barrier calculations
+            # Collect successful calculations
             successful_barriers = []
-            minima_times = []
-            ts_times = []
-            skipped_count = 0
             failed_count = 0
+            skipped_count = 0
+            minima_converged_count = 0
+            ts_converged_count = 0
+            ts_verified_count = 0
+            timing_stats = {"total": [], "minima": [], "ts": [], "frequency": []}
+            step_stats = {"minima": [], "ts": []}
 
             for reaction, data in backend_data.items():
-                if isinstance(data, dict):
-                    if data.get("skipped"):
-                        skipped_count += 1
-                    elif not data.get("success", True):
+                if isinstance(data, dict) and not data.get("skipped"):
+                    if not data.get("success", True):
                         failed_count += 1
                     else:
-                        if data.get("barrier_success"):
-                            successful_barriers.append(data)
-                        if data.get("minima_success"):
-                            minima_times.append(data.get("minima_time", 0))
-                        if data.get("ts_success") and "ts_time" in data:
-                            ts_times.append(data["ts_time"])
+                        opt_results = data.get("optimization_results", {})
+                        
+                        # Check minima convergence
+                        if opt_results.get("minima_converged"):
+                            minima_converged_count += 1
+                            if opt_results.get("minima_steps"):
+                                step_stats["minima"].append(opt_results["minima_steps"])
+                        
+                        # Check TS convergence
+                        if opt_results.get("ts_converged"):
+                            ts_converged_count += 1
+                            if opt_results.get("ts_steps"):
+                                step_stats["ts"].append(opt_results["ts_steps"])
+                            
+                            # Check TS verification
+                            freq_results = data.get("frequency_results", {})
+                            if freq_results.get("is_transition_state"):
+                                ts_verified_count += 1
+                        
+                        # Collect barrier height data
+                        if opt_results.get("barrier_success"):
+                            successful_barriers.append(opt_results)
+                        
+                        # Collect timing data
+                        timings = data.get("timings", {})
+                        if timings.get("total"):
+                            timing_stats["total"].append(timings["total"])
+                        if timings.get("minima_optimization"):
+                            timing_stats["minima"].append(timings["minima_optimization"])
+                        if timings.get("ts_optimization"):
+                            timing_stats["ts"].append(timings["ts_optimization"])
+                        if timings.get("frequency_analysis"):
+                            timing_stats["frequency"].append(timings["frequency_analysis"])
+                elif isinstance(data, dict) and data.get("skipped"):
+                    skipped_count += 1
 
-            # Calculate barrier height statistics
+            # Calculate statistics
+            total_reactions = len([r for r in backend_data.values() 
+                                 if isinstance(r, dict) and not r.get("skipped")])
+            
             if successful_barriers:
                 errors = [data["absolute_error"] for data in successful_barriers]
                 rel_errors = [
@@ -492,7 +534,16 @@ class BH28Benchmark:
                 ]
 
                 barrier_stats = {
-                    "count": len(successful_barriers),
+                    "total_reactions": total_reactions,
+                    "minima_converged": minima_converged_count,
+                    "ts_converged": ts_converged_count,
+                    "ts_verified": ts_verified_count,
+                    "barrier_successful": len(successful_barriers),
+                    "failed": failed_count,
+                    "skipped": skipped_count,
+                    "minima_rate": (minima_converged_count / total_reactions * 100) if total_reactions > 0 else 0,
+                    "ts_rate": (ts_converged_count / total_reactions * 100) if total_reactions > 0 else 0,
+                    "verification_rate": (ts_verified_count / ts_converged_count * 100) if ts_converged_count > 0 else 0,
                     "mae": np.mean(np.abs(errors)),
                     "rmse": np.sqrt(np.mean(np.array(errors) ** 2)),
                     "max_error": np.max(np.abs(errors)),
@@ -500,77 +551,93 @@ class BH28Benchmark:
                     "std_error": np.std(errors),
                 }
 
-                print(f"Barrier Heights ({barrier_stats['count']} reactions):")
+                print(f"📊 CONVERGENCE STATISTICS:")
+                print(f"  Total reactions: {barrier_stats['total_reactions']}")
+                print(f"  Minima converged: {barrier_stats['minima_converged']} ({barrier_stats['minima_rate']:.1f}%)")
+                print(f"  TS converged: {barrier_stats['ts_converged']} ({barrier_stats['ts_rate']:.1f}%)")
+                print(f"  TS Verified: {barrier_stats['ts_verified']} ({barrier_stats['verification_rate']:.1f}%)")
+                print(f"  Barrier calculations: {barrier_stats['barrier_successful']}")
+                print(f"  Failed: {barrier_stats['failed']}")
+                if skipped_count > 0:
+                    print(f"  Skipped: {barrier_stats['skipped']}")
+
+                print(f"\n📏 BARRIER HEIGHT ACCURACY:")
                 print(f"  MAE:  {barrier_stats['mae']:.3f} eV")
                 print(f"  RMSE: {barrier_stats['rmse']:.3f} eV")
                 print(f"  Max Error: {barrier_stats['max_error']:.3f} eV")
                 print(f"  Mean Rel. Error: {barrier_stats['mean_rel_error']:.1f}%")
+
+                # Timing statistics
+                if timing_stats["total"]:
+                    print(f"\n⏱️ TIMING STATISTICS:")
+                    print(f"  Total time: {np.mean(timing_stats['total']):.2f} ± {np.std(timing_stats['total']):.2f} s")
+                    if timing_stats["minima"]:
+                        print(f"  Minima optimization: {np.mean(timing_stats['minima']):.2f} ± {np.std(timing_stats['minima']):.2f} s")
+                    if timing_stats["ts"]:
+                        print(f"  TS optimization: {np.mean(timing_stats['ts']):.2f} ± {np.std(timing_stats['ts']):.2f} s")
+                    if timing_stats["frequency"]:
+                        print(f"  Frequency analysis: {np.mean(timing_stats['frequency']):.2f} ± {np.std(timing_stats['frequency']):.2f} s")
+
+                # Step statistics
+                if step_stats["minima"]:
+                    print(f"\n🔄 OPTIMIZATION STEPS:")
+                    print(f"  Minima: {np.mean(step_stats['minima']):.1f} ± {np.std(step_stats['minima']):.1f} steps")
+                if step_stats["ts"]:
+                    print(f"  TS: {np.mean(step_stats['ts']):.1f} ± {np.std(step_stats['ts']):.1f} steps")
+
             else:
-                barrier_stats = {"count": 0}
+                barrier_stats = {
+                    "total_reactions": total_reactions,
+                    "minima_converged": 0,
+                    "ts_converged": 0,
+                    "ts_verified": 0,
+                    "barrier_successful": 0,
+                    "failed": failed_count,
+                    "skipped": skipped_count,
+                }
                 print("❌ No successful barrier height calculations")
 
-            # Report skipped and failed reactions
-            if skipped_count > 0:
-                print(f"⚠️  Skipped reactions (known incompatibilities): {skipped_count}")
-            if failed_count > 0:
-                print(f"❌ Failed reactions: {failed_count}")
+            analysis[backend] = {"barrier_statistics": barrier_stats}
 
-            # Calculate timing statistics
-            timing_stats = {
-                "minima_count": len(minima_times),
-                "minima_total_time": sum(minima_times),
-                "minima_avg_time": np.mean(minima_times) if minima_times else 0,
-                "ts_count": len(ts_times),
-                "ts_total_time": sum(ts_times),
-                "ts_avg_time": np.mean(ts_times) if ts_times else 0,
-            }
+        # Comprehensive summary table
+        print(f"\n{'=' * 120}")
+        print("COMPREHENSIVE BACKEND COMPARISON")
+        print(f"{'=' * 120}")
 
-            print("Timing:")
-            if timing_stats["minima_count"] > 0:
-                print(
-                    f"  Minima: {timing_stats['minima_avg_time']:.1f}s avg "
-                    f"({timing_stats['minima_total_time']:.1f}s total)"
-                )
-            if timing_stats["ts_count"] > 0:
-                print(
-                    f"  TS: {timing_stats['ts_avg_time']:.1f}s avg "
-                    f"({timing_stats['ts_total_time']:.1f}s total)"
-                )
+        # Print legend
+        print("📊 COLUMN DEFINITIONS:")
+        print("   Total   = Total number of reactions attempted")
+        print("   Minima  = Number of converged minima optimizations")
+        print("   TS      = Number of converged TS optimizations")
+        print("   Verified = Number vibrationally verified as TS")
+        print("   Barriers = Number of successful barrier calculations")
+        print("   MAE     = Mean Absolute Error (eV)")
+        print("   RMSE    = Root Mean Square Error (eV)")
+        print(f"{'-' * 120}")
 
-            analysis[backend] = {
-                "barrier_statistics": barrier_stats,
-                "timing_statistics": timing_stats,
-            }
+        # Header
+        print(
+            f"{'Backend':<12} {'Total':<6} {'Minima':<7} {'TS':<4} "
+            f"{'Verified':<9} {'Barriers':<9} {'MAE (eV)':<9} {'RMSE (eV)':<10}"
+        )
+        print("=" * 120)
 
-        # Cross-backend comparison
-        print("\nBACKEND COMPARISON")
-        print("-" * 65)
-        print(f"{'Backend':<12} {'Success':<8} {'MAE (eV)':<10} {'RMSE (eV)':<11} {'Avg Time':<10}")
-        print("-" * 65)
-
+        # Results
         for backend in backends:
             stats = analysis.get(backend, {}).get("barrier_statistics", {})
-            timing = analysis.get(backend, {}).get("timing_statistics", {})
-
-            backend_reactions = self.results.get(backend, {})
-            total_attempted = len(
-                [
-                    r
-                    for r in backend_reactions
-                    if isinstance(backend_reactions[r], dict)
-                    and not backend_reactions[r].get("skipped", False)
-                ]
-            )
-            success_rate = f"{stats.get('count', 0)}/{total_attempted}"
-            mae = f"{stats.get('mae', 0):.3f}" if stats.get("count", 0) > 0 else "N/A"
-            rmse = f"{stats.get('rmse', 0):.3f}" if stats.get("count", 0) > 0 else "N/A"
-            avg_time = (
-                f"{timing.get('minima_avg_time', 0):.1f}s"
-                if timing.get("minima_count", 0) > 0
-                else "N/A"
+            
+            print(
+                f"{backend:<12} "
+                f"{stats.get('total_reactions', 0):<6} "
+                f"{stats.get('minima_converged', 0):<7} "
+                f"{stats.get('ts_converged', 0):<4} "
+                f"{stats.get('ts_verified', 0):<9} "
+                f"{stats.get('barrier_successful', 0):<9} "
+                f"{stats.get('mae', 0):<9.3f} "
+                f"{stats.get('rmse', 0):<10.3f}"
             )
 
-            print(f"{backend:<12} {success_rate:<8} {mae:<10} {rmse:<11} {avg_time:<10}")
+        print("=" * 120)
 
         return analysis
 
@@ -605,7 +672,7 @@ class BH28Benchmark:
 
         print(f"\nResults saved to: {output_file}")
 
-    def run_benchmark(self, backends: List[str], reactions: List[str]):
+    def run_benchmark(self, backends: List[str], reactions: List[str], verbose: bool = False):
         """Run the complete benchmark suite."""
         print("\nStarting BH28 Benchmark")
         print(f"Backends: {', '.join(backends)}")
@@ -617,7 +684,7 @@ class BH28Benchmark:
         start_time = time.time()
 
         # Optimize all structures and calculate barriers
-        self.optimize_structures(reactions, backends)
+        self.optimize_structures(reactions, backends, verbose=verbose)
 
         # Analyze performance
         self.analyze_performance(backends)
@@ -633,49 +700,36 @@ class BH28Benchmark:
 
 def main():
     """Main entry point for the benchmark."""
-    parser = argparse.ArgumentParser(
-        description="QME BH28 Benchmark - Chemical Accuracy Evaluation",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python bh28_benchmark.py
-  python bh28_benchmark.py --backends aimnet2,uma
-  python bh28_benchmark.py --quick
-  python bh28_benchmark.py --quicker
-  python bh28_benchmark.py --analyze
-        """,
+    # Create standardized interface
+    interface = QMEExampleInterface(
+        name="BH28 Benchmark",
+        description="Chemical Accuracy Evaluation",
+        epilog=create_standard_epilog("benchmark"),
     )
 
-    parser.add_argument(
-        "--backends",
-        nargs="+",
-        help="QME backends to test (default: all available)",
-    )
-
+    parser = interface.create_parser()
+    
+    # Add benchmark-specific arguments
     parser.add_argument(
         "--reactions",
         nargs="+",
         help="Specific reactions to test (default: all 28 reactions)",
     )
-
     parser.add_argument(
         "--quick",
         action="store_true",
         help="Run quick benchmark with representative subset of reactions",
     )
-
     parser.add_argument(
         "--quicker",
         action="store_true",
         help="Run quicker benchmark with single reaction for very fast testing",
     )
-
     parser.add_argument(
         "--analyze",
         action="store_true",
         help="Analyze existing results without running new calculations",
     )
-
     parser.add_argument(
         "--output-dir",
         default="benchmark_results",
@@ -687,18 +741,27 @@ Examples:
     # Initialize benchmark
     benchmark = BH28Benchmark(output_dir=args.output_dir)
 
-    # Determine backends to test
-    available_backends = benchmark.get_available_backends()
+    interface.print_header("Chemical Accuracy Evaluation")
 
+    # Determine backends to test
     if args.backends:
-        backends = benchmark.filter_available_backends(args.backends, verbose=True)
+        requested_backends = [b.strip() for b in args.backends.split(",")]
+        backends = interface.filter_available_backends(requested_backends, verbose=True)
         if not backends:
-            print("❌ No requested backends are available!")
+            interface.print_error("No requested backends are available!")
             return 1
     else:
-        backends = available_backends
+        backends = interface.get_available_ml_backends()
+        if not backends:
+            interface.print_error("No ML backends available!")
+            print("Please install at least one ML backend:")
+            print("  - UMA: pip install fairchem-core")
+            print("  - MACE: pip install mace-torch")
+            print("  - AIMNet2: pip install aimnet2")
+            print("  - SO3LR: pip install so3lr")
+            return 1
 
-    benchmark.print_backend_summary(backends, "Benchmarking Backends")
+    interface.print_backend_summary(backends, "Benchmarking Backends")
 
     # Determine reactions to test
     if args.quicker:
@@ -713,8 +776,16 @@ Examples:
     # Validate reactions
     invalid_reactions = [r for r in reactions if r not in benchmark.reference_barriers]
     if invalid_reactions:
-        print(f"❌ Invalid reactions: {invalid_reactions}")
+        interface.print_error(f"Invalid reactions: {invalid_reactions}")
         return 1
+
+    # Print configuration
+    config = {
+        "Reactions": len(reactions),
+        "Output": args.output_dir,
+        "Verbose": args.verbose,
+    }
+    interface.print_configuration(config)
 
     if args.analyze:
         # Load existing results and analyze
@@ -724,13 +795,13 @@ Examples:
                 benchmark.results = json.load(f)
             benchmark.analyze_performance(backends)
         else:
-            print(f"❌ No existing results found at {results_file}")
+            interface.print_error(f"No existing results found at {results_file}")
             return 1
     else:
         # Run full benchmark
-        benchmark.run_benchmark(backends, reactions)
-        print("\n✅ Benchmark completed successfully!")
+        benchmark.run_benchmark(backends, reactions, verbose=args.verbose)
 
+    interface.print_success()
     return 0
 
 
