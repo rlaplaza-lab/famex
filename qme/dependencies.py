@@ -201,6 +201,8 @@ class DependencyManager:
             "uma": "fairchem.core",  # UMA uses fairchem-core
             "so3lr": "so3lr",
             "mace": "mace.calculators",
+            "orb_models": "orb_models",
+            "orb": "orb_models",  # Orb uses orb-models package
             "torch_sim": "torch_sim",
         }
 
@@ -231,6 +233,8 @@ class DependencyManager:
             "fairchem": "fairchem-core",
             "so3lr": "so3lr  # See installation instructions in README",
             "mace": "mace-torch",
+            "orb_models": "orb-models",
+            "orb": "orb-models",  # Orb uses orb-models package
             "torch_sim": "torch-sim-atomistic",
         }
         return commands.get(name.lower(), name.lower())

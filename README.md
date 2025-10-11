@@ -18,6 +18,7 @@ QME provides an intuitive interface for molecular optimization using state-of-th
 pip install qme-ml[aimnet2]    # Fast and reliable
 pip install qme-ml[mace]       # High accuracy
 pip install qme-ml[uma]        # General purpose
+pip install qme-ml[orb]        # Universal forcefield
 pip install qme-ml[torchsim]   # Maximum performance (Python 3.11+)
 ```
 
@@ -50,7 +51,7 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 
 ## ✨ Features
 
-- 🧪 **Multiple ML Backends**: UMA, AIMNet2, MACE, SO3LR, TorchSim
+- 🧪 **Multiple ML Backends**: UMA, AIMNet2, MACE, Orb, SO3LR, TorchSim
 - ⚡ **GPU Acceleration**: CUDA support with up to 100x speedup
 - 🎯 **Optimization Methods**: Local and two-ended strategies
 - 🔄 **Transition States**: Advanced TS search with Sella and geomeTRIC optimizers

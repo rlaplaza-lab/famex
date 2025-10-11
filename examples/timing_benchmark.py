@@ -93,7 +93,7 @@ def benchmark_backend(
     Parameters:
     -----------
     backend : str
-        Backend name (e.g., 'mock', 'aimnet2', 'uma', 'so3lr', 'mace')
+        Backend name (e.g., 'mock', 'aimnet2', 'uma', 'so3lr', 'mace', 'orb')
     device : str, optional
         Device to use ('cpu' or 'cuda'). Auto-detected if None.
     model_name : str, optional

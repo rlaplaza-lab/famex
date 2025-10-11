@@ -155,6 +155,7 @@ class Zimmermann93Benchmark:
             "uma",
             "so3lr",
             "mace",
+            "orb",
             "torchsim_mace",
             "torchsim_uma",
         ]

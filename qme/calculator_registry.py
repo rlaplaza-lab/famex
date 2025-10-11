@@ -50,6 +50,7 @@ class CalculatorRegistry:
             "torchsim_uma": LazyBackend(
                 module="qme.potentials", function="get_torchsim_uma_calculator"
             ),
+            "orb": LazyBackend(module="qme.potentials", function="get_orb_calculator"),
             "mock": LazyBackend(
                 module="qme.potentials.mock_potential",
                 function="MockCalculator",
