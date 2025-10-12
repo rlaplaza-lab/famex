@@ -12,7 +12,7 @@ of the stitched interpolated path).
 """
 
 import warnings
-from typing import Any, List, Optional, Sequence, Union, Tuple
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from ase import Atoms
@@ -31,47 +31,47 @@ def _supports_batch_evaluation(calculator):
 
 def _ensure_charge_spin_info(atoms: Atoms, default_charge: int = 0, default_spin: int = 1):
     """Ensure atoms.info has charge and spin information to prevent UMA backend warnings."""
-    if hasattr(atoms, 'info') and atoms.info is not None:
-        atoms.info.setdefault('charge', default_charge)
-        atoms.info.setdefault('spin', default_spin)
+    if hasattr(atoms, "info") and atoms.info is not None:
+        atoms.info.setdefault("charge", default_charge)
+        atoms.info.setdefault("spin", default_spin)
 
 
 def _calculate_rmsd(atoms1: Atoms, atoms2: Atoms) -> float:
     """Calculate RMSD between two Atoms objects.
-    
+
     Parameters
     ----------
     atoms1, atoms2 : Atoms
         The two structures to compare
-        
+
     Returns
     -------
     float
         RMSD in Angstroms
     """
     if len(atoms1) != len(atoms2):
-        return float('inf')
-    
+        return float("inf")
+
     # Get positions
     pos1 = atoms1.get_positions()
     pos2 = atoms2.get_positions()
-    
+
     # Calculate RMSD
     diff = pos1 - pos2
     rmsd = np.sqrt(np.mean(np.sum(diff**2, axis=1)))
-    
+
     return rmsd
 
 
 def _filter_redundant_structures(
-    structures: List[Atoms], 
+    structures: List[Atoms],
     input_structures: Optional[List[Atoms]] = None,
     rmsd_threshold: float = 0.1,
     energy_threshold: float = 0.001,
-    strategy_name: str = "strategy"
+    strategy_name: str = "strategy",
 ) -> Tuple[List[Atoms], List[int], List[str]]:
     """Filter redundant structures based on RMSD and energy similarity.
-    
+
     Parameters
     ----------
     structures : List[Atoms]
@@ -84,7 +84,7 @@ def _filter_redundant_structures(
         Energy threshold below which structures are considered redundant (eV)
     strategy_name : str
         Name of the strategy for warning messages
-        
+
     Returns
     -------
     Tuple[List[Atoms], List[int], List[str]]
@@ -92,11 +92,11 @@ def _filter_redundant_structures(
     """
     if not structures:
         return [], [], []
-    
+
     filtered_structures = []
     removed_indices = []
     warning_messages = []
-    
+
     # Calculate energies for all structures
     energies = []
     for i, atoms in enumerate(structures):
@@ -104,8 +104,8 @@ def _filter_redundant_structures(
             energy = atoms.get_potential_energy()
             energies.append(energy)
         except Exception:
-            energies.append(float('inf'))
-    
+            energies.append(float("inf"))
+
     # Check if we only have input structures
     if input_structures is not None:
         input_only = True
@@ -117,17 +117,17 @@ def _filter_redundant_structures(
                     break
             if not input_only:
                 break
-        
+
         if input_only:
             warning_messages.append(
                 f"Warning: {strategy_name} only found input structures. "
                 f"No new optimized structures were discovered."
             )
-    
+
     # Filter structures
     for i, atoms in enumerate(structures):
         is_redundant = False
-        
+
         # Check against already filtered structures
         for j, filtered_atoms in enumerate(filtered_structures):
             # RMSD check
@@ -142,16 +142,17 @@ def _filter_redundant_structures(
                         f"(RMSD: {rmsd:.3f} Å, ΔE: {abs(energies[i] - energies[j]):.3f} eV)"
                     )
                     break
-        
+
         if not is_redundant:
             filtered_structures.append(atoms)
-    
+
     if removed_indices:
-        warning_messages.insert(0, 
+        warning_messages.insert(
+            0,
             f"Warning: {strategy_name} removed {len(removed_indices)} redundant structures "
-            f"out of {len(structures)} total structures."
+            f"out of {len(structures)} total structures.",
         )
-    
+
     return filtered_structures, removed_indices, warning_messages
 
 
@@ -235,21 +236,21 @@ def _attach_calculators_if_explorer(explorer: Any, reactant: Atoms, product: Ato
     # Ensure charge and spin info are set in atoms.info before creating calculators
     _ensure_charge_spin_info(reactant, explorer.default_charge, explorer.default_spin)
     _ensure_charge_spin_info(product, explorer.default_charge, explorer.default_spin)
-    
+
     explorer._create_and_attach_calculator(reactant)
     explorer._create_and_attach_calculator(product)
     return reactant.calc
 
 
 def twoended_ts_guess_runner(
-    structures: List[Atoms], 
+    structures: List[Atoms],
     input_structures: Optional[List[Atoms]] = None,
     rmsd_threshold: float = 0.1,
     energy_threshold: float = 0.001,
-    strategy_name: str = "strategy"
+    strategy_name: str = "strategy",
 ) -> Tuple[List[Atoms], List[int], List[str]]:
     """Filter redundant structures based on RMSD and energy similarity.
-    
+
     Parameters
     ----------
     structures : List[Atoms]
@@ -262,7 +263,7 @@ def twoended_ts_guess_runner(
         Energy threshold below which structures are considered redundant (eV)
     strategy_name : str
         Name of the strategy for warning messages
-        
+
     Returns
     -------
     Tuple[List[Atoms], List[int], List[str]]
@@ -270,11 +271,11 @@ def twoended_ts_guess_runner(
     """
     if not structures:
         return [], [], []
-    
+
     filtered_structures = []
     removed_indices = []
     warning_messages = []
-    
+
     # Calculate energies for all structures
     energies = []
     for i, atoms in enumerate(structures):
@@ -282,8 +283,8 @@ def twoended_ts_guess_runner(
             energy = atoms.get_potential_energy()
             energies.append(energy)
         except Exception:
-            energies.append(float('inf'))
-    
+            energies.append(float("inf"))
+
     # Check if we only have input structures
     if input_structures is not None:
         input_only = True
@@ -295,17 +296,17 @@ def twoended_ts_guess_runner(
                     break
             if not input_only:
                 break
-        
+
         if input_only:
             warning_messages.append(
                 f"Warning: {strategy_name} only found input structures. "
                 f"No new optimized structures were discovered."
             )
-    
+
     # Filter structures
     for i, atoms in enumerate(structures):
         is_redundant = False
-        
+
         # Check against already filtered structures
         for j, filtered_atoms in enumerate(filtered_structures):
             # RMSD check
@@ -320,243 +321,18 @@ def twoended_ts_guess_runner(
                         f"(RMSD: {rmsd:.3f} Å, ΔE: {abs(energies[i] - energies[j]):.3f} eV)"
                     )
                     break
-        
+
         if not is_redundant:
             filtered_structures.append(atoms)
-    
+
     if removed_indices:
-        warning_messages.insert(0, 
+        warning_messages.insert(
+            0,
             f"Warning: {strategy_name} removed {len(removed_indices)} redundant structures "
-            f"out of {len(structures)} total structures."
+            f"out of {len(structures)} total structures.",
         )
-    
+
     return filtered_structures, removed_indices, warning_messages
-
-
-def path_generator(
-    atoms_list: Union[Sequence[Atoms], Atoms],
-    npoints: int = 11,
-    method: str = "geodesic",
-    optimize_path: bool = True,
-    explorer: Optional[Any] = None,
-    calculator=None,
-    **kwargs,
-):
-    """Generate an interpolated path between two or more Atoms objects.
-
-    This simplified helper focuses on path construction only. It accepts
-    either two endpoints or a sequence of intermediate guesses. When more
-    than two structures are provided, each consecutive pair is interpolated
-    and the segments are stitched together to produce a single path of
-    approximately `npoints` frames.
-    """
-    # Normalize input and validate
-    if isinstance(atoms_list, Atoms):
-        raise ValueError(
-            "Two-ended strategies expect two or more Atoms objects, not a single Atoms"
-        )
-
-    seq = list(atoms_list)
-    if len(seq) < 2:
-        raise ValueError("Two-ended strategies require two or more Atoms objects")
-
-    # Simple two-end case
-    if len(seq) == 2:
-        r, p = seq[0], seq[1]
-        calc = calculator
-        if explorer is not None and calc is None:
-            calc = _attach_calculators_if_explorer(explorer, r, p)
-        reaction = Reaction(r, p, calculator=calc)
-        return reaction.interpolate(
-            npoints=npoints, method=method, optimize_path=optimize_path, calculator=calc
-        )
-
-    # Multi-segment: distribute frames across segments and stitch
-    segments = len(seq) - 1
-    if npoints < 2:
-        raise ValueError("Need at least 2 points for interpolation")
-
-    total_intervals = npoints - 1
-    base_intervals = total_intervals // segments
-    remainder = total_intervals % segments
-
-    per_segment_npoints = []
-    for i in range(segments):
-        intervals = base_intervals + (1 if i < remainder else 0)
-        per_segment_npoints.append(intervals + 1)
-
-    calc = calculator
-    if explorer is not None and calc is None:
-        calc = _attach_calculators_if_explorer(explorer, seq[0], seq[-1])
-
-    stitched_path = []
-    for i in range(segments):
-        r, p = seq[i], seq[i + 1]
-        nseg = per_segment_npoints[i]
-        reaction = Reaction(r, p, calculator=calc)
-        seg_path = reaction.interpolate(
-            npoints=nseg, method=method, optimize_path=optimize_path, calculator=calc
-        )
-        if i == 0:
-            stitched_path.extend(seg_path)
-        else:
-            stitched_path.extend(seg_path[1:])
-
-    return stitched_path
-
-
-def _attach_calculators_if_explorer(explorer: Any, reactant: Atoms, product: Atoms):
-    """Use explorer helpers to create a calculator and attach to endpoints.
-
-    Returns the calculator instance.
-    """
-    # Ensure charge and spin info are set in atoms.info before creating calculators
-    _ensure_charge_spin_info(reactant, explorer.default_charge, explorer.default_spin)
-    _ensure_charge_spin_info(product, explorer.default_charge, explorer.default_spin)
-    
-    explorer._create_and_attach_calculator(reactant)
-    explorer._create_and_attach_calculator(product)
-    return reactant.calc
-
-
-def twoended_ts_guess_runner(
-    atoms_list: Union[Sequence[Atoms], Atoms],
-    npoints: int = 11,
-    method: str = "geodesic",
-    explorer: Optional[Any] = None,
-    fmax: float = 0.05,
-    steps: int = 1000,
-    local_optimizer_name: str = "sella",
-    **kwargs,
-):
-    """Interpolate and then run local TS optimization on the highest-energy frame(s).
-
-    This convenience wrapper generates an interpolated path using the same
-    logic as the interpolate runner, locates the highest-energy frame(s)
-    and attempts a local TS optimization using the explorer's calculator
-    helpers and the same optimizer selection logic as `_local_ts_runner`.
-
-    Parameters
-    ----------
-    atoms_list : Union[Sequence[Atoms], Atoms]
-        Two or more Atoms objects defining the path endpoints
-    npoints : int, default=11
-        Number of interpolation points
-    method : str, default="geodesic"
-        Interpolation method for initial path generation
-    explorer : Any, optional
-        Explorer instance for calculator and constraint management
-    fmax : float, default=0.05
-        Force convergence threshold
-    steps : int, default=1000
-        Maximum optimization steps
-    local_optimizer_name : str, default="sella"
-        Local optimizer to use for TS optimization
-    rmsd_threshold : float, default=0.1
-        RMSD threshold below which structures are considered redundant (Å)
-    energy_threshold : float, default=0.001
-        Energy threshold below which structures are considered redundant (eV)
-    **kwargs
-        Additional arguments passed to optimizer
-
-    Returns
-    -------
-    Union[Atoms, List[Atoms]]
-        Single optimized geometry for 2 atoms input, list for 3+ atoms input
-    """
-    # Validate TS optimization setup - hardcoded restrictions
-    if explorer is not None:
-        _validate_ts_optimization_setup(explorer.backend, local_optimizer_name)
-
-    # Generate stitched path (or single-segment path)
-    path = path_generator(
-        atoms_list,
-        npoints=npoints,
-        method=method,
-        optimize_path=True,
-        explorer=explorer,
-        **kwargs,
-    )
-
-    # Reaction.calculate_path_energies expects Geometry objects; ensure we have energies
-    # If path is a nested list (per-segment) flatten
-    if path and isinstance(path[0], list):
-        flat = []
-        for seg in path:
-            flat.extend(seg)
-        path = flat
-
-    # Try to compute energies using the Reaction helper by constructing a dummy Reaction
-    if len(path) < 2:
-        raise ValueError("Need at least two frames in interpolated path to locate TS guess")
-
-    # Use the Reaction class between endpoints to access calculate_path_energies
-    reaction = Reaction(path[0], path[-1], calculator=getattr(path[0], "calc", None))
-    energies = reaction.calculate_path_energies(path)
-
-    # Find index/indices of the maximum energy frames (could be multiple)
-    import math
-
-    if not energies:
-        raise RuntimeError("Failed to calculate path energies for TS guess selection")
-
-    max_e = max(energies)
-    max_idxs = [i for i, e in enumerate(energies) if not math.isnan(e) and e == max_e]
-    if not max_idxs:
-        # Fall back to middle frame
-        max_idxs = [len(path) // 2]
-
-    ts_results = []
-    # Select optimizer class
-    opt_class = _get_local_optimizer_class(local_optimizer_name)
-
-    for idx in max_idxs:
-        geom = path[idx]
-        # CRITICAL FIX: Make a copy of atoms before optimization to prevent in-place modifications
-        # that corrupt the coordinate system for subsequent Hessian calculations
-        geom_copy = geom.copy()
-
-        # Attach calculator and apply constraints
-        if explorer is not None:
-            explorer._create_and_attach_calculator(geom_copy)
-            explorer._apply_constraints(geom_copy)
-
-        opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
-        if local_optimizer_name.lower() == "sella":
-            opt_kwargs = dict(opt_kwargs)
-            opt_kwargs.setdefault("internal", True)
-            opt_kwargs.setdefault("order", 1)
-
-        opt = opt_class(geom_copy, **opt_kwargs)
-        opt.run(fmax=fmax, steps=steps)
-        ts_results.append(geom_copy)
-
-    # Filter redundant structures and issue warnings
-    if ts_results:
-        # Convert atoms_list to list for comparison
-        input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
-        
-        filtered_results, removed_indices, warnings_list = _filter_redundant_structures(
-            ts_results, 
-            input_structures=input_atoms,
-            rmsd_threshold=kwargs.get('rmsd_threshold', 0.1),
-            energy_threshold=kwargs.get('energy_threshold', 0.001),
-            strategy_name="twoended:ts"
-        )
-        
-        # Issue warnings
-        for warning_msg in warnings_list:
-            warnings.warn(warning_msg)
-        
-        ts_results = filtered_results
-
-    # Return single geometry if single input expected shape
-    # If original input was two Atoms, keep consistent and return single Geometry
-    if isinstance(atoms_list, Atoms) or (
-        isinstance(atoms_list, (list, tuple)) and len(atoms_list) == 2
-    ):
-        return ts_results[0] if ts_results else None
-    return ts_results
 
 
 __all__ = [
@@ -686,19 +462,19 @@ def twoended_minima_runner(
     if results:
         # Convert atoms_list to list for comparison
         input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
-        
+
         filtered_results, removed_indices, warnings_list = _filter_redundant_structures(
-            results, 
+            results,
             input_structures=input_atoms,
-            rmsd_threshold=kwargs.get('rmsd_threshold', 0.1),
-            energy_threshold=kwargs.get('energy_threshold', 0.001),
-            strategy_name="twoended:minima"
+            rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
+            energy_threshold=kwargs.get("energy_threshold", 0.001),
+            strategy_name="twoended:minima",
         )
-        
+
         # Issue warnings
         for warning_msg in warnings_list:
             warnings.warn(warning_msg)
-        
+
         results = filtered_results
 
     # Return single geometry if original input was pair/endpoints
@@ -718,9 +494,11 @@ class BatchNEBOptimizer:
     for all NEB images simultaneously. Supports both regular NEB and CI-NEB.
     """
 
-    def __init__(self, path, calculator, fmax=0.05, steps=1000, spring_constant=5.0, climb=False, **kwargs):
+    def __init__(
+        self, path, calculator, fmax=0.05, steps=1000, spring_constant=5.0, climb=False, **kwargs
+    ):
         """Initialize batch NEB optimizer.
-        
+
         Parameters
         ----------
         path : list of Atoms
@@ -922,7 +700,7 @@ def _batch_neb_runner(
     **kwargs,
 ):
     """Batch NEB runner for calculators that support batch evaluation.
-    
+
     Supports both regular NEB and CI-NEB depending on the climb parameter.
     """
     # Generate initial path using geodesic interpolation
@@ -953,20 +731,20 @@ def _batch_neb_runner(
     if optimized_path:
         # Convert atoms_list to list for comparison
         input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
-        
+
         strategy_name = "twoended:cineb" if climb else "twoended:neb"
         filtered_path, removed_indices, warnings_list = _filter_redundant_structures(
-            optimized_path, 
+            optimized_path,
             input_structures=input_atoms,
-            rmsd_threshold=kwargs.get('rmsd_threshold', 0.1),
-            energy_threshold=kwargs.get('energy_threshold', 0.001),
-            strategy_name=strategy_name
+            rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
+            energy_threshold=kwargs.get("energy_threshold", 0.001),
+            strategy_name=strategy_name,
         )
-        
+
         # Issue warnings
         for warning_msg in warnings_list:
             warnings.warn(warning_msg)
-        
+
         optimized_path = filtered_path
 
     return optimized_path
@@ -1092,19 +870,19 @@ def twoended_neb_runner(
     if path:
         # Convert atoms_list to list for comparison
         input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
-        
+
         filtered_path, removed_indices, warnings_list = _filter_redundant_structures(
-            path, 
+            path,
             input_structures=input_atoms,
-            rmsd_threshold=kwargs.get('rmsd_threshold', 0.1),
-            energy_threshold=kwargs.get('energy_threshold', 0.001),
-            strategy_name="twoended:neb"
+            rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
+            energy_threshold=kwargs.get("energy_threshold", 0.001),
+            strategy_name="twoended:neb",
         )
-        
+
         # Issue warnings
         for warning_msg in warnings_list:
             warnings.warn(warning_msg)
-        
+
         path = filtered_path
 
     return path
@@ -1213,7 +991,13 @@ def _run_simple_neb(
         for i in range(1, len(path) - 1):
             atoms = path[i]
             try:
-                opt = OptClass(atoms, **kwargs)
+                # Filter out incompatible kwargs for optimizer constructor
+                opt_kwargs = {
+                    k: v
+                    for k, v in kwargs.items()
+                    if k not in ["verbose", "explorer", "local_optimizer_name", "climb"]
+                }
+                opt = OptClass(atoms, **opt_kwargs)
                 opt.run(fmax=fmax, steps=1)  # Single step per iteration
             except Exception as e:
                 warnings.warn(f"Optimization failed for image {i}: {e}")
@@ -1400,19 +1184,19 @@ def twoended_cineb_runner(
     if path:
         # Convert atoms_list to list for comparison
         input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
-        
+
         filtered_path, removed_indices, warnings_list = _filter_redundant_structures(
-            path, 
+            path,
             input_structures=input_atoms,
-            rmsd_threshold=kwargs.get('rmsd_threshold', 0.1),
-            energy_threshold=kwargs.get('energy_threshold', 0.001),
-            strategy_name="twoended:cineb"
+            rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
+            energy_threshold=kwargs.get("energy_threshold", 0.001),
+            strategy_name="twoended:cineb",
         )
-        
+
         # Issue warnings
         for warning_msg in warnings_list:
             warnings.warn(warning_msg)
-        
+
         path = filtered_path
 
     return path
@@ -1497,9 +1281,7 @@ def _run_cineb(
 
         # Determine climbing image (highest energy image, excluding endpoints)
         if climb and len(energies) > 2:
-            valid_energies = [
-                (i, e) for i, e in enumerate(energies[1:-1], 1) if not np.isnan(e)
-            ]
+            valid_energies = [(i, e) for i, e in enumerate(energies[1:-1], 1) if not np.isnan(e)]
             if valid_energies:
                 climbing_image = max(valid_energies, key=lambda x: x[1])[0]
             else:
@@ -1554,7 +1336,13 @@ def _run_cineb(
         for i in range(1, len(path) - 1):
             atoms = path[i]
             try:
-                opt = OptClass(atoms, **kwargs)
+                # Filter out incompatible kwargs for optimizer constructor
+                opt_kwargs = {
+                    k: v
+                    for k, v in kwargs.items()
+                    if k not in ["verbose", "explorer", "local_optimizer_name", "climb"]
+                }
+                opt = OptClass(atoms, **opt_kwargs)
                 opt.run(fmax=fmax, steps=1)  # Single step per iteration
             except Exception as e:
                 warnings.warn(f"Optimization failed for image {i}: {e}")

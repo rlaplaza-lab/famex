@@ -459,6 +459,89 @@ class FrequencyAnalysis:
         else:
             return "Undetermined stationary point type"
 
+    def is_minima(
+        self, threshold: float = 50.0, small_negative_cutoff: float = -10.0
+    ) -> Dict[str, Any]:
+        """
+        Check if structure is a minimum (no significant imaginary frequencies).
+
+        Parameters:
+        -----------
+        threshold : float
+            Minimum frequency magnitude in cm^-1 to consider significant
+        small_negative_cutoff : float
+            Maximum negative frequency in cm^-1 to consider as "small negative"
+            (likely numerical noise, not a true imaginary frequency)
+
+        Returns:
+        --------
+        Dict[str, Any]
+            Dictionary with minima verification results
+        """
+        frequencies = self.get_frequencies()
+
+        # Count significant imaginary frequencies above threshold
+        significant_imaginary = frequencies[frequencies < -threshold]
+        n_significant_imaginary = len(significant_imaginary)
+
+        # Count small negative frequencies (likely numerical noise)
+        small_negative = frequencies[(frequencies < 0) & (frequencies > small_negative_cutoff)]
+        n_small_negative = len(small_negative)
+
+        # Count near-zero frequencies (should be excluded)
+        near_zero = np.abs(frequencies) < threshold
+        n_near_zero = int(np.sum(near_zero))
+
+        # A structure is a minimum if it has no significant imaginary frequencies
+        # Small negative frequencies (above cutoff) are considered acceptable
+        is_minimum = n_significant_imaginary == 0
+
+        return {
+            "is_minimum": is_minimum,
+            "n_significant_imaginary_frequencies": n_significant_imaginary,
+            "n_small_negative_frequencies": n_small_negative,
+            "significant_imaginary_frequencies": significant_imaginary.tolist(),
+            "small_negative_frequencies": small_negative.tolist(),
+            "n_near_zero_frequencies": n_near_zero,
+            "all_frequencies": frequencies.tolist(),
+            "threshold": threshold,
+            "small_negative_cutoff": small_negative_cutoff,
+            "assessment": self._assess_stationary_point_minima(
+                n_significant_imaginary,
+                n_small_negative,
+                n_near_zero,
+                threshold,
+                small_negative_cutoff,
+            ),
+        }
+
+    def _assess_stationary_point_minima(
+        self,
+        n_significant_imaginary: int,
+        n_small_negative: int,
+        n_near_zero: int,
+        threshold: float,
+        small_negative_cutoff: float,
+    ) -> str:
+        """Assess type of stationary point for minima validation."""
+        if n_significant_imaginary == 0:
+            if n_small_negative > 0:
+                return (
+                    f"Minimum (no significant imaginary frequencies, "
+                    f"{n_small_negative} small negative frequencies likely numerical noise)"
+                )
+            else:
+                return "Minimum (no imaginary frequencies)"
+        elif n_significant_imaginary == 1:
+            return "First-order transition state (one significant imaginary frequency)"
+        elif n_significant_imaginary > 1:
+            return (
+                f"Higher-order saddle point "
+                f"({n_significant_imaginary} significant imaginary frequencies)"
+            )
+        else:
+            return "Undetermined stationary point type"
+
     def get_zero_point_energy(self) -> float:
         """
         Calculate zero-point vibrational energy.
@@ -901,4 +984,9 @@ class BatchFrequencyAnalysis(FrequencyAnalysis):
         return hessian
 
 
-__all__ = ["FrequencyAnalysis", "BatchFrequencyAnalysis"]
+__all__ = [
+    "FrequencyAnalysis",
+    "BatchFrequencyAnalysis",
+    "HessianCalculator",
+    "ThermodynamicProperties",
+]

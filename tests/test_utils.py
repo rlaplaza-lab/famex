@@ -64,12 +64,12 @@ class TestMoleculeFactory:
         return Atoms(
             ["C", "C", "H", "H", "H", "H"],
             positions=[
-                [0.0, 0.0, 0.0],      # C
-                [1.34, 0.0, 0.0],     # C (C=C bond)
-                [-0.7, 1.0, 0.0],     # H
-                [-0.7, -1.0, 0.0],    # H
-                [2.04, 1.0, 0.0],     # H
-                [2.04, -1.0, 0.0],    # H
+                [0.0, 0.0, 0.0],  # C
+                [1.34, 0.0, 0.0],  # C (C=C bond)
+                [-0.7, 1.0, 0.0],  # H
+                [-0.7, -1.0, 0.0],  # H
+                [2.04, 1.0, 0.0],  # H
+                [2.04, -1.0, 0.0],  # H
             ],
         )
 
@@ -79,12 +79,12 @@ class TestMoleculeFactory:
         return Atoms(
             ["C", "C", "H", "H", "H", "H"],
             positions=[
-                [0.0, 0.0, 0.0],      # C
-                [1.34, 0.0, 0.0],     # C (C=C bond)
-                [-0.7, 0.0, 1.0],     # H (twisted up)
-                [-0.7, 0.0, -1.0],    # H (twisted down)
-                [2.04, 0.0, 1.0],     # H (twisted up)
-                [2.04, 0.0, -1.0],    # H (twisted down)
+                [0.0, 0.0, 0.0],  # C
+                [1.34, 0.0, 0.0],  # C (C=C bond)
+                [-0.7, 0.0, 1.0],  # H (twisted up)
+                [-0.7, 0.0, -1.0],  # H (twisted down)
+                [2.04, 0.0, 1.0],  # H (twisted up)
+                [2.04, 0.0, -1.0],  # H (twisted down)
             ],
         )
 
@@ -224,17 +224,20 @@ class TestResultHandler:
 
     @staticmethod
     def process_result(result, backend: str) -> dict:
-        """Process optimization result and return standardized dictionary with atoms and metadata."""
+        """Process optimization result and return standardized dictionary
+        with atoms and metadata."""
         # Handle list return format from run() method
         if isinstance(result, list) and len(result) > 0:
             strategy_result = result[0]
         else:
             strategy_result = result
-        
+
         # Ensure we have the expected structure
-        assert isinstance(strategy_result, dict), f"Expected dict result, got {type(strategy_result)}"
+        assert isinstance(
+            strategy_result, dict
+        ), f"Expected dict result, got {type(strategy_result)}"
         assert "optimized_atoms" in strategy_result, "Missing 'optimized_atoms' in result"
-        
+
         return strategy_result
 
 
