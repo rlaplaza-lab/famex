@@ -14,8 +14,8 @@ from ase.calculators.calculator import all_changes
 from torch_cluster import radius_graph
 
 from qme.dependencies import deps
-from qme.potentials.base_potential import BasePotential
 from qme.logging_utils import get_qme_logger
+from qme.potentials.base_potential import BasePotential
 
 logger = get_qme_logger(__name__)
 

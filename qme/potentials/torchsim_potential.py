@@ -13,8 +13,8 @@ from ase import Atoms
 from ase.calculators.calculator import all_changes
 
 from qme.dependencies import deps
-from qme.potentials.base_potential import BasePotential
 from qme.logging_utils import get_qme_logger
+from qme.potentials.base_potential import BasePotential
 
 logger = get_qme_logger(__name__)
 
@@ -477,9 +477,7 @@ class TorchSimPotential(BasePotential):
             except Exception as e:
                 # Fallback to individual processing if batching fails
                 logger.warning(
-                    "TorchSim batching failed ("
-                    f"{e}), "
-                    "falling back to individual processing"
+                    "TorchSim batching failed (" f"{e}), " "falling back to individual processing"
                 )
                 batch_results = []
                 for state in states:

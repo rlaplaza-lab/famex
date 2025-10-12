@@ -65,8 +65,7 @@ class OrbPotential(BasePotential):
         # Check dependencies
         if not deps.has("orb_models"):
             raise ImportError(
-                "orb-models is required for Orb potentials. "
-                "Install with: pip install orb-models"
+                "orb-models is required for Orb potentials. " "Install with: pip install orb-models"
             )
 
         if not deps.has("torch"):
@@ -81,7 +80,12 @@ class OrbPotential(BasePotential):
             device = get_optimal_device()
 
         # Initialize base class
-        super().__init__(model_name=model_name, device=device, implemented_properties=["energy", "forces"], **kwargs)
+        super().__init__(
+            model_name=model_name,
+            device=device,
+            implemented_properties=["energy", "forces"],
+            **kwargs,
+        )
 
         # Orb-specific attributes
         self.charge = charge
@@ -137,10 +141,11 @@ class OrbPotential(BasePotential):
             ):
                 orbff = model_loader(device=self.device)
                 self._calc = ORBCalculator(orbff, device=self.device)
-                
+
                 # Disable PyTorch compilation to avoid tensor size assertion errors
                 import torch
-                if hasattr(torch._dynamo, 'config'):
+
+                if hasattr(torch._dynamo, "config"):
                     torch._dynamo.config.disable = True
 
         except Exception as e:
@@ -251,4 +256,3 @@ def get_orb_calculator(
         Configured Orb calculator
     """
     return OrbPotential(model_name=model_name, device=device, charge=charge, spin=spin, **kwargs)
-

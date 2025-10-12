@@ -218,7 +218,8 @@ class Zimmermann93Benchmark:
                         load_time = time.perf_counter() - load_start
                         reaction_data["timings"]["structure_loading"] = load_time
 
-                        # Initialize Explorer with both reactant and product for two-ended optimization
+                        # Initialize Explorer with both reactant and product
+                        # for two-ended TS optimization
                         init_start = time.perf_counter()
                         explorer = Explorer(
                             atoms=[reactant, product],
@@ -236,11 +237,11 @@ class Zimmermann93Benchmark:
                             ts_result = explorer.run(mode="ts", fmax=fmax, steps=steps)
                         opt_time = time.perf_counter() - opt_start
                         reaction_data["timings"]["optimization"] = opt_time
-                        
+
                         # Normalize TS result
                         if isinstance(ts_result, list) and len(ts_result) == 1:
                             ts_result = ts_result[0]
-                        
+
                         if isinstance(ts_result, dict):
                             ts_opt_atoms = ts_result.get("optimized_atoms", reactant)
                             ts_success = bool(ts_result.get("converged", False))
@@ -288,17 +289,22 @@ class Zimmermann93Benchmark:
                                 reaction_data["timings"]["frequency_analysis"] = freq_time
                                 reaction_data["frequency_results"] = {
                                     "n_frequencies": len(freq_results["frequencies"]),
-                                    "frequencies": freq_results["frequencies"][:10],  # First 10 frequencies
+                                    "frequencies": freq_results["frequencies"][
+                                        :10
+                                    ],  # First 10 frequencies
                                     "zero_point_energy": freq_results["zero_point_energy"],
                                     "is_transition_state": freq_results["is_ts"],
                                     "method_used": freq_results["method_used"],
+                                    "ts_analysis": freq_results.get("ts_analysis", {}),
                                 }
                             except Exception as e:
                                 reaction_data["timings"]["frequency_analysis"] = None
                                 reaction_data["frequency_results"] = {"error": str(e)}
                         else:
                             reaction_data["timings"]["frequency_analysis"] = None
-                            reaction_data["frequency_results"] = {"skipped": "TS optimization failed"}
+                            reaction_data["frequency_results"] = {
+                                "skipped": "TS optimization failed"
+                            }
 
                         # Compare geometry to reference TS
                         try:
@@ -322,7 +328,9 @@ class Zimmermann93Benchmark:
                         )
 
                         # Calculate total time
-                        total_time = sum(v for v in reaction_data["timings"].values() if v is not None)
+                        total_time = sum(
+                            v for v in reaction_data["timings"].values() if v is not None
+                        )
                         reaction_data["timings"]["total"] = total_time
 
                         # Print status
@@ -344,7 +352,7 @@ class Zimmermann93Benchmark:
 
                     except Exception as e:
                         reaction_data = {
-                            "success": False, 
+                            "success": False,
                             "error": str(e),
                             "timings": {},
                             "optimization_results": {},
@@ -394,7 +402,7 @@ class Zimmermann93Benchmark:
                         if opt_results.get("converged"):
                             converged_count += 1
                             successful_ts.append(data)
-                            
+
                             # Collect timing statistics
                             timings = data.get("timings", {})
                             if timings.get("total"):
@@ -403,21 +411,22 @@ class Zimmermann93Benchmark:
                                 timing_stats["optimization"].append(timings["optimization"])
                             if timings.get("frequency_analysis"):
                                 timing_stats["frequency"].append(timings["frequency_analysis"])
-                            
+
                             # Collect step statistics
                             steps = opt_results.get("steps_taken", 0)
                             if steps > 0:
                                 step_stats.append(steps)
-                            
+
                             # Check TS verification
                             freq_results = data.get("frequency_results", {})
                             if freq_results.get("is_transition_state"):
                                 ts_verified_count += 1
 
             # Calculate statistics
-            total_reactions = len([r for r in backend_data.values() 
-                                 if isinstance(r, dict) and not r.get("skipped")])
-            
+            total_reactions = len(
+                [r for r in backend_data.values() if isinstance(r, dict) and not r.get("skipped")]
+            )
+
             if successful_ts:
                 rmsds = [
                     data["ts_rmsd_to_reference"]
@@ -430,36 +439,48 @@ class Zimmermann93Benchmark:
                     "converged": converged_count,
                     "ts_verified": ts_verified_count,
                     "failed": failed_count,
-                    "convergence_rate": (converged_count / total_reactions * 100) if total_reactions > 0 else 0,
-                    "verification_rate": (ts_verified_count / converged_count * 100) if converged_count > 0 else 0,
+                    "convergence_rate": (
+                        (converged_count / total_reactions * 100) if total_reactions > 0 else 0
+                    ),
+                    "verification_rate": (
+                        (ts_verified_count / converged_count * 100) if converged_count > 0 else 0
+                    ),
                     "mean_rmsd": np.mean(rmsds) if rmsds else 0,
                     "max_rmsd": np.max(rmsds) if rmsds else 0,
                     "std_rmsd": np.std(rmsds) if rmsds else 0,
                 }
 
-                print(f"📊 CONVERGENCE STATISTICS:")
+                print("📊 CONVERGENCE STATISTICS:")
                 print(f"  Total reactions: {ts_stats['total_reactions']}")
-                print(f"  Converged: {ts_stats['converged']} ({ts_stats['convergence_rate']:.1f}%)")
-                print(f"  TS Verified: {ts_stats['ts_verified']} ({ts_stats['verification_rate']:.1f}%)")
+                conv_rate = ts_stats["convergence_rate"]
+                print(f"  Converged: {ts_stats['converged']} ({conv_rate:.1f}%)")
+                ver_rate = ts_stats["verification_rate"]
+                print(f"  TS Verified: {ts_stats['ts_verified']} ({ver_rate:.1f}%)")
                 print(f"  Failed: {ts_stats['failed']}")
 
-                print(f"\n📏 GEOMETRY ACCURACY:")
+                print("\n📏 GEOMETRY ACCURACY:")
                 print(f"  Mean RMSD: {ts_stats['mean_rmsd']:.4f} Å")
                 print(f"  Max RMSD:  {ts_stats['max_rmsd']:.4f} Å")
                 print(f"  Std RMSD:  {ts_stats['std_rmsd']:.4f} Å")
 
                 # Timing statistics
                 if timing_stats["total"]:
-                    print(f"\n⏱️ TIMING STATISTICS:")
-                    print(f"  Total time: {np.mean(timing_stats['total']):.2f} ± {np.std(timing_stats['total']):.2f} s")
+                    print("\n⏱️ TIMING STATISTICS:")
+                    total_mean = np.mean(timing_stats["total"])
+                    total_std = np.std(timing_stats["total"])
+                    print(f"  Total time: {total_mean:.2f} ± {total_std:.2f} s")
                     if timing_stats["optimization"]:
-                        print(f"  Optimization: {np.mean(timing_stats['optimization']):.2f} ± {np.std(timing_stats['optimization']):.2f} s")
+                        opt_mean = np.mean(timing_stats["optimization"])
+                        opt_std = np.std(timing_stats["optimization"])
+                        print(f"  Optimization: {opt_mean:.2f} ± {opt_std:.2f} s")
                     if timing_stats["frequency"]:
-                        print(f"  Frequency analysis: {np.mean(timing_stats['frequency']):.2f} ± {np.std(timing_stats['frequency']):.2f} s")
+                        freq_mean = np.mean(timing_stats["frequency"])
+                        freq_std = np.std(timing_stats["frequency"])
+                        print(f"  Frequency analysis: {freq_mean:.2f} ± {freq_std:.2f} s")
 
                 # Step statistics
                 if step_stats:
-                    print(f"\n🔄 OPTIMIZATION STEPS:")
+                    print("\n🔄 OPTIMIZATION STEPS:")
                     print(f"  Mean steps: {np.mean(step_stats):.1f} ± {np.std(step_stats):.1f}")
                     print(f"  Min steps: {np.min(step_stats)}")
                     print(f"  Max steps: {np.max(step_stats)}")
@@ -502,7 +523,7 @@ class Zimmermann93Benchmark:
         # Results
         for backend in backends:
             stats = analysis.get(backend, {}).get("ts_statistics", {})
-            
+
             print(
                 f"{backend:<12} "
                 f"{stats.get('total_reactions', 0):<6} "
@@ -526,6 +547,7 @@ class Zimmermann93Benchmark:
             # Handle ASE Atoms-like objects
             try:
                 from ase import Atoms as _Atoms
+
                 if isinstance(obj, _Atoms):
                     return {
                         "formula": obj.get_chemical_formula(),
@@ -544,24 +566,24 @@ class Zimmermann93Benchmark:
                     }
                 except Exception:
                     pass
-            
+
             # Handle numpy arrays and scalars
             if isinstance(obj, np.ndarray):
                 return obj.tolist()
             if isinstance(obj, (np.integer, np.floating)):
                 return float(obj)
-            
+
             # Handle numpy boolean scalars
             try:
                 if isinstance(obj, np.bool_):
                     return bool(obj)
             except Exception:
                 pass
-            
+
             # Handle None values in timing data
             if obj is None:
                 return None
-                
+
             # Recursively convert nested structures
             if isinstance(obj, dict):
                 return {k: convert(v) for k, v in obj.items()}
@@ -569,7 +591,7 @@ class Zimmermann93Benchmark:
                 return [convert(i) for i in obj]
             if isinstance(obj, tuple):
                 return [convert(i) for i in obj]
-            
+
             return obj
 
         serializable = convert(self.results)
@@ -588,7 +610,7 @@ def main():
     )
 
     parser = interface.create_parser()
-    
+
     # Add benchmark-specific arguments
     parser.add_argument(
         "--reactions",

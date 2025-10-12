@@ -14,6 +14,7 @@ The **Zimmermann-93 Benchmark** (`zimmermann93_benchmark.py`) tests QME backends
 4. **Optimizes transition states** using QME's Explorer with transition state optimization
 5. **Compares geometries** by computing RMSD between located and reference TS structures
 6. **Analyzes success rates** and geometric accuracy across backends
+7. **Saves complete reaction pathways** as trajectory files for visualization and analysis
 
 ## Usage
 
@@ -57,6 +58,7 @@ Each reaction tests the ability to find transition states connecting known react
 1. **Geodesic interpolation** between reactant and product geometries
 2. **Multiple images** generated along the reaction coordinate
 3. **Energy evaluation** at each interpolated point
+4. **Trajectory saving** for complete reaction pathways using QME's new `target="path"` functionality
 
 ### TS Optimization
 1. **Highest-energy image** selected as initial TS guess

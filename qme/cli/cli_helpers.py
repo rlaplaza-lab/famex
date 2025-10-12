@@ -110,13 +110,13 @@ def _coerce_to_atoms(obj: Any) -> Atoms:
     raise TypeError(f"Cannot coerce object of type {type(obj)} to ASE Atoms")
 
 
-def write_atoms(atoms: Atoms, out_path: Optional[str]) -> Optional[str]:
-    """Write atoms to a file.
+def write_atoms(atoms: Any, out_path: Optional[str]) -> Optional[str]:
+    """Write atoms or trajectory to a file.
 
     Parameters
     ----------
-    atoms : Atoms
-        ASE Atoms object to write
+    atoms : Atoms or List[Atoms] or Any
+        ASE Atoms object, list of Atoms objects (trajectory), or other result to write
     out_path : Optional[str]
         Output file path. If None, no file is written.
 
@@ -136,7 +136,15 @@ def write_atoms(atoms: Atoms, out_path: Optional[str]) -> Optional[str]:
         return None
     # Ensure output directory exists
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
-    ase_write(out_path, _coerce_to_atoms(atoms))
+
+    # Handle lists of Atoms objects (trajectories from NEB/CI-NEB)
+    if isinstance(atoms, list) and atoms and isinstance(atoms[0], Atoms):
+        ase_write(out_path, atoms)
+        return out_path
+
+    # Handle single Atoms object or other results
+    atoms_obj = _coerce_to_atoms(atoms)
+    ase_write(out_path, atoms_obj)
     return out_path
 
 

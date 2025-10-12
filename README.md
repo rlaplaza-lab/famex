@@ -55,6 +55,7 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 - ⚡ **GPU Acceleration**: CUDA support with up to 100x speedup
 - 🎯 **Optimization Methods**: Local and two-ended strategies
 - 🔄 **Transition States**: Advanced TS search with Sella and geomeTRIC optimizers
+- 🛤️ **Reaction Paths**: NEB and CI-NEB path optimization with trajectory saving
 - 📊 **Analysis Tools**: Frequency analysis and thermodynamics
 - 🖥️ **Dual Interface**: Command-line and Python API
 - 📁 **File Support**: XYZ, CIF, PDB, and more via ASE
@@ -64,18 +65,22 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 ## 📋 Common Commands
 
 ```bash
-# Structure optimization
+# Minima optimization (outputs single structure, defaults to BFGS)
 qme opt molecule.xyz
-qme opt reactant.xyz --product product.xyz
+qme opt reactant.xyz --product product.xyz  # Two-ended minima search
 
-# Transition state search
-qme tsopt ts_guess.xyz --optimizer sella
-qme tsopt ts_guess.xyz --optimizer geometric
-qme tsopt reactant.xyz --product product.xyz --mode neb
+# Transition state optimization (outputs single TS, defaults to Sella)
+qme tsopt ts_guess.xyz  # Single-ended TS optimization
+qme tsopt reactant.xyz --product product.xyz  # Two-ended TS guess
+
+# Reaction path optimization (outputs trajectories)
+qme path interpolate r.xyz p.xyz --npoints 15  # Raw interpolation
+qme path neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path
+qme path cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path
 
 # Different backends and settings
 qme opt molecule.xyz --backend mace --device cuda --fmax 0.01
-qme opt molecule.xyz --backend aimnet2 --optimizer geometric --fmax 0.01
+qme tsopt ts_guess.xyz --backend aimnet2 --optimizer geometric --fmax 0.01
 
 # Cache management
 qme cache info

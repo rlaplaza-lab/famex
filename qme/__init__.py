@@ -7,17 +7,24 @@ machine learning potentials.
 Key Features:
 - Minimum energy geometry optimization
 - Transition state searches
+- Reaction path optimization (NEB/CI-NEB)
+- Two-ended optimization workflows
 - Support for various file formats (xyz, cif, pdb, etc.)
-- Integration with UMA, SO3LR, and AIMNET2 machine learning potentials
+- Integration with UMA, SO3LR, AIMNET2, and MACE machine learning potentials
 - Mock calculator for testing without ML dependencies
+- Trajectory saving for complete reaction pathways
 
-Example:
-    Basic usage for geometry optimization:
-
+Examples:
+    Basic geometry optimization:
     >>> from qme import Explorer
-    >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2", model_name="aimnet2")
+    >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2")
     >>> results = explorer.run(mode="minima")
     >>> explorer.save_structure(results['optimized_atoms'], "optimized.xyz")
+
+    Reaction path optimization (NEB/CI-NEB):
+    >>> explorer = Explorer(atoms=[reactant, product], target="path")
+    >>> path = explorer.run(mode="neb", npoints=7)
+    >>> explorer.save_trajectory(path, "reaction_path.xyz")
 """
 
 __version__ = "0.1.0"

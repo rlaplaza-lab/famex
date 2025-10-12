@@ -10,7 +10,11 @@ Features:
     - Structure optimization using 'opt' command
     - Transition state optimization using 'tsopt' command
     - Two-ended optimization workflows
-    - NEB path optimization
+    - Reaction path optimization using dedicated 'path' command:
+      * Raw interpolation path generation
+      * NEB path optimization (saves complete reaction pathways)
+      * CI-NEB (Climbing Image NEB) path optimization (saves complete reaction pathways)
+    - Trajectory saving for multi-image results
     - Comprehensive backend performance comparison
 """
 
@@ -143,7 +147,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "--steps",
                 str(steps),
                 "--npoints",
-                "5",
+                "3",
                 "--interp",
                 "geodesic",
                 "--output",
@@ -164,7 +168,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "--steps",
                 str(steps),
                 "--npoints",
-                "5",
+                "3",
                 "--interp",
                 "geodesic",
                 "--output",
@@ -173,50 +177,61 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
             ],
         },
         {
-            "desc": "NEB path optimization using 'tsopt' with --mode neb",
+            "desc": "Raw interpolation path generation using 'path interpolate'",
             "cmd": [
                 "qme",
-                "tsopt",
+                "path",
+                "interpolate",
                 str(example_files / "reaction_001_reactant.xyz"),
-                "--product",
                 str(example_files / "reaction_001_product.xyz"),
-                "--mode",
+                "--backend",
+                backend,
+                "--npoints",
+                "5",
+                "--interp",
+                "geodesic",
+                "--output",
+                f"test_interpolate_{backend}.xyz",
+                "--no-quiet",
+            ],
+        },
+        {
+            "desc": "NEB path optimization (saves complete reaction pathway) using 'path neb'",
+            "cmd": [
+                "qme",
+                "path",
                 "neb",
+                str(example_files / "reaction_001_reactant.xyz"),
+                str(example_files / "reaction_001_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
                 str(steps),
                 "--npoints",
-                "7",
-                "--interp",
-                "geodesic",
+                "3",
                 "--spring-constant",
-                "2.0",  # Moderate spring constant for demo
+                "1.0",  # Moderate spring constant for demo
                 "--output",
                 f"test_neb_{backend}.xyz",
                 "--no-quiet",
             ],
         },
         {
-            "desc": "CI-NEB path optimization using 'tsopt' with --mode cineb",
+            "desc": "CI-NEB path optimization (saves complete reaction pathway) using 'path cineb'",
             "cmd": [
                 "qme",
-                "tsopt",
-                str(example_files / "reaction_001_reactant.xyz"),
-                "--product",
-                str(example_files / "reaction_001_product.xyz"),
-                "--mode",
+                "path",
                 "cineb",
+                str(example_files / "reaction_001_reactant.xyz"),
+                str(example_files / "reaction_001_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
                 str(steps),
                 "--npoints",
-                "7",
-                "--interp",
-                "geodesic",
+                "3",
                 "--spring-constant",
-                "2.0",  # Moderate spring constant for demo
+                "1.0",  # Moderate spring constant for demo
                 "--output",
                 f"test_cineb_{backend}.xyz",
                 "--no-quiet",

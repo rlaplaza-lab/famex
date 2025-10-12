@@ -200,7 +200,9 @@ class BH28Benchmark:
             print(f"  {i}. {backend}")
         print(f"Total: {len(backends)} backends")
 
-    def optimize_structures(self, reactions: List[str], backends: List[str], verbose: bool = False) -> Dict:
+    def optimize_structures(
+        self, reactions: List[str], backends: List[str], verbose: bool = False
+    ) -> Dict:
         """Optimize all structures (minima and TS) for given reactions and backends."""
         print(f"\n{'=' * 80}")
         print("STRUCTURE OPTIMIZATION")
@@ -288,7 +290,8 @@ class BH28Benchmark:
                             reactant_label = (
                                 f"reactant_{i + 1}" if len(reactants) > 1 else "reactant"
                             )
-                            print(f"  ✅ {reactant_label}: {energy_val:.6f} eV ({'Converged' if converged else 'Failed'})")
+                            status_text = "Converged" if converged else "Failed"
+                            print(f"  ✅ {reactant_label}: {energy_val:.6f} eV ({status_text})")
                             if verbose and steps_taken:
                                 print(f"    Steps: {steps_taken}")
 
@@ -296,12 +299,14 @@ class BH28Benchmark:
                         minima_time = time.perf_counter() - minima_start
 
                         reaction_data["timings"]["minima_optimization"] = minima_time
-                        reaction_data["optimization_results"].update({
-                            "minima_converged": True,
-                            "minima_steps": minima_steps_total,
-                            "total_reactant_energy": total_reactant_energy,
-                            "reactant_energies": reactant_energies,
-                        })
+                        reaction_data["optimization_results"].update(
+                            {
+                                "minima_converged": True,
+                                "minima_steps": minima_steps_total,
+                                "total_reactant_energy": total_reactant_energy,
+                                "reactant_energies": reactant_energies,
+                            }
+                        )
 
                         # 2. Optimize transition state
                         try:
@@ -338,12 +343,14 @@ class BH28Benchmark:
                                 ts_energy_val = float(ts_atoms_opt.get_potential_energy())
 
                             reaction_data["timings"]["ts_optimization"] = ts_time
-                            reaction_data["optimization_results"].update({
-                                "ts_converged": ts_conv,
-                                "ts_steps": ts_steps,
-                                "ts_energy": ts_energy_val,
-                                "optimized_ts": ts_atoms_opt,
-                            })
+                            reaction_data["optimization_results"].update(
+                                {
+                                    "ts_converged": ts_conv,
+                                    "ts_steps": ts_steps,
+                                    "ts_energy": ts_energy_val,
+                                    "optimized_ts": ts_atoms_opt,
+                                }
+                            )
 
                             # Frequency analysis to verify TS character
                             if ts_atoms_opt is not None and ts_conv:
@@ -360,59 +367,75 @@ class BH28Benchmark:
                                     reaction_data["timings"]["frequency_analysis"] = freq_time
                                     reaction_data["frequency_results"] = {
                                         "n_frequencies": len(freq_results["frequencies"]),
-                                        "frequencies": freq_results["frequencies"][:10],  # First 10 frequencies
+                                        "frequencies": freq_results["frequencies"][
+                                            :10
+                                        ],  # First 10 frequencies
                                         "zero_point_energy": freq_results["zero_point_energy"],
                                         "is_transition_state": freq_results["is_ts"],
                                         "method_used": freq_results["method_used"],
+                                        "ts_analysis": freq_results.get("ts_analysis", {}),
                                     }
                                 except Exception as e:
                                     reaction_data["timings"]["frequency_analysis"] = None
                                     reaction_data["frequency_results"] = {"error": str(e)}
                             else:
                                 reaction_data["timings"]["frequency_analysis"] = None
-                                reaction_data["frequency_results"] = {"skipped": "TS optimization failed"}
+                                reaction_data["frequency_results"] = {
+                                    "skipped": "TS optimization failed"
+                                }
 
                             # Print status
                             freq_info = reaction_data["frequency_results"]
                             if "is_transition_state" in freq_info:
                                 ts_verified = freq_info["is_transition_state"]
-                                ts_status = "✅ Verified TS" if ts_verified else "⚠️ Not verified as TS"
+                                ts_status = (
+                                    "✅ Verified TS" if ts_verified else "⚠️ Not verified as TS"
+                                )
                             else:
                                 ts_status = "❓ Not checked"
 
                             status = "✅" if ts_conv else "⚠️"
-                            print(f"  {status} TS: {ts_energy_val:.6f} eV ({'Converged' if ts_conv else 'Failed'})")
+                            ts_status_text = "Converged" if ts_conv else "Failed"
+                            print(f"  {status} TS: {ts_energy_val:.6f} eV ({ts_status_text})")
                             print(f"  TS Character: {ts_status}")
                             if verbose and ts_steps:
                                 print(f"    Steps: {ts_steps}, Time: {ts_time:.2f}s")
 
                         except Exception as e:
                             print(f"  ❌ TS optimization failed: {str(e)}")
-                            reaction_data["optimization_results"].update({
-                                "ts_success": False,
-                                "ts_error": str(e),
-                            })
+                            reaction_data["optimization_results"].update(
+                                {
+                                    "ts_success": False,
+                                    "ts_error": str(e),
+                                }
+                            )
                             reaction_data["timings"]["ts_optimization"] = None
                             reaction_data["timings"]["frequency_analysis"] = None
-                            reaction_data["frequency_results"] = {"skipped": "TS optimization failed"}
+                            reaction_data["frequency_results"] = {
+                                "skipped": "TS optimization failed"
+                            }
 
                         # 3. Calculate barrier height from optimized structures
                         opt_results = reaction_data["optimization_results"]
                         if opt_results.get("ts_converged") and opt_results.get("minima_converged"):
-                            barrier_height = opt_results["ts_energy"] - opt_results["total_reactant_energy"]
+                            barrier_height = (
+                                opt_results["ts_energy"] - opt_results["total_reactant_energy"]
+                            )
                             ref_barrier = self.reference_barriers[reaction]
                             error = barrier_height - ref_barrier
                             relative_error = (
                                 (error / ref_barrier) * 100 if ref_barrier != 0 else float("inf")
                             )
 
-                            reaction_data["optimization_results"].update({
-                                "barrier_height": barrier_height,
-                                "reference_barrier": ref_barrier,
-                                "absolute_error": error,
-                                "relative_error": relative_error,
-                                "barrier_success": True,
-                            })
+                            reaction_data["optimization_results"].update(
+                                {
+                                    "barrier_height": barrier_height,
+                                    "reference_barrier": ref_barrier,
+                                    "absolute_error": error,
+                                    "relative_error": relative_error,
+                                    "barrier_success": True,
+                                }
+                            )
 
                             print(
                                 f"  📊 Barrier: {barrier_height:.3f} eV | "
@@ -421,7 +444,9 @@ class BH28Benchmark:
                             )
 
                         # Calculate total time
-                        total_time = sum(v for v in reaction_data["timings"].values() if v is not None)
+                        total_time = sum(
+                            v for v in reaction_data["timings"].values() if v is not None
+                        )
                         reaction_data["timings"]["total"] = total_time
                         reaction_data["success"] = True
 
@@ -487,28 +512,28 @@ class BH28Benchmark:
                         failed_count += 1
                     else:
                         opt_results = data.get("optimization_results", {})
-                        
+
                         # Check minima convergence
                         if opt_results.get("minima_converged"):
                             minima_converged_count += 1
                             if opt_results.get("minima_steps"):
                                 step_stats["minima"].append(opt_results["minima_steps"])
-                        
+
                         # Check TS convergence
                         if opt_results.get("ts_converged"):
                             ts_converged_count += 1
                             if opt_results.get("ts_steps"):
                                 step_stats["ts"].append(opt_results["ts_steps"])
-                            
+
                             # Check TS verification
                             freq_results = data.get("frequency_results", {})
                             if freq_results.get("is_transition_state"):
                                 ts_verified_count += 1
-                        
+
                         # Collect barrier height data
                         if opt_results.get("barrier_success"):
                             successful_barriers.append(opt_results)
-                        
+
                         # Collect timing data
                         timings = data.get("timings", {})
                         if timings.get("total"):
@@ -523,9 +548,10 @@ class BH28Benchmark:
                     skipped_count += 1
 
             # Calculate statistics
-            total_reactions = len([r for r in backend_data.values() 
-                                 if isinstance(r, dict) and not r.get("skipped")])
-            
+            total_reactions = len(
+                [r for r in backend_data.values() if isinstance(r, dict) and not r.get("skipped")]
+            )
+
             if successful_barriers:
                 errors = [data["absolute_error"] for data in successful_barriers]
                 rel_errors = [
@@ -542,9 +568,19 @@ class BH28Benchmark:
                     "barrier_successful": len(successful_barriers),
                     "failed": failed_count,
                     "skipped": skipped_count,
-                    "minima_rate": (minima_converged_count / total_reactions * 100) if total_reactions > 0 else 0,
-                    "ts_rate": (ts_converged_count / total_reactions * 100) if total_reactions > 0 else 0,
-                    "verification_rate": (ts_verified_count / ts_converged_count * 100) if ts_converged_count > 0 else 0,
+                    "minima_rate": (
+                        (minima_converged_count / total_reactions * 100)
+                        if total_reactions > 0
+                        else 0
+                    ),
+                    "ts_rate": (
+                        (ts_converged_count / total_reactions * 100) if total_reactions > 0 else 0
+                    ),
+                    "verification_rate": (
+                        (ts_verified_count / ts_converged_count * 100)
+                        if ts_converged_count > 0
+                        else 0
+                    ),
                     "mae": np.mean(np.abs(errors)),
                     "rmse": np.sqrt(np.mean(np.array(errors) ** 2)),
                     "max_error": np.max(np.abs(errors)),
@@ -552,17 +588,23 @@ class BH28Benchmark:
                     "std_error": np.std(errors),
                 }
 
-                print(f"📊 CONVERGENCE STATISTICS:")
+                print("📊 CONVERGENCE STATISTICS:")
                 print(f"  Total reactions: {barrier_stats['total_reactions']}")
-                print(f"  Minima converged: {barrier_stats['minima_converged']} ({barrier_stats['minima_rate']:.1f}%)")
-                print(f"  TS converged: {barrier_stats['ts_converged']} ({barrier_stats['ts_rate']:.1f}%)")
-                print(f"  TS Verified: {barrier_stats['ts_verified']} ({barrier_stats['verification_rate']:.1f}%)")
+                minima_count = barrier_stats["minima_converged"]
+                minima_rate = barrier_stats["minima_rate"]
+                print(f"  Minima converged: {minima_count} ({minima_rate:.1f}%)")
+                ts_count = barrier_stats["ts_converged"]
+                ts_rate = barrier_stats["ts_rate"]
+                print(f"  TS converged: {ts_count} ({ts_rate:.1f}%)")
+                ts_verified_count = barrier_stats["ts_verified"]
+                verification_rate = barrier_stats["verification_rate"]
+                print(f"  TS Verified: {ts_verified_count} ({verification_rate:.1f}%)")
                 print(f"  Barrier calculations: {barrier_stats['barrier_successful']}")
                 print(f"  Failed: {barrier_stats['failed']}")
                 if skipped_count > 0:
                     print(f"  Skipped: {barrier_stats['skipped']}")
 
-                print(f"\n📏 BARRIER HEIGHT ACCURACY:")
+                print("\n📏 BARRIER HEIGHT ACCURACY:")
                 print(f"  MAE:  {barrier_stats['mae']:.3f} eV")
                 print(f"  RMSE: {barrier_stats['rmse']:.3f} eV")
                 print(f"  Max Error: {barrier_stats['max_error']:.3f} eV")
@@ -570,21 +612,33 @@ class BH28Benchmark:
 
                 # Timing statistics
                 if timing_stats["total"]:
-                    print(f"\n⏱️ TIMING STATISTICS:")
-                    print(f"  Total time: {np.mean(timing_stats['total']):.2f} ± {np.std(timing_stats['total']):.2f} s")
+                    print("\n⏱️ TIMING STATISTICS:")
+                    total_mean = np.mean(timing_stats["total"])
+                    total_std = np.std(timing_stats["total"])
+                    print(f"  Total time: {total_mean:.2f} ± {total_std:.2f} s")
                     if timing_stats["minima"]:
-                        print(f"  Minima optimization: {np.mean(timing_stats['minima']):.2f} ± {np.std(timing_stats['minima']):.2f} s")
+                        minima_mean = np.mean(timing_stats["minima"])
+                        minima_std = np.std(timing_stats["minima"])
+                        print(f"  Minima optimization: {minima_mean:.2f} ± {minima_std:.2f} s")
                     if timing_stats["ts"]:
-                        print(f"  TS optimization: {np.mean(timing_stats['ts']):.2f} ± {np.std(timing_stats['ts']):.2f} s")
+                        ts_mean = np.mean(timing_stats["ts"])
+                        ts_std = np.std(timing_stats["ts"])
+                        print(f"  TS optimization: {ts_mean:.2f} ± {ts_std:.2f} s")
                     if timing_stats["frequency"]:
-                        print(f"  Frequency analysis: {np.mean(timing_stats['frequency']):.2f} ± {np.std(timing_stats['frequency']):.2f} s")
+                        freq_mean = np.mean(timing_stats["frequency"])
+                        freq_std = np.std(timing_stats["frequency"])
+                        print(f"  Frequency analysis: {freq_mean:.2f} ± {freq_std:.2f} s")
 
                 # Step statistics
                 if step_stats["minima"]:
-                    print(f"\n🔄 OPTIMIZATION STEPS:")
-                    print(f"  Minima: {np.mean(step_stats['minima']):.1f} ± {np.std(step_stats['minima']):.1f} steps")
+                    print("\n🔄 OPTIMIZATION STEPS:")
+                    minima_steps_mean = np.mean(step_stats["minima"])
+                    minima_steps_std = np.std(step_stats["minima"])
+                    print(f"  Minima: {minima_steps_mean:.1f} ± {minima_steps_std:.1f} steps")
                 if step_stats["ts"]:
-                    print(f"  TS: {np.mean(step_stats['ts']):.1f} ± {np.std(step_stats['ts']):.1f} steps")
+                    ts_steps_mean = np.mean(step_stats["ts"])
+                    ts_steps_std = np.std(step_stats["ts"])
+                    print(f"  TS: {ts_steps_mean:.1f} ± {ts_steps_std:.1f} steps")
 
             else:
                 barrier_stats = {
@@ -626,7 +680,7 @@ class BH28Benchmark:
         # Results
         for backend in backends:
             stats = analysis.get(backend, {}).get("barrier_statistics", {})
-            
+
             print(
                 f"{backend:<12} "
                 f"{stats.get('total_reactions', 0):<6} "
@@ -709,7 +763,7 @@ def main():
     )
 
     parser = interface.create_parser()
-    
+
     # Add benchmark-specific arguments
     parser.add_argument(
         "--reactions",

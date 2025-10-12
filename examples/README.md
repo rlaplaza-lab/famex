@@ -10,12 +10,14 @@ This directory contains standardized examples and benchmarks demonstrating the c
 Demonstrates QME's command-line interface capabilities by running various optimization tasks across all available ML backends and comparing their performance and reliability.
 
 **Features:**
-- Structure optimization using 'opt' command
-- Transition state optimization using 'tsopt' command
-- Two-ended optimization workflows
-- NEB path optimization
-- CI-NEB (Climbing Image NEB) path optimization
+- Structure optimization using 'opt' command (outputs single structure, defaults to BFGS)
+- Transition state optimization using 'tsopt' command (outputs single TS, defaults to Sella)
+- Reaction path optimization using dedicated 'path' command:
+  * Raw interpolation path generation
+  * NEB path optimization (saves complete reaction pathways)
+  * CI-NEB (Climbing Image NEB) path optimization (saves complete reaction pathways)
 - Comprehensive backend performance comparison
+- Trajectory saving for multi-image results
 
 ### 2. Timing Benchmark (`timing_benchmark.py`)
 **ML Backend Performance Analysis**
@@ -78,6 +80,7 @@ Two-ended transition state search benchmark using the Zimmermann-93 dataset.
 - Tests reactant→product transition state finding
 - Compares located TS geometries with reference structures
 - Evaluates NEB and CI-NEB path optimization capabilities
+- Saves complete reaction pathways as trajectory files
 
 ## Standardized Interface
 

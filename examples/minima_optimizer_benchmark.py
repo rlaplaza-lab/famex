@@ -40,11 +40,11 @@ except ImportError as e:
     print("   Please ensure QME is installed and accessible")
     sys.exit(1)
 
-# Common interface and device utils
-from qme.examples import QMEExampleInterface, create_standard_epilog
-
 # Backend availability helpers
 from qme.backend_availability import get_available_ml_backends
+
+# Common interface and device utils
+from qme.examples import QMEExampleInterface, create_standard_epilog
 from qme.utils.device import get_optimal_device, print_device_info
 
 # Suppress warnings for cleaner output
@@ -362,43 +362,55 @@ def _benchmark_optimization(
         freq_time = time.perf_counter() - freq_start
         results["timings"]["frequency_analysis"] = freq_time
 
-        # Enhanced validation based on task type
+        # Enhanced validation based on task type using proper frequency analysis
         frequencies = freq_results["frequencies"]
-        n_imaginary = sum(1 for f in frequencies if f < 0)
-        is_ts = freq_results["is_ts"]
+        is_minimum = freq_results["is_minimum"]
+        minima_analysis = freq_results.get("minima_analysis", {})
 
-        # Quality check for minima optimization: expect 0 imaginary frequencies
-        is_valid_result = (n_imaginary == 0) and not is_ts
+        # Quality check for minima optimization: expect no significant imaginary frequencies
+        n_significant_imaginary = minima_analysis.get("n_significant_imaginary_frequencies", 0)
+        n_small_negative = minima_analysis.get("n_small_negative_frequencies", 0)
+        is_valid_result = is_minimum
         result_type = "minima"
         if not is_valid_result:
             if verbose:
                 print(
-                    f"⚠️  WARNING: Expected minima but found {n_imaginary} " "imaginary frequencies"
+                    f"⚠️  WARNING: Expected minima but found {n_significant_imaginary} "
+                    f"significant imaginary frequencies"
                 )
-                if n_imaginary > 0:
+                if n_significant_imaginary > 0:
                     print(
                         "   This suggests the optimizer found a TS or "
                         "saddle point instead of a minimum"
+                    )
+                if n_small_negative > 0:
+                    print(
+                        f"   Note: {n_small_negative} small negative frequencies detected "
+                        f"(likely numerical noise)"
                     )
 
         results["frequency_results"] = {
             "n_frequencies": len(frequencies),
             "frequencies": frequencies[:10],  # First 10 frequencies
             "zero_point_energy": freq_results["zero_point_energy"],
-            "is_transition_state": is_ts,
+            "is_minimum": is_minimum,
             "is_valid_result": is_valid_result,
-            "n_imaginary_frequencies": n_imaginary,
+            "n_significant_imaginary_frequencies": n_significant_imaginary,
+            "n_small_negative_frequencies": n_small_negative,
             "method_used": freq_results["method_used"],
             "result_type": result_type,
+            "minima_analysis": minima_analysis,
         }
 
         if verbose:
             print(f"Frequency analysis time: {freq_time:.3f} seconds")
             print(f"Number of frequencies: {len(frequencies)}")
-            print(f"Imaginary frequencies: {n_imaginary}")
+            print(f"Significant imaginary frequencies: {n_significant_imaginary}")
+            if n_small_negative > 0:
+                print(f"Small negative frequencies (likely noise): {n_small_negative}")
             print(f"First 5 frequencies: {frequencies[:5]}")
             print(f"Zero-point energy: {freq_results['zero_point_energy']:.6f} eV")
-            print(f"Is transition state: {is_ts}")
+            print(f"Is minimum: {is_minimum}")
             print(f"Valid minima: {is_valid_result}")
 
         # Calculate total time (excluding None values)

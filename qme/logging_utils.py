@@ -264,7 +264,7 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
     _qme_log_level = log_level
 
     # Configure root QME logger
-    qme_logger = logging.getLogger('qme')
+    qme_logger = logging.getLogger("qme")
     qme_logger.setLevel(log_level)
 
     # Remove existing handlers to avoid duplicates
@@ -312,11 +312,11 @@ def get_qme_logger(name: str) -> logging.Logger:
         Configured logger instance
     """
     # Ensure name starts with 'qme.'
-    if not name.startswith('qme'):
-        if name == '__main__':
-            name = 'qme'
+    if not name.startswith("qme"):
+        if name == "__main__":
+            name = "qme"
         else:
-            name = f'qme.{name}'
+            name = f"qme.{name}"
 
     return logging.getLogger(name)
 

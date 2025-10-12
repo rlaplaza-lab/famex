@@ -59,7 +59,8 @@ class Explorer:
         Keyword arguments forwarded to local minima optimizer.
     strategy, target
         High-level run selection. ``strategy`` is typically ``local`` or
-        ``two-ended``; ``target`` is ``minima`` or ``ts``.
+        ``two-ended``; ``target`` can be ``minima``, ``ts``, or ``path``.
+        Use ``path`` for NEB/CI-NEB trajectory optimization.
     ts_kwargs
         Keyword arguments forwarded to the local TS optimizer.
     constraints
@@ -75,6 +76,9 @@ class Explorer:
       defaults when creating calculators.
     - Use :meth:`list_strategies` to discover available runners and their
       descriptions.
+    - For path optimization (NEB/CI-NEB), use ``target="path"`` and specify
+      ``mode="neb"`` or ``mode="cineb"`` in the run method. This will return
+      a list of Atoms objects representing the complete reaction pathway.
     """
 
     def __init__(
@@ -113,6 +117,7 @@ class Explorer:
 
         # Setup QME logging with specified verbosity
         from qme.logging_utils import setup_qme_logging
+
         setup_qme_logging(verbosity=verbose)
 
         self.local_optimizer_name = local_optimizer
@@ -180,6 +185,15 @@ class Explorer:
             strategy_type="two-ended",
             description="Climbing Image NEB (CI-NEB) optimization with geodesic interpolation",
             aliases=["twoended:cineb", "twoended-cineb", "cineb"],
+        )
+
+        # General path optimization strategy that dispatches based on mode
+        self.register_strategy(
+            "twoended:path",
+            self._twoended_path_runner,
+            strategy_type="two-ended",
+            description="Path optimization (NEB or CI-NEB) with geodesic interpolation",
+            aliases=["twoended:path", "twoended-path", "path"],
         )
 
     # --- Backend and constraints helpers
@@ -403,10 +417,15 @@ class Explorer:
                 "transition_state",
             ):
                 preferred = ["twoended:ts", "twoended-ts"]
-            elif self.target in ("neb", "nudged-elastic-band"):
-                preferred = ["twoended:neb", "neb", "twoended-neb"]
-            elif self.target in ("cineb", "climbing-image-neb", "ci-neb"):
-                preferred = ["twoended:cineb", "cineb", "twoended-cineb"]
+            elif self.target in (
+                "path",
+                "neb",
+                "nudged-elastic-band",
+                "cineb",
+                "climbing-image-neb",
+                "ci-neb",
+            ):
+                preferred = ["twoended:path", "path", "twoended-path"]
             else:
                 preferred = ["twoended:minima", "twoended-minima"]
 
@@ -608,6 +627,81 @@ class Explorer:
                     f"Clean attempt also failed: {e2}"
                 )
 
+    def save_trajectory(
+        self, atoms_list: List[Atoms], output_file: Union[str, Path], format: Optional[str] = None
+    ):
+        """Save multiple structures (trajectory) to file.
+
+        This method is particularly useful for saving complete reaction pathways
+        from NEB or CI-NEB calculations, which return multiple images along
+        the reaction coordinate.
+
+        Parameters
+        ----------
+        atoms_list : List[Atoms]
+            List of structures to save as trajectory
+        output_file : str or Path
+            Output file path
+        format : str, optional
+            File format (inferred from extension if None)
+
+        Examples
+        --------
+        >>> explorer = Explorer(atoms=[reactant, product], target="path")
+        >>> result = explorer.run(mode="neb", npoints=7)
+        >>> explorer.save_trajectory(result, "reaction_path.xyz")
+        """
+        output_file = Path(output_file)
+
+        try:
+            if format is not None:
+                write(output_file, atoms_list, format=format)
+            else:
+                write(output_file, atoms_list)
+        except Exception as e:
+            # If writing fails, try with cleaned atoms objects to avoid
+            # issues with contaminated global state from test isolation
+            try:
+                # Create clean atoms objects with only essential data
+                clean_atoms_list = []
+                for atoms in atoms_list:
+                    clean_atoms = Atoms(
+                        symbols=atoms.symbols,
+                        positions=atoms.positions,
+                        cell=atoms.cell,
+                        pbc=atoms.pbc,
+                    )
+                    # Copy over essential info
+                    if hasattr(atoms, "info") and atoms.info:
+                        for key in ["charge", "spin"]:
+                            if key in atoms.info:
+                                clean_atoms.info[key] = atoms.info[key]
+                    clean_atoms_list.append(clean_atoms)
+
+                if format is not None:
+                    write(output_file, clean_atoms_list, format=format)
+                else:
+                    write(output_file, clean_atoms_list)
+            except Exception as e2:
+                raise RuntimeError(
+                    f"Failed to save trajectory to {output_file}: {e}. "
+                    f"Clean attempt also failed: {e2}"
+                )
+
+    def _twoended_path_runner(self, atoms_list, **kwargs):
+        """General path runner that dispatches between NEB and CI-NEB based on mode."""
+        mode = kwargs.get("mode", "neb").lower()
+
+        if mode == "cineb":
+            from qme.core.twoended_strategies import twoended_cineb_runner
+
+            return twoended_cineb_runner(atoms_list, **kwargs)
+        else:
+            # Default to NEB for any other mode
+            from qme.core.twoended_strategies import twoended_neb_runner
+
+            return twoended_neb_runner(atoms_list, **kwargs)
+
     def calculate_frequencies(
         self,
         atoms: Optional[Atoms] = None,
@@ -662,6 +756,7 @@ class Explorer:
         vib_normal_modes = freq_analysis.get_normal_modes()
         thermo = freq_analysis.get_thermodynamic_properties(temperature)
         ts_analysis = freq_analysis.is_transition_state()
+        minima_analysis = freq_analysis.is_minima()
 
         results = {
             "frequencies": vib_frequencies.tolist(),
@@ -670,7 +765,9 @@ class Explorer:
             "zero_point_energy": freq_analysis.get_zero_point_energy(),
             "thermodynamic_properties": thermo,
             "ts_analysis": ts_analysis,
+            "minima_analysis": minima_analysis,
             "is_ts": ts_analysis["is_transition_state"],
+            "is_minimum": minima_analysis["is_minimum"],
             "method_used": method,
             "delta": delta,
             "temperature": temperature,

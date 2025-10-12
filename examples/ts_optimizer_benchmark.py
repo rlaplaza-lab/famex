@@ -40,11 +40,11 @@ except ImportError as e:
     print("   Please ensure QME is installed and accessible")
     sys.exit(1)
 
-# Common interface and device utils
-from qme.examples import QMEExampleInterface, create_standard_epilog
-
 # Backend availability helpers
 from qme.backend_availability import get_available_ml_backends
+
+# Common interface and device utils
+from qme.examples import QMEExampleInterface, create_standard_epilog
 from qme.utils.device import get_optimal_device, print_device_info
 
 # Suppress warnings for cleaner output
@@ -366,13 +366,14 @@ def _benchmark_optimization(
         freq_time = time.perf_counter() - freq_start
         results["timings"]["frequency_analysis"] = freq_time
 
-        # Enhanced validation based on task type
+        # Enhanced validation based on task type using proper frequency analysis
         frequencies = freq_results["frequencies"]
-        n_imaginary = sum(1 for f in frequencies if f < 0)
         is_ts = freq_results["is_ts"]
+        ts_analysis = freq_results.get("ts_analysis", {})
 
         # Quality check for TS optimization: expect exactly 1 imaginary frequency
-        is_valid_result = (n_imaginary == 1) and is_ts
+        n_imaginary = ts_analysis.get("n_imaginary_frequencies", 0)
+        is_valid_result = is_ts and (n_imaginary == 1)
         result_type = "TS"
         if not is_valid_result:
             if verbose:
@@ -394,6 +395,7 @@ def _benchmark_optimization(
             "n_imaginary_frequencies": n_imaginary,
             "method_used": freq_results["method_used"],
             "result_type": result_type,
+            "ts_analysis": ts_analysis,
         }
 
         if verbose:

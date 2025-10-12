@@ -11,6 +11,7 @@ import pytest
 from ase import Atoms
 from ase.optimize.optimize import Optimizer
 
+from qme.backend_availability import is_backend_available
 from qme.core.geometric_interface import (
     GeometricOptimizer,
     GeometricTSOptimizer,
@@ -19,7 +20,6 @@ from qme.core.geometric_interface import (
     geometric_ts_optimizer,
 )
 from qme.potentials.mock_potential import MockCalculator
-from qme.backend_availability import is_backend_available
 
 
 class TestGeometricOptimizerInit:
@@ -432,12 +432,12 @@ class TestGeometricCoordinateHandling:
 
     def test_geometric_optimizer_preserves_original_atoms(self, test_molecule):
         """Test that geometric optimizer preserves original atoms object.
-        
+
         Uses MockCalculator for fast unit testing of coordinate handling.
         """
         # Use mock calculator for fast unit testing (minima only)
         calculator = MockCalculator()
-        
+
         # Create original atoms object
         original_atoms = test_molecule.copy()
         original_positions = original_atoms.get_positions().copy()
@@ -469,12 +469,12 @@ class TestGeometricCoordinateHandling:
 
     def test_geometric_optimizer_coordinate_consistency(self, test_benzene):
         """Test that geometric optimizer produces consistent coordinates.
-        
+
         Uses MockCalculator for fast unit testing of coordinate handling.
         """
         # Use mock calculator for fast unit testing (minima only)
         calculator = MockCalculator()
-        
+
         # Create atoms object
         atoms = test_benzene.copy()
         atoms.calc = calculator
@@ -514,11 +514,11 @@ class TestGeometricCoordinateHandling:
 
     @pytest.mark.skipif(
         not is_backend_available("uma"),
-        reason="UMA backend required for realistic Hessian calculation tests"
+        reason="UMA backend required for realistic Hessian calculation tests",
     )
     def test_geometric_optimized_atoms_hessian_compatibility(self, test_benzene):
         """Test that geometric-optimized atoms work with Hessian calculations.
-        
+
         Requires real ML backend (UMA) because MockCalculator doesn't produce
         realistic frequency spectra. Uses minimal structure for faster testing.
         """
@@ -530,9 +530,9 @@ class TestGeometricCoordinateHandling:
         # Water (3 atoms) requires only 18 force calls
         atoms = Atoms(
             ["O", "H", "H"],
-            positions=np.array([[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]])
+            positions=np.array([[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]]),
         )
-        
+
         # Must use real ML backend for Hessian/frequency tests
         calculator = UMAPotential()
         atoms.calc = calculator
@@ -549,13 +549,19 @@ class TestGeometricCoordinateHandling:
 
             # Verify Hessian is valid
             assert hessian is not None, "Hessian should be calculated successfully"
-            assert hessian.shape == (9, 9), f"Hessian should be 9x9 for 3 atoms, got {hessian.shape}"
+            assert hessian.shape == (
+                9,
+                9,
+            ), f"Hessian should be 9x9 for 3 atoms, got {hessian.shape}"
             assert np.all(np.isfinite(hessian)), "Hessian should contain only finite values"
 
             # Verify frequencies are reasonable
             expected_frequencies = 3 * len(atoms)  # 3N degrees of freedom
-            assert len(frequencies) == expected_frequencies, \
-                f"Should have {expected_frequencies} frequencies for {len(atoms)} atoms, got {len(frequencies)}"
+            freq_msg = (
+                f"Should have {expected_frequencies} frequencies for {len(atoms)} atoms, "
+                f"got {len(frequencies)}"
+            )
+            assert len(frequencies) == expected_frequencies, freq_msg
             assert np.all(np.isfinite(frequencies)), "All frequencies should be finite"
 
             # Check for reasonable frequency range (should have some real positive frequencies)

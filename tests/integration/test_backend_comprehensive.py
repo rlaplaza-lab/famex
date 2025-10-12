@@ -495,7 +495,7 @@ class TestGeometricOptimizerIntegration:
         )
 
         result = optimizer.optimize_ts(fmax=0.01, steps=50)
-        
+
         assert result is not None
         assert isinstance(result, list)
         assert len(result) == 1
@@ -505,13 +505,13 @@ class TestGeometricOptimizerIntegration:
         final_atoms = result_dict["optimized_atoms"]
         assert hasattr(final_atoms, "get_distance")
         assert len(final_atoms) == 6  # C2H4
-        
+
         # Verify we have a reasonable ethylene structure
         cc_distance = final_atoms.get_distance(0, 1)  # C-C bond
         assert 1.2 < cc_distance < 1.5, f"C-C bond length {cc_distance:.3f} Å is unreasonable"
-        
+
         # Print optimization info for verification
-        print(f"geomeTRIC ethylene rotation TS optimization converged successfully")
+        print("geomeTRIC ethylene rotation TS optimization converged successfully")
         print(f"Final C-C distance: {cc_distance:.3f} Å")
         print(f"Steps taken: {result_dict.get('steps_taken', 'unknown')}")
         print(f"Converged: {result_dict.get('converged', False)}")
