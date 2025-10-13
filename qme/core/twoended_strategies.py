@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 from ase import Atoms
 
-from qme.core.local_strategies import _get_local_optimizer_class, _validate_ts_optimization_setup
+from qme.core.local_strategies import _get_local_optimizer_class
 from qme.core.reaction import Reaction
 from qme.logging_utils import get_qme_logger
 
@@ -767,7 +767,7 @@ class BatchNEBOptimizer:
 
         # Energy-weighted tangent (same as regular NEB)
         try:
-            curr_energy = self.path[index].get_potential_energy()
+            _ = self.path[index].get_potential_energy()  # curr_energy
             next_energy = self.path[index + 1].get_potential_energy()
             prev_energy = self.path[index - 1].get_potential_energy()
 

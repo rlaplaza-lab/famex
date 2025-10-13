@@ -159,17 +159,17 @@ class TestDeviceValidation:
         """Test validation with CUDA requested but unavailable."""
         # This test is environment-specific since torch is not a mandatory dependency.
         # We'll test the basic validation logic without complex mocking.
-        
+
         # Test that invalid device names are caught
         with pytest.raises(ValidationError) as exc_info:
             validate_device_parameter("invalid_device", "aimnet2")
         assert "Invalid device" in str(exc_info.value)
-        
+
         # Test that valid devices pass validation (this tests the main logic)
         # without getting into torch-specific behavior
         validate_device_parameter("cpu", "aimnet2")
         validate_device_parameter("auto", "aimnet2")
-        
+
         # Note: CUDA-specific testing is environment-dependent and torch is not
         # a mandatory dependency, so we skip the complex torch import mocking
 

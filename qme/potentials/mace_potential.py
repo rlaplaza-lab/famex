@@ -26,7 +26,9 @@ class MACEPotential(BasePotential):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, model_name: Optional[str] = None, device: Optional[str] = None, **kwargs: Any) -> None:
+    def __init__(
+        self, model_name: Optional[str] = None, device: Optional[str] = None, **kwargs: Any
+    ) -> None:
         """
         Initialize MACE potential calculator.
 
@@ -129,7 +131,12 @@ class MACEPotential(BasePotential):
         """Get the backend name for this calculator."""
         return "mace"
 
-    def calculate(self, atoms: Optional[Atoms] = None, properties: Optional[Sequence[str]] = None, system_changes: Any = None) -> None:
+    def calculate(
+        self,
+        atoms: Optional[Atoms] = None,
+        properties: Optional[Sequence[str]] = None,
+        system_changes: Any = None,
+    ) -> None:
         """Calculate properties using the MACE calculator."""
         # Common setup
         super().calculate(atoms, properties, system_changes)

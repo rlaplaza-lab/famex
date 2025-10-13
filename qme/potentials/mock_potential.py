@@ -48,7 +48,10 @@ class MockCalculator(Calculator):
     implemented_properties = ["energy", "forces"]
 
     def __init__(
-        self, backend: str = "generic", force_constant: float = DEFAULT_FORCE_CONSTANT, **kwargs: Any
+        self,
+        backend: str = "generic",
+        force_constant: float = DEFAULT_FORCE_CONSTANT,
+        **kwargs: Any,
     ) -> None:
         """Initialize the mock calculator.
 
