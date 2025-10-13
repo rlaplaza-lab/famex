@@ -87,7 +87,7 @@ class CalculatorRegistry:
             # Other errors should be logged but not break the system
             import warnings
 
-            warnings.warn(f"Failed to load backend {backend_name}: {e}")
+            warnings.warn(f"Failed to load backend {backend_name}: {e}", stacklevel=2)
 
     def register(self, backend_name: str, factory_func: Callable[..., Any]) -> None:
         """Register a new calculator factory function.

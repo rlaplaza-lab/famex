@@ -124,7 +124,7 @@ class FrequencyAnalysis:
 
         # Moment of inertia tensor
         inertia_tensor = np.zeros((3, 3))
-        for i, (pos, mass) in enumerate(zip(positions_centered, masses, strict=False)):
+        for _i, (pos, mass) in enumerate(zip(positions_centered, masses, strict=False)):
             inertia_tensor += mass * (np.dot(pos, pos) * np.eye(3) - np.outer(pos, pos))
 
         # Eigenvalues of moment of inertia tensor

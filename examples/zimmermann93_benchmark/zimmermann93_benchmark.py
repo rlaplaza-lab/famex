@@ -391,7 +391,7 @@ class Zimmermann93Benchmark:
             timing_stats = {"total": [], "optimization": [], "frequency": []}
             step_stats = []
 
-            for reaction, data in backend_data.items():
+            for _reaction, data in backend_data.items():
                 if isinstance(data, dict) and not data.get("skipped"):
                     if not data.get("success", True):
                         failed_count += 1

@@ -504,7 +504,7 @@ class BH28Benchmark:
             timing_stats = {"total": [], "minima": [], "ts": [], "frequency": []}
             step_stats = {"minima": [], "ts": []}
 
-            for reaction, data in backend_data.items():
+            for _reaction, data in backend_data.items():
                 if isinstance(data, dict) and not data.get("skipped"):
                     if not data.get("success", True):
                         failed_count += 1

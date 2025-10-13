@@ -57,7 +57,7 @@ def parse_constraints(
         constraint_manager = parse_constraint_string(constraint_specs, atoms)
     elif isinstance(constraint_specs, list):
         # Handle list of pre-made ASE constraints
-        if all(hasattr(c, "__call__") or hasattr(c, "adjust_positions") for c in constraint_specs):
+        if all(callable(c) or hasattr(c, "adjust_positions") for c in constraint_specs):
             # Already ASE constraints
             return constraint_specs
         else:
