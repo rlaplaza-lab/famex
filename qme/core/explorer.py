@@ -19,7 +19,7 @@ Implementation notes:
 
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 import numpy as np
 from ase import Atoms
@@ -35,6 +35,7 @@ from qme.core.twoended_strategies import (
     twoended_neb_runner,
     twoended_ts_guess_runner,
 )
+from qme.core.validation import validate_minima_run, validate_path_run, validate_ts_run
 from qme.dependencies import deps
 
 
@@ -79,6 +80,17 @@ class Explorer:
     - For path optimization (NEB/CI-NEB), use ``target="path"`` and specify
       ``mode="neb"`` or ``mode="cineb"`` in the run method. This will return
       a list of Atoms objects representing the complete reaction pathway.
+
+    Strategy Selection Matrix:
+    ┌──────────────┬──────────┬─────────────────────┐
+    │ strategy     │ target   │ Runner Selected     │
+    ├──────────────┼──────────┼─────────────────────┤
+    │ local        │ minima   │ local_minima_runner │
+    │ local        │ ts       │ local_ts_runner     │
+    │ two-ended    │ minima   │ twoended_minima_*   │
+    │ two-ended    │ ts       │ twoended_ts_*       │
+    │ two-ended    │ path     │ twoended_neb/cineb  │
+    └──────────────┴──────────┴─────────────────────┘
     """
 
     def __init__(
@@ -101,7 +113,7 @@ class Explorer:
         initial_hessian: Optional[np.ndarray] = None,
         auto_register: bool = True,
         verbose: int = 1,
-    ):
+    ) -> None:
         if isinstance(atoms, Atoms):
             self.atoms_list: List[Atoms] = [atoms]
         else:
@@ -304,11 +316,11 @@ class Explorer:
     def register_strategy(
         self,
         name: str,
-        func,
+        func: Callable[..., Any],
         strategy_type: str = "global",
         description: Optional[str] = None,
         aliases: Optional[List[str]] = None,
-    ):
+    ) -> None:
         """Register a strategy/runner callable under a name.
 
         The callable must accept the atoms list as the first positional
@@ -363,25 +375,13 @@ class Explorer:
                 }
         return out
 
-    def run(self, mode: Optional[str] = None, runner=None, **kwargs):
-        """Execute a registered or user-supplied runner.
-
-        Parameters
-        ----------
-        mode
-            Short selector used to choose among registered strategies when
-            ``runner`` is not provided. Typically ``minima`` or ``ts`` for
-            local strategies, or ``interpolate`` for two-ended.
-        runner
-            Optional callable to execute directly.
-        **kwargs
-            Forwarded to the runner; Explorer injects ``explorer=self`` and
-            ``local_optimizer_name`` defaults.
+    def _normalize_strategy_params(self, mode: Optional[str] = None) -> tuple[str, str]:
+        """Normalize strategy parameters to standard form.
 
         Returns
         -------
-        Any
-            Whatever the runner returns.
+        tuple[str, str]
+            (effective_mode, effective_strategy)
         """
         # Decide effective mode: explicit call-time mode overrides instance target
         effective_mode = (mode or self.target or "minima").strip().lower()
@@ -393,7 +393,25 @@ class Explorer:
         else:
             effective_strategy = "local"
 
-        # Two-ended strategies: select runner based on requested target
+        return effective_mode, effective_strategy
+
+    def _select_strategy(self, effective_mode: str, effective_strategy: str) -> tuple[str, str]:
+        """Select the appropriate strategy runner based on mode and strategy.
+
+        Parameters
+        ----------
+        effective_mode : str
+            Normalized mode (minima, ts, neb, etc.)
+        effective_strategy : str
+            Normalized strategy (local, two-ended)
+
+        Returns
+        -------
+        tuple[str, str]
+            (strategy_key, strategy_type)
+        """
+        strategies = getattr(self, "_strategies", {})
+
         if effective_strategy == "two-ended":
             # Only interpolation-driven path construction is supported for two-ended
             if effective_mode not in (
@@ -429,8 +447,8 @@ class Explorer:
             else:
                 preferred = ["twoended:minima", "twoended-minima"]
 
-            strategies = getattr(self, "_strategies", {})
             strategy_key = next((k for k in preferred if k in strategies), preferred[-1])
+            return strategy_key, "two-ended"
 
         else:
             # Local strategies support minima and ts (if registered)
@@ -444,8 +462,99 @@ class Explorer:
             else:
                 preferred = ["local:minima", "minima"]
 
-            strategies = getattr(self, "_strategies", {})
             strategy_key = next((k for k in preferred if k in strategies), preferred[-1])
+            return strategy_key, "local"
+
+    def explain_run(self, mode: Optional[str] = None) -> Dict[str, Any]:
+        """Explain what strategy would be selected without running.
+
+        Parameters
+        ----------
+        mode : str, optional
+            Mode to explain (uses instance target if None)
+
+        Returns
+        -------
+        dict
+            Dictionary with strategy selection details
+        """
+        effective_mode, effective_strategy = self._normalize_strategy_params(mode)
+        strategy_key, strategy_type = self._select_strategy(effective_mode, effective_strategy)
+
+        strategies = getattr(self, "_strategies", {})
+        entry = strategies.get(strategy_key)
+
+        if entry is None:
+            return {
+                "strategy": strategy_key,
+                "runner": None,
+                "valid": False,
+                "error": f"No registered strategy for '{strategy_key}'",
+                "notes": f"Requested strategy: {self.strategy}, mode: {effective_mode}",
+            }
+
+        runner = entry.get("func") if isinstance(entry, dict) else entry
+        description = entry.get("description", "") if isinstance(entry, dict) else ""
+
+        return {
+            "strategy": strategy_key,
+            "runner": runner.__name__ if runner else "unknown",
+            "valid": True,
+            "strategy_type": strategy_type,
+            "description": description,
+            "notes": f"Will use {self.local_optimizer_name} optimizer",
+        }
+
+    def run(
+        self, mode: Optional[str] = None, runner: Optional[Callable[..., Any]] = None, **kwargs: Any
+    ) -> Any:
+        """Execute a registered or user-supplied runner.
+
+        Parameters
+        ----------
+        mode
+            Short selector used to choose among registered strategies when
+            ``runner`` is not provided. Typically ``minima`` or ``ts`` for
+            local strategies, or ``interpolate`` for two-ended.
+        runner
+            Optional callable to execute directly.
+        **kwargs
+            Forwarded to the runner; Explorer injects ``explorer=self`` and
+            ``local_optimizer_name`` defaults.
+
+        Returns
+        -------
+        Any
+            Whatever the runner returns.
+        """
+        # Normalize parameters and validate inputs
+        effective_mode, effective_strategy = self._normalize_strategy_params(mode)
+
+        # Handle product parameter for NEB/CINEB validation
+        validation_atoms_list = self.atoms_list
+        if effective_mode in ("neb", "cineb", "path") and "product" in kwargs:
+            # For validation purposes, treat as two-structure input
+            if not isinstance(self.atoms_list, list):
+                validation_atoms_list = [self.atoms_list, kwargs["product"]]
+            else:
+                validation_atoms_list = self.atoms_list + [kwargs["product"]]
+
+        # Validate inputs early
+        if effective_mode in ("ts", "transition", "transition-state", "transition_state"):
+            if effective_strategy == "local":
+                validate_ts_run(self.atoms_list, self.backend, self.local_optimizer_name)
+            else:
+                validate_path_run(self.atoms_list, self.backend, self.local_optimizer_name)
+        elif effective_mode in ("neb", "cineb", "path"):
+            validate_path_run(validation_atoms_list, self.backend, self.local_optimizer_name)
+        else:
+            if effective_strategy == "local":
+                validate_minima_run(self.atoms_list, self.backend, self.local_optimizer_name)
+            else:
+                validate_path_run(self.atoms_list, self.backend, self.local_optimizer_name)
+
+        # Select strategy runner
+        strategy_key, strategy_type = self._select_strategy(effective_mode, effective_strategy)
 
         # If the caller passed an explicit runner, use it; otherwise look up
         # the registered strategy entry.
@@ -486,11 +595,8 @@ class Explorer:
 
         # Dispatch according to strategy type
         if strategy_type == "local":
-            results = []
-            for atoms in self.atoms_list:
-                out = runner(atoms, **call_kwargs)
-                results.append(out)
-            return results
+            # Local strategies now return standardized dicts, so we can call directly
+            return runner(self.atoms_list, **call_kwargs)
 
         if strategy_type == "two-ended":
             if len(self.atoms_list) < 2:
@@ -501,11 +607,11 @@ class Explorer:
         return runner(self.atoms_list, **call_kwargs)
 
     # --- Convenience wrappers mirroring ASE Optimizer ergonomics ---
-    def optimize_minima(self, fmax: float = 0.05, steps: int = 1000, **kwargs):
+    def optimize_minima(self, fmax: float = 0.05, steps: int = 1000, **kwargs: Any) -> Any:
         """Run a local minima optimization (ASE-like convenience method)."""
         return self.run(mode="minima", fmax=fmax, steps=steps, **kwargs)
 
-    def optimize_ts(self, fmax: float = 0.05, steps: int = 1000, **kwargs):
+    def optimize_ts(self, fmax: float = 0.05, steps: int = 1000, **kwargs: Any) -> Any:
         """Run a local transition-state optimization (ASE-like convenience method)."""
         return self.run(mode="ts", fmax=fmax, steps=steps, **kwargs)
 
@@ -554,7 +660,7 @@ class Explorer:
             **kwargs,
         )
 
-    def load_structure(self, filename_or_geom):
+    def load_structure(self, filename_or_geom: Union[str, Path, Atoms]) -> Atoms:
         """Load structure from file or geometry object and update atoms_list.
 
         Parameters
@@ -581,7 +687,7 @@ class Explorer:
 
     def save_structure(
         self, atoms: Atoms, output_file: Union[str, Path], format: Optional[str] = None
-    ):
+    ) -> None:
         """Save structure to file.
 
         Parameters
@@ -629,7 +735,7 @@ class Explorer:
 
     def save_trajectory(
         self, atoms_list: List[Atoms], output_file: Union[str, Path], format: Optional[str] = None
-    ):
+    ) -> None:
         """Save multiple structures (trajectory) to file.
 
         This method is particularly useful for saving complete reaction pathways
@@ -688,7 +794,7 @@ class Explorer:
                     f"Clean attempt also failed: {e2}"
                 )
 
-    def _twoended_path_runner(self, atoms_list, **kwargs):
+    def _twoended_path_runner(self, atoms_list: List[Atoms], **kwargs: Any) -> Any:
         """General path runner that dispatches between NEB and CI-NEB based on mode."""
         mode = kwargs.get("mode", "neb").lower()
 
@@ -710,7 +816,7 @@ class Explorer:
         temperature: float = 298.15,
         save_hessian: bool = True,
         indices: Optional[List[int]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         """Calculate vibrational frequencies and thermodynamic properties.
 

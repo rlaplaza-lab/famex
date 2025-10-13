@@ -95,11 +95,11 @@ def run_cineb_example(reactant, product, backend="mock", title="CI-NEB Example")
         )
 
         print("\n✅ CI-NEB completed successfully!")
-        print(f"   Returned {len(result)} images along the reaction path")
+        print(f"   Returned {len(result['trajectory'])} images along the reaction path")
 
         # Analyze the results
         print("\nPath Analysis:")
-        for i, atoms in enumerate(result):
+        for i, atoms in enumerate(result["trajectory"]):
             try:
                 energy = atoms.get_potential_energy()
                 max_force = np.max(np.abs(atoms.get_forces()))
@@ -111,7 +111,7 @@ def run_cineb_example(reactant, product, backend="mock", title="CI-NEB Example")
 
         # Find the highest energy image (potential TS)
         energies = []
-        for atoms in result:
+        for atoms in result["trajectory"]:
             try:
                 energies.append(atoms.get_potential_energy())
             except Exception:
@@ -184,13 +184,13 @@ def compare_cineb_vs_neb():
         neb_energies = []
         cineb_energies = []
 
-        for atoms in neb_result:
+        for atoms in neb_result["trajectory"]:
             try:
                 neb_energies.append(atoms.get_potential_energy())
             except Exception:
                 neb_energies.append(float("nan"))
 
-        for atoms in cineb_result:
+        for atoms in cineb_result["trajectory"]:
             try:
                 cineb_energies.append(atoms.get_potential_energy())
             except Exception:

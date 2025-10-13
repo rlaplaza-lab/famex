@@ -247,27 +247,43 @@ class StandardTestAssertions:
     @staticmethod
     def assert_optimization_result(result: dict, expected_keys: Optional[List[str]] = None) -> None:
         """Assert that optimization result has expected structure."""
+        assert isinstance(result, dict), "Result should be a dict"
+
         if expected_keys is None:
-            expected_keys = ["converged", "optimized_atoms"]
+            expected_keys = ["converged", "optimized_atoms", "strategy"]
 
         for key in expected_keys:
             assert key in result, f"Missing key '{key}' in optimization result"
 
-        # Handle both Python bool and numpy bool types
+        # Handle both Python bool and numpy bool types for converged field
         import numpy as np
 
-        assert isinstance(result["converged"], (bool, np.bool_)), "converged should be boolean"
-        assert isinstance(
-            result["optimized_atoms"], Atoms
-        ), "optimized_atoms should be Atoms object"
+        converged = result["converged"]
+        if isinstance(converged, list):
+            for c in converged:
+                assert isinstance(c, (bool, np.bool_)), "converged should be boolean"
+        else:
+            assert isinstance(converged, (bool, np.bool_)), "converged should be boolean"
+
+        # Handle optimized_atoms - can be single Atoms or list of Atoms
+        optimized_atoms = result["optimized_atoms"]
+        if isinstance(optimized_atoms, list):
+            for atoms in optimized_atoms:
+                assert isinstance(atoms, Atoms), "optimized_atoms should be Atoms object(s)"
+        else:
+            assert isinstance(optimized_atoms, Atoms), "optimized_atoms should be Atoms object"
 
         # steps_taken may be None in some implementations
         if "steps_taken" in result:
-            if result["steps_taken"] is not None:
-                assert isinstance(
-                    result["steps_taken"], int
-                ), "steps_taken should be integer or None"
-                assert result["steps_taken"] >= 0, "steps_taken should be non-negative"
+            steps_taken = result["steps_taken"]
+            if steps_taken is not None:
+                if isinstance(steps_taken, list):
+                    for steps in steps_taken:
+                        assert isinstance(steps, int), "steps_taken should be integer(s) or None"
+                        assert steps >= 0, "steps_taken should be non-negative"
+                else:
+                    assert isinstance(steps_taken, int), "steps_taken should be integer or None"
+                    assert steps_taken >= 0, "steps_taken should be non-negative"
 
     @staticmethod
     def assert_reasonable_geometry(atoms: Atoms, backend: str = "mock") -> None:

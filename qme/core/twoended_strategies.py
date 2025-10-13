@@ -12,7 +12,7 @@ of the stitched interpolated path).
 """
 
 import warnings
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from ase import Atoms
@@ -24,12 +24,12 @@ from qme.logging_utils import get_qme_logger
 logger = get_qme_logger(__name__)
 
 
-def _supports_batch_evaluation(calculator):
+def _supports_batch_evaluation(calculator: Any) -> bool:
     """Check if calculator supports batch evaluation."""
     return hasattr(calculator, "supports_batch_evaluation") and calculator.supports_batch_evaluation
 
 
-def _ensure_charge_spin_info(atoms: Atoms, default_charge: int = 0, default_spin: int = 1):
+def _ensure_charge_spin_info(atoms: Atoms, default_charge: int = 0, default_spin: int = 1) -> None:
     """Ensure atoms.info has charge and spin information to prevent UMA backend warnings."""
     if hasattr(atoms, "info") and atoms.info is not None:
         atoms.info.setdefault("charge", default_charge)
@@ -242,7 +242,7 @@ def _attach_calculators_if_explorer(explorer: Any, reactant: Atoms, product: Ato
     return reactant.calc
 
 
-def twoended_ts_guess_runner(
+def _filter_structures_helper(
     structures: List[Atoms],
     input_structures: Optional[List[Atoms]] = None,
     rmsd_threshold: float = 0.1,
@@ -335,6 +335,100 @@ def twoended_ts_guess_runner(
     return filtered_structures, removed_indices, warning_messages
 
 
+def twoended_ts_guess_runner(
+    atoms_list: Union[Sequence[Atoms], Atoms],
+    npoints: int = 11,
+    method: str = "geodesic",
+    explorer: Optional[Any] = None,
+    fmax: float = 0.05,
+    steps: int = 1000,
+    local_optimizer_name: str = "sella",
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    """Two-ended TS guess runner via interpolation with local TS refinement.
+
+    This runner generates a path between reactant and product, then finds the
+    highest energy structure as a TS guess and refines it with local TS optimization.
+
+    Parameters
+    ----------
+    atoms_list : Union[Sequence[Atoms], Atoms]
+        Two or more Atoms objects defining the path endpoints
+    npoints : int, default=11
+        Number of images in the interpolated path
+    method : str, default="geodesic"
+        Interpolation method for initial path generation
+    explorer : Any, optional
+        Explorer instance for calculator and constraint management
+    fmax : float, default=0.05
+        Force convergence threshold
+    steps : int, default=1000
+        Maximum optimization steps
+    local_optimizer_name : str, default="sella"
+        Local optimizer to use for TS refinement
+    **kwargs
+        Additional arguments passed to optimizer
+
+    Returns
+    -------
+    dict
+        Dictionary with optimized TS structure and metadata
+    """
+    # Generate interpolated path
+    path = path_generator(
+        atoms_list,
+        npoints=npoints,
+        method=method,
+        optimize_path=False,  # Raw interpolation
+        explorer=explorer,
+        **kwargs,
+    )
+
+    # Attach calculators to all images
+    if explorer is not None:
+        for atoms in path:
+            explorer._create_and_attach_calculator(atoms)
+            explorer._apply_constraints(atoms)
+
+    # Find highest energy structure as TS guess
+    energies = []
+    for atoms in path:
+        try:
+            energy = atoms.get_potential_energy()
+            energies.append(energy)
+        except Exception:
+            energies.append(float("-inf"))  # Invalid energy
+
+    if not energies or all(e == float("-inf") for e in energies):
+        # Fallback to middle structure
+        ts_index = len(path) // 2
+    else:
+        # Find highest energy structure
+        ts_index = energies.index(max(energies))
+
+    ts_guess = path[ts_index]
+
+    # Refine with local TS optimization
+    from qme.core.local_strategies import local_ts_runner
+
+    ts_result = local_ts_runner(
+        ts_guess,
+        fmax=fmax,
+        steps=steps,
+        explorer=explorer,
+        local_optimizer_name=local_optimizer_name,
+        **kwargs,
+    )
+
+    # Return single TS structure
+    return {
+        "optimized_atoms": ts_result["optimized_atoms"],
+        "steps_taken": ts_result["steps_taken"],
+        "converged": ts_result["converged"],
+        "strategy": "twoended_ts_guess_runner",
+    }
+
+
 __all__ = [
     "twoended_ts_guess_runner",
 ]
@@ -348,8 +442,8 @@ def twoended_minima_runner(
     fmax: float = 0.05,
     steps: int = 1000,
     local_optimizer_name: str = "sella",
-    **kwargs,
-):
+    **kwargs: Any,
+) -> Dict[str, Any]:
     """Interpolate path and attempt local minima optimizations on low-energy frames.
 
     This runner generates an interpolated path, computes approximate
@@ -481,8 +575,18 @@ def twoended_minima_runner(
     if isinstance(atoms_list, Atoms) or (
         isinstance(atoms_list, (list, tuple)) and len(atoms_list) == 2
     ):
-        return results[0] if results else None
-    return results
+        return {
+            "optimized_atoms": results[0] if results else None,
+            "steps_taken": None,
+            "converged": True,
+            "strategy": "twoended_minima_runner",
+        }
+    return {
+        "optimized_atoms": results,
+        "steps_taken": None,
+        "converged": True,
+        "strategy": "twoended_minima_runner",
+    }
 
 
 class BatchNEBOptimizer:
@@ -759,8 +863,8 @@ def twoended_neb_runner(
     steps: int = 1000,
     local_optimizer_name: str = "sella",
     spring_constant: float = 5.0,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> List[Atoms]:
     """Nudged Elastic Band (NEB) optimization using geodesic interpolation.
 
     This runner implements a simple NEB algorithm that:
@@ -885,7 +989,13 @@ def twoended_neb_runner(
 
         path = filtered_path
 
-    return path
+    return {
+        "optimized_atoms": path,
+        "steps_taken": None,
+        "converged": True,
+        "trajectory": path,
+        "strategy": "twoended_neb_runner",
+    }
 
 
 def _run_simple_neb(
@@ -1068,8 +1178,8 @@ def twoended_cineb_runner(
     local_optimizer_name: str = "sella",
     spring_constant: float = 5.0,
     climb: bool = True,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> List[Atoms]:
     """Climbing Image Nudged Elastic Band (CI-NEB) optimization using geodesic interpolation.
 
     CI-NEB is an improved version of NEB where one image (usually the highest energy)
@@ -1199,7 +1309,13 @@ def twoended_cineb_runner(
 
         path = filtered_path
 
-    return path
+    return {
+        "optimized_atoms": path,
+        "steps_taken": None,
+        "converged": True,
+        "trajectory": path,
+        "strategy": "twoended_cineb_runner",
+    }
 
 
 def _run_cineb(
@@ -1351,5 +1467,5 @@ def _run_cineb(
 __all__.append("twoended_minima_runner")
 __all__.append("twoended_neb_runner")
 __all__.append("twoended_cineb_runner")
-__all__.append("_filter_redundant_structures")
+__all__.append("_filter_structures_helper")
 __all__.append("_calculate_rmsd")

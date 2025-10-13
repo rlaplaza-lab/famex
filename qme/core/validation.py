@@ -1,348 +1,388 @@
-"""
-Common error messages and validation patterns for QME.
+"""Validation functions for QME Explorer runs.
 
-This module provides standardized error messages and validation functions
-to ensure consistency across the codebase.
+This module provides input validation for different types of optimization runs,
+checking atoms, optimizer compatibility, backend requirements, and other constraints.
 """
 
+import os
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
-# Validation constants
-from ase.units import Ang, eV
+import numpy as np
+from ase import Atoms
 
-MIN_ATOM_DISTANCE = 0.1 * Ang  # Minimum allowed distance between atoms
-MAX_REASONABLE_ENERGY = 1000.0 * eV  # Maximum reasonable energy value
-MIN_REASONABLE_ENERGY = -1000.0 * eV  # Minimum reasonable energy value
-MAX_REASONABLE_FORCE = 100.0 * eV / Ang  # Maximum reasonable force magnitude
+from qme.backend_availability import get_available_backends, is_backend_available
+
+
+class QMEValidationError(Exception):
+    """Raised when input validation fails."""
+
+    pass
+
+
+# Alias for backward compatibility
+ValidationError = QMEValidationError
+
+
+class QMEBackendError(Exception):
+    """Raised when backend is incompatible with the requested operation."""
+
+    pass
+
+
+class QMEStrategyError(Exception):
+    """Raised when strategy selection fails."""
+
+    pass
 
 
 class QMEError(Exception):
-    """Base exception class for QME-specific errors."""
+    """Base exception for QME errors."""
 
-    def __init__(self, message: str, suggestion: Optional[str] = None):
+    def __init__(self, message: str, suggestion: Optional[str] = None) -> None:
         super().__init__(message)
         self.message = message
         self.suggestion = suggestion
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.suggestion:
             return f"{self.message}\n\n💡 Suggestion: {self.suggestion}"
         return self.message
 
 
-class DependencyError(QMEError):
-    """Raised when required dependencies are not available."""
+class BackendError(Exception):
+    """Raised when backend is unavailable or incompatible."""
 
-    def __init__(self, dependency: str, purpose: str, install_command: Optional[str] = None):
-        message = f"Missing dependency '{dependency}' required for {purpose}."
-        suggestion = f"Install with: {install_command or f'pip install {dependency}'}"
-        super().__init__(message, suggestion)
+    def __init__(self, backend: str, available: List[str], operation: str) -> None:
+        message = f"Backend '{backend}' is not available for {operation}. Available backends: {', '.join(available)}"
+        super().__init__(message)
+        self.backend = backend
+        self.available_backends = available
+        self.operation = operation
+
+
+class DependencyError(Exception):
+    """Raised when required dependencies are missing."""
+
+    def __init__(self, dependency: str, purpose: str, install_command: str) -> None:
+        message = f"Missing dependency '{dependency}' required for {purpose}. Install with: {install_command}"
+        super().__init__(message)
         self.dependency = dependency
         self.purpose = purpose
+        self.install_command = install_command
 
 
-class BackendError(QMEError):
-    """Raised when backend-related errors occur."""
-
-    def __init__(self, backend: str, available_backends: List[str], context: str = "calculation"):
-        message = f"Backend '{backend}' is not available for {context}."
-        suggestion = f"Available backends: {', '.join(available_backends)}"
-        super().__init__(message, suggestion)
-        self.backend = backend
-        self.available_backends = available_backends
-
-
-class ValidationError(QMEError):
-    """Raised when validation fails."""
-
-    def __init__(self, message: str, suggestion: Optional[str] = None):
-        super().__init__(message, suggestion)
-
-
-def get_dependency_error_message(dependency: str, purpose: str) -> str:
-    """Get standardized dependency error message."""
-    install_commands = {
-        "torch": "pip install torch",
-        "fairchem-core": "pip install fairchem-core",
-        "sella": "pip install sella",
-        "so3lr": (
-            "git clone https://github.com/general-molecular-simulations/so3lr.git && "
-            "cd so3lr && pip install ."
-        ),
-    }
-
-    command = install_commands.get(dependency, f"pip install {dependency}")
-
-    return f"{dependency} is required for {purpose}. " f"Install with: {command}"
-
-
-def get_backend_error_message(backend: str, available_backends: List[str]) -> str:
-    """Get standardized backend error message."""
-    return f"Unknown backend: {backend}. " f"Available backends: {', '.join(available_backends)}"
-
-
-def validate_atoms_compatibility(atoms1, atoms2, context: str = "operation"):
-    """Validate that two Atoms objects are compatible.
+def validate_atoms_structure(atoms: Atoms) -> None:
+    """Validate atoms structure for basic requirements.
 
     Parameters
     ----------
-    atoms1, atoms2 : ase.Atoms
-        Atoms objects to compare
-    context : str, default "operation"
-        Context for error message (e.g., "reaction", "interpolation")
-
-    Raises
-    ------
-    ValidationError
-        If atoms are not compatible
-    """
-    if len(atoms1) != len(atoms2):
-        raise ValidationError(
-            f"Incompatible structures for {context}: "
-            f"different number of atoms ({len(atoms1)} vs {len(atoms2)})"
-        )
-
-    symbols1 = atoms1.get_chemical_symbols()
-    symbols2 = atoms2.get_chemical_symbols()
-
-    if symbols1 != symbols2:
-        raise ValidationError(
-            f"Incompatible structures for {context}: " f"different atomic symbols"
-        )
-
-
-def validate_file_exists(filepath, purpose: str = "operation"):
-    """Validate that a file exists.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to file to check
-    purpose : str, default "operation"
-        Purpose for error message
-
-    Raises
-    ------
-    FileNotFoundError
-        If file does not exist
-    ValidationError
-        If file is empty or invalid
-    """
-    from pathlib import Path
-
-    path = Path(filepath)
-
-    if not path.exists():
-        raise FileNotFoundError(f"File not found for {purpose}: {filepath}")
-
-    if path.stat().st_size == 0:
-        raise ValidationError(f"Empty file for {purpose}: {filepath}")
-
-
-def validate_model_parameters(model_name: Optional[str], model_path: Optional[str], backend: str):
-    """Validate model parameters for a given backend.
-
-    Parameters:
-    -----------
-    model_name : str, optional
-        Model name
-    model_path : str, optional
-        Model path
-    backend : str
-        Backend name
-
-    Raises:
-    -------
-    ValidationError
-        If parameters are invalid for the backend
-    """
-    if backend == "so3lr" and model_path and model_name:
-        # Both specified - could be confusing
-        pass  # Allow for now
-
-    if backend in ["uma", "aimnet2"] and model_path:
-        raise ValidationError(
-            f"model_path is not supported for {backend} backend. " f"Use model_name instead.",
-            suggestion="Remove the model_path parameter and use model_name instead.",
-        )
-
-
-def validate_atoms_structure(atoms, context: str = "calculation"):
-    """Validate that an Atoms object is suitable for calculations.
-
-    Parameters:
-    -----------
     atoms : Atoms
-        Atoms object to validate
-    context : str
-        Context for error message
+        Structure to validate
 
-    Raises:
-    -------
-    ValidationError
+    Raises
+    ------
+    QMEValidationError
         If atoms structure is invalid
     """
     if atoms is None:
-        raise ValidationError(
-            f"No atoms provided for {context}.",
-            suggestion="Load a molecular structure using load_structure() or pass atoms parameter.",
-        )
+        raise QMEValidationError("No atoms provided. Use load_structure to load from file.")
 
     if len(atoms) == 0:
-        raise ValidationError(
-            f"Empty structure provided for {context}.",
-            suggestion="Ensure the structure contains at least one atom.",
-        )
+        raise QMEValidationError("Empty structure")
 
-    # Check for overlapping atoms (very close positions)
+    # Check for overlapping atoms (basic check)
     positions = atoms.get_positions()
-    if len(positions) > 1:
-        from scipy.spatial.distance import pdist
+    for i in range(len(positions)):
+        for j in range(i + 1, len(positions)):
+            distance = np.linalg.norm(positions[i] - positions[j])
+            if distance < 0.1:  # Very small distance threshold
+                raise QMEValidationError(f"Atoms {i} and {j} are too close ({distance:.3f} Å)")
 
-        distances = pdist(positions)
-        min_distance = distances.min()
-        if min_distance < MIN_ATOM_DISTANCE:
-            raise ValidationError(
-                f"Atoms are too close (minimum distance: {min_distance:.3f} Å) for {context}.",
-                suggestion="Check for overlapping atoms or adjust the structure geometry.",
+    # Check for invalid atomic numbers
+    numbers = atoms.get_atomic_numbers()
+    for i, num in enumerate(numbers):
+        if num <= 0 or num > 118:  # Valid atomic numbers 1-118
+            raise QMEValidationError(f"Invalid atomic numbers found at position {i}: {num}")
+
+
+def validate_charge_and_spin(charge: int, spin: int, n_electrons: Optional[int] = None) -> None:
+    """Validate charge and spin parameters."""
+    if not isinstance(charge, int):
+        raise QMEValidationError(f"Charge must be integer, got {type(charge)}")
+    if not isinstance(spin, int):
+        raise QMEValidationError(f"Spin must be integer, got {type(spin)}")
+    if spin < 0:
+        raise QMEValidationError(f"Spin must be non-negative, got {spin}")
+
+    # Check charge/spin parity
+    if (charge % 2) == (spin % 2):
+        if charge % 2 == 0:
+            if spin == 0:
+                raise QMEValidationError(f"Invalid spin multiplicity: spin must be ≥ 1, got {spin}")
+            else:
+                raise QMEValidationError(
+                    f"Invalid spin multiplicity: even charge requires odd spin, got even charge={charge}, even spin={spin}"
+                )
+        else:
+            raise QMEValidationError(
+                f"Invalid spin multiplicity: odd charge requires even spin, got odd charge={charge}, odd spin={spin}"
             )
 
-    # Check for reasonable atomic numbers
-    numbers = atoms.get_atomic_numbers()
-    if any(num <= 0 or num > 118 for num in numbers):
-        raise ValidationError(
-            f"Invalid atomic numbers found for {context}.",
-            suggestion="Ensure all atomic numbers are between 1 and 118.",
+    # Check electron count if provided
+    if n_electrons is not None:
+        if charge > n_electrons:
+            raise QMEValidationError(
+                f"Too many positive charges: Charge ({charge}) cannot exceed number of electrons ({n_electrons})"
+            )
+        # Check if the number of unpaired electrons is consistent with spin
+        unpaired_electrons = spin
+        total_electrons = n_electrons - charge
+        if total_electrons < unpaired_electrons:
+            raise QMEValidationError(
+                f"Invalid electron configuration: {n_electrons} electrons, charge={charge}, spin={spin}"
+            )
+
+
+def validate_device_parameter(device: str, backend: Optional[str] = None) -> None:
+    """Validate device parameter."""
+    if device is not None and device not in ["cpu", "cuda", "auto"]:
+        raise QMEValidationError(
+            f"Invalid device: Device must be 'cpu', 'cuda', or 'auto', got '{device}'"
+        )
+    if device == "cuda" and backend == "aimnet2":
+        # Check if CUDA is actually available for AIMNet2
+        try:
+            import torch
+
+            if not torch.cuda.is_available():
+                raise QMEValidationError("CUDA requested but not available on this system")
+        except ImportError:
+            raise QMEValidationError("PyTorch not available to check CUDA availability")
+
+
+def validate_file_exists(filepath: str) -> None:
+    """Validate that file exists."""
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    if os.path.getsize(filepath) == 0:
+        raise QMEValidationError(f"Empty file: {filepath}")
+
+
+def validate_file_format(filepath: str, allowed_formats: List[str]) -> None:
+    """Validate file format."""
+    ext = Path(filepath).suffix.lower()
+    if ext not in allowed_formats:
+        raise QMEValidationError(f"Unsupported file format '{ext}'. Allowed: {allowed_formats}")
+
+
+def validate_model_parameters(
+    model_name: Optional[str] = None,
+    model_path: Optional[str] = None,
+    backend: Optional[str] = None,
+) -> None:
+    """Validate model parameters."""
+    # Backend-specific validation first
+    if backend == "uma" and model_path is not None:
+        raise QMEValidationError("UMA backend model_path is not supported. Use model_name instead")
+    if backend == "aimnet2" and model_path is not None:
+        raise QMEValidationError(
+            "AIMNet2 backend model_path is not supported. Use model_name instead"
         )
 
+    # General validation
+    if model_name is not None and model_path is not None:
+        raise QMEValidationError("Cannot specify both model_name and model_path")
 
-def validate_optimization_parameters(fmax: float, steps: int, optimizer: str):
-    """Validate optimization parameters.
 
-    Parameters:
-    -----------
-    fmax : float
-        Force convergence threshold
-    steps : int
-        Maximum number of steps
+def validate_optimization_parameters(
+    fmax: float, steps: int, optimizer: Optional[str] = None
+) -> None:
+    """Validate optimization parameters."""
+    if fmax <= 0:
+        raise QMEValidationError(
+            f"Invalid force convergence threshold: fmax must be positive, got {fmax}"
+        )
+    if steps <= 0:
+        raise QMEValidationError(f"Invalid maximum steps: steps must be positive, got {steps}")
+    if optimizer is not None:
+        valid_optimizers = ["lbfgs", "bfgs", "sella", "geometric", "fmin"]
+        if optimizer.lower() not in valid_optimizers:
+            raise QMEValidationError(
+                f"Unknown optimizer '{optimizer}'. Valid optimizers: {valid_optimizers}"
+            )
+
+
+def validate_minima_run(atoms: Union[Atoms, List[Atoms]], backend: str, optimizer: str) -> None:
+    """Validate inputs for minima optimization.
+
+    Parameters
+    ----------
+    atoms : Atoms or List[Atoms]
+        Structure(s) to optimize
+    backend : str
+        Calculator backend name
     optimizer : str
         Optimizer name
 
-    Raises:
-    -------
-    ValidationError
-        If parameters are invalid
+    Raises
+    ------
+    QMEValidationError
+        If atoms are invalid or missing
+    QMEBackendError
+        If backend is incompatible
     """
-    if fmax <= 0:
-        raise ValidationError(
-            f"Invalid force convergence threshold: {fmax}",
-            suggestion="fmax must be positive (e.g., 0.01 eV/Å).",
-        )
+    if not atoms:
+        raise QMEValidationError("No atoms provided for optimization")
 
-    if steps <= 0:
-        raise ValidationError(
-            f"Invalid maximum steps: {steps}",
-            suggestion="steps must be positive (e.g., 1000).",
-        )
+    if isinstance(atoms, list) and len(atoms) == 0:
+        raise QMEValidationError("Empty atoms list provided")
 
-    valid_optimizers = ["sella", "geometric", "lbfgs", "bfgs", "fire"]
-    if optimizer.lower() not in valid_optimizers:
-        raise ValidationError(
-            f"Unknown optimizer: {optimizer}",
-            suggestion=f"Use one of: {', '.join(valid_optimizers)}",
+    # Check if backend is available
+    if not is_backend_available(backend):
+        available = ", ".join(get_available_backends())
+        raise QMEBackendError(
+            f"Backend '{backend}' is not available. Available backends: {available}"
         )
 
 
-def validate_device_parameter(device: Optional[str], backend: str):
-    """Validate device parameter for a given backend.
+def validate_ts_run(atoms: Union[Atoms, List[Atoms]], backend: str, optimizer: str) -> None:
+    """Validate inputs for transition state optimization.
 
-    Parameters:
-    -----------
-    device : str, optional
-        Device specification
+    Parameters
+    ----------
+    atoms : Atoms or List[Atoms]
+        Structure(s) to optimize
+    backend : str
+        Calculator backend name
+    optimizer : str
+        Optimizer name
+
+    Raises
+    ------
+    QMEValidationError
+        If atoms are invalid or missing
+    QMEBackendError
+        If backend is incompatible with TS optimization
+    """
+    # Basic validation same as minima
+    validate_minima_run(atoms, backend, optimizer)
+
+    # TS-specific restrictions
+    FORBIDDEN_BACKENDS_FOR_TS = {"mock"}
+    FORBIDDEN_OPTIMIZERS_FOR_TS = {"lbfgs", "l-bfgs", "l_bfgs", "bfgs", "fire"}
+
+    if backend.lower() in FORBIDDEN_BACKENDS_FOR_TS:
+        raise QMEBackendError(
+            f"Backend '{backend}' is not suitable for transition state optimization. "
+            f"Use a real ML potential backend (uma, aimnet2, mace, so3lr) instead."
+        )
+
+    if optimizer.lower() in FORBIDDEN_OPTIMIZERS_FOR_TS:
+        raise QMEBackendError(
+            f"Optimizer '{optimizer}' is not suitable for transition state "
+            f"optimization. Use 'sella' or 'geometric' optimizers for TS searches."
+        )
+
+
+def validate_path_run(
+    atoms: Union[Atoms, List[Atoms]], backend: str, optimizer: str, require_two_ended: bool = True
+) -> None:
+    """Validate inputs for path optimization (NEB/CI-NEB).
+
+    Parameters
+    ----------
+    atoms : Atoms or List[Atoms]
+        Structure(s) to optimize
+    backend : str
+        Calculator backend name
+    optimizer : str
+        Optimizer name
+    require_two_ended : bool
+        Whether to require exactly two structures for two-ended methods
+
+    Raises
+    ------
+    QMEValidationError
+        If atoms are invalid or missing
+    QMEBackendError
+        If backend is incompatible with path optimization
+    """
+    # Basic validation same as minima
+    validate_minima_run(atoms, backend, optimizer)
+
+    if require_two_ended:
+        if not isinstance(atoms, (list, tuple)):
+            raise QMEValidationError(
+                "Path optimization requires two or more structures (reactant and product)"
+            )
+
+        if len(atoms) < 2:
+            raise QMEValidationError(
+                f"Path optimization requires at least 2 structures, got {len(atoms)}"
+            )
+
+        # Check that all structures have the same number of atoms
+        n_atoms = len(atoms[0])
+        for i, struct in enumerate(atoms):
+            if len(struct) != n_atoms:
+                raise QMEValidationError(
+                    f"All structures must have the same number of atoms. "
+                    f"Structure 0 has {n_atoms} atoms, structure {i} has {len(struct)} atoms"
+                )
+
+
+def validate_atoms_compatibility(atoms1: Atoms, atoms2: Atoms, context: str = "operation") -> None:
+    """Validate that two Atoms objects are compatible for operations.
+
+    Parameters
+    ----------
+    atoms1, atoms2 : Atoms
+        The two structures to compare
+    context : str
+        Context for error messages
+
+    Raises
+    ------
+    QMEValidationError
+        If atoms are incompatible
+    """
+    if len(atoms1) != len(atoms2):
+        raise QMEValidationError(
+            f"Incompatible atoms for {context}: different number of atoms ({len(atoms1)} vs {len(atoms2)})"
+        )
+
+    if list(atoms1.symbols) != list(atoms2.symbols):
+        raise QMEValidationError(
+            f"Incompatible atoms for {context}: different atomic symbols ({list(atoms1.symbols)} vs {list(atoms2.symbols)})"
+        )
+
+
+def validate_backend_compatibility(backend: str, operation: str) -> None:
+    """Validate that backend supports the requested operation.
+
+    Parameters
+    ----------
     backend : str
         Backend name
+    operation : str
+        Operation type ("minima", "ts", "path")
 
-    Raises:
-    -------
-    ValidationError
-        If device parameter is invalid
+    Raises
+    ------
+    QMEBackendError
+        If backend is incompatible with operation
     """
-    try:
-        from qme.utils.device import validate_device
-
-        validate_device(device)
-    except ValueError as e:
-        raise ValidationError(
-            f"Invalid device for {backend}: {e}",
-            suggestion="Use device='cpu', 'cuda', or None for auto-detection.",
+    if not is_backend_available(backend):
+        available = ", ".join(get_available_backends())
+        raise QMEBackendError(
+            f"Backend '{backend}' is not available for {operation} optimization. "
+            f"Available backends: {available}"
         )
 
-
-def validate_file_format(filepath: Union[str, Path], supported_formats: List[str]):
-    """Validate that a file has a supported format.
-
-    Parameters:
-    -----------
-    filepath : str or Path
-        Path to file to validate
-    supported_formats : List[str]
-        List of supported file extensions
-
-    Raises:
-    -------
-    ValidationError
-        If file format is not supported
-    """
-    path = Path(filepath)
-    suffix = path.suffix.lower()
-
-    if suffix not in supported_formats:
-        raise ValidationError(
-            f"Unsupported file format: {suffix}",
-            suggestion=f"Use one of: {', '.join(supported_formats)}",
-        )
-
-
-def validate_charge_and_spin(charge: int, spin: int, n_electrons: int):
-    """Validate charge and spin parameters.
-
-    Parameters:
-    -----------
-    charge : int
-        Molecular charge
-    spin : int
-        Spin multiplicity (2S + 1)
-    n_electrons : int
-        Number of electrons in neutral system
-
-    Raises:
-    -------
-    ValidationError
-        If charge or spin are invalid
-    """
-    if spin < 1:
-        raise ValidationError(
-            f"Invalid spin multiplicity: {spin}",
-            suggestion="Spin multiplicity must be ≥ 1 (2S + 1).",
-        )
-
-    if spin % 2 == 0 and charge % 2 == 0:
-        raise ValidationError(
-            f"Invalid combination: even spin ({spin}) with even charge ({charge})",
-            suggestion="For even charge, use odd spin multiplicity.",
-        )
-
-    if spin % 2 == 1 and charge % 2 == 1:
-        raise ValidationError(
-            f"Invalid combination: odd spin ({spin}) with odd charge ({charge})",
-            suggestion="For odd charge, use even spin multiplicity.",
-        )
-
-    total_electrons = n_electrons - charge
-    if total_electrons < 0:
-        raise ValidationError(
-            f"Too many positive charges: {charge} > {n_electrons} electrons",
-            suggestion="Reduce the charge or check the molecular formula.",
+    # TS-specific restrictions
+    if operation == "ts" and backend.lower() == "mock":
+        raise QMEBackendError(
+            f"Backend '{backend}' cannot be used for transition state optimization. "
+            f"Use a real ML potential backend (uma, aimnet2, mace, so3lr) instead."
         )

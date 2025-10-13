@@ -36,7 +36,7 @@ class BasePotential:
         Additional arguments for specific backends
     """
 
-    def __init__(self, **kwargs: Any):
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize the base potential calculator.
 
         Parameters

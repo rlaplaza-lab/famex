@@ -55,8 +55,8 @@ def demonstrate_trajectory_saving():
 
         neb_result = neb_explorer.run(mode="neb", npoints=5, steps=3, fmax=0.1, spring_constant=1.0)
 
-        print(f"   NEB returned {len(neb_result)} images")
-        neb_explorer.save_trajectory(neb_result, "neb_reaction_path.xyz")
+        print(f"   NEB returned {len(neb_result['trajectory'])} images")
+        neb_explorer.save_trajectory(neb_result["trajectory"], "neb_reaction_path.xyz")
         print("   ✅ NEB trajectory saved to 'neb_reaction_path.xyz'")
 
         # Test CI-NEB with trajectory saving
@@ -69,8 +69,8 @@ def demonstrate_trajectory_saving():
             mode="cineb", npoints=5, steps=3, fmax=0.1, climb=True, spring_constant=1.0
         )
 
-        print(f"   CI-NEB returned {len(cineb_result)} images")
-        cineb_explorer.save_trajectory(cineb_result, "cineb_reaction_path.xyz")
+        print(f"   CI-NEB returned {len(cineb_result['trajectory'])} images")
+        cineb_explorer.save_trajectory(cineb_result["trajectory"], "cineb_reaction_path.xyz")
         print("   ✅ CI-NEB trajectory saved to 'cineb_reaction_path.xyz'")
 
         # Verify output files
