@@ -26,7 +26,7 @@ from qme.logging_utils import get_qme_logger
 logger = get_qme_logger(__name__)
 
 
-def _supports_batch_evaluation(calculator):
+def _supports_batch_evaluation(calculator: Any) -> bool:
     """Check if calculator supports batch evaluation."""
     return hasattr(calculator, "supports_batch_evaluation") and calculator.supports_batch_evaluation
 
@@ -42,11 +42,11 @@ class FrequencyAnalysis:
     def __init__(
         self,
         atoms: Atoms,
-        calculator,
+        calculator: Any,
         delta: float = 0.01,
         nfree: Optional[int] = None,
         indices: Optional[List[int]] = None,
-    ):
+    ) -> None:
         """
         Initialize frequency analysis.
 

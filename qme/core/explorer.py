@@ -149,7 +149,7 @@ class Explorer:
 
         # Auto-register default strategies unless caller opts out
         if getattr(self, "_strategies", None) is None:
-            self._strategies = {}
+            self._strategies: Dict[str, Any] = {}
 
         # Register default strategies. Local minima is always available.
         self.register_strategy(
@@ -345,7 +345,7 @@ class Explorer:
         None
         """
         if not hasattr(self, "_strategies"):
-            self._strategies = {}
+            self._strategies: Dict[str, Any] = {}
         # Normalize strategy_type to one of the supported kinds
         stype = (strategy_type or "").strip().lower()
         if stype in ("local", "one-ended", "oneended", "one_ended"):
@@ -386,9 +386,15 @@ class Explorer:
         # Decide effective mode: explicit call-time mode overrides instance target
         effective_mode = (mode or self.target or "minima").strip().lower()
 
-        # Normalize strategy name
+        # Normalize strategy name - auto-infer from target if not explicitly set
         st = (self.strategy or "").strip().lower()
         if st in ("two-ended", "two_ended", "twoended", "two"):
+            effective_strategy = "two-ended"
+        elif self.target and self.target.strip().lower() in ("path", "neb", "cineb", "climbing-image-neb", "ci-neb"):
+            # Auto-infer two-ended strategy for path-related targets
+            effective_strategy = "two-ended"
+        elif effective_mode in ("neb", "cineb", "path", "interpolate"):
+            # Auto-infer two-ended strategy for path-related modes
             effective_strategy = "two-ended"
         else:
             effective_strategy = "local"

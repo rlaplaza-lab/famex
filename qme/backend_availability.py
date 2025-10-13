@@ -7,7 +7,7 @@ compatibility issues.
 """
 
 import importlib
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from qme.dependencies import deps
 
@@ -23,7 +23,7 @@ BACKEND_TORCHSIM_UMA = "torchsim_uma"
 
 
 def _check_package_conflict(
-    package1: str, package2: str, conflict_packages: Dict[str, str]
+    package1: str, package2: str, conflict_packages: Dict[Tuple[str, str], str]
 ) -> Optional[str]:
     """
     Check if two packages have known version conflicts.
@@ -289,7 +289,7 @@ def get_available_backends(include_mock: bool = True) -> List[str]:
     return _checker.get_available_backends(include_mock)
 
 
-def clear_availability_cache():
+def clear_availability_cache() -> None:
     """Clear the availability cache."""
     _checker.clear_cache()
 
@@ -375,7 +375,7 @@ def get_available_torchsim_backends(verbose: bool = False) -> List[str]:
     return available
 
 
-def get_backend_pairs() -> List[tuple[str, str]]:
+def get_backend_pairs() -> List[Tuple[str, str]]:
     """Get pairs of (regular_backend, torchsim_backend) for comparison testing."""
     pairs = []
 
@@ -390,7 +390,7 @@ def get_backend_pairs() -> List[tuple[str, str]]:
     return pairs
 
 
-def require_backend(backend: str):
+def require_backend(backend: str) -> None:
     """Decorator/function to require a specific backend for a test."""
     try:
         import pytest

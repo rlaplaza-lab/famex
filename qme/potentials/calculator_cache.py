@@ -16,7 +16,7 @@ from weakref import WeakValueDictionary
 class CalculatorCache:
     """Simple calculator cache using weak references."""
 
-    def __init__(self, max_size: int = 10):
+    def __init__(self, max_size: int = 10) -> None:
         """
         Initialize calculator cache.
 
@@ -31,7 +31,7 @@ class CalculatorCache:
         self._access_counter = 0
 
     def _generate_key(
-        self, backend: str, model_name: Optional[str], device: Optional[str], **kwargs
+        self, backend: str, model_name: Optional[str], device: Optional[str], **kwargs: Any
     ) -> str:
         """Generate a cache key for calculator parameters."""
         # Create a sorted dictionary of parameters for consistent hashing

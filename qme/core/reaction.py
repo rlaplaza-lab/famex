@@ -2,7 +2,7 @@
 Reaction class for handling reaction pathways and geodesic interpolation.
 """
 
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import numpy as np
 from ase import Atoms
@@ -26,9 +26,9 @@ class Reaction:
         self,
         reactant: Union[Geometry, Atoms],
         product: Union[Geometry, Atoms],
-        calculator=None,
+        calculator: Any = None,
         name: Optional[str] = None,
-    ):
+    ) -> None:
         """
         Initialize a reaction.
 

@@ -8,18 +8,18 @@ import patterns across the package with lazy loading.
 import importlib
 import importlib.util
 import warnings
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Union
 
 
 class _DependencyContext:
     """Context manager for dependency access."""
 
-    def __init__(self, manager, deps_names):
+    def __init__(self, manager: Any, deps_names: List[str]) -> None:
         self.manager = manager
         self.deps_names = deps_names
         self.modules = None
 
-    def __enter__(self):
+    def __enter__(self) -> Union[Any, tuple]:
         if len(self.deps_names) == 1:
             self.modules = self.manager.require_multiple(*self.deps_names)
             return self.modules
@@ -27,7 +27,7 @@ class _DependencyContext:
             self.modules = self.manager.require_multiple(*self.deps_names)
             return tuple(self.modules[name] for name in self.deps_names)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         # Nothing to clean up for now
         pass
 
@@ -40,7 +40,7 @@ class DependencyManager:
     ML backends until actually needed.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cache: Dict[str, Any] = {}
         self._availability_cache: Dict[str, bool] = {}
 

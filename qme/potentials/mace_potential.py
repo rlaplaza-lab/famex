@@ -5,7 +5,11 @@ This module implements a MACE calculator integration using the MACE-OMOL-0
 foundation model for molecular systems, transition metals, and cations.
 """
 
-from typing import Optional
+from typing import Any, Optional, Sequence
+
+import numpy as np
+from ase import Atoms
+from ase.calculators.calculator import all_changes
 
 from qme.dependencies import deps
 from qme.potentials.base_potential import BasePotential
@@ -22,7 +26,7 @@ class MACEPotential(BasePotential):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, model_name: Optional[str] = None, device: Optional[str] = None, **kwargs):
+    def __init__(self, model_name: Optional[str] = None, device: Optional[str] = None, **kwargs: Any) -> None:
         """
         Initialize MACE potential calculator.
 
@@ -46,7 +50,7 @@ class MACEPotential(BasePotential):
 
         super().__init__(model_name=model_name, device=device, **kwargs)
 
-    def _load_calculator(self):
+    def _load_calculator(self) -> None:
         """Load the MACE calculator implementation."""
         # Skip if already loaded
         if hasattr(self, "_calc") and self._calc is not None:
@@ -125,7 +129,7 @@ class MACEPotential(BasePotential):
         """Get the backend name for this calculator."""
         return "mace"
 
-    def calculate(self, atoms=None, properties=None, system_changes=None):
+    def calculate(self, atoms: Optional[Atoms] = None, properties: Optional[Sequence[str]] = None, system_changes: Any = None) -> None:
         """Calculate properties using the MACE calculator."""
         # Common setup
         super().calculate(atoms, properties, system_changes)

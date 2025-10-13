@@ -2,7 +2,7 @@
 Geometry class for representing molecular structures in QME.
 """
 
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 from ase import Atoms
@@ -26,8 +26,8 @@ class Geometry(Atoms):
         charge: int = 0,
         mult: int = 1,
         ase_atoms: Optional[Atoms] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize a Geometry object.
 
@@ -128,7 +128,7 @@ class Geometry(Atoms):
         return self._energy
 
     @energy.setter
-    def energy(self, value: float):
+    def energy(self, value: float) -> None:
         """Set energy value."""
         self._energy = value
 

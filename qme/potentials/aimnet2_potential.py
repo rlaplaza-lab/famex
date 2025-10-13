@@ -6,10 +6,11 @@ based on the AIMNet2 repository implementation.
 """
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 import requests
+from ase import Atoms
 from ase.calculators.calculator import all_changes
 from torch_cluster import radius_graph
 
@@ -23,7 +24,7 @@ logger = get_qme_logger(__name__)
 _torch = None
 
 
-def _get_torch():
+def _get_torch() -> Any:
     """Get torch module, importing it lazily."""
     global _torch
     if _torch is None:
@@ -33,7 +34,7 @@ def _get_torch():
 
 # Create a module-level torch that's lazy
 class _LazyTorch:
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         torch = _get_torch()
         return getattr(torch, name)
 

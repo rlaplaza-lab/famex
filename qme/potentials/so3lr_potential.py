@@ -5,9 +5,10 @@ SO3LR is an open source neural network potential with SO(3) invariant architectu
 This module provides ASE Calculator interface for SO3LR models.
 """
 
-from typing import Optional
+from typing import Any, Optional, Sequence
 
 import numpy as np
+from ase import Atoms
 from ase.calculators.calculator import all_changes
 
 from qme.dependencies import deps
@@ -29,8 +30,8 @@ class SO3LRPotential(BasePotential):
         model_path: Optional[str] = None,
         model_name: str = "so3lr-small",
         device: Optional[str] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize SO3LR potential calculator.
 

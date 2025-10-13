@@ -147,7 +147,7 @@ def compare_cineb_vs_neb():
         print("\n1. Running regular NEB...")
         neb_explorer = Explorer(
             atoms=[reactant, product],
-            backend="mock",
+            backend="uma",
             strategy="two-ended",
             target="neb",
         )
@@ -164,7 +164,7 @@ def compare_cineb_vs_neb():
         print("\n2. Running CI-NEB...")
         cineb_explorer = Explorer(
             atoms=[reactant, product],
-            backend="mock",
+            backend="uma",
             strategy="two-ended",
             target="cineb",
         )
@@ -253,7 +253,7 @@ def demonstrate_multiple_atoms_support():
 
         explorer = Explorer(
             atoms=[reactant, intermediate, product],  # Multiple waypoints!
-            backend="mock",
+            backend="uma",
             strategy="two-ended",
             target="cineb",
         )
@@ -285,11 +285,11 @@ if __name__ == "__main__":
 
     # Example 1: Simple H2 dissociation
     reactant1, product1 = create_h2_dissociation_reaction()
-    run_cineb_example(reactant1, product1, backend="mock", title="Example 1: H2 Dissociation")
+    run_cineb_example(reactant1, product1, backend="uma", title="Example 1: H2 Dissociation")
 
     # Example 2: Water formation (more complex)
     reactant2, product2 = create_water_formation_reaction()
-    run_cineb_example(reactant2, product2, backend="mock", title="Example 2: Water Formation")
+    run_cineb_example(reactant2, product2, backend="uma", title="Example 2: Water Formation")
 
     # Example 3: Compare CI-NEB vs NEB
     compare_cineb_vs_neb()

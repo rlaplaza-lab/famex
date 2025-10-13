@@ -106,7 +106,10 @@ def _coerce_to_atoms(obj: Any) -> Atoms:
         return obj[0]
     # Path string to an XYZ; try to read
     if isinstance(obj, str) and os.path.exists(obj):
-        return ase_read(obj)
+        result = ase_read(obj)
+        if isinstance(result, list):
+            return result[0]  # Return first structure if multiple
+        return result
     raise TypeError(f"Cannot coerce object of type {type(obj)} to ASE Atoms")
 
 

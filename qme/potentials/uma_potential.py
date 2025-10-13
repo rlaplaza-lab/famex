@@ -2,8 +2,10 @@
 UMA Machine Learning Potential integration for ASE.
 """
 
-from typing import Optional
+from typing import Any, Dict, Optional, Sequence
 
+import numpy as np
+from ase import Atoms
 from ase.calculators.calculator import all_changes
 
 from qme.dependencies import deps
@@ -38,8 +40,8 @@ class UMAPotential(BasePotential):
         device: Optional[str] = None,
         default_charge: int = 0,
         default_spin: int = 1,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize UMA potential calculator.
 
@@ -129,10 +131,10 @@ class UMAPotential(BasePotential):
 
     def calculate(
         self,
-        atoms=None,
-        properties=["energy", "forces"],
-        system_changes=all_changes,
-    ):
+        atoms: Optional[Atoms] = None,
+        properties: Sequence[str] = ("energy", "forces"),
+        system_changes: Any = all_changes,
+    ) -> None:
         """Calculate properties using UMA potential."""
 
         super().calculate(atoms, properties, system_changes)

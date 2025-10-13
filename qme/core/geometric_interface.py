@@ -11,7 +11,7 @@ import tempfile
 import time
 import warnings
 from contextlib import redirect_stderr, redirect_stdout
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from ase import Atoms
@@ -26,10 +26,10 @@ logger = get_qme_logger(__name__)
 class _DevNull:
     """Null output device to suppress unwanted output."""
 
-    def write(self, msg):
+    def write(self, msg: Any) -> None:
         pass
 
-    def flush(self):
+    def flush(self) -> None:
         pass
 
 

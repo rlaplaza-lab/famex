@@ -197,7 +197,7 @@ def opt(
     else:
         from contextlib import nullcontext
 
-        ctx = nullcontext()
+        ctx = nullcontext()  # type: ignore
 
     with ctx:
         if p_atoms is None:
@@ -346,7 +346,7 @@ def tsopt(
     else:
         from contextlib import nullcontext
 
-        ctx = nullcontext()
+        ctx = nullcontext()  # type: ignore
 
     with ctx:
         if p_atoms is None:
@@ -484,7 +484,7 @@ def interpolate(
     else:
         from contextlib import nullcontext
 
-        ctx = nullcontext()
+        ctx = nullcontext()  # type: ignore
 
     with ctx:
         # For raw interpolation, use Reaction class directly without optimization
@@ -595,7 +595,7 @@ def neb(
     else:
         from contextlib import nullcontext
 
-        ctx = nullcontext()
+        ctx = nullcontext()  # type: ignore
 
     with ctx:
         exp = Explorer(
@@ -708,7 +708,7 @@ def cineb(
     else:
         from contextlib import nullcontext
 
-        ctx = nullcontext()
+        ctx = nullcontext()  # type: ignore
 
     with ctx:
         exp = Explorer(
@@ -746,3 +746,7 @@ def cineb(
 
 
 __all__ = ["main", "opt", "tsopt", "path"]
+
+
+if __name__ == "__main__":
+    main()

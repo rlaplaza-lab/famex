@@ -7,7 +7,7 @@ code duplication across the codebase.
 
 import importlib
 from dataclasses import dataclass
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from qme.dependencies import deps
 
@@ -21,8 +21,8 @@ class CalculatorRegistry:
     importing heavy ML backends until actually needed.
     """
 
-    def __init__(self):
-        self._registry: Dict[str, Callable] = {}
+    def __init__(self) -> None:
+        self._registry: Dict[str, Callable[..., Any]] = {}
 
         @dataclass
         class LazyBackend:
@@ -58,7 +58,7 @@ class CalculatorRegistry:
             ),
         }
 
-    def _load_backend(self, backend_name: str):
+    def _load_backend(self, backend_name: str) -> Any:
         """Lazy load a backend when first accessed."""
         if backend_name in self._registry:
             return  # Already loaded
@@ -91,7 +91,7 @@ class CalculatorRegistry:
             warnings.warn(f"Failed to load backend {backend_name}: {e}")
             pass
 
-    def register(self, backend_name: str, factory_func: Callable):
+    def register(self, backend_name: str, factory_func: Callable[..., Any]) -> None:
         """Register a new calculator factory function.
 
         Parameters:
@@ -103,7 +103,7 @@ class CalculatorRegistry:
         """
         self._registry[backend_name] = factory_func
 
-    def get_available_backends(self) -> list:
+    def get_available_backends(self) -> List[str]:
         """Get list of available backend names."""
         # Return all known backends from lazy registry
         # We don't try to load them here to avoid heavy imports
@@ -115,8 +115,8 @@ class CalculatorRegistry:
         model_name: Optional[str] = None,
         model_path: Optional[str] = None,
         device: Optional[str] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> Any:
         """Create a calculator for the specified backend.
 
         Parameters:
