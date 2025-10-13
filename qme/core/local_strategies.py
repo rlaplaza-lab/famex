@@ -6,11 +6,9 @@ separate from `explorer.py` to avoid circular imports and make the
 strategy implementations easier to test and replace.
 """
 
-import warnings
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type
 
 from ase import Atoms
-from qme.dependencies import deps
 
 
 def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:

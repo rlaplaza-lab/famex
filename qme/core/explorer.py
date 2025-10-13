@@ -36,7 +36,6 @@ from qme.core.twoended_strategies import (
     twoended_ts_guess_runner,
 )
 from qme.core.validation import validate_minima_run, validate_path_run, validate_ts_run
-from qme.dependencies import deps
 
 
 class Explorer:
@@ -390,7 +389,13 @@ class Explorer:
         st = (self.strategy or "").strip().lower()
         if st in ("two-ended", "two_ended", "twoended", "two"):
             effective_strategy = "two-ended"
-        elif self.target and self.target.strip().lower() in ("path", "neb", "cineb", "climbing-image-neb", "ci-neb"):
+        elif self.target and self.target.strip().lower() in (
+            "path",
+            "neb",
+            "cineb",
+            "climbing-image-neb",
+            "ci-neb",
+        ):
             # Auto-infer two-ended strategy for path-related targets
             effective_strategy = "two-ended"
         elif effective_mode in ("neb", "cineb", "path", "interpolate"):

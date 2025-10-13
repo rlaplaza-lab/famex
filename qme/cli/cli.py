@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Any, Dict
+from typing import Any, List, Optional
 
 import click
 from ase import Atoms
@@ -473,8 +473,10 @@ def interpolate(
     r_atoms = load_atoms_from_xyz(reactant)
     p_atoms = load_atoms_from_xyz(product)
 
-    optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
-    ts_kwargs = parse_kv_pairs(list(ts_kw))
+    # Note: optimizer_kwargs and ts_kwargs are not used for raw interpolation
+    # but are parsed for consistency with other commands
+    _ = parse_kv_pairs(list(optimizer_kw))  # optimizer_kwargs
+    _ = parse_kv_pairs(list(ts_kw))  # ts_kwargs
 
     # Convert verbose count to verbosity level (0=quiet, 1=normal, 2+=debug)
     verbosity = max(0, verbose - 1)
