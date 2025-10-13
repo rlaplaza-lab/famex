@@ -138,7 +138,7 @@ def _filter_redundant_structures(
 
     # Calculate energies for all structures
     energies = []
-    for i, atoms in enumerate(structures):
+    for _i, atoms in enumerate(structures):
         try:
             energy = atoms.get_potential_energy()
             energies.append(energy)
@@ -164,11 +164,11 @@ def _filter_redundant_structures(
             )
 
     # Filter structures
-    for i, atoms in enumerate(structures):
+    for _i, atoms in enumerate(structures):
         is_redundant = False
 
         # Check against already filtered structures
-        for j, filtered_atoms in enumerate(filtered_structures):
+        for _j, filtered_atoms in enumerate(filtered_structures):
             is_similar, rmsd, energy_diff = _calculate_structure_similarity(
                 atoms, filtered_atoms, rmsd_threshold, energy_threshold
             )
@@ -312,7 +312,7 @@ def _filter_structures_helper(
 
     # Calculate energies for all structures
     energies = []
-    for i, atoms in enumerate(structures):
+    for _i, atoms in enumerate(structures):
         try:
             energy = atoms.get_potential_energy()
             energies.append(energy)
@@ -338,11 +338,11 @@ def _filter_structures_helper(
             )
 
     # Filter structures
-    for i, atoms in enumerate(structures):
+    for _i, atoms in enumerate(structures):
         is_redundant = False
 
         # Check against already filtered structures
-        for j, filtered_atoms in enumerate(filtered_structures):
+        for _j, filtered_atoms in enumerate(filtered_structures):
             # RMSD check
             rmsd = _calculate_rmsd(atoms, filtered_atoms)
             if rmsd < rmsd_threshold:
@@ -640,7 +640,7 @@ def twoended_minima_runner(
 
         # Issue warnings
         for warning_msg in warnings_list:
-            warnings.warn(warning_msg)
+            warnings.warn(warning_msg, stacklevel=2)
 
         results = filtered_results
 
@@ -861,7 +861,7 @@ class BatchNEBOptimizer:
 
     def _update_positions(self, forces, step_size=0.01):
         """Update positions using forces."""
-        for i, (atoms, force) in enumerate(zip(self.path, forces, strict=False)):
+        for _i, (atoms, force) in enumerate(zip(self.path, forces, strict=False)):
             atoms.positions += step_size * force
 
 
@@ -920,7 +920,7 @@ def _batch_neb_runner(
 
         # Issue warnings
         for warning_msg in warnings_list:
-            warnings.warn(warning_msg)
+            warnings.warn(warning_msg, stacklevel=2)
 
         optimized_path = filtered_path
 
@@ -1058,7 +1058,7 @@ def twoended_neb_runner(
 
         # Issue warnings
         for warning_msg in warnings_list:
-            warnings.warn(warning_msg)
+            warnings.warn(warning_msg, stacklevel=2)
 
         path = filtered_path
 
@@ -1076,7 +1076,7 @@ def _setup_neb_optimizer(local_optimizer_name: str):
     try:
         OptClass = _get_local_optimizer_class(local_optimizer_name)
     except (ImportError, ValueError, AttributeError) as e:
-        warnings.warn(f"Could not select optimizer '{local_optimizer_name}': {e}")
+        warnings.warn(f"Could not select optimizer '{local_optimizer_name}': {e}", stacklevel=2)
         OptClass = BFGS  # Fallback to ASE BFGS
     return OptClass
 
@@ -1109,7 +1109,8 @@ def _calculate_neb_energies_forces(
 
         except (RuntimeError, AttributeError, TypeError) as e:
             warnings.warn(
-                f"Batch evaluation failed, falling back to individual " f"calculations: {e}"
+                f"Batch evaluation failed, falling back to individual " f"calculations: {e}",
+                stacklevel=2,
             )
             supports_batch = False  # Disable batch for future iterations
 
@@ -1222,7 +1223,7 @@ def _run_simple_neb(
                 opt = OptClass(atoms, **opt_kwargs)
                 opt.run(fmax=fmax, steps=1)  # Single step per iteration
             except (RuntimeError, ValueError, AttributeError) as e:
-                warnings.warn(f"Optimization failed for image {i}: {e}")
+                warnings.warn(f"Optimization failed for image {i}: {e}", stacklevel=2)
 
     return path
 
@@ -1385,7 +1386,7 @@ def twoended_cineb_runner(
                     explorer._create_and_attach_calculator(atoms)
                 explorer._apply_constraints(atoms)
             except Exception as e:
-                warnings.warn(f"Failed to attach calculator to image {i}: {e}")
+                warnings.warn(f"Failed to attach calculator to image {i}: {e}", stacklevel=2)
 
     # Run CI-NEB optimization
     _run_cineb(
@@ -1414,7 +1415,7 @@ def twoended_cineb_runner(
 
         # Issue warnings
         for warning_msg in warnings_list:
-            warnings.warn(warning_msg)
+            warnings.warn(warning_msg, stacklevel=2)
 
         path = filtered_path
 
@@ -1432,7 +1433,7 @@ def _setup_cineb_optimizer(local_optimizer_name: str):
     try:
         OptClass = _get_local_optimizer_class(local_optimizer_name)
     except (ImportError, ValueError, AttributeError) as e:
-        warnings.warn(f"Could not select optimizer '{local_optimizer_name}': {e}")
+        warnings.warn(f"Could not select optimizer '{local_optimizer_name}': {e}", stacklevel=2)
         OptClass = BFGS  # Fallback to ASE BFGS
     return OptClass
 
@@ -1455,7 +1456,8 @@ def _calculate_cineb_energies_forces(
 
         except (RuntimeError, AttributeError, TypeError) as e:
             warnings.warn(
-                f"Batch evaluation failed, falling back to individual " f"calculations: {e}"
+                f"Batch evaluation failed, falling back to individual " f"calculations: {e}",
+                stacklevel=2,
             )
             supports_batch = False  # Disable batch for future iterations
 
@@ -1468,7 +1470,7 @@ def _calculate_cineb_energies_forces(
                 energies.append(energy)
                 forces_list.append(forces)
             except (RuntimeError, ValueError, AttributeError) as e:
-                warnings.warn(f"Failed to calculate energy/forces: {e}")
+                warnings.warn(f"Failed to calculate energy/forces: {e}", stacklevel=2)
                 energies.append(float("inf"))
                 forces_list.append(np.zeros((len(atoms), 3)))
 
@@ -1604,7 +1606,7 @@ def _run_cineb(
                 opt = OptClass(atoms, **opt_kwargs)
                 opt.run(fmax=fmax, steps=1)  # Single step per iteration
             except (RuntimeError, ValueError, AttributeError) as e:
-                warnings.warn(f"Optimization failed for image {i}: {e}")
+                warnings.warn(f"Optimization failed for image {i}: {e}", stacklevel=2)
 
     return path
 

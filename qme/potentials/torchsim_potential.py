@@ -594,21 +594,21 @@ class TorchSimPotential(BasePotential):
                 energies = batch_results["energy"]
                 if hasattr(energies, "shape") and len(energies.shape) > 0:
                     # Batched energies
-                    for i in range(n_structures):
+                    for _i in range(n_structures):
                         structure_results = {}
                         if i < len(energies):
                             structure_results["energy"] = float(energies[i])
                         results.append(structure_results)
                 else:
                     # Single energy for all structures
-                    for i in range(n_structures):
+                    for _i in range(n_structures):
                         results.append({"energy": float(energies)})
 
             if "forces" in batch_results:
                 forces = batch_results["forces"]
                 if hasattr(forces, "shape") and len(forces.shape) > 2:
                     # Batched forces [batch, atoms, 3]
-                    for i in range(n_structures):
+                    for _i in range(n_structures):
                         if i < len(results):
                             if i < len(forces):
                                 results[i]["forces"] = forces[i].detach().cpu().numpy()
@@ -617,7 +617,7 @@ class TorchSimPotential(BasePotential):
                 else:
                     # Single force array for all structures
                     forces_np = forces.detach().cpu().numpy()
-                    for i in range(n_structures):
+                    for _i in range(n_structures):
                         if i < len(results):
                             results[i]["forces"] = forces_np
                         else:
@@ -625,7 +625,7 @@ class TorchSimPotential(BasePotential):
 
         elif isinstance(batch_results, list):
             # List of individual results
-            for i in range(n_structures):
+            for _i in range(n_structures):
                 structure_results = {}
                 if i < len(batch_results):
                     result = batch_results[i]
@@ -648,7 +648,7 @@ class TorchSimPotential(BasePotential):
 
         else:
             # Fallback: create empty results
-            for i in range(n_structures):
+            for _i in range(n_structures):
                 results.append({})
 
         return results

@@ -215,7 +215,7 @@ class Reaction:
         coords = coords.copy()
         n_atoms = len(coords)
 
-        for iteration in range(max_iter):
+        for _iteration in range(max_iter):
             current_dists = self._get_distance_matrix(coords)
 
             # Calculate forces to adjust distances
@@ -345,7 +345,7 @@ class Reaction:
             symbols = geom.symbols
             coords = geom.coords3d
 
-            for j, (symbol, pos) in enumerate(zip(symbols, coords, strict=False)):
+            for _j, (symbol, pos) in enumerate(zip(symbols, coords, strict=False)):
                 line = f"{symbol:2s} {pos[0]:12.6f} {pos[1]:12.6f} {pos[2]:12.6f}"
                 xyz_lines.append(line)
 

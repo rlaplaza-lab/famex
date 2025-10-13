@@ -531,10 +531,12 @@ class AIMNet2Potential(BasePotential):
     def calculate(
         self,
         atoms=None,
-        properties=["energy", "forces"],
+        properties=None,
         system_changes=all_changes,
     ):
         """Calculate properties using AIMNET2 potential."""
+        if properties is None:
+            properties = ["energy", "forces"]
         super().calculate(atoms, properties, system_changes)
 
         # Use self.atoms if atoms is None (standard ASE behavior)
