@@ -1,6 +1,6 @@
 """Calculator creation and management."""
 
-from typing import Optional
+from typing import Any, Optional
 
 from qme.calculator_registry import calculator_registry
 from qme.potentials.calculator_cache import cache_calculator, get_cached_calculator
@@ -17,7 +17,7 @@ def create_calculator(
     mult: Optional[int] = None,
     use_cache: bool = True,
     verbose: int = 1,
-):
+) -> Any:
     """Create calculator based on backend using the registry.
 
     Parameters

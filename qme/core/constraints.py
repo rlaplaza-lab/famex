@@ -9,7 +9,7 @@ The design is deliberately simplified to cover 90% of practical constraint needs
 while maintaining ease of use and integration with existing QME workflows.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from ase import Atoms
@@ -23,7 +23,7 @@ class QMEConstraintManager:
     Handles fixed atoms and harmonic constraints based on initial geometry.
     """
 
-    def __init__(self, reference_atoms: Atoms):
+    def __init__(self, reference_atoms: Atoms) -> None:
         """
         Parameters:
         - reference_atoms: Initial geometry to derive constraint values from
@@ -31,7 +31,7 @@ class QMEConstraintManager:
         self.reference_atoms = reference_atoms.copy()
         self.constraints = []
 
-    def add_fixed_atoms(self, atom_indices: List[int]):
+    def add_fixed_atoms(self, atom_indices: List[int]) -> None:
         """Fix specified atoms at their initial positions"""
         constraint = FixedAtomsConstraint(atom_indices, self.reference_atoms)
         self.constraints.append(constraint)
@@ -41,7 +41,7 @@ class QMEConstraintManager:
         constraint_type: str,
         atom_indices: List[int],
         force_constant: float = 10.0,
-    ):
+    ) -> None:
         """
         Add harmonic constraint based on initial geometry.
 

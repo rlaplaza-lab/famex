@@ -5,7 +5,10 @@ energies and harmonic forces so tests can run without heavy ML deps.
 Enhanced with TinyFF-inspired pairwise interactions for more realistic behavior.
 """
 
+from typing import Any, Optional, Sequence
+
 import numpy as np
+from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 
 # Constants for mock potential calculations
@@ -45,8 +48,8 @@ class MockCalculator(Calculator):
     implemented_properties = ["energy", "forces"]
 
     def __init__(
-        self, backend: str = "generic", force_constant: float = DEFAULT_FORCE_CONSTANT, **kwargs
-    ):
+        self, backend: str = "generic", force_constant: float = DEFAULT_FORCE_CONSTANT, **kwargs: Any
+    ) -> None:
         """Initialize the mock calculator.
 
         Parameters

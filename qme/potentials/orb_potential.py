@@ -5,9 +5,10 @@ This module implements integration with Orbital Materials' Orb models,
 providing universal forcefields for molecular and materials calculations.
 """
 
-from typing import Optional
+from typing import Any, Optional, Sequence
 
 import numpy as np
+from ase import Atoms
 from ase.calculators.calculator import all_changes
 
 from qme.dependencies import deps
@@ -44,8 +45,8 @@ class OrbPotential(BasePotential):
         device: Optional[str] = None,
         charge: int = 0,
         spin: int = 1,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize Orb potential calculator.
 
         Parameters

@@ -10,7 +10,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import requests
 
@@ -22,7 +22,7 @@ logger = get_qme_logger(__name__)
 class ModelCache:
     """Persistent model cache with version checking and integrity validation."""
 
-    def __init__(self, cache_dir: Optional[str] = None):
+    def __init__(self, cache_dir: Optional[str] = None) -> None:
         """
         Initialize model cache.
 
@@ -34,14 +34,14 @@ class ModelCache:
         if cache_dir is None:
             cache_dir = Path.home() / ".qme" / "cache" / "models"
 
-        self.cache_dir = Path(cache_dir)
+        self.cache_dir: Path = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
         # Cache metadata file
         self.metadata_file = self.cache_dir / "metadata.json"
         self.metadata = self._load_metadata()
 
-    def _load_metadata(self) -> Dict:
+    def _load_metadata(self) -> Dict[str, Any]:
         """Load cache metadata from file."""
         if self.metadata_file.exists():
             try:

@@ -93,7 +93,7 @@ def _filter_redundant_structures(
     if not structures:
         return [], [], []
 
-    filtered_structures = []
+    filtered_structures: List[Atoms] = []
     removed_indices = []
     warning_messages = []
 
@@ -272,7 +272,7 @@ def _filter_structures_helper(
     if not structures:
         return [], [], []
 
-    filtered_structures = []
+    filtered_structures: List[Atoms] = []
     removed_indices = []
     warning_messages = []
 
