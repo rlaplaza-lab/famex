@@ -2,7 +2,7 @@
 Geometry class for representing molecular structures in QME.
 """
 
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -20,12 +20,12 @@ class Geometry(Atoms):
 
     def __init__(
         self,
-        atoms: Optional[Union[str, List[str]]] = None,
-        coords: Optional[np.ndarray] = None,
-        positions: Optional[np.ndarray] = None,
+        atoms: str | list[str] | None = None,
+        coords: np.ndarray | None = None,
+        positions: np.ndarray | None = None,
         charge: int = 0,
         mult: int = 1,
-        ase_atoms: Optional[Atoms] = None,
+        ase_atoms: Atoms | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -98,7 +98,7 @@ class Geometry(Atoms):
         return self.get_positions()
 
     @coords3d.setter
-    def coords3d(self, positions: np.ndarray):
+    def coords3d(self, positions: np.ndarray) -> None:
         """Set coordinates from (n_atoms, 3) array."""
         self.set_positions(positions)
 
@@ -108,17 +108,17 @@ class Geometry(Atoms):
         return self.coords3d.flatten()
 
     @coords.setter
-    def coords(self, coords: np.ndarray):
+    def coords(self, coords: np.ndarray) -> None:
         """Set coordinates from flat array."""
         coords = np.array(coords)
         self.coords3d = coords.reshape(-1, 3)
 
-    def get_symbols(self) -> List[str]:
+    def get_symbols(self) -> list[str]:
         """Get atomic symbols as list."""
-        return self.get_chemical_symbols()
+        return list(super().get_chemical_symbols())
 
     @property
-    def energy(self) -> Optional[float]:
+    def energy(self) -> float | None:
         """Get energy if calculated."""
         if self.calc is not None:
             try:
@@ -128,15 +128,15 @@ class Geometry(Atoms):
         return self._energy
 
     @energy.setter
-    def energy(self, value: float) -> None:
+    def energy(self, value: float | None) -> None:
         """Set energy value."""
         self._energy = value
 
-    def get_forces(self) -> Optional[np.ndarray]:
+    def get_forces(self, apply_constraint: bool = True, md: bool = False) -> np.ndarray | None:
         """Get forces if calculated."""
         if self.calc is not None:
             try:
-                return super().get_forces()
+                return super().get_forces(apply_constraint, md)
             except Exception:
                 return getattr(self, "_forces", None)
         return getattr(self, "_forces", None)
@@ -205,7 +205,7 @@ class Geometry(Atoms):
         return self.__str__()
 
 
-def read_geometry(filename: str, **kwargs):
+def read_geometry(filename: str, **kwargs: Any) -> Geometry:
     """
     Read geometry from file using ASE.
 
@@ -228,7 +228,7 @@ def read_geometry(filename: str, **kwargs):
         return Geometry(ase_atoms=atoms)
 
 
-def write_geometry(geometry, filename: str, **kwargs):
+def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> None:
     """
     Write geometry to file using ASE.
 
@@ -268,7 +268,7 @@ def read_gaussian_input(filename: str) -> (Atoms, str):
     Raises:
         ValueError: If the file cannot be parsed or the job type is unclear.
     """
-    with open(filename, "r") as f:
+    with open(filename) as f:
         lines = f.readlines()
 
     route_line = ""

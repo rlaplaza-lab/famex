@@ -6,10 +6,9 @@ code duplication across the codebase.
 """
 
 import importlib
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
-
-from qme.dependencies import deps
+from typing import Any
 
 
 class CalculatorRegistry:
@@ -22,7 +21,7 @@ class CalculatorRegistry:
     """
 
     def __init__(self) -> None:
-        self._registry: Dict[str, Callable[..., Any]] = {}
+        self._registry: dict[str, Callable[..., Any]] = {}
 
         @dataclass
         class LazyBackend:
@@ -39,7 +38,7 @@ class CalculatorRegistry:
             function: str
             is_class: bool = False
 
-        self._lazy_registry: Dict[str, LazyBackend] = {
+        self._lazy_registry: dict[str, LazyBackend] = {
             "so3lr": LazyBackend(module="qme.potentials", function="get_so3lr_calculator"),
             "uma": LazyBackend(module="qme.potentials", function="get_uma_calculator"),
             "aimnet2": LazyBackend(module="qme.potentials", function="get_aimnet2_calculator"),
@@ -89,7 +88,6 @@ class CalculatorRegistry:
             import warnings
 
             warnings.warn(f"Failed to load backend {backend_name}: {e}")
-            pass
 
     def register(self, backend_name: str, factory_func: Callable[..., Any]) -> None:
         """Register a new calculator factory function.
@@ -103,7 +101,7 @@ class CalculatorRegistry:
         """
         self._registry[backend_name] = factory_func
 
-    def get_available_backends(self) -> List[str]:
+    def get_available_backends(self) -> list[str]:
         """Get list of available backend names."""
         # Return all known backends from lazy registry
         # We don't try to load them here to avoid heavy imports
@@ -112,9 +110,9 @@ class CalculatorRegistry:
     def create_calculator(
         self,
         backend: str,
-        model_name: Optional[str] = None,
-        model_path: Optional[str] = None,
-        device: Optional[str] = None,
+        model_name: str | None = None,
+        model_path: str | None = None,
+        device: str | None = None,
         **kwargs: Any,
     ) -> Any:
         """Create a calculator for the specified backend.

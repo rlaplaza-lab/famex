@@ -4,17 +4,25 @@ Tests for QME validation functions.
 
 import os
 import tempfile
-from pathlib import Path
 
-import numpy as np
 import pytest
 from ase import Atoms
 
 from qme.core.validation import (
+    STRATEGY_CINEB,
+    STRATEGY_INTERPOLATE,
+    STRATEGY_LOCAL,
+    STRATEGY_NEB,
+    TARGET_MINIMA,
+    TARGET_PATH,
+    TARGET_TS,
     BackendError,
     DependencyError,
     QMEError,
     ValidationError,
+    normalize_strategy,
+    normalize_target,
+    prepare_atoms_list,
     validate_atoms_compatibility,
     validate_atoms_structure,
     validate_charge_and_spin,
@@ -23,6 +31,7 @@ from qme.core.validation import (
     validate_file_format,
     validate_model_parameters,
     validate_optimization_parameters,
+    validate_target_strategy_combination,
 )
 
 
@@ -311,3 +320,100 @@ class TestModelValidation:
             validate_model_parameters("aimnet2", "/path/to/model.jpt", "aimnet2")
         assert "model_path is not supported" in str(exc_info.value)
         assert "Use model_name instead" in str(exc_info.value)
+
+
+class TestTargetStrategyNormalization:
+    """Test target and strategy normalization functions."""
+
+    def test_normalize_target(self):
+        """Test target normalization."""
+        # Test basic targets
+        assert normalize_target("minima") == TARGET_MINIMA
+        assert normalize_target("ts") == TARGET_TS
+        assert normalize_target("path") == TARGET_PATH
+
+        # Test aliases
+        assert normalize_target("minimum") == TARGET_MINIMA
+        assert normalize_target("transition_state") == TARGET_TS
+        assert normalize_target("reaction_path") == TARGET_PATH
+
+        # Test case insensitive
+        assert normalize_target("MINIMA") == TARGET_MINIMA
+        assert normalize_target("TS") == TARGET_TS
+
+        # Test whitespace handling
+        assert normalize_target("  minima  ") == TARGET_MINIMA
+
+        # Test empty/None
+        assert normalize_target("") == TARGET_MINIMA
+        assert normalize_target(None) == TARGET_MINIMA
+
+    def test_normalize_strategy(self):
+        """Test strategy normalization."""
+        # Test basic strategies
+        assert normalize_strategy("local") == STRATEGY_LOCAL
+        assert normalize_strategy("neb") == STRATEGY_NEB
+        assert normalize_strategy("cineb") == STRATEGY_CINEB
+        assert normalize_strategy("interpolate") == STRATEGY_INTERPOLATE
+
+        # Test aliases
+        assert normalize_strategy("two-ended") == STRATEGY_INTERPOLATE
+        assert normalize_strategy("twoended") == STRATEGY_INTERPOLATE
+        assert normalize_strategy("nudged-elastic-band") == STRATEGY_NEB
+        assert normalize_strategy("climbing-image-neb") == STRATEGY_CINEB
+
+        # Test case insensitive
+        assert normalize_strategy("LOCAL") == STRATEGY_LOCAL
+        assert normalize_strategy("NEB") == STRATEGY_NEB
+
+        # Test whitespace handling
+        assert normalize_strategy("  local  ") == STRATEGY_LOCAL
+
+        # Test empty/None
+        assert normalize_strategy("") == STRATEGY_LOCAL
+        assert normalize_strategy(None) == STRATEGY_LOCAL
+
+    def test_prepare_atoms_list(self):
+        """Test atoms list preparation."""
+        atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
+        atoms2 = Atoms("H2", positions=[[0, 0, 0], [2, 0, 0]])
+
+        # Test single atoms
+        result = prepare_atoms_list(atoms1)
+        assert len(result) == 1
+        assert result[0] is atoms1
+
+        # Test list of atoms
+        result = prepare_atoms_list([atoms1, atoms2])
+        assert len(result) == 2
+        assert result[0] is atoms1
+        assert result[1] is atoms2
+
+        # Test with product
+        result = prepare_atoms_list(atoms1, atoms2)
+        assert len(result) == 2
+        assert result[0] is atoms1
+        assert result[1] is atoms2
+
+        # Test empty list
+        with pytest.raises(ValidationError):
+            prepare_atoms_list([])
+
+    def test_validate_target_strategy_combination(self):
+        """Test target/strategy combination validation."""
+        # Valid combinations should not raise
+        validate_target_strategy_combination(TARGET_MINIMA, STRATEGY_LOCAL, 1)
+        validate_target_strategy_combination(TARGET_TS, STRATEGY_LOCAL, 1)
+        validate_target_strategy_combination(TARGET_PATH, STRATEGY_NEB, 2)
+        validate_target_strategy_combination(TARGET_PATH, STRATEGY_CINEB, 2)
+        validate_target_strategy_combination(TARGET_TS, STRATEGY_INTERPOLATE, 2)
+
+        # Invalid combinations should raise
+        with pytest.raises(ValidationError):
+            validate_target_strategy_combination(TARGET_PATH, STRATEGY_NEB, 1)
+
+        with pytest.raises(ValidationError):
+            validate_target_strategy_combination(TARGET_PATH, STRATEGY_CINEB, 1)
+
+        with pytest.raises(ValidationError):
+            validate_target_strategy_combination(TARGET_TS, STRATEGY_INTERPOLATE, 1)

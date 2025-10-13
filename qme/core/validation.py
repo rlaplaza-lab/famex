@@ -6,18 +6,201 @@ checking atoms, optimizer compatibility, backend requirements, and other constra
 
 import os
 from pathlib import Path
-from typing import Any, List, Optional, Union
 
 import numpy as np
 from ase import Atoms
 
 from qme.backend_availability import get_available_backends, is_backend_available
 
+# =============================================================================
+# Constants for Target and Strategy Parameters
+# =============================================================================
+
+# Targets (what you want to obtain)
+TARGET_MINIMA = "minima"
+TARGET_TS = "ts"
+TARGET_PATH = "path"
+
+# Strategies (how to get there)
+STRATEGY_LOCAL = "local"
+STRATEGY_NEB = "neb"
+STRATEGY_CINEB = "cineb"
+STRATEGY_INTERPOLATE = "interpolate"
+
+# Aliases for normalization (backward compatibility)
+TARGET_ALIASES = {
+    "minimum": TARGET_MINIMA,
+    "min": TARGET_MINIMA,
+    "local_minima": TARGET_MINIMA,
+    "transition_state": TARGET_TS,
+    "transition-state": TARGET_TS,
+    "transition": TARGET_TS,
+    "ts": TARGET_TS,
+    "reaction_path": TARGET_PATH,
+    "reaction-path": TARGET_PATH,
+    "path": TARGET_PATH,
+    "trajectory": TARGET_PATH,
+    "neb": TARGET_PATH,  # For backward compatibility
+    "cineb": TARGET_PATH,  # For backward compatibility
+}
+
+STRATEGY_ALIASES = {
+    # Backward compatibility for old "two-ended" concept
+    "two-ended": STRATEGY_INTERPOLATE,
+    "twoended": STRATEGY_INTERPOLATE,
+    "two_ended": STRATEGY_INTERPOLATE,
+    "two": STRATEGY_INTERPOLATE,
+    # Other aliases
+    "interpolate": STRATEGY_INTERPOLATE,
+    "interpolation": STRATEGY_INTERPOLATE,
+    "local": STRATEGY_LOCAL,
+    "one-ended": STRATEGY_LOCAL,
+    "oneended": STRATEGY_LOCAL,
+    "one_ended": STRATEGY_LOCAL,
+    "neb": STRATEGY_NEB,
+    "nudged-elastic-band": STRATEGY_NEB,
+    "nudged_elastic_band": STRATEGY_NEB,
+    "cineb": STRATEGY_CINEB,
+    "climbing-image-neb": STRATEGY_CINEB,
+    "climbing_image_neb": STRATEGY_CINEB,
+    "ci-neb": STRATEGY_CINEB,
+    "ci_neb": STRATEGY_CINEB,
+}
+
+
+# =============================================================================
+# Helper Functions for Target/Strategy Normalization
+# =============================================================================
+
+
+def normalize_target(target: str) -> str:
+    """Normalize target string using aliases.
+
+    Parameters
+    ----------
+    target : str
+        Target string to normalize
+
+    Returns
+    -------
+    str
+        Normalized target string
+
+    Raises
+    ------
+    QMEValidationError
+        If target is not recognized
+    """
+    if not target:
+        return TARGET_MINIMA  # Default target
+
+    normalized = target.strip().lower()
+    return TARGET_ALIASES.get(normalized, normalized)
+
+
+def normalize_strategy(strategy: str) -> str:
+    """Normalize strategy string using aliases.
+
+    Parameters
+    ----------
+    strategy : str
+        Strategy string to normalize
+
+    Returns
+    -------
+    str
+        Normalized strategy string
+
+    Raises
+    ------
+    QMEValidationError
+        If strategy is not recognized
+    """
+    if not strategy:
+        return STRATEGY_LOCAL  # Default strategy
+
+    normalized = strategy.strip().lower()
+    return STRATEGY_ALIASES.get(normalized, normalized)
+
+
+def prepare_atoms_list(
+    atoms_list: Atoms | list[Atoms], product_kwarg: Atoms | None = None
+) -> list[Atoms]:
+    """Prepare atoms list with product handling.
+
+    Parameters
+    ----------
+    atoms_list : Atoms or List[Atoms]
+        Initial atoms list
+    product_kwarg : Atoms, optional
+        Product structure to append
+
+    Returns
+    -------
+    List[Atoms]
+        Final atoms list
+
+    Raises
+    ------
+    QMEValidationError
+        If atoms list is invalid
+    """
+    # Convert single Atoms to list
+    if isinstance(atoms_list, Atoms):
+        atoms_list = [atoms_list]
+    else:
+        atoms_list = list(atoms_list)
+
+    # Add product if provided
+    if product_kwarg is not None:
+        atoms_list.append(product_kwarg)
+
+    # Validate the final list
+    if not atoms_list:
+        raise QMEValidationError("No atoms provided")
+
+    return atoms_list
+
+
+def validate_target_strategy_combination(target: str, strategy: str, num_atoms: int) -> None:
+    """Validate target/strategy combination.
+
+    Parameters
+    ----------
+    target : str
+        Normalized target
+    strategy : str
+        Normalized strategy
+    num_atoms : int
+        Number of atoms structures provided
+
+    Raises
+    ------
+    QMEValidationError
+        If combination is invalid
+    """
+    # Path strategies require multiple structures
+    if target == TARGET_PATH and strategy in [STRATEGY_NEB, STRATEGY_CINEB]:
+        if num_atoms < 2:
+            raise QMEValidationError(
+                f"Path optimization with {strategy} requires at least 2 structures, got {num_atoms}"
+            )
+
+    # Interpolate strategies require multiple structures
+    if strategy == STRATEGY_INTERPOLATE:
+        if num_atoms < 2:
+            raise QMEValidationError(
+                f"Interpolation strategy requires at least 2 structures, got {num_atoms}"
+            )
+
+    # Local strategies work with single structure
+    if strategy == STRATEGY_LOCAL and num_atoms > 1:
+        # This is not an error, but we might want to warn
+        pass
+
 
 class QMEValidationError(Exception):
     """Raised when input validation fails."""
-
-    pass
 
 
 # Alias for backward compatibility
@@ -27,19 +210,15 @@ ValidationError = QMEValidationError
 class QMEBackendError(Exception):
     """Raised when backend is incompatible with the requested operation."""
 
-    pass
-
 
 class QMEStrategyError(Exception):
     """Raised when strategy selection fails."""
-
-    pass
 
 
 class QMEError(Exception):
     """Base exception for QME errors."""
 
-    def __init__(self, message: str, suggestion: Optional[str] = None) -> None:
+    def __init__(self, message: str, suggestion: str | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.suggestion = suggestion
@@ -53,8 +232,11 @@ class QMEError(Exception):
 class BackendError(Exception):
     """Raised when backend is unavailable or incompatible."""
 
-    def __init__(self, backend: str, available: List[str], operation: str) -> None:
-        message = f"Backend '{backend}' is not available for {operation}. Available backends: {', '.join(available)}"
+    def __init__(self, backend: str, available: list[str], operation: str) -> None:
+        message = (
+            f"Backend '{backend}' is not available for {operation}. "
+            f"Available backends: {', '.join(available)}"
+        )
         super().__init__(message)
         self.backend = backend
         self.available_backends = available
@@ -65,7 +247,10 @@ class DependencyError(Exception):
     """Raised when required dependencies are missing."""
 
     def __init__(self, dependency: str, purpose: str, install_command: str) -> None:
-        message = f"Missing dependency '{dependency}' required for {purpose}. Install with: {install_command}"
+        message = (
+            f"Missing dependency '{dependency}' required for {purpose}. "
+            f"Install with: {install_command}"
+        )
         super().__init__(message)
         self.dependency = dependency
         self.purpose = purpose
@@ -106,7 +291,7 @@ def validate_atoms_structure(atoms: Atoms) -> None:
             raise QMEValidationError(f"Invalid atomic numbers found at position {i}: {num}")
 
 
-def validate_charge_and_spin(charge: int, spin: int, n_electrons: Optional[int] = None) -> None:
+def validate_charge_and_spin(charge: int, spin: int, n_electrons: int | None = None) -> None:
     """Validate charge and spin parameters."""
     if not isinstance(charge, int):
         raise QMEValidationError(f"Charge must be integer, got {type(charge)}")
@@ -122,29 +307,33 @@ def validate_charge_and_spin(charge: int, spin: int, n_electrons: Optional[int] 
                 raise QMEValidationError(f"Invalid spin multiplicity: spin must be ≥ 1, got {spin}")
             else:
                 raise QMEValidationError(
-                    f"Invalid spin multiplicity: even charge requires odd spin, got even charge={charge}, even spin={spin}"
+                    f"Invalid spin multiplicity: even charge requires odd spin, "
+                    f"got even charge={charge}, even spin={spin}"
                 )
         else:
             raise QMEValidationError(
-                f"Invalid spin multiplicity: odd charge requires even spin, got odd charge={charge}, odd spin={spin}"
+                f"Invalid spin multiplicity: odd charge requires even spin, "
+                f"got odd charge={charge}, odd spin={spin}"
             )
 
     # Check electron count if provided
     if n_electrons is not None:
         if charge > n_electrons:
             raise QMEValidationError(
-                f"Too many positive charges: Charge ({charge}) cannot exceed number of electrons ({n_electrons})"
+                f"Too many positive charges: Charge ({charge}) cannot exceed "
+                f"number of electrons ({n_electrons})"
             )
         # Check if the number of unpaired electrons is consistent with spin
         unpaired_electrons = spin
         total_electrons = n_electrons - charge
         if total_electrons < unpaired_electrons:
             raise QMEValidationError(
-                f"Invalid electron configuration: {n_electrons} electrons, charge={charge}, spin={spin}"
+                f"Invalid electron configuration: {n_electrons} electrons, "
+                f"charge={charge}, spin={spin}"
             )
 
 
-def validate_device_parameter(device: str, backend: Optional[str] = None) -> None:
+def validate_device_parameter(device: str, backend: str | None = None) -> None:
     """Validate device parameter."""
     if device is not None and device not in ["cpu", "cuda", "auto"]:
         raise QMEValidationError(
@@ -157,8 +346,8 @@ def validate_device_parameter(device: str, backend: Optional[str] = None) -> Non
 
             if not torch.cuda.is_available():
                 raise QMEValidationError("CUDA requested but not available on this system")
-        except ImportError:
-            raise QMEValidationError("PyTorch not available to check CUDA availability")
+        except ImportError as e:
+            raise QMEValidationError("PyTorch not available to check CUDA availability") from e
 
 
 def validate_file_exists(filepath: str) -> None:
@@ -169,7 +358,7 @@ def validate_file_exists(filepath: str) -> None:
         raise QMEValidationError(f"Empty file: {filepath}")
 
 
-def validate_file_format(filepath: str, allowed_formats: List[str]) -> None:
+def validate_file_format(filepath: str, allowed_formats: list[str]) -> None:
     """Validate file format."""
     ext = Path(filepath).suffix.lower()
     if ext not in allowed_formats:
@@ -177,9 +366,9 @@ def validate_file_format(filepath: str, allowed_formats: List[str]) -> None:
 
 
 def validate_model_parameters(
-    model_name: Optional[str] = None,
-    model_path: Optional[str] = None,
-    backend: Optional[str] = None,
+    model_name: str | None = None,
+    model_path: str | None = None,
+    backend: str | None = None,
 ) -> None:
     """Validate model parameters."""
     # Backend-specific validation first
@@ -195,9 +384,7 @@ def validate_model_parameters(
         raise QMEValidationError("Cannot specify both model_name and model_path")
 
 
-def validate_optimization_parameters(
-    fmax: float, steps: int, optimizer: Optional[str] = None
-) -> None:
+def validate_optimization_parameters(fmax: float, steps: int, optimizer: str | None = None) -> None:
     """Validate optimization parameters."""
     if fmax <= 0:
         raise QMEValidationError(
@@ -213,7 +400,7 @@ def validate_optimization_parameters(
             )
 
 
-def validate_minima_run(atoms: Union[Atoms, List[Atoms]], backend: str, optimizer: str) -> None:
+def validate_minima_run(atoms: Atoms | list[Atoms], backend: str, optimizer: str) -> None:
     """Validate inputs for minima optimization.
 
     Parameters
@@ -246,7 +433,7 @@ def validate_minima_run(atoms: Union[Atoms, List[Atoms]], backend: str, optimize
         )
 
 
-def validate_ts_run(atoms: Union[Atoms, List[Atoms]], backend: str, optimizer: str) -> None:
+def validate_ts_run(atoms: Atoms | list[Atoms], backend: str, optimizer: str) -> None:
     """Validate inputs for transition state optimization.
 
     Parameters
@@ -269,16 +456,16 @@ def validate_ts_run(atoms: Union[Atoms, List[Atoms]], backend: str, optimizer: s
     validate_minima_run(atoms, backend, optimizer)
 
     # TS-specific restrictions
-    FORBIDDEN_BACKENDS_FOR_TS = {"mock"}
-    FORBIDDEN_OPTIMIZERS_FOR_TS = {"lbfgs", "l-bfgs", "l_bfgs", "bfgs", "fire"}
+    forbidden_backends_for_ts = {"mock"}
+    forbidden_optimizers_for_ts = {"lbfgs", "l-bfgs", "l_bfgs", "bfgs", "fire"}
 
-    if backend.lower() in FORBIDDEN_BACKENDS_FOR_TS:
+    if backend.lower() in forbidden_backends_for_ts:
         raise QMEBackendError(
             f"Backend '{backend}' is not suitable for transition state optimization. "
             f"Use a real ML potential backend (uma, aimnet2, mace, so3lr) instead."
         )
 
-    if optimizer.lower() in FORBIDDEN_OPTIMIZERS_FOR_TS:
+    if optimizer.lower() in forbidden_optimizers_for_ts:
         raise QMEBackendError(
             f"Optimizer '{optimizer}' is not suitable for transition state "
             f"optimization. Use 'sella' or 'geometric' optimizers for TS searches."
@@ -286,7 +473,7 @@ def validate_ts_run(atoms: Union[Atoms, List[Atoms]], backend: str, optimizer: s
 
 
 def validate_path_run(
-    atoms: Union[Atoms, List[Atoms]], backend: str, optimizer: str, require_two_ended: bool = True
+    atoms: Atoms | list[Atoms], backend: str, optimizer: str, require_two_ended: bool = True
 ) -> None:
     """Validate inputs for path optimization (NEB/CI-NEB).
 
@@ -349,12 +536,14 @@ def validate_atoms_compatibility(atoms1: Atoms, atoms2: Atoms, context: str = "o
     """
     if len(atoms1) != len(atoms2):
         raise QMEValidationError(
-            f"Incompatible atoms for {context}: different number of atoms ({len(atoms1)} vs {len(atoms2)})"
+            f"Incompatible atoms for {context}: different number of atoms "
+            f"({len(atoms1)} vs {len(atoms2)})"
         )
 
     if list(atoms1.symbols) != list(atoms2.symbols):
         raise QMEValidationError(
-            f"Incompatible atoms for {context}: different atomic symbols ({list(atoms1.symbols)} vs {list(atoms2.symbols)})"
+            f"Incompatible atoms for {context}: different atomic symbols "
+            f"({list(atoms1.symbols)} vs {list(atoms2.symbols)})"
         )
 
 

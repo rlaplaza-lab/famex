@@ -30,7 +30,6 @@ import warnings
 from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
-from typing import Dict, List
 
 import numpy as np
 from ase import Atoms
@@ -93,7 +92,7 @@ class BH28Benchmark:
 
         # Load reference barrier heights from JSON
         ref_file = self.dataset_dir / "reference_barrier_heights.json"
-        with open(ref_file, "r") as f:
+        with open(ref_file) as f:
             self.reference_barriers = json.load(f)
 
         # Define bimolecular reactions (require multiple reactants)
@@ -145,7 +144,7 @@ class BH28Benchmark:
         atoms = read(str(filepath))
         return atoms[0] if isinstance(atoms, list) else atoms
 
-    def get_reactants(self, reaction_name: str) -> List[Atoms]:
+    def get_reactants(self, reaction_name: str) -> list[Atoms]:
         """Get all reactant structures for a reaction."""
         if reaction_name in self.bimolecular_reactions:
             # Bimolecular reaction - load multiple reactants
@@ -161,7 +160,7 @@ class BH28Benchmark:
         ts_file = f"{reaction_name}_ts.xyz"
         return self.load_structure(ts_file)
 
-    def get_available_backends(self) -> List[str]:
+    def get_available_backends(self) -> list[str]:
         """Get list of available QME backends (excluding mock)."""
         available = []
         ml_backends = [
@@ -181,8 +180,8 @@ class BH28Benchmark:
         return available
 
     def filter_available_backends(
-        self, requested_backends: List[str], verbose: bool = False
-    ) -> List[str]:
+        self, requested_backends: list[str], verbose: bool = False
+    ) -> list[str]:
         """Filter requested backends to only available ones."""
         available = []
         for backend in requested_backends:
@@ -192,7 +191,7 @@ class BH28Benchmark:
                 print(f"Warning: Backend '{backend}' not available, skipping")
         return available
 
-    def print_backend_summary(self, backends: List[str], title: str = "Available Backends"):
+    def print_backend_summary(self, backends: list[str], title: str = "Available Backends"):
         """Print a formatted summary of backends."""
         print(f"\n📋 {title}")
         print("-" * 50)
@@ -201,8 +200,8 @@ class BH28Benchmark:
         print(f"Total: {len(backends)} backends")
 
     def optimize_structures(
-        self, reactions: List[str], backends: List[str], verbose: bool = False
-    ) -> Dict:
+        self, reactions: list[str], backends: list[str], verbose: bool = False
+    ) -> dict:
         """Optimize all structures (minima and TS) for given reactions and backends."""
         print(f"\n{'=' * 80}")
         print("STRUCTURE OPTIMIZATION")
@@ -231,7 +230,6 @@ class BH28Benchmark:
                         # Load reactants
                         load_start = time.perf_counter()
                         reactants = self.get_reactants(reaction)
-                        is_bimolecular = reaction in self.bimolecular_reactions
                         load_time = time.perf_counter() - load_start
                         reaction_data["timings"]["structure_loading"] = load_time
 
@@ -483,7 +481,7 @@ class BH28Benchmark:
         self.results = results
         return results
 
-    def analyze_performance(self, backends: List[str]) -> Dict:
+    def analyze_performance(self, backends: list[str]) -> dict:
         """Analyze performance metrics across backends with detailed statistics."""
         print(f"\n{'=' * 120}")
         print("DETAILED PERFORMANCE ANALYSIS")
@@ -727,7 +725,7 @@ class BH28Benchmark:
 
         print(f"\nResults saved to: {output_file}")
 
-    def run_benchmark(self, backends: List[str], reactions: List[str], verbose: bool = False):
+    def run_benchmark(self, backends: list[str], reactions: list[str], verbose: bool = False):
         """Run the complete benchmark suite."""
         print("\nStarting BH28 Benchmark")
         print(f"Backends: {', '.join(backends)}")
@@ -846,7 +844,7 @@ def main():
         # Load existing results and analyze
         results_file = Path(args.output_dir) / "bh28_benchmark_results.json"
         if results_file.exists():
-            with open(results_file, "r") as f:
+            with open(results_file) as f:
                 benchmark.results = json.load(f)
             benchmark.analyze_performance(backends)
         else:

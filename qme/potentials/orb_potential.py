@@ -5,7 +5,7 @@ This module implements integration with Orbital Materials' Orb models,
 providing universal forcefields for molecular and materials calculations.
 """
 
-from typing import Any, Optional, Sequence
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -42,7 +42,7 @@ class OrbPotential(BasePotential):
     def __init__(
         self,
         model_name: str = "orb-v3-conservative-omol",
-        device: Optional[str] = None,
+        device: str | None = None,
         charge: int = 0,
         spin: int = 1,
         **kwargs: Any,
@@ -95,7 +95,7 @@ class OrbPotential(BasePotential):
         # Ensure results dict exists for ASE-style API
         self.results = {}
 
-    def _load_calculator(self):
+    def _load_calculator(self) -> None:
         """Load the Orb model and create calculator."""
         from qme.logging_utils import quiet_backend_loading
 
@@ -157,10 +157,10 @@ class OrbPotential(BasePotential):
 
     def calculate(
         self,
-        atoms=None,
-        properties=["energy", "forces"],
-        system_changes=all_changes,
-    ):
+        atoms: Atoms | None = None,
+        properties: list[str] | None = None,
+        system_changes: Any = all_changes,
+    ) -> None:
         """Calculate properties using Orb potential."""
         # Use self.atoms if atoms is None (standard ASE behavior)
         if atoms is None:
@@ -190,11 +190,11 @@ class OrbPotential(BasePotential):
             forces = atoms.get_forces()
             self.results["forces"] = np.array(forces)
 
-    def set_charge(self, charge: int):
+    def set_charge(self, charge: int) -> None:
         """Set molecular charge."""
         self.charge = charge
 
-    def set_spin(self, spin: int):
+    def set_spin(self, spin: int) -> None:
         """Set spin multiplicity."""
         self.spin = spin
 
@@ -202,7 +202,9 @@ class OrbPotential(BasePotential):
         """Get the backend name for Orb."""
         return "orb"
 
-    def get_potential_energy(self, atoms=None, force_consistent: bool = False):
+    def get_potential_energy(
+        self, atoms: Atoms | None = None, force_consistent: bool = False
+    ) -> float:
         """Get potential energy (ASE-compatible)."""
         if atoms is not None:
             self.atoms = atoms
@@ -215,7 +217,7 @@ class OrbPotential(BasePotential):
         # Ensure calculator is loaded
         return super().get_potential_energy(atoms, force_consistent)
 
-    def get_forces(self, atoms=None):
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray | None:
         """Get forces (ASE-compatible)."""
         if atoms is not None:
             self.atoms = atoms
@@ -230,10 +232,10 @@ class OrbPotential(BasePotential):
 
 def get_orb_calculator(
     model_name: str = "orb-v3-conservative-omol",
-    device: Optional[str] = None,
+    device: str | None = None,
     charge: int = 0,
     spin: int = 1,
-    **kwargs,
+    **kwargs: Any,
 ) -> OrbPotential:
     """
     Convenience function to get Orb calculator.

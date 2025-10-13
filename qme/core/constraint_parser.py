@@ -1,21 +1,21 @@
 """Constraint parsing and handling."""
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from ase import Atoms
 from ase.constraints import FixConstraint
 
-from qme.core.constraints import get_constraint_summary, parse_constraint_string
+from qme.core.constraints import parse_constraint_string
 from qme.logging_utils import get_qme_logger
 
 logger = get_qme_logger(__name__)
 
 
 def parse_constraints(
-    constraint_specs: Union[str, List[str], List[FixConstraint], Dict[str, Any]],
+    constraint_specs: str | list[str] | list[FixConstraint] | dict[str, Any],
     atoms: Atoms,
     verbose: bool = False,
-) -> List[FixConstraint]:
+) -> list[FixConstraint]:
     """
     Parse constraint specifications and return ASE-compatible constraints.
 
@@ -81,11 +81,14 @@ def parse_constraints(
         info = constraint_manager.get_constraint_info()
         logger.info("Applied constraints:")
         if info["fixed_atoms"]:
-            logger.info(f"  Fixed atoms: {info['fixed_atoms']}")
+            logger.info("  Fixed atoms: %s", info["fixed_atoms"])
         for hc in info["harmonic_constraints"]:
             logger.info(
-                f"  Harmonic {hc['type']}: atoms {hc['atoms']}, "
-                f"k={hc['force_constant']}, ref={hc['reference_value']:.3f}"
+                "  Harmonic %s: atoms %s, k=%s, ref=%.3f",
+                hc["type"],
+                hc["atoms"],
+                hc["force_constant"],
+                hc["reference_value"],
             )
 
     return atoms.constraints

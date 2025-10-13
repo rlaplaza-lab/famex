@@ -22,30 +22,25 @@ Features:
 
 import json
 import sys
-import time
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 from ase import Atoms
 
 # Import QME components
 try:
-    from qme.analysis.frequency import FrequencyAnalysis
-    from qme.calculator_registry import calculator_registry
-    from qme.core.explorer import Explorer
+    pass  # QME components imported via benchmark_optimization function
 except ImportError as e:
     print(f"❌ Error importing QME: {e}")
     print("   Please ensure QME is installed and accessible")
     sys.exit(1)
 
 # Backend availability helpers
-from qme.backend_availability import get_available_ml_backends
 
 # Common interface and device utils
-from qme.examples import QMEExampleInterface, create_standard_epilog
-from qme.utils.device import get_optimal_device, print_device_info
+from qme.examples import QMEExampleInterface, benchmark_optimization, create_standard_epilog
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -68,16 +63,16 @@ def create_ts_structure() -> Atoms:
 def benchmark_ts_optimizer(
     backend: str,
     optimizer: str,
-    device: Optional[str] = None,
-    model_name: Optional[str] = None,
+    device: str | None = None,
+    model_name: str | None = None,
     verbose: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Benchmark a single backend with a specific optimizer for transition state optimization.
 
     Only suitable optimizers: Sella, Geometric
     """
-    return _benchmark_optimization(
+    return benchmark_optimization(
         backend=backend,
         optimizer=optimizer,
         device=device,
@@ -89,344 +84,7 @@ def benchmark_ts_optimizer(
     )
 
 
-def _benchmark_optimization(
-    backend: str,
-    optimizer: str,
-    device: Optional[str] = None,
-    model_name: Optional[str] = None,
-    verbose: bool = True,
-    test_ts: bool = False,
-    create_structure_func=None,
-    suitable_optimizers: List[str] = None,
-) -> Dict[str, Any]:
-    """
-    Internal benchmark function for optimization and frequency analysis.
-
-    Parameters:
-    -----------
-    backend : str
-        Backend name (e.g., 'mock', 'aimnet2', 'uma', 'so3lr', 'mace', 'orb')
-    optimizer : str
-        Optimizer name (e.g., 'sella', 'geometric')
-    device : str, optional
-        Device to use ('cpu' or 'cuda'). Auto-detected if None.
-    model_name : str, optional
-        Specific model name to use
-    verbose : bool
-        Whether to print progress information
-    test_ts : bool
-        Whether to test transition state optimization
-    create_structure_func : callable
-        Function to create the initial structure
-    suitable_optimizers : List[str]
-        List of optimizers suitable for this task
-
-    Returns:
-    --------
-    Dict[str, Any]
-        Benchmark results including timings for each step
-    """
-    # Auto-detect optimal device
-    device = get_optimal_device(device)
-
-    if verbose:
-        print(f"\n{'=' * 60}")
-        print("Backend: {}".format(backend.upper()))
-        print("Optimizer: {}".format(optimizer.upper()))
-        print_device_info(device)
-        print("Model: {}".format(model_name or "default"))
-        print("Test Type: Transition State Optimization")
-        print("-" * 60)
-
-    results = {
-        "backend": backend,
-        "optimizer": optimizer,
-        "device": device,
-        "model_name": model_name,
-        "test_ts": test_ts,
-        "available": False,
-        "error": None,
-        "timings": {},
-        "optimization_results": {},
-        "frequency_results": {},
-    }
-
-    try:
-        # Check if backend is available
-        if not calculator_registry.is_backend_available(backend):
-            results["error"] = f"Backend {backend} not available (dependencies missing)"
-            if verbose:
-                print("Status: ❌ Backend not available")
-            return results
-
-        # Check if optimizer is suitable for this task
-        if suitable_optimizers and optimizer.lower() not in suitable_optimizers:
-            task = "TS" if test_ts else "minima"
-            results["error"] = (
-                f"Optimizer {optimizer} not suitable for {task} optimization. "
-                f"Suitable: {', '.join(suitable_optimizers)}"
-            )
-            if verbose:
-                print(f"Status: ❌ {results['error']}")
-            return results
-
-        results["available"] = True
-        if verbose:
-            print("Status: ✅ Backend available")
-
-        # Create appropriate structure
-        if verbose:
-            print("Loading TS structure for transition state optimization...")
-        structure = create_structure_func()
-
-        # Initialize QME optimizer
-        if verbose:
-            print("Initializing QME optimizer...")
-        init_start = time.perf_counter()
-
-        explorer = Explorer(
-            atoms=structure,
-            backend=backend,
-            model_name=model_name,
-            device=device,
-            default_charge=0,
-            default_spin=1,
-            local_optimizer=optimizer,
-        )
-
-        init_time = time.perf_counter() - init_start
-        results["timings"]["initialization"] = init_time
-
-        if verbose:
-            print(f"Initialization time: {init_time:.3f} seconds")
-
-        # Attach calculator to atoms object
-        if verbose:
-            print("Attaching calculator to atoms...")
-        load_start = time.perf_counter()
-
-        # Attach calculator using Explorer's method
-        explorer._create_and_attach_calculator(explorer.atoms_list[0])
-
-        load_time = time.perf_counter() - load_start
-        results["timings"]["structure_loading"] = load_time
-
-        if verbose:
-            print(f"Calculator attachment time: {load_time:.3f} seconds")
-
-        # Test single energy calculation (first call - includes calculator initialization)
-        if verbose:
-            print("Testing single energy calculation (first call - includes model loading)...")
-        energy_first_start = time.perf_counter()
-
-        energy = explorer.atoms_list[0].get_potential_energy()
-
-        energy_first_time = time.perf_counter() - energy_first_start
-        results["timings"]["single_energy_first"] = energy_first_time
-
-        if verbose:
-            print(f"First energy calculation time: {energy_first_time:.3f} seconds")
-            print(f"Energy: {energy:.6f} eV")
-
-        # Test single energy calculation (second call - pure evaluation)
-        if verbose:
-            print("Testing single energy calculation (second call - pure evaluation)...")
-        energy_second_start = time.perf_counter()
-
-        energy2 = explorer.atoms_list[0].get_potential_energy()
-
-        energy_second_time = time.perf_counter() - energy_second_start
-        results["timings"]["single_energy_second"] = energy_second_time
-
-        if verbose:
-            print(f"Second energy calculation time: {energy_second_time:.3f} seconds")
-            print(f"Energy: {energy2:.6f} eV")
-
-        # Store the pure evaluation time as the main single_energy metric
-        results["timings"]["single_energy"] = energy_second_time
-
-        # Test single force calculation
-        if verbose:
-            print("Testing single force calculation...")
-        force_start = time.perf_counter()
-
-        forces = explorer.atoms_list[0].get_forces()
-        max_force = float(np.max(np.abs(forces)))
-
-        force_time = time.perf_counter() - force_start
-        results["timings"]["single_forces"] = force_time
-
-        if verbose:
-            print(f"Single force calculation time: {force_time:.3f} seconds")
-            print(f"Max force: {max_force:.6f} eV/Å")
-
-        # Transition state optimization using Explorer strategies
-        if verbose:
-            print("Running transition state optimization...")
-        opt_start = time.perf_counter()
-
-        # Use Explorer's run method with TS strategy
-        try:
-            run_results = explorer.run(
-                mode="ts",
-                fmax=0.005,  # Stricter criteria for TS
-                steps=1000,
-                local_optimizer_name=optimizer,
-            )
-        except ValueError as e:
-            if "not suitable for transition state optimization" in str(e):
-                results["error"] = str(e)
-                if verbose:
-                    print(f"Status: ❌ {results['error']}")
-                return results
-            raise
-
-        # Handle results from Explorer's run method
-        # For local strategies, run() returns a list of results
-        if isinstance(run_results, list) and len(run_results) == 1:
-            strategy_result = run_results[0]
-        else:
-            strategy_result = run_results
-
-        # Extract step tracking information from strategy result
-        if isinstance(strategy_result, dict):
-            steps_taken = strategy_result.get("steps_taken", 0)
-            converged = strategy_result.get("converged", False)
-            optimized_atoms = strategy_result.get("optimized_atoms", explorer.atoms_list[0])
-        else:
-            # Fallback for old format
-            steps_taken = 0
-            converged = True
-            optimized_atoms = strategy_result
-
-        # Get optimization results
-        if optimized_atoms is not None and hasattr(optimized_atoms, "get_potential_energy"):
-            final_energy = float(optimized_atoms.get_potential_energy())
-            max_force = float(np.max(np.abs(optimized_atoms.get_forces())))
-        else:
-            final_energy = 0.0
-            max_force = float("inf")
-
-        opt_time = time.perf_counter() - opt_start
-
-        # Calculate average time per optimization step
-        if isinstance(steps_taken, (int, float)) and steps_taken > 0:
-            avg_time_per_step = opt_time / steps_taken
-        else:
-            avg_time_per_step = None
-
-        # Get final forces for verification
-        if optimized_atoms is not None:
-            final_forces = optimized_atoms.get_forces()
-            final_max_force = float(np.max(np.abs(final_forces)))
-        else:
-            final_max_force = max_force
-
-        opt_results = {
-            "converged": converged,
-            "final_energy": final_energy,
-            "steps_taken": steps_taken,
-            "optimized_atoms": optimized_atoms,
-            "max_force": final_max_force,
-        }
-
-        results["timings"]["optimization"] = opt_time
-        results["timings"]["avg_time_per_step"] = avg_time_per_step
-        results["optimization_results"] = {
-            "converged": opt_results["converged"],
-            "final_energy": opt_results["final_energy"],
-            "max_force": opt_results["max_force"],
-            "steps_taken": steps_taken,
-        }
-
-        if verbose:
-            print(f"Optimization time: {opt_time:.3f} seconds")
-            print(f"Steps taken: {steps_taken}")
-            if avg_time_per_step is not None:
-                print(f"Average time per step: {avg_time_per_step:.4f} seconds")
-            print(f"Converged: {opt_results['converged']}")
-            print(f"Final energy: {opt_results['final_energy']:.6f} eV")
-            print(f"Max force: {opt_results['max_force']:.6f} eV/Å")
-
-        # Frequency analysis (mandatory)
-        if verbose:
-            print("Running frequency analysis...")
-        freq_start = time.perf_counter()
-
-        # Use the explorer's calculate_frequencies method directly
-        # This method handles the calculator attachment automatically
-        freq_results = explorer.calculate_frequencies(
-            atoms=optimized_atoms,  # Use optimized atoms if available
-            delta=0.01,
-            method="auto",
-            temperature=298.15,
-            save_hessian=False,  # Don't save large Hessian matrix
-        )
-
-        freq_time = time.perf_counter() - freq_start
-        results["timings"]["frequency_analysis"] = freq_time
-
-        # Enhanced validation based on task type using proper frequency analysis
-        frequencies = freq_results["frequencies"]
-        is_ts = freq_results["is_ts"]
-        ts_analysis = freq_results.get("ts_analysis", {})
-
-        # Quality check for TS optimization: expect exactly 1 imaginary frequency
-        n_imaginary = ts_analysis.get("n_imaginary_frequencies", 0)
-        is_valid_result = is_ts and (n_imaginary == 1)
-        result_type = "TS"
-        if not is_valid_result:
-            if verbose:
-                print(f"⚠️  WARNING: Expected TS but found {n_imaginary} " "imaginary frequencies")
-                if n_imaginary == 0:
-                    print("   This suggests the optimizer found a minimum instead of a TS")
-                elif n_imaginary > 1:
-                    print(
-                        "   This suggests the structure is not a proper TS "
-                        "(too many imaginary frequencies)"
-                    )
-
-        results["frequency_results"] = {
-            "n_frequencies": len(frequencies),
-            "frequencies": frequencies[:10],  # First 10 frequencies
-            "zero_point_energy": freq_results["zero_point_energy"],
-            "is_transition_state": is_ts,
-            "is_valid_result": is_valid_result,
-            "n_imaginary_frequencies": n_imaginary,
-            "method_used": freq_results["method_used"],
-            "result_type": result_type,
-            "ts_analysis": ts_analysis,
-        }
-
-        if verbose:
-            print(f"Frequency analysis time: {freq_time:.3f} seconds")
-            print(f"Number of frequencies: {len(frequencies)}")
-            print(f"Imaginary frequencies: {n_imaginary}")
-            print(f"First 5 frequencies: {frequencies[:5]}")
-            print(f"Zero-point energy: {freq_results['zero_point_energy']:.6f} eV")
-            print(f"Is transition state: {is_ts}")
-            print(f"Valid TS: {is_valid_result}")
-
-        # Calculate total time (excluding None values)
-        total_time = sum(v for v in results["timings"].values() if v is not None)
-        results["timings"]["total"] = total_time
-
-        if verbose:
-            print(f"\nTotal time: {total_time:.3f} seconds")
-            print("Status: ✅ Completed successfully")
-
-    except Exception as e:
-        import traceback
-
-        results["error"] = str(e)
-        if verbose:
-            print(f"Status: ❌ Error - {e}")
-            print(f"Traceback: {traceback.format_exc()}")
-
-    return results
-
-
-def print_frequency_analysis_summary(results_list: List[Dict[str, Any]]):
+def print_frequency_analysis_summary(results_list: list[dict[str, Any]]):
     """Print a detailed frequency analysis summary for TS optimization."""
     print(f"\n{'=' * 120}")
     print("FREQUENCY ANALYSIS SUMMARY - TRANSITION STATE OPTIMIZATION")
@@ -453,7 +111,6 @@ def print_frequency_analysis_summary(results_list: List[Dict[str, Any]]):
             is_valid = freq_results.get("is_valid_result", False)
             zpe = freq_results.get("zero_point_energy", 0)
             frequencies = freq_results.get("frequencies", [])
-            result_type = freq_results.get("result_type", "unknown")
 
             # Format first 3 frequencies
             if len(frequencies) >= 3:
@@ -530,7 +187,7 @@ def print_frequency_analysis_summary(results_list: List[Dict[str, Any]]):
                 )
 
 
-def print_optimizer_summary(results_list: List[Dict[str, Any]]):
+def print_optimizer_summary(results_list: list[dict[str, Any]]):
     """Print a summary table focused on TS optimizer comparison."""
     print(f"\n{'=' * 140}")
     print("TRANSITION STATE OPTIMIZER COMPARISON SUMMARY")
@@ -580,15 +237,13 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
             valid_result_str = "Yes" if is_valid_result else "No"
 
             print(
-                (
-                    f"{results['backend']:<12} {optimizer:<12} {'TS':<4} "
-                    f"{'Yes' if converged else 'No':<10} {steps_str:<8} "
-                    f"{avg_time_str:<14} "
-                    f"{timings.get('optimization', 0):<10.3f} "
-                    f"{final_energy_str:<12} "
-                    f"{max_force_str:<12} "
-                    f"{valid_result_str:<10}"
-                )
+                f"{results['backend']:<12} {optimizer:<12} {'TS':<4} "
+                f"{'Yes' if converged else 'No':<10} {steps_str:<8} "
+                f"{avg_time_str:<14} "
+                f"{timings.get('optimization', 0):<10.3f} "
+                f"{final_energy_str:<12} "
+                f"{max_force_str:<12} "
+                f"{valid_result_str:<10}"
             )
         else:
             optimizer = results.get("optimizer", "unknown")
@@ -686,7 +341,7 @@ def print_optimizer_summary(results_list: List[Dict[str, Any]]):
             print(f"  {'Total Tests':<30}: {len(opt_results):>8}")
 
 
-def save_results(results_list: List[Dict[str, Any]], output_file: str):
+def save_results(results_list: list[dict[str, Any]], output_file: str):
     """Save benchmark results to JSON file."""
     # If output_file is just a filename, save it in the examples directory
     if not Path(output_file).is_absolute() and "/" not in output_file:

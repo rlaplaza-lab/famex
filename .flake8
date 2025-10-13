@@ -10,11 +10,7 @@ extend-ignore =
     # Missing whitespace around arithmetic operator (in f-strings)
     E226,
     # Trailing whitespaces
-    W291,
-    # Unused local variable
-    F841,
-    # Unused import
-    F401
+    W291
 exclude =
     .git,
     __pycache__,

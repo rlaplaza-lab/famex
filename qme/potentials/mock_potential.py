@@ -5,11 +5,11 @@ energies and harmonic forces so tests can run without heavy ML deps.
 Enhanced with TinyFF-inspired pairwise interactions for more realistic behavior.
 """
 
-from typing import Any, Optional, Sequence
+from typing import Any
 
 import numpy as np
 from ase import Atoms
-from ase.calculators.calculator import Calculator, all_changes
+from ase.calculators.calculator import Calculator
 
 # Constants for mock potential calculations
 from ase.units import Ang, eV
@@ -81,7 +81,9 @@ class MockCalculator(Calculator):
         self.lj_cutoff = float(kwargs.get("lj_cutoff", LJ_CUTOFF))
         self.use_nonbonded = kwargs.get("use_nonbonded", True)
 
-    def _lennard_jones_energy_force(self, dist, epsilon, sigma):
+    def _lennard_jones_energy_force(
+        self, dist: float, epsilon: float, sigma: float
+    ) -> tuple[float, float]:
         """Calculate Lennard-Jones energy and force for a given distance.
 
         Inspired by TinyFF's clean pairwise implementation.
@@ -117,7 +119,7 @@ class MockCalculator(Calculator):
 
         return energy, force_mag
 
-    def _harmonic_bond_energy_force(self, dist, r0, k):
+    def _harmonic_bond_energy_force(self, dist: float, r0: float, k: float) -> tuple[float, float]:
         """Calculate harmonic bond energy and force.
 
         Parameters
@@ -139,7 +141,12 @@ class MockCalculator(Calculator):
         force_mag = -k * dr
         return energy, force_mag
 
-    def calculate(self, atoms=None, properties=None, system_changes=None):
+    def calculate(
+        self,
+        atoms: Atoms | None = None,
+        properties: list[str] | None = None,
+        system_changes: list[str] | None = None,
+    ) -> None:
         """Calculate energy and forces using harmonic potential.
 
         This method implements a simple harmonic potential based on covalent radii
@@ -180,8 +187,8 @@ class MockCalculator(Calculator):
                 dist = np.linalg.norm(rij)
                 if dist <= cutoff:
                     # Treat as bonded pair
-                    key = (int(numbers[i]), int(numbers[j]))
-                    key_rev = (int(numbers[j]), int(numbers[i]))
+                    # key = (int(numbers[i]), int(numbers[j]))  # Unused for now
+                    # key_rev = (int(numbers[j]), int(numbers[i]))  # Unused for now
                     r_eq = r0 if r0 > 0 else dist
                     pairs.append((i, j, r_eq))
 
@@ -246,7 +253,7 @@ class MockCalculator(Calculator):
             # Simplified angle calculation - only if we have bonds
             if len(pairs) > 1:  # Only calculate angles if we have multiple bonds
                 # Build neighbor lists for angle terms
-                neighbors = {i: [] for i in range(natoms)}
+                neighbors: dict[int, list[int]] = {i: [] for i in range(natoms)}
                 for i, j, _ in pairs:
                     neighbors[i].append(j)
                     neighbors[j].append(i)

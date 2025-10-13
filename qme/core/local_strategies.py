@@ -1,12 +1,18 @@
-"""Default runner strategies used by Explorer.
+"""Default local strategy runners used by Explorer.
 
-This module contains lightweight default implementations for minima and
-transition-state runners and an optimizer lookup helper. They are kept
+This module contains lightweight default implementations for local optimization
+strategies (minima and transition-state) and an optimizer lookup helper. They are kept
 separate from `explorer.py` to avoid circular imports and make the
 strategy implementations easier to test and replace.
+
+Local strategies work with single structures and perform direct optimization:
+- minima:local - Direct local minima optimization
+- ts:local - Direct local transition state optimization
+
+These strategies are registered in Explorer with the new target:strategy naming scheme.
 """
 
-from typing import Any, Dict, List, Optional, Type
+from typing import Any
 
 from ase import Atoms
 
@@ -46,7 +52,7 @@ def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
         )
 
 
-def _get_local_optimizer_class(name: str) -> Type[Any]:
+def _get_local_optimizer_class(name: str) -> type[Any]:
     """Map a short name to an ASE optimizer class or SELLA's Sella.
 
     SELLA is preferred when requested and is now a core dependency.
@@ -82,7 +88,7 @@ def _get_local_optimizer_class(name: str) -> Type[Any]:
     raise ValueError(f"Unknown optimizer name: {name}")
 
 
-def _get_step_count(optimizer: Any) -> Optional[int]:
+def _get_step_count(optimizer: Any) -> int | None:
     """Extract step count from various optimizer types.
 
     Args:
@@ -127,13 +133,13 @@ def _get_convergence_status(optimizer, atoms) -> bool:
 
 
 def local_minima_runner(
-    atoms_list: List[Atoms],
+    atoms_list: list[Atoms],
     fmax: float = 0.05,
     steps: int = 1000,
-    explorer: Optional[Any] = None,
+    explorer: Any | None = None,
     local_optimizer_name: str = "sella",
     **kwargs: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Default minima runner.
 
     The runner uses the explorer helpers to attach calculators and
@@ -212,13 +218,13 @@ def local_minima_runner(
 
 
 def local_ts_runner(
-    atoms_list: List[Atoms],
+    atoms_list: list[Atoms],
     fmax: float = 0.05,
     steps: int = 1000,
-    explorer: Optional[Any] = None,
+    explorer: Any | None = None,
     local_optimizer_name: str = "sella",
     **kwargs: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Default TS runner.
 
     Uses the explorer helpers to attach calculators and constraints before

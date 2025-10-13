@@ -5,7 +5,7 @@ This module provides a centralized way to handle backend availability
 and ensures consistent behavior across examples, tests, and other modules.
 """
 
-from typing import List, Optional
+import sys
 
 try:
     import qme
@@ -13,7 +13,7 @@ except ImportError as e:
     raise ImportError(
         f"Error importing QME: {e}. "
         "Make sure QME is properly installed or you're in the QME package directory."
-    )
+    ) from e
 
 from qme.logging_utils import get_qme_logger
 
@@ -43,7 +43,7 @@ REGULAR_BACKENDS = ["mock", "aimnet2", "mace", "uma", "so3lr"]
 
 def get_available_backends(
     include_mock: bool = True, include_torchsim: bool = True, verbose: bool = False
-) -> List[str]:
+) -> list[str]:
     """
     Get list of backends that are actually available in the current environment.
 
@@ -72,35 +72,35 @@ def get_available_backends(
         for backend in backends_to_check:
             is_available = backend in available
             if is_available:
-                logger.info(f"  ✅ {backend}")
+                logger.info("  ✅ %s", backend)
             else:
                 reason = get_availability_reason(backend)
-                logger.info(f"  ❌ {backend} ({reason})")
+                logger.info("  ❌ %s (%s)", backend, reason)
 
     return available
 
 
-def get_available_ml_backends(include_torchsim: bool = True, verbose: bool = False) -> List[str]:
+def get_available_ml_backends(include_torchsim: bool = True, verbose: bool = False) -> list[str]:
     """Get list of ML backends that are available (excludes mock)."""
     return get_available_backends(
         include_mock=False, include_torchsim=include_torchsim, verbose=verbose
     )
 
 
-def get_available_torchsim_backends(verbose: bool = False) -> List[str]:
+def get_available_torchsim_backends(verbose: bool = False) -> list[str]:
     """Get list of TorchSim backends that are available."""
     available = []
     for backend in TORCHSIM_BACKENDS:
         if qme.calculator_registry.is_backend_available(backend):
             available.append(backend)
             if verbose:
-                logger.info(f"  ✅ {backend}")
+                logger.info("  ✅ %s", backend)
         elif verbose:
-            logger.info(f"  ❌ {backend} (dependencies missing or incompatible)")
+            logger.info("  ❌ %s (dependencies missing or incompatible)", backend)
     return available
 
 
-def filter_available_backends(requested_backends: List[str], verbose: bool = False) -> List[str]:
+def filter_available_backends(requested_backends: list[str], verbose: bool = False) -> list[str]:
     """
     Filter a list of requested backends to only include those that are available.
 
@@ -121,15 +121,15 @@ def filter_available_backends(requested_backends: List[str], verbose: bool = Fal
             unavailable.append(backend)
 
     if verbose and unavailable:
-        logger.info(f"⚠️  Unavailable backends (skipped): {unavailable}")
+        logger.info("⚠️  Unavailable backends (skipped): %s", unavailable)
 
     if verbose and available:
-        logger.info(f"✅ Available backends: {available}")
+        logger.info("✅ Available backends: %s", available)
 
     return available
 
 
-def validate_backends(requested_backends: List[str]) -> tuple[List[str], List[str]]:
+def validate_backends(requested_backends: list[str]) -> tuple[list[str], list[str]]:
     """
     Validate a list of requested backends.
 
@@ -153,7 +153,7 @@ def validate_backends(requested_backends: List[str]) -> tuple[List[str], List[st
     return available, invalid
 
 
-def require_ml_backends(min_count: int = 1) -> List[str]:
+def require_ml_backends(min_count: int = 1) -> list[str]:
     """
     Require that at least a minimum number of ML backends are available.
 
@@ -178,16 +178,14 @@ def require_ml_backends(min_count: int = 1) -> List[str]:
         logger.info("  - AIMNet2: pip install aimnet2")
         logger.info("  - SO3LR: pip install so3lr")
         logger.info("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
-        import sys
-
         sys.exit(1)
 
     return available
 
 
-def print_backend_summary(backends: List[str], title: str = "Backend Summary"):
+def print_backend_summary(backends: list[str], title: str = "Backend Summary"):
     """Print a formatted summary of backend availability."""
-    logger.info(f"\n{title}")
+    logger.info("\n%s", title)
     logger.info("=" * len(title))
 
     if not backends:
@@ -200,13 +198,13 @@ def print_backend_summary(backends: List[str], title: str = "Backend Summary"):
     torchsim_backends = [b for b in backends if b in TORCHSIM_BACKENDS]
 
     if mock_backends:
-        logger.info(f"Mock: {', '.join(mock_backends)}")
+        logger.info("Mock: %s", ", ".join(mock_backends))
     if ml_backends:
-        logger.info(f"ML: {', '.join(ml_backends)}")
+        logger.info("ML: %s", ", ".join(ml_backends))
     if torchsim_backends:
-        logger.info(f"TorchSim: {', '.join(torchsim_backends)}")
+        logger.info("TorchSim: %s", ", ".join(torchsim_backends))
 
-    logger.info(f"Total: {len(backends)} backend(s)")
+    logger.info("Total: %d backend(s)", len(backends))
 
 
 def is_backend_available(backend: str) -> bool:
@@ -244,7 +242,7 @@ def require_backend(backend: str):
         pytest.skip(f"Backend {backend} not available in this environment")
 
 
-def require_any_backend(backends: List[str]):
+def require_any_backend(backends: list[str]):
     """
     Require that at least one of the specified backends is available.
 
@@ -267,7 +265,7 @@ def require_any_backend(backends: List[str]):
     return available
 
 
-def get_backend_pairs() -> List[tuple[str, str]]:
+def get_backend_pairs() -> list[tuple[str, str]]:
     """
     Get pairs of (regular_backend, torchsim_backend) for comparison testing.
 

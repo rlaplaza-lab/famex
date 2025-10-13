@@ -1,11 +1,8 @@
 # Reference
 
-Complete reference documentation for QME configuration, error handling, and troubleshooting.
+Complete reference documentation for QME error handling and troubleshooting.
 
 ## Sections
-
-### [Configuration Options](configuration.md)
-Complete reference for QME configuration settings, environment variables, and customization options.
 
 ### [Error Handling](errors.md)
 Comprehensive guide to QME error messages, their meanings, and solutions.
@@ -35,20 +32,14 @@ Frequently asked questions about QME usage, installation, and best practices.
 - `Forces too large` → Check input structure quality
 - `Unrealistic energies` → Verify backend compatibility with your system
 
-### Configuration Locations
+### Cache Directories
 
-**User Configuration**:
-- Linux/macOS: `~/.config/qme/config.yaml`
-- Windows: `%APPDATA%/qme/config.yaml`
-
-**Cache Directories**:
+**Cache Locations**:
 - Linux/macOS: `~/.cache/qme/`
 - Windows: `%LOCALAPPDATA%/qme/`
 
 **Environment Variables**:
-- `QME_CACHE_DIR`: Override default cache directory
-- `QME_CONFIG_FILE`: Override default config file location
-- `QME_DEFAULT_BACKEND`: Set default backend globally
+- `QME_CACHE_DIR`: Override default cache directory (if implemented)
 
 ### Performance Guidelines
 

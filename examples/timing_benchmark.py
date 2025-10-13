@@ -24,18 +24,16 @@ import sys
 import time
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 from ase import Atoms
 from ase.build import molecule
 
 # Use consolidated backend availability from qme.backend_availability
-from qme.backend_availability import get_available_ml_backends
 
 # Import QME components
 try:
-    from qme.analysis.frequency import FrequencyAnalysis
     from qme.calculator_registry import calculator_registry
     from qme.core.explorer import Explorer
 except ImportError as e:
@@ -52,7 +50,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 
-# QMEExampleInterface already imported above; remove duplicate import
+# QMEExampleInterface already imported above
 
 
 def create_benzene_molecule() -> Atoms:
@@ -82,10 +80,10 @@ def time_function(func, *args, **kwargs):
 
 def benchmark_backend(
     backend: str,
-    device: Optional[str] = None,
-    model_name: Optional[str] = None,
+    device: str | None = None,
+    model_name: str | None = None,
     verbose: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Benchmark a single backend for optimization and frequency analysis.
 
@@ -338,7 +336,7 @@ def benchmark_backend(
     return results
 
 
-def print_summary(results_list: List[Dict[str, Any]]):
+def print_summary(results_list: list[dict[str, Any]]):
     """Print a summary table of all benchmark results."""
     print(f"\n{'=' * 120}")
     print("BENCHMARK SUMMARY")
@@ -450,7 +448,7 @@ def print_summary(results_list: List[Dict[str, Any]]):
             print(f"  {'TOTAL TIME':<30}: {total:>8.3f}s")
 
 
-def save_results(results_list: List[Dict[str, Any]], output_file: str):
+def save_results(results_list: list[dict[str, Any]], output_file: str):
     """Save benchmark results to JSON file."""
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)

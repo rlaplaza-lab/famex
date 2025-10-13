@@ -6,10 +6,10 @@ dependencies are available (via ``qme.dependencies.deps``). When a backend
 is unavailable, a clear ImportError is raised with installation instructions.
 """
 
+# from collections.abc import Callable  # Unused for now
 from importlib import import_module
-from typing import Callable
 
-from qme.dependencies import deps
+from qme.dependencies import deps  # noqa: F401
 
 __all__ = [
     "BasePotential",
@@ -27,7 +27,7 @@ __all__ = [
     "TorchSimPotential",
     "get_torchsim_calculator",
     "get_torchsim_mace_calculator",
-    "get_torchsim_fairchem_calculator",
+    "get_torchsim_uma_calculator",
 ]
 
 # Lightweight core imports (may be None if import fails)

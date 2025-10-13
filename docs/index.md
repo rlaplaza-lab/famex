@@ -41,7 +41,6 @@ Welcome to the QME documentation! QME provides a unified interface for molecular
 - [Example Gallery](benchmarks/examples.md)
 
 ### 🔧 [Reference](reference/index.md)
-- [Configuration Options](reference/configuration.md)
 - [Error Handling](reference/errors.md)
 - [Troubleshooting](reference/troubleshooting.md)
 - [FAQ](reference/faq.md)

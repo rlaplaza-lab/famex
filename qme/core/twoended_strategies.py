@@ -1,21 +1,28 @@
 """Two-ended strategy runners for Explorer.
 
-This module provides small runners that operate on two or more ASE
-Atoms objects. Input can be either exactly two Atoms (reactant, product)
-or a sequence of Atoms interpreted as [reactant, intermediate_guess..., product].
-When the sequence contains more than two states the module will interpolate
-each consecutive pair and stitch the segments into a single path.
+This module provides runners that operate on two or more ASE Atoms objects.
+Input can be either exactly two Atoms (reactant, product) or a sequence of Atoms
+interpreted as [reactant, intermediate_guess..., product]. When the sequence contains
+more than two states the module will interpolate each consecutive pair and stitch
+the segments into a single path.
 
-The focus is interpolation (linear or geodesic), optional simple path
-optimization, and extracting a transition-state guess (middle structure
-of the stitched interpolated path).
+Two-ended strategies work with multiple structures and perform interpolation/optimization:
+- ts:interpolate - TS guess from interpolated path with local TS refinement
+- minima:interpolate - Minima optimization on interpolated path frames
+- path:neb - NEB path optimization with geodesic interpolation
+- path:cineb - CI-NEB path optimization with geodesic interpolation
+- path:interpolate - Generate interpolated path only (no optimization)
+
+These strategies are registered in Explorer with the new target:strategy naming scheme.
 """
 
 import warnings
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 from ase import Atoms
+from ase.optimize import BFGS
 
 from qme.core.local_strategies import _get_local_optimizer_class
 from qme.core.reaction import Reaction
@@ -63,13 +70,45 @@ def _calculate_rmsd(atoms1: Atoms, atoms2: Atoms) -> float:
     return rmsd
 
 
+def _calculate_structure_similarity(
+    atoms1: Atoms, atoms2: Atoms, rmsd_threshold: float, energy_threshold: float
+) -> tuple[bool, float, float]:
+    """Calculate similarity between two structures based on RMSD and energy."""
+    rmsd = _calculate_rmsd(atoms1, atoms2)
+    try:
+        energy1 = atoms1.get_potential_energy()
+        energy2 = atoms2.get_potential_energy()
+        energy_diff = abs(energy1 - energy2)
+    except (RuntimeError, ValueError, AttributeError):
+        energy_diff = float("inf")
+
+    is_similar = rmsd < rmsd_threshold and energy_diff < energy_threshold
+    return is_similar, rmsd, energy_diff
+
+
+def _build_redundancy_warnings(
+    removed_indices: list[int], structures: list[Atoms], strategy_name: str
+) -> list[str]:
+    """Build warning messages for removed redundant structures."""
+    warning_messages = []
+
+    if removed_indices:
+        warning_messages.insert(
+            0,
+            f"Warning: {strategy_name} removed {len(removed_indices)} redundant structures "
+            f"out of {len(structures)} total structures.",
+        )
+
+    return warning_messages
+
+
 def _filter_redundant_structures(
-    structures: List[Atoms],
-    input_structures: Optional[List[Atoms]] = None,
+    structures: list[Atoms],
+    input_structures: list[Atoms] | None = None,
     rmsd_threshold: float = 0.1,
     energy_threshold: float = 0.001,
     strategy_name: str = "strategy",
-) -> Tuple[List[Atoms], List[int], List[str]]:
+) -> tuple[list[Atoms], list[int], list[str]]:
     """Filter redundant structures based on RMSD and energy similarity.
 
     Parameters
@@ -93,7 +132,7 @@ def _filter_redundant_structures(
     if not structures:
         return [], [], []
 
-    filtered_structures: List[Atoms] = []
+    filtered_structures: list[Atoms] = []
     removed_indices = []
     warning_messages = []
 
@@ -103,7 +142,7 @@ def _filter_redundant_structures(
         try:
             energy = atoms.get_potential_energy()
             energies.append(energy)
-        except Exception:
+        except (RuntimeError, ValueError, AttributeError):
             energies.append(float("inf"))
 
     # Check if we only have input structures
@@ -130,38 +169,33 @@ def _filter_redundant_structures(
 
         # Check against already filtered structures
         for j, filtered_atoms in enumerate(filtered_structures):
-            # RMSD check
-            rmsd = _calculate_rmsd(atoms, filtered_atoms)
-            if rmsd < rmsd_threshold:
-                # Energy check for very similar structures
-                if abs(energies[i] - energies[j]) < energy_threshold:
-                    is_redundant = True
-                    removed_indices.append(i)
-                    warning_messages.append(
-                        f"Warning: Removed redundant structure {i+1} "
-                        f"(RMSD: {rmsd:.3f} Å, ΔE: {abs(energies[i] - energies[j]):.3f} eV)"
-                    )
-                    break
+            is_similar, rmsd, energy_diff = _calculate_structure_similarity(
+                atoms, filtered_atoms, rmsd_threshold, energy_threshold
+            )
+            if is_similar:
+                is_redundant = True
+                removed_indices.append(i)
+                warning_messages.append(
+                    f"Warning: Removed redundant structure {i+1} "
+                    f"(RMSD: {rmsd:.3f} Å, ΔE: {energy_diff:.3f} eV)"
+                )
+                break
 
         if not is_redundant:
             filtered_structures.append(atoms)
 
-    if removed_indices:
-        warning_messages.insert(
-            0,
-            f"Warning: {strategy_name} removed {len(removed_indices)} redundant structures "
-            f"out of {len(structures)} total structures.",
-        )
+    # Add general redundancy warnings
+    warning_messages.extend(_build_redundancy_warnings(removed_indices, structures, strategy_name))
 
     return filtered_structures, removed_indices, warning_messages
 
 
 def path_generator(
-    atoms_list: Union[Sequence[Atoms], Atoms],
+    atoms_list: Sequence[Atoms] | Atoms,
     npoints: int = 11,
     method: str = "geodesic",
     optimize_path: bool = True,
-    explorer: Optional[Any] = None,
+    explorer: Any | None = None,
     calculator=None,
     **kwargs,
 ):
@@ -243,12 +277,12 @@ def _attach_calculators_if_explorer(explorer: Any, reactant: Atoms, product: Ato
 
 
 def _filter_structures_helper(
-    structures: List[Atoms],
-    input_structures: Optional[List[Atoms]] = None,
+    structures: list[Atoms],
+    input_structures: list[Atoms] | None = None,
     rmsd_threshold: float = 0.1,
     energy_threshold: float = 0.001,
     strategy_name: str = "strategy",
-) -> Tuple[List[Atoms], List[int], List[str]]:
+) -> tuple[list[Atoms], list[int], list[str]]:
     """Filter redundant structures based on RMSD and energy similarity.
 
     Parameters
@@ -272,7 +306,7 @@ def _filter_structures_helper(
     if not structures:
         return [], [], []
 
-    filtered_structures: List[Atoms] = []
+    filtered_structures: list[Atoms] = []
     removed_indices = []
     warning_messages = []
 
@@ -336,15 +370,15 @@ def _filter_structures_helper(
 
 
 def twoended_ts_guess_runner(
-    atoms_list: Union[Sequence[Atoms], Atoms],
+    atoms_list: Sequence[Atoms] | Atoms,
     npoints: int = 11,
     method: str = "geodesic",
-    explorer: Optional[Any] = None,
+    explorer: Any | None = None,
     fmax: float = 0.05,
     steps: int = 1000,
     local_optimizer_name: str = "sella",
     **kwargs: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Two-ended TS guess runner via interpolation with local TS refinement.
 
     This runner generates a path between reactant and product, then finds the
@@ -434,16 +468,117 @@ __all__ = [
 ]
 
 
+def _generate_interpolated_path(
+    atoms_list: Sequence[Atoms] | Atoms,
+    npoints: int,
+    method: str,
+    explorer: Any | None,
+    **kwargs,
+) -> list[Atoms]:
+    """Generate interpolated path from atoms list."""
+    path = path_generator(
+        atoms_list,
+        npoints=npoints,
+        method=method,
+        optimize_path=True,
+        explorer=explorer,
+        **kwargs,
+    )
+
+    # Flatten nested segments if needed
+    if path and isinstance(path[0], list):
+        flat = []
+        for seg in path:
+            flat.extend(seg)
+        path = flat
+
+    if len(path) < 1:
+        raise ValueError("Interpolated path is empty; cannot locate minima")
+
+    return path
+
+
+def _find_local_minima_frames(path: list[Atoms]) -> list[int]:
+    """Find local minima frames in the interpolated path."""
+    import math
+
+    # Compute energies using Reaction helper
+    reaction = Reaction(path[0], path[-1], calculator=getattr(path[0], "calc", None))
+    energies = reaction.calculate_path_energies(path)
+
+    # Find local minima indices: energy less than neighbours (handle endpoints)
+    minima_idxs = []
+    for i, e in enumerate(energies):
+        if math.isnan(e):
+            continue
+        left = energies[i - 1] if i - 1 >= 0 else float("inf")
+        right = energies[i + 1] if i + 1 < len(energies) else float("inf")
+        if (not math.isnan(left) and e < left) and (not math.isnan(right) and e < right):
+            minima_idxs.append(i)
+
+    # If no strict local minima found, pick the global minimum
+    if not minima_idxs:
+        # choose argmin ignoring NaNs
+        valid = [(i, e) for i, e in enumerate(energies) if not math.isnan(e)]
+        if not valid:
+            raise RuntimeError("No valid energies found along path to select minima")
+        min_idx = min(valid, key=lambda ie: ie[1])[0]
+        minima_idxs = [min_idx]
+
+    return minima_idxs
+
+
+def _optimize_minima_frames(
+    path: list[Atoms],
+    minima_idxs: list[int],
+    explorer: Any | None,
+    fmax: float,
+    steps: int,
+    local_optimizer_name: str,
+) -> list[Atoms]:
+    """Optimize minima frames using local optimizer."""
+    results = []
+
+    # Select optimizer class
+    opt_class = _get_local_optimizer_class(local_optimizer_name)
+
+    for idx in minima_idxs:
+        geom = path[idx]
+        # CRITICAL FIX: Make a copy of atoms before optimization to prevent in-place modifications
+        # that corrupt the coordinate system for subsequent Hessian calculations
+        geom_copy = geom.copy()
+
+        # Attach calculator and apply constraints
+        if explorer is not None:
+            explorer._create_and_attach_calculator(geom_copy)
+            explorer._apply_constraints(geom_copy)
+
+        opt_kwargs = getattr(explorer, "optimizer_kwargs", {}) or {}
+        if local_optimizer_name.lower() == "sella":
+            opt_kwargs = dict(opt_kwargs)
+            opt_kwargs.setdefault("internal", True)
+            opt_kwargs.setdefault("order", 0)
+        elif local_optimizer_name.lower() == "geometric":
+            opt_kwargs = dict(opt_kwargs)
+            opt_kwargs.setdefault("order", 0)
+
+        opt = opt_class(geom_copy, **opt_kwargs)
+        opt.run(fmax=fmax, steps=steps)
+        results.append(geom_copy)
+
+    return results
+
+
 def twoended_minima_runner(
-    atoms_list: Union[Sequence[Atoms], Atoms],
+    atoms_list: Sequence[Atoms] | Atoms,
     npoints: int = 11,
     method: str = "geodesic",
-    explorer: Optional[Any] = None,
+    explorer: Any | None = None,
     fmax: float = 0.05,
     steps: int = 1000,
     local_optimizer_name: str = "sella",
     **kwargs: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Interpolate path and attempt local minima optimizations on low-energy frames.
 
     This runner generates an interpolated path, computes approximate
@@ -479,78 +614,16 @@ def twoended_minima_runner(
     Union[Atoms, List[Atoms]]
         Single optimized geometry for 2 atoms input, list for 3+ atoms input
     """
-    path = path_generator(
-        atoms_list,
-        npoints=npoints,
-        method=method,
-        optimize_path=True,
-        explorer=explorer,
-        **kwargs,
+    # Generate interpolated path
+    path = _generate_interpolated_path(atoms_list, npoints, method, explorer, **kwargs)
+
+    # Find local minima frames
+    minima_idxs = _find_local_minima_frames(path)
+
+    # Optimize minima frames
+    results = _optimize_minima_frames(
+        path, minima_idxs, explorer, fmax, steps, local_optimizer_name
     )
-
-    # Flatten nested segments if needed
-    if path and isinstance(path[0], list):
-        flat = []
-        for seg in path:
-            flat.extend(seg)
-        path = flat
-
-    if len(path) < 1:
-        raise ValueError("Interpolated path is empty; cannot locate minima")
-
-    # Compute energies using Reaction helper
-    reaction = Reaction(path[0], path[-1], calculator=getattr(path[0], "calc", None))
-    energies = reaction.calculate_path_energies(path)
-
-    import math
-
-    # Find local minima indices: energy less than neighbours (handle endpoints)
-    minima_idxs = []
-    for i, e in enumerate(energies):
-        if math.isnan(e):
-            continue
-        left = energies[i - 1] if i - 1 >= 0 else float("inf")
-        right = energies[i + 1] if i + 1 < len(energies) else float("inf")
-        if (not math.isnan(left) and e < left) and (not math.isnan(right) and e < right):
-            minima_idxs.append(i)
-
-    # If no strict local minima found, pick the global minimum
-    if not minima_idxs:
-        # choose argmin ignoring NaNs
-        valid = [(i, e) for i, e in enumerate(energies) if not math.isnan(e)]
-        if not valid:
-            raise RuntimeError("No valid energies found along path to select minima")
-        min_idx = min(valid, key=lambda ie: ie[1])[0]
-        minima_idxs = [min_idx]
-
-    results = []
-
-    # Select optimizer class
-    opt_class = _get_local_optimizer_class(local_optimizer_name)
-
-    for idx in minima_idxs:
-        geom = path[idx]
-        # CRITICAL FIX: Make a copy of atoms before optimization to prevent in-place modifications
-        # that corrupt the coordinate system for subsequent Hessian calculations
-        geom_copy = geom.copy()
-
-        # Attach calculator and apply constraints
-        if explorer is not None:
-            explorer._create_and_attach_calculator(geom_copy)
-            explorer._apply_constraints(geom_copy)
-
-        opt_kwargs = getattr(explorer, "optimizer_kwargs", {}) or {}
-        if local_optimizer_name.lower() == "sella":
-            opt_kwargs = dict(opt_kwargs)
-            opt_kwargs.setdefault("internal", True)
-            opt_kwargs.setdefault("order", 0)
-        elif local_optimizer_name.lower() == "geometric":
-            opt_kwargs = dict(opt_kwargs)
-            opt_kwargs.setdefault("order", 0)
-
-        opt = opt_class(geom_copy, **opt_kwargs)
-        opt.run(fmax=fmax, steps=steps)
-        results.append(geom_copy)
 
     # Filter redundant structures and issue warnings
     if results:
@@ -676,7 +749,7 @@ class BatchNEBOptimizer:
                     f"{method_name} converged after {step + 1} steps (max force: {max_force:.6f})"
                 )
                 if self.climb and self.climbing_image is not None:
-                    logger.info(f"Climbing image was image {self.climbing_image}")
+                    logger.info("Climbing image was image %d", self.climbing_image)
                 break
 
         return self.path
@@ -686,7 +759,7 @@ class BatchNEBOptimizer:
         neb_forces = []
 
         for i in range(len(self.path)):
-            if i == 0 or i == len(self.path) - 1:
+            if i in (0, len(self.path) - 1):
                 # Endpoints: use only spring forces
                 neb_forces.append(self._spring_forces(i))
             else:
@@ -788,12 +861,12 @@ class BatchNEBOptimizer:
 
     def _update_positions(self, forces, step_size=0.01):
         """Update positions using forces."""
-        for i, (atoms, force) in enumerate(zip(self.path, forces)):
+        for i, (atoms, force) in enumerate(zip(self.path, forces, strict=False)):
             atoms.positions += step_size * force
 
 
 def _batch_neb_runner(
-    atoms_list: Union[Sequence[Atoms], Atoms],
+    atoms_list: Sequence[Atoms] | Atoms,
     calculator,
     npoints: int = 11,
     method: str = "geodesic",
@@ -855,16 +928,16 @@ def _batch_neb_runner(
 
 
 def twoended_neb_runner(
-    atoms_list: Union[Sequence[Atoms], Atoms],
+    atoms_list: Sequence[Atoms] | Atoms,
     npoints: int = 11,
     method: str = "geodesic",
-    explorer: Optional[Any] = None,
+    explorer: Any | None = None,
     fmax: float = 0.05,
     steps: int = 1000,
     local_optimizer_name: str = "sella",
     spring_constant: float = 5.0,
     **kwargs: Any,
-) -> List[Atoms]:
+) -> list[Atoms]:
     """Nudged Elastic Band (NEB) optimization using geodesic interpolation.
 
     This runner implements a simple NEB algorithm that:
@@ -998,13 +1071,107 @@ def twoended_neb_runner(
     }
 
 
+def _setup_neb_optimizer(local_optimizer_name: str):
+    """Setup optimizer class for NEB calculations."""
+    try:
+        OptClass = _get_local_optimizer_class(local_optimizer_name)
+    except (ImportError, ValueError, AttributeError) as e:
+        warnings.warn(f"Could not select optimizer '{local_optimizer_name}': {e}")
+        OptClass = BFGS  # Fallback to ASE BFGS
+    return OptClass
+
+
+def _check_batch_support(calculator: Any) -> bool:
+    """Check if calculator supports batch evaluation."""
+    return (
+        calculator is not None
+        and hasattr(calculator, "calculate_batch")
+        and hasattr(calculator, "supports_batch_evaluation")
+        and calculator.supports_batch_evaluation
+    )
+
+
+def _calculate_neb_energies_forces(
+    path: list[Atoms], calculator: Any, supports_batch: bool
+) -> tuple[list[float], list[np.ndarray]]:
+    """Calculate energies and forces for all images in the path."""
+    energies = []
+    forces_list = []
+
+    if supports_batch:
+        # Use batch evaluation for better performance
+        try:
+            batch_results = calculator.calculate_batch(path, properties=["energy", "forces"])
+
+            for result in batch_results:
+                energies.append(result.get("energy", float("inf")))
+                forces_list.append(result.get("forces", np.zeros((len(path[0]), 3))))
+
+        except (RuntimeError, AttributeError, TypeError) as e:
+            warnings.warn(
+                f"Batch evaluation failed, falling back to individual " f"calculations: {e}"
+            )
+            supports_batch = False  # Disable batch for future iterations
+
+    if not supports_batch:
+        # Fallback to individual calculations
+        for atoms in path:
+            energy = atoms.get_potential_energy()
+            forces = atoms.get_forces()
+            energies.append(energy)
+            forces_list.append(forces)
+
+    return energies, forces_list
+
+
+def _check_neb_convergence(forces_list: list[np.ndarray], fmax: float, step: int) -> bool:
+    """Check if NEB optimization has converged."""
+    max_force = max(np.linalg.norm(forces, axis=1).max() for forces in forces_list)
+    if max_force < fmax:
+        logger.info("NEB converged after %d steps (max force: %.6f)", step + 1, max_force)
+        return True
+    return False
+
+
+def _apply_neb_forces(
+    path: list[Atoms], forces_list: list[np.ndarray], energies: list[float], spring_constant: float
+):
+    """Apply NEB forces to path images."""
+    for i in range(1, len(path) - 1):  # Skip endpoints
+        atoms = path[i]
+        forces = forces_list[i].copy()
+
+        # Spring forces
+        spring_force = _calculate_spring_force(path, i, spring_constant, energies)
+
+        # Project forces perpendicular to path (nudging)
+        tangent = _calculate_tangent(path, i, energies)
+        if tangent is not None:
+            # Remove component parallel to tangent
+            parallel_component = np.dot(forces.flatten(), tangent) * tangent
+            forces = forces.flatten() - parallel_component
+            forces = forces.reshape(-1, 3)
+
+        # Add spring forces
+        forces += spring_force
+
+        # Store forces in calculator results (ASE-compatible approach)
+        if atoms.calc is not None:
+            if not hasattr(atoms.calc, "results"):
+                atoms.calc.results = {}
+            atoms.calc.results["forces"] = forces
+        else:
+            # Fallback: store in atoms info for compatibility
+            atoms.info["forces"] = forces
+
+
 def _run_simple_neb(
-    path: List[Atoms],
+    path: list[Atoms],
     spring_constant: float = 5.0,
     fmax: float = 0.05,
     steps: int = 1000,
     local_optimizer_name: str = "sella",
-    explorer: Optional[Any] = None,
+    explorer: Any | None = None,
     **kwargs,
 ):
     """Run a simple NEB optimization on the given path.
@@ -1012,90 +1179,27 @@ def _run_simple_neb(
     This implements a basic NEB algorithm with spring forces and force projection.
     Uses batch evaluation when available for improved performance.
     """
-    import numpy as np
-    from ase.optimize import BFGS
-
-    # Get optimizer class
-    try:
-        OptClass = _get_local_optimizer_class(local_optimizer_name)
-    except Exception as e:
-        warnings.warn(f"Could not select optimizer '{local_optimizer_name}': {e}")
-        OptClass = BFGS  # Fallback to ASE BFGS
+    # Setup optimizer
+    OptClass = _setup_neb_optimizer(local_optimizer_name)
 
     # Check if we can use batch evaluation
     calculator = path[0].calc if path[0].calc is not None else None
-    supports_batch = (
-        calculator is not None
-        and hasattr(calculator, "calculate_batch")
-        and hasattr(calculator, "supports_batch_evaluation")
-        and calculator.supports_batch_evaluation
-    )
+    supports_batch = _check_batch_support(calculator)
 
     if supports_batch:
-        logger.info(f"Using batch evaluation for NEB optimization with {len(path)} images")
+        logger.info("Using batch evaluation for NEB optimization with %d images", len(path))
 
     # NEB optimization loop
     for step in range(steps):
         # Calculate energies and forces for all images
-        energies = []
-        forces_list = []
-
-        if supports_batch:
-            # Use batch evaluation for better performance
-            try:
-                batch_results = calculator.calculate_batch(path, properties=["energy", "forces"])
-
-                for result in batch_results:
-                    energies.append(result.get("energy", float("inf")))
-                    forces_list.append(result.get("forces", np.zeros((len(path[0]), 3))))
-
-            except Exception as e:
-                warnings.warn(
-                    f"Batch evaluation failed, falling back to individual " f"calculations: {e}"
-                )
-                supports_batch = False  # Disable batch for future iterations
-
-        if not supports_batch:
-            # Fallback to individual calculations
-            for atoms in path:
-                energy = atoms.get_potential_energy()
-                forces = atoms.get_forces()
-                energies.append(energy)
-                forces_list.append(forces)
+        energies, forces_list = _calculate_neb_energies_forces(path, calculator, supports_batch)
 
         # Check convergence
-        max_force = max(np.linalg.norm(forces, axis=1).max() for forces in forces_list)
-        if max_force < fmax:
-            logger.info(f"NEB converged after {step + 1} steps (max force: {max_force:.6f})")
+        if _check_neb_convergence(forces_list, fmax, step):
             break
 
         # Apply NEB forces
-        for i in range(1, len(path) - 1):  # Skip endpoints
-            atoms = path[i]
-            forces = forces_list[i].copy()
-
-            # Spring forces
-            spring_force = _calculate_spring_force(path, i, spring_constant, energies)
-
-            # Project forces perpendicular to path (nudging)
-            tangent = _calculate_tangent(path, i, energies)
-            if tangent is not None:
-                # Remove component parallel to tangent
-                parallel_component = np.dot(forces.flatten(), tangent) * tangent
-                forces = forces.flatten() - parallel_component
-                forces = forces.reshape(-1, 3)
-
-            # Add spring forces
-            forces += spring_force
-
-            # Store forces in calculator results (ASE-compatible approach)
-            if atoms.calc is not None:
-                if not hasattr(atoms.calc, "results"):
-                    atoms.calc.results = {}
-                atoms.calc.results["forces"] = forces
-            else:
-                # Fallback: store in atoms info for compatibility
-                atoms.info["forces"] = forces
+        _apply_neb_forces(path, forces_list, energies, spring_constant)
 
         # Optimize each image (except endpoints)
         for i in range(1, len(path) - 1):
@@ -1105,21 +1209,30 @@ def _run_simple_neb(
                 opt_kwargs = {
                     k: v
                     for k, v in kwargs.items()
-                    if k not in ["verbose", "explorer", "local_optimizer_name", "climb"]
+                    if k
+                    not in [
+                        "verbose",
+                        "explorer",
+                        "local_optimizer_name",
+                        "climb",
+                        "product",
+                        "npoints",
+                    ]
                 }
                 opt = OptClass(atoms, **opt_kwargs)
                 opt.run(fmax=fmax, steps=1)  # Single step per iteration
-            except Exception as e:
+            except (RuntimeError, ValueError, AttributeError) as e:
                 warnings.warn(f"Optimization failed for image {i}: {e}")
+
+    return path
 
 
 def _calculate_spring_force(
-    path: List[Atoms], index: int, spring_constant: float, energies: List[float]
+    path: list[Atoms], index: int, spring_constant: float, energies: list[float]
 ) -> np.ndarray:
     """Calculate spring forces for NEB."""
-    import numpy as np
 
-    if index == 0 or index == len(path) - 1:
+    if index in (0, len(path) - 1):
         return np.zeros((len(path[index]), 3))
 
     # Distance between adjacent images
@@ -1135,13 +1248,9 @@ def _calculate_spring_force(
     return spring_prev + spring_next
 
 
-def _calculate_tangent(
-    path: List[Atoms], index: int, energies: List[float]
-) -> Optional[np.ndarray]:
+def _calculate_tangent(path: list[Atoms], index: int, energies: list[float]) -> np.ndarray | None:
     """Calculate tangent vector for NEB force projection."""
-    import numpy as np
-
-    if index == 0 or index == len(path) - 1:
+    if index in (0, len(path) - 1):
         return None
 
     # Use energy-weighted tangent calculation
@@ -1169,17 +1278,17 @@ def _calculate_tangent(
 
 
 def twoended_cineb_runner(
-    atoms_list: Union[Sequence[Atoms], Atoms],
+    atoms_list: Sequence[Atoms] | Atoms,
     npoints: int = 11,
     method: str = "geodesic",
-    explorer: Optional[Any] = None,
+    explorer: Any | None = None,
     fmax: float = 0.05,
     steps: int = 1000,
     local_optimizer_name: str = "sella",
     spring_constant: float = 5.0,
     climb: bool = True,
     **kwargs: Any,
-) -> List[Atoms]:
+) -> list[Atoms]:
     """Climbing Image Nudged Elastic Band (CI-NEB) optimization using geodesic interpolation.
 
     CI-NEB is an improved version of NEB where one image (usually the highest energy)
@@ -1318,14 +1427,121 @@ def twoended_cineb_runner(
     }
 
 
+def _setup_cineb_optimizer(local_optimizer_name: str):
+    """Setup optimizer class for CI-NEB calculations."""
+    try:
+        OptClass = _get_local_optimizer_class(local_optimizer_name)
+    except (ImportError, ValueError, AttributeError) as e:
+        warnings.warn(f"Could not select optimizer '{local_optimizer_name}': {e}")
+        OptClass = BFGS  # Fallback to ASE BFGS
+    return OptClass
+
+
+def _calculate_cineb_energies_forces(
+    path: list[Atoms], calculator: Any, supports_batch: bool
+) -> tuple[list[float], list[np.ndarray]]:
+    """Calculate energies and forces for all images in the CI-NEB path."""
+    energies = []
+    forces_list = []
+
+    if supports_batch:
+        # Use batch evaluation for better performance
+        try:
+            batch_results = calculator.calculate_batch(path, properties=["energy", "forces"])
+
+            for result in batch_results:
+                energies.append(result.get("energy", float("inf")))
+                forces_list.append(result.get("forces", np.zeros((len(path[0]), 3))))
+
+        except (RuntimeError, AttributeError, TypeError) as e:
+            warnings.warn(
+                f"Batch evaluation failed, falling back to individual " f"calculations: {e}"
+            )
+            supports_batch = False  # Disable batch for future iterations
+
+    if not supports_batch:
+        # Fallback to individual calculations
+        for atoms in path:
+            try:
+                energy = atoms.get_potential_energy()
+                forces = atoms.get_forces()
+                energies.append(energy)
+                forces_list.append(forces)
+            except (RuntimeError, ValueError, AttributeError) as e:
+                warnings.warn(f"Failed to calculate energy/forces: {e}")
+                energies.append(float("inf"))
+                forces_list.append(np.zeros((len(atoms), 3)))
+
+    return energies, forces_list
+
+
+def _determine_climbing_image(energies: list[float], climb: bool) -> int | None:
+    """Determine which image should be the climbing image."""
+    if not climb or len(energies) <= 2:
+        return None
+
+    # Find highest energy image (excluding endpoints)
+    valid_energies = [(i, e) for i, e in enumerate(energies[1:-1], 1) if not np.isnan(e)]
+    if not valid_energies:
+        return None
+
+    climbing_image = max(valid_energies, key=lambda x: x[1])[0]
+    return climbing_image
+
+
+def _apply_cineb_forces(
+    path: list[Atoms],
+    forces_list: list[np.ndarray],
+    energies: list[float],
+    spring_constant: float,
+    climbing_image: int | None,
+):
+    """Apply CI-NEB forces to path images."""
+    for i in range(1, len(path) - 1):  # Skip endpoints
+        atoms = path[i]
+        forces = forces_list[i].copy()
+
+        # Spring forces
+        spring_force = _calculate_spring_force(path, i, spring_constant, energies)
+
+        # Project forces perpendicular to path (nudging)
+        tangent = _calculate_tangent(path, i, energies)
+        if tangent is not None:
+            # Remove component parallel to tangent
+            parallel_component = np.dot(forces.flatten(), tangent) * tangent
+            forces = forces.flatten() - parallel_component
+            forces = forces.reshape(-1, 3)
+
+        # Apply climbing image behavior if this is the climbing image
+        if climbing_image == i:
+            # Invert the parallel component for climbing
+            if tangent is not None:
+                parallel_component = np.dot(forces_list[i].flatten(), tangent) * tangent
+                parallel_component = parallel_component.reshape(-1, 3)
+                # Invert parallel component (make it point uphill)
+                forces = forces - 2 * parallel_component
+
+        # Add spring forces
+        forces += spring_force
+
+        # Store forces in calculator results (ASE-compatible approach)
+        if atoms.calc is not None:
+            if not hasattr(atoms.calc, "results"):
+                atoms.calc.results = {}
+            atoms.calc.results["forces"] = forces
+        else:
+            # Fallback: store in atoms info for compatibility
+            atoms.info["forces"] = forces
+
+
 def _run_cineb(
-    path: List[Atoms],
+    path: list[Atoms],
     spring_constant: float = 5.0,
     fmax: float = 0.05,
     steps: int = 1000,
     local_optimizer_name: str = "sella",
     climb: bool = True,
-    explorer: Optional[Any] = None,
+    explorer: Any | None = None,
     **kwargs,
 ):
     """Run a CI-NEB optimization on the given path.
@@ -1333,120 +1549,39 @@ def _run_cineb(
     This implements a CI-NEB algorithm with spring forces, force projection,
     and climbing image behavior. Uses batch evaluation when available for improved performance.
     """
-    import numpy as np
-    from ase.optimize import BFGS
-
-    # Get optimizer class
-    try:
-        OptClass = _get_local_optimizer_class(local_optimizer_name)
-    except Exception as e:
-        warnings.warn(f"Could not select optimizer '{local_optimizer_name}': {e}")
-        OptClass = BFGS  # Fallback to ASE BFGS
+    # Setup optimizer
+    OptClass = _setup_cineb_optimizer(local_optimizer_name)
 
     # Check if we can use batch evaluation
     calculator = path[0].calc if path[0].calc is not None else None
-    supports_batch = (
-        calculator is not None
-        and hasattr(calculator, "calculate_batch")
-        and hasattr(calculator, "supports_batch_evaluation")
-        and calculator.supports_batch_evaluation
-    )
+    supports_batch = _check_batch_support(calculator)
 
     if supports_batch:
-        logger.info(f"Using batch evaluation for CI-NEB optimization with {len(path)} images")
+        logger.info("Using batch evaluation for CI-NEB optimization with %d images", len(path))
 
     climbing_image = None
     logger.info(
-        f"Starting CI-NEB optimization with {len(path)} images "
-        f"(climb={'enabled' if climb else 'disabled'})"
+        "Starting CI-NEB optimization with %d images (climb=%s)",
+        len(path),
+        "enabled" if climb else "disabled",
     )
 
     # CI-NEB optimization loop
     for step in range(steps):
         # Calculate energies and forces for all images
-        energies = []
-        forces_list = []
+        energies, forces_list = _calculate_cineb_energies_forces(path, calculator, supports_batch)
 
-        if supports_batch:
-            # Use batch evaluation for better performance
-            try:
-                batch_results = calculator.calculate_batch(path, properties=["energy", "forces"])
-
-                for result in batch_results:
-                    energies.append(result.get("energy", float("inf")))
-                    forces_list.append(result.get("forces", np.zeros((len(path[0]), 3))))
-
-            except Exception as e:
-                warnings.warn(
-                    f"Batch evaluation failed, falling back to individual " f"calculations: {e}"
-                )
-                supports_batch = False  # Disable batch for future iterations
-
-        if not supports_batch:
-            # Fallback to individual calculations
-            for atoms in path:
-                try:
-                    energy = atoms.get_potential_energy()
-                    forces = atoms.get_forces()
-                    energies.append(energy)
-                    forces_list.append(forces)
-                except Exception as e:
-                    warnings.warn(f"Failed to calculate energy/forces: {e}")
-                    energies.append(float("inf"))
-                    forces_list.append(np.zeros((len(atoms), 3)))
-
-        # Determine climbing image (highest energy image, excluding endpoints)
-        if climb and len(energies) > 2:
-            valid_energies = [(i, e) for i, e in enumerate(energies[1:-1], 1) if not np.isnan(e)]
-            if valid_energies:
-                climbing_image = max(valid_energies, key=lambda x: x[1])[0]
-            else:
-                climbing_image = None
+        # Determine climbing image
+        climbing_image = _determine_climbing_image(energies, climb)
 
         # Check convergence
-        max_force = max(np.linalg.norm(forces, axis=1).max() for forces in forces_list)
-        if max_force < fmax:
-            logger.info(f"CI-NEB converged after {step + 1} steps (max force: {max_force:.6f})")
+        if _check_neb_convergence(forces_list, fmax, step):
             if climbing_image is not None:
-                logger.info(f"Climbing image was image {climbing_image}")
+                logger.info("Climbing image was image %d", climbing_image)
             break
 
         # Apply CI-NEB forces
-        for i in range(1, len(path) - 1):  # Skip endpoints
-            atoms = path[i]
-            forces = forces_list[i].copy()
-
-            # Spring forces
-            spring_force = _calculate_spring_force(path, i, spring_constant, energies)
-
-            # Project forces perpendicular to path (nudging)
-            tangent = _calculate_tangent(path, i, energies)
-            if tangent is not None:
-                # Remove component parallel to tangent
-                parallel_component = np.dot(forces.flatten(), tangent) * tangent
-                forces = forces.flatten() - parallel_component
-                forces = forces.reshape(-1, 3)
-
-            # Apply climbing image behavior if this is the climbing image
-            if climb and climbing_image == i:
-                # Invert the parallel component for climbing
-                if tangent is not None:
-                    parallel_component = np.dot(forces_list[i].flatten(), tangent) * tangent
-                    parallel_component = parallel_component.reshape(-1, 3)
-                    # Invert parallel component (make it point uphill)
-                    forces = forces - 2 * parallel_component
-
-            # Add spring forces
-            forces += spring_force
-
-            # Store forces in calculator results (ASE-compatible approach)
-            if atoms.calc is not None:
-                if not hasattr(atoms.calc, "results"):
-                    atoms.calc.results = {}
-                atoms.calc.results["forces"] = forces
-            else:
-                # Fallback: store in atoms info for compatibility
-                atoms.info["forces"] = forces
+        _apply_cineb_forces(path, forces_list, energies, spring_constant, climbing_image)
 
         # Optimize each image (except endpoints)
         for i in range(1, len(path) - 1):
@@ -1456,12 +1591,22 @@ def _run_cineb(
                 opt_kwargs = {
                     k: v
                     for k, v in kwargs.items()
-                    if k not in ["verbose", "explorer", "local_optimizer_name", "climb"]
+                    if k
+                    not in [
+                        "verbose",
+                        "explorer",
+                        "local_optimizer_name",
+                        "climb",
+                        "product",
+                        "npoints",
+                    ]
                 }
                 opt = OptClass(atoms, **opt_kwargs)
                 opt.run(fmax=fmax, steps=1)  # Single step per iteration
-            except Exception as e:
+            except (RuntimeError, ValueError, AttributeError) as e:
                 warnings.warn(f"Optimization failed for image {i}: {e}")
+
+    return path
 
 
 __all__.append("twoended_minima_runner")

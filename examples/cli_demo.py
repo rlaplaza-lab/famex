@@ -23,7 +23,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 # Disable ASE GUI to prevent popup windows
 os.environ["DISPLAY"] = ""
@@ -38,7 +37,7 @@ except ImportError:
     sys.exit(1)
 
 
-def print_backend_summary(backends: List[str], title: str = "Available Backends"):
+def print_backend_summary(backends: list[str], title: str = "Available Backends"):
     """Print a formatted summary of backends."""
     print(f"\n📋 {title}")
     print("-" * 50)
@@ -47,7 +46,7 @@ def print_backend_summary(backends: List[str], title: str = "Available Backends"
     print(f"Total: {len(backends)} backends")
 
 
-def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]:
+def run_command(cmd, desc, backend, timeout=600) -> tuple[bool, float, str, str]:
     """Run a CLI command and report results."""
     print(f"\n{'=' * 60}")
     print(f"Backend: {backend.upper()}")
@@ -101,7 +100,7 @@ def run_command(cmd, desc, backend, timeout=600) -> Tuple[bool, float, str, str]
         return False, 0.0, "", str(e)
 
 
-def create_example_commands(example_files: Path, backend: str, steps: int = 500) -> List[Dict]:
+def create_example_commands(example_files: Path, backend: str, steps: int = 500) -> list[dict]:
     """Create example commands for a specific backend using default settings."""
     return [
         {
@@ -240,7 +239,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
     ]
 
 
-def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
+def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
     """Demonstrate QME CLI with commands using default settings."""
 
     if interface is None:
@@ -248,34 +247,23 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
 
     interface.print_header("Testing: opt, tsopt, two-ended, NEB, and CI-NEB commands")
 
-    # Ensure no config file interferes with defaults
-    config_file = Path("qme.json")
-    if config_file.exists():
-        print("\nFound qme.json config file - temporarily moving it for pure defaults test")
-        config_file.rename("qme.json.temp")
-        print("Using built-in defaults only")
-
     # Get available ML backends
-    try:
-        if backends:
-            available_backends = interface.filter_available_backends(backends, verbose=True)
-        else:
-            available_backends = interface.get_available_ml_backends()
+    if backends:
+        available_backends = interface.filter_available_backends(backends, verbose=True)
+    else:
+        available_backends = interface.get_available_ml_backends()
 
-        if not available_backends:
-            interface.print_error("No ML backends available for comparison.")
-            print("Please install at least one ML backend:")
-            print("  - UMA: pip install fairchem-core")
-            print("  - MACE: pip install mace-torch")
-            print("  - AIMNet2: pip install aimnet2")
-            print("  - SO3LR: pip install so3lr")
-            print("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
-            return False
-
-        interface.print_backend_summary(available_backends, "Testing Backends")
-    except Exception as e:
-        interface.print_error(f"Error detecting backends: {e}")
+    if not available_backends:
+        interface.print_error("No ML backends available for comparison.")
+        print("Please install at least one ML backend:")
+        print("  - UMA: pip install fairchem-core")
+        print("  - MACE: pip install mace-torch")
+        print("  - AIMNet2: pip install aimnet2")
+        print("  - SO3LR: pip install so3lr")
+        print("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
         return False
+
+    interface.print_backend_summary(available_backends, "Testing Backends")
 
     # Ensure we're in the right directory structure
     examples_dir = Path("examples")
@@ -402,13 +390,7 @@ def demo_cli(backends: List[str] = None, interface: QMEExampleInterface = None):
 
     success_rate = total_successful / total_tests if total_tests > 0 else 0
 
-    # Restore config file if it was moved
-    temp_config = Path("qme.json.temp")
-    if temp_config.exists():
-        temp_config.rename("qme.json")
-        print("\nRestored qme.json config file")
-
-    if success_rate > 0.7:  # 70% success rate threshold
+    if success_rate >= 0.8:
         print("\n✅ Overall demo successful! CLI commands working properly.")
         return True
     else:

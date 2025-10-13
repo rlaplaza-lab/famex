@@ -1,6 +1,6 @@
 """Calculator creation and management."""
 
-from typing import Any, Optional
+from typing import Any
 
 from qme.calculator_registry import calculator_registry
 from qme.potentials.calculator_cache import cache_calculator, get_cached_calculator
@@ -8,13 +8,13 @@ from qme.potentials.calculator_cache import cache_calculator, get_cached_calcula
 
 def create_calculator(
     backend: str,
-    model_name: Optional[str],
-    model_path: Optional[str],
-    device: Optional[str],
+    model_name: str | None,
+    model_path: str | None,
+    device: str | None,
     default_charge: int,
     default_spin: int,
-    charge: Optional[int] = None,
-    mult: Optional[int] = None,
+    charge: int | None = None,
+    mult: int | None = None,
     use_cache: bool = True,
     verbose: int = 1,
 ) -> Any:

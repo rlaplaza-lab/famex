@@ -12,7 +12,7 @@ Based on ASE's Vibrations class but extended for QME functionality with automati
 method selection and enhanced calculator integration.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from ase import Atoms, units
@@ -44,8 +44,8 @@ class FrequencyAnalysis:
         atoms: Atoms,
         calculator: Any,
         delta: float = 0.01,
-        nfree: Optional[int] = None,
-        indices: Optional[List[int]] = None,
+        nfree: int | None = None,
+        indices: list[int] | None = None,
     ) -> None:
         """
         Initialize frequency analysis.
@@ -124,7 +124,7 @@ class FrequencyAnalysis:
 
         # Moment of inertia tensor
         inertia_tensor = np.zeros((3, 3))
-        for i, (pos, mass) in enumerate(zip(positions_centered, masses)):
+        for i, (pos, mass) in enumerate(zip(positions_centered, masses, strict=False)):
             inertia_tensor += mass * (np.dot(pos, pos) * np.eye(3) - np.outer(pos, pos))
 
         # Eigenvalues of moment of inertia tensor
@@ -221,14 +221,14 @@ class FrequencyAnalysis:
         hessian = np.zeros((3 * n_atoms, 3 * n_atoms))
 
         # Get reference energy and forces
-        ref_energy = batch_results[0]["energy"]
-        ref_forces = batch_results[0]["forces"]
+        # ref_energy = batch_results[0]["energy"]  # Unused for now
+        # ref_forces = batch_results[0]["forces"]  # Unused for now
 
         # Calculate Hessian using finite differences
         result_idx = 1  # Start from index 1 (skip reference structure)
 
         for i in range(n_atoms):
-            atom_idx = self.indices[i]
+            # atom_idx = self.indices[i]  # Unused for now
             for j in range(3):  # x, y, z directions
                 # Positive displacement
                 pos_forces = batch_results[result_idx]["forces"]
@@ -304,7 +304,7 @@ class FrequencyAnalysis:
         else:
             return self.calculator.calculate_hessian(self.atoms)
 
-    def diagonalize_hessian(self) -> Tuple[np.ndarray, np.ndarray]:
+    def diagonalize_hessian(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Diagonalize mass-weighted Hessian to get normal modes and frequencies.
 
@@ -412,7 +412,7 @@ class FrequencyAnalysis:
 
         return self._normal_modes[:, self.nfree :]
 
-    def is_transition_state(self, threshold: float = 50.0) -> Dict[str, Any]:
+    def is_transition_state(self, threshold: float = 50.0) -> dict[str, Any]:
         """
         Check if structure is a transition state (exactly one imaginary frequency).
 
@@ -461,7 +461,7 @@ class FrequencyAnalysis:
 
     def is_minima(
         self, threshold: float = 50.0, small_negative_cutoff: float = -10.0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Check if structure is a minimum (no significant imaginary frequencies).
 
@@ -566,7 +566,7 @@ class FrequencyAnalysis:
         self._zero_point_energy = zpe
         return zpe
 
-    def get_thermodynamic_properties(self, temperature: float = 298.15) -> Dict[str, float]:
+    def get_thermodynamic_properties(self, temperature: float = 298.15) -> dict[str, float]:
         """
         Calculate thermodynamic properties at given temperature.
 
@@ -613,7 +613,7 @@ class FrequencyAnalysis:
     def write_mode_trajectory(
         self,
         mode_index: int,
-        filename: Optional[str] = None,
+        filename: str | None = None,
         amplitude: float = 1.0,
         nframes: int = 20,
     ) -> None:
@@ -671,7 +671,7 @@ class HessianCalculator:
         calculator,
         delta: float = 0.01,
         method: str = "central",
-        indices: Optional[List[int]] = None,
+        indices: list[int] | None = None,
     ):
         """
         Initialize Hessian calculator.
@@ -947,14 +947,14 @@ class BatchFrequencyAnalysis(FrequencyAnalysis):
         hessian = np.zeros((3 * n_atoms, 3 * n_atoms))
 
         # Get reference energy and forces
-        ref_energy = batch_results[0]["energy"]
-        ref_forces = batch_results[0]["forces"]
+        # ref_energy = batch_results[0]["energy"]  # Unused for now
+        # ref_forces = batch_results[0]["forces"]  # Unused for now
 
         # Calculate Hessian using finite differences
         result_idx = 1  # Start from index 1 (skip reference structure)
 
         for i in range(n_atoms):
-            atom_idx = self.indices[i]
+            # atom_idx = self.indices[i]  # Unused for now
             for j in range(3):  # x, y, z directions
                 # Positive displacement
                 pos_forces = batch_results[result_idx]["forces"]

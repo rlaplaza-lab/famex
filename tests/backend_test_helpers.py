@@ -95,8 +95,6 @@ def backend_test_with_warnings(
     return decorator
 
 
-
-
 # Utility function for existing tests
 def run_backend_test_with_warnings(
     test_func: Callable,

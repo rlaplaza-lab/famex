@@ -17,9 +17,9 @@ Implementation notes:
 - Default two-ended runners live in ``qme.core.twoended_strategies``
 """
 
-import warnings
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -35,11 +35,91 @@ from qme.core.twoended_strategies import (
     twoended_neb_runner,
     twoended_ts_guess_runner,
 )
-from qme.core.validation import validate_minima_run, validate_path_run, validate_ts_run
+from qme.core.validation import (
+    STRATEGY_CINEB,
+    STRATEGY_INTERPOLATE,
+    STRATEGY_LOCAL,
+    STRATEGY_NEB,
+    TARGET_MINIMA,
+    TARGET_PATH,
+    TARGET_TS,
+    normalize_strategy,
+    normalize_target,
+    prepare_atoms_list,
+    validate_minima_run,
+    validate_path_run,
+    validate_target_strategy_combination,
+    validate_ts_run,
+)
+
+
+def _extract_charge_spin(
+    atoms: Atoms, default_charge: int = 0, default_spin: int = 1
+) -> tuple[int, int]:
+    """Extract charge and spin from atoms object.
+
+    Precedence: atoms.charge/atoms.mult > atoms.info['charge']/atoms.info['spin'] > defaults
+
+    Parameters
+    ----------
+    atoms : Atoms
+        The atoms object to extract charge/spin from
+    default_charge : int
+        Default charge if not found
+    default_spin : int
+        Default spin if not found
+
+    Returns
+    -------
+    tuple[int, int]
+        (charge, spin) tuple
+    """
+    charge = None
+    spin = None
+
+    # Check for attributes first (highest priority)
+    if hasattr(atoms, "charge"):
+        try:
+            charge = int(atoms.charge)
+        except (ValueError, TypeError):
+            charge = None
+
+    if hasattr(atoms, "mult"):
+        try:
+            spin = int(atoms.mult)
+        except (ValueError, TypeError):
+            spin = None
+
+    # Check atoms.info (medium priority)
+    if hasattr(atoms, "info") and atoms.info is not None:
+        if charge is None and "charge" in atoms.info:
+            try:
+                charge = int(atoms.info.get("charge"))
+            except (ValueError, TypeError):
+                pass
+
+        if spin is None and "spin" in atoms.info:
+            try:
+                spin = int(atoms.info.get("spin"))
+            except (ValueError, TypeError):
+                pass
+
+    # Use defaults if still None
+    if charge is None:
+        charge = default_charge
+    if spin is None:
+        spin = default_spin
+
+    return charge, spin
 
 
 class Explorer:
     """Explorer runs optimizations/TS searches on one or more Atoms.
+
+    The Explorer provides a clear semantic interface for quantum chemistry calculations:
+
+    - **target**: What you want to obtain (minima, ts, path)
+    - **strategy**: How to get there (local, neb, cineb, interpolate)
 
     Parameters
     ----------
@@ -58,9 +138,8 @@ class Explorer:
     optimizer_kwargs
         Keyword arguments forwarded to local minima optimizer.
     strategy, target
-        High-level run selection. ``strategy`` is typically ``local`` or
-        ``two-ended``; ``target`` can be ``minima``, ``ts``, or ``path``.
-        Use ``path`` for NEB/CI-NEB trajectory optimization.
+        High-level run selection. ``target`` specifies what you want (minima, ts, path).
+        ``strategy`` specifies how to get there (local, neb, cineb, interpolate).
     ts_kwargs
         Keyword arguments forwarded to the local TS optimizer.
     constraints
@@ -76,45 +155,105 @@ class Explorer:
       defaults when creating calculators.
     - Use :meth:`list_strategies` to discover available runners and their
       descriptions.
-    - For path optimization (NEB/CI-NEB), use ``target="path"`` and specify
-      ``mode="neb"`` or ``mode="cineb"`` in the run method. This will return
-      a list of Atoms objects representing the complete reaction pathway.
 
-    Strategy Selection Matrix:
-    ┌──────────────┬──────────┬─────────────────────┐
-    │ strategy     │ target   │ Runner Selected     │
-    ├──────────────┼──────────┼─────────────────────┤
-    │ local        │ minima   │ local_minima_runner │
-    │ local        │ ts       │ local_ts_runner     │
-    │ two-ended    │ minima   │ twoended_minima_*   │
-    │ two-ended    │ ts       │ twoended_ts_*       │
-    │ two-ended    │ path     │ twoended_neb/cineb  │
-    └──────────────┴──────────┴─────────────────────┘
+    Migration Guide
+    ---------------
+    The Explorer API has been updated with clearer target/strategy semantics:
+
+    **Old API (still supported via aliases):**
+    ```python
+    # Old two-ended approach
+    explorer = Explorer(atoms, strategy="two-ended", target="path")
+    result = explorer.run(mode="neb")
+
+    # Old local approach
+    explorer = Explorer(atoms, strategy="local", target="minima")
+    result = explorer.run(mode="minima")
+    ```
+
+    **New API (recommended):**
+    ```python
+    # Clear target/strategy semantics
+    explorer = Explorer(atoms, target="path", strategy="neb")
+    result = explorer.run(mode="neb")
+
+    explorer = Explorer(atoms, target="minima", strategy="local")
+    result = explorer.run(mode="minima")
+    ```
+
+    **Key Changes:**
+    - ``target``: What you want (minima, ts, path)
+    - ``strategy``: How to get there (local, neb, cineb, interpolate)
+    - Old ``strategy="two-ended"`` → New ``strategy="interpolate"`` or ``"neb"`` or ``"cineb"``
+    - Backward compatibility maintained through aliases
+
+    Examples
+    --------
+    >>> # Minima optimization (local is default)
+    >>> explorer = Explorer(atoms, target="minima")
+    >>> result = explorer.run()
+
+    >>> # TS from local search
+    >>> explorer = Explorer(atoms, target="ts", strategy="local")
+    >>> result = explorer.run()
+
+    >>> # TS from interpolated guess between reactant/product
+    >>> explorer = Explorer(atoms=[reactant, product], target="ts", strategy="interpolate")
+    >>> result = explorer.run()
+
+    >>> # Reaction path with NEB
+    >>> explorer = Explorer(atoms=[reactant, product], target="path", strategy="neb")
+    >>> result = explorer.run()
+
+    >>> # Reaction path with CI-NEB
+    >>> explorer = Explorer(atoms=[reactant, product], target="path", strategy="cineb")
+    >>> result = explorer.run()
+
+    >>> # Generate interpolated path only (no optimization)
+    >>> explorer = Explorer(atoms=[reactant, product], target="path", strategy="interpolate")
+    >>> result = explorer.run(npoints=10)
+
+    Target/Strategy Matrix:
+    ┌──────────┬─────────────┬─────────────────────────────────┐
+    │ target   │ strategy    │ Description                     │
+    ├──────────┼─────────────┼─────────────────────────────────┤
+    │ minima   │ local       │ Direct local optimization       │
+    │ minima   │ interpolate │ Minima from interpolated path   │
+    │ ts       │ local       │ Local TS search                 │
+    │ ts       │ interpolate │ TS guess from interpolation     │
+    │ path     │ neb         │ NEB path optimization           │
+    │ path     │ cineb       │ CI-NEB path optimization        │
+    │ path     │ interpolate │ Generate path only (no opt)     │
+    └──────────┴─────────────┴─────────────────────────────────┘
     """
+
+    # =============================================================================
+    # Initialization
+    # =============================================================================
 
     def __init__(
         self,
-        atoms: Union[Atoms, Sequence[Atoms]],
+        atoms: Atoms | Sequence[Atoms],
         backend: str = "uma",
-        model_name: Optional[str] = None,
-        model_path: Optional[str] = None,
-        device: Optional[str] = None,
+        model_name: str | None = None,
+        model_path: str | None = None,
+        device: str | None = None,
         default_charge: int = 0,
         default_spin: int = 1,
         local_optimizer: str = "sella",
-        optimizer_kwargs: Optional[Dict[str, Any]] = None,
-        strategy: Optional[str] = "local",
-        target: Optional[str] = "minima",
-        mode: Optional[str] = None,
-        ts_method: Optional[str] = None,
-        ts_kwargs: Optional[Dict[str, Any]] = None,
-        constraints: Optional[Union[str, List, Dict]] = None,
-        initial_hessian: Optional[np.ndarray] = None,
+        optimizer_kwargs: dict[str, Any] | None = None,
+        strategy: str | None = "local",
+        target: str | None = "minima",
+        mode: str | None = None,
+        ts_method: str | None = None,
+        ts_kwargs: dict[str, Any] | None = None,
+        constraints: str | list | dict | None = None,
+        initial_hessian: np.ndarray | None = None,
         auto_register: bool = True,
         verbose: int = 1,
     ) -> None:
         if isinstance(atoms, Atoms):
-            self.atoms_list: List[Atoms] = [atoms]
+            self.atoms_list: list[Atoms] = [atoms]
         else:
             self.atoms_list = list(atoms)
 
@@ -147,67 +286,13 @@ class Explorer:
         self.initial_hessian = initial_hessian
 
         # Auto-register default strategies unless caller opts out
-        if getattr(self, "_strategies", None) is None:
-            self._strategies: Dict[str, Any] = {}
+        if auto_register:
+            self._register_default_strategies()
 
-        # Register default strategies. Local minima is always available.
-        self.register_strategy(
-            "minima",
-            local_minima_runner,
-            strategy_type="local",
-            description="Local minima optimization (ASE/LBFGS or SELLA)",
-            aliases=["local:minima", "local-minima"],
-        )
+    # =============================================================================
+    # Calculator & Constraints Management
+    # =============================================================================
 
-        # Register local TS runner
-        self.register_strategy(
-            "ts",
-            local_ts_runner,
-            strategy_type="local",
-            description="Local transition-state optimization (SELLA preferred)",
-            aliases=["local:ts", "local-ts"],
-        )
-
-        # Two-ended runners are available
-        self.register_strategy(
-            "twoended:ts",
-            twoended_ts_guess_runner,
-            strategy_type="two-ended",
-            description="Two-ended TS guess via interpolation with local TS refinement",
-            aliases=["twoended:ts", "twoended-ts"],
-        )
-        self.register_strategy(
-            "twoended:minima",
-            twoended_minima_runner,
-            strategy_type="two-ended",
-            description="Two-ended minima optimization on low-energy frames",
-            aliases=["twoended:minima", "twoended-minima"],
-        )
-        self.register_strategy(
-            "twoended:neb",
-            twoended_neb_runner,
-            strategy_type="two-ended",
-            description="NEB path optimization with geodesic interpolation",
-            aliases=["twoended:neb", "twoended-neb"],
-        )
-        self.register_strategy(
-            "twoended:cineb",
-            twoended_cineb_runner,
-            strategy_type="two-ended",
-            description="Climbing Image NEB (CI-NEB) optimization with geodesic interpolation",
-            aliases=["twoended:cineb", "twoended-cineb", "cineb"],
-        )
-
-        # General path optimization strategy that dispatches based on mode
-        self.register_strategy(
-            "twoended:path",
-            self._twoended_path_runner,
-            strategy_type="two-ended",
-            description="Path optimization (NEB or CI-NEB) with geodesic interpolation",
-            aliases=["twoended:path", "twoended-path", "path"],
-        )
-
-    # --- Backend and constraints helpers
     def _get_effective_model_name(self) -> str:
         """Get the effective model name that will actually be used by the backend.
 
@@ -221,9 +306,7 @@ class Explorer:
             return "uma-s-1p1"
         elif self.backend.lower() == "aimnet2":
             return "aimnet2"
-        elif self.backend.lower() == "mace":
-            return "mace-omol-0"
-        elif self.backend.lower() == "torchsim_mace":
+        elif self.backend.lower() == "mace" or self.backend.lower() == "torchsim_mace":
             return "mace-omol-0"
         elif self.backend.lower() == "torchsim_uma":
             return "uma-s-1p1"
@@ -241,45 +324,14 @@ class Explorer:
         Prefers explicit ``charge``/``mult`` found on Geometry-like objects or
         in ``atoms.info``. Falls back to the Explorer defaults otherwise.
         """
-        geom_charge = None
-        geom_mult = None
-
-        # Some Geometry subclasses store as attributes `charge` and `mult`.
-        if hasattr(atoms, "charge"):
-            try:
-                geom_charge = int(getattr(atoms, "charge"))
-            except Exception:
-                geom_charge = None
-        if hasattr(atoms, "mult"):
-            try:
-                geom_mult = int(getattr(atoms, "mult"))
-            except Exception:
-                geom_mult = None
-
-        # ASE Atoms may store info in atoms.info (e.g. calculators expect
-        # 'charge' and 'spin' keys). Use those if present unless Geometry
-        # attributes override them.
-        if getattr(atoms, "info", None) is not None:
-            if "charge" in atoms.info and geom_charge is None:
-                try:
-                    geom_charge = int(atoms.info.get("charge"))
-                except Exception:
-                    geom_charge = geom_charge
-            if "spin" in atoms.info and geom_mult is None:
-                try:
-                    geom_mult = int(atoms.info.get("spin"))
-                except Exception:
-                    geom_mult = geom_mult
+        # Extract charge and spin using helper function
+        charge, spin = _extract_charge_spin(atoms, self.default_charge, self.default_spin)
 
         # Ensure atoms.info contains values so calculators that read
         # atoms.info (UMA, SO3LR, etc.) see the intended settings.
         if getattr(atoms, "info", None) is not None:
-            if "charge" not in atoms.info:
-                atoms.info["charge"] = (
-                    geom_charge if geom_charge is not None else self.default_charge
-                )
-            if "spin" not in atoms.info:
-                atoms.info["spin"] = geom_mult if geom_mult is not None else self.default_spin
+            atoms.info.setdefault("charge", charge)
+            atoms.info.setdefault("spin", spin)
 
         # Show model initialization info when creating the first calculator
         if not hasattr(self, "_calculator_created"):
@@ -297,8 +349,8 @@ class Explorer:
             device=self.device,
             default_charge=self.default_charge,
             default_spin=self.default_spin,
-            charge=geom_charge,
-            mult=geom_mult,
+            charge=charge,
+            mult=spin,
         )
         atoms.calc = calc
         return calc
@@ -312,13 +364,105 @@ class Explorer:
             return []
         return parse_constraints(self.constraints_spec, atoms, verbose=False)
 
+    # =============================================================================
+    # Strategy Management
+    # =============================================================================
+
+    def _register_default_strategies(self) -> None:
+        """Register default strategies with new target:strategy naming scheme.
+
+        This method registers all the default strategies using the new semantic
+        naming scheme where strategies are named as "target:strategy". This provides
+        clear separation between what you want (target) and how to get it (strategy).
+
+        Registered Strategies:
+        ---------------------
+        Local Strategies:
+        - "minima:local" - Direct local minima optimization
+        - "ts:local" - Direct local transition state optimization
+
+        Interpolation Strategies:
+        - "ts:interpolate" - TS guess from interpolated path with local TS refinement
+        - "minima:interpolate" - Minima optimization on interpolated path frames
+
+        Path Strategies:
+        - "path:neb" - NEB path optimization with geodesic interpolation
+        - "path:cineb" - CI-NEB path optimization with geodesic interpolation
+        - "path:interpolate" - Generate interpolated path only (no optimization)
+
+        Each strategy includes aliases for backward compatibility with the old API.
+        """
+        # Initialize strategies dict if not exists
+        if not hasattr(self, "_strategies"):
+            self._strategies: dict[str, Any] = {}
+
+        # Local strategies
+        self.register_strategy(
+            "minima:local",
+            local_minima_runner,
+            strategy_type="local",
+            description="Local minima optimization (ASE/LBFGS or SELLA)",
+            aliases=["minima", "local:minima", "local-minima"],
+        )
+
+        self.register_strategy(
+            "ts:local",
+            local_ts_runner,
+            strategy_type="local",
+            description="Local transition-state optimization (SELLA preferred)",
+            aliases=["ts", "local:ts", "local-ts"],
+        )
+
+        # Interpolation strategies
+        self.register_strategy(
+            "ts:interpolate",
+            twoended_ts_guess_runner,
+            strategy_type="two-ended",
+            description="TS guess via interpolation with local TS refinement",
+            aliases=["twoended:ts", "twoended-ts"],
+        )
+
+        self.register_strategy(
+            "minima:interpolate",
+            twoended_minima_runner,
+            strategy_type="two-ended",
+            description="Minima optimization on interpolated path frames",
+            aliases=["twoended:minima", "twoended-minima"],
+        )
+
+        # Path strategies
+        self.register_strategy(
+            "path:neb",
+            twoended_neb_runner,
+            strategy_type="two-ended",
+            description="NEB path optimization with geodesic interpolation",
+            aliases=["twoended:neb", "twoended-neb", "neb"],
+        )
+
+        self.register_strategy(
+            "path:cineb",
+            twoended_cineb_runner,
+            strategy_type="two-ended",
+            description="Climbing Image NEB (CI-NEB) optimization with geodesic interpolation",
+            aliases=["twoended:cineb", "twoended-cineb", "cineb"],
+        )
+
+        # General path optimization strategy that dispatches based on mode
+        self.register_strategy(
+            "path:interpolate",
+            self._twoended_path_runner,
+            strategy_type="two-ended",
+            description="Generate interpolated path only (no optimization)",
+            aliases=["twoended:path", "twoended-path", "path"],
+        )
+
     def register_strategy(
         self,
         name: str,
         func: Callable[..., Any],
         strategy_type: str = "global",
-        description: Optional[str] = None,
-        aliases: Optional[List[str]] = None,
+        description: str | None = None,
+        aliases: list[str] | None = None,
     ) -> None:
         """Register a strategy/runner callable under a name.
 
@@ -344,7 +488,7 @@ class Explorer:
         None
         """
         if not hasattr(self, "_strategies"):
-            self._strategies: Dict[str, Any] = {}
+            self._strategies: dict[str, Any] = {}
         # Normalize strategy_type to one of the supported kinds
         stype = (strategy_type or "").strip().lower()
         if stype in ("local", "one-ended", "oneended", "one_ended"):
@@ -363,9 +507,9 @@ class Explorer:
             for alias in aliases:
                 self._strategies[alias] = entry
 
-    def list_strategies(self, kind: Optional[str] = None) -> Dict[str, Dict[str, str]]:
+    def list_strategies(self, kind: str | None = None) -> dict[str, dict[str, str]]:
         """List available strategies; optionally filter by kind."""
-        out: Dict[str, Dict[str, str]] = {}
+        out: dict[str, dict[str, str]] = {}
         for key, meta in getattr(self, "_strategies", {}).items():
             if kind is None or meta.get("type") == kind:
                 out[key] = {
@@ -374,109 +518,177 @@ class Explorer:
                 }
         return out
 
-    def _normalize_strategy_params(self, mode: Optional[str] = None) -> tuple[str, str]:
-        """Normalize strategy parameters to standard form.
+    # =============================================================================
+    # Target/Strategy Resolution and Selection
+    # =============================================================================
 
-        Returns
-        -------
-        tuple[str, str]
-            (effective_mode, effective_strategy)
-        """
-        # Decide effective mode: explicit call-time mode overrides instance target
-        effective_mode = (mode or self.target or "minima").strip().lower()
+    def _resolve_target_and_strategy(self, mode: str | None = None) -> tuple[str, str]:
+        """Resolve target and strategy with clear precedence rules.
 
-        # Normalize strategy name - auto-infer from target if not explicitly set
-        st = (self.strategy or "").strip().lower()
-        if st in ("two-ended", "two_ended", "twoended", "two"):
-            effective_strategy = "two-ended"
-        elif self.target and self.target.strip().lower() in (
-            "path",
-            "neb",
-            "cineb",
-            "climbing-image-neb",
-            "ci-neb",
-        ):
-            # Auto-infer two-ended strategy for path-related targets
-            effective_strategy = "two-ended"
-        elif effective_mode in ("neb", "cineb", "path", "interpolate"):
-            # Auto-infer two-ended strategy for path-related modes
-            effective_strategy = "two-ended"
-        else:
-            effective_strategy = "local"
-
-        return effective_mode, effective_strategy
-
-    def _select_strategy(self, effective_mode: str, effective_strategy: str) -> tuple[str, str]:
-        """Select the appropriate strategy runner based on mode and strategy.
+        This method determines the final target and strategy to use based on:
+        1. Runtime mode parameter (highest priority)
+        2. Instance target and strategy parameters
+        3. Smart defaults based on context
 
         Parameters
         ----------
-        effective_mode : str
-            Normalized mode (minima, ts, neb, etc.)
-        effective_strategy : str
-            Normalized strategy (local, two-ended)
+        mode : str, optional
+            Runtime mode parameter that can override instance settings.
+            Can be a target (minima, ts, path) or strategy (local, neb, cineb, interpolate).
 
         Returns
         -------
         tuple[str, str]
-            (strategy_key, strategy_type)
+            (target, strategy) tuple with normalized values
+
+        Examples
+        --------
+        >>> explorer = Explorer(atoms, target="path", strategy="neb")
+        >>> target, strategy = explorer._resolve_target_and_strategy("cineb")
+        >>> # Returns: ("path", "cineb") - strategy from mode, target from instance
+
+        >>> explorer = Explorer(atoms, target="minima")
+        >>> target, strategy = explorer._resolve_target_and_strategy("ts")
+        >>> # Returns: ("ts", "local") - target from mode, strategy defaults to local
+        """
+        if mode:
+            # Runtime mode overrides everything
+            # Check if mode is a strategy first (prioritize strategy over target)
+            normalized_strategy = normalize_strategy(mode)
+
+            # If mode is a known strategy, treat it as a strategy
+            if normalized_strategy in [
+                STRATEGY_NEB,
+                STRATEGY_CINEB,
+                STRATEGY_INTERPOLATE,
+                STRATEGY_LOCAL,
+            ]:
+                # Strategy specified as mode - infer target from instance or default to path
+                target = normalize_target(self.target or TARGET_PATH)
+                strategy = normalized_strategy
+            else:
+                # Mode is a target
+                target = normalize_target(mode)
+                # Use instance strategy or smart default
+                if self.strategy:
+                    strategy = normalize_strategy(self.strategy)
+                else:
+                    # Smart defaults based on target
+                    if target == TARGET_PATH:
+                        strategy = STRATEGY_NEB  # Default to NEB for path
+                    elif target == TARGET_TS:
+                        strategy = STRATEGY_LOCAL  # Default to local for TS
+                    else:
+                        strategy = STRATEGY_LOCAL  # Default to local for minima
+        else:
+            # Use instance parameters
+            target = normalize_target(self.target or TARGET_MINIMA)
+
+            if self.strategy:
+                strategy = normalize_strategy(self.strategy)
+            else:
+                # Smart defaults based on target
+                if target == TARGET_PATH:
+                    strategy = STRATEGY_NEB  # Default to NEB for path
+                elif target == TARGET_TS:
+                    strategy = STRATEGY_LOCAL  # Default to local for TS
+                else:
+                    strategy = STRATEGY_LOCAL  # Default to local for minima
+
+        # Auto-infer strategy from target if ambiguous
+        if target == TARGET_PATH and strategy == STRATEGY_LOCAL:
+            # Path target with local strategy doesn't make sense, default to NEB
+            strategy = STRATEGY_NEB
+
+        return target, strategy
+
+    def _select_strategy_runner(self, target: str, strategy: str) -> tuple[str, str]:
+        """Select the appropriate strategy runner based on target and strategy.
+
+        This method maps the resolved target/strategy combination to the actual
+        registered strategy runner and its type.
+
+        Parameters
+        ----------
+        target : str
+            Normalized target (minima, ts, path)
+        strategy : str
+            Normalized strategy (local, neb, cineb, interpolate)
+
+        Returns
+        -------
+        tuple[str, str]
+            (strategy_key, strategy_type) where:
+            - strategy_key: The registered strategy name (e.g., "minima:local", "path:neb")
+            - strategy_type: The strategy type ("local", "two-ended", "global")
+
+        Raises
+        ------
+        NotImplementedError
+            If no matching strategy is found for the target/strategy combination
+
+        Examples
+        --------
+        >>> explorer = Explorer(atoms)
+        >>> key, type_ = explorer._select_strategy_runner("minima", "local")
+        >>> # Returns: ("minima:local", "local")
+
+        >>> key, type_ = explorer._select_strategy_runner("path", "neb")
+        >>> # Returns: ("path:neb", "two-ended")
         """
         strategies = getattr(self, "_strategies", {})
 
-        if effective_strategy == "two-ended":
-            # Only interpolation-driven path construction is supported for two-ended
-            if effective_mode not in (
-                "interpolate",
-                "ts",
-                "minima",
-                "neb",
-                "twoended",
-                "two-ended",
-            ):
-                warnings.warn(
-                    "Two-ended strategy expects interpolation; " "forcing mode to 'interpolate'"
-                )
-                effective_mode = "interpolate"
+        # Build the primary strategy key
+        primary_key = f"{target}:{strategy}"
 
-            # Choose between TS-guess path refinement, minima refinement, NEB, or CI-NEB
-            if self.target in (
-                "ts",
-                "transition",
-                "transition-state",
-                "transition_state",
-            ):
-                preferred = ["twoended:ts", "twoended-ts"]
-            elif self.target in (
-                "path",
-                "neb",
-                "nudged-elastic-band",
-                "cineb",
-                "climbing-image-neb",
-                "ci-neb",
-            ):
-                preferred = ["twoended:path", "path", "twoended-path"]
-            else:
-                preferred = ["twoended:minima", "twoended-minima"]
+        # Check if primary key exists
+        if primary_key in strategies:
+            entry = strategies[primary_key]
+            strategy_type = entry.get("type", "global")
+            return primary_key, strategy_type
 
-            strategy_key = next((k for k in preferred if k in strategies), preferred[-1])
-            return strategy_key, "two-ended"
+        # Fallback to aliases
+        for key, entry in strategies.items():
+            if isinstance(entry, dict) and "aliases" in entry:
+                aliases = entry.get("aliases", [])
+                if strategy in aliases or target in aliases:
+                    strategy_type = entry.get("type", "global")
+                    return key, strategy_type
 
-        else:
-            # Local strategies support minima and ts (if registered)
-            if effective_mode in (
-                "ts",
-                "transition",
-                "transition-state",
-                "transition_state",
-            ):
-                preferred = ["local:ts", "ts"]
-            else:
-                preferred = ["local:minima", "minima"]
+        # Final fallback - try to find any matching strategy
+        if target == TARGET_PATH and strategy in [STRATEGY_NEB, STRATEGY_CINEB]:
+            # Look for path strategies
+            for key in ["path:neb", "path:cineb", "twoended:neb", "twoended:cineb"]:
+                if key in strategies:
+                    entry = strategies[key]
+                    strategy_type = entry.get("type", "global")
+                    return key, strategy_type
+        elif target == TARGET_TS and strategy == STRATEGY_LOCAL:
+            # Look for local TS strategies
+            for key in ["ts:local", "local:ts", "ts"]:
+                if key in strategies:
+                    entry = strategies[key]
+                    strategy_type = entry.get("type", "global")
+                    return key, strategy_type
+        elif target == TARGET_MINIMA and strategy == STRATEGY_LOCAL:
+            # Look for local minima strategies
+            for key in ["minima:local", "local:minima", "minima"]:
+                if key in strategies:
+                    entry = strategies[key]
+                    strategy_type = entry.get("type", "global")
+                    return key, strategy_type
 
-            strategy_key = next((k for k in preferred if k in strategies), preferred[-1])
-            return strategy_key, "local"
+        # If nothing found, raise error
+        raise NotImplementedError(
+            f"No strategy found for target='{target}', strategy='{strategy}'. "
+            f"Available strategies: {list(strategies.keys())}"
+        )
 
-    def explain_run(self, mode: Optional[str] = None) -> Dict[str, Any]:
+    # =============================================================================
+    # Execution
+    # =============================================================================
+
+    def explain_run(self, mode: str | None = None) -> dict[str, Any]:
         """Explain what strategy would be selected without running.
 
         Parameters
@@ -489,46 +701,65 @@ class Explorer:
         dict
             Dictionary with strategy selection details
         """
-        effective_mode, effective_strategy = self._normalize_strategy_params(mode)
-        strategy_key, strategy_type = self._select_strategy(effective_mode, effective_strategy)
+        try:
+            target, strategy = self._resolve_target_and_strategy(mode)
+            strategy_key, strategy_type = self._select_strategy_runner(target, strategy)
 
-        strategies = getattr(self, "_strategies", {})
-        entry = strategies.get(strategy_key)
+            strategies = getattr(self, "_strategies", {})
+            entry = strategies.get(strategy_key)
 
-        if entry is None:
+            if entry is None:
+                return {
+                    "target": target,
+                    "strategy": strategy,
+                    "strategy_key": strategy_key,
+                    "runner": None,
+                    "valid": False,
+                    "error": f"No registered strategy for '{strategy_key}'",
+                    "notes": f"Requested target: {target}, strategy: {strategy}",
+                }
+
+            runner = entry.get("func") if isinstance(entry, dict) else entry
+            description = entry.get("description", "") if isinstance(entry, dict) else ""
+
             return {
-                "strategy": strategy_key,
+                "target": target,
+                "strategy": strategy,
+                "strategy_key": strategy_key,
+                "runner": runner.__name__ if runner else "unknown",
+                "valid": True,
+                "strategy_type": strategy_type,
+                "description": description,
+                "notes": f"Will use {self.local_optimizer_name} optimizer",
+            }
+        except Exception as e:
+            return {
+                "target": "unknown",
+                "strategy": "unknown",
+                "strategy_key": "unknown",
                 "runner": None,
                 "valid": False,
-                "error": f"No registered strategy for '{strategy_key}'",
-                "notes": f"Requested strategy: {self.strategy}, mode: {effective_mode}",
+                "error": str(e),
+                "notes": f"Error resolving target/strategy: {e}",
             }
 
-        runner = entry.get("func") if isinstance(entry, dict) else entry
-        description = entry.get("description", "") if isinstance(entry, dict) else ""
-
-        return {
-            "strategy": strategy_key,
-            "runner": runner.__name__ if runner else "unknown",
-            "valid": True,
-            "strategy_type": strategy_type,
-            "description": description,
-            "notes": f"Will use {self.local_optimizer_name} optimizer",
-        }
-
     def run(
-        self, mode: Optional[str] = None, runner: Optional[Callable[..., Any]] = None, **kwargs: Any
+        self, mode: str | None = None, runner: Callable[..., Any] | None = None, **kwargs: Any
     ) -> Any:
         """Execute a registered or user-supplied runner.
 
+        This method is the main entry point for running optimization tasks. It resolves
+        the target and strategy, validates inputs, and dispatches to the appropriate runner.
+
         Parameters
         ----------
-        mode
+        mode : str, optional
             Short selector used to choose among registered strategies when
-            ``runner`` is not provided. Typically ``minima`` or ``ts`` for
-            local strategies, or ``interpolate`` for two-ended.
-        runner
-            Optional callable to execute directly.
+            ``runner`` is not provided. Can be:
+            - Target: "minima", "ts", "path"
+            - Strategy: "local", "neb", "cineb", "interpolate"
+        runner : callable, optional
+            Optional callable to execute directly, bypassing strategy selection.
         **kwargs
             Forwarded to the runner; Explorer injects ``explorer=self`` and
             ``local_optimizer_name`` defaults.
@@ -536,36 +767,47 @@ class Explorer:
         Returns
         -------
         Any
-            Whatever the runner returns.
+            Whatever the runner returns. Typically a dictionary with optimization results.
+
+        Examples
+        --------
+        >>> # Minima optimization
+        >>> explorer = Explorer(atoms, target="minima", strategy="local")
+        >>> result = explorer.run(mode="minima")
+
+        >>> # Path optimization with NEB
+        >>> explorer = Explorer(atoms, target="path", strategy="neb")
+        >>> result = explorer.run(mode="neb", npoints=7, fmax=0.05)
+
+        >>> # Transition state optimization
+        >>> explorer = Explorer(atoms, target="ts", strategy="local")
+        >>> result = explorer.run(mode="ts", fmax=0.01)
         """
-        # Normalize parameters and validate inputs
-        effective_mode, effective_strategy = self._normalize_strategy_params(mode)
+        # Resolve target and strategy
+        target, strategy = self._resolve_target_and_strategy(mode)
 
-        # Handle product parameter for NEB/CINEB validation
-        validation_atoms_list = self.atoms_list
-        if effective_mode in ("neb", "cineb", "path") and "product" in kwargs:
-            # For validation purposes, treat as two-structure input
-            if not isinstance(self.atoms_list, list):
-                validation_atoms_list = [self.atoms_list, kwargs["product"]]
-            else:
-                validation_atoms_list = self.atoms_list + [kwargs["product"]]
+        # Prepare atoms list for validation and execution
+        atoms_list = prepare_atoms_list(self.atoms_list, kwargs.get("product"))
 
-        # Validate inputs early
-        if effective_mode in ("ts", "transition", "transition-state", "transition_state"):
-            if effective_strategy == "local":
-                validate_ts_run(self.atoms_list, self.backend, self.local_optimizer_name)
+        # Validate target/strategy combination
+        validate_target_strategy_combination(target, strategy, len(atoms_list))
+
+        # Validate inputs based on target
+        if target == TARGET_TS:
+            if strategy == STRATEGY_LOCAL:
+                validate_ts_run(atoms_list, self.backend, self.local_optimizer_name)
             else:
-                validate_path_run(self.atoms_list, self.backend, self.local_optimizer_name)
-        elif effective_mode in ("neb", "cineb", "path"):
-            validate_path_run(validation_atoms_list, self.backend, self.local_optimizer_name)
-        else:
-            if effective_strategy == "local":
-                validate_minima_run(self.atoms_list, self.backend, self.local_optimizer_name)
+                validate_path_run(atoms_list, self.backend, self.local_optimizer_name)
+        elif target == TARGET_PATH:
+            validate_path_run(atoms_list, self.backend, self.local_optimizer_name)
+        else:  # TARGET_MINIMA
+            if strategy == STRATEGY_LOCAL:
+                validate_minima_run(atoms_list, self.backend, self.local_optimizer_name)
             else:
-                validate_path_run(self.atoms_list, self.backend, self.local_optimizer_name)
+                validate_path_run(atoms_list, self.backend, self.local_optimizer_name)
 
         # Select strategy runner
-        strategy_key, strategy_type = self._select_strategy(effective_mode, effective_strategy)
+        strategy_key, strategy_type = self._select_strategy_runner(target, strategy)
 
         # If the caller passed an explicit runner, use it; otherwise look up
         # the registered strategy entry.
@@ -579,7 +821,7 @@ class Explorer:
             if entry is None:
                 raise NotImplementedError(
                     f"No registered strategy for '{strategy_key}'. "
-                    f"Requested strategy: {self.strategy}, mode: {effective_mode}"
+                    f"Requested target: {target}, strategy: {strategy}"
                 )
             runner = entry.get("func") if isinstance(entry, dict) else entry
             strategy_type = entry.get("type", "global") if isinstance(entry, dict) else "global"
@@ -594,30 +836,29 @@ class Explorer:
         call_kwargs.setdefault("verbose", self.verbose)
 
         # Validate TS optimization setup - hardcoded restrictions
-        if effective_mode in (
-            "ts",
-            "transition",
-            "transition-state",
-            "transition_state",
-        ):
+        if target == TARGET_TS and strategy == STRATEGY_LOCAL:
             from qme.core.local_strategies import _validate_ts_optimization_setup
 
             _validate_ts_optimization_setup(self.backend, self.local_optimizer_name)
 
         # Dispatch according to strategy type
         if strategy_type == "local":
-            # Local strategies now return standardized dicts, so we can call directly
-            return runner(self.atoms_list, **call_kwargs)
+            # Local strategies work with single structure
+            return runner(atoms_list, **call_kwargs)
 
         if strategy_type == "two-ended":
-            if len(self.atoms_list) < 2:
+            # Two-ended strategies require multiple structures
+            if len(atoms_list) < 2:
                 raise ValueError("Two-ended strategies require two or more Atoms objects")
-            return runner(self.atoms_list, **call_kwargs)
+            return runner(atoms_list, **call_kwargs)
 
         # global/default: pass the full list as-is
-        return runner(self.atoms_list, **call_kwargs)
+        return runner(atoms_list, **call_kwargs)
 
-    # --- Convenience wrappers mirroring ASE Optimizer ergonomics ---
+    # =============================================================================
+    # Convenience Methods (ASE-like interface)
+    # =============================================================================
+
     def optimize_minima(self, fmax: float = 0.05, steps: int = 1000, **kwargs: Any) -> Any:
         """Run a local minima optimization (ASE-like convenience method)."""
         return self.run(mode="minima", fmax=fmax, steps=steps, **kwargs)
@@ -626,15 +867,18 @@ class Explorer:
         """Run a local transition-state optimization (ASE-like convenience method)."""
         return self.run(mode="ts", fmax=fmax, steps=steps, **kwargs)
 
-    # --- Additional convenience methods ---
+    # =============================================================================
+    # File I/O Methods
+    # =============================================================================
+
     @classmethod
     def from_file(
         cls,
-        filename: Union[str, Path],
+        filename: str | Path,
         backend: str = "uma",
-        model_name: Optional[str] = None,
-        model_path: Optional[str] = None,
-        device: Optional[str] = None,
+        model_name: str | None = None,
+        model_path: str | None = None,
+        device: str | None = None,
         default_charge: int = 0,
         default_spin: int = 1,
         verbose: int = 1,
@@ -671,7 +915,7 @@ class Explorer:
             **kwargs,
         )
 
-    def load_structure(self, filename_or_geom: Union[str, Path, Atoms]) -> Atoms:
+    def load_structure(self, filename_or_geom: str | Path | Atoms) -> Atoms:
         """Load structure from file or geometry object and update atoms_list.
 
         Parameters
@@ -697,7 +941,7 @@ class Explorer:
         return geom
 
     def save_structure(
-        self, atoms: Atoms, output_file: Union[str, Path], format: Optional[str] = None
+        self, atoms: Atoms, output_file: str | Path, format: str | None = None
     ) -> None:
         """Save structure to file.
 
@@ -745,7 +989,7 @@ class Explorer:
                 )
 
     def save_trajectory(
-        self, atoms_list: List[Atoms], output_file: Union[str, Path], format: Optional[str] = None
+        self, atoms_list: list[Atoms], output_file: str | Path, format: str | None = None
     ) -> None:
         """Save multiple structures (trajectory) to file.
 
@@ -805,7 +1049,7 @@ class Explorer:
                     f"Clean attempt also failed: {e2}"
                 )
 
-    def _twoended_path_runner(self, atoms_list: List[Atoms], **kwargs: Any) -> Any:
+    def _twoended_path_runner(self, atoms_list: list[Atoms], **kwargs: Any) -> Any:
         """General path runner that dispatches between NEB and CI-NEB based on mode."""
         mode = kwargs.get("mode", "neb").lower()
 
@@ -819,16 +1063,20 @@ class Explorer:
 
             return twoended_neb_runner(atoms_list, **kwargs)
 
+    # =============================================================================
+    # Analysis Methods
+    # =============================================================================
+
     def calculate_frequencies(
         self,
-        atoms: Optional[Atoms] = None,
+        atoms: Atoms | None = None,
         delta: float = 0.01,
         method: str = "auto",
         temperature: float = 298.15,
         save_hessian: bool = True,
-        indices: Optional[List[int]] = None,
+        indices: list[int] | None = None,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Calculate vibrational frequencies and thermodynamic properties.
 
         Parameters

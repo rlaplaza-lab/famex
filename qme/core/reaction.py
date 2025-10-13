@@ -2,7 +2,7 @@
 Reaction class for handling reaction pathways and geodesic interpolation.
 """
 
-from typing import Any, List, Optional, Union
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -24,10 +24,10 @@ class Reaction:
 
     def __init__(
         self,
-        reactant: Union[Geometry, Atoms],
-        product: Union[Geometry, Atoms],
+        reactant: Geometry | Atoms,
+        product: Geometry | Atoms,
         calculator: Any = None,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> None:
         """
         Initialize a reaction.
@@ -68,7 +68,7 @@ class Reaction:
             self.product.calc = calculator
 
     @property
-    def reaction_energy(self) -> Optional[float]:
+    def reaction_energy(self) -> float | None:
         """Get reaction energy (product - reactant)."""
         if self.reactant.energy is not None and self.product.energy is not None:
             return self.product.energy - self.reactant.energy
@@ -80,7 +80,7 @@ class Reaction:
         method: str = "linear",
         optimize_path: bool = False,
         calculator=None,
-    ) -> List[Geometry]:
+    ) -> list[Geometry]:
         """
         Generate reaction pathway by interpolation.
 
@@ -145,7 +145,7 @@ class Reaction:
 
     def _linear_interpolation(
         self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
-    ) -> List[np.ndarray]:
+    ) -> list[np.ndarray]:
         """Perform linear interpolation between start and end coordinates."""
 
         path_coords = []
@@ -158,7 +158,7 @@ class Reaction:
 
     def _geodesic_interpolation(
         self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
-    ) -> List[np.ndarray]:
+    ) -> list[np.ndarray]:
         """
         Perform geodesic interpolation with better bond length preservation.
 
@@ -243,7 +243,7 @@ class Reaction:
 
         return coords
 
-    def _optimize_path(self, path_geometries: List[Geometry], calculator) -> List[Geometry]:
+    def _optimize_path(self, path_geometries: list[Geometry], calculator) -> list[Geometry]:
         """
         Optimize path using simplified NEB-like forces.
 
@@ -284,7 +284,7 @@ class Reaction:
         middle_idx = len(path) // 2
         return path[middle_idx]
 
-    def get_rmsd_profile(self, path_geometries: List[Geometry]) -> tuple[List[float], List[float]]:
+    def get_rmsd_profile(self, path_geometries: list[Geometry]) -> tuple[list[float], list[float]]:
         """
         Calculate RMSD profile along reaction path.
 
@@ -313,7 +313,7 @@ class Reaction:
 
         return rmsd_from_reactant, rmsd_from_product
 
-    def to_xyz_trajectory(self, path_geometries: List[Geometry]) -> str:
+    def to_xyz_trajectory(self, path_geometries: list[Geometry]) -> str:
         """
         Convert path to XYZ trajectory string.
 
@@ -345,7 +345,7 @@ class Reaction:
             symbols = geom.symbols
             coords = geom.coords3d
 
-            for j, (symbol, pos) in enumerate(zip(symbols, coords)):
+            for j, (symbol, pos) in enumerate(zip(symbols, coords, strict=False)):
                 line = f"{symbol:2s} {pos[0]:12.6f} {pos[1]:12.6f} {pos[2]:12.6f}"
                 xyz_lines.append(line)
 
@@ -359,7 +359,7 @@ class Reaction:
         if self.product:
             self.product.calc = calculator
 
-    def calculate_path_energies(self, path: List[Geometry]) -> List[float]:
+    def calculate_path_energies(self, path: list[Geometry]) -> list[float]:
         """Calculate and return energies for a given reaction path."""
         if not path:
             return []
