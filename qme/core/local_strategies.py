@@ -7,12 +7,13 @@ strategy implementations easier to test and replace.
 """
 
 import warnings
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Type, Union
 
+from ase import Atoms
 from qme.dependencies import deps
 
 
-def _validate_ts_optimization_setup(backend: str, optimizer_name: str):
+def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
     """Validate that TS optimization is using appropriate calculator and optimizer.
 
     This function hardcodes restrictions to prevent using mock calculators or
@@ -47,7 +48,7 @@ def _validate_ts_optimization_setup(backend: str, optimizer_name: str):
         )
 
 
-def _get_local_optimizer_class(name: str):
+def _get_local_optimizer_class(name: str) -> Type[Any]:
     """Map a short name to an ASE optimizer class or SELLA's Sella.
 
     SELLA is preferred when requested and is now a core dependency.
@@ -83,7 +84,7 @@ def _get_local_optimizer_class(name: str):
     raise ValueError(f"Unknown optimizer name: {name}")
 
 
-def _get_step_count(optimizer) -> Optional[int]:
+def _get_step_count(optimizer: Any) -> Optional[int]:
     """Extract step count from various optimizer types.
 
     Args:
@@ -128,13 +129,13 @@ def _get_convergence_status(optimizer, atoms) -> bool:
 
 
 def local_minima_runner(
-    atoms_list: List[Any],
-    fmax=0.05,
-    steps=1000,
-    explorer=None,
-    local_optimizer_name="sella",
-    **kwargs,
-):
+    atoms_list: List[Atoms],
+    fmax: float = 0.05,
+    steps: int = 1000,
+    explorer: Optional[Any] = None,
+    local_optimizer_name: str = "sella",
+    **kwargs: Any,
+) -> Dict[str, Any]:
     """Default minima runner.
 
     The runner uses the explorer helpers to attach calculators and
@@ -149,13 +150,16 @@ def local_minima_runner(
     if explorer is None:
         raise ValueError("explorer must be provided to default_minima_runner")
     opt_class = _get_local_optimizer_class(local_optimizer_name)
-    # Accept re meither a single Atoms instance or a list of them
+    # Accept either a single Atoms instance or a list of them
     single_input = False
     if not isinstance(atoms_list, (list, tuple)):
         single_input = True
         atoms_iter = [atoms_list]
     else:
         atoms_iter = atoms_list
+        # If it's a single-element list, treat as single input
+        if len(atoms_list) == 1:
+            single_input = True
 
     results = []
     step_counts = []
@@ -197,24 +201,26 @@ def local_minima_runner(
         return {
             "optimized_atoms": results[0],
             "steps_taken": step_counts[0],
-            "converged": converged_flags[0],
+            "converged": bool(converged_flags[0]),
+            "strategy": "local_minima_runner",
         }
     else:
         return {
             "optimized_atoms": results,
             "steps_taken": step_counts,
-            "converged": converged_flags,
+            "converged": [bool(c) for c in converged_flags],
+            "strategy": "local_minima_runner",
         }
 
 
 def local_ts_runner(
-    atoms_list: List[Any],
-    fmax=0.05,
-    steps=1000,
-    explorer=None,
-    local_optimizer_name="sella",
-    **kwargs,
-):
+    atoms_list: List[Atoms],
+    fmax: float = 0.05,
+    steps: int = 1000,
+    explorer: Optional[Any] = None,
+    local_optimizer_name: str = "sella",
+    **kwargs: Any,
+) -> Dict[str, Any]:
     """Default TS runner.
 
     Uses the explorer helpers to attach calculators and constraints before
@@ -239,6 +245,9 @@ def local_ts_runner(
         atoms_iter = [atoms_list]
     else:
         atoms_iter = atoms_list
+        # If it's a single-element list, treat as single input
+        if len(atoms_list) == 1:
+            single_input = True
 
     results = []
     step_counts = []
@@ -280,11 +289,13 @@ def local_ts_runner(
         return {
             "optimized_atoms": results[0],
             "steps_taken": step_counts[0],
-            "converged": converged_flags[0],
+            "converged": bool(converged_flags[0]),
+            "strategy": "local_ts_runner",
         }
     else:
         return {
             "optimized_atoms": results,
             "steps_taken": step_counts,
-            "converged": converged_flags,
+            "converged": [bool(c) for c in converged_flags],
+            "strategy": "local_ts_runner",
         }

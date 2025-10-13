@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 
 import click
 from ase import Atoms
@@ -47,7 +47,8 @@ os.environ.setdefault("MPLBACKEND", "Agg")
     )
 )
 @click.version_option()
-def main():
+def main() -> None:
+    """Main CLI entry point."""
     pass
 
 
@@ -55,13 +56,14 @@ def main():
 main.add_command(cache)
 
 
-def _common_explorer_options(f):
+def _common_explorer_options(f: Any) -> Any:
     opts = [
         click.option(
             "--backend",
             default="uma",
             show_default=True,
-            help="Backend: uma|so3lr|aimnet2|mace|orb|torchsim|torchsim_mace|torchsim_fairchem|mock",
+            help="Backend: uma|so3lr|aimnet2|mace|orb|torchsim|torchsim_mace|"
+            "torchsim_fairchem|mock",
         ),
         click.option("--model-name", default=None, help="Model name for backend"),
         click.option("--model-path", default=None, help="Path to model file (if applicable)"),
@@ -103,10 +105,17 @@ def _common_explorer_options(f):
             help="Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0'",
         ),
         click.option(
-            "--quiet/--no-quiet",
-            default=True,
-            show_default=True,
-            help="Suppress verbose backend logs",
+            "--verbose",
+            "-v",
+            count=True,
+            default=1,
+            help="Verbosity level: -v=quiet, -vv=normal, -vvv=debug",
+        ),
+        click.option(
+            "--dry-run",
+            is_flag=True,
+            default=False,
+            help="Validate inputs and show strategy selection without running",
         ),
     ]
     for opt in reversed(opts):
@@ -171,15 +180,19 @@ def opt(
     optimizer_kw: List[str],
     ts_kw: List[str],
     constraints: Optional[str],
-    quiet: bool,
-):
+    verbose: int,
+    dry_run: bool,
+) -> None:
     atoms = load_atoms_from_xyz(input)
     p_atoms: Optional[Atoms] = load_atoms_from_xyz(product) if product else None
 
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
 
-    if quiet:
+    # Convert verbose count to verbosity level (0=quiet, 1=normal, 2+=debug)
+    verbosity = max(0, verbose - 1)
+
+    if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
         from contextlib import nullcontext
@@ -202,16 +215,20 @@ def opt(
                 target="minima",
                 ts_kwargs=ts_kwargs,
                 constraints=constraints,
+                verbose=verbosity,
             )
+
+            if dry_run:
+                explanation = exp.explain_run(mode="minima")
+                click.echo("🔍 Dry-run analysis:")
+                click.echo(f"   Strategy: {explanation['strategy']}")
+                click.echo(f"   Runner: {explanation['runner']}")
+                click.echo(f"   Valid: {explanation['valid']}")
+                click.echo(f"   Notes: {explanation['notes']}")
+                return
+
             results = exp.run(mode="minima", fmax=fmax, steps=steps)
-            if isinstance(results, Atoms):
-                result_atoms = results
-            elif isinstance(results, dict):
-                result_atoms = results.get("optimized_atoms", atoms)
-            elif isinstance(results, (list, tuple)) and results:
-                result_atoms = results[0]
-            else:
-                result_atoms = atoms
+            result_atoms = results["optimized_atoms"]
         else:
             exp = Explorer(
                 atoms=[atoms, p_atoms],
@@ -227,7 +244,18 @@ def opt(
                 target="minima",
                 ts_kwargs=ts_kwargs,
                 constraints=constraints,
+                verbose=verbosity,
             )
+
+            if dry_run:
+                explanation = exp.explain_run(mode="interpolate")
+                click.echo("🔍 Dry-run analysis:")
+                click.echo(f"   Strategy: {explanation['strategy']}")
+                click.echo(f"   Runner: {explanation['runner']}")
+                click.echo(f"   Valid: {explanation['valid']}")
+                click.echo(f"   Notes: {explanation['notes']}")
+                return
+
             result_atoms = exp.run(
                 mode="interpolate",
                 npoints=npoints,
@@ -246,12 +274,10 @@ def opt(
 
 @main.command(
     help=(
-        "Transition-state, NEB, or CI-NEB optimization from one or two XYZ files.\n\n"
-        "Modes:\n"
-        "  ts    : Transition state optimization (outputs single TS structure)\n"
-        "  neb   : Nudged Elastic Band optimization (outputs trajectory)\n"
-        "  cineb : Climbing Image NEB optimization (outputs trajectory)\n\n"
-        "For NEB/CI-NEB modes, --product is required."
+        "Transition state optimization from one or two XYZ files.\n\n"
+        "If only REACTANT is given, runs local TS optimization.\n"
+        "If --product is provided, generates TS guess via interpolation and refines it.\n\n"
+        "For two-ended TS guess, --product is required."
     )
 )
 @click.argument("reactant", type=click.Path(exists=True, dir_okay=False))
@@ -284,100 +310,7 @@ def opt(
     show_default=True,
     help="Interpolation method for two-ended TS guess",
 )
-@click.option(
-    "--optimizer",
-    "local_optimizer",
-    default="sella",
-    show_default=True,
-    help="Local optimizer: sella|geometric|lbfgs|bfgs|fire",
-)
-@click.option(
-    "--optimizer-kw",
-    multiple=True,
-    help="Optimizer kwargs as key=value, repeatable",
-)
-@click.option(
-    "--ts-kw",
-    multiple=True,
-    help="TS optimizer kwargs as key=value, repeatable",
-)
-@click.option(
-    "--constraints",
-    default=None,
-    help="Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0'",
-)
-@click.option(
-    "--quiet/--no-quiet",
-    default=True,
-    show_default=True,
-    help="Suppress verbose backend logs",
-)
-@click.option(
-    "--backend",
-    type=click.Choice(
-        [
-            "uma",
-            "so3lr",
-            "aimnet2",
-            "mace",
-            "orb",
-            "torchsim",
-            "torchsim_mace",
-            "torchsim_fairchem",
-            "mock",
-        ],
-        case_sensitive=False,
-    ),
-    default="uma",
-    show_default=True,
-    help="Backend: uma|so3lr|aimnet2|mace|orb|torchsim|torchsim_mace|torchsim_fairchem|mock",
-)
-@click.option(
-    "--model-name",
-    type=str,
-    default=None,
-    help="Model name for backend",
-)
-@click.option(
-    "--model-path",
-    type=click.Path(exists=True, dir_okay=False),
-    default=None,
-    help="Path to model file (if applicable)",
-)
-@click.option(
-    "--device",
-    type=click.Choice(["cpu", "cuda"], case_sensitive=False),
-    default=None,
-    help="Device: cpu|cuda",
-)
-@click.option(
-    "--default-charge",
-    type=int,
-    default=0,
-    show_default=True,
-    help="Default molecular charge",
-)
-@click.option(
-    "--default-spin",
-    type=int,
-    default=1,
-    show_default=True,
-    help="Default spin multiplicity",
-)
-@click.option(
-    "--mode",
-    type=click.Choice(["ts", "neb", "cineb"], case_sensitive=False),
-    default="ts",
-    show_default=True,
-    help="Optimization mode: ts (transition state) | neb (nudged elastic band) | cineb (climbing image NEB)",
-)
-@click.option(
-    "--spring-constant",
-    type=float,
-    default=5.0,
-    show_default=True,
-    help="Spring constant for NEB/CI-NEB",
-)
+@_common_explorer_options
 def tsopt(
     reactant: str,
     product: Optional[str],
@@ -396,17 +329,19 @@ def tsopt(
     optimizer_kw: List[str],
     ts_kw: List[str],
     constraints: Optional[str],
-    quiet: bool,
-    mode: str,
-    spring_constant: float,
-):
+    verbose: int,
+    dry_run: bool,
+) -> None:
     r_atoms = load_atoms_from_xyz(reactant)
     p_atoms: Optional[Atoms] = load_atoms_from_xyz(product) if product else None
 
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
 
-    if quiet:
+    # Convert verbose count to verbosity level (0=quiet, 1=normal, 2+=debug)
+    verbosity = max(0, verbose - 1)
+
+    if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
         from contextlib import nullcontext
@@ -430,18 +365,12 @@ def tsopt(
                 target="ts",
                 ts_kwargs=ts_kwargs,
                 constraints=constraints,
+                verbose=verbosity,
             )
             results = exp.run(mode="ts", fmax=fmax, steps=steps)
-            if isinstance(results, Atoms):
-                ts_atoms = results
-            elif isinstance(results, dict):
-                ts_atoms = results.get("optimized_atoms", r_atoms)
-            elif isinstance(results, (list, tuple)) and results:
-                ts_atoms = results[0]
-            else:
-                ts_atoms = r_atoms
+            ts_atoms = results["optimized_atoms"]
         else:
-            # Two-ended case - handle different modes
+            # Two-ended TS optimization - return single TS structure
             exp = Explorer(
                 atoms=[r_atoms, p_atoms],
                 backend=backend,
@@ -453,67 +382,27 @@ def tsopt(
                 local_optimizer=local_optimizer,
                 optimizer_kwargs=optimizer_kwargs,
                 strategy="two-ended",
-                target="ts" if mode == "ts" else "path",
+                target="ts",
                 ts_kwargs=ts_kwargs,
                 constraints=constraints,
+                verbose=verbosity,
             )
 
-            if mode == "ts":
-                # Transition state optimization - return single TS structure
-                ts_atoms = exp.run(
-                    mode="interpolate",
-                    npoints=npoints,
-                    method=interp.lower(),
-                    fmax=fmax,
-                    steps=steps,
-                )
-            elif mode == "neb":
-                # NEB optimization - return trajectory
-                neb_result = exp.run(
-                    mode="neb",
-                    npoints=npoints,
-                    method=interp.lower(),
-                    fmax=fmax,
-                    steps=steps,
-                    spring_constant=spring_constant,
-                )
-                # For tsopt command, we still want to return the trajectory
-                ts_atoms = neb_result
-            elif mode == "cineb":
-                # CI-NEB optimization - return trajectory
-                cineb_result = exp.run(
-                    mode="cineb",
-                    npoints=npoints,
-                    method=interp.lower(),
-                    fmax=fmax,
-                    steps=steps,
-                    spring_constant=spring_constant,
-                    climb=True,
-                )
-                # For tsopt command, we still want to return the trajectory
-                ts_atoms = cineb_result
+            result = exp.run(
+                mode="ts",
+                npoints=npoints,
+                method=interp.lower(),
+                fmax=fmax,
+                steps=steps,
+            )
+            ts_atoms = result["optimized_atoms"]
 
     # Default output next to the reactant file
     out_base = os.path.splitext(reactant)[0]
-    if output_path:
-        out = output_path
-    else:
-        # Choose appropriate output filename based on mode
-        if mode == "ts":
-            out = out_base + ".ts.xyz"
-        elif mode == "neb":
-            out = out_base + ".neb.xyz"
-        elif mode == "cineb":
-            out = out_base + ".cineb.xyz"
-        else:
-            out = out_base + ".ts.xyz"
+    out = output_path or (out_base + ".ts.xyz")
 
     write_atoms(ts_atoms, out)
-
-    if mode == "ts":
-        click.echo(f"TS optimization completed. Saved: {out}")
-    else:
-        click.echo(f"{mode.upper()} optimization completed. Saved {len(ts_atoms)} images to: {out}")
+    click.echo(f"TS optimization completed. Saved: {out}")
 
 
 @main.group(
@@ -526,7 +415,8 @@ def tsopt(
         "All subcommands save complete reaction pathways as trajectory files."
     )
 )
-def path():
+def path() -> None:
+    """Reaction path optimization between reactant and product structures."""
     pass
 
 
@@ -577,15 +467,19 @@ def interpolate(
     optimizer_kw: List[str],
     ts_kw: List[str],
     constraints: Optional[str],
-    quiet: bool,
-):
+    verbose: int,
+    dry_run: bool,
+) -> None:
     r_atoms = load_atoms_from_xyz(reactant)
     p_atoms = load_atoms_from_xyz(product)
 
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
 
-    if quiet:
+    # Convert verbose count to verbosity level (0=quiet, 1=normal, 2+=debug)
+    verbosity = max(0, verbose - 1)
+
+    if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
         from contextlib import nullcontext
@@ -684,15 +578,19 @@ def neb(
     optimizer_kw: List[str],
     ts_kw: List[str],
     constraints: Optional[str],
-    quiet: bool,
-):
+    verbose: int,
+    dry_run: bool,
+) -> None:
     r_atoms = load_atoms_from_xyz(reactant)
     p_atoms = load_atoms_from_xyz(product)
 
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
 
-    if quiet:
+    # Convert verbose count to verbosity level (0=quiet, 1=normal, 2+=debug)
+    verbosity = max(0, verbose - 1)
+
+    if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
         from contextlib import nullcontext
@@ -793,15 +691,19 @@ def cineb(
     optimizer_kw: List[str],
     ts_kw: List[str],
     constraints: Optional[str],
-    quiet: bool,
-):
+    verbose: int,
+    dry_run: bool,
+) -> None:
     r_atoms = load_atoms_from_xyz(reactant)
     p_atoms = load_atoms_from_xyz(product)
 
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
 
-    if quiet:
+    # Convert verbose count to verbosity level (0=quiet, 1=normal, 2+=debug)
+    verbosity = max(0, verbose - 1)
+
+    if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
         from contextlib import nullcontext

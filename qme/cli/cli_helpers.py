@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from ase import Atoms
 from ase.io import read as ase_read
@@ -110,7 +110,9 @@ def _coerce_to_atoms(obj: Any) -> Atoms:
     raise TypeError(f"Cannot coerce object of type {type(obj)} to ASE Atoms")
 
 
-def write_atoms(atoms: Any, out_path: Optional[str]) -> Optional[str]:
+def write_atoms(
+    atoms: Union[Atoms, List[Atoms], Dict[str, Any], str], out_path: Optional[str]
+) -> Optional[str]:
     """Write atoms or trajectory to a file.
 
     Parameters

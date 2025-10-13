@@ -395,10 +395,12 @@ class TestOptimizerStringentComparison:
                         print(f"  RMS frequency difference: {rms_freq_diff:.2f} cm⁻¹")
 
                         # Allow reasonable frequency differences (within 200 cm⁻¹)
-                        # Frequencies are more sensitive to small coordinate differences than coordinates themselves
+                        # Frequencies are more sensitive to small coordinate differences
+                        # than coordinates themselves
                         assert max_freq_diff < 200.0, (
                             f"Frequencies differ too much between {name1} and {name2}: "
-                            f"{max_freq_diff:.2f} cm⁻¹. This suggests inconsistent optimization."
+                            f"{max_freq_diff:.2f} cm⁻¹. "
+                            f"This suggests inconsistent optimization."
                         )
 
         # ENERGY COMPARISON

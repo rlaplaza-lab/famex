@@ -371,12 +371,10 @@ class TestBackendCLI:
             result = runner.invoke(
                 main,
                 [
-                    "tsopt",
-                    reactant_path,
-                    "--product",
-                    product_path,
-                    "--mode",
+                    "path",
                     "neb",
+                    reactant_path,
+                    product_path,
                     "--backend",
                     backend,
                     "--npoints",
@@ -419,12 +417,10 @@ class TestBackendCLI:
             result = runner.invoke(
                 main,
                 [
-                    "tsopt",
-                    reactant_path,
-                    "--product",
-                    product_path,
-                    "--mode",
+                    "path",
                     "cineb",
+                    reactant_path,
+                    product_path,
                     "--backend",
                     backend,
                     "--npoints",
@@ -469,9 +465,9 @@ class TestGeometricOptimizerIntegration:
         result = optimizer.optimize_minima(fmax=0.1, steps=10)
 
         assert result is not None
-        assert isinstance(result, list)
-        assert len(result) == 1
-        result_dict = result[0]
+        assert isinstance(result, dict)
+        assert "optimized_atoms" in result
+        result_dict = result
         assert isinstance(result_dict, dict)
         assert "optimized_atoms" in result_dict
         final_atoms = result_dict["optimized_atoms"]
@@ -543,14 +539,14 @@ class TestGeometricOptimizerIntegration:
         # Both should produce valid results
         assert geometric_result is not None
         assert sella_result is not None
-        assert isinstance(geometric_result, list)
-        assert isinstance(sella_result, list)
-        assert len(geometric_result) == 1
-        assert len(sella_result) == 1
+        assert isinstance(geometric_result, dict)
+        assert isinstance(sella_result, dict)
+        assert "optimized_atoms" in geometric_result
+        assert "optimized_atoms" in sella_result
 
         # Extract Atoms objects from result dictionaries
-        geometric_atoms = geometric_result[0]["optimized_atoms"]
-        sella_atoms = sella_result[0]["optimized_atoms"]
+        geometric_atoms = geometric_result["optimized_atoms"]
+        sella_atoms = sella_result["optimized_atoms"]
         assert hasattr(geometric_atoms, "get_distance")
         assert hasattr(sella_atoms, "get_distance")
         assert len(geometric_atoms) == len(sella_atoms)
@@ -723,10 +719,20 @@ class TestBackendPerformanceComparison:
             result = optimizer.run(mode="minima", fmax=0.05, steps=20)
             optimization_time = time.time() - start_time
 
-            strategy_result = TestResultHandler.process_result(result, backend)
+            # Handle both dict and list results
+            if isinstance(result, dict):
+                strategy_result = result
+            else:
+                strategy_result = TestResultHandler.process_result(result, backend)
+
+            # Handle steps_taken which can be int or list
+            steps_taken = strategy_result.get("steps_taken", 0)
+            if isinstance(steps_taken, list):
+                steps_taken = steps_taken[0] if steps_taken else 0
+
             results[backend] = {
                 "time": optimization_time,
-                "steps": strategy_result.get("steps_taken", 0),
+                "steps": steps_taken,
                 "converged": strategy_result.get("converged", False),
             }
 
