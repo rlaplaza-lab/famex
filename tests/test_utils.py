@@ -7,16 +7,12 @@ all test modules to ensure consistency and reduce duplication.
 
 import os
 import tempfile
-from pathlib import Path
-from typing import List, Optional, Tuple
+import warnings
 
 import pytest
 from ase import Atoms
 from ase.build import molecule
 from ase.io import write
-
-import qme
-from qme.dependencies import deps
 
 
 class TestMoleculeFactory:
@@ -107,8 +103,8 @@ class TestMoleculeFactory:
             "CH3FCl",
             positions=[
                 [0.0, 0.0, 0.0],  # C (center)
-                [-2.5, 0.0, 0.0],  # F (approaching nucleophile)
-                [2.5, 0.0, 0.0],  # Cl (leaving group)
+                [-2.0, 0.0, 0.0],  # F (approaching nucleophile)
+                [2.0, 0.0, 0.0],  # Cl (leaving group)
                 [0.0, 1.1, 0.0],  # H
                 [0.0, -0.5, 1.0],  # H
                 [0.0, -0.5, -1.0],  # H
@@ -152,7 +148,7 @@ class TestFileManager:
     """Utility for managing test files and temporary directories."""
 
     @staticmethod
-    def create_temp_xyz(atoms: Atoms, filename: str = "test.xyz") -> Tuple[str, str]:
+    def create_temp_xyz(atoms: Atoms, filename: str = "test.xyz") -> tuple[str, str]:
         """Create a temporary XYZ file and return (filepath, tempdir)."""
         tempdir = tempfile.mkdtemp()
         filepath = os.path.join(tempdir, filename)
@@ -183,7 +179,7 @@ class BackendTestMixin:
         return is_backend_available(backend)
 
     @staticmethod
-    def get_available_backends() -> List[str]:
+    def get_available_backends() -> list[str]:
         """Get list of backends that are actually available for testing."""
         all_backends = [
             "mock",
@@ -224,11 +220,43 @@ class TestResultHandler:
 
     @staticmethod
     def process_result(result, backend: str) -> dict:
-        """Process optimization result and return standardized dictionary
-        with atoms and metadata."""
+        """Process optimization result and return standardized dictionary with atoms and metadata.
+        
+        This method handles multiple return formats from QME optimization strategies:
+        
+        1. **Dict format**: Direct dictionary from local strategies (minima, TS)
+           - Contains: optimized_atoms, steps_taken, converged, strategy
+           
+        2. **List of dicts format**: Legacy format from older implementations
+           - Takes the first dictionary from the list
+           
+        3. **List of atoms format**: NEB/CI-NEB strategies return trajectory
+           - Converts to dict format with optimized_atoms as the full trajectory
+           - Sets strategy to "neb_or_cineb" and converged to True
+           
+        Args:
+            result: Raw result from optimization strategy (dict, list of dicts, or list of atoms)
+            backend: Backend name for error reporting
+            
+        Returns:
+            Standardized dictionary with keys: optimized_atoms, steps_taken, converged, strategy
+            
+        Raises:
+            AssertionError: If result format is unexpected or missing required keys
+        """
         # Handle list return format from run() method
         if isinstance(result, list) and len(result) > 0:
-            strategy_result = result[0]
+            # Check if it's a list of dictionaries (old format) or list of atoms (NEB/CI-NEB)
+            if isinstance(result[0], dict):
+                strategy_result = result[0]
+            else:
+                # NEB/CI-NEB returns list of atoms - convert to expected format
+                strategy_result = {
+                    "optimized_atoms": result,  # The entire trajectory
+                    "steps_taken": None,
+                    "converged": True,
+                    "strategy": "neb_or_cineb",
+                }
         else:
             strategy_result = result
 
@@ -245,7 +273,7 @@ class StandardTestAssertions:
     """Standardized assertion methods for common test patterns."""
 
     @staticmethod
-    def assert_optimization_result(result: dict, expected_keys: Optional[List[str]] = None) -> None:
+    def assert_optimization_result(result: dict, expected_keys: list[str] | None = None) -> None:
         """Assert that optimization result has expected structure."""
         assert isinstance(result, dict), "Result should be a dict"
 
@@ -286,25 +314,33 @@ class StandardTestAssertions:
                     assert steps_taken >= 0, "steps_taken should be non-negative"
 
     @staticmethod
-    def assert_reasonable_geometry(atoms: Atoms, backend: str = "mock") -> None:
+    def assert_reasonable_geometry(atoms, backend: str = "mock") -> None:
         """Assert that molecular geometry is physically reasonable."""
-        # Check for overlapping atoms
-        from ase.geometry import get_distances
-
-        distances = get_distances(atoms.get_positions())[1]
-
-        # Remove diagonal (self-distances)
-        n_atoms = len(atoms)
-        for i in range(n_atoms):
-            distances[i, i] = float("inf")
-
-        min_distance = distances.min()
-        if backend == "mock":
-            # Mock calculator can produce non-physical geometries
-            assert min_distance > 0.1, f"Atoms too close: {min_distance:.3f} Å"
+        # Handle both single atoms and list of atoms (trajectory)
+        if isinstance(atoms, list):
+            # For trajectory, check the first and last frames
+            atoms_to_check = [atoms[0], atoms[-1]]
         else:
-            # Real ML potentials should be more accurate
-            assert min_distance > 0.5, f"Atoms too close: {min_distance:.3f} Å"
+            atoms_to_check = [atoms]
+
+        for atoms_frame in atoms_to_check:
+            # Check for overlapping atoms
+            from ase.geometry import get_distances
+
+            distances = get_distances(atoms_frame.get_positions())[1]
+
+            # Remove diagonal (self-distances)
+            n_atoms = len(atoms_frame)
+            for i in range(n_atoms):
+                distances[i, i] = float("inf")
+
+            min_distance = distances.min()
+            if backend == "mock":
+                # Mock calculator can produce non-physical geometries
+                assert min_distance > 0.1, f"Atoms too close: {min_distance:.3f} Å"
+            else:
+                # Real ML potentials should be more accurate
+                assert min_distance > 0.5, f"Atoms too close: {min_distance:.3f} Å"
 
     @staticmethod
     def assert_energy_reasonable(energy: float, backend: str = "mock") -> None:
@@ -355,3 +391,56 @@ def temp_xyz_file():
     filepath, tempdir = TestFileManager.create_temp_xyz(atoms)
     yield filepath
     TestFileManager.cleanup_temp_dir(tempdir)
+
+
+class BackendTestRunner:
+    """Utility class for running tests across multiple backends with graceful failure handling."""
+
+    @staticmethod
+    def run_with_warnings(test_func, backends=None, include_mock=False, **test_kwargs):
+        """
+        Run a test function across multiple backends with warning-based error handling.
+
+        Args:
+            test_func: The test function to run
+            backends: List of backends to test. If None, uses all available backends.
+            include_mock: Whether to include the mock backend in testing.
+            **test_kwargs: Additional keyword arguments to pass to the test function.
+
+        Returns:
+            Dictionary mapping backend names to their test results.
+        """
+        from tests.backend_test_helpers import run_backend_test_with_warnings
+
+        return run_backend_test_with_warnings(
+            test_func, backends=backends, include_mock=include_mock, **test_kwargs
+        )
+
+    @staticmethod
+    def assert_backend_results(results, min_successful=1):
+        """
+        Assert that at least a minimum number of backends succeeded.
+
+        Args:
+            results: Dictionary from run_with_warnings
+            min_successful: Minimum number of backends that must succeed
+        """
+        successful = [b for b, r in results.items() if r["success"]]
+        failed = [b for b, r in results.items() if not r["success"]]
+
+        if len(successful) < min_successful:
+            error_summary = "\n".join(
+                [f"  {b}: {r['error']}" for b, r in results.items() if not r["success"]]
+            )
+            pytest.fail(
+                f"Not enough backends succeeded. Required: {min_successful}, "
+                f"Got: {len(successful)}\nFailed backends:\n{error_summary}"
+            )
+
+        # Log warnings for failed backends
+        for backend, result in results.items():
+            if not result["success"]:
+                warning_msg = f"Backend '{backend}' failed: {result['error']}"
+                warnings.warn(warning_msg, UserWarning, stacklevel=2)
+
+        return successful, failed

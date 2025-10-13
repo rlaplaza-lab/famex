@@ -233,9 +233,6 @@ class TestOptimizerStringentComparison:
         atoms = Atoms("H2O", positions=positions)
         atoms.calc = MockCalculator()
 
-        initial_energy = atoms.get_potential_energy()
-        initial_positions = atoms.get_positions().copy()
-
         # Test multiple optimizers
         optimizers_results = {}
 
