@@ -11,7 +11,7 @@ import tempfile
 import time
 import warnings
 from contextlib import redirect_stderr, redirect_stdout
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -129,7 +129,7 @@ class GeometricOptimizer(Optimizer):
         self,
         atoms: Atoms,
         order: int = 0,
-        hessian: Optional[np.ndarray] = None,
+        hessian: np.ndarray | None = None,
         **kwargs,
     ):
         # Store geomeTRIC-specific parameters before filtering
@@ -364,7 +364,7 @@ class GeometricTSOptimizer(GeometricOptimizer):
 
 
 def create_geometric_optimizer(
-    atoms: Atoms, order: int = 0, hessian: Optional[np.ndarray] = None, **kwargs
+    atoms: Atoms, order: int = 0, hessian: np.ndarray | None = None, **kwargs
 ) -> GeometricOptimizer:
     """Factory function to create geomeTRIC optimizer."""
     if order == 1:
@@ -374,14 +374,14 @@ def create_geometric_optimizer(
 
 # Convenience functions for common use cases
 def geometric_minima_optimizer(
-    atoms: Atoms, hessian: Optional[np.ndarray] = None, **kwargs
+    atoms: Atoms, hessian: np.ndarray | None = None, **kwargs
 ) -> GeometricOptimizer:
     """Create geomeTRIC optimizer for minima search."""
     return GeometricOptimizer(atoms, order=0, hessian=hessian, **kwargs)
 
 
 def geometric_ts_optimizer(
-    atoms: Atoms, hessian: Optional[np.ndarray] = None, **kwargs
+    atoms: Atoms, hessian: np.ndarray | None = None, **kwargs
 ) -> GeometricTSOptimizer:
     """Create geomeTRIC optimizer for transition state search."""
     return GeometricTSOptimizer(atoms, hessian=hessian, **kwargs)

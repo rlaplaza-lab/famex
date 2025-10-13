@@ -221,26 +221,26 @@ class TestResultHandler:
     @staticmethod
     def process_result(result, backend: str) -> dict:
         """Process optimization result and return standardized dictionary with atoms and metadata.
-        
+
         This method handles multiple return formats from QME optimization strategies:
-        
+
         1. **Dict format**: Direct dictionary from local strategies (minima, TS)
            - Contains: optimized_atoms, steps_taken, converged, strategy
-           
+
         2. **List of dicts format**: Legacy format from older implementations
            - Takes the first dictionary from the list
-           
+
         3. **List of atoms format**: NEB/CI-NEB strategies return trajectory
            - Converts to dict format with optimized_atoms as the full trajectory
            - Sets strategy to "neb_or_cineb" and converged to True
-           
+
         Args:
             result: Raw result from optimization strategy (dict, list of dicts, or list of atoms)
             backend: Backend name for error reporting
-            
+
         Returns:
             Standardized dictionary with keys: optimized_atoms, steps_taken, converged, strategy
-            
+
         Raises:
             AssertionError: If result format is unexpected or missing required keys
         """

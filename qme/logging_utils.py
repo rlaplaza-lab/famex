@@ -7,7 +7,7 @@ import logging
 import sys
 import threading
 import warnings
-from typing import Generator, List, Optional
+from collections.abc import Generator
 
 # Thread-local storage to track if we're already in a quiet_backend_loading context
 _quiet_context_local = threading.local()
@@ -67,7 +67,7 @@ class VerboseFilter(logging.Filter):
 
 
 @contextlib.contextmanager
-def suppress_ml_warnings() -> Generator[List[str], None, None]:
+def suppress_ml_warnings() -> Generator[list[str], None, None]:
     """
     Context manager to suppress verbose warnings and info messages from ML backends.
 
@@ -78,9 +78,9 @@ def suppress_ml_warnings() -> Generator[List[str], None, None]:
     - Transformers/E3NN loading messages
     - FairChem initialization messages
     """
-    # Store original settings
-    original_log_level = logging.getLogger().level
-    original_warnings_filters = list(warnings.filters)
+    # Store original settings (for potential future use)
+    # original_log_level = logging.getLogger().level
+    # original_warnings_filters = list(warnings.filters)
 
     # Set up verbose filter
     verbose_filter = VerboseFilter()
@@ -129,9 +129,9 @@ def suppress_ml_warnings() -> Generator[List[str], None, None]:
 
 def print_model_info(
     backend: str,
-    model_name: Optional[str] = None,
-    model_path: Optional[str] = None,
-    device: Optional[str] = None,
+    model_name: str | None = None,
+    model_path: str | None = None,
+    device: str | None = None,
 ) -> None:
     """
     Print clean model information for the user.
@@ -187,11 +187,11 @@ def is_in_quiet_context() -> bool:
 @contextlib.contextmanager
 def quiet_backend_loading(
     backend: str,
-    model_name: Optional[str] = None,
-    model_path: Optional[str] = None,
-    device: Optional[str] = None,
+    model_name: str | None = None,
+    model_path: str | None = None,
+    device: str | None = None,
     show_model_info: bool = True,
-) -> Generator[List[str], None, None]:
+) -> Generator[list[str], None, None]:
     """
     Context manager for quiet backend loading with optional model info display.
 
@@ -278,7 +278,7 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
     # For INFO: just the message (clean output)
     # For DEBUG/WARNING/ERROR: include level
     class QMEFormatter(logging.Formatter):
-        def format(self, record):
+        def format(self, record: logging.LogRecord) -> str:
             if record.levelno == logging.INFO:
                 return record.getMessage()
             elif record.levelno == logging.DEBUG:

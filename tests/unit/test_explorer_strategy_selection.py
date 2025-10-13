@@ -10,94 +10,99 @@ from qme.core.validation import QMEBackendError, QMEValidationError
 class TestExplorerStrategySelection:
     """Test strategy selection and explain_run functionality."""
 
-    def test_normalize_strategy_params(self):
-        """Test parameter normalization."""
+    def test_resolve_target_and_strategy(self):
+        """Test target and strategy resolution."""
         atoms = Atoms("H2")
 
-        # Test local strategy normalization
-        exp = Explorer(atoms, strategy="local", target="minima")
-        mode, strategy = exp._normalize_strategy_params("ts")
-        assert mode == "ts"
+        # Test local strategy resolution
+        exp = Explorer(atoms, target="minima", strategy="local")
+        target, strategy = exp._resolve_target_and_strategy("ts")
+        assert target == "ts"
         assert strategy == "local"
 
-        # Test two-ended strategy normalization
-        exp = Explorer(atoms, strategy="two-ended", target="path")
-        mode, strategy = exp._normalize_strategy_params("neb")
-        assert mode == "neb"
-        assert strategy == "two-ended"
+        # Test path strategy resolution
+        exp = Explorer(atoms, target="path", strategy="neb")
+        target, strategy = exp._resolve_target_and_strategy("cineb")
+        assert target == "path"  # Target inferred from instance
+        assert strategy == "cineb"  # Strategy from mode parameter
 
-        # Test default mode
-        exp = Explorer(atoms, strategy="local")
-        mode, strategy = exp._normalize_strategy_params()
-        assert mode == "minima"
+        # Test default resolution
+        exp = Explorer(atoms, target="minima")
+        target, strategy = exp._resolve_target_and_strategy()
+        assert target == "minima"
         assert strategy == "local"
 
-    def test_select_strategy_local(self):
-        """Test local strategy selection."""
+    def test_select_strategy_runner_local(self):
+        """Test local strategy runner selection."""
         atoms = Atoms("H2")
-        exp = Explorer(atoms, strategy="local")
+        exp = Explorer(atoms, target="minima", strategy="local")
 
         # Test minima selection
-        strategy_key, strategy_type = exp._select_strategy("minima", "local")
-        assert strategy_key == "local:minima"  # First in preferred list
+        strategy_key, strategy_type = exp._select_strategy_runner("minima", "local")
+        assert strategy_key == "minima:local"
         assert strategy_type == "local"
 
         # Test TS selection
-        strategy_key, strategy_type = exp._select_strategy("ts", "local")
-        assert strategy_key == "local:ts"  # First in preferred list
+        exp = Explorer(atoms, target="ts", strategy="local")
+        strategy_key, strategy_type = exp._select_strategy_runner("ts", "local")
+        assert strategy_key == "ts:local"
         assert strategy_type == "local"
 
-    def test_select_strategy_twoended(self):
-        """Test two-ended strategy selection."""
+    def test_select_strategy_runner_path(self):
+        """Test path strategy runner selection."""
         atoms = Atoms("H2")
 
-        # Test minima selection
-        exp = Explorer(atoms, strategy="two-ended", target="minima")
-        strategy_key, strategy_type = exp._select_strategy("minima", "two-ended")
-        assert strategy_key == "twoended:minima"
+        # Test NEB selection
+        exp = Explorer(atoms, target="path", strategy="neb")
+        strategy_key, strategy_type = exp._select_strategy_runner("path", "neb")
+        assert strategy_key == "path:neb"
         assert strategy_type == "two-ended"
 
-        # Test TS selection
-        exp = Explorer(atoms, strategy="two-ended", target="ts")
-        strategy_key, strategy_type = exp._select_strategy("ts", "two-ended")
-        assert strategy_key == "twoended:ts"
+        # Test CI-NEB selection
+        exp = Explorer(atoms, target="path", strategy="cineb")
+        strategy_key, strategy_type = exp._select_strategy_runner("path", "cineb")
+        assert strategy_key == "path:cineb"
         assert strategy_type == "two-ended"
 
-        # Test path selection
-        exp = Explorer(atoms, strategy="two-ended", target="path")
-        strategy_key, strategy_type = exp._select_strategy("neb", "two-ended")
-        assert strategy_key == "twoended:path"
+        # Test interpolate selection
+        exp = Explorer(atoms, target="path", strategy="interpolate")
+        strategy_key, strategy_type = exp._select_strategy_runner("path", "interpolate")
+        assert strategy_key == "path:interpolate"
         assert strategy_type == "two-ended"
 
     def test_explain_run_local_minima(self):
         """Test explain_run for local minima optimization."""
         atoms = Atoms("H2")
-        exp = Explorer(atoms, strategy="local", target="minima", backend="mock")
+        exp = Explorer(atoms, target="minima", strategy="local", backend="mock")
 
         explanation = exp.explain_run("minima")
 
         assert explanation["valid"] is True
-        assert explanation["strategy"] == "local:minima"
+        assert explanation["target"] == "minima"
+        assert explanation["strategy"] == "local"
+        assert explanation["strategy_key"] == "minima:local"
         assert explanation["strategy_type"] == "local"
         assert "local_minima_runner" in explanation["runner"]
         assert "Will use" in explanation["notes"]
 
-    def test_explain_run_twoended_ts(self):
-        """Test explain_run for two-ended TS optimization."""
+    def test_explain_run_path_neb(self):
+        """Test explain_run for path NEB optimization."""
         atoms = Atoms("H2")
-        exp = Explorer(atoms, strategy="two-ended", target="ts", backend="mock")
+        exp = Explorer(atoms, target="path", strategy="neb", backend="mock")
 
-        explanation = exp.explain_run("ts")
+        explanation = exp.explain_run("neb")
 
         assert explanation["valid"] is True
-        assert explanation["strategy"] == "twoended:ts"
+        assert explanation["target"] == "path"
+        assert explanation["strategy"] == "neb"
+        assert explanation["strategy_key"] == "path:neb"
         assert explanation["strategy_type"] == "two-ended"
-        assert "twoended_ts_guess_runner" in explanation["runner"]
+        assert "twoended_neb_runner" in explanation["runner"]
 
     def test_explain_run_invalid_strategy(self):
         """Test explain_run with invalid strategy."""
         atoms = Atoms("H2")
-        exp = Explorer(atoms, strategy="invalid", auto_register=False)
+        exp = Explorer(atoms, target="minima", strategy="invalid", auto_register=False)
 
         # Clear all strategies to test invalid case
         exp._strategies = {}
@@ -110,7 +115,7 @@ class TestExplorerStrategySelection:
     def test_validation_minima_run(self):
         """Test validation for minima runs."""
         atoms = Atoms("H2")
-        exp = Explorer(atoms, strategy="local", target="minima", backend="mock")
+        exp = Explorer(atoms, target="minima", strategy="local", backend="mock")
 
         # Should not raise for valid setup
         explanation = exp.explain_run("minima")
@@ -121,7 +126,7 @@ class TestExplorerStrategySelection:
         atoms = Atoms("H2")
 
         # Should raise for mock backend with TS
-        exp = Explorer(atoms, strategy="local", target="ts", backend="mock")
+        exp = Explorer(atoms, target="ts", strategy="local", backend="mock")
 
         with pytest.raises(QMEBackendError):
             exp.run(mode="ts")
@@ -130,13 +135,13 @@ class TestExplorerStrategySelection:
         """Test validation for path runs."""
         atoms = Atoms("H2")
 
-        # Should not raise for valid two-ended setup
-        exp = Explorer(atoms, strategy="two-ended", target="path", backend="mock")
+        # Should not raise for valid path setup
+        exp = Explorer(atoms, target="path", strategy="neb", backend="mock")
         explanation = exp.explain_run("neb")
         assert explanation["valid"] is True
 
         # Should raise for single atoms with path
-        exp = Explorer(atoms, strategy="local", target="path", backend="mock")
+        exp = Explorer(atoms, target="path", strategy="neb", backend="mock")
         with pytest.raises(QMEValidationError):
             exp.run(mode="neb")
 
@@ -144,7 +149,7 @@ class TestExplorerStrategySelection:
         """Test that run method is simplified and uses helper methods."""
         atoms = Atoms("H2")
         exp = Explorer(
-            atoms, strategy="local", target="minima", backend="mock", local_optimizer="lbfgs"
+            atoms, target="minima", strategy="local", backend="mock", local_optimizer="lbfgs"
         )
 
         # Test that explain_run works

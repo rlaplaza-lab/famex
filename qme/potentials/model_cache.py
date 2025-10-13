@@ -7,10 +7,9 @@ and re-loading models on every run.
 
 import hashlib
 import json
-import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import requests
 
@@ -22,7 +21,7 @@ logger = get_qme_logger(__name__)
 class ModelCache:
     """Persistent model cache with version checking and integrity validation."""
 
-    def __init__(self, cache_dir: Optional[str] = None) -> None:
+    def __init__(self, cache_dir: str | None = None) -> None:
         """
         Initialize model cache.
 
@@ -32,7 +31,7 @@ class ModelCache:
             Cache directory. Defaults to ~/.qme/cache/models
         """
         if cache_dir is None:
-            cache_dir = Path.home() / ".qme" / "cache" / "models"
+            cache_dir = str(Path.home() / ".qme" / "cache" / "models")
 
         self.cache_dir: Path = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -41,13 +40,13 @@ class ModelCache:
         self.metadata_file = self.cache_dir / "metadata.json"
         self.metadata = self._load_metadata()
 
-    def _load_metadata(self) -> Dict[str, Any]:
+    def _load_metadata(self) -> dict[str, Any]:
         """Load cache metadata from file."""
         if self.metadata_file.exists():
             try:
-                with open(self.metadata_file, "r") as f:
+                with open(self.metadata_file) as f:
                     return json.load(f)
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 return {}
         return {}
 
@@ -56,7 +55,7 @@ class ModelCache:
         try:
             with open(self.metadata_file, "w") as f:
                 json.dump(self.metadata, f, indent=2)
-        except IOError as e:
+        except OSError as e:
             logger.warning(f"Could not save cache metadata: {e}")
 
     def _get_model_hash(self, model_name: str, model_url: str) -> str:
@@ -64,7 +63,7 @@ class ModelCache:
         content = f"{model_name}:{model_url}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
-    def get_cached_model(self, model_name: str, model_url: str) -> Optional[Path]:
+    def get_cached_model(self, model_name: str, model_url: str) -> Path | None:
         """
         Get cached model if available and valid.
 
@@ -158,10 +157,10 @@ class ModelCache:
             with open(file_path, "rb") as f:
                 actual_checksum = hashlib.sha256(f.read()).hexdigest()
             return actual_checksum == expected_checksum
-        except IOError:
+        except OSError:
             return False
 
-    def clear_cache(self, model_name: Optional[str] = None):
+    def clear_cache(self, model_name: str | None = None):
         """
         Clear cache, optionally for a specific model.
 
@@ -191,7 +190,7 @@ class ModelCache:
                 del self.metadata[model_hash]
             self._save_metadata()
 
-    def get_cache_info(self) -> Dict:
+    def get_cache_info(self) -> dict:
         """Get information about cached models."""
         total_size = 0
         model_count = 0

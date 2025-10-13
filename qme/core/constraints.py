@@ -9,7 +9,7 @@ The design is deliberately simplified to cover 90% of practical constraint needs
 while maintaining ease of use and integration with existing QME workflows.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -29,9 +29,9 @@ class QMEConstraintManager:
         - reference_atoms: Initial geometry to derive constraint values from
         """
         self.reference_atoms = reference_atoms.copy()
-        self.constraints = []
+        self.constraints: list[Any] = []
 
-    def add_fixed_atoms(self, atom_indices: List[int]) -> None:
+    def add_fixed_atoms(self, atom_indices: list[int]) -> None:
         """Fix specified atoms at their initial positions"""
         constraint = FixedAtomsConstraint(atom_indices, self.reference_atoms)
         self.constraints.append(constraint)
@@ -39,7 +39,7 @@ class QMEConstraintManager:
     def add_harmonic_constraint(
         self,
         constraint_type: str,
-        atom_indices: List[int],
+        atom_indices: list[int],
         force_constant: float = 10.0,
     ) -> None:
         """
@@ -51,7 +51,7 @@ class QMEConstraintManager:
         - force_constant: Spring constant (eV/Å² for position/bond, eV/rad² for angle)
         """
         if constraint_type == "position":
-            constraint = HarmonicPositionConstraint(
+            constraint: Any = HarmonicPositionConstraint(
                 atom_indices, self.reference_atoms, force_constant
             )
         elif constraint_type == "bond":
@@ -63,7 +63,7 @@ class QMEConstraintManager:
 
         self.constraints.append(constraint)
 
-    def apply_constraints(self, atoms: Atoms):
+    def apply_constraints(self, atoms: Atoms) -> list[Any]:
         """Apply all constraints to atoms object"""
         ase_constraints = []
         for constraint in self.constraints:
@@ -74,9 +74,9 @@ class QMEConstraintManager:
         all_constraints = existing_constraints + ase_constraints
         atoms.set_constraint(all_constraints)
 
-    def get_constraint_info(self) -> Dict[str, Any]:
+    def get_constraint_info(self) -> dict[str, Any]:
         """Get summary of active constraints"""
-        info = {"fixed_atoms": [], "harmonic_constraints": []}
+        info: dict[str, Any] = {"fixed_atoms": [], "harmonic_constraints": []}
 
         for constraint in self.constraints:
             if isinstance(constraint, FixedAtomsConstraint):
@@ -99,7 +99,7 @@ class FixedAtomsConstraint:
     Enhanced fixed atoms constraint with better integration.
     """
 
-    def __init__(self, atom_indices: List[int], reference_atoms: Atoms):
+    def __init__(self, atom_indices: list[int], reference_atoms: Atoms):
         """
         Parameters:
         - atom_indices: List of atom indices to fix
@@ -108,7 +108,7 @@ class FixedAtomsConstraint:
         self.atom_indices = atom_indices
         self.reference_positions = reference_atoms.positions[atom_indices].copy()
 
-    def to_ase_constraints(self) -> List:
+    def to_ase_constraints(self) -> list:
         """Convert to ASE constraint format"""
         return [FixAtoms(indices=self.atom_indices)]
 
@@ -123,7 +123,7 @@ class HarmonicPositionConstraint:
 
     def __init__(
         self,
-        atom_indices: List[int],
+        atom_indices: list[int],
         reference_atoms: Atoms,
         force_constant: float = 10.0,
     ):
@@ -139,7 +139,7 @@ class HarmonicPositionConstraint:
         self.constraint_type = "position"
         self.reference_value = self.reference_positions.copy()
 
-    def to_ase_constraints(self) -> List:
+    def to_ase_constraints(self) -> list:
         """
         Convert to ASE constraint format.
 
@@ -158,7 +158,7 @@ class HarmonicBondConstraint:
 
     def __init__(
         self,
-        atom_indices: List[int],
+        atom_indices: list[int],
         reference_atoms: Atoms,
         force_constant: float = 10.0,
     ):
@@ -180,7 +180,7 @@ class HarmonicBondConstraint:
         pos2 = reference_atoms.positions[atom_indices[1]]
         self.reference_value = np.linalg.norm(pos2 - pos1)
 
-    def to_ase_constraints(self) -> List:
+    def to_ase_constraints(self) -> list:
         """Convert to ASE constraint format"""
         return [
             Hookean(
@@ -199,7 +199,7 @@ class HarmonicAngleConstraint:
 
     def __init__(
         self,
-        atom_indices: List[int],
+        atom_indices: list[int],
         reference_atoms: Atoms,
         force_constant: float = 5.0,
     ):
@@ -228,7 +228,7 @@ class HarmonicAngleConstraint:
         cos_angle = np.clip(cos_angle, -1.0, 1.0)
         self.reference_value = np.arccos(cos_angle)  # Angle in radians
 
-    def to_ase_constraints(self) -> List:
+    def to_ase_constraints(self) -> list:
         """
         Convert to ASE constraint format.
 
@@ -292,7 +292,7 @@ def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> QMEC
     return constraint_manager
 
 
-def validate_atom_indices(atom_indices: List[int], atoms: Atoms) -> bool:
+def validate_atom_indices(atom_indices: list[int], atoms: Atoms) -> bool:
     """
     Validate that atom indices are valid for the given atoms object.
 
@@ -316,7 +316,7 @@ def validate_atom_indices(atom_indices: List[int], atoms: Atoms) -> bool:
     return True
 
 
-def get_constraint_summary(atoms: Atoms) -> Dict[str, Any]:
+def get_constraint_summary(atoms: Atoms) -> dict[str, Any]:
     """
     Get summary of applied constraints on an atoms object.
 
@@ -326,7 +326,11 @@ def get_constraint_summary(atoms: Atoms) -> Dict[str, Any]:
     Returns:
         Dictionary summarizing constraints
     """
-    summary = {"fixed_atoms": [], "hookean_constraints": [], "other_constraints": []}
+    summary: dict[str, Any] = {
+        "fixed_atoms": [],
+        "hookean_constraints": [],
+        "other_constraints": [],
+    }
 
     constraints = getattr(atoms, "constraints", [])
 
@@ -348,7 +352,7 @@ def get_constraint_summary(atoms: Atoms) -> Dict[str, Any]:
             # Get atom indices
             atoms_list = []
             if hasattr(constraint, "a1"):
-                atoms_list.append(getattr(constraint, "a1"))
+                atoms_list.append(constraint.a1)
             if hasattr(constraint, "a2"):
                 a2 = getattr(constraint, "a2", None)
                 if a2 is not None:
@@ -361,9 +365,9 @@ def get_constraint_summary(atoms: Atoms) -> Dict[str, Any]:
 
             # Get reference value and force constant
             if hasattr(constraint, "rt"):
-                constraint_info["reference"] = getattr(constraint, "rt")
+                constraint_info["reference"] = constraint.rt
             if hasattr(constraint, "k"):
-                constraint_info["force_constant"] = getattr(constraint, "k")
+                constraint_info["force_constant"] = constraint.k
 
             summary["hookean_constraints"].append(constraint_info)
 

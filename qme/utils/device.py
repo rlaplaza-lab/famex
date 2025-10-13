@@ -5,14 +5,12 @@ This module provides centralized device detection and management for CUDA vs CPU
 ensuring consistent device handling across the entire QME codebase.
 """
 
-from typing import Optional
-
 from qme.logging_utils import get_qme_logger
 
 logger = get_qme_logger(__name__)
 
 
-def get_optimal_device(device: Optional[str] = None) -> str:
+def get_optimal_device(device: str | None = None) -> str:
     """
     Get the optimal device for computation.
 
@@ -72,7 +70,7 @@ def print_device_info(device: str) -> None:
         logger.info("💻 Using CPU device")
 
 
-def validate_device(device: Optional[str]) -> str:
+def validate_device(device: str | None) -> str:
     """
     Validate and normalize device parameter.
 

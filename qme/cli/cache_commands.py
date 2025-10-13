@@ -10,7 +10,6 @@ from qme.potentials.model_cache import get_model_cache
 @click.group(help="Manage QME model cache")
 def cache():
     """Manage QME model cache."""
-    pass
 
 
 @cache.command(help="Show cache information")

@@ -6,12 +6,10 @@ including Hessian calculation and vibrational mode analysis.
 """
 
 import numpy as np
-import pytest
 from ase.build import molecule
 
 import qme
 from qme.analysis.frequency import FrequencyAnalysis, HessianCalculator
-from tests.test_utils import StandardTestAssertions
 
 
 class TestFrequencyBasics:

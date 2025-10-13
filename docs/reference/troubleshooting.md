@@ -454,8 +454,8 @@ result = explorer.run(mode="minima")
 
 ```python
 # Enable detailed logging
-import qme
-qme.config.set_log_level("DEBUG")
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 # This will show:
 # - Backend loading details

@@ -164,23 +164,22 @@ class TestGeometricOptimizerRun:
         wrong_hessian = np.eye(6) * 0.1  # Wrong shape: 6x6 instead of 9x9
         optimizer = GeometricOptimizer(self.atoms, hessian=wrong_hessian)
 
-        with patch("geometric.ase_engine") as mock_engine:
-            with patch("geometric.optimize") as mock_opt:
-                with patch("geometric.optimize.DelocalizedInternalCoordinates"):
-                    with patch("tempfile.TemporaryDirectory") as mock_tmpdir:
-                        with patch.object(
-                            optimizer, "_create_molecule_from_atoms"
-                        ) as mock_create_mol:
-                            mock_molecule = Mock()
-                            mock_molecule.na = 3
-                            mock_create_mol.return_value = mock_molecule
+        with patch("geometric.ase_engine"), patch("geometric.optimize"):
+            with patch("geometric.optimize.DelocalizedInternalCoordinates"):
+                with patch("tempfile.TemporaryDirectory") as mock_tmpdir:
+                    with patch.object(
+                        optimizer, "_create_molecule_from_atoms"
+                    ) as mock_create_mol:
+                        mock_molecule = Mock()
+                        mock_molecule.na = 3
+                        mock_create_mol.return_value = mock_molecule
 
-                            mock_tmpdir.return_value.__enter__.return_value = "/tmp/test"
+                        mock_tmpdir.return_value.__enter__.return_value = "/tmp/test"
 
-                            with pytest.raises(
-                                ValueError, match="Hessian must be \\(9, 9\\) but got \\(6, 6\\)"
-                            ):
-                                optimizer.run()
+                        with pytest.raises(
+                            ValueError, match="Hessian must be \\(9, 9\\) but got \\(6, 6\\)"
+                        ):
+                            optimizer.run()
 
     def test_run_not_converged(self):
         """Test behavior when optimization does not converge."""
@@ -485,7 +484,7 @@ class TestGeometricCoordinateHandling:
 
         # Run optimization
         optimizer = GeometricOptimizer(atoms, order=0)
-        converged = optimizer.run(fmax=0.1, steps=50)
+        optimizer.run(fmax=0.1, steps=50)
 
         # Get optimized coordinates
         optimized_positions = atoms.get_positions()

@@ -6,7 +6,7 @@ providing significant speedup over traditional ASE-based implementations through
 automatic batching and efficient GPU memory management.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -37,13 +37,13 @@ class TorchSimPotential(BasePotential):
 
     def __init__(
         self,
-        model_name: Optional[str] = None,
-        device: Optional[str] = None,
+        model_name: str | None = None,
+        device: str | None = None,
         backend: str = "mace",  # Default to MACE
         default_charge: int = 0,
         default_spin: int = 1,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize TorchSim potential calculator.
 
@@ -100,7 +100,7 @@ class TorchSimPotential(BasePotential):
         # Enable batch evaluation for TorchSim
         self._supports_batch_evaluation = True
 
-    def _load_calculator(self):
+    def _load_calculator(self) -> None:
         """Load the TorchSim model and setup."""
         from qme.logging_utils import quiet_backend_loading
 
@@ -109,7 +109,7 @@ class TorchSimPotential(BasePotential):
 
         try:
             self._torch_sim = deps.get("torch_sim")
-            torch = deps.get("torch")
+            # torch = deps.get("torch")  # Unused for now
 
             # Don't show model info - let the outer context handle it
             with quiet_backend_loading(
@@ -143,7 +143,7 @@ class TorchSimPotential(BasePotential):
                 f"TorchSim not available ({e}). Install with: pip install torch-sim-atomistic"
             )
 
-    def _load_mace_model(self):
+    def _load_mace_model(self) -> None:
         """Load MACE model through TorchSim."""
 
         try:
@@ -153,10 +153,10 @@ class TorchSimPotential(BasePotential):
 
             if self.model_name == "mace-omol-0":
                 mace_model = mace_omol(return_raw_model=True)
-            elif self.model_name.startswith("mace-mp"):
+            elif self.model_name and self.model_name.startswith("mace-mp"):
                 model_size = self.model_name.replace("mace-mp-", "") or "medium"
                 mace_model = mace_mp(model=model_size, return_raw_model=True)
-            elif self.model_name.startswith("mace-off"):
+            elif self.model_name and self.model_name.startswith("mace-off"):
                 model_size = self.model_name.replace("mace-off-", "") or "medium"
                 mace_model = mace_off(model=model_size, return_raw_model=True)
             else:
@@ -191,15 +191,14 @@ class TorchSimPotential(BasePotential):
         original_macemodel_forward = self._mace_model.forward
         original_mace_forward = self._mace_model.model.forward
 
-        def patched_macemodel_forward(state, *args, **kwargs):
-            import torch
+        def patched_macemodel_forward(state: Any, *args: Any, **kwargs: Any) -> Any:
 
             # Enable gradients on positions before processing
             if hasattr(state, "positions") and not state.positions.requires_grad:
                 state.positions.requires_grad_(True)
             return original_macemodel_forward(state, *args, **kwargs)
 
-        def patched_mace_forward(data, *args, **kwargs):
+        def patched_mace_forward(data: Any, *args: Any, **kwargs: Any) -> Any:
             import torch
 
             # Get atoms object from the calculator instance
@@ -236,12 +235,12 @@ class TorchSimPotential(BasePotential):
         self._mace_model.model.forward = patched_mace_forward
         self._model = self._mace_model
 
-    def _load_fairchem_model(self):
+    def _load_fairchem_model(self) -> None:
         """Load Fairchem model through TorchSim."""
 
         try:
             # Try to load Fairchem model through TorchSim
-            from torch_sim.models.fairchem import FairchemModel
+            # from torch_sim.models.fairchem import FairchemModel  # Unused for now
 
             # For now, we'll use the regular Fairchem approach since TorchSim Fairchem
             # has compatibility issues with the current fairchem-core version
@@ -253,7 +252,7 @@ class TorchSimPotential(BasePotential):
                 f"Install with: pip install torch-sim-atomistic"
             )
 
-    def _atoms_to_state(self, atoms: Atoms):
+    def _atoms_to_state(self, atoms: Atoms) -> Any:
         """Convert ASE Atoms to TorchSim state."""
         torch = deps.get("torch")
         device = torch.device(self.device)
@@ -281,16 +280,16 @@ class TorchSimPotential(BasePotential):
         # Return the SimState directly - the MACE model will convert it if needed
         return self._state
 
-    def _state_to_atoms(self, state):
+    def _state_to_atoms(self, state: Any) -> Atoms:
         """Convert TorchSim state back to ASE Atoms."""
         return self._torch_sim.io.state_to_atoms(state)
 
     def calculate(
         self,
-        atoms=None,
-        properties=None,
-        system_changes=all_changes,
-    ):
+        atoms: Atoms | None = None,
+        properties: list[str] | None = None,
+        system_changes: Any = all_changes,
+    ) -> None:
         """Calculate properties using TorchSim."""
         # Common setup
         super().calculate(atoms, properties, system_changes)
@@ -315,7 +314,7 @@ class TorchSimPotential(BasePotential):
             self._current_atoms = self.atoms
 
             # Calculate properties using TorchSim model
-            torch = deps.get("torch")
+            # torch = deps.get("torch")  # Unused for now
             # Enable gradients for force calculations
             results = self._model(state)
         else:
@@ -350,13 +349,15 @@ class TorchSimPotential(BasePotential):
             forces_np = forces.detach().cpu().numpy()
             self.results["forces"] = forces_np
 
-    def get_potential_energy(self, atoms=None, force_consistent: bool = False):
+    def get_potential_energy(
+        self, atoms: Atoms | None = None, force_consistent: bool = False
+    ) -> float:
         """Get potential energy."""
         if atoms is not None:
             self.atoms = atoms
         return super().get_potential_energy(atoms, force_consistent)
 
-    def get_forces(self, atoms=None):
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray | None:
         """Get forces on atoms."""
         if atoms is not None:
             self.atoms = atoms
@@ -414,7 +415,7 @@ class TorchSimPotential(BasePotential):
             self._current_atoms = atoms_list[0]  # Use first atoms for spin/charge info
 
             # Calculate properties for the entire batch
-            torch = deps.get("torch")
+            # torch = deps.get("torch")  # Unused for now
             # Don't use no_grad() as MACE needs gradients for force calculations
             batch_results = self._model(batch_state)
 
@@ -444,7 +445,7 @@ class TorchSimPotential(BasePotential):
 
             return batch_results
 
-    def _batch_states(self, states):
+    def _batch_states(self, states: list[Any]) -> Any:
         """Batch multiple TorchSim states using proper TorchSim batching."""
         if not states:
             return None
@@ -491,7 +492,7 @@ class TorchSimPotential(BasePotential):
             self._batch_results = self._fallback_individual_calculations(states)
             return states[0]
 
-    def _create_manual_batch(self, states):
+    def _create_manual_batch(self, states: list[Any]) -> Any:
         """Create a manual batch for TorchSim when native batching isn't available."""
         torch = deps.get("torch")
 
@@ -517,7 +518,7 @@ class TorchSimPotential(BasePotential):
         padded_positions = []
         padded_numbers = []
 
-        for pos, num in zip(batch_positions, batch_numbers):
+        for pos, num in zip(batch_positions, batch_numbers, strict=False):
             if len(pos) < max_atoms:
                 # Pad with zeros
                 pad_size = max_atoms - len(pos)
@@ -557,7 +558,7 @@ class TorchSimPotential(BasePotential):
 
         return batch_state
 
-    def _fallback_individual_calculations(self, states):
+    def _fallback_individual_calculations(self, states: list[Any]) -> list[dict[str, Any]]:
         """Fallback for regular calculators (CPU compatible)."""
         batch_results = []
         for state in states:
@@ -577,7 +578,9 @@ class TorchSimPotential(BasePotential):
 
         return batch_results
 
-    def _split_batch_results(self, batch_results, n_structures, properties=None):
+    def _split_batch_results(
+        self, batch_results: Any, n_structures: int, properties: list[str] | None = None
+    ) -> list[dict[str, Any]]:
         """Split batch results back to individual structure results."""
         if properties is None:
             properties = ["energy", "forces"]
@@ -652,18 +655,18 @@ class TorchSimPotential(BasePotential):
 
 
 def get_torchsim_mace_calculator(
-    model_name: Optional[str] = None,
-    device: Optional[str] = None,
-    **kwargs,
+    model_name: str | None = None,
+    device: str | None = None,
+    **kwargs: Any,
 ) -> TorchSimPotential:
     """Convenience function for TorchSim MACE calculator."""
     return TorchSimPotential(model_name=model_name, device=device, backend="mace", **kwargs)
 
 
 def get_torchsim_uma_calculator(
-    model_name: Optional[str] = None,
-    device: Optional[str] = None,
-    **kwargs,
+    model_name: str | None = None,
+    device: str | None = None,
+    **kwargs: Any,
 ) -> TorchSimPotential:
     """Convenience function for TorchSim UMA calculator."""
     return TorchSimPotential(model_name=model_name, device=device, backend="fairchem", **kwargs)

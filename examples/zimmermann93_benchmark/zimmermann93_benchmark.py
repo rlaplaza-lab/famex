@@ -25,7 +25,6 @@ import warnings
 from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from ase import Atoms
@@ -96,7 +95,7 @@ def compute_rmsd(reference: np.ndarray, target: np.ndarray) -> float:
 class Zimmermann93Benchmark:
     """Benchmark suite for two-ended TS search on Zimmermann-93 dataset."""
 
-    def __init__(self, dataset_dir: Optional[str] = None, output_dir: str = "benchmark_results"):
+    def __init__(self, dataset_dir: str | None = None, output_dir: str = "benchmark_results"):
         # Use dataset in same directory by default
         if dataset_dir is None:
             dataset_dir = str(Path(__file__).parent / "zimmermann93_dataset")
@@ -122,7 +121,7 @@ class Zimmermann93Benchmark:
         # Quicker subset for very fast testing (single reaction)
         self.quicker_reactions = self.reactions[:1]
 
-        self.results: Dict[str, Dict] = {}
+        self.results: dict[str, dict] = {}
 
         print("=" * 80)
         print("QME Zimmermann-93 Benchmark - Two-Ended Transition State Search")
@@ -138,7 +137,7 @@ class Zimmermann93Benchmark:
         atoms = read(str(filepath))
         return atoms[0] if isinstance(atoms, list) else atoms
 
-    def get_reactant_and_product(self, reaction_name: str) -> Tuple[Atoms, Atoms]:
+    def get_reactant_and_product(self, reaction_name: str) -> tuple[Atoms, Atoms]:
         reactant_file = f"{reaction_name}_reactant.xyz"
         product_file = f"{reaction_name}_product.xyz"
         return self.load_structure(reactant_file), self.load_structure(product_file)
@@ -147,7 +146,7 @@ class Zimmermann93Benchmark:
         ts_file = f"{reaction_name}_ts.xyz"
         return self.load_structure(ts_file)
 
-    def get_available_backends(self) -> List[str]:
+    def get_available_backends(self) -> list[str]:
         """Get list of available ML backends (excluding mock)."""
         available = []
         ml_backends = [
@@ -167,8 +166,8 @@ class Zimmermann93Benchmark:
         return available
 
     def filter_available_backends(
-        self, requested_backends: List[str], verbose: bool = False
-    ) -> List[str]:
+        self, requested_backends: list[str], verbose: bool = False
+    ) -> list[str]:
         """Filter requested backends to only available ones."""
         available = []
         for backend in requested_backends:
@@ -178,7 +177,7 @@ class Zimmermann93Benchmark:
                 print(f"Warning: Backend '{backend}' not available, skipping")
         return available
 
-    def print_backend_summary(self, backends: List[str], title: str = "Available Backends"):
+    def print_backend_summary(self, backends: list[str], title: str = "Available Backends"):
         """Print a formatted summary of backends."""
         print(f"\n📋 {title}")
         print("-" * 50)
@@ -188,24 +187,24 @@ class Zimmermann93Benchmark:
 
     def run_benchmark(
         self,
-        backends: List[str],
-        reactions: List[str],
+        backends: list[str],
+        reactions: list[str],
         npoints: int = 11,
         fmax: float = 0.01,
         steps: int = 300,
         verbose: bool = False,
-    ) -> Dict:
-        results: Dict[str, Dict] = {}
+    ) -> dict:
+        results: dict[str, dict] = {}
 
         for backend in backends:
             print(f"\nBackend: {backend.upper()}")
             print("-" * 60)
-            backend_results: Dict[str, Dict] = {}
+            backend_results: dict[str, dict] = {}
 
             try:
                 for reaction in reactions:
                     print(f"  Reaction: {reaction}")
-                    reaction_data: Dict = {
+                    reaction_data: dict = {
                         "timings": {},
                         "optimization_results": {},
                         "frequency_results": {},
@@ -371,7 +370,7 @@ class Zimmermann93Benchmark:
         self.results = results
         return results
 
-    def analyze_performance(self, backends: List[str]) -> Dict:
+    def analyze_performance(self, backends: list[str]) -> dict:
         """Analyze performance metrics across backends with detailed statistics."""
         print(f"\n{'=' * 120}")
         print("DETAILED PERFORMANCE ANALYSIS")
@@ -558,7 +557,7 @@ class Zimmermann93Benchmark:
                 pass
 
             # Handle generic geometry-like objects that expose get_positions
-            if hasattr(obj, "get_positions") and callable(getattr(obj, "get_positions")):
+            if hasattr(obj, "get_positions") and callable(obj.get_positions):
                 try:
                     pos = obj.get_positions()
                     return {

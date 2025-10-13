@@ -6,11 +6,10 @@ based on the AIMNet2 repository implementation.
 """
 
 import os
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
 import numpy as np
 import requests
-from ase import Atoms
 from ase.calculators.calculator import all_changes
 from torch_cluster import radius_graph
 
@@ -291,7 +290,7 @@ class NativeAIMNet2Calculator:
         self._batch = None
         self._saved_for_grad = None
 
-    def to_input_tensors(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def to_input_tensors(self, data: dict[str, Any]) -> dict[str, Any]:
         """Convert input data to PyTorch tensors."""
         ret = {}
 
@@ -315,7 +314,7 @@ class NativeAIMNet2Calculator:
 
         return ret
 
-    def make_nbmat(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def make_nbmat(self, data: dict[str, Any]) -> dict[str, Any]:
         """Generate neighbor lists following AIMNet2 repo logic."""
         # No PBC support in our implementation, so always use torch_cluster
         if "nbmat" not in data:
@@ -333,14 +332,14 @@ class NativeAIMNet2Calculator:
 
         return data
 
-    def prepare_mol_idx(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def prepare_mol_idx(self, data: dict[str, Any]) -> dict[str, Any]:
         """Prepare molecule index for single molecule."""
         if "mol_idx" not in data:
             n_atoms = data["coord"].shape[0]
             data["mol_idx"] = torch.zeros(n_atoms, device=self.device, dtype=torch.int64)
         return data
 
-    def pad_input(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def pad_input(self, data: dict[str, Any]) -> dict[str, Any]:
         """Pad input tensors to match neighbor matrix dimensions using AIMNet2 logic."""
         if "nbmat" in data:
             N = data["nbmat"].shape[0]  # This includes the padding row, so it's N+1
@@ -353,7 +352,7 @@ class NativeAIMNet2Calculator:
 
         return data
 
-    def unpad_output(self, data: Dict[str, Any], original_n_atoms: int) -> Dict[str, Any]:
+    def unpad_output(self, data: dict[str, Any], original_n_atoms: int) -> dict[str, Any]:
         """Remove padding from output tensors using AIMNet2 logic."""
         atom_feature_keys = ["coord", "numbers", "charges", "forces"]
         for k in atom_feature_keys:
@@ -361,7 +360,7 @@ class NativeAIMNet2Calculator:
                 data[k] = maybe_unpad_dim0(data[k], original_n_atoms)
         return data
 
-    def set_grad_tensors(self, data: Dict[str, Any], forces: bool = False) -> Dict[str, Any]:
+    def set_grad_tensors(self, data: dict[str, Any], forces: bool = False) -> dict[str, Any]:
         """Set up gradients for force calculation."""
         self._saved_for_grad = {}
         if forces:
@@ -369,7 +368,7 @@ class NativeAIMNet2Calculator:
             self._saved_for_grad["coord"] = data["coord"]
         return data
 
-    def calculate_forces(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def calculate_forces(self, data: dict[str, Any]) -> dict[str, Any]:
         """Calculate forces using automatic differentiation."""
         if "forces" not in data and self._saved_for_grad and "coord" in self._saved_for_grad:
             energy = data["energy"].sum()
@@ -377,7 +376,7 @@ class NativeAIMNet2Calculator:
             data["forces"] = -grad
         return data
 
-    def __call__(self, data: Dict[str, Any], forces: bool = False) -> Dict[str, Any]:
+    def __call__(self, data: dict[str, Any], forces: bool = False) -> dict[str, Any]:
         """
         Calculate energy and optionally forces.
 
@@ -456,7 +455,7 @@ class AIMNet2Potential(BasePotential):
     def __init__(
         self,
         model_name: str = "aimnet2",
-        device: Optional[str] = None,
+        device: str | None = None,
         charge: int = 0,
         mult: int = 1,
         **kwargs,
@@ -602,7 +601,7 @@ class AIMNet2Potential(BasePotential):
 
 def get_aimnet2_calculator(
     model_name: str = "aimnet2",
-    device: Optional[str] = None,
+    device: str | None = None,
     charge: int = 0,
     mult: int = 1,
     **kwargs,

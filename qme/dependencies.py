@@ -7,24 +7,25 @@ import patterns across the package with lazy loading.
 
 import importlib
 import importlib.util
-import warnings
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 
 class _DependencyContext:
     """Context manager for dependency access."""
 
-    def __init__(self, manager: Any, deps_names: List[str]) -> None:
+    def __init__(self, manager: Any, deps_names: list[str]) -> None:
         self.manager = manager
         self.deps_names = deps_names
         self.modules = None
 
-    def __enter__(self) -> Union[Any, tuple]:
+    def __enter__(self) -> Any | tuple:
         if len(self.deps_names) == 1:
             self.modules = self.manager.require_multiple(*self.deps_names)
             return self.modules
         else:
             self.modules = self.manager.require_multiple(*self.deps_names)
+            if self.modules is None:
+                raise RuntimeError("Failed to load dependencies")
             return tuple(self.modules[name] for name in self.deps_names)
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
@@ -41,8 +42,8 @@ class DependencyManager:
     """
 
     def __init__(self) -> None:
-        self._cache: Dict[str, Any] = {}
-        self._availability_cache: Dict[str, bool] = {}
+        self._cache: dict[str, Any] = {}
+        self._availability_cache: dict[str, bool] = {}
 
     def _check_availability_lazy(self, package_name: str) -> bool:
         """Lazily check if a package is available without importing it.
@@ -129,7 +130,9 @@ class DependencyManager:
                 self._cache[name] = fallback_value
         return self._cache[name]
 
-    def require_multiple(self, *deps_names, purpose="this functionality"):
+    def require_multiple(
+        self, *deps_names: str, purpose: str = "this functionality"
+    ) -> dict[str, Any] | None:
         """Require multiple dependencies, raising DependencyError if any are missing.
 
         Parameters
@@ -173,7 +176,7 @@ class DependencyManager:
                 raise DependencyError(", ".join(missing), purpose, install_command)
             return results
 
-    def need(self, *deps_names):
+    def need(self, *deps_names: str) -> "_DependencyContext":
         """
         Context manager that ensures dependencies are available within a block.
 
@@ -245,7 +248,7 @@ deps = DependencyManager()
 
 
 # Function to get lazy globals - everything is now lazy
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     """Support for lazy loading of module-level attributes."""
     if name == "HAS_SELLA":
         return deps.has("sella")

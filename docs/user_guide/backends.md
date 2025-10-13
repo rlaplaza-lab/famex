@@ -322,15 +322,7 @@ Use **Mock** backend:
 qme opt molecule.xyz --backend mock
 ```
 
-## Configuration
-
-### Setting Default Backend
-```python
-import qme
-qme.config.set_default_backend("aimnet2")
-```
-
-### Backend-Specific Options
+## Backend-Specific Options
 Each backend supports specific model names and parameters. See the [API Reference](../developer_guide/api_reference.md) for complete details.
 
 ## Troubleshooting

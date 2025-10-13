@@ -7,7 +7,8 @@ and provides a compatible ``calculate`` signature so subclasses can call
 setup work.
 """
 
-from typing import Any, Dict, List, Optional, Sequence, Union
+from collections.abc import Sequence
+from typing import Any
 
 from ase import Atoms
 
@@ -48,24 +49,24 @@ class BasePotential:
         self.backend: str = kwargs.get("backend", "generic")
 
         # Common configuration passed by derived classes
-        self.model_name: Optional[str] = kwargs.get("model_name")
-        self.device: Optional[str] = kwargs.get("device")
+        self.model_name: str | None = kwargs.get("model_name")
+        self.device: str | None = kwargs.get("device")
 
         # ASE-style state
-        self.atoms: Optional[Atoms] = None
-        self.results: Dict[str, Any] = {}
+        self.atoms: Atoms | None = None
+        self.results: dict[str, Any] = {}
 
         # Default implemented properties; subclasses may override
-        self.implemented_properties: List[str] = kwargs.get("implemented_properties", [])
+        self.implemented_properties: list[str] = kwargs.get("implemented_properties", [])
 
         # Batch evaluation support
         self._supports_batch_evaluation: bool = kwargs.get("supports_batch_evaluation", False)
 
     def calculate(
         self,
-        atoms: Optional[Atoms] = None,
-        properties: Optional[Sequence[str]] = None,
-        system_changes: Optional[Any] = None,
+        atoms: Atoms | None = None,
+        properties: Sequence[str] | None = None,
+        system_changes: Any | None = None,
     ) -> None:
         """Base calculate method that performs minimal setup.
 
@@ -82,7 +83,7 @@ class BasePotential:
         # ``self.results`` when appropriate.
         return
 
-    def _prepare_calculation(self, atoms: Optional[Atoms] = None) -> Optional[Any]:
+    def _prepare_calculation(self, atoms: Atoms | None = None) -> Any | None:
         """Prepare for a calculation by setting atoms and ensuring backend is loaded.
 
         Args:
@@ -96,14 +97,14 @@ class BasePotential:
             self.atoms = atoms
         return self.ensure_loaded()
 
-    def _backend_obj(self) -> Optional[Any]:
+    def _backend_obj(self) -> Any | None:
         """Return the standardized backend calculator stored in ``self._calc``.
 
         If the attribute is not present or is None, return None.
         """
         return getattr(self, "_calc", None)
 
-    def ensure_loaded(self) -> Optional[Any]:
+    def ensure_loaded(self) -> Any | None:
         """Ensure the underlying backend calculator is loaded.
 
         Calls subclass ``_load_calculator`` if no backend object is present.
@@ -120,7 +121,7 @@ class BasePotential:
         return self._backend_obj()
 
     def get_potential_energy(
-        self, atoms: Optional[Atoms] = None, force_consistent: bool = False
+        self, atoms: Atoms | None = None, force_consistent: bool = False
     ) -> float:
         """Generic get_potential_energy that delegates to underlying backend.
 
@@ -136,13 +137,13 @@ class BasePotential:
 
         if hasattr(backend, "get_potential_energy"):
             # Delegate to backend implementation
-            return backend.get_potential_energy(self.atoms, force_consistent)
+            return float(backend.get_potential_energy(self.atoms, force_consistent))
 
         # Backend does not implement the ASE helper -> run calculate
         self.calculate(self.atoms, properties=["energy"], system_changes=None)
         return float(self.results.get("energy", 0.0))
 
-    def get_forces(self, atoms: Optional[Atoms] = None) -> Optional[Any]:
+    def get_forces(self, atoms: Atoms | None = None) -> Any | None:
         """Generic get_forces that delegates to underlying backend.
 
         If the backend provides ``get_forces`` it is delegated to. Otherwise a
@@ -166,8 +167,8 @@ class BasePotential:
         return self._supports_batch_evaluation
 
     def calculate_batch(
-        self, atoms_list: List[Atoms], properties: Optional[List[str]] = None
-    ) -> List[Dict[str, Any]]:
+        self, atoms_list: list[Atoms], properties: list[str] | None = None
+    ) -> list[dict[str, Any]]:
         """Calculate properties for a batch of structures.
 
         Parameters

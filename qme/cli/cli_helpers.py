@@ -1,12 +1,18 @@
+"""CLI helper functions for QME.
+
+This module provides utility functions for the QME command line interface,
+including file I/O operations, argument parsing, and data formatting.
+"""
+
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from ase import Atoms
 from ase.io import read as ase_read
 from ase.io import write as ase_write
 
 
-def parse_kv_pairs(pairs: List[str]) -> Dict[str, object]:
+def parse_kv_pairs(pairs: list[str]) -> dict[str, object]:
     """Parse key=value pairs from CLI into a dict with best-effort typing.
 
     Parameters
@@ -25,7 +31,7 @@ def parse_kv_pairs(pairs: List[str]) -> Dict[str, object]:
     >>> parse_kv_pairs(["k=5.0", "steps=100", "verbose=true"])
     {'k': 5.0, 'steps': 100, 'verbose': True}
     """
-    result: Dict[str, object] = {}
+    result: dict[str, object] = {}
     for item in pairs or []:
         if "=" not in item:
             continue
@@ -114,8 +120,8 @@ def _coerce_to_atoms(obj: Any) -> Atoms:
 
 
 def write_atoms(
-    atoms: Union[Atoms, List[Atoms], Dict[str, Any], str], out_path: Optional[str]
-) -> Optional[str]:
+    atoms: Atoms | list[Atoms] | dict[str, Any] | str, out_path: str | None
+) -> str | None:
     """Write atoms or trajectory to a file.
 
     Parameters

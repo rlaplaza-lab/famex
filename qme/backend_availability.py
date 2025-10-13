@@ -7,7 +7,6 @@ compatibility issues.
 """
 
 import importlib
-from typing import Any, Dict, List, Optional, Set, Tuple
 
 from qme.dependencies import deps
 
@@ -23,8 +22,8 @@ BACKEND_TORCHSIM_UMA = "torchsim_uma"
 
 
 def _check_package_conflict(
-    package1: str, package2: str, conflict_packages: Dict[Tuple[str, str], str]
-) -> Optional[str]:
+    package1: str, package2: str, conflict_packages: dict[tuple[str, str], str]
+) -> str | None:
     """
     Check if two packages have known version conflicts.
 
@@ -52,7 +51,7 @@ def _check_package_conflict(
     return conflicts.get(conflict_key)
 
 
-def _get_package_version(package_name: str) -> Optional[str]:
+def _get_package_version(package_name: str) -> str | None:
     """Get version of an installed package."""
     try:
         module = importlib.import_module(package_name)
@@ -61,7 +60,7 @@ def _get_package_version(package_name: str) -> Optional[str]:
         return None
 
 
-def _check_e3nn_conflict() -> Optional[str]:
+def _check_e3nn_conflict() -> str | None:
     """
     Check for e3nn version conflicts between MACE and FairChem.
 
@@ -88,7 +87,7 @@ def _check_e3nn_conflict() -> Optional[str]:
     return None
 
 
-def _check_torchsim_fairchem_conflict() -> Optional[str]:
+def _check_torchsim_fairchem_conflict() -> str | None:
     """
     Check for TorchSim-FairChem API compatibility.
 
@@ -123,9 +122,9 @@ def _check_torchsim_fairchem_conflict() -> Optional[str]:
 class BackendAvailabilityChecker:
     """Fast, dependency-based backend availability checker."""
 
-    def __init__(self):
-        self._cache: Dict[str, bool] = {}
-        self._conflict_cache: Dict[str, Optional[str]] = {}
+    def __init__(self) -> None:
+        self._cache: dict[str, bool] = {}
+        self._conflict_cache: dict[str, str | None] = {}
 
     def _check_basic_dependencies(self, backend: str) -> bool:
         """Check basic package dependencies for a backend."""
@@ -143,7 +142,7 @@ class BackendAvailabilityChecker:
         required = requirements.get(backend, [])
         return all(deps.has(pkg) for pkg in required)
 
-    def _check_import_compatibility(self, backend: str) -> Optional[str]:
+    def _check_import_compatibility(self, backend: str) -> str | None:
         """Check if backend modules can be imported without errors."""
         # For most backends, if basic dependencies are available and no conflicts
         # are detected, we can assume they'll import successfully.
@@ -157,19 +156,19 @@ class BackendAvailabilityChecker:
         try:
             if backend == BACKEND_MACE:
                 # Just check if the main module imports, don't instantiate
-                import mace.calculators
+                import mace.calculators  # noqa: F401
 
                 return None
             elif backend in [BACKEND_TORCHSIM_MACE, BACKEND_TORCHSIM_UMA]:
                 # Check TorchSim imports
-                import torch_sim
+                import torch_sim  # noqa: F401
 
                 return None
             return None  # No import error
         except ImportError as e:
             return f"Import error: {e}"
 
-    def _check_known_conflicts(self, backend: str) -> Optional[str]:
+    def _check_known_conflicts(self, backend: str) -> str | None:
         """Check for known package version conflicts."""
         if backend in self._conflict_cache:
             return self._conflict_cache[backend]
@@ -246,7 +245,7 @@ class BackendAvailabilityChecker:
 
         return "Available"
 
-    def get_available_backends(self, include_mock: bool = True) -> List[str]:
+    def get_available_backends(self, include_mock: bool = True) -> list[str]:
         """Get list of all available backends."""
         all_backends = [
             BACKEND_MOCK,
@@ -263,7 +262,7 @@ class BackendAvailabilityChecker:
 
         return [b for b in all_backends if self.is_backend_available(b)]
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear the availability cache (useful for testing)."""
         self._cache.clear()
         self._conflict_cache.clear()
@@ -284,7 +283,7 @@ def get_availability_reason(backend: str) -> str:
     return _checker.get_availability_reason(backend)
 
 
-def get_available_backends(include_mock: bool = True) -> List[str]:
+def get_available_backends(include_mock: bool = True) -> list[str]:
     """Get list of available backends."""
     return _checker.get_available_backends(include_mock)
 
@@ -354,7 +353,7 @@ REGULAR_BACKENDS = [
 ]
 
 
-def get_available_ml_backends(include_torchsim: bool = True, verbose: bool = False) -> List[str]:
+def get_available_ml_backends(include_torchsim: bool = True, verbose: bool = False) -> list[str]:
     """Get list of ML backends that are available (excludes mock)."""
     available = get_available_backends(include_mock=False)
     if not include_torchsim:
@@ -362,7 +361,7 @@ def get_available_ml_backends(include_torchsim: bool = True, verbose: bool = Fal
     return available
 
 
-def get_available_torchsim_backends(verbose: bool = False) -> List[str]:
+def get_available_torchsim_backends(verbose: bool = False) -> list[str]:
     """Get list of TorchSim backends that are available."""
     available = []
     for backend in TORCHSIM_BACKENDS:
@@ -375,7 +374,7 @@ def get_available_torchsim_backends(verbose: bool = False) -> List[str]:
     return available
 
 
-def get_backend_pairs() -> List[Tuple[str, str]]:
+def get_backend_pairs() -> list[tuple[str, str]]:
     """Get pairs of (regular_backend, torchsim_backend) for comparison testing."""
     pairs = []
 

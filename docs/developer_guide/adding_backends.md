@@ -433,12 +433,12 @@ Update ALL documentation that mentions backend lists:
 # README.md - Add to supported backends table
 ```
 
-### Configuration Files
+### Documentation Updates
 
-Update any configuration or metadata files:
+Update documentation and metadata files:
 
 ```python
-# Any config files that list backends
+# Update documentation files that list backends
 # CI/CD files that test specific backends
 # Docker files or environment setup scripts
 ```

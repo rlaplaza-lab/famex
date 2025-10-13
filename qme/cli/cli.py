@@ -1,5 +1,12 @@
+"""QME Command Line Interface.
+
+This module provides the main CLI interface for QME (Quick Mechanistic Exploration),
+allowing users to perform molecular optimization tasks from the command line.
+"""
+
 import os
-from typing import Any, List, Optional
+from contextlib import nullcontext
+from typing import Any
 
 import click
 from ase import Atoms
@@ -49,7 +56,6 @@ os.environ.setdefault("MPLBACKEND", "Agg")
 @click.version_option()
 def main() -> None:
     """Main CLI entry point."""
-    pass
 
 
 # Add cache commands
@@ -164,27 +170,27 @@ def _common_explorer_options(f: Any) -> Any:
 @_common_explorer_options
 def opt(
     input: str,
-    product: Optional[str],
-    output_path: Optional[str],
+    product: str | None,
+    output_path: str | None,
     fmax: float,
     steps: int,
     npoints: int,
     interp: str,
     backend: str,
-    model_name: Optional[str],
-    model_path: Optional[str],
-    device: Optional[str],
+    model_name: str | None,
+    model_path: str | None,
+    device: str | None,
     default_charge: int,
     default_spin: int,
     local_optimizer: str,
-    optimizer_kw: List[str],
-    ts_kw: List[str],
-    constraints: Optional[str],
+    optimizer_kw: list[str],
+    ts_kw: list[str],
+    constraints: str | None,
     verbose: int,
     dry_run: bool,
 ) -> None:
     atoms = load_atoms_from_xyz(input)
-    p_atoms: Optional[Atoms] = load_atoms_from_xyz(product) if product else None
+    p_atoms: Atoms | None = load_atoms_from_xyz(product) if product else None
 
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
@@ -195,12 +201,12 @@ def opt(
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-        from contextlib import nullcontext
 
         ctx = nullcontext()  # type: ignore
 
     with ctx:
         if p_atoms is None:
+            # Local minima optimization
             exp = Explorer(
                 atoms=atoms,
                 backend=backend,
@@ -211,8 +217,8 @@ def opt(
                 default_spin=default_spin,
                 local_optimizer=local_optimizer,
                 optimizer_kwargs=optimizer_kwargs,
-                strategy="local",
                 target="minima",
+                strategy="local",
                 ts_kwargs=ts_kwargs,
                 constraints=constraints,
                 verbose=verbosity,
@@ -221,6 +227,7 @@ def opt(
             if dry_run:
                 explanation = exp.explain_run(mode="minima")
                 click.echo("🔍 Dry-run analysis:")
+                click.echo(f"   Target: {explanation['target']}")
                 click.echo(f"   Strategy: {explanation['strategy']}")
                 click.echo(f"   Runner: {explanation['runner']}")
                 click.echo(f"   Valid: {explanation['valid']}")
@@ -230,6 +237,7 @@ def opt(
             results = exp.run(mode="minima", fmax=fmax, steps=steps)
             result_atoms = results["optimized_atoms"]
         else:
+            # Two-ended minima optimization (interpolate strategy)
             exp = Explorer(
                 atoms=[atoms, p_atoms],
                 backend=backend,
@@ -240,8 +248,8 @@ def opt(
                 default_spin=default_spin,
                 local_optimizer=local_optimizer,
                 optimizer_kwargs=optimizer_kwargs,
-                strategy="two-ended",
                 target="minima",
+                strategy="interpolate",
                 ts_kwargs=ts_kwargs,
                 constraints=constraints,
                 verbose=verbosity,
@@ -313,27 +321,27 @@ def opt(
 @_common_explorer_options
 def tsopt(
     reactant: str,
-    product: Optional[str],
-    output_path: Optional[str],
+    product: str | None,
+    output_path: str | None,
     fmax: float,
     steps: int,
     npoints: int,
     interp: str,
     backend: str,
-    model_name: Optional[str],
-    model_path: Optional[str],
-    device: Optional[str],
+    model_name: str | None,
+    model_path: str | None,
+    device: str | None,
     default_charge: int,
     default_spin: int,
     local_optimizer: str,
-    optimizer_kw: List[str],
-    ts_kw: List[str],
-    constraints: Optional[str],
+    optimizer_kw: list[str],
+    ts_kw: list[str],
+    constraints: str | None,
     verbose: int,
     dry_run: bool,
 ) -> None:
     r_atoms = load_atoms_from_xyz(reactant)
-    p_atoms: Optional[Atoms] = load_atoms_from_xyz(product) if product else None
+    p_atoms: Atoms | None = load_atoms_from_xyz(product) if product else None
 
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
@@ -344,13 +352,12 @@ def tsopt(
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-        from contextlib import nullcontext
 
         ctx = nullcontext()  # type: ignore
 
     with ctx:
         if p_atoms is None:
-            # Single-ended optimization
+            # Local TS optimization
             exp = Explorer(
                 atoms=r_atoms,
                 backend=backend,
@@ -361,8 +368,8 @@ def tsopt(
                 default_spin=default_spin,
                 local_optimizer=local_optimizer,
                 optimizer_kwargs=optimizer_kwargs,
-                strategy="local",
                 target="ts",
+                strategy="local",
                 ts_kwargs=ts_kwargs,
                 constraints=constraints,
                 verbose=verbosity,
@@ -370,7 +377,7 @@ def tsopt(
             results = exp.run(mode="ts", fmax=fmax, steps=steps)
             ts_atoms = results["optimized_atoms"]
         else:
-            # Two-ended TS optimization - return single TS structure
+            # TS from interpolated guess (interpolate strategy)
             exp = Explorer(
                 atoms=[r_atoms, p_atoms],
                 backend=backend,
@@ -381,8 +388,8 @@ def tsopt(
                 default_spin=default_spin,
                 local_optimizer=local_optimizer,
                 optimizer_kwargs=optimizer_kwargs,
-                strategy="two-ended",
                 target="ts",
+                strategy="interpolate",
                 ts_kwargs=ts_kwargs,
                 constraints=constraints,
                 verbose=verbosity,
@@ -417,7 +424,6 @@ def tsopt(
 )
 def path() -> None:
     """Reaction path optimization between reactant and product structures."""
-    pass
 
 
 @path.command(
@@ -454,19 +460,19 @@ def path() -> None:
 def interpolate(
     reactant: str,
     product: str,
-    output_path: Optional[str],
+    output_path: str | None,
     npoints: int,
     interp: str,
     backend: str,
-    model_name: Optional[str],
-    model_path: Optional[str],
-    device: Optional[str],
+    model_name: str | None,
+    model_path: str | None,
+    device: str | None,
     default_charge: int,
     default_spin: int,
     local_optimizer: str,
-    optimizer_kw: List[str],
-    ts_kw: List[str],
-    constraints: Optional[str],
+    optimizer_kw: list[str],
+    ts_kw: list[str],
+    constraints: str | None,
     verbose: int,
     dry_run: bool,
 ) -> None:
@@ -484,35 +490,50 @@ def interpolate(
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-        from contextlib import nullcontext
 
         ctx = nullcontext()  # type: ignore
 
     with ctx:
-        # For raw interpolation, use Reaction class directly without optimization
-        # Create calculator for the interpolation
-        from qme.core.calculator_setup import create_calculator
-        from qme.core.reaction import Reaction
-
-        calculator = create_calculator(
+        # Use Explorer with path:interpolate strategy for raw interpolation
+        exp = Explorer(
+            atoms=[r_atoms, p_atoms],
             backend=backend,
             model_name=model_name,
             model_path=model_path,
             device=device,
             default_charge=default_charge,
             default_spin=default_spin,
+            local_optimizer=local_optimizer,
+            optimizer_kwargs={},
+            target="path",
+            strategy="interpolate",
+            ts_kwargs={},
+            constraints=constraints,
+            verbose=verbosity,
         )
 
-        # Create reaction and interpolate without optimization
-        reaction = Reaction(r_atoms, p_atoms, calculator=calculator)
-        path_geometries = reaction.interpolate(
+        if dry_run:
+            explanation = exp.explain_run(mode="interpolate")
+            click.echo("🔍 Dry-run analysis:")
+            click.echo(f"   Target: {explanation['target']}")
+            click.echo(f"   Strategy: {explanation['strategy']}")
+            click.echo(f"   Runner: {explanation['runner']}")
+            click.echo(f"   Valid: {explanation['valid']}")
+            click.echo(f"   Notes: {explanation['notes']}")
+            return
+
+        # Run interpolation
+        result = exp.run(
+            mode="interpolate",
             npoints=npoints,
             method=interp.lower(),
-            optimize_path=False,  # Raw interpolation, no optimization
         )
 
-        # Convert geometries back to Atoms objects
-        path_result = list(path_geometries)  # Geometry inherits from Atoms
+        # Extract path from result
+        if isinstance(result, dict) and "trajectory" in result:
+            path_result = result["trajectory"]
+        else:
+            path_result = result
 
     # Save trajectory
     out_base = os.path.splitext(reactant)[0]
@@ -564,22 +585,22 @@ def interpolate(
 def neb(
     reactant: str,
     product: str,
-    output_path: Optional[str],
+    output_path: str | None,
     fmax: float,
     steps: int,
     npoints: int,
     interp: str,
     spring_constant: float,
     backend: str,
-    model_name: Optional[str],
-    model_path: Optional[str],
-    device: Optional[str],
+    model_name: str | None,
+    model_path: str | None,
+    device: str | None,
     default_charge: int,
     default_spin: int,
     local_optimizer: str,
-    optimizer_kw: List[str],
-    ts_kw: List[str],
-    constraints: Optional[str],
+    optimizer_kw: list[str],
+    ts_kw: list[str],
+    constraints: str | None,
     verbose: int,
     dry_run: bool,
 ) -> None:
@@ -595,7 +616,6 @@ def neb(
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-        from contextlib import nullcontext
 
         ctx = nullcontext()  # type: ignore
 
@@ -610,11 +630,22 @@ def neb(
             default_spin=default_spin,
             local_optimizer=local_optimizer,
             optimizer_kwargs=optimizer_kwargs,
-            strategy="two-ended",
             target="path",
+            strategy="neb",
             ts_kwargs=ts_kwargs,
             constraints=constraints,
+            verbose=verbosity,
         )
+
+        if dry_run:
+            explanation = exp.explain_run(mode="neb")
+            click.echo("🔍 Dry-run analysis:")
+            click.echo(f"   Target: {explanation['target']}")
+            click.echo(f"   Strategy: {explanation['strategy']}")
+            click.echo(f"   Runner: {explanation['runner']}")
+            click.echo(f"   Valid: {explanation['valid']}")
+            click.echo(f"   Notes: {explanation['notes']}")
+            return
 
         # Run NEB optimization
         neb_result = exp.run(
@@ -677,22 +708,22 @@ def neb(
 def cineb(
     reactant: str,
     product: str,
-    output_path: Optional[str],
+    output_path: str | None,
     fmax: float,
     steps: int,
     npoints: int,
     interp: str,
     spring_constant: float,
     backend: str,
-    model_name: Optional[str],
-    model_path: Optional[str],
-    device: Optional[str],
+    model_name: str | None,
+    model_path: str | None,
+    device: str | None,
     default_charge: int,
     default_spin: int,
     local_optimizer: str,
-    optimizer_kw: List[str],
-    ts_kw: List[str],
-    constraints: Optional[str],
+    optimizer_kw: list[str],
+    ts_kw: list[str],
+    constraints: str | None,
     verbose: int,
     dry_run: bool,
 ) -> None:
@@ -708,7 +739,6 @@ def cineb(
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-        from contextlib import nullcontext
 
         ctx = nullcontext()  # type: ignore
 
@@ -723,11 +753,22 @@ def cineb(
             default_spin=default_spin,
             local_optimizer=local_optimizer,
             optimizer_kwargs=optimizer_kwargs,
-            strategy="two-ended",
             target="path",
+            strategy="cineb",
             ts_kwargs=ts_kwargs,
             constraints=constraints,
+            verbose=verbosity,
         )
+
+        if dry_run:
+            explanation = exp.explain_run(mode="cineb")
+            click.echo("🔍 Dry-run analysis:")
+            click.echo(f"   Target: {explanation['target']}")
+            click.echo(f"   Strategy: {explanation['strategy']}")
+            click.echo(f"   Runner: {explanation['runner']}")
+            click.echo(f"   Valid: {explanation['valid']}")
+            click.echo(f"   Notes: {explanation['notes']}")
+            return
 
         # Run CI-NEB optimization
         cineb_result = exp.run(

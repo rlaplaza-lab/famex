@@ -5,7 +5,7 @@ SO3LR is an open source neural network potential with SO(3) invariant architectu
 This module provides ASE Calculator interface for SO3LR models.
 """
 
-from typing import Any, Optional, Sequence
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -27,9 +27,9 @@ class SO3LRPotential(BasePotential):
 
     def __init__(
         self,
-        model_path: Optional[str] = None,
+        model_path: str | None = None,
         model_name: str = "so3lr-small",
-        device: Optional[str] = None,
+        device: str | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -64,7 +64,7 @@ class SO3LRPotential(BasePotential):
         # Initialize base class (this will call _load_calculator)
         super().__init__(model_name=model_name, device=device, **kwargs)
 
-    def _load_calculator(self):
+    def _load_calculator(self) -> None:
         """Load the SO3LR ASE calculator."""
         # Skip if already loaded
         if hasattr(self, "_calc") and self._calc is not None:
@@ -91,10 +91,10 @@ class SO3LRPotential(BasePotential):
 
     def calculate(
         self,
-        atoms=None,
-        properties=["energy", "forces"],
-        system_changes=all_changes,
-    ):
+        atoms: Atoms | None = None,
+        properties: list[str] | None = None,
+        system_changes: Any = all_changes,
+    ) -> None:
         """Calculate properties using SO3LR potential."""
         if atoms is None:
             return
@@ -125,14 +125,16 @@ class SO3LRPotential(BasePotential):
             except Exception:
                 self.results["forces"] = self.results.get("forces")
 
-    def get_potential_energy(self, atoms=None, force_consistent: bool = False):
+    def get_potential_energy(
+        self, atoms: Atoms | None = None, force_consistent: bool = False
+    ) -> float:
         """Get potential energy (ASE-compatible)."""
         if atoms is not None:
             self.atoms = atoms
 
         return super().get_potential_energy(atoms, force_consistent)
 
-    def get_forces(self, atoms=None):
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray | None:
         """Get forces (ASE-compatible)."""
         if atoms is not None:
             self.atoms = atoms
@@ -145,10 +147,10 @@ class SO3LRPotential(BasePotential):
 
 
 def get_so3lr_calculator(
-    model_path: Optional[str] = None,
+    model_path: str | None = None,
     model_name: str = "so3lr-small",
-    device: Optional[str] = None,
-    **kwargs,
+    device: str | None = None,
+    **kwargs: Any,
 ) -> SO3LRPotential:
     """
     Convenience function to get SO3LR calculator.

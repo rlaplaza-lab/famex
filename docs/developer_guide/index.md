@@ -242,16 +242,6 @@ def opt_command(my_option, **kwargs):
     pass
 ```
 
-### Adding a Configuration Option
-
-```python
-# settings.py
-config.add_option(
-    'my_setting',
-    default='default_value',
-    description='My configuration setting'
-)
-```
 
 ### Adding an Analysis Tool
 

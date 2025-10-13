@@ -9,7 +9,7 @@ issues that cause "vmap got inconsistent sizes" errors when reused.
 """
 
 import hashlib
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 from weakref import WeakValueDictionary
 
 
@@ -27,11 +27,11 @@ class CalculatorCache:
         """
         self.max_size = max_size
         self._cache: WeakValueDictionary = WeakValueDictionary()
-        self._access_order: Dict[str, int] = {}
+        self._access_order: dict[str, int] = {}
         self._access_counter = 0
 
     def _generate_key(
-        self, backend: str, model_name: Optional[str], device: Optional[str], **kwargs: Any
+        self, backend: str, model_name: str | None, device: str | None, **kwargs: Any
     ) -> str:
         """Generate a cache key for calculator parameters."""
         # Create a sorted dictionary of parameters for consistent hashing
@@ -50,8 +50,8 @@ class CalculatorCache:
         return hashlib.md5(param_str.encode()).hexdigest()[:16]
 
     def get(
-        self, backend: str, model_name: Optional[str], device: Optional[str], **kwargs
-    ) -> Optional[Any]:
+        self, backend: str, model_name: str | None, device: str | None, **kwargs: Any
+    ) -> Any | None:
         """
         Get cached calculator if available.
 
@@ -85,9 +85,9 @@ class CalculatorCache:
         self,
         calculator: Any,
         backend: str,
-        model_name: Optional[str],
-        device: Optional[str],
-        **kwargs,
+        model_name: str | None,
+        device: str | None,
+        **kwargs: Any,
     ) -> str:
         """
         Cache a calculator.
@@ -123,7 +123,7 @@ class CalculatorCache:
 
         return key
 
-    def _evict_oldest(self):
+    def _evict_oldest(self) -> None:
         """Evict the least recently used calculator."""
         if not self._access_order:
             return
@@ -136,13 +136,13 @@ class CalculatorCache:
             del self._cache[oldest_key]
         del self._access_order[oldest_key]
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear all cached calculators."""
         self._cache.clear()
         self._access_order.clear()
         self._access_counter = 0
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         return {
             "size": len(self._cache),
@@ -164,8 +164,8 @@ def get_calculator_cache() -> CalculatorCache:
 
 
 def get_cached_calculator(
-    backend: str, model_name: Optional[str], device: Optional[str], **kwargs
-) -> Optional[Any]:
+    backend: str, model_name: str | None, device: str | None, **kwargs: Any
+) -> Any | None:
     """
     Get a cached calculator if available.
 
@@ -192,9 +192,9 @@ def get_cached_calculator(
 def cache_calculator(
     calculator: Any,
     backend: str,
-    model_name: Optional[str],
-    device: Optional[str],
-    **kwargs,
+    model_name: str | None,
+    device: str | None,
+    **kwargs: Any,
 ) -> str:
     """
     Cache a calculator.

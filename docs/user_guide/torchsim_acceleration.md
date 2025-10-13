@@ -285,10 +285,11 @@ CUDA out of memory during optimization
 Enable verbose output for debugging:
 
 ```python
+import logging
 import qme
 
 # Enable debug logging
-qme.config.set_log_level("DEBUG")
+logging.basicConfig(level=logging.DEBUG)
 
 # This will show detailed TorchSim operations
 explorer = qme.Explorer.from_file("molecule.xyz", backend="torchsim_mace")

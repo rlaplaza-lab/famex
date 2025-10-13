@@ -2,7 +2,8 @@
 UMA Machine Learning Potential integration for ASE.
 """
 
-from typing import Any, Dict, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -37,7 +38,7 @@ class UMAPotential(BasePotential):
     def __init__(
         self,
         model_name: str = "uma-s-1p1",
-        device: Optional[str] = None,
+        device: str | None = None,
         default_charge: int = 0,
         default_spin: int = 1,
         **kwargs: Any,
@@ -73,7 +74,7 @@ class UMAPotential(BasePotential):
         # Initialize base class (this will call _load_calculator)
         super().__init__(model_name=model_name, device=device, **kwargs)
 
-    def _load_calculator(self):
+    def _load_calculator(self) -> None:
         """Load the UMA model from fairchem v2 API."""
         # Skip if already loaded
         if hasattr(self, "_calc") and self._calc is not None:
@@ -113,7 +114,7 @@ class UMAPotential(BasePotential):
                 self.predictor = pretrained_mlip.get_predict_unit(model_name, device=device_param)
 
                 # Try to force consistent precision to avoid dtype mismatches
-                if hasattr(self.predictor, "model"):
+                if hasattr(self.predictor, "model") and self.predictor.model is not None:
                     # Force model to float32 precision to avoid mixed precision issues
                     if hasattr(self.predictor.model, "float"):
                         self.predictor.model.float()
@@ -131,8 +132,8 @@ class UMAPotential(BasePotential):
 
     def calculate(
         self,
-        atoms: Optional[Atoms] = None,
-        properties: Sequence[str] = ("energy", "forces"),
+        atoms: Atoms | None = None,
+        properties: Sequence[str] | None = None,
         system_changes: Any = all_changes,
     ) -> None:
         """Calculate properties using UMA potential."""
@@ -200,16 +201,18 @@ class UMAPotential(BasePotential):
         """Get the backend name for UMA."""
         return "uma"
 
-    def get_potential_energy(self, atoms=None, force_consistent: bool = False):
+    def get_potential_energy(
+        self, atoms: Atoms | None = None, force_consistent: bool = False
+    ) -> float:
         """Get potential energy (ASE-compatible)."""
         return super().get_potential_energy(atoms, force_consistent)
 
-    def get_forces(self, atoms=None):
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray | None:
         """Get forces (ASE-compatible)."""
         return super().get_forces(atoms)
 
 
-def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs) -> UMAPotential:
+def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs: Any) -> UMAPotential:
     """
     Convenience function to get UMA calculator.
 

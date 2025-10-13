@@ -13,11 +13,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from ase import Atoms
 from ase.build import molecule
 
 from qme import Explorer, calculator_registry
-from qme.backend_availability import get_available_backends
 from qme.dependencies import deps
 from tests.test_utils import BackendTestMixin
 
