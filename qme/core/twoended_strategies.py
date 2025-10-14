@@ -561,9 +561,6 @@ def _optimize_minima_frames(
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 0)
-        elif local_optimizer_name.lower() == "geometric":
-            opt_kwargs = dict(opt_kwargs)
-            opt_kwargs.setdefault("order", 0)
 
         opt = opt_class(geom_copy, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)

@@ -1,6 +1,6 @@
 # QME: Quick Mechanistic Exploration
 
-**Quick mechanistic exploration using machine learning potentials for molecular geometry optimization and transition state searches with Sella and geomeTRIC optimizers.**
+**Quick mechanistic exploration using machine learning potentials for molecular geometry optimization and transition state searches with Sella optimizer.**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-tested-green.svg)](https://www.python.org/downloads/)
@@ -54,7 +54,7 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 - 🧪 **Multiple ML Backends**: UMA, AIMNet2, MACE, Orb, SO3LR, TorchSim
 - ⚡ **GPU Acceleration**: CUDA support with up to 100x speedup
 - 🎯 **Optimization Methods**: Local and two-ended strategies
-- 🔄 **Transition States**: Advanced TS search with Sella and geomeTRIC optimizers
+- 🔄 **Transition States**: Advanced TS search with Sella optimizer
 - 🛤️ **Reaction Paths**: NEB and CI-NEB path optimization with trajectory saving
 - 📊 **Analysis Tools**: Frequency analysis and thermodynamics
 - 🖥️ **Dual Interface**: Command-line and Python API
@@ -80,7 +80,7 @@ qme path cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path
 
 # Different backends and settings
 qme opt molecule.xyz --backend mace --device cuda --fmax 0.01
-qme tsopt ts_guess.xyz --backend aimnet2 --optimizer geometric --fmax 0.01
+qme tsopt ts_guess.xyz --backend aimnet2 --optimizer sella --fmax 0.01
 
 # Cache management
 qme cache info
@@ -125,12 +125,11 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 | Optimizer | Description | Best For | Transition States |
 |-----------|-------------|----------|-------------------|
 | `sella` | Modern saddle point optimizer | General TS searches | ✅ Yes |
-| `geometric` | Translation-Rotation Internal Coordinates | Complex molecules, internal coordinates | ✅ Yes |
 | `lbfgs` | Limited-memory BFGS | Fast minima optimization | ❌ No |
 | `bfgs` | Broyden-Fletcher-Goldfarb-Shanno | Standard optimization | ❌ No |
 | `fire` | Fast Inertial Relaxation Engine | Quick relaxation | ❌ No |
 
-> **Note**: Sella and geomeTRIC are the recommended optimizers for transition state searches. geomeTRIC uses internal coordinates which can be more efficient for complex molecular systems.
+> **Note**: Sella is the recommended optimizer for transition state searches.
 
 ## 🧪 Testing and Development
 

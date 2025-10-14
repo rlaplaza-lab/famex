@@ -804,13 +804,13 @@ def main():
     parser.add_argument(
         "--minima-optimizer",
         default="LBFGS",
-        choices=["LBFGS", "BFGS", "FIRE", "GEOMETRIC"],
+        choices=["LBFGS", "BFGS", "FIRE"],
         help="Minima optimizer to use (default: LBFGS)",
     )
     parser.add_argument(
         "--ts-optimizer",
         default="SELLA",
-        choices=["SELLA", "GEOMETRIC"],
+        choices=["SELLA"],
         help="Transition state optimizer to use (default: SELLA)",
     )
 

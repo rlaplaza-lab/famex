@@ -48,7 +48,7 @@ def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
     if optimizer_name.lower() in FORBIDDEN_OPTIMIZERS_FOR_TS:
         raise ValueError(
             f"Optimizer '{optimizer_name}' is not suitable for transition state "
-            f"optimization. Use 'sella' or 'geometric' optimizers for TS searches."
+            f"optimization. Use 'sella' optimizer for TS searches."
         )
 
 
@@ -92,7 +92,7 @@ def _get_step_count(optimizer: Any) -> int | None:
     Returns:
         int or None: Number of steps taken
     """
-    # For GeometricOptimizer, prioritize step_count attribute over get_number_of_steps()
+    # For optimizers, prioritize step_count attribute over get_number_of_steps()
     # because get_number_of_steps() returns 0 by default from ASE Optimizer base class
     if hasattr(optimizer, "step_count") and optimizer.step_count is not None:
         return optimizer.step_count
@@ -177,10 +177,6 @@ def local_minima_runner(
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 0)
-        elif local_optimizer_name.lower() == "geometric":
-            # geomeTRIC-specific kwargs for minima search
-            opt_kwargs = dict(opt_kwargs)
-            opt_kwargs.setdefault("order", 0)
             # Check if Hessian is provided in explorer
             if hasattr(explorer, "initial_hessian") and explorer.initial_hessian is not None:
                 opt_kwargs["hessian"] = explorer.initial_hessian
@@ -264,10 +260,6 @@ def local_ts_runner(
             # Sella-specific kwargs for TS search
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("internal", True)
-            opt_kwargs.setdefault("order", 1)
-        elif local_optimizer_name.lower() == "geometric":
-            # geomeTRIC-specific kwargs for TS search
-            opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("order", 1)
             # Check if Hessian is provided in explorer
             if hasattr(explorer, "initial_hessian") and explorer.initial_hessian is not None:
