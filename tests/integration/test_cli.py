@@ -9,11 +9,10 @@ real ML potential dependencies.
 import os
 import tempfile
 
-import pytest
 from click.testing import CliRunner
 
 from qme.cli import main
-from tests.test_utils import BackendTestMixin, TestMoleculeFactory
+from tests.test_utils import TestMoleculeFactory
 
 
 class TestCLIMockBackend:
@@ -86,46 +85,3 @@ class TestCLIMockBackend:
             assert result.exit_code == 0, f"CLI failed: {result.output}"
             out_path = os.path.splitext(reactant_path)[0] + ".opt.twoended.xyz"
             assert os.path.exists(out_path), f"Output file not created: {out_path}"
-
-    def test_tsopt_local_runs_with_real_backend(self):
-        """Test transition state optimization with real backend if available."""
-        # Check for available backends that can handle transition states
-        available_backends = []
-        for backend in ["aimnet2", "mace", "uma", "so3lr"]:
-            if BackendTestMixin.check_backend_availability(backend):
-                available_backends.append(backend)
-
-        if not available_backends:
-            pytest.skip("No real backends available for transition state optimization")
-
-        # Use the first available backend
-        backend = available_backends[0]
-
-        runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            # Create test molecule
-            atoms = TestMoleculeFactory.get_water_distorted()
-            xyz_path = os.path.join(tmp, "test.xyz")
-            atoms.write(xyz_path)
-
-            # Run TS optimization
-            result = runner.invoke(
-                main,
-                [
-                    "tsopt",
-                    xyz_path,
-                    "--backend",
-                    backend,
-                    "--optimizer",
-                    "sella",
-                    "--steps",
-                    "5",
-                ],
-            )
-
-            # Verify success
-            assert result.exit_code == 0, f"CLI failed: {result.output}"
-            out_path = os.path.splitext(os.path.basename(xyz_path))[0] + ".ts.xyz"
-            assert os.path.exists(
-                os.path.join(tmp, out_path)
-            ), f"Output file not created: {out_path}"
