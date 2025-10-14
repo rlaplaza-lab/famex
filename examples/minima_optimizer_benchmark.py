@@ -69,7 +69,7 @@ def benchmark_minima_optimizer(
     """
     Benchmark a single backend with a specific optimizer for minima optimization.
 
-    Only suitable optimizers: LBFGS, BFGS, FIRE
+    Only suitable optimizers: LBFGS, BFGS, FIRE, Trust-Krylov
     """
     return benchmark_optimization(
         backend=backend,
@@ -79,7 +79,7 @@ def benchmark_minima_optimizer(
         verbose=verbose,
         test_ts=False,
         create_structure_func=create_minima_structure,
-        suitable_optimizers=["lbfgs", "bfgs", "fire"],
+        suitable_optimizers=["lbfgs", "bfgs", "fire", "trust-krylov"],
     )
 
 
@@ -386,7 +386,7 @@ def main():
     if args.optimizers:
         requested_optimizers = [o.strip().lower() for o in args.optimizers.split(",")]
         # Filter to only minima optimizers
-        valid_optimizers = ["lbfgs", "bfgs", "fire"]
+        valid_optimizers = ["lbfgs", "bfgs", "fire", "trust-krylov"]
         minima_optimizers = [opt for opt in requested_optimizers if opt in valid_optimizers]
         if len(minima_optimizers) != len(requested_optimizers):
             invalid_opts = [opt for opt in requested_optimizers if opt not in valid_optimizers]
@@ -397,7 +397,7 @@ def main():
 
     if not minima_optimizers:
         interface.print_error("No valid minima optimizers specified!")
-        print("Valid options: lbfgs, bfgs, fire")
+        print("Valid options: lbfgs, bfgs, fire, trust-krylov")
         return 1
 
     interface.print_backend_summary(available_backends, "Benchmarking Backends")
