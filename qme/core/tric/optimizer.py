@@ -57,7 +57,7 @@ class TRICOptimizer(Optimizer):
         self.trust_radius = trust_radius
         self.max_step = max_step
         self.step_count = 0
-        self.converged = False
+        self._converged = False
         
         # Create geometry and internal coordinates
         self.geometry = Geometry.from_atoms(atoms)
@@ -81,6 +81,13 @@ class TRICOptimizer(Optimizer):
         # Optimization state
         self.current_energy = None
         self.current_forces = None
+        
+        # Trust radius adaptation parameters
+        self.trust_radius_min = 0.001
+        self.trust_radius_max = 1.0
+        self.trust_radius_factor = 2.0
+        self.rho_threshold_good = 0.75
+        self.rho_threshold_bad = 0.25
     
     def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:
         """Run TRIC optimization.
@@ -123,7 +130,7 @@ class TRICOptimizer(Optimizer):
             # Check convergence
             max_force = np.max(np.abs(forces))
             if max_force < fmax:
-                self.converged = True
+                self._converged = True
                 self.log(f"Optimization converged after {step} steps (fmax={max_force:.6f})")
                 break
             
@@ -182,6 +189,11 @@ class TRICOptimizer(Optimizer):
                         if step_norm > self.trust_radius:
                             dq = dq / step_norm * self.trust_radius
             
+            # Store current energy and geometry before step
+            energy_before = energy
+            prev_positions = self.geometry.positions.copy()
+            prev_q = q.copy()
+            
             # Update geometry using internal coordinates
             q_new, geom_new = self._update_geometry(q, dq)
             
@@ -190,21 +202,50 @@ class TRICOptimizer(Optimizer):
             self.geometry = geom_new
             q = q_new
             
-            # Update Hessian using BFGS
-            if step > 0:
-                self._update_hessian_bfgs(q, internal_forces)
+            # Calculate energy after step
+            energy_after = self.atoms.get_potential_energy()
             
-            # Store values for next iteration
-            self.prev_internal_coords = q.copy()
-            self.prev_gradient = internal_forces.copy()
+            # Trust radius adaptation based on step quality
+            step_accepted = self._adapt_trust_radius(energy_before, energy_after, dq, internal_forces)
             
-            # Log progress
-            self.log(f"Step {step}: Energy={energy:.6f}, Max force={max_force:.6f}")
+            if step_accepted:
+                # Update Hessian using BFGS
+                if step > 0:
+                    self._update_hessian_bfgs(q, internal_forces)
+                
+                # Store values for next iteration
+                self.prev_internal_coords = q.copy()
+                self.prev_gradient = internal_forces.copy()
+                
+                # Log progress
+                self.log(f"Step {step}: Energy={energy_after:.6f}, Max force={max_force:.6f}, Trust radius={self.trust_radius:.4f}")
+            else:
+                # Reject step and restore previous geometry
+                self.atoms.set_positions(prev_positions)
+                self.geometry.positions = prev_positions
+                q = prev_q
+                
+                self.log(f"Step {step}: Step rejected, Trust radius={self.trust_radius:.4f}")
         
-        if not self.converged:
+        if not self._converged:
             self.log(f"Optimization did not converge after {steps} steps")
         
-        return self.converged
+        return self._converged
+    
+    def converged(self, forces=None):
+        """Check if optimization has converged.
+        
+        Parameters
+        ----------
+        forces : np.ndarray, optional
+            Forces array (for compatibility with ASE optimizers)
+            
+        Returns
+        -------
+        bool
+            True if converged, False otherwise
+        """
+        return self._converged
     
     def _update_geometry(self, q: np.ndarray, dq: np.ndarray) -> tuple[np.ndarray, Geometry]:
         """Update geometry using internal coordinate step."""
@@ -250,6 +291,59 @@ class TRICOptimizer(Optimizer):
             sHs = s @ self.hessian @ s
             
             self.hessian = self.hessian - np.outer(Hs, Hs) / sHs + np.outer(y, y) / ys
+    
+    def _adapt_trust_radius(self, energy_before: float, energy_after: float, 
+                           dq: np.ndarray, internal_forces: np.ndarray) -> bool:
+        """Adapt trust radius based on step quality.
+        
+        Parameters
+        ----------
+        energy_before : float
+            Energy before the step
+        energy_after : float
+            Energy after the step
+        dq : np.ndarray
+            Internal coordinate step
+        internal_forces : np.ndarray
+            Internal coordinate forces
+            
+        Returns
+        -------
+        bool
+            True if step is accepted, False if rejected
+        """
+        # Calculate predicted energy change using quadratic model
+        # ΔE_predicted = -g^T * dq + 0.5 * dq^T * H * dq
+        predicted_energy_change = -np.dot(internal_forces, dq)
+        
+        # Add quadratic term if Hessian is available
+        if hasattr(self, 'hessian') and self.hessian is not None:
+            quadratic_term = 0.5 * np.dot(dq, self.hessian @ dq)
+            predicted_energy_change += quadratic_term
+        
+        # Actual energy change
+        actual_energy_change = energy_after - energy_before
+        
+        # Calculate rho (step quality ratio)
+        if abs(predicted_energy_change) < 1e-12:
+            rho = 1.0 if actual_energy_change < 0 else 0.0
+        else:
+            rho = actual_energy_change / predicted_energy_change
+        
+        # Adapt trust radius based on rho
+        if rho > self.rho_threshold_good:
+            # Good step: increase trust radius
+            self.trust_radius = min(self.trust_radius * self.trust_radius_factor, self.trust_radius_max)
+            step_accepted = True
+        elif rho > self.rho_threshold_bad:
+            # Acceptable step: keep trust radius
+            step_accepted = True
+        else:
+            # Bad step: decrease trust radius and reject step
+            self.trust_radius = max(self.trust_radius / self.trust_radius_factor, self.trust_radius_min)
+            step_accepted = False
+        
+        return step_accepted
     
     def log(self, message: str):
         """Log optimization progress."""

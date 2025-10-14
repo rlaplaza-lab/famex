@@ -190,7 +190,7 @@ class TestTRICOptimizer:
         assert optimizer.trust_radius == 0.3
         assert optimizer.max_step == 0.2
         assert optimizer.step_count == 0
-        assert optimizer.converged is False
+        assert optimizer.converged() is False
         assert hasattr(optimizer, 'internal_coords')
         assert hasattr(optimizer, 'hessian')
 
