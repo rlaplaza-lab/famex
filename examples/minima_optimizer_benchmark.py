@@ -9,11 +9,11 @@ energy minima across different ML backends.
 
 Usage:
     python minima_optimizer_benchmark.py [--backends BACKEND1,BACKEND2,...]
-    python minima_optimizer_benchmark.py [--optimizers lbfgs,bfgs,fire,geometric]
+    python minima_optimizer_benchmark.py [--optimizers lbfgs,bfgs,fire]
     python minima_optimizer_benchmark.py [--device DEVICE]
 
 Features:
-    - Minima optimizer comparison (lbfgs, bfgs, fire, geomeTRIC)
+    - Minima optimizer comparison (lbfgs, bfgs, fire)
     - All available ML backends tested
     - Detailed timing and convergence analysis
     - Minima-specific optimization evaluation
@@ -69,7 +69,7 @@ def benchmark_minima_optimizer(
     """
     Benchmark a single backend with a specific optimizer for minima optimization.
 
-    Only suitable optimizers: LBFGS, BFGS, FIRE, Geometric
+    Only suitable optimizers: LBFGS, BFGS, FIRE
     """
     return benchmark_optimization(
         backend=backend,
@@ -79,7 +79,7 @@ def benchmark_minima_optimizer(
         verbose=verbose,
         test_ts=False,
         create_structure_func=create_minima_structure,
-        suitable_optimizers=["lbfgs", "bfgs", "fire", "geometric"],
+        suitable_optimizers=["lbfgs", "bfgs", "fire"],
     )
 
 
@@ -386,18 +386,18 @@ def main():
     if args.optimizers:
         requested_optimizers = [o.strip().lower() for o in args.optimizers.split(",")]
         # Filter to only minima optimizers
-        valid_optimizers = ["lbfgs", "bfgs", "fire", "geometric"]
+        valid_optimizers = ["lbfgs", "bfgs", "fire"]
         minima_optimizers = [opt for opt in requested_optimizers if opt in valid_optimizers]
         if len(minima_optimizers) != len(requested_optimizers):
             invalid_opts = [opt for opt in requested_optimizers if opt not in valid_optimizers]
             print(f"Warning: Invalid optimizers ignored: {', '.join(invalid_opts)}")
             print(f"Valid minima optimizers: {', '.join(valid_optimizers)}")
     else:
-        minima_optimizers = ["lbfgs", "bfgs", "fire", "geometric"]
+        minima_optimizers = ["lbfgs", "bfgs", "fire"]
 
     if not minima_optimizers:
         interface.print_error("No valid minima optimizers specified!")
-        print("Valid options: lbfgs, bfgs, fire, geometric")
+        print("Valid options: lbfgs, bfgs, fire")
         return 1
 
     interface.print_backend_summary(available_backends, "Benchmarking Backends")

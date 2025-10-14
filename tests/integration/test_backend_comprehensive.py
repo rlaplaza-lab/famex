@@ -7,7 +7,7 @@ This module consolidates all backend testing functionality including:
 - NEB optimization across all backends
 - CI-NEB optimization across all backends
 - CLI functionality testing
-- Geometric optimizer integration
+- Optimizer integration
 - Performance comparisons
 
 Test systems include:
