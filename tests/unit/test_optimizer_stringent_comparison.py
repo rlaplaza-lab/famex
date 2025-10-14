@@ -246,7 +246,7 @@ class TestOptimizerStringentComparison:
 
             # If optimizer claims convergence, forces should be low
             if hasattr(opt, "converged"):
-                converged = opt.converged()
+                converged = opt.converged(forces.flatten())
                 print(f"  Claims converged: {converged}")
 
                 if converged:

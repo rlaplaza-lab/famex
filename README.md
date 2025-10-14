@@ -122,14 +122,25 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 ## ⚙️ Supported Optimizers
 
+### First-Order Optimizers (Gradient-Based)
+
 | Optimizer | Description | Best For | Transition States |
 |-----------|-------------|----------|-------------------|
-| `sella` | Modern saddle point optimizer | General TS searches | ✅ Yes |
 | `lbfgs` | Limited-memory BFGS | Fast minima optimization | ❌ No |
 | `bfgs` | Broyden-Fletcher-Goldfarb-Shanno | Standard optimization | ❌ No |
 | `fire` | Fast Inertial Relaxation Engine | Quick relaxation | ❌ No |
 
-> **Note**: Sella is the recommended optimizer for transition state searches.
+### Second-Order Optimizers (Hessian-Based)
+
+| Optimizer | Description | Best For | Transition States |
+|-----------|-------------|----------|-------------------|
+| `sella` | Modern saddle point optimizer | General TS searches | ✅ Yes |
+| `trust-krylov` | Trust-region Krylov subspace | Challenging landscapes, TS | ✅ Yes |
+| `trust-ncg` | Trust-region Newton-CG | High-accuracy minima | ⚠️ Limited |
+| `trust-exact` | Trust-region exact solver | Maximum accuracy | ⚠️ Limited |
+| `newton-cg` | Newton Conjugate Gradient | Second-order minima | ❌ No |
+
+> **Note**: Second-order optimizers use Hessian information for better convergence but are computationally more expensive. The trust-region methods (trust-krylov, trust-ncg, trust-exact) compute Hessians efficiently using ML potentials. By default, they compute the Hessian once at the start; use `hessian_update_freq` parameter for periodic updates.
 
 ## 🧪 Testing and Development
 
