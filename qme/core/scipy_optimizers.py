@@ -57,9 +57,10 @@ class SciPyHessianOptimizer(Optimizer):
         File object or filename for logging. Use '-' for stdout.
     trajectory : Optional[str]
         Trajectory file to store optimization path.
-    hessian_update_freq : int
-        Frequency of full Hessian recalculation (in steps). Default is 1 (every step).
-        Set higher to reduce computational cost at the expense of accuracy.
+    hessian_update_freq : Optional[int]
+        Optional frequency of full Hessian recalculation (in steps).
+        Default is None, which only computes the Hessian once at the beginning.
+        Set to an integer to recompute every N steps.
     hessian_method : str
         Method for Hessian calculation: 'auto', 'batch', 'finite_differences', 'direct'
         Default is 'auto' which selects the best available method.
@@ -75,7 +76,8 @@ class SciPyHessianOptimizer(Optimizer):
         Default is True. Significantly reduces computational cost.
     adaptive_hessian : bool
         Use adaptive Hessian update frequency based on convergence behavior.
-        Default is True. Updates more frequently when forces increase.
+        Default is False. Enable to trigger additional Hessian evaluations
+        when forces increase sharply.
     force_threshold_ratio : float
         Ratio of force increase that triggers a full Hessian update.
         Default is 2.0. Only used if adaptive_hessian=True.
@@ -96,140 +98,34 @@ class SciPyHessianOptimizer(Optimizer):
 
     def __init__(
         self,
-        atoms,
-        restart=None,
-        logfile="-",
-        trajectory=None,
-        maxstep=0.2,
-        master=None,
-        force_consistent=None,
-        hessian_method="auto",
-        hessian_update_freq=None,
-        use_bfgs_update=False,
-        adaptive_hessian=False,
-        force_threshold_ratio=2.0,
+        atoms: Atoms,
+        method: str = "trust-krylov",
+        logfile: Union[IO, str] = "-",
+        trajectory: Optional[str] = None,
+    hessian_update_freq: Optional[int] = None,
+        hessian_method: str = "auto",
+        hessian_delta: float = 0.01,
+        initial_hessian: Optional[np.ndarray] = None,
+        alpha: float = 1.0,
+        use_bfgs_update: bool = True,
+        adaptive_hessian: bool = False,
+        force_threshold_ratio: float = 2.0,
+        **kwargs,
     ):
-        """Initialize Newton-CG optimizer.
-
-        Parameters
-        ----------
-        atoms : ase.Atoms
-            The atoms object to optimize
-        hessian_method : str, optional
-            Method for Hessian calculation: 'auto', 'fd', 'direct', 'batch'
-        hessian_update_freq : int or None, optional
-            How often to recompute the full Hessian (in steps).
-            If None, compute only once at the beginning.
-            Default is None (single Hessian at start).
-        use_bfgs_update : bool, optional
-            Use BFGS approximate updates between full Hessians.
-            Default is False.
-        adaptive_hessian : bool, optional
-            Enable adaptive Hessian update frequency based on force changes.
-            Default is False.
-        force_threshold_ratio : float, optional
-            Ratio threshold for adaptive Hessian updates. If forces increase
-            by more than this ratio, trigger a full Hessian update.
-            Default is 2.0.
-        """
-        super().__init__(
-            atoms,
-            restart=restart,
-            logfile=logfile,
-            trajectory=trajectory,
-            maxstep=maxstep,
-            master=master,
-            force_consistent=force_consistent,
-        )
-        self.method = "Newton-CG"
-        self.hessian_method = hessian_method
-        self.hessian_update_freq = hessian_update_freq
-        self.use_bfgs_update = use_bfgs_update
-        self.adaptive_hessian = adaptive_hessian
-        self.force_threshold_ratio = force_threshold_ratio
-        """Initialize Trust-Exact optimizer.
-
-        Parameters
-        ----------
-        atoms : ase.Atoms
-            The atoms object to optimize
-        hessian_method : str, optional
-            Method for Hessian calculation: 'auto', 'fd', 'direct', 'batch'
-        hessian_update_freq : int or None, optional
-            How often to recompute the full Hessian (in steps).
-            If None, compute only once at the beginning.
-            Default is None (single Hessian at start).
-        use_bfgs_update : bool, optional
-            Use BFGS approximate updates between full Hessians.
-            Default is False.
-        adaptive_hessian : bool, optional
-            Enable adaptive Hessian update frequency based on force changes.
-            Default is False.
-        force_threshold_ratio : float, optional
-            Ratio threshold for adaptive Hessian updates. If forces increase
-            by more than this ratio, trigger a full Hessian update.
-            Default is 2.0.
-        """
-        super().__init__(
-            atoms,
-            restart=restart,
-            logfile=logfile,
-            trajectory=trajectory,
-            maxstep=maxstep,
-            master=master,
-            force_consistent=force_consistent,
-        )
-        self.method = "trust-exact"
-        self.hessian_method = hessian_method
-        self.hessian_update_freq = hessian_update_freq
-        self.use_bfgs_update = use_bfgs_update
-        self.adaptive_hessian = adaptive_hessian
-        self.force_threshold_ratio = force_threshold_ratio
-        """Initialize Trust-NCG optimizer.
-
-        Parameters
-        ----------
-        atoms : ase.Atoms
-            The atoms object to optimize
-        hessian_method : str, optional
-            Method for Hessian calculation: 'auto', 'fd', 'direct', 'batch'
-        hessian_update_freq : int or None, optional
-            How often to recompute the full Hessian (in steps).
-            If None, compute only once at the beginning.
-            Default is None (single Hessian at start).
-        use_bfgs_update : bool, optional
-            Use BFGS approximate updates between full Hessians.
-            Default is False.
-        adaptive_hessian : bool, optional
-            Enable adaptive Hessian update frequency based on force changes.
-            Default is False.
-        force_threshold_ratio : float, optional
-            Ratio threshold for adaptive Hessian updates. If forces increase
-            by more than this ratio, trigger a full Hessian update.
-            Default is 2.0.
-        """
-        super().__init__(
-            atoms,
-            restart=restart,
-            logfile=logfile,
-            trajectory=trajectory,
-            maxstep=maxstep,
-            master=master,
-            force_consistent=force_consistent,
-        )
-        self.method = "trust-ncg"
-        self.hessian_method = hessian_method
-        self.hessian_update_freq = hessian_update_freq
-        self.use_bfgs_update = use_bfgs_update
-        self.adaptive_hessian = adaptive_hessian
-        self.force_threshold_ratio = force_threshold_ratio
         """Initialize SciPy Hessian-based optimizer."""
         # Don't use restart for SciPy optimizers
         restart = None
         Optimizer.__init__(self, atoms, restart, logfile, trajectory, **kwargs)
 
         self.method = method
-        self.hessian_update_freq = hessian_update_freq
+        freq = hessian_update_freq
+        if freq is not None and freq <= 0:
+            logger.warning(
+                "hessian_update_freq <= 0 provided; disabling periodic Hessian updates"
+            )
+            freq = None
+
+        self.hessian_update_freq: Optional[int] = freq
         self.hessian_method = hessian_method
         self.alpha = alpha
         self.use_bfgs_update = use_bfgs_update
@@ -270,21 +166,31 @@ class SciPyHessianOptimizer(Optimizer):
 
         logger.info(f"Initialized {method} optimizer with Hessian support")
         if adaptive_hessian:
-            logger.info(
-                f"Adaptive Hessian updates enabled (base frequency: every {hessian_update_freq} step(s))"
-            )
-            if use_bfgs_update:
-                logger.info("BFGS approximate updates enabled between full Hessians")
+            if hessian_update_freq is None:
+                logger.info(
+                    "Adaptive Hessian updates enabled (force-triggered; no periodic updates)"
+                )
+            else:
+                logger.info(
+                    f"Adaptive Hessian updates enabled (base frequency: every {hessian_update_freq} step(s))"
+                )
         else:
-            logger.info(
-                f"Fixed Hessian update frequency: every {hessian_update_freq} step(s)"
-            )
+            if hessian_update_freq is None:
+                logger.info("Periodic Hessian updates disabled (compute once and reuse)")
+            else:
+                logger.info(
+                    f"Fixed Hessian update frequency: every {hessian_update_freq} step(s)"
+                )
+        if use_bfgs_update:
+            logger.info("BFGS approximate updates enabled between full Hessians")
         logger.info(f"Hessian calculation method: {hessian_method}")
 
     def _positions_to_x(self, atoms: Optional[Atoms] = None) -> np.ndarray:
         """Convert atoms positions to 1D array for SciPy."""
         if atoms is None:
             atoms = self.atoms
+        if atoms is None:
+            raise RuntimeError("Atoms object is not initialized")
         return atoms.get_positions().ravel()
 
     def _x_to_positions(self, x: np.ndarray) -> np.ndarray:
@@ -384,12 +290,19 @@ class SciPyHessianOptimizer(Optimizer):
                     reason = f"force increase ({current_fmax:.4f} > {self._previous_fmax:.4f} × {self.force_threshold_ratio})"
             
             # Periodic update based on base frequency
-            if not need_full_update and steps_since_full >= self.hessian_update_freq:
+            if (
+                not need_full_update
+                and self.hessian_update_freq is not None
+                and steps_since_full >= self.hessian_update_freq
+            ):
                 need_full_update = True
                 reason = f"periodic (every {self.hessian_update_freq} steps)"
         else:
             # Fixed frequency mode
-            if steps_since_full >= self.hessian_update_freq:
+            if (
+                self.hessian_update_freq is not None
+                and steps_since_full >= self.hessian_update_freq
+            ):
                 need_full_update = True
                 reason = f"fixed frequency ({self.hessian_update_freq} steps)"
         
@@ -618,10 +531,10 @@ class TrustKrylov(SciPyHessianOptimizer):
         File object or filename for logging. Use '-' for stdout.
     trajectory : Optional[str]
         Trajectory file to store optimization path.
-    hessian_update_freq : int
-        Base frequency of full Hessian recalculation (in steps). Default is 5.
-        With adaptive_hessian=True, this is the periodic update interval.
-        With adaptive_hessian=False, this is the fixed update interval.
+    hessian_update_freq : Optional[int]
+        Base frequency of full Hessian recalculation (in steps). Default is None,
+        which only computes the Hessian once at the beginning. Set to an integer
+        to recompute every N steps.
     hessian_method : str
         Method for Hessian calculation: 'auto', 'batch', 'finite_differences', 'direct'
     hessian_delta : float
@@ -631,7 +544,7 @@ class TrustKrylov(SciPyHessianOptimizer):
     use_bfgs_update : bool
         Use BFGS approximate updates between full Hessians. Default is True.
     adaptive_hessian : bool
-        Adapt update frequency based on convergence. Default is True.
+        Adapt update frequency based on convergence. Default is False.
     **kwargs
         Additional arguments passed to Optimizer base class.
 
@@ -648,56 +561,30 @@ class TrustKrylov(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        restart=None,
         logfile: Union[IO, str] = "-",
         trajectory: Optional[str] = None,
-        maxstep=0.2,
-        master=None,
-        force_consistent=None,
+    hessian_update_freq: Optional[int] = None,
         hessian_method: str = "auto",
-        hessian_update_freq: Optional[int] = None,
-        use_bfgs_update: bool = False,
-        adaptive_hessian: bool = False,
-        force_threshold_ratio: float = 2.0,
+        hessian_delta: float = 0.01,
+        initial_hessian: Optional[np.ndarray] = None,
+        use_bfgs_update: bool = True,
+    adaptive_hessian: bool = False,
+        **kwargs,
     ):
-        """Initialize Trust-Krylov optimizer.
-        
-        Parameters
-        ----------
-        atoms : ase.Atoms
-            The atoms object to optimize
-        hessian_method : str, optional
-            Method for Hessian calculation: 'auto', 'fd', 'direct', 'batch'
-        hessian_update_freq : int or None, optional
-            How often to recompute the full Hessian (in steps).
-            If None, compute only once at the beginning.
-            Default is None (single Hessian at start).
-        use_bfgs_update : bool, optional
-            Use BFGS approximate updates between full Hessians.
-            Default is False.
-        adaptive_hessian : bool, optional
-            Enable adaptive Hessian update frequency based on force changes.
-            Default is False.
-        force_threshold_ratio : float, optional
-            Ratio threshold for adaptive Hessian updates. If forces increase
-            by more than this ratio, trigger a full Hessian update.
-            Default is 2.0.
-        """
+        """Initialize Trust-Krylov optimizer."""
         super().__init__(
-            atoms,
-            restart=restart,
+            atoms=atoms,
+            method="trust-krylov",
             logfile=logfile,
             trajectory=trajectory,
-            maxstep=maxstep,
-            master=master,
-            force_consistent=force_consistent,
+            hessian_update_freq=hessian_update_freq,
+            hessian_method=hessian_method,
+            hessian_delta=hessian_delta,
+            initial_hessian=initial_hessian,
+            use_bfgs_update=use_bfgs_update,
+            adaptive_hessian=adaptive_hessian,
+            **kwargs,
         )
-        self.method = "trust-krylov"
-        self.hessian_method = hessian_method
-        self.hessian_update_freq = hessian_update_freq
-        self.use_bfgs_update = use_bfgs_update
-        self.adaptive_hessian = adaptive_hessian
-        self.force_threshold_ratio = force_threshold_ratio
 
 
 class TrustNCG(SciPyHessianOptimizer):
@@ -716,56 +603,30 @@ class TrustNCG(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        restart=None,
         logfile: Union[IO, str] = "-",
         trajectory: Optional[str] = None,
-        maxstep=0.2,
-        master=None,
-        force_consistent=None,
+    hessian_update_freq: Optional[int] = None,
         hessian_method: str = "auto",
-        hessian_update_freq: Optional[int] = None,
-        use_bfgs_update: bool = False,
-        adaptive_hessian: bool = False,
-        force_threshold_ratio: float = 2.0,
+        hessian_delta: float = 0.01,
+        initial_hessian: Optional[np.ndarray] = None,
+        use_bfgs_update: bool = True,
+    adaptive_hessian: bool = False,
+        **kwargs,
     ):
-        """Initialize Trust-NCG optimizer.
-        
-        Parameters
-        ----------
-        atoms : ase.Atoms
-            The atoms object to optimize
-        hessian_method : str, optional
-            Method for Hessian calculation: 'auto', 'fd', 'direct', 'batch'
-        hessian_update_freq : int or None, optional
-            How often to recompute the full Hessian (in steps).
-            If None, compute only once at the beginning.
-            Default is None (single Hessian at start).
-        use_bfgs_update : bool, optional
-            Use BFGS approximate updates between full Hessians.
-            Default is False.
-        adaptive_hessian : bool, optional
-            Enable adaptive Hessian update frequency based on force changes.
-            Default is False.
-        force_threshold_ratio : float, optional
-            Ratio threshold for adaptive Hessian updates. If forces increase
-            by more than this ratio, trigger a full Hessian update.
-            Default is 2.0.
-        """
+        """Initialize Trust-NCG optimizer."""
         super().__init__(
-            atoms,
-            restart=restart,
+            atoms=atoms,
+            method="trust-ncg",
             logfile=logfile,
             trajectory=trajectory,
-            maxstep=maxstep,
-            master=master,
-            force_consistent=force_consistent,
+            hessian_update_freq=hessian_update_freq,
+            hessian_method=hessian_method,
+            hessian_delta=hessian_delta,
+            initial_hessian=initial_hessian,
+            use_bfgs_update=use_bfgs_update,
+            adaptive_hessian=adaptive_hessian,
+            **kwargs,
         )
-        self.method = "trust-ncg"
-        self.hessian_method = hessian_method
-        self.hessian_update_freq = hessian_update_freq
-        self.use_bfgs_update = use_bfgs_update
-        self.adaptive_hessian = adaptive_hessian
-        self.force_threshold_ratio = force_threshold_ratio
 
 
 class TrustExact(SciPyHessianOptimizer):
@@ -784,56 +645,30 @@ class TrustExact(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        restart=None,
         logfile: Union[IO, str] = "-",
         trajectory: Optional[str] = None,
-        maxstep=0.2,
-        master=None,
-        force_consistent=None,
+    hessian_update_freq: Optional[int] = None,
         hessian_method: str = "auto",
-        hessian_update_freq: Optional[int] = None,
-        use_bfgs_update: bool = False,
-        adaptive_hessian: bool = False,
-        force_threshold_ratio: float = 2.0,
+        hessian_delta: float = 0.01,
+        initial_hessian: Optional[np.ndarray] = None,
+        use_bfgs_update: bool = True,
+    adaptive_hessian: bool = False,
+        **kwargs,
     ):
-        """Initialize Trust-Exact optimizer.
-        
-        Parameters
-        ----------
-        atoms : ase.Atoms
-            The atoms object to optimize
-        hessian_method : str, optional
-            Method for Hessian calculation: 'auto', 'fd', 'direct', 'batch'
-        hessian_update_freq : int or None, optional
-            How often to recompute the full Hessian (in steps).
-            If None, compute only once at the beginning.
-            Default is None (single Hessian at start).
-        use_bfgs_update : bool, optional
-            Use BFGS approximate updates between full Hessians.
-            Default is False.
-        adaptive_hessian : bool, optional
-            Enable adaptive Hessian update frequency based on force changes.
-            Default is False.
-        force_threshold_ratio : float, optional
-            Ratio threshold for adaptive Hessian updates. If forces increase
-            by more than this ratio, trigger a full Hessian update.
-            Default is 2.0.
-        """
+        """Initialize Trust-Exact optimizer."""
         super().__init__(
-            atoms,
-            restart=restart,
+            atoms=atoms,
+            method="trust-exact",
             logfile=logfile,
             trajectory=trajectory,
-            maxstep=maxstep,
-            master=master,
-            force_consistent=force_consistent,
+            hessian_update_freq=hessian_update_freq,
+            hessian_method=hessian_method,
+            hessian_delta=hessian_delta,
+            initial_hessian=initial_hessian,
+            use_bfgs_update=use_bfgs_update,
+            adaptive_hessian=adaptive_hessian,
+            **kwargs,
         )
-        self.method = "trust-exact"
-        self.hessian_method = hessian_method
-        self.hessian_update_freq = hessian_update_freq
-        self.use_bfgs_update = use_bfgs_update
-        self.adaptive_hessian = adaptive_hessian
-        self.force_threshold_ratio = force_threshold_ratio
 
 
 class NewtonCG(SciPyHessianOptimizer):
@@ -851,53 +686,27 @@ class NewtonCG(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        restart=None,
         logfile: Union[IO, str] = "-",
         trajectory: Optional[str] = None,
-        maxstep=0.2,
-        master=None,
-        force_consistent=None,
+    hessian_update_freq: Optional[int] = None,
         hessian_method: str = "auto",
-        hessian_update_freq: Optional[int] = None,
-        use_bfgs_update: bool = False,
-        adaptive_hessian: bool = False,
-        force_threshold_ratio: float = 2.0,
+        hessian_delta: float = 0.01,
+        initial_hessian: Optional[np.ndarray] = None,
+        use_bfgs_update: bool = True,
+    adaptive_hessian: bool = False,
+        **kwargs,
     ):
-        """Initialize Newton-CG optimizer.
-        
-        Parameters
-        ----------
-        atoms : ase.Atoms
-            The atoms object to optimize
-        hessian_method : str, optional
-            Method for Hessian calculation: 'auto', 'fd', 'direct', 'batch'
-        hessian_update_freq : int or None, optional
-            How often to recompute the full Hessian (in steps).
-            If None, compute only once at the beginning.
-            Default is None (single Hessian at start).
-        use_bfgs_update : bool, optional
-            Use BFGS approximate updates between full Hessians.
-            Default is False.
-        adaptive_hessian : bool, optional
-            Enable adaptive Hessian update frequency based on force changes.
-            Default is False.
-        force_threshold_ratio : float, optional
-            Ratio threshold for adaptive Hessian updates. If forces increase
-            by more than this ratio, trigger a full Hessian update.
-            Default is 2.0.
-        """
+        """Initialize Newton-CG optimizer."""
         super().__init__(
-            atoms,
-            restart=restart,
+            atoms=atoms,
+            method="Newton-CG",
             logfile=logfile,
             trajectory=trajectory,
-            maxstep=maxstep,
-            master=master,
-            force_consistent=force_consistent,
+            hessian_update_freq=hessian_update_freq,
+            hessian_method=hessian_method,
+            hessian_delta=hessian_delta,
+            initial_hessian=initial_hessian,
+            use_bfgs_update=use_bfgs_update,
+            adaptive_hessian=adaptive_hessian,
+            **kwargs,
         )
-        self.method = "Newton-CG"
-        self.hessian_method = hessian_method
-        self.hessian_update_freq = hessian_update_freq
-        self.use_bfgs_update = use_bfgs_update
-        self.adaptive_hessian = adaptive_hessian
-        self.force_threshold_ratio = force_threshold_ratio
