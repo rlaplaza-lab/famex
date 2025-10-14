@@ -26,6 +26,7 @@ STRATEGY_LOCAL = "local"
 STRATEGY_NEB = "neb"
 STRATEGY_CINEB = "cineb"
 STRATEGY_INTERPOLATE = "interpolate"
+STRATEGY_IRC = "irc"
 
 # Aliases for normalization (backward compatibility)
 TARGET_ALIASES = {
@@ -65,6 +66,9 @@ STRATEGY_ALIASES = {
     "climbing_image_neb": STRATEGY_CINEB,
     "ci-neb": STRATEGY_CINEB,
     "ci_neb": STRATEGY_CINEB,
+    "irc": STRATEGY_IRC,
+    "intrinsic-reaction-coordinate": STRATEGY_IRC,
+    "intrinsic_reaction_coordinate": STRATEGY_IRC,
 }
 
 
