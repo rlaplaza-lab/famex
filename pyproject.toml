@@ -109,6 +109,17 @@ addopts = "-v --tb=short"
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".venv",
+    "venv",
+]
+
+[tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
@@ -126,15 +137,10 @@ ignore = [
     "E203",  # whitespace before ':' (conflicts with black)
     "T201",  # print statements (allow in tests and examples)
     "B904",  # raise without from (allow for now)
-]
-exclude = [
-    ".git",
-    "__pycache__",
-    "build",
-    "dist",
-    "*.egg-info",
-    ".venv",
-    "venv",
+    "N806",  # variable names like kT, OptClass are intentional (physics/CS conventions)
+    "SIM102",  # nested ifs are sometimes clearer than combined conditions
+    "SIM105",  # contextlib.suppress is not always clearer than try-except-pass
+    "SIM108",  # ternary operators are not always clearer than if-else blocks
 ]
 
 [tool.mypy]

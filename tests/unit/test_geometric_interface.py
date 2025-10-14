@@ -167,9 +167,7 @@ class TestGeometricOptimizerRun:
         with patch("geometric.ase_engine"), patch("geometric.optimize"):
             with patch("geometric.optimize.DelocalizedInternalCoordinates"):
                 with patch("tempfile.TemporaryDirectory") as mock_tmpdir:
-                    with patch.object(
-                        optimizer, "_create_molecule_from_atoms"
-                    ) as mock_create_mol:
+                    with patch.object(optimizer, "_create_molecule_from_atoms") as mock_create_mol:
                         mock_molecule = Mock()
                         mock_molecule.na = 3
                         mock_create_mol.return_value = mock_molecule

@@ -302,18 +302,19 @@ class Explorer:
             return self.model_name
 
         # Apply backend-specific defaults
-        if self.backend.lower() == "uma":
+        backend_lower = self.backend.lower()
+        if backend_lower == "uma":
             return "uma-s-1p1"
-        elif self.backend.lower() == "aimnet2":
+        elif backend_lower == "aimnet2":
             return "aimnet2"
-        elif self.backend.lower() == "mace" or self.backend.lower() == "torchsim_mace":
+        elif backend_lower in ("mace", "torchsim_mace"):
             return "mace-omol-0"
-        elif self.backend.lower() == "torchsim_uma":
+        elif backend_lower == "torchsim_uma":
             return "uma-s-1p1"
-        elif self.backend.lower() == "so3lr":
+        elif backend_lower == "so3lr":
             # SO3LR requires a model_path, not model_name
             return self.model_path or "so3lr-model"
-        elif self.backend.lower() == "mock":
+        elif backend_lower == "mock":
             return "mock-model"
         else:
             return "default-model"

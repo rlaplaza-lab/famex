@@ -8,9 +8,7 @@ extend-ignore =
     # Whitespace before ':' (conflicts with black)
     E203,
     # Missing whitespace around arithmetic operator (in f-strings)
-    E226,
-    # Trailing whitespaces
-    W291
+    E226
 exclude =
     .git,
     __pycache__,

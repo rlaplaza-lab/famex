@@ -164,7 +164,7 @@ def _filter_redundant_structures(
             )
 
     # Filter structures
-    for _i, atoms in enumerate(structures):
+    for i, atoms in enumerate(structures):
         is_redundant = False
 
         # Check against already filtered structures
@@ -307,6 +307,7 @@ def _filter_structures_helper(
         return [], [], []
 
     filtered_structures: list[Atoms] = []
+    filtered_indices: list[int] = []  # Track original indices of filtered structures
     removed_indices = []
     warning_messages = []
 
@@ -338,11 +339,12 @@ def _filter_structures_helper(
             )
 
     # Filter structures
-    for _i, atoms in enumerate(structures):
+    for i, atoms in enumerate(structures):
         is_redundant = False
 
         # Check against already filtered structures
-        for _j, filtered_atoms in enumerate(filtered_structures):
+        for j_idx, filtered_atoms in enumerate(filtered_structures):
+            j = filtered_indices[j_idx]  # Get original index
             # RMSD check
             rmsd = _calculate_rmsd(atoms, filtered_atoms)
             if rmsd < rmsd_threshold:
@@ -358,6 +360,7 @@ def _filter_structures_helper(
 
         if not is_redundant:
             filtered_structures.append(atoms)
+            filtered_indices.append(i)
 
     if removed_indices:
         warning_messages.insert(
