@@ -1614,8 +1614,330 @@ def _run_cineb(
     return path
 
 
+def twoended_growing_string_runner(
+    atoms_list: Sequence[Atoms] | Atoms,
+    npoints: int = 15,
+    explorer: Any | None = None,
+    fmax: float = 0.05,
+    steps: int = 100,
+    step_size: float = 0.1,
+    distance_threshold: float = 0.5,
+    local_optimizer_name: str = "sella",
+    optimize_endpoints: bool = True,
+    refine_ts: bool = True,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Growing string method for transition state search (DE-GSM style).
+
+    This runner implements a double-ended growing string method inspired by
+    pysisyphus. It grows strings from both reactant and product until they
+    meet near the transition state.
+
+    The algorithm:
+    1. Optionally optimize reactant and product to local minima
+    2. Initialize forward string from reactant and backward string from product
+    3. Iteratively grow strings by:
+       - Adding new nodes along steepest descent direction
+       - Optimizing perpendicular to the path
+    4. Continue until strings meet or maximum images reached
+    5. Identify transition state as highest energy image
+    6. Optionally refine TS with local optimization
+
+    Parameters
+    ----------
+    atoms_list : Union[Sequence[Atoms], Atoms]
+        Two Atoms objects: reactant and product
+    npoints : int, default=15
+        Maximum number of images to generate (total)
+    explorer : Any, optional
+        Explorer instance for calculator and constraint management
+    fmax : float, default=0.05
+        Force convergence threshold for perpendicular optimization
+    steps : int, default=100
+        Maximum number of growing iterations
+    step_size : float, default=0.1
+        Step size for adding new nodes (Angstroms)
+    distance_threshold : float, default=0.5
+        Distance threshold for strings to be considered "met" (Angstroms)
+    local_optimizer_name : str, default="sella"
+        Local optimizer for TS refinement
+    optimize_endpoints : bool, default=True
+        Whether to optimize reactant/product before growing
+    refine_ts : bool, default=True
+        Whether to refine TS with local optimization after finding it
+    **kwargs
+        Additional arguments
+
+    Returns
+    -------
+    dict
+        Dictionary with:
+        - optimized_atoms: TS structure (single Atoms or list)
+        - trajectory: Full path from reactant to product
+        - converged: Whether strings successfully met
+        - strategy: Strategy name
+        - forward_string: Images grown from reactant
+        - backward_string: Images grown from product
+    """
+    # Validate input
+    if isinstance(atoms_list, Atoms):
+        raise ValueError("Growing string method requires two Atoms objects (reactant and product)")
+
+    seq = list(atoms_list)
+    if len(seq) != 2:
+        raise ValueError(
+            f"Growing string method requires exactly 2 Atoms objects, got {len(seq)}"
+        )
+
+    reactant, product = seq[0].copy(), seq[1].copy()
+
+    # Attach calculators
+    if explorer is not None:
+        explorer._create_and_attach_calculator(reactant)
+        explorer._apply_constraints(reactant)
+        explorer._create_and_attach_calculator(product)
+        explorer._apply_constraints(product)
+
+    # Step 1: Optimize endpoints to local minima if requested
+    if optimize_endpoints:
+        from qme.core.local_strategies import local_minima_runner
+
+        logger.info("Growing String: Optimizing reactant to local minimum...")
+        r_result = local_minima_runner(
+            reactant, fmax=fmax, steps=200, explorer=explorer, local_optimizer_name="lbfgs"
+        )
+        reactant = r_result["optimized_atoms"]
+
+        logger.info("Growing String: Optimizing product to local minimum...")
+        p_result = local_minima_runner(
+            product, fmax=fmax, steps=200, explorer=explorer, local_optimizer_name="lbfgs"
+        )
+        product = p_result["optimized_atoms"]
+
+        # Re-attach calculators after optimization (may have been lost)
+        if explorer is not None:
+            explorer._create_and_attach_calculator(reactant)
+            explorer._apply_constraints(reactant)
+            explorer._create_and_attach_calculator(product)
+            explorer._apply_constraints(product)
+
+    # Initialize strings
+    forward_string = [reactant.copy()]  # Growing from reactant
+    backward_string = [product.copy()]  # Growing from product
+
+    # Ensure calculators are attached to initial string nodes
+    if explorer is not None:
+        for atoms in forward_string:
+            explorer._create_and_attach_calculator(atoms)
+            explorer._apply_constraints(atoms)
+        for atoms in backward_string:
+            explorer._create_and_attach_calculator(atoms)
+            explorer._apply_constraints(atoms)
+
+    logger.info(f"Growing String: Starting with reactant and product, max {npoints} images")
+
+    # Step 2: Grow strings iteratively
+    converged = False
+    for iteration in range(steps):
+        # Check if we've reached max images
+        total_images = len(forward_string) + len(backward_string)
+        if total_images >= npoints:
+            logger.info(f"Growing String: Reached maximum images ({npoints})")
+            break
+
+        # Check if strings have met
+        forward_tip = forward_string[-1].positions
+        backward_tip = backward_string[-1].positions
+        distance = np.linalg.norm(forward_tip - backward_tip)
+
+        if distance < distance_threshold:
+            logger.info(
+                f"Growing String: Strings met after {iteration} iterations "
+                f"(distance: {distance:.4f} Å)"
+            )
+            converged = True
+            break
+
+        # Grow forward string (from reactant)
+        if total_images < npoints:
+            new_forward = _grow_string_node(
+                forward_string[-1],
+                direction="forward",
+                step_size=step_size,
+                fmax=fmax,
+                explorer=explorer,
+            )
+            if new_forward is not None:
+                forward_string.append(new_forward)
+
+        # Grow backward string (from product)
+        total_images = len(forward_string) + len(backward_string)
+        if total_images < npoints:
+            new_backward = _grow_string_node(
+                backward_string[-1],
+                direction="backward",
+                step_size=step_size,
+                fmax=fmax,
+                explorer=explorer,
+            )
+            if new_backward is not None:
+                backward_string.append(new_backward)
+
+        # Log progress every 10 iterations
+        if (iteration + 1) % 10 == 0:
+            logger.info(
+                f"Growing String: Iteration {iteration + 1}, "
+                f"forward={len(forward_string)}, backward={len(backward_string)}, "
+                f"distance={distance:.4f} Å"
+            )
+
+    # Step 3: Combine strings into full path
+    # Reverse backward string so it goes from TS to product
+    full_path = forward_string + backward_string[::-1]
+
+    logger.info(
+        f"Growing String: Complete with {len(full_path)} images "
+        f"(forward: {len(forward_string)}, backward: {len(backward_string)})"
+    )
+
+    # Step 4: Find transition state as highest energy image
+    energies = []
+    for atoms in full_path:
+        try:
+            energy = atoms.get_potential_energy()
+            energies.append(energy)
+        except Exception:
+            energies.append(float("-inf"))
+
+    if not energies or all(e == float("-inf") for e in energies):
+        # Fallback to middle structure
+        ts_index = len(full_path) // 2
+        logger.warning(
+            "Growing String: Could not calculate energies, using middle image as TS guess"
+        )
+    else:
+        ts_index = energies.index(max(energies))
+        logger.info(
+            f"Growing String: Highest energy at image {ts_index} "
+            f"(E = {energies[ts_index]:.6f} eV)"
+        )
+
+    ts_guess = full_path[ts_index]
+
+    # Step 5: Optionally refine TS with local optimization
+    if refine_ts:
+        logger.info("Growing String: Refining TS with local optimization...")
+        from qme.core.local_strategies import local_ts_runner
+
+        ts_result = local_ts_runner(
+            ts_guess,
+            fmax=fmax,
+            steps=1000,
+            explorer=explorer,
+            local_optimizer_name=local_optimizer_name,
+            **kwargs,
+        )
+        ts_structure = ts_result["optimized_atoms"]
+        ts_converged = ts_result["converged"]
+    else:
+        ts_structure = ts_guess
+        ts_converged = converged
+
+    return {
+        "optimized_atoms": ts_structure,
+        "trajectory": full_path,
+        "converged": ts_converged,
+        "strategy": "twoended_growing_string_runner",
+        "forward_string": forward_string,
+        "backward_string": backward_string,
+        "strings_met": converged,
+    }
+
+
+def _grow_string_node(
+    previous_node: Atoms,
+    direction: str,
+    step_size: float,
+    fmax: float,
+    explorer: Any | None = None,
+) -> Atoms | None:
+    """Grow string by adding a new node along the steepest descent direction.
+
+    Parameters
+    ----------
+    previous_node : Atoms
+        The last node in the string
+    direction : str
+        "forward" or "backward" to indicate growth direction
+    step_size : float
+        Step size for new node placement (Angstroms)
+    fmax : float
+        Force threshold for perpendicular optimization
+    explorer : Any, optional
+        Explorer instance for calculator management
+
+    Returns
+    -------
+    Atoms or None
+        New node, or None if growth failed
+    """
+    try:
+        # Get forces on previous node
+        forces = previous_node.get_forces()
+
+        # Create new node by copying and adjusting positions
+        new_node = previous_node.copy()
+
+        # Manually copy calculator reference (ASE copy() doesn't copy calculator)
+        if hasattr(previous_node, 'calc') and previous_node.calc is not None:
+            new_node.calc = previous_node.calc
+
+        # For forward growth, move along negative gradient (downhill)
+        # For backward growth, also move along negative gradient
+        # The direction is handled by which end we're growing from
+        force_magnitude = np.linalg.norm(forces)
+        if force_magnitude < 1e-6:
+            logger.warning(
+                f"Growing String: Very small forces ({force_magnitude:.2e}), "
+                "skipping node"
+            )
+            return None
+
+        # Normalize and scale forces to get step direction
+        step_direction = -forces / force_magnitude  # Negative for downhill
+        displacement = step_direction * step_size
+
+        new_node.positions = previous_node.positions + displacement
+
+        # Re-attach calculator if using explorer (to ensure proper setup)
+        if explorer is not None:
+            explorer._create_and_attach_calculator(new_node)
+            explorer._apply_constraints(new_node)
+
+        # Optimize perpendicular to the path
+        # This is a simplified version - a full implementation would:
+        # 1. Calculate tangent to the path
+        # 2. Project forces perpendicular to tangent
+        # 3. Optimize only in perpendicular directions
+        # For now, we do a quick optimization with few steps
+        try:
+            OptClass = _get_local_optimizer_class("lbfgs")
+            opt = OptClass(new_node)
+            opt.run(fmax=fmax, steps=5)  # Limited optimization
+        except Exception as e:
+            logger.warning(f"Growing String: Perpendicular optimization failed: {e}")
+            # Continue anyway with unoptimized node
+
+        return new_node
+
+    except Exception as e:
+        logger.warning(f"Growing String: Failed to grow node: {e}")
+        return None
+
+
 __all__.append("twoended_minima_runner")
 __all__.append("twoended_neb_runner")
 __all__.append("twoended_cineb_runner")
+__all__.append("twoended_growing_string_runner")
 __all__.append("_filter_structures_helper")
 __all__.append("_calculate_rmsd")

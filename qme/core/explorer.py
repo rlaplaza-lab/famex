@@ -31,6 +31,7 @@ from qme.core.geometry import read_geometry
 from qme.core.local_strategies import local_irc_runner, local_minima_runner, local_ts_runner
 from qme.core.twoended_strategies import (
     twoended_cineb_runner,
+    twoended_growing_string_runner,
     twoended_minima_runner,
     twoended_neb_runner,
     twoended_ts_guess_runner,
@@ -427,6 +428,14 @@ class Explorer:
             strategy_type="two-ended",
             description="TS guess via interpolation with local TS refinement",
             aliases=["twoended:ts", "twoended-ts"],
+        )
+
+        self.register_strategy(
+            "ts:growing_string",
+            twoended_growing_string_runner,
+            strategy_type="two-ended",
+            description="Growing string method for TS search (DE-GSM style)",
+            aliases=["twoended:growing_string", "growing_string", "gsm"],
         )
 
         self.register_strategy(
