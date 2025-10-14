@@ -1,6 +1,5 @@
 """Test growing string method implementation."""
 
-import numpy as np
 import pytest
 from ase import Atoms
 
@@ -139,13 +138,13 @@ class TestGrowingStringMethod:
 
         # Verify strategy is properly registered with correct key
         explorer = Explorer([reactant, product], backend="mock")
-        
+
         # List all strategies and verify growing_string is present
         all_strategies = explorer.list_strategies()
         assert "ts:growing_string" in all_strategies
         assert "growing_string" in all_strategies
         assert "gsm" in all_strategies
-        
+
         # Verify it's registered as two-ended strategy for TS
         assert all_strategies["ts:growing_string"]["type"] == "two-ended"
         assert "growing string" in all_strategies["ts:growing_string"]["description"].lower()
