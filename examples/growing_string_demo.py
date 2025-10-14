@@ -93,6 +93,7 @@ def main():
         print(f"Loading reactant from: {args.reactant}")
         print(f"Loading product from: {args.product}")
         from ase.io import read
+
         reactant = read(args.reactant)
         product = read(args.product)
     else:

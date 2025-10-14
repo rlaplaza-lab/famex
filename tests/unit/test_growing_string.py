@@ -71,9 +71,7 @@ class TestGrowingStringMethod:
         intermediate = Atoms("H2", positions=[(0, 0, 0), (1.0, 0, 0)])
 
         with pytest.raises(ValueError, match="exactly 2 Atoms objects"):
-            twoended_growing_string_runner(
-                [reactant, intermediate, product], explorer=explorer
-            )
+            twoended_growing_string_runner([reactant, intermediate, product], explorer=explorer)
 
     def test_growing_string_with_endpoint_optimization(self):
         """Test growing string with endpoint optimization enabled."""
