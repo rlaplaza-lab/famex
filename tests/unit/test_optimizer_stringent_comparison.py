@@ -1,7 +1,7 @@
 """Stringent tests for optimizer comparison that catch subtle bugs.
 
 These tests are designed to catch bugs where optimizers appear to work
-but don't actually perform optimization (like the CustomTRICOptimizer bug).
+but don't actually perform optimization.
 """
 
 import numpy as np
@@ -9,7 +9,6 @@ import pytest
 from ase.optimize.lbfgs import LBFGS
 from sella import Sella
 
-from qme.core.tric_optimizer import CustomTRICOptimizer
 from qme.dependencies import deps
 from qme.potentials.mock_potential import MockCalculator
 
@@ -51,6 +50,7 @@ class TestOptimizerStringentComparison:
         assert energy_change_lbfgs > 1e-6, "LBFGS should actually change energy"
         assert position_change_lbfgs > 1e-6, "LBFGS should actually change positions"
 
+<<<<<<< HEAD
         # Test CustomTRICOptimizer (always available since it's built-in)
         atoms_geo = atoms.copy()
         atoms_geo.calc = MockCalculator()
@@ -72,6 +72,8 @@ class TestOptimizerStringentComparison:
         assert energy_change_geo > 1e-6, "CustomTRICOptimizer should actually change energy"
         assert position_change_geo > 1e-6, "CustomTRICOptimizer should actually change positions"
 
+=======
+>>>>>>> 273c283 (Remove TRIC optimizer from codebase)
     def test_optimizer_step_count_consistency(self):
         """Test that step counts are consistent with actual optimization."""
         from ase import Atoms
@@ -92,6 +94,7 @@ class TestOptimizerStringentComparison:
         # LBFGS should take some steps
         assert lbfgs_steps > 0, "LBFGS should report positive step count"
 
+<<<<<<< HEAD
         # Test CustomTRICOptimizer (always available since it's built-in)
         atoms_geo = atoms.copy()
         atoms_geo.calc = MockCalculator()
@@ -112,6 +115,8 @@ class TestOptimizerStringentComparison:
                 f"This indicates a bug in coordinate extraction."
             )
 
+=======
+>>>>>>> 273c283 (Remove TRIC optimizer from codebase)
     def test_optimizer_convergence_consistency(self):
         """Test that convergence status is consistent with actual optimization."""
         from ase import Atoms
@@ -128,6 +133,7 @@ class TestOptimizerStringentComparison:
         lbfgs_converged = lbfgs_opt.converged(atoms_lbfgs.get_forces().flatten())
         print(f"LBFGS converged: {lbfgs_converged}")
 
+<<<<<<< HEAD
         # Test CustomTRICOptimizer (always available since it's built-in)
         atoms_geo = atoms.copy()
         atoms_geo.calc = MockCalculator()
@@ -154,6 +160,12 @@ class TestOptimizerStringentComparison:
         if not deps.has("sella"):
             pytest.skip("Sella must be available for TS optimization")
         # TRIC optimizer is always available (built-in implementation)
+=======
+    def test_transition_state_optimizer_consistency(self):
+        """Test that TS optimizers actually attempt TS optimization."""
+        if not deps.has("sella"):
+            pytest.skip("Sella must be available")
+>>>>>>> 273c283 (Remove TRIC optimizer from codebase)
 
         from ase import Atoms
 
@@ -185,6 +197,7 @@ class TestOptimizerStringentComparison:
         assert energy_change_sella > 1e-6, "Sella TS optimizer should actually change energy"
         assert position_change_sella > 1e-6, "Sella TS optimizer should actually change positions"
 
+<<<<<<< HEAD
         # Test CustomTRICOptimizer TS
         atoms_geo = atoms.copy()
         atoms_geo.calc = MockCalculator()
@@ -212,6 +225,8 @@ class TestOptimizerStringentComparison:
             # This is a known limitation, not a bug in our code
             pytest.skip(f"TRIC failed with numerical issues: {e}")
 
+=======
+>>>>>>> 273c283 (Remove TRIC optimizer from codebase)
     def test_optimizer_coordinate_and_frequency_comparison(self):
         """Stringent comparison of final coordinates and frequencies between optimizers."""
         from ase import Atoms
@@ -247,6 +262,7 @@ class TestOptimizerStringentComparison:
             "converged": lbfgs_opt.converged(atoms_lbfgs.get_forces().flatten()),
         }
 
+<<<<<<< HEAD
         # Test CustomTRICOptimizer (always available since it's built-in)
         atoms_geo = atoms.copy()
         atoms_geo.calc = MockCalculator()
@@ -260,6 +276,8 @@ class TestOptimizerStringentComparison:
             "converged": geo_opt.converged(),
         }
 
+=======
+>>>>>>> 273c283 (Remove TRIC optimizer from codebase)
         # Test Sella if available
         if deps.has("sella"):
             atoms_sella = atoms.copy()
@@ -429,12 +447,15 @@ class TestOptimizerStringentComparison:
         lbfgs_opt = LBFGS(atoms_lbfgs)
         optimizers_to_test.append(("LBFGS", lbfgs_opt, atoms_lbfgs))
 
+<<<<<<< HEAD
         # Test CustomTRICOptimizer (always available since it's built-in)
         atoms_geo = atoms.copy()
         atoms_geo.calc = MockCalculator()
         geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
         optimizers_to_test.append(("CustomTRICOptimizer", geo_opt, atoms_geo))
 
+=======
+>>>>>>> 273c283 (Remove TRIC optimizer from codebase)
         # Test Sella if available
         if deps.has("sella"):
             atoms_sella = atoms.copy()
@@ -499,6 +520,7 @@ class TestOptimizerStringentComparison:
             "steps": lbfgs_opt.get_number_of_steps(),
         }
 
+<<<<<<< HEAD
         # Test CustomTRICOptimizer (always available since it's built-in)
         atoms_geo = atoms.copy()
         atoms_geo.calc = MockCalculator()
@@ -515,6 +537,8 @@ class TestOptimizerStringentComparison:
             "steps": geo_opt.step_count,
         }
 
+=======
+>>>>>>> 273c283 (Remove TRIC optimizer from codebase)
         # Test Sella if available
         if deps.has("sella"):
             atoms_sella = atoms.copy()
@@ -622,8 +646,11 @@ class TestOptimizerStringentComparison:
 
                 if name == "LBFGS":
                     test_opt = LBFGS(test_atoms)
+<<<<<<< HEAD
                 elif name == "tric":
                     test_opt = CustomTRICOptimizer(test_atoms, order=0)
+=======
+>>>>>>> 273c283 (Remove TRIC optimizer from codebase)
                 elif name == "Sella" and deps.has("sella"):
                     test_opt = Sella(test_atoms, internal=True, order=0)
                 else:

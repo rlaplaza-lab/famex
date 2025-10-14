@@ -64,11 +64,6 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
 
         return Sella
 
-    if name == "tric":
-        from qme.core.tric_optimizer import CustomTRICOptimizer
-
-        return CustomTRICOptimizer
-
     try:
         if name in ("lbfgs", "l-bfgs", "l_bfgs"):
             from ase.optimize.lbfgs import LBFGS
@@ -384,14 +379,16 @@ def local_irc_runner(
     forces = ts_atoms.get_forces()
     masses = ts_atoms.get_masses()
 
-    # Mass-weighted forces
-    mass_weighted_forces = forces / np.sqrt(masses[:, np.newaxis])
+    # Mass-weighted forces (commented out for now)
+    # mass_weighted_forces = forces / np.sqrt(masses[:, np.newaxis])
 
     # Initialize paths
     forward_path = [ts_atoms.copy()]
     backward_path = []
 
-    def follow_irc_direction(initial_atoms: Atoms, direction_sign: float, max_steps: int) -> list[Atoms]:
+    def follow_irc_direction(
+        initial_atoms: Atoms, direction_sign: float, max_steps: int
+    ) -> list[Atoms]:
         """Follow IRC in one direction.
 
         Parameters
@@ -415,7 +412,7 @@ def local_irc_runner(
             explorer._create_and_attach_calculator(current)
             explorer._apply_constraints(current)
 
-        for step in range(max_steps):
+        for _step in range(max_steps):
             # Get current forces
             current_forces = current.get_forces()
             current_masses = current.get_masses()
@@ -443,13 +440,15 @@ def local_irc_runner(
 
             # Normalize and take step
             step_direction = mw_forces / mw_forces_norm
-            displacement = direction_sign * step_size * step_direction * np.sqrt(current_masses[:, np.newaxis])
+            displacement = (
+                direction_sign * step_size * step_direction * np.sqrt(current_masses[:, np.newaxis])
+            )
 
             # Create new structure
             next_atoms = current.copy()
             new_positions = current.get_positions() + displacement
             next_atoms.set_positions(new_positions)
-            
+
             # Attach calculator to new structure
             explorer._create_and_attach_calculator(next_atoms)
             explorer._apply_constraints(next_atoms)
@@ -474,7 +473,9 @@ def local_irc_runner(
     elif direction.lower() == "backward":
         trajectory = list(reversed(backward_path)) + [ts_atoms.copy()]
     else:
-        raise ValueError(f"Invalid direction: {direction}. Must be 'forward', 'backward', or 'both'")
+        raise ValueError(
+            f"Invalid direction: {direction}. Must be 'forward', 'backward', or 'both'"
+        )
 
     return {
         "trajectory": trajectory,

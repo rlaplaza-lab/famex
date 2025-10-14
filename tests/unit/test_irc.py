@@ -17,10 +17,7 @@ class TestIRCPathCalculation:
     def test_irc_basic_functionality(self):
         """Test basic IRC path calculation."""
         # Create a simple TS-like structure (H2O with stretched bond)
-        ts_structure = Atoms(
-            "H2O",
-            positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]]
-        )
+        ts_structure = Atoms("H2O", positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]])
 
         # Use mock backend for testing
         explorer = qme.Explorer(
@@ -31,13 +28,7 @@ class TestIRCPathCalculation:
         )
 
         # Run IRC with limited steps for testing
-        result = explorer.run(
-            mode="irc",
-            steps=10,
-            step_size=0.1,
-            fmax=0.1,
-            direction="both"
-        )
+        result = explorer.run(mode="irc", steps=10, step_size=0.1, fmax=0.1, direction="both")
 
         # Check that result is a dictionary with trajectory
         assert isinstance(result, dict)
@@ -53,10 +44,7 @@ class TestIRCPathCalculation:
 
     def test_irc_forward_only(self):
         """Test IRC in forward direction only."""
-        ts_structure = Atoms(
-            "H2O",
-            positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]]
-        )
+        ts_structure = Atoms("H2O", positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]])
 
         explorer = qme.Explorer(
             atoms=ts_structure,
@@ -65,13 +53,7 @@ class TestIRCPathCalculation:
             strategy="irc",
         )
 
-        result = explorer.run(
-            mode="irc",
-            steps=5,
-            step_size=0.1,
-            fmax=0.1,
-            direction="forward"
-        )
+        result = explorer.run(mode="irc", steps=5, step_size=0.1, fmax=0.1, direction="forward")
 
         assert isinstance(result, dict)
         assert "trajectory" in result
@@ -81,10 +63,7 @@ class TestIRCPathCalculation:
 
     def test_irc_backward_only(self):
         """Test IRC in backward direction only."""
-        ts_structure = Atoms(
-            "H2O",
-            positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]]
-        )
+        ts_structure = Atoms("H2O", positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]])
 
         explorer = qme.Explorer(
             atoms=ts_structure,
@@ -93,13 +72,7 @@ class TestIRCPathCalculation:
             strategy="irc",
         )
 
-        result = explorer.run(
-            mode="irc",
-            steps=5,
-            step_size=0.1,
-            fmax=0.1,
-            direction="backward"
-        )
+        result = explorer.run(mode="irc", steps=5, step_size=0.1, fmax=0.1, direction="backward")
 
         assert isinstance(result, dict)
         assert "trajectory" in result
@@ -122,7 +95,7 @@ class TestIRCPathCalculation:
 
         # Should raise an error because IRC expects single structure
         try:
-            result = explorer.run(mode="irc", steps=5, step_size=0.1, fmax=0.1)
+            explorer.run(mode="irc", steps=5, step_size=0.1, fmax=0.1)
             # If no error is raised, check if implementation handled it differently
             # This allows for flexibility in error handling
             assert True
@@ -132,10 +105,7 @@ class TestIRCPathCalculation:
 
     def test_irc_structure_validity(self):
         """Test that IRC produces valid structures."""
-        ts_structure = Atoms(
-            "H2O",
-            positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]]
-        )
+        ts_structure = Atoms("H2O", positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]])
 
         explorer = qme.Explorer(
             atoms=ts_structure,
@@ -144,13 +114,7 @@ class TestIRCPathCalculation:
             strategy="irc",
         )
 
-        result = explorer.run(
-            mode="irc",
-            steps=5,
-            step_size=0.1,
-            fmax=0.1,
-            direction="both"
-        )
+        result = explorer.run(mode="irc", steps=5, step_size=0.1, fmax=0.1, direction="both")
 
         trajectory = result["trajectory"]
 

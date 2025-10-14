@@ -93,7 +93,7 @@ def _common_explorer_options(f: Any) -> Any:
             "local_optimizer",
             default="bfgs",
             show_default=True,
-            help="Local optimizer: sella|tric|lbfgs|bfgs|fire",
+            help="Local optimizer: sella|geometric|lbfgs|bfgs|fire",
         ),
         click.option(
             "--optimizer-kw",
@@ -806,7 +806,9 @@ def cineb(
     help="Output trajectory XYZ path",
 )
 @click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
-@click.option("--steps", type=int, default=100, show_default=True, help="Max IRC steps per direction")
+@click.option(
+    "--steps", type=int, default=100, show_default=True, help="Max IRC steps per direction"
+)
 @click.option(
     "--step-size",
     type=float,
