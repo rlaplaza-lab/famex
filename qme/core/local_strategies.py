@@ -410,6 +410,10 @@ def local_irc_runner(
         """
         path = []
         current = initial_atoms.copy()
+        # Make sure calculator is attached
+        if current.calc is None:
+            explorer._create_and_attach_calculator(current)
+            explorer._apply_constraints(current)
 
         for step in range(max_steps):
             # Get current forces
@@ -445,6 +449,8 @@ def local_irc_runner(
             next_atoms = current.copy()
             new_positions = current.get_positions() + displacement
             next_atoms.set_positions(new_positions)
+            
+            # Attach calculator to new structure
             explorer._create_and_attach_calculator(next_atoms)
             explorer._apply_constraints(next_atoms)
 
