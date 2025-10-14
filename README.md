@@ -7,19 +7,23 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](docs/index.md)
 
-QME provides an intuitive interface for molecular optimization using state-of-the-art machine learning potentials including UMA, AIMNet2, MACE, SO3LR, and TorchSim acceleration.
+QME provides an intuitive interface for molecular optimization using state-of-the-art machine learning potentials including UMA, AIMNet2, MACE, SO3LR, and TorchSim acceleration. Built on top of ASE, QME couples reproducible command-line workflows with a flexible Python API so you can prototype on a laptop and scale on a cluster without rewriting code.
 
 ## 🚀 Quick Start
 
 ### Installation
 
 ```bash
-# Recommended: Install with a specific backend
-pip install qme-ml[aimnet2]    # Fast and reliable
-pip install qme-ml[mace]       # High accuracy
-pip install qme-ml[uma]        # General purpose
-pip install qme-ml[orb]        # Universal forcefield
-pip install qme-ml[torchsim]   # Maximum performance (Python 3.11+)
+# Recommended: install inside a fresh environment and pick a backend extra
+python -m venv .venv && source .venv/bin/activate  # or use conda/mamba
+pip install --upgrade pip
+
+# Choose one backend extra per environment to avoid dependency conflicts
+pip install "qme-ml[aimnet2]"    # Fast and reliable
+pip install "qme-ml[mace]"       # High accuracy
+pip install "qme-ml[uma]"        # General-purpose chemistry
+pip install "qme-ml[orb]"        # Universal forcefield
+pip install "qme-ml[torchsim]"   # Maximum performance (Python 3.11+)
 ```
 
 > **Note**: Some backends have dependency conflicts. See [Installation Guide](docs/getting_started.md) for details.
@@ -43,24 +47,25 @@ qme opt water.xyz
 ```python
 import qme
 
-# Optimize a structure
 explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2")
-result = explorer.run(mode="minima")
+result = explorer.run(mode="minima", local_optimizer_name="BFGS")
 print(f"Final energy: {result['final_energy']:.6f} eV")
 ```
+
+The Explorer object supports the same strategies available via the CLI, so you can experiment interactively and then encode a workflow in `qme` commands for automation.
 
 ## ✨ Features
 
 - 🧪 **Multiple ML Backends**: UMA, AIMNet2, MACE, Orb, SO3LR, TorchSim
 - ⚡ **GPU Acceleration**: CUDA support with up to 100x speedup
-- 🎯 **Optimization Methods**: Local and two-ended strategies
-- 🔄 **Transition States**: Advanced TS search with Sella optimizer
-- 🛤️ **Reaction Paths**: NEB and CI-NEB path optimization with trajectory saving
-- 📊 **Analysis Tools**: Frequency analysis and thermodynamics
-- 🖥️ **Dual Interface**: Command-line and Python API
-- 📁 **File Support**: XYZ, CIF, PDB, and more via ASE
-- 🛡️ **Robust I/O**: Handles problematic molecular data gracefully
-- ✅ **Python 3.12**: Fully tested and compatible
+- 🎯 **Optimization Methods**: Local (minima/TS) and two-ended strategies (NEB, CI-NEB, GSM)
+- 🔄 **Transition States**: Advanced TS search with Sella optimizer and Hessian-based trust-region solvers
+- 🛤️ **Reaction Paths**: NEB/CI-NEB path optimization with trajectory saving and validation helpers
+- 📊 **Analysis Tools**: Frequency analysis, zero-point energy, and reaction energetics workflows
+- 🖥️ **Dual Interface**: Command-line and Python API share the same strategy registry
+- 📁 **File Support**: XYZ, CIF, PDB, and more via ASE import/export
+- 🛡️ **Robust I/O**: Built-in validation catches problematic molecular input before optimisation starts
+- ✅ **Python 3.10–3.12**: Fully tested across the entire supported range
 
 ## 📋 Common Commands
 
