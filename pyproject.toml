@@ -138,7 +138,9 @@ ignore = [
     "T201",  # print statements (allow in tests and examples)
     "B904",  # raise without from (allow for now)
     "N806",  # variable names like kT, OptClass are intentional (physics/CS conventions)
+    "SIM102",  # nested ifs are sometimes clearer than combined conditions
     "SIM105",  # contextlib.suppress is not always clearer than try-except-pass
+    "SIM108",  # ternary operators are not always clearer than if-else blocks
 ]
 
 [tool.mypy]
