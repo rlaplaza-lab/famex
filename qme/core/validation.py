@@ -393,7 +393,7 @@ def validate_optimization_parameters(fmax: float, steps: int, optimizer: str | N
     if steps <= 0:
         raise QMEValidationError(f"Invalid maximum steps: steps must be positive, got {steps}")
     if optimizer is not None:
-        valid_optimizers = ["lbfgs", "bfgs", "sella", "geometric", "fmin"]
+        valid_optimizers = ["lbfgs", "bfgs", "sella", "tric", "fmin"]
         if optimizer.lower() not in valid_optimizers:
             raise QMEValidationError(
                 f"Unknown optimizer '{optimizer}'. Valid optimizers: {valid_optimizers}"
@@ -468,7 +468,7 @@ def validate_ts_run(atoms: Atoms | list[Atoms], backend: str, optimizer: str) ->
     if optimizer.lower() in forbidden_optimizers_for_ts:
         raise QMEBackendError(
             f"Optimizer '{optimizer}' is not suitable for transition state "
-            f"optimization. Use 'sella' or 'geometric' optimizers for TS searches."
+            f"optimization. Use 'sella' or 'tric' optimizers for TS searches."
         )
 
 

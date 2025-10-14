@@ -64,10 +64,10 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
 
         return Sella
 
-    if name == "geometric":
-        from qme.core.geometric_interface import GeometricOptimizer
+    if name == "tric":
+        from qme.core.tric_optimizer import CustomTRICOptimizer
 
-        return GeometricOptimizer
+        return CustomTRICOptimizer
 
     try:
         if name in ("lbfgs", "l-bfgs", "l_bfgs"):
