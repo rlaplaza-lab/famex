@@ -1,6 +1,6 @@
 # QME: Quick Mechanistic Exploration
 
-**Quick mechanistic exploration using machine learning potentials for molecular geometry optimization and transition state searches with Sella and geomeTRIC optimizers.**
+**Quick mechanistic exploration using machine learning potentials for molecular geometry optimization and transition state searches with Sella and TRIC optimizers.**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-tested-green.svg)](https://www.python.org/downloads/)

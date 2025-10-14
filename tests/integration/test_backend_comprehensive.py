@@ -732,25 +732,25 @@ class TestBackendCLI:
             assert result["output_file_exists"] is True
 
 
-class TestGeometricOptimizerIntegration:
-    """Test geomeTRIC optimizer integration with backends."""
+class TestTRICOptimizerIntegration:
+    """Test TRIC optimizer integration with backends."""
 
-    def test_geometric_availability(self):
-        """Test that geomeTRIC is available."""
-        if not deps.has("geometric"):
-            pytest.skip("geomeTRIC not available")
+    def test_tric_availability(self):
+        """Test that TRIC optimizer is available."""
+        # TRIC optimizer is always available (no external dependencies)
+        pass
 
-    def test_geometric_minima_optimization_with_warnings(self):
+    def test_tric_minima_optimization_with_warnings(self):
         """Test geomeTRIC minima optimization with different backends using warning system."""
-        if not deps.has("geometric"):
+        if not deps.has("tric"):
             pytest.skip("geomeTRIC not available")
 
-        def _test_geometric_minima_optimization(backend):
+        def _test_tric_minima_optimization(backend):
             water = TestMoleculeFactory.get_water_distorted()
             optimizer = Explorer(
                 atoms=water,
                 backend=backend,
-                local_optimizer="geometric",
+                local_optimizer="tric",
                 target="minima",
                 strategy="local",
             )
@@ -771,7 +771,7 @@ class TestGeometricOptimizerIntegration:
 
         # Run test across all backends with warning-based error handling
         results = BackendTestRunner.run_with_warnings(
-            _test_geometric_minima_optimization, include_mock=False
+            _test_tric_minima_optimization, include_mock=False
         )
 
         # Assert that at least one backend succeeded
@@ -783,10 +783,10 @@ class TestGeometricOptimizerIntegration:
         if failed:
             print(f"  ⚠️  Failed backends: {', '.join(failed)}")
 
-    def test_geometric_ts_optimization_with_warnings(self):
+    def test_tric_ts_optimization_with_warnings(self):
         """Test geomeTRIC transition state optimization with different backends
         using warning system."""
-        if not deps.has("geometric"):
+        if not deps.has("tric"):
             pytest.skip("geomeTRIC not available")
 
         # Skip if no ML backends available for TS optimization
@@ -794,7 +794,7 @@ class TestGeometricOptimizerIntegration:
         if not ml_backends:
             pytest.skip("No ML backends available for TS optimization")
 
-        def _test_geometric_ts_optimization(backend):
+        def _test_tric_ts_optimization(backend):
             # Use a more reasonable water dissociation TS guess instead of twisted ethylene
             # The twisted ethylene geometry is too distorted and causes numerical issues
             ts_guess = TestMoleculeFactory.get_water_dissociation_ts_guess()
@@ -802,7 +802,7 @@ class TestGeometricOptimizerIntegration:
             optimizer = Explorer(
                 atoms=ts_guess,
                 backend=backend,
-                local_optimizer="geometric",
+                local_optimizer="tric",
                 target="ts",
                 strategy="local",
             )
@@ -856,7 +856,7 @@ class TestGeometricOptimizerIntegration:
 
         # Run test across all backends with warning-based error handling
         results = BackendTestRunner.run_with_warnings(
-            _test_geometric_ts_optimization, include_mock=False
+            _test_tric_ts_optimization, include_mock=False
         )
 
         # Assert that at least one backend succeeded
@@ -875,9 +875,9 @@ class TestGeometricOptimizerIntegration:
                 f"  {backend}: O-H distances = {result['oh1_dist']:.3f}, {result['oh2_dist']:.3f} Å"
             )
 
-    def test_geometric_vs_sella_comparison(self):
+    def test_tric_vs_sella_comparison(self):
         """Compare geomeTRIC and Sella optimizers on the same system."""
-        if not deps.has("geometric") or not deps.has("sella"):
+        if not deps.has("tric") or not deps.has("sella"):
             pytest.skip("Both geomeTRIC and Sella must be available")
 
         # Use first available ML backend
@@ -889,10 +889,10 @@ class TestGeometricOptimizerIntegration:
         water = TestMoleculeFactory.get_water_distorted()
 
         # Test minima optimization
-        geometric_opt = Explorer(
+        tric_opt = Explorer(
             atoms=water.copy(),
             backend=backend,
-            local_optimizer="geometric",
+            local_optimizer="tric",
             target="minima",
             strategy="local",
         )
@@ -908,37 +908,37 @@ class TestGeometricOptimizerIntegration:
         initial_positions = water.get_positions().copy()
 
         # Run both optimizations
-        geometric_result = geometric_opt.optimize_minima(fmax=0.1, steps=10)
+        tric_result = tric_opt.optimize_minima(fmax=0.1, steps=10)
         sella_result = sella_opt.optimize_minima(fmax=0.1, steps=10)
 
         # Both should produce valid results
-        assert geometric_result is not None
+        assert tric_result is not None
         assert sella_result is not None
-        assert isinstance(geometric_result, dict)
+        assert isinstance(tric_result, dict)
         assert isinstance(sella_result, dict)
-        assert "optimized_atoms" in geometric_result
+        assert "optimized_atoms" in tric_result
         assert "optimized_atoms" in sella_result
 
         # Extract Atoms objects from result dictionaries
-        geometric_atoms = geometric_result["optimized_atoms"]
+        tric_atoms = tric_result["optimized_atoms"]
         sella_atoms = sella_result["optimized_atoms"]
-        assert hasattr(geometric_atoms, "get_distance")
+        assert hasattr(tric_atoms, "get_distance")
         assert hasattr(sella_atoms, "get_distance")
-        assert len(geometric_atoms) == len(sella_atoms)
+        assert len(tric_atoms) == len(sella_atoms)
 
         # STRINGENT CHECKS: Verify that optimizers actually optimized
         # Skip energy comparison since initial_energy is not available
         # TODO: Add initial energy tracking for more stringent validation
-        geometric_position_change = np.max(
-            np.abs(geometric_atoms.get_positions() - initial_positions)
+        tric_position_change = np.max(
+            np.abs(tric_atoms.get_positions() - initial_positions)
         )
         sella_position_change = np.max(np.abs(sella_atoms.get_positions() - initial_positions))
 
-        print(f"Geometric: Position change = {geometric_position_change:.6f}")
+        print(f"Geometric: Position change = {tric_position_change:.6f}")
         print(f"Sella: Position change = {sella_position_change:.6f}")
 
         # Both optimizers should actually optimize (this will catch the GeometricOptimizer bug)
-        assert geometric_position_change > 1e-6, (
+        assert tric_position_change > 1e-6, (
             "GeometricOptimizer should actually change positions. "
             "This test catches bugs where optimizers report steps but don't optimize."
         )
@@ -947,7 +947,7 @@ class TestGeometricOptimizerIntegration:
         # DETAILED COORDINATE COMPARISON
         print("\n=== DETAILED COORDINATE COMPARISON ===")
 
-        geo_positions = geometric_atoms.get_positions()
+        geo_positions = tric_atoms.get_positions()
         sella_positions = sella_atoms.get_positions()
 
         # Maximum coordinate difference
@@ -967,7 +967,7 @@ class TestGeometricOptimizerIntegration:
         # DETAILED FORCE COMPARISON
         print("\n=== DETAILED FORCE COMPARISON ===")
 
-        geo_forces = geometric_atoms.get_forces()
+        geo_forces = tric_atoms.get_forces()
         sella_forces = sella_atoms.get_forces()
 
         geo_max_force = np.max(np.abs(geo_forces))
@@ -988,15 +988,15 @@ class TestGeometricOptimizerIntegration:
         print("\n=== DETAILED GEOMETRIC PROPERTY COMPARISON ===")
 
         # Compare bond lengths
-        n_atoms = len(geometric_atoms)
+        n_atoms = len(tric_atoms)
         bond_lengths_geo = []
         bond_lengths_sella = []
 
         for i in range(n_atoms):
             for j in range(i + 1, n_atoms):
                 # Only consider bonds within reasonable distance (e.g., < 2.5 Å for C-C bonds)
-                if geometric_atoms.get_distance(i, j) < 2.5:
-                    bond_lengths_geo.append(geometric_atoms.get_distance(i, j))
+                if tric_atoms.get_distance(i, j) < 2.5:
+                    bond_lengths_geo.append(tric_atoms.get_distance(i, j))
                     bond_lengths_sella.append(sella_atoms.get_distance(i, j))
 
         if bond_lengths_geo and bond_lengths_sella:
@@ -1030,7 +1030,7 @@ class TestGeometricOptimizerIntegration:
                         if k == i:
                             continue
                         # Calculate angle i-j-k
-                        angle_geo = geometric_atoms.get_angle(i, j, k)
+                        angle_geo = tric_atoms.get_angle(i, j, k)
                         angle_sella = sella_atoms.get_angle(i, j, k)
 
                         # Only consider angles that are not close to 0 or 180 degrees
@@ -1059,7 +1059,7 @@ class TestGeometricOptimizerIntegration:
         # ENERGY COMPARISON
         print("\n=== ENERGY COMPARISON ===")
 
-        geo_energy = geometric_atoms.get_potential_energy()
+        geo_energy = tric_atoms.get_potential_energy()
         sella_energy = sella_atoms.get_potential_energy()
         energy_diff = abs(geo_energy - sella_energy)
 
@@ -1103,7 +1103,7 @@ class TestBackendPerformanceComparison:
             if isinstance(steps_taken, list):
                 steps_taken = steps_taken[0] if steps_taken else 0
 
-            # Strict geometric checks for benzene
+            # Strict tric checks for benzene
             final_atoms = strategy_result["optimized_atoms"]
             StandardTestAssertions.assert_optimization_result(strategy_result)
             StandardTestAssertions.assert_reasonable_geometry(final_atoms, backend)

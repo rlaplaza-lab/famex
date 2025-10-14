@@ -81,11 +81,14 @@ def suppress_verbose_output():
 class BH28Benchmark:
     """Comprehensive benchmark suite for QME on the BH28 database."""
 
-    def __init__(self, dataset_dir: str = "bh28_dataset", output_dir: str = "benchmark_results"):
+    def __init__(self, dataset_dir: str = "bh28_dataset", output_dir: str = "benchmark_results", 
+                 minima_optimizer: str = "LBFGS", ts_optimizer: str = "SELLA"):
         """Initialize comprehensive benchmark."""
         self.dataset_dir = Path(dataset_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
+        self.minima_optimizer = minima_optimizer
+        self.ts_optimizer = ts_optimizer
 
         if not self.dataset_dir.exists():
             raise FileNotFoundError(f"BH28 dataset directory not found: {dataset_dir}")
@@ -255,7 +258,7 @@ class BH28Benchmark:
                                 )
                                 result = optimizer.run(
                                     mode="minima",
-                                    local_optimizer_name="LBFGS",
+                                    local_optimizer_name=self.minima_optimizer,
                                     steps=500,
                                     fmax=0.01,
                                 )
@@ -317,7 +320,12 @@ class BH28Benchmark:
                                     backend=backend,
                                     model_name=model_name,
                                 )
-                                ts_result = ts_optimizer.run(mode="ts", steps=500, fmax=0.01)
+                                ts_result = ts_optimizer.run(
+                                    mode="ts", 
+                                    steps=500, 
+                                    fmax=0.01,
+                                    local_optimizer_name=self.ts_optimizer
+                                )
 
                             ts_time = time.perf_counter() - ts_start
 
@@ -788,13 +796,31 @@ def main():
         default="benchmark_results",
         help="Output directory for results (default: benchmark_results)",
     )
+    parser.add_argument(
+        "--minima-optimizer",
+        default="LBFGS",
+        choices=["LBFGS", "BFGS", "FIRE", "TRIC"],
+        help="Minima optimizer to use (default: LBFGS)",
+    )
+    parser.add_argument(
+        "--ts-optimizer",
+        default="SELLA",
+        choices=["SELLA", "TRIC"],
+        help="Transition state optimizer to use (default: SELLA)",
+    )
 
     args = parser.parse_args()
 
     # Initialize benchmark
-    benchmark = BH28Benchmark(output_dir=args.output_dir)
+    benchmark = BH28Benchmark(
+        output_dir=args.output_dir,
+        minima_optimizer=args.minima_optimizer,
+        ts_optimizer=args.ts_optimizer
+    )
 
     interface.print_header("Chemical Accuracy Evaluation")
+    print(f"Minima Optimizer: {args.minima_optimizer}")
+    print(f"TS Optimizer: {args.ts_optimizer}")
 
     # Determine backends to test
     if args.backends:

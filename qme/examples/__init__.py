@@ -222,7 +222,7 @@ def benchmark_optimization(
     backend : str
         Backend name (e.g., 'mock', 'aimnet2', 'uma', 'so3lr', 'mace', 'orb')
     optimizer : str
-        Optimizer name (e.g., 'lbfgs', 'bfgs', 'fire', 'sella', 'geometric')
+        Optimizer name (e.g., 'lbfgs', 'bfgs', 'fire', 'sella', 'tric')
     device : str, optional
         Device to use ('cpu' or 'cuda'). Auto-detected if None.
     model_name : str, optional

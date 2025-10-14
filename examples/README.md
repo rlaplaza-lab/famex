@@ -46,10 +46,10 @@ Compares the performance of different minima optimizers (lbfgs, bfgs, fire) for 
 ### 4. TS Optimizer Benchmark (`ts_optimizer_benchmark.py`)
 **Transition State Optimizer Comparison**
 
-Compares the performance of different transition state optimizers (sella and geometric) for transition state finding using various QME ML backends.
+Compares the performance of different transition state optimizers (sella and tric) for transition state finding using various QME ML backends.
 
 **Features:**
-- Transition state optimizer comparison (sella vs geometric)
+- Transition state optimizer comparison (sella vs tric)
 - All available ML backends tested
 - Detailed timing and convergence analysis
 - TS-specific optimization evaluation

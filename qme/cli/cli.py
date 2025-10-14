@@ -93,7 +93,7 @@ def _common_explorer_options(f: Any) -> Any:
             "local_optimizer",
             default="bfgs",
             show_default=True,
-            help="Local optimizer: sella|geometric|lbfgs|bfgs|fire",
+            help="Local optimizer: sella|tric|lbfgs|bfgs|fire",
         ),
         click.option(
             "--optimizer-kw",
