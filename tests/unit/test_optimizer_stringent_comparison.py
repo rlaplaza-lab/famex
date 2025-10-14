@@ -51,27 +51,26 @@ class TestOptimizerStringentComparison:
         assert energy_change_lbfgs > 1e-6, "LBFGS should actually change energy"
         assert position_change_lbfgs > 1e-6, "LBFGS should actually change positions"
 
-        # Test CustomTRICOptimizer if available
-        if deps.has("geometric"):
-            atoms_geo = atoms.copy()
-            atoms_geo.calc = MockCalculator()
-            geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
-            geo_opt.run(fmax=0.01, steps=50)
+        # Test CustomTRICOptimizer (always available since it's built-in)
+        atoms_geo = atoms.copy()
+        atoms_geo.calc = MockCalculator()
+        geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
+        geo_opt.run(fmax=0.01, steps=50)
 
-            geo_energy = atoms_geo.get_potential_energy()
-            geo_positions = atoms_geo.get_positions()
+        geo_energy = atoms_geo.get_potential_energy()
+        geo_positions = atoms_geo.get_positions()
 
-            energy_change_geo = abs(geo_energy - initial_energy)
-            position_change_geo = np.max(np.abs(geo_positions - initial_positions))
+        energy_change_geo = abs(geo_energy - initial_energy)
+        position_change_geo = np.max(np.abs(geo_positions - initial_positions))
 
-            print(
-                f"Geometric: Energy change = {energy_change_geo:.6f}, "
-                f"Position change = {position_change_geo:.6f}"
-            )
+        print(
+            f"tric: Energy change = {energy_change_geo:.6f}, "
+            f"Position change = {position_change_geo:.6f}"
+        )
 
-            # CustomTRICOptimizer should also optimize (this test will catch the bug)
-            assert energy_change_geo > 1e-6, "CustomTRICOptimizer should actually change energy"
-            assert position_change_geo > 1e-6, "CustomTRICOptimizer should actually change positions"
+        # CustomTRICOptimizer should also optimize (this test will catch the bug)
+        assert energy_change_geo > 1e-6, "CustomTRICOptimizer should actually change energy"
+        assert position_change_geo > 1e-6, "CustomTRICOptimizer should actually change positions"
 
     def test_optimizer_step_count_consistency(self):
         """Test that step counts are consistent with actual optimization."""
@@ -93,26 +92,25 @@ class TestOptimizerStringentComparison:
         # LBFGS should take some steps
         assert lbfgs_steps > 0, "LBFGS should report positive step count"
 
-        # Test CustomTRICOptimizer if available
-        if deps.has("geometric"):
-            atoms_geo = atoms.copy()
-            atoms_geo.calc = MockCalculator()
-            geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
-            geo_opt.run(fmax=0.01, steps=50)
+        # Test CustomTRICOptimizer (always available since it's built-in)
+        atoms_geo = atoms.copy()
+        atoms_geo.calc = MockCalculator()
+        geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
+        geo_opt.run(fmax=0.01, steps=50)
 
-            geo_steps = geo_opt.step_count
-            print(f"Geometric steps: {geo_steps}")
+        geo_steps = geo_opt.step_count
+        print(f"tric steps: {geo_steps}")
 
-            # If CustomTRICOptimizer reports steps, it should actually optimize
-            if geo_steps > 0:
-                initial_energy = atoms.get_potential_energy()
-                final_energy = atoms_geo.get_potential_energy()
-                energy_change = abs(final_energy - initial_energy)
+        # If CustomTRICOptimizer reports steps, it should actually optimize
+        if geo_steps > 0:
+            initial_energy = atoms.get_potential_energy()
+            final_energy = atoms_geo.get_potential_energy()
+            energy_change = abs(final_energy - initial_energy)
 
-                assert energy_change > 1e-6, (
-                    f"CustomTRICOptimizer reports {geo_steps} steps but energy didn't change. "
-                    f"This indicates a bug in coordinate extraction."
-                )
+            assert energy_change > 1e-6, (
+                f"CustomTRICOptimizer reports {geo_steps} steps but energy didn't change. "
+                f"This indicates a bug in coordinate extraction."
+            )
 
     def test_optimizer_convergence_consistency(self):
         """Test that convergence status is consistent with actual optimization."""
@@ -130,32 +128,32 @@ class TestOptimizerStringentComparison:
         lbfgs_converged = lbfgs_opt.converged(atoms_lbfgs.get_forces().flatten())
         print(f"LBFGS converged: {lbfgs_converged}")
 
-        # Test CustomTRICOptimizer if available
-        if deps.has("geometric"):
-            atoms_geo = atoms.copy()
-            atoms_geo.calc = MockCalculator()
-            geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
-            geo_opt.run(fmax=0.01, steps=50)
+        # Test CustomTRICOptimizer (always available since it's built-in)
+        atoms_geo = atoms.copy()
+        atoms_geo.calc = MockCalculator()
+        geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
+        geo_opt.run(fmax=0.01, steps=50)
 
-            geo_converged = geo_opt.converged
-            print(f"Geometric converged: {geo_converged}")
+        geo_converged = geo_opt.converged()
+        print(f"tric converged: {geo_converged}")
 
-            # If CustomTRICOptimizer claims convergence, check if forces are actually low
-            if geo_converged:
-                final_forces = atoms_geo.get_forces()
-                max_force = np.max(np.abs(final_forces))
-                print(f"Geometric max force: {max_force:.6f}")
+        # If CustomTRICOptimizer claims convergence, check if forces are actually low
+        if geo_converged:
+            final_forces = atoms_geo.get_forces()
+            max_force = np.max(np.abs(final_forces))
+            print(f"tric max force: {max_force:.6f}")
 
-                # If converged, forces should be low
-                assert max_force < 0.01, (
-                    f"CustomTRICOptimizer claims convergence but max force is {max_force:.6f}. "
-                    f"This indicates a bug in convergence detection."
-                )
+            # If converged, forces should be low
+            assert max_force < 0.01, (
+                f"CustomTRICOptimizer claims convergence but max force is {max_force:.6f}. "
+                f"This indicates a bug in convergence detection."
+            )
 
     def test_transition_state_optimizer_consistency(self):
         """Test that TS optimizers actually attempt TS optimization."""
-        if not deps.has("geometric") or not deps.has("sella"):
-            pytest.skip("Both geomeTRIC and Sella must be available")
+        if not deps.has("sella"):
+            pytest.skip("Sella must be available for TS optimization")
+        # TRIC optimizer is always available (built-in implementation)
 
         from ase import Atoms
 
@@ -200,7 +198,7 @@ class TestOptimizerStringentComparison:
             position_change_geo = np.max(np.abs(geo_positions - initial_positions))
 
             print(
-                f"Geometric TS: Energy change = {energy_change_geo:.6f}, "
+                f"tric TS: Energy change = {energy_change_geo:.6f}, "
                 f"Position change = {position_change_geo:.6f}"
             )
 
@@ -210,9 +208,9 @@ class TestOptimizerStringentComparison:
                 position_change_geo > 1e-6
             ), "CustomTRICOptimizer TS should actually change positions"
         except (np.linalg.LinAlgError, RuntimeError) as e:
-            # geomeTRIC can fail with numerical issues on certain geometries
+            # TRIC can fail with numerical issues on certain geometries
             # This is a known limitation, not a bug in our code
-            pytest.skip(f"geomeTRIC failed with numerical issues: {e}")
+            pytest.skip(f"TRIC failed with numerical issues: {e}")
 
     def test_optimizer_coordinate_and_frequency_comparison(self):
         """Stringent comparison of final coordinates and frequencies between optimizers."""
@@ -240,7 +238,7 @@ class TestOptimizerStringentComparison:
         atoms_lbfgs = atoms.copy()
         atoms_lbfgs.calc = MockCalculator()
         lbfgs_opt = LBFGS(atoms_lbfgs)
-        lbfgs_opt.run(fmax=0.05, steps=200)
+        lbfgs_opt.run(fmax=0.0001, steps=500)
         optimizers_results["LBFGS"] = {
             "atoms": atoms_lbfgs,
             "energy": atoms_lbfgs.get_potential_energy(),
@@ -249,26 +247,25 @@ class TestOptimizerStringentComparison:
             "converged": lbfgs_opt.converged(atoms_lbfgs.get_forces().flatten()),
         }
 
-        # Test CustomTRICOptimizer if available
-        if deps.has("geometric"):
-            atoms_geo = atoms.copy()
-            atoms_geo.calc = MockCalculator()
-            geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
-            geo_opt.run(fmax=0.05, steps=200)
-            optimizers_results["Geometric"] = {
-                "atoms": atoms_geo,
-                "energy": atoms_geo.get_potential_energy(),
-                "positions": atoms_geo.get_positions(),
-                "forces": atoms_geo.get_forces(),
-                "converged": geo_opt.converged,
-            }
+        # Test CustomTRICOptimizer (always available since it's built-in)
+        atoms_geo = atoms.copy()
+        atoms_geo.calc = MockCalculator()
+        geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
+        geo_opt.run(fmax=0.0001, steps=500)
+        optimizers_results["tric"] = {
+            "atoms": atoms_geo,
+            "energy": atoms_geo.get_potential_energy(),
+            "positions": atoms_geo.get_positions(),
+            "forces": atoms_geo.get_forces(),
+            "converged": geo_opt.converged(),
+        }
 
         # Test Sella if available
         if deps.has("sella"):
             atoms_sella = atoms.copy()
             atoms_sella.calc = MockCalculator()
             sella_opt = Sella(atoms_sella, internal=True, order=0)
-            sella_opt.run(fmax=0.05, steps=200)
+            sella_opt.run(fmax=0.0001, steps=500)
             optimizers_results["Sella"] = {
                 "atoms": atoms_sella,
                 "energy": atoms_sella.get_potential_energy(),
@@ -297,7 +294,7 @@ class TestOptimizerStringentComparison:
 
                 # All optimizers should converge to the same minimum for simple molecules
                 # Use relaxed threshold: coordinates should be within 1.0 Å (different optimizers can find slightly different minima)
-                assert max_coord_diff < 1.0, (
+                assert max_coord_diff < 0.1, (
                     f"Final coordinates differ too much between {name1} and {name2}: "
                     f"{max_coord_diff:.6f} Å. This suggests inconsistent optimization."
                 )
@@ -317,7 +314,7 @@ class TestOptimizerStringentComparison:
 
             # If optimizer claims convergence, forces should be low
             if results["converged"]:
-                assert max_force < 0.05, (
+                assert max_force < 0.0001, (
                     f"{name} claims convergence but max force is {max_force:.6f} eV/Å. "
                     f"This suggests a bug in convergence detection."
                 )
@@ -432,12 +429,11 @@ class TestOptimizerStringentComparison:
         lbfgs_opt = LBFGS(atoms_lbfgs)
         optimizers_to_test.append(("LBFGS", lbfgs_opt, atoms_lbfgs))
 
-        # Test CustomTRICOptimizer if available
-        if deps.has("geometric"):
-            atoms_geo = atoms.copy()
-            atoms_geo.calc = MockCalculator()
-            geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
-            optimizers_to_test.append(("CustomTRICOptimizer", geo_opt, atoms_geo))
+        # Test CustomTRICOptimizer (always available since it's built-in)
+        atoms_geo = atoms.copy()
+        atoms_geo.calc = MockCalculator()
+        geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
+        optimizers_to_test.append(("CustomTRICOptimizer", geo_opt, atoms_geo))
 
         # Test Sella if available
         if deps.has("sella"):
@@ -491,7 +487,7 @@ class TestOptimizerStringentComparison:
         atoms_lbfgs = atoms.copy()
         atoms_lbfgs.calc = MockCalculator()
         lbfgs_opt = LBFGS(atoms_lbfgs)
-        lbfgs_opt.run(fmax=0.05, steps=200)
+        lbfgs_opt.run(fmax=0.001, steps=500)
 
         convergence_results["LBFGS"] = {
             "atoms": atoms_lbfgs,
@@ -503,29 +499,28 @@ class TestOptimizerStringentComparison:
             "steps": lbfgs_opt.get_number_of_steps(),
         }
 
-        # Test CustomTRICOptimizer if available
-        if deps.has("geometric"):
-            atoms_geo = atoms.copy()
-            atoms_geo.calc = MockCalculator()
-            geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
-            geo_opt.run(fmax=0.05, steps=200)
+        # Test CustomTRICOptimizer (always available since it's built-in)
+        atoms_geo = atoms.copy()
+        atoms_geo.calc = MockCalculator()
+        geo_opt = CustomTRICOptimizer(atoms_geo, order=0)
+        geo_opt.run(fmax=0.001, steps=500)
 
-            convergence_results["Geometric"] = {
-                "atoms": atoms_geo,
-                "energy": atoms_geo.get_potential_energy(),
-                "forces": atoms_geo.get_forces(),
-                "max_force": np.max(np.abs(atoms_geo.get_forces())),
-                "rms_force": np.sqrt(np.mean(atoms_geo.get_forces() ** 2)),
-                "converged": geo_opt.converged,
-                "steps": geo_opt.step_count,
-            }
+        convergence_results["tric"] = {
+            "atoms": atoms_geo,
+            "energy": atoms_geo.get_potential_energy(),
+            "forces": atoms_geo.get_forces(),
+            "max_force": np.max(np.abs(atoms_geo.get_forces())),
+            "rms_force": np.sqrt(np.mean(atoms_geo.get_forces() ** 2)),
+            "converged": geo_opt.converged(),
+            "steps": geo_opt.step_count,
+        }
 
         # Test Sella if available
         if deps.has("sella"):
             atoms_sella = atoms.copy()
             atoms_sella.calc = MockCalculator()
             sella_opt = Sella(atoms_sella, internal=True, order=0)
-            sella_opt.run(fmax=0.05, steps=200)
+            sella_opt.run(fmax=0.001, steps=500)
 
             convergence_results["Sella"] = {
                 "atoms": atoms_sella,
@@ -555,7 +550,7 @@ class TestOptimizerStringentComparison:
 
             # Verify convergence claims
             if results["converged"]:
-                assert results["max_force"] < 0.05, (
+                assert results["max_force"] < 0.001, (
                     f"{name} claims convergence but max force is {results['max_force']:.6f} eV/Å. "
                     f"This suggests a bug in convergence detection."
                 )
@@ -627,7 +622,7 @@ class TestOptimizerStringentComparison:
 
                 if name == "LBFGS":
                     test_opt = LBFGS(test_atoms)
-                elif name == "Geometric" and deps.has("geometric"):
+                elif name == "tric":
                     test_opt = CustomTRICOptimizer(test_atoms, order=0)
                 elif name == "Sella" and deps.has("sella"):
                     test_opt = Sella(test_atoms, internal=True, order=0)
