@@ -1713,10 +1713,26 @@ def twoended_growing_string_runner(
             product, fmax=fmax, steps=200, explorer=explorer, local_optimizer_name="lbfgs"
         )
         product = p_result["optimized_atoms"]
+        
+        # Re-attach calculators after optimization (may have been lost)
+        if explorer is not None:
+            explorer._create_and_attach_calculator(reactant)
+            explorer._apply_constraints(reactant)
+            explorer._create_and_attach_calculator(product)
+            explorer._apply_constraints(product)
 
     # Initialize strings
     forward_string = [reactant.copy()]  # Growing from reactant
     backward_string = [product.copy()]  # Growing from product
+    
+    # Ensure calculators are attached to initial string nodes
+    if explorer is not None:
+        for atoms in forward_string:
+            explorer._create_and_attach_calculator(atoms)
+            explorer._apply_constraints(atoms)
+        for atoms in backward_string:
+            explorer._create_and_attach_calculator(atoms)
+            explorer._apply_constraints(atoms)
 
     logger.info(f"Growing String: Starting with reactant and product, max {npoints} images")
 
@@ -1865,9 +1881,13 @@ def _grow_string_node(
     try:
         # Get forces on previous node
         forces = previous_node.get_forces()
-
-        # Create new node by stepping in direction of forces
+        
+        # Create new node by copying and adjusting positions
         new_node = previous_node.copy()
+        
+        # Manually copy calculator reference (ASE copy() doesn't copy calculator)
+        if hasattr(previous_node, 'calc') and previous_node.calc is not None:
+            new_node.calc = previous_node.calc
 
         # For forward growth, move along negative gradient (downhill)
         # For backward growth, also move along negative gradient
@@ -1882,14 +1902,11 @@ def _grow_string_node(
         displacement = step_direction * step_size
 
         new_node.positions = previous_node.positions + displacement
-
-        # Copy calculator from previous node or attach new one if using explorer
+        
+        # Re-attach calculator if using explorer (to ensure proper setup)
         if explorer is not None:
             explorer._create_and_attach_calculator(new_node)
             explorer._apply_constraints(new_node)
-        elif previous_node.calc is not None:
-            # Copy calculator from previous node
-            new_node.calc = previous_node.calc
 
         # Optimize perpendicular to the path
         # This is a simplified version - a full implementation would:
