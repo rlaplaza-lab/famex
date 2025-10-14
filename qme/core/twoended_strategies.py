@@ -1713,7 +1713,7 @@ def twoended_growing_string_runner(
             product, fmax=fmax, steps=200, explorer=explorer, local_optimizer_name="lbfgs"
         )
         product = p_result["optimized_atoms"]
-        
+
         # Re-attach calculators after optimization (may have been lost)
         if explorer is not None:
             explorer._create_and_attach_calculator(reactant)
@@ -1724,7 +1724,7 @@ def twoended_growing_string_runner(
     # Initialize strings
     forward_string = [reactant.copy()]  # Growing from reactant
     backward_string = [product.copy()]  # Growing from product
-    
+
     # Ensure calculators are attached to initial string nodes
     if explorer is not None:
         for atoms in forward_string:
@@ -1752,7 +1752,8 @@ def twoended_growing_string_runner(
 
         if distance < distance_threshold:
             logger.info(
-                f"Growing String: Strings met after {iteration} iterations (distance: {distance:.4f} Å)"
+                f"Growing String: Strings met after {iteration} iterations "
+                f"(distance: {distance:.4f} Å)"
             )
             converged = True
             break
@@ -1811,7 +1812,9 @@ def twoended_growing_string_runner(
     if not energies or all(e == float("-inf") for e in energies):
         # Fallback to middle structure
         ts_index = len(full_path) // 2
-        logger.warning("Growing String: Could not calculate energies, using middle image as TS guess")
+        logger.warning(
+            "Growing String: Could not calculate energies, using middle image as TS guess"
+        )
     else:
         ts_index = energies.index(max(energies))
         logger.info(
@@ -1881,10 +1884,10 @@ def _grow_string_node(
     try:
         # Get forces on previous node
         forces = previous_node.get_forces()
-        
+
         # Create new node by copying and adjusting positions
         new_node = previous_node.copy()
-        
+
         # Manually copy calculator reference (ASE copy() doesn't copy calculator)
         if hasattr(previous_node, 'calc') and previous_node.calc is not None:
             new_node.calc = previous_node.calc
@@ -1894,7 +1897,10 @@ def _grow_string_node(
         # The direction is handled by which end we're growing from
         force_magnitude = np.linalg.norm(forces)
         if force_magnitude < 1e-6:
-            logger.warning(f"Growing String: Very small forces ({force_magnitude:.2e}), skipping node")
+            logger.warning(
+                f"Growing String: Very small forces ({force_magnitude:.2e}), "
+                "skipping node"
+            )
             return None
 
         # Normalize and scale forces to get step direction
@@ -1902,7 +1908,7 @@ def _grow_string_node(
         displacement = step_direction * step_size
 
         new_node.positions = previous_node.positions + displacement
-        
+
         # Re-attach calculator if using explorer (to ensure proper setup)
         if explorer is not None:
             explorer._create_and_attach_calculator(new_node)
