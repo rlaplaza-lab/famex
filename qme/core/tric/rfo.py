@@ -44,9 +44,10 @@ def get_augmented_hessian(
     # Diagonal block: H/α
     H_aug[:n, :n] = np.diag(eigenvals / alpha)
     
-    # Off-diagonal blocks: g and g/α
-    H_aug[:n, n] = gradient  # First assignment: no division
-    H_aug[n, :n] = gradient / alpha  # Second assignment: divide by alpha
+    # Off-diagonal blocks: g and g^T
+    # The augmented Hessian must be symmetric
+    H_aug[:n, n] = gradient  # g
+    H_aug[n, :n] = gradient  # g^T (not g^T/α!)
     
     # Bottom-right element is 0
     H_aug[n, n] = 0.0
