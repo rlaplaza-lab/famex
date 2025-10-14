@@ -42,6 +42,7 @@ os.environ.setdefault("MPLBACKEND", "Agg")
         "  qme path interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n"
         "  qme path neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n"
         "  qme path cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n"
+        "  qme path irc ts.xyz --direction both --steps 100  # IRC from transition state\n"
         "  \n"
         "  # Advanced backends\n"
         "  qme opt molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n"

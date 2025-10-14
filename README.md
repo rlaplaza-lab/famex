@@ -60,7 +60,7 @@ The Explorer object supports the same strategies available via the CLI, so you c
 - ⚡ **GPU Acceleration**: CUDA support with up to 100x speedup
 - 🎯 **Optimization Methods**: Local (minima/TS) and two-ended strategies (NEB, CI-NEB, GSM)
 - 🔄 **Transition States**: Advanced TS search with Sella optimizer and Hessian-based trust-region solvers
-- 🛤️ **Reaction Paths**: NEB/CI-NEB path optimization with trajectory saving and validation helpers
+- 🛤️ **Reaction Paths**: NEB/CI-NEB path optimization and IRC (Intrinsic Reaction Coordinate) from transition states
 - 📊 **Analysis Tools**: Frequency analysis, zero-point energy, and reaction energetics workflows
 - 🖥️ **Dual Interface**: Command-line and Python API share the same strategy registry
 - 📁 **File Support**: XYZ, CIF, PDB, and more via ASE import/export
@@ -82,6 +82,7 @@ qme tsopt reactant.xyz --product product.xyz  # Two-ended TS guess
 qme path interpolate r.xyz p.xyz --npoints 15  # Raw interpolation
 qme path neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path
 qme path cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path
+qme path irc ts.xyz --direction both --steps 100  # IRC from transition state
 
 # Different backends and settings
 qme opt molecule.xyz --backend mace --device cuda --fmax 0.01
@@ -140,12 +141,14 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 | Optimizer | Description | Best For | Transition States |
 |-----------|-------------|----------|-------------------|
 | `sella` | Modern saddle point optimizer | General TS searches | ✅ Yes |
-| `trust-krylov` | Trust-region Krylov subspace | Challenging landscapes, TS | ✅ Yes |
-| `trust-ncg` | Trust-region Newton-CG | High-accuracy minima | ⚠️ Limited |
-| `trust-exact` | Trust-region exact solver | Maximum accuracy | ⚠️ Limited |
+| `trust-krylov` | Trust-region Krylov subspace | Challenging landscapes | ⚠️ Not Yet* |
+| `trust-ncg` | Trust-region Newton-CG | High-accuracy minima | ⚠️ Not Yet* |
+| `trust-exact` | Trust-region exact solver | Maximum accuracy | ⚠️ Not Yet* |
 | `newton-cg` | Newton Conjugate Gradient | Second-order minima | ❌ No |
 
 > **Note**: Second-order optimizers use Hessian information for better convergence but are computationally more expensive. The trust-region methods (trust-krylov, trust-ncg, trust-exact) compute Hessians efficiently using ML potentials. By default, they compute the Hessian once at the start; use `hessian_update_freq` parameter for periodic updates.
+>
+> *The trust-region methods are theoretically capable of handling transition state searches (they can work with indefinite Hessians), but are currently restricted to minima optimization in QME. For TS optimization, use the `sella` optimizer which is specifically designed for saddle point searches.
 
 ## 🧪 Testing and Development
 

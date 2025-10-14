@@ -220,18 +220,19 @@ class Explorer:
     >>> result = explorer.run(npoints=10)
 
     Target/Strategy Matrix:
-    ┌──────────┬─────────────┬─────────────────────────────────┐
-    │ target   │ strategy    │ Description                     │
-    ├──────────┼─────────────┼─────────────────────────────────┤
-    │ minima   │ local       │ Direct local optimization       │
-    │ minima   │ interpolate │ Minima from interpolated path   │
-    │ ts       │ local       │ Local TS search                 │
-    │ ts       │ interpolate │ TS guess from interpolation     │
-    │ path     │ neb         │ NEB path optimization           │
-    │ path     │ cineb       │ CI-NEB path optimization        │
-    │ path     │ irc         │ IRC path from transition state  │
-    │ path     │ interpolate │ Generate path only (no opt)     │
-    └──────────┴─────────────┴─────────────────────────────────┘
+    ┌──────────┬──────────────────┬─────────────────────────────────┐
+    │ target   │ strategy         │ Description                     │
+    ├──────────┼──────────────────┼─────────────────────────────────┤
+    │ minima   │ local            │ Direct local optimization       │
+    │ minima   │ interpolate      │ Minima from interpolated path   │
+    │ ts       │ local            │ Local TS search                 │
+    │ ts       │ interpolate      │ TS guess from interpolation     │
+    │ ts       │ growing_string   │ Growing string method (DE-GSM)  │
+    │ path     │ neb              │ NEB path optimization           │
+    │ path     │ cineb            │ CI-NEB path optimization        │
+    │ path     │ irc              │ IRC path from transition state  │
+    │ path     │ interpolate      │ Generate path only (no opt)     │
+    └──────────┴──────────────────┴─────────────────────────────────┘
     """
 
     # =============================================================================
