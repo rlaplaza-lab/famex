@@ -28,7 +28,7 @@ from ase.io import write
 from qme.core.calculator_setup import create_calculator
 from qme.core.constraint_parser import parse_constraints
 from qme.core.geometry import read_geometry
-from qme.core.local_strategies import local_minima_runner, local_ts_runner
+from qme.core.local_strategies import local_irc_runner, local_minima_runner, local_ts_runner
 from qme.core.twoended_strategies import (
     twoended_cineb_runner,
     twoended_minima_runner,
@@ -209,6 +209,10 @@ class Explorer:
     >>> explorer = Explorer(atoms=[reactant, product], target="path", strategy="cineb")
     >>> result = explorer.run()
 
+    >>> # IRC path from transition state
+    >>> explorer = Explorer(atoms=ts_structure, target="path", strategy="irc")
+    >>> result = explorer.run()
+
     >>> # Generate interpolated path only (no optimization)
     >>> explorer = Explorer(atoms=[reactant, product], target="path", strategy="interpolate")
     >>> result = explorer.run(npoints=10)
@@ -223,6 +227,7 @@ class Explorer:
     │ ts       │ interpolate │ TS guess from interpolation     │
     │ path     │ neb         │ NEB path optimization           │
     │ path     │ cineb       │ CI-NEB path optimization        │
+    │ path     │ irc         │ IRC path from transition state  │
     │ path     │ interpolate │ Generate path only (no opt)     │
     └──────────┴─────────────┴─────────────────────────────────┘
     """
@@ -445,6 +450,14 @@ class Explorer:
             strategy_type="two-ended",
             description="Climbing Image NEB (CI-NEB) optimization with geodesic interpolation",
             aliases=["twoended:cineb", "twoended-cineb", "cineb"],
+        )
+
+        self.register_strategy(
+            "path:irc",
+            local_irc_runner,
+            strategy_type="local",
+            description="IRC (Intrinsic Reaction Coordinate) path from transition state",
+            aliases=["irc", "local:irc", "local-irc"],
         )
 
         # General path optimization strategy that dispatches based on mode
