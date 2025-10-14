@@ -1685,9 +1685,7 @@ def twoended_growing_string_runner(
 
     seq = list(atoms_list)
     if len(seq) != 2:
-        raise ValueError(
-            f"Growing string method requires exactly 2 Atoms objects, got {len(seq)}"
-        )
+        raise ValueError(f"Growing string method requires exactly 2 Atoms objects, got {len(seq)}")
 
     reactant, product = seq[0].copy(), seq[1].copy()
 
@@ -1889,7 +1887,7 @@ def _grow_string_node(
         new_node = previous_node.copy()
 
         # Manually copy calculator reference (ASE copy() doesn't copy calculator)
-        if hasattr(previous_node, 'calc') and previous_node.calc is not None:
+        if hasattr(previous_node, "calc") and previous_node.calc is not None:
             new_node.calc = previous_node.calc
 
         # For forward growth, move along negative gradient (downhill)
@@ -1898,8 +1896,7 @@ def _grow_string_node(
         force_magnitude = np.linalg.norm(forces)
         if force_magnitude < 1e-6:
             logger.warning(
-                f"Growing String: Very small forces ({force_magnitude:.2e}), "
-                "skipping node"
+                f"Growing String: Very small forces ({force_magnitude:.2e}), " "skipping node"
             )
             return None
 

@@ -375,9 +375,9 @@ def local_irc_runner(
     explorer._create_and_attach_calculator(ts_atoms)
     explorer._apply_constraints(ts_atoms)
 
-    # Get the initial forces and masses
-    forces = ts_atoms.get_forces()
-    masses = ts_atoms.get_masses()
+    # Get the initial forces and masses (commented out for now)
+    # forces = ts_atoms.get_forces()
+    # masses = ts_atoms.get_masses()
 
     # Mass-weighted forces (commented out for now)
     # mass_weighted_forces = forces / np.sqrt(masses[:, np.newaxis])
