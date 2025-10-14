@@ -80,7 +80,8 @@ def create_calculator(
         factory_kwargs["mult"] = mult
 
     # Try to get cached calculator first (exclude SO3LR due to state issues)
-    if use_cache and backend.lower() != "so3lr":
+    backend_lower = backend.lower()
+    if use_cache and backend_lower != "so3lr":
         try:
             cached_calc = get_cached_calculator(
                 backend=backend,
@@ -106,7 +107,7 @@ def create_calculator(
     )
 
     # Cache the calculator if caching is enabled (exclude SO3LR due to state issues)
-    if use_cache and backend.lower() != "so3lr":
+    if use_cache and backend_lower != "so3lr":
         try:
             cache_calculator(
                 calculator=calculator,
