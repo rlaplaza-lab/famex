@@ -208,9 +208,12 @@ class TestRFO:
         # Check diagonal block
         np.testing.assert_allclose(H_aug[:n, :n], np.diag(self.eigenvalues / alpha))
         
-        # Check off-diagonal blocks (matching pysisyphus)
-        np.testing.assert_allclose(H_aug[:n, n], self.gradient)  # No division by alpha
-        np.testing.assert_allclose(H_aug[n, :n], self.gradient / alpha)  # Division by alpha
+        # Check off-diagonal blocks (corrected to be symmetric)
+        np.testing.assert_allclose(H_aug[:n, n], self.gradient)  # g
+        np.testing.assert_allclose(H_aug[n, :n], self.gradient)  # g^T (symmetric!)
+        
+        # Check that matrix is symmetric
+        np.testing.assert_allclose(H_aug, H_aug.T, atol=1e-14)
         
         # Check bottom-right element
         assert H_aug[n, n] == 0.0

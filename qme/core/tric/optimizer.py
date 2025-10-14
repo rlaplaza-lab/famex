@@ -151,7 +151,9 @@ class TRICOptimizer(Optimizer):
             else:
                 # Use appropriate step calculation for minima vs TS
                 if self.order == 1:  # Transition state optimization
-                    dq = self._calculate_ts_step(internal_forces)
+                    # Convert forces to gradients for RFO: g = -f
+                    internal_gradient = -internal_forces
+                    dq = self._calculate_ts_step(internal_gradient)
                 else:  # Minima optimization
                     try:
                         # Newton step: dq = +H_inv @ g (positive sign for downhill)
@@ -219,28 +221,35 @@ class TRICOptimizer(Optimizer):
         return q_new, geom_new
     
     def _update_hessian_bfgs(self, q: np.ndarray, gradient: np.ndarray):
-        """Update Hessian using BFGS formula."""
+        """Update Hessian using BFGS formula.
+        
+        Note: The variable 'gradient' is actually internal forces from ASE (= -internal_gradient).
+        For BFGS, we need the actual gradient difference y = g_new - g_old.
+        """
         if self.prev_internal_coords is None or self.prev_gradient is None:
             return
         
-        # BFGS update
+        # BFGS update for Hessian (not inverse Hessian)
         s = q - self.prev_internal_coords  # Step in internal coordinates
-        y = gradient - self.prev_gradient  # Gradient difference
+        
+        # Convert forces to gradients: g = -f
+        # y = g_new - g_old = -f_new - (-f_old) = -(f_new - f_old)
+        y = -(gradient - self.prev_gradient)  # Gradient difference (fixed sign)
         
         # Skip update if step or gradient change is too small
         if np.linalg.norm(s) < 1e-12 or np.linalg.norm(y) < 1e-12:
             return
         
-        # BFGS formula
-        rho = 1.0 / np.dot(y, s)
+        # Check curvature condition: y^T * s > 0
+        ys = np.dot(y, s)
         
-        if rho > 0:  # Only update if curvature condition is satisfied
-            # Update Hessian
-            I = np.eye(len(self.hessian))
+        if ys > 1e-12:  # Only update if curvature condition is satisfied
+            # BFGS formula for Hessian (not inverse Hessian)
+            # H_new = H - (H*s*s^T*H)/(s^T*H*s) + (y*y^T)/(y^T*s)
+            Hs = self.hessian @ s
+            sHs = s @ self.hessian @ s
             
-            # H_new = (I - rho * s * y^T) * H * (I - rho * y * s^T) + rho * s * s^T
-            V = I - rho * np.outer(y, s)
-            self.hessian = V.T @ self.hessian @ V + rho * np.outer(s, s)
+            self.hessian = self.hessian - np.outer(Hs, Hs) / sHs + np.outer(y, y) / ys
     
     def log(self, message: str):
         """Log optimization progress."""
@@ -271,7 +280,18 @@ class TRICTSOptimizer(TRICOptimizer):
             self.log(f"Warning: TS Hessian has {len(negative_eigenvals)} negative eigenvalues, expected 1")
     
     def _calculate_ts_step(self, gradient: np.ndarray) -> np.ndarray:
-        """Calculate step for transition state optimization using P-RFO."""
+        """Calculate step for transition state optimization using P-RFO.
+        
+        Parameters
+        ----------
+        gradient : np.ndarray
+            Internal coordinate gradient (not forces, g points uphill)
+            
+        Returns
+        -------
+        np.ndarray
+            Step in internal coordinates
+        """
         try:
             from .rfo import (
                 restricted_step_microcycles,
@@ -330,7 +350,18 @@ class TRICTSOptimizer(TRICOptimizer):
             return self._calculate_basic_ts_step(gradient)
     
     def _calculate_basic_ts_step(self, gradient: np.ndarray) -> np.ndarray:
-        """Fallback basic eigenvalue-following algorithm."""
+        """Fallback basic eigenvalue-following algorithm.
+        
+        Parameters
+        ----------
+        gradient : np.ndarray
+            Internal coordinate gradient (not forces, g points uphill)
+            
+        Returns
+        -------
+        np.ndarray
+            Step in internal coordinates
+        """
         try:
             # Diagonalize Hessian to find negative eigenvalue mode
             eigenvalues, eigenvectors = np.linalg.eigh(self.hessian)
@@ -345,12 +376,24 @@ class TRICTSOptimizer(TRICOptimizer):
             grad_parallel = np.dot(gradient, negative_mode) * negative_mode
             grad_perpendicular = gradient - grad_parallel
             
-            # For negative eigenvalue mode, go uphill (opposite to gradient direction)
-            # For other modes, go downhill (with gradient direction)
+            # For negative eigenvalue mode, go uphill (in gradient direction)
+            # For other modes, go downhill (opposite to gradient direction)
             if negative_eigenval < 0:
-                step_parallel = -grad_parallel / abs(negative_eigenval)
-                step_perpendicular = -grad_perpendicular / np.maximum(np.abs(eigenvalues), 1e-6)
-                dq = step_parallel + step_perpendicular
+                # Eigenvalue-following TS search:
+                # - Maximize along negative mode: step = +g_parallel / |lambda|
+                # - Minimize along positive modes: use Newton step for each mode
+                
+                dq = np.zeros_like(gradient)
+                for i, eigval in enumerate(eigenvalues):
+                    mode = eigenvectors[:, i]
+                    grad_component = np.dot(gradient, mode)
+                    
+                    if i == min_idx:  # Negative eigenvalue mode
+                        # Move uphill: step in direction of gradient
+                        dq += (grad_component / abs(eigval)) * mode
+                    else:  # Positive eigenvalue modes
+                        # Move downhill: Newton step
+                        dq += (-grad_component / max(abs(eigval), 1e-6)) * mode
             else:
                 # Fallback to regular Newton step if no negative eigenvalue
                 dq = -np.linalg.solve(self.hessian, gradient)
