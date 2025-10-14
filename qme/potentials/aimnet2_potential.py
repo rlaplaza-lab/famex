@@ -75,10 +75,7 @@ def get_model_path(model_name: str) -> str:
         return model_name
 
     # Check aliases
-    if model_name in MODEL_REGISTRY:
-        model_path = MODEL_REGISTRY[model_name]
-    else:
-        model_path = model_name
+    model_path = MODEL_REGISTRY.get(model_name, model_name)
 
     # Add .jpt extension if needed
     if not model_path.endswith(".jpt"):
@@ -168,9 +165,9 @@ def nblist_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256):
     return dense_nb
 
 
-def maybe_pad_dim0(a, N, value=0.0):
+def maybe_pad_dim0(a, n, value=0.0):
     """Pad tensor in dimension 0 if needed (from aimnet2calc)"""
-    _shape_diff = N - a.shape[0]
+    _shape_diff = n - a.shape[0]
     assert _shape_diff == 0 or _shape_diff == 1, "Invalid shape"
     if _shape_diff == 1:
         a = pad_dim0(a, value=value)
@@ -184,9 +181,9 @@ def pad_dim0(a, value=0.0):
     return a
 
 
-def maybe_unpad_dim0(a, N):
+def maybe_unpad_dim0(a, n):
     """Unpad tensor in dimension 0 if needed (from aimnet2calc)"""
-    _shape_diff = a.shape[0] - N
+    _shape_diff = a.shape[0] - n
     assert _shape_diff == 0 or _shape_diff == 1, "Invalid shape"
     if _shape_diff == 1:
         a = a[:-1]

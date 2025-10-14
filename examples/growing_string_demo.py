@@ -149,7 +149,7 @@ def main():
     # Calculate energies along path
     trajectory = result["trajectory"]
     energies = []
-    for i, atoms in enumerate(trajectory):
+    for _i, atoms in enumerate(trajectory):
         try:
             energy = atoms.get_potential_energy()
             energies.append(energy)
