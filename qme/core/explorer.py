@@ -38,6 +38,7 @@ from qme.core.twoended_strategies import (
 from qme.core.validation import (
     STRATEGY_CINEB,
     STRATEGY_INTERPOLATE,
+    STRATEGY_IRC,
     STRATEGY_LOCAL,
     STRATEGY_NEB,
     TARGET_MINIMA,
@@ -575,6 +576,7 @@ class Explorer:
                 STRATEGY_CINEB,
                 STRATEGY_INTERPOLATE,
                 STRATEGY_LOCAL,
+                STRATEGY_IRC,
             ]:
                 # Strategy specified as mode - infer target from instance or default to path
                 target = normalize_target(self.target or TARGET_PATH)
@@ -611,6 +613,7 @@ class Explorer:
         # Auto-infer strategy from target if ambiguous
         if target == TARGET_PATH and strategy == STRATEGY_LOCAL:
             # Path target with local strategy doesn't make sense, default to NEB
+            # UNLESS it's IRC which is a local strategy for path
             strategy = STRATEGY_NEB
 
         return target, strategy
@@ -805,22 +808,28 @@ class Explorer:
         # Validate target/strategy combination
         validate_target_strategy_combination(target, strategy, len(atoms_list))
 
-        # Validate inputs based on target
+        # Select strategy runner early to determine strategy type for validation
+        strategy_key, strategy_type = self._select_strategy_runner(target, strategy)
+
+        # Validate inputs based on target and strategy type
         if target == TARGET_TS:
             if strategy == STRATEGY_LOCAL:
                 validate_ts_run(atoms_list, self.backend, self.local_optimizer_name)
             else:
                 validate_path_run(atoms_list, self.backend, self.local_optimizer_name)
         elif target == TARGET_PATH:
-            validate_path_run(atoms_list, self.backend, self.local_optimizer_name)
+            # For path target, check if strategy is local (IRC) or two-ended (NEB/CI-NEB)
+            if strategy_type == "local":
+                # IRC: validate as single structure
+                validate_minima_run(atoms_list, self.backend, self.local_optimizer_name)
+            else:
+                # NEB/CI-NEB: validate as two-ended
+                validate_path_run(atoms_list, self.backend, self.local_optimizer_name)
         else:  # TARGET_MINIMA
             if strategy == STRATEGY_LOCAL:
                 validate_minima_run(atoms_list, self.backend, self.local_optimizer_name)
             else:
                 validate_path_run(atoms_list, self.backend, self.local_optimizer_name)
-
-        # Select strategy runner
-        strategy_key, strategy_type = self._select_strategy_runner(target, strategy)
 
         # If the caller passed an explicit runner, use it; otherwise look up
         # the registered strategy entry.
