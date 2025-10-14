@@ -59,11 +59,7 @@ class VerboseFilter(logging.Filter):
 
         # Check if message contains suppressed patterns
         message = record.getMessage()
-        for pattern in self.SUPPRESSED_PATTERNS:
-            if pattern in message:
-                return False
-
-        return True
+        return all(pattern not in message for pattern in self.SUPPRESSED_PATTERNS)
 
 
 @contextlib.contextmanager
