@@ -418,7 +418,8 @@ def tsopt(
         "Subcommands:\n"
         "  interpolate : Raw geodesic interpolation (no optimization)\n"
         "  neb         : Nudged Elastic Band path optimization\n"
-        "  cineb       : Climbing Image NEB path optimization\n\n"
+        "  cineb       : Climbing Image NEB path optimization\n"
+        "  irc         : IRC path from transition state\n\n"
         "All subcommands save complete reaction pathways as trajectory files."
     )
 )
@@ -786,6 +787,123 @@ def cineb(
     out = output_path or (out_base + ".cineb.xyz")
     write_atoms(cineb_result, out)
     click.echo(f"CI-NEB optimization completed. Saved {len(cineb_result)} images to: {out}")
+
+
+@path.command(
+    help=(
+        "IRC (Intrinsic Reaction Coordinate) path from transition state.\n\n"
+        "Follows the gradient downhill from a transition state in both forward\n"
+        "and backward directions to generate a reaction path. This produces the\n"
+        "minimum energy path connecting reactants and products through the TS."
+    )
+)
+@click.argument("ts_structure", type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--output",
+    "output_path",
+    type=click.Path(dir_okay=False),
+    default=None,
+    help="Output trajectory XYZ path",
+)
+@click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
+@click.option("--steps", type=int, default=100, show_default=True, help="Max IRC steps per direction")
+@click.option(
+    "--step-size",
+    type=float,
+    default=0.1,
+    show_default=True,
+    help="IRC step size (amu^1/2 * Angstrom)",
+)
+@click.option(
+    "--direction",
+    type=click.Choice(["forward", "backward", "both"], case_sensitive=False),
+    default="both",
+    show_default=True,
+    help="Direction to follow from TS",
+)
+@_common_explorer_options
+def irc(
+    ts_structure: str,
+    output_path: str | None,
+    fmax: float,
+    steps: int,
+    step_size: float,
+    direction: str,
+    backend: str,
+    model_name: str | None,
+    model_path: str | None,
+    device: str | None,
+    default_charge: int,
+    default_spin: int,
+    local_optimizer: str,
+    optimizer_kw: list[str],
+    ts_kw: list[str],
+    constraints: str | None,
+    verbose: int,
+    dry_run: bool,
+) -> None:
+    ts_atoms = load_atoms_from_xyz(ts_structure)
+
+    optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
+    ts_kwargs = parse_kv_pairs(list(ts_kw))
+
+    # Convert verbose count to verbosity level (0=quiet, 1=normal, 2+=debug)
+    verbosity = max(0, verbose - 1)
+
+    if verbosity == 0:
+        ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
+    else:
+
+        ctx = nullcontext()  # type: ignore
+
+    with ctx:
+        exp = Explorer(
+            atoms=ts_atoms,
+            backend=backend,
+            model_name=model_name,
+            model_path=model_path,
+            device=device,
+            default_charge=default_charge,
+            default_spin=default_spin,
+            local_optimizer=local_optimizer,
+            optimizer_kwargs=optimizer_kwargs,
+            target="path",
+            strategy="irc",
+            ts_kwargs=ts_kwargs,
+            constraints=constraints,
+            verbose=verbosity,
+        )
+
+        if dry_run:
+            explanation = exp.explain_run(mode="irc")
+            click.echo("🔍 Dry-run analysis:")
+            click.echo(f"   Target: {explanation['target']}")
+            click.echo(f"   Strategy: {explanation['strategy']}")
+            click.echo(f"   Runner: {explanation['runner']}")
+            click.echo(f"   Valid: {explanation['valid']}")
+            click.echo(f"   Notes: {explanation['notes']}")
+            return
+
+        # Run IRC calculation
+        irc_result = exp.run(
+            mode="irc",
+            fmax=fmax,
+            steps=steps,
+            step_size=step_size,
+            direction=direction.lower(),
+        )
+
+        # Extract trajectory from result
+        if isinstance(irc_result, dict) and "trajectory" in irc_result:
+            trajectory = irc_result["trajectory"]
+        else:
+            trajectory = irc_result
+
+    # Save trajectory
+    out_base = os.path.splitext(ts_structure)[0]
+    out = output_path or (out_base + ".irc.xyz")
+    write_atoms(trajectory, out)
+    click.echo(f"IRC calculation completed. Saved {len(trajectory)} images to: {out}")
 
 
 __all__ = ["main", "opt", "tsopt", "path"]

@@ -16,10 +16,31 @@ Demonstrates QME's command-line interface capabilities by running various optimi
   * Raw interpolation path generation
   * NEB path optimization (saves complete reaction pathways)
   * CI-NEB (Climbing Image NEB) path optimization (saves complete reaction pathways)
+  * IRC (Intrinsic Reaction Coordinate) path from transition state
 - Comprehensive backend performance comparison
 - Trajectory saving for multi-image results
 
-### 2. Timing Benchmark (`timing_benchmark.py`)
+### 2. IRC Demo (`irc_demo.py`)
+**IRC Path Calculation from Transition State**
+
+Demonstrates IRC (Intrinsic Reaction Coordinate) calculations that follow the gradient
+downhill from a transition state to generate the minimum energy path connecting
+reactants and products.
+
+**Features:**
+- Calculates IRC path from a single transition state structure
+- Follows gradient in both forward and backward directions
+- Generates complete reaction pathway through the TS
+- Energy profile analysis along the IRC path
+- Saves trajectory for visualization
+
+**Usage:**
+```bash
+python irc_demo.py example_files/reaction_001_ts.xyz --backend uma --steps 50
+python irc_demo.py ts.xyz --backend aimnet2 --direction both --step-size 0.1
+```
+
+### 3. Timing Benchmark (`timing_benchmark.py`)
 **ML Backend Performance Analysis**
 
 Comprehensive performance benchmark for QME ML backends using simple geometry optimization and frequency analysis. All backends use the same default optimizer (BFGS) to ensure fair comparison of backend performance.
@@ -31,7 +52,7 @@ Comprehensive performance benchmark for QME ML backends using simple geometry op
 - Detailed timing breakdown and performance comparison
 - ML backend performance comparison (not optimizer comparison)
 
-### 3. Minima Optimizer Benchmark (`minima_optimizer_benchmark.py`)
+### 4. Minima Optimizer Benchmark (`minima_optimizer_benchmark.py`)
 **Minima Optimization Comparison**
 
 Compares the performance of different minima optimizers (lbfgs, bfgs, fire) for minima finding using various QME ML backends.
@@ -43,7 +64,7 @@ Compares the performance of different minima optimizers (lbfgs, bfgs, fire) for 
 - Minima-specific optimization evaluation
 - Focus on minima finding capabilities
 
-### 4. TS Optimizer Benchmark (`ts_optimizer_benchmark.py`)
+### 5. TS Optimizer Benchmark (`ts_optimizer_benchmark.py`)
 **Transition State Optimizer Comparison**
 
 Compares the performance of different transition state optimizers (sella and tric) for transition state finding using various QME ML backends.
@@ -55,12 +76,12 @@ Compares the performance of different transition state optimizers (sella and tri
 - TS-specific optimization evaluation
 - Focus on TS finding capabilities
 
-### 5. Optimizer Comparison Benchmark
+### 6. Optimizer Comparison Benchmark
 **Combined Minima and TS Optimizer Comparison**
 
 The optimizer comparison functionality is now split into specialized benchmarks above. Use `minima_optimizer_benchmark.py` for minima optimizer testing and `ts_optimizer_benchmark.py` for transition state optimizer testing.
 
-### 6. BH28 Benchmark (`bh28_benchmark/`)
+### 7. BH28 Benchmark (`bh28_benchmark/`)
 **Chemical Accuracy Evaluation**
 
 Comprehensive evaluation of QME backends on the BH28 database of chemical reaction barrier heights.
@@ -71,7 +92,7 @@ Comprehensive evaluation of QME backends on the BH28 database of chemical reacti
 - Provides accuracy analysis (MAE, RMSE) for different backends
 - Tests 28 diverse chemical reactions
 
-### 7. Zimmermann-93 Benchmark (`zimmermann93_benchmark/`)
+### 8. Zimmermann-93 Benchmark (`zimmermann93_benchmark/`)
 **Two-Ended Transition State Search**
 
 Two-ended transition state search benchmark using the Zimmermann-93 dataset.
