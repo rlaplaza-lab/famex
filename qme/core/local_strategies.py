@@ -64,6 +64,24 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
 
         return Sella
 
+    # SciPy Hessian-based optimizers
+    if name in ("trust-krylov", "trustkrylov", "trust_krylov"):
+        from qme.core.scipy_optimizers import TrustKrylov
+
+        return TrustKrylov
+    if name in ("trust-ncg", "trustncg", "trust_ncg"):
+        from qme.core.scipy_optimizers import TrustNCG
+
+        return TrustNCG
+    if name in ("trust-exact", "trustexact", "trust_exact"):
+        from qme.core.scipy_optimizers import TrustExact
+
+        return TrustExact
+    if name in ("newton-cg", "newtoncg", "newton_cg"):
+        from qme.core.scipy_optimizers import NewtonCG
+
+        return NewtonCG
+
     try:
         if name in ("lbfgs", "l-bfgs", "l_bfgs"):
             from ase.optimize.lbfgs import LBFGS
