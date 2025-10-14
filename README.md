@@ -154,6 +154,13 @@ cd qme
 pip install -e .[dev]
 ```
 
+### Test Suite Overview
+
+- `pytest tests/unit` — fast unit coverage for validation, constraints, optimizers, and helpers
+- `pytest tests/integration` — lightweight smoke tests for Explorer flows, CLI commands, and TorchSim (skips if real backends are unavailable)
+- `pytest tests/integration -k torchsim` — exercise TorchSim-dependent paths when the optional dependencies are installed
+- `pytest -m "not slow"` — convenient selector if you add custom markers for heavier workflows
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guide](docs/developer_guide/contributing.md) for:
