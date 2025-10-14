@@ -15,7 +15,6 @@ Example:
 """
 
 import argparse
-import os
 from pathlib import Path
 
 from ase.io import read
@@ -25,9 +24,7 @@ import qme
 
 def main():
     """Run IRC calculation demo."""
-    parser = argparse.ArgumentParser(
-        description="IRC path calculation from transition state"
-    )
+    parser = argparse.ArgumentParser(description="IRC path calculation from transition state")
     parser.add_argument(
         "ts_file",
         nargs="?",
@@ -90,7 +87,7 @@ def main():
     )
 
     # Run IRC
-    print(f"\nRunning IRC calculation...")
+    print("\nRunning IRC calculation...")
     print(f"  Direction: {args.direction}")
     print(f"  Max steps per direction: {args.steps}")
     print(f"  Step size: {args.step_size} amu^1/2 * Angstrom")
@@ -109,7 +106,7 @@ def main():
     forward_path = result.get("forward_path", [])
     backward_path = result.get("backward_path", [])
 
-    print(f"\nIRC calculation completed!")
+    print("\nIRC calculation completed!")
     print(f"  Total images: {len(trajectory)}")
     print(f"  Forward path images: {len(forward_path)}")
     print(f"  Backward path images: {len(backward_path)}")
@@ -129,7 +126,7 @@ def main():
     if energies:
         min_energy = min(energies)
         max_energy = max(energies)
-        print(f"\nEnergy statistics:")
+        print("\nEnergy statistics:")
         print(f"  Min energy: {min_energy:.6f} eV")
         print(f"  Max energy: {max_energy:.6f} eV")
         print(f"  Energy range: {max_energy - min_energy:.6f} eV")
@@ -141,6 +138,7 @@ def main():
         output_file = ts_file.stem + "_irc.xyz"
 
     from ase.io import write
+
     write(output_file, trajectory)
     print(f"\nTrajectory saved to: {output_file}")
 

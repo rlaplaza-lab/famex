@@ -3,7 +3,7 @@
 QME TS Optimizer Benchmark - Transition State Optimizer Comparison
 
 This benchmark compares the performance of different transition state optimizers
-(sella, tric) for transition state finding using various QME ML backends.
+(sella, geomeTRIC) for transition state finding using various QME ML backends.
 It focuses specifically on TS optimization to evaluate which optimizers work best
 for finding transition states across different ML backends.
 
@@ -13,7 +13,7 @@ Usage:
     python ts_optimizer_benchmark.py [--device DEVICE]
 
 Features:
-    - Transition state optimizer comparison (sella vs tric)
+    - Transition state optimizer comparison (sella vs geomeTRIC)
     - All available ML backends tested
     - Detailed timing and convergence analysis
     - TS-specific optimization evaluation
@@ -80,7 +80,7 @@ def benchmark_ts_optimizer(
         verbose=verbose,
         test_ts=True,
         create_structure_func=create_ts_structure,
-        suitable_optimizers=["sella", "tric"],
+        suitable_optimizers=["sella", "geometric"],
     )
 
 
@@ -371,7 +371,7 @@ def main():
     parser.add_argument(
         "--optimizers",
         type=str,
-        help="Comma-separated list of optimizers to benchmark (default: sella,tric)",
+        help="Comma-separated list of optimizers to benchmark (default: sella,geometric)",
     )
 
     args = parser.parse_args()
@@ -404,18 +404,18 @@ def main():
     if args.optimizers:
         requested_optimizers = [o.strip().lower() for o in args.optimizers.split(",")]
         # Filter to only TS optimizers
-        valid_optimizers = ["sella", "tric"]
+        valid_optimizers = ["sella", "geometric"]
         ts_optimizers = [opt for opt in requested_optimizers if opt in valid_optimizers]
         if len(ts_optimizers) != len(requested_optimizers):
             invalid_opts = [opt for opt in requested_optimizers if opt not in valid_optimizers]
             print(f"Warning: Invalid optimizers ignored: {', '.join(invalid_opts)}")
             print(f"Valid TS optimizers: {', '.join(valid_optimizers)}")
     else:
-        ts_optimizers = ["sella", "tric"]
+        ts_optimizers = ["sella", "geometric"]
 
     if not ts_optimizers:
         interface.print_error("No valid TS optimizers specified!")
-        print("Valid options: sella, tric")
+        print("Valid options: sella, geometric")
         return 1
 
     interface.print_backend_summary(available_backends, "Benchmarking Backends")

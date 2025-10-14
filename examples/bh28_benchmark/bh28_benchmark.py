@@ -81,8 +81,13 @@ def suppress_verbose_output():
 class BH28Benchmark:
     """Comprehensive benchmark suite for QME on the BH28 database."""
 
-    def __init__(self, dataset_dir: str = "bh28_dataset", output_dir: str = "benchmark_results", 
-                 minima_optimizer: str = "LBFGS", ts_optimizer: str = "SELLA"):
+    def __init__(
+        self,
+        dataset_dir: str = "bh28_dataset",
+        output_dir: str = "benchmark_results",
+        minima_optimizer: str = "LBFGS",
+        ts_optimizer: str = "SELLA",
+    ):
         """Initialize comprehensive benchmark."""
         self.dataset_dir = Path(dataset_dir)
         self.output_dir = Path(output_dir)
@@ -321,10 +326,10 @@ class BH28Benchmark:
                                     model_name=model_name,
                                 )
                                 ts_result = ts_optimizer.run(
-                                    mode="ts", 
-                                    steps=500, 
+                                    mode="ts",
+                                    steps=500,
                                     fmax=0.01,
-                                    local_optimizer_name=self.ts_optimizer
+                                    local_optimizer_name=self.ts_optimizer,
                                 )
 
                             ts_time = time.perf_counter() - ts_start
@@ -799,13 +804,13 @@ def main():
     parser.add_argument(
         "--minima-optimizer",
         default="LBFGS",
-        choices=["LBFGS", "BFGS", "FIRE", "TRIC"],
+        choices=["LBFGS", "BFGS", "FIRE", "GEOMETRIC"],
         help="Minima optimizer to use (default: LBFGS)",
     )
     parser.add_argument(
         "--ts-optimizer",
         default="SELLA",
-        choices=["SELLA", "TRIC"],
+        choices=["SELLA", "GEOMETRIC"],
         help="Transition state optimizer to use (default: SELLA)",
     )
 
@@ -815,7 +820,7 @@ def main():
     benchmark = BH28Benchmark(
         output_dir=args.output_dir,
         minima_optimizer=args.minima_optimizer,
-        ts_optimizer=args.ts_optimizer
+        ts_optimizer=args.ts_optimizer,
     )
 
     interface.print_header("Chemical Accuracy Evaluation")

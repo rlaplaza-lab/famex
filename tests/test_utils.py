@@ -345,9 +345,9 @@ class StandardTestAssertions:
     @staticmethod
     def assert_energy_reasonable(energy: float, backend: str = "mock") -> None:
         """Assert that energy is reasonable."""
-        assert not (energy != energy), "Energy should not be NaN"
-        assert not (energy == float("inf")), "Energy should not be infinite"
-        assert not (energy == float("-inf")), "Energy should not be negative infinite"
+        assert energy == energy, "Energy should not be NaN"
+        assert energy != float("inf"), "Energy should not be infinite"
+        assert energy != float("-inf"), "Energy should not be negative infinite"
 
         if backend != "mock":
             # Real ML potentials should give reasonable energies
