@@ -76,7 +76,7 @@ def _check_e3nn_conflict() -> str | None:
         e3nn_version = e3nn.__version__
 
         # MACE 0.3.14 was built with e3nn 0.4.4, FairChem needs e3nn >= 0.5
-        if e3nn_version.startswith("0.5") or e3nn_version.startswith("0.6"):
+        if e3nn_version.startswith(("0.5", "0.6")):
             return (
                 f"e3nn version conflict: MACE requires e3nn==0.4.4 but "
                 f"e3nn {e3nn_version} is installed (required by FairChem)"

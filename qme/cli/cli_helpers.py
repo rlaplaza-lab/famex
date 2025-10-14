@@ -43,10 +43,7 @@ def parse_kv_pairs(pairs: list[str]) -> dict[str, object]:
             coerced: object = value.lower() == "true"
         else:
             try:
-                if "." in value:
-                    coerced = float(value)
-                else:
-                    coerced = int(value)
+                coerced = float(value) if "." in value else int(value)
             except ValueError:
                 coerced = value
         result[key] = coerced
