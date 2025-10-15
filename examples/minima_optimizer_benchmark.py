@@ -64,7 +64,7 @@ def benchmark_minima_optimizer(
     optimizer: str,
     device: str | None = None,
     model_name: str | None = None,
-    verbose: bool = True,
+    verbose: int = 1,
 ) -> dict[str, Any]:
     """
     Benchmark a single backend with a specific optimizer for minima optimization.
@@ -353,17 +353,20 @@ def main():
     parser.add_argument(
         "--optimizers",
         type=str,
-        help="Comma-separated list of optimizers to benchmark (default: lbfgs,bfgs,fire)",
+        help="Comma-separated list of optimizers to benchmark (default: lbfgs,bfgs,fire,trust-krylov)",
     )
 
     args = parser.parse_args()
 
     interface.print_header()
 
+    # Set up logging based on verbosity level
+    interface.setup_logging(args.verbose)
+
     # Determine which backends to test
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
-        available_backends = interface.filter_available_backends(requested_backends, verbose=True)
+        available_backends = interface.filter_available_backends(requested_backends, verbose=args.verbose)
 
         if not available_backends:
             interface.print_error("No requested backends are available!")
@@ -393,7 +396,7 @@ def main():
             print(f"Warning: Invalid optimizers ignored: {', '.join(invalid_opts)}")
             print(f"Valid minima optimizers: {', '.join(valid_optimizers)}")
     else:
-        minima_optimizers = ["lbfgs", "bfgs", "fire"]
+        minima_optimizers = ["lbfgs", "bfgs", "fire", "trust-krylov"]
 
     if not minima_optimizers:
         interface.print_error("No valid minima optimizers specified!")

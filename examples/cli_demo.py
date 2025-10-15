@@ -249,7 +249,7 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
 
     # Get available ML backends
     if backends:
-        available_backends = interface.filter_available_backends(backends, verbose=True)
+        available_backends = interface.filter_available_backends(backends, verbose=1)
     else:
         available_backends = interface.get_available_ml_backends()
 
@@ -410,6 +410,9 @@ def main():
 
     parser = interface.create_parser()
     args = parser.parse_args()
+
+    # Set up logging based on verbosity level
+    interface.setup_logging(args.verbose)
 
     # Parse backends if provided
     backends = None
