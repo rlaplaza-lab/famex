@@ -92,13 +92,13 @@ class VerboseOptimizerWrapper(Optimizer):
                 self.atoms.calc = atoms.calc
                 self.wrapped_optimizer.atoms.calc = atoms.calc
 
-        if self.verbose >= 1:
+        if self.verbose >= 2:
             optimizer_name = wrapped_optimizer_class.__name__
             logger.info(f"Initialized {optimizer_name} optimizer with verbosity control")
 
     def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:
         """Run the optimization with verbosity control."""
-        if self.verbose >= 1:
+        if self.verbose >= 2:
             optimizer_name = self.wrapped_optimizer.__class__.__name__
             logger.info(f"Starting {optimizer_name} optimization")
             logger.info(f"Convergence criterion: fmax = {fmax} eV/Å")
