@@ -421,6 +421,10 @@ class SciPyHessianOptimizer(Optimizer):
         # Update positions
         self.atoms.set_positions(self._x_to_positions(x))
 
+        # Increment step counter BEFORE logging to match printed step numbers
+        if self.nsteps < self.max_steps:
+            self.nsteps += 1
+
         # Get forces and log
         forces = self.atoms.get_forces()
         fmax = np.max(np.abs(forces))
@@ -430,10 +434,6 @@ class SciPyHessianOptimizer(Optimizer):
 
         self.log(forces)
         self.call_observers()
-
-        # Increment step counter
-        if self.nsteps < self.max_steps:
-            self.nsteps += 1
 
         # Check convergence - converged() expects 1D gradient array
         forces_flat = forces.ravel()
@@ -467,6 +467,8 @@ class SciPyHessianOptimizer(Optimizer):
             forces = self.atoms.get_forces()
             self.log(forces)
             self.call_observers()
+            # Count the initial step to match printed step numbers
+            self.nsteps += 1
 
         if self.verbose >= 1:
             logger.info(f"Starting {self.method} optimization")
