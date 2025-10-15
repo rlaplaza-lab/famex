@@ -3,7 +3,7 @@
 QME TS Optimizer Benchmark - Transition State Optimizer Comparison
 
 This benchmark compares the performance of different transition state optimizers
-(sella) for transition state finding using various QME ML backends.
+(sella, trust-krylov-ts) for transition state finding using various QME ML backends.
 It focuses specifically on TS optimization to evaluate which optimizers work best
 for finding transition states across different ML backends.
 
@@ -13,7 +13,7 @@ Usage:
     python ts_optimizer_benchmark.py [--device DEVICE]
 
 Features:
-    - Transition state optimizer comparison (sella)
+    - Transition state optimizer comparison (sella, trust-krylov-ts)
     - All available ML backends tested
     - Detailed timing and convergence analysis
     - TS-specific optimization evaluation
@@ -70,7 +70,7 @@ def benchmark_ts_optimizer(
     """
     Benchmark a single backend with a specific optimizer for transition state optimization.
 
-    Only suitable optimizers: Sella
+    Suitable optimizers: Sella, Trust-Krylov-TS
     """
     return benchmark_optimization(
         backend=backend,
@@ -80,7 +80,7 @@ def benchmark_ts_optimizer(
         verbose=verbose,
         test_ts=True,
         create_structure_func=create_ts_structure,
-        suitable_optimizers=["sella"],
+        suitable_optimizers=["sella", "trust-krylov-ts"],
     )
 
 
@@ -371,7 +371,7 @@ def main():
     parser.add_argument(
         "--optimizers",
         type=str,
-        help="Comma-separated list of optimizers to benchmark (default: sella)",
+        help="Comma-separated list of optimizers to benchmark (default: sella, options: sella,trust-krylov-ts)",
     )
 
     args = parser.parse_args()
@@ -404,7 +404,7 @@ def main():
     if args.optimizers:
         requested_optimizers = [o.strip().lower() for o in args.optimizers.split(",")]
         # Filter to only TS optimizers
-        valid_optimizers = ["sella"]
+        valid_optimizers = ["sella", "trust-krylov-ts"]
         ts_optimizers = [opt for opt in requested_optimizers if opt in valid_optimizers]
         if len(ts_optimizers) != len(requested_optimizers):
             invalid_opts = [opt for opt in requested_optimizers if opt not in valid_optimizers]
@@ -415,7 +415,7 @@ def main():
 
     if not ts_optimizers:
         interface.print_error("No valid TS optimizers specified!")
-        print("Valid options: sella")
+        print("Valid options: sella, trust-krylov-ts")
         return 1
 
     interface.print_backend_summary(available_backends, "Benchmarking Backends")

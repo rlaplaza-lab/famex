@@ -46,6 +46,7 @@ class FrequencyAnalysis:
         delta: float = 0.01,
         nfree: int | None = None,
         indices: list[int] | None = None,
+        verbose: int = 1,
     ) -> None:
         """
         Initialize frequency analysis.
@@ -64,12 +65,18 @@ class FrequencyAnalysis:
         indices : List[int], optional
             Indices of atoms to include in frequency analysis.
             If None, all atoms are included.
+        verbose : int
+            Verbosity level for frequency analysis output:
+            - 0: Quiet (minimal output)
+            - 1: Normal (default, shows progress)
+            - 2: Verbose (detailed information)
         """
         self.atoms = atoms.copy()
         self.calculator = calculator
         self.atoms.calc = calculator
         self.delta = delta
         self.indices = indices if indices is not None else list(range(len(atoms)))
+        self.verbose = verbose
 
         # Determine degrees of freedom to remove
         if nfree is None:
@@ -167,7 +174,7 @@ class FrequencyAnalysis:
             self._hessian = self._calculate_hessian_batch()
         elif method == "finite_differences":
             hessian_calc = HessianCalculator(
-                self.atoms, self.calculator, self.delta, indices=self.indices
+                self.atoms, self.calculator, self.delta, indices=self.indices, verbose=self.verbose
             )
             self._hessian = hessian_calc.calculate_numerical_hessian()
         else:
@@ -180,7 +187,8 @@ class FrequencyAnalysis:
         if not _supports_batch_evaluation(self.calculator):
             raise RuntimeError("Calculator does not support batch evaluation")
 
-        logger.info("Using batch evaluation for Hessian calculation...")
+        if self.verbose >= 1:
+            logger.info("Using batch evaluation for Hessian calculation...")
 
         # Generate all displaced structures
         displaced_structures = self._generate_displaced_structures()
@@ -657,7 +665,8 @@ class FrequencyAnalysis:
             trajectory.append(atoms_displaced)
 
         write(filename, trajectory)
-        logger.info(f"Normal mode trajectory written to {filename}")
+        if self.verbose >= 1:
+            logger.info(f"Normal mode trajectory written to {filename}")
 
 
 class HessianCalculator:
@@ -672,6 +681,7 @@ class HessianCalculator:
         delta: float = 0.01,
         method: str = "central",
         indices: list[int] | None = None,
+        verbose: int = 1,
     ):
         """
         Initialize Hessian calculator.
@@ -688,12 +698,18 @@ class HessianCalculator:
             'forward' or 'central' differences
         indices : List[int], optional
             Indices of atoms to include. If None, all atoms included.
+        verbose : int
+            Verbosity level for Hessian calculation output:
+            - 0: Quiet (minimal output)
+            - 1: Normal (default, shows progress)
+            - 2: Verbose (detailed information)
         """
         self.atoms = atoms.copy()
         self.calculator = calculator
         self.atoms.calc = calculator
         self.delta = delta
         self.method = method
+        self.verbose = verbose
         self.indices = indices if indices is not None else list(range(len(atoms)))
 
     def calculate_numerical_hessian(self) -> np.ndarray:
@@ -709,7 +725,8 @@ class HessianCalculator:
         n_coords = 3 * n_atoms
         hessian = np.zeros((n_coords, n_coords))
 
-        logger.info(f"Calculating Hessian for {n_atoms} atoms using {self.method} differences")
+        if self.verbose >= 1:
+            logger.info(f"Calculating Hessian for {n_atoms} atoms using {self.method} differences")
 
         if self.method == "central":
             # Central differences: H_ij = (F_i(+δj) - F_i(-δj)) / (2δ)
@@ -726,7 +743,7 @@ class HessianCalculator:
                 # Central difference
                 hessian[:, j] = -(forces_plus - forces_minus) / (2 * self.delta)
 
-                if world.rank == 0:
+                if world.rank == 0 and self.verbose >= 2:
                     logger.debug(f"Completed coordinate {j + 1}/{n_coords}")
 
         elif self.method == "forward":
@@ -740,7 +757,7 @@ class HessianCalculator:
                 forces_displaced = self._get_forces_displaced(atom_j, coord_j, self.delta)
                 hessian[:, j] = -(forces_displaced - forces_ref) / self.delta
 
-                if world.rank == 0:
+                if world.rank == 0 and self.verbose >= 2:
                     logger.debug(f"Completed coordinate {j + 1}/{n_coords}")
         else:
             raise ValueError(f"Unknown finite difference method: {self.method}")
@@ -748,7 +765,8 @@ class HessianCalculator:
         # Symmetrize Hessian
         hessian = 0.5 * (hessian + hessian.T)
 
-        logger.info("Hessian calculation completed")
+        if self.verbose >= 1:
+            logger.info("Hessian calculation completed")
         return hessian
 
     def _get_reference_forces(self) -> np.ndarray:
@@ -906,7 +924,8 @@ class BatchFrequencyAnalysis(FrequencyAnalysis):
         if not _supports_batch_evaluation(self.calculator):
             raise RuntimeError("Calculator does not support batch evaluation")
 
-        logger.info("Using batch evaluation for Hessian calculation...")
+        if self.verbose >= 1:
+            logger.info("Using batch evaluation for Hessian calculation...")
 
         # Generate all displaced structures
         displaced_structures = self._generate_displaced_structures()

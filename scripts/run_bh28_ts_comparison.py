@@ -16,7 +16,9 @@ from qme.potentials.uma_potential import get_uma_calculator
 
 DATASET_DIR = Path(__file__).resolve().parents[1] / "examples" / "bh28_benchmark" / "bh28_dataset"
 REFERENCE_FILE = DATASET_DIR / "reference_barrier_heights.json"
-REPORT_DIR = Path(__file__).resolve().parents[1] / "examples" / "bh28_benchmark" / "benchmark_results"
+REPORT_DIR = (
+    Path(__file__).resolve().parents[1] / "examples" / "bh28_benchmark" / "benchmark_results"
+)
 REPORT_PATH = REPORT_DIR / "trust_krylov_ts_vs_sella_bh28.json"
 FORCE_THRESHOLD = 0.25
 FMAX_TARGET = 0.18

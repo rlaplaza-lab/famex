@@ -304,6 +304,7 @@ class TestInvalidConfiguration:
 
         with pytest.raises(ValueError, match="Invalid method"):
             from qme.core.scipy_optimizers import SciPyHessianOptimizer
+
             SciPyHessianOptimizer(h2o, method="invalid-method", logfile=None)
 
     def test_negative_update_frequency(self):
