@@ -28,14 +28,13 @@ from ase.optimize.optimize import Optimizer
 from scipy.optimize import minimize
 
 from qme.analysis.frequency import FrequencyAnalysis
-from qme.logging_utils import get_qme_logger
+from qme.logging_utils import get_qme_logger, setup_qme_logging
 
 logger = get_qme_logger(__name__)
 
 
 class ConvergedError(Exception):
     """Exception raised when optimizer has converged."""
-
 
 
 class SciPyHessianOptimizer(Optimizer):
@@ -80,6 +79,11 @@ class SciPyHessianOptimizer(Optimizer):
     force_threshold_ratio : float
         Ratio of force increase that triggers a full Hessian update.
         Default is 2.0. Only used if adaptive_hessian=True.
+    verbose : int
+        Verbosity level for optimization output:
+        - 0: Quiet (minimal output)
+        - 1: Normal (default, shows progress)
+        - 2: Verbose (detailed information)
     **kwargs
         Additional arguments passed to Optimizer base class.
 
@@ -101,7 +105,7 @@ class SciPyHessianOptimizer(Optimizer):
         method: str = "trust-krylov",
         logfile: IO | str = "-",
         trajectory: str | None = None,
-    hessian_update_freq: int | None = None,
+        hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
         hessian_delta: float = 0.01,
         initial_hessian: np.ndarray | None = None,
@@ -109,9 +113,27 @@ class SciPyHessianOptimizer(Optimizer):
         use_bfgs_update: bool = True,
         adaptive_hessian: bool = False,
         force_threshold_ratio: float = 2.0,
+        verbose: int = 1,
         **kwargs,
     ):
         """Initialize SciPy Hessian-based optimizer."""
+        # Store verbosity level
+        self.verbose = verbose
+
+        # Set up QME logging if not already configured
+        setup_qme_logging(verbosity=verbose, force=True)
+
+        # Set up logging based on verbosity
+        if verbose == 0:
+            # Quiet mode: suppress ASE logging by using None logfile
+            logfile = None
+        elif verbose == 1:
+            # Normal mode: use provided logfile or default
+            pass
+        else:
+            # Verbose mode: use provided logfile or default
+            pass
+
         # Don't use restart for SciPy optimizers
         restart = None
         Optimizer.__init__(self, atoms, restart, logfile, trajectory, **kwargs)
@@ -119,9 +141,7 @@ class SciPyHessianOptimizer(Optimizer):
         self.method = method
         freq = hessian_update_freq
         if freq is not None and freq <= 0:
-            logger.warning(
-                "hessian_update_freq <= 0 provided; disabling periodic Hessian updates"
-            )
+            logger.warning("hessian_update_freq <= 0 provided; disabling periodic Hessian updates")
             freq = None
 
         self.hessian_update_freq: int | None = freq
@@ -136,7 +156,7 @@ class SciPyHessianOptimizer(Optimizer):
             raise ValueError("Atoms object must have a calculator attached")
 
         self.freq_analysis = FrequencyAnalysis(
-            atoms=atoms, calculator=atoms.calc, delta=hessian_delta
+            atoms=atoms, calculator=atoms.calc, delta=hessian_delta, verbose=verbose
         )
 
         # Hessian state
@@ -159,30 +179,29 @@ class SciPyHessianOptimizer(Optimizer):
         # Validate method
         valid_methods = ["trust-krylov", "trust-ncg", "trust-exact", "Newton-CG"]
         if method not in valid_methods:
-            raise ValueError(
-                f"Invalid method '{method}'. Valid methods: {valid_methods}"
-            )
+            raise ValueError(f"Invalid method '{method}'. Valid methods: {valid_methods}")
 
-        logger.info(f"Initialized {method} optimizer with Hessian support")
-        if adaptive_hessian:
-            if hessian_update_freq is None:
-                logger.info(
-                    "Adaptive Hessian updates enabled (force-triggered; no periodic updates)"
-                )
+        if self.verbose >= 1:
+            logger.info(f"Initialized {method} optimizer with Hessian support")
+            if adaptive_hessian:
+                if hessian_update_freq is None:
+                    logger.info(
+                        "Adaptive Hessian updates enabled (force-triggered; no periodic updates)"
+                    )
+                else:
+                    logger.info(
+                        f"Adaptive Hessian updates enabled (base frequency: every {hessian_update_freq} step(s))"
+                    )
             else:
-                logger.info(
-                    f"Adaptive Hessian updates enabled (base frequency: every {hessian_update_freq} step(s))"
-                )
-        else:
-            if hessian_update_freq is None:
-                logger.info("Periodic Hessian updates disabled (compute once and reuse)")
-            else:
-                logger.info(
-                    f"Fixed Hessian update frequency: every {hessian_update_freq} step(s)"
-                )
-        if use_bfgs_update:
-            logger.info("BFGS approximate updates enabled between full Hessians")
-        logger.info(f"Hessian calculation method: {hessian_method}")
+                if hessian_update_freq is None:
+                    logger.info("Periodic Hessian updates disabled (compute once and reuse)")
+                else:
+                    logger.info(
+                        f"Fixed Hessian update frequency: every {hessian_update_freq} step(s)"
+                    )
+            if use_bfgs_update:
+                logger.info("BFGS approximate updates enabled between full Hessians")
+            logger.info(f"Hessian calculation method: {hessian_method}")
 
     def _positions_to_x(self, atoms: Atoms | None = None) -> np.ndarray:
         """Convert atoms positions to 1D array for SciPy."""
@@ -333,7 +352,11 @@ class SciPyHessianOptimizer(Optimizer):
             self._last_gradient = None
             self.bfgs_updates = 0
 
-        elif self.use_bfgs_update and self._last_positions is not None and self._last_gradient is not None:
+        elif (
+            self.use_bfgs_update
+            and self._last_positions is not None
+            and self._last_gradient is not None
+        ):
             # BFGS approximate update
             self._last_hessian_step = self.nsteps
 
@@ -342,7 +365,7 @@ class SciPyHessianOptimizer(Optimizer):
 
             # Compute differences
             s = current_positions - self._last_positions  # position change
-            y = current_gradient - self._last_gradient    # gradient change
+            y = current_gradient - self._last_gradient  # gradient change
 
             # BFGS update formula: H_new = H + (y⊗y)/(y·s) - (H·s⊗H·s)/(s·H·s)
             sy = np.dot(s, y)
@@ -355,11 +378,7 @@ class SciPyHessianOptimizer(Optimizer):
                 sHs = np.dot(s, Hs)
 
                 # Update Hessian
-                self.hessian = (
-                    self.hessian
-                    + np.outer(y, y) / sy
-                    - np.outer(Hs, Hs) / sHs
-                )
+                self.hessian = self.hessian + np.outer(y, y) / sy - np.outer(Hs, Hs) / sHs
 
                 self.bfgs_updates += 1
                 logger.debug(
@@ -375,9 +394,7 @@ class SciPyHessianOptimizer(Optimizer):
             self._last_gradient = current_gradient.copy()
         else:
             # Reuse cached Hessian
-            logger.debug(
-                f"Reusing Hessian (computed {steps_since_full} steps ago)"
-            )
+            logger.debug(f"Reusing Hessian (computed {steps_since_full} steps ago)")
 
         # Scale by alpha - hessian should never be None at this point
         if self.hessian is None:
@@ -451,9 +468,10 @@ class SciPyHessianOptimizer(Optimizer):
             self.log(forces)
             self.call_observers()
 
-        logger.info(f"Starting {self.method} optimization")
-        logger.info(f"Convergence criterion: fmax = {fmax} eV/Å")
-        logger.info(f"Maximum steps: {steps}")
+        if self.verbose >= 1:
+            logger.info(f"Starting {self.method} optimization")
+            logger.info(f"Convergence criterion: fmax = {fmax} eV/Å")
+            logger.info(f"Maximum steps: {steps}")
 
         try:
             # Set up options for SciPy minimize
@@ -476,7 +494,8 @@ class SciPyHessianOptimizer(Optimizer):
             # Update final positions
             self.atoms.set_positions(self._x_to_positions(self._scipy_result.x))
         except ConvergedError:
-            logger.info("Optimization converged!")
+            if self.verbose >= 1:
+                logger.info("Optimization converged!")
             return True
 
         # Check final convergence
@@ -485,12 +504,12 @@ class SciPyHessianOptimizer(Optimizer):
         converged = self.converged(forces_flat)
 
         if converged:
-            logger.info("Optimization converged!")
+            if self.verbose >= 1:
+                logger.info("Optimization converged!")
         else:
-            logger.warning(
-                f"Optimization stopped after {steps} steps without converging"
-            )
-            logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
+            if self.verbose >= 1:
+                logger.warning(f"Optimization stopped after {steps} steps without converging")
+                logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
 
         return converged
 
@@ -542,6 +561,11 @@ class TrustKrylov(SciPyHessianOptimizer):
         Use BFGS approximate updates between full Hessians. Default is True.
     adaptive_hessian : bool
         Adapt update frequency based on convergence. Default is False.
+    verbose : int
+        Verbosity level for optimization output:
+        - 0: Quiet (minimal output)
+        - 1: Normal (default, shows progress)
+        - 2: Verbose (detailed information)
     **kwargs
         Additional arguments passed to Optimizer base class.
 
@@ -560,12 +584,13 @@ class TrustKrylov(SciPyHessianOptimizer):
         atoms: Atoms,
         logfile: IO | str = "-",
         trajectory: str | None = None,
-    hessian_update_freq: int | None = None,
+        hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
         hessian_delta: float = 0.01,
         initial_hessian: np.ndarray | None = None,
         use_bfgs_update: bool = True,
-    adaptive_hessian: bool = False,
+        adaptive_hessian: bool = False,
+        verbose: int = 1,
         **kwargs,
     ):
         """Initialize Trust-Krylov optimizer."""
@@ -580,6 +605,7 @@ class TrustKrylov(SciPyHessianOptimizer):
             initial_hessian=initial_hessian,
             use_bfgs_update=use_bfgs_update,
             adaptive_hessian=adaptive_hessian,
+            verbose=verbose,
             **kwargs,
         )
 
@@ -619,6 +645,7 @@ class TrustKrylovTS(TrustKrylov):
         index_tolerance: float = 5e-4,
         min_positive_eigenvalue: float = 4e-3,
         negative_mode_boost: float = 8e-3,
+        verbose: int = 1,
         **kwargs,
     ) -> None:
         """Initialise the transition-state Trust-Krylov optimizer."""
@@ -633,6 +660,7 @@ class TrustKrylovTS(TrustKrylov):
             initial_hessian=initial_hessian,
             use_bfgs_update=use_bfgs_update,
             adaptive_hessian=adaptive_hessian,
+            verbose=verbose,
             **kwargs,
         )
 
@@ -811,6 +839,7 @@ class TrustKrylovTS(TrustKrylov):
         reflected_hessian = self._stabilise_hessian(reflected_hessian, mode)
         return reflected_hessian
 
+
 class TrustNCG(SciPyHessianOptimizer):
     """
     Trust-NCG (Newton Conjugate Gradient) optimizer for ASE.
@@ -829,12 +858,13 @@ class TrustNCG(SciPyHessianOptimizer):
         atoms: Atoms,
         logfile: IO | str = "-",
         trajectory: str | None = None,
-    hessian_update_freq: int | None = None,
+        hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
         hessian_delta: float = 0.01,
         initial_hessian: np.ndarray | None = None,
         use_bfgs_update: bool = True,
-    adaptive_hessian: bool = False,
+        adaptive_hessian: bool = False,
+        verbose: int = 1,
         **kwargs,
     ):
         """Initialize Trust-NCG optimizer."""
@@ -849,6 +879,7 @@ class TrustNCG(SciPyHessianOptimizer):
             initial_hessian=initial_hessian,
             use_bfgs_update=use_bfgs_update,
             adaptive_hessian=adaptive_hessian,
+            verbose=verbose,
             **kwargs,
         )
 
@@ -871,12 +902,13 @@ class TrustExact(SciPyHessianOptimizer):
         atoms: Atoms,
         logfile: IO | str = "-",
         trajectory: str | None = None,
-    hessian_update_freq: int | None = None,
+        hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
         hessian_delta: float = 0.01,
         initial_hessian: np.ndarray | None = None,
         use_bfgs_update: bool = True,
-    adaptive_hessian: bool = False,
+        adaptive_hessian: bool = False,
+        verbose: int = 1,
         **kwargs,
     ):
         """Initialize Trust-Exact optimizer."""
@@ -891,6 +923,7 @@ class TrustExact(SciPyHessianOptimizer):
             initial_hessian=initial_hessian,
             use_bfgs_update=use_bfgs_update,
             adaptive_hessian=adaptive_hessian,
+            verbose=verbose,
             **kwargs,
         )
 
@@ -912,12 +945,13 @@ class NewtonCG(SciPyHessianOptimizer):
         atoms: Atoms,
         logfile: IO | str = "-",
         trajectory: str | None = None,
-    hessian_update_freq: int | None = None,
+        hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
         hessian_delta: float = 0.01,
         initial_hessian: np.ndarray | None = None,
         use_bfgs_update: bool = True,
-    adaptive_hessian: bool = False,
+        adaptive_hessian: bool = False,
+        verbose: int = 1,
         **kwargs,
     ):
         """Initialize Newton-CG optimizer."""
@@ -932,5 +966,6 @@ class NewtonCG(SciPyHessianOptimizer):
             initial_hessian=initial_hessian,
             use_bfgs_update=use_bfgs_update,
             adaptive_hessian=adaptive_hessian,
+            verbose=verbose,
             **kwargs,
         )

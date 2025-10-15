@@ -57,13 +57,14 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
     """Map a short name to an ASE optimizer class or SELLA's Sella.
 
     SELLA is preferred when requested and is now a core dependency.
+    All optimizers now support verbosity control through QME's logging system.
     """
     name = (name or "").lower()
 
     if name == "sella":
-        from sella import Sella
+        from qme.core.ase_optimizer_wrappers import VerboseSella
 
-        return Sella
+        return VerboseSella
 
     # SciPy Hessian-based optimizers
     if name in ("trust-krylov", "trustkrylov", "trust_krylov"):
@@ -94,17 +95,17 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
 
     try:
         if name in ("lbfgs", "l-bfgs", "l_bfgs"):
-            from ase.optimize.lbfgs import LBFGS
+            from qme.core.ase_optimizer_wrappers import VerboseLBFGS
 
-            return LBFGS
+            return VerboseLBFGS
         if name in ("bfgs",):
-            from ase.optimize import BFGS
+            from qme.core.ase_optimizer_wrappers import VerboseBFGS
 
-            return BFGS
+            return VerboseBFGS
         if name in ("fire",):
-            from ase.optimize import FIRE
+            from qme.core.ase_optimizer_wrappers import VerboseFIRE
 
-            return FIRE
+            return VerboseFIRE
     except Exception as e:  # pragma: no cover - ASE optional in some envs
         raise ImportError(f"Requested optimizer '{name}' is not available: {e}")
 
@@ -202,9 +203,12 @@ def local_minima_runner(
         explorer._create_and_attach_calculator(atoms_copy)
         explorer._apply_constraints(atoms_copy)
         opt_kwargs = getattr(explorer, "optimizer_kwargs", {}) or {}
+        # Add verbosity control
+        opt_kwargs = dict(opt_kwargs)
+        opt_kwargs.setdefault("verbose", getattr(explorer, "verbose", 1))
+
         if local_optimizer_name.lower() == "sella":
             # Sella-specific kwargs for minima search
-            opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 0)
             # Check if Hessian is provided in explorer
@@ -286,10 +290,13 @@ def local_ts_runner(
         explorer._create_and_attach_calculator(atoms_copy)
         explorer._apply_constraints(atoms_copy)
         opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
+        # Add verbosity control
+        opt_kwargs = dict(opt_kwargs)
+        opt_kwargs.setdefault("verbose", getattr(explorer, "verbose", 1))
+
         normalized_name = local_optimizer_name.lower()
         if normalized_name == "sella":
             # Sella-specific kwargs for TS search
-            opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("internal", True)
             opt_kwargs.setdefault("order", 1)
             # Check if Hessian is provided in explorer
@@ -301,7 +308,6 @@ def local_ts_runner(
             "trust_krylov_ts",
             "trust-krylov-transition",
         }:
-            opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("hessian_update_freq", 1)
             opt_kwargs.setdefault("mode_recompute_interval", 1)
             opt_kwargs.setdefault("index_tolerance", 5e-4)

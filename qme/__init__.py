@@ -48,8 +48,8 @@ def __getattr__(name):
     import importlib
 
     _LAZY_IMPORTS = {
-    # core
-    "Explorer": (f"{__name__}.core.explorer", "Explorer"),
+        # core
+        "Explorer": (f"{__name__}.core.explorer", "Explorer"),
         # dependencies
         "deps": (f"{__name__}.dependencies", "deps"),
         # core types / IO
@@ -139,13 +139,13 @@ __all__ = [
 # returns the registry instance instead of the submodule object. These are
 # lightweight and safe to import at package import time.
 try:
-    from .calculator_registry import calculator_registry as calculator_registry
+    from qme.calculator_registry import calculator_registry as calculator_registry
 except Exception:
     # Leave it to lazy import machinery if something goes wrong
     pass
 
 
 try:
-    from .dependencies import deps as deps
+    from qme.dependencies import deps as deps
 except Exception:
     pass
