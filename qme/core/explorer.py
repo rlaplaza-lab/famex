@@ -360,6 +360,7 @@ class Explorer:
             default_spin=self.default_spin,
             charge=charge,
             mult=spin,
+            verbose=self.verbose,
         )
         atoms.calc = calc
         return calc
@@ -622,11 +623,20 @@ class Explorer:
                     strategy = STRATEGY_LOCAL  # Default to local for minima
 
         # Auto-infer strategy from target if ambiguous
-        if target == TARGET_PATH and strategy == STRATEGY_LOCAL:
+        # Only override strategy if it wasn't explicitly set via mode parameter
+        if mode and normalize_strategy(mode) in [
+            STRATEGY_NEB,
+            STRATEGY_CINEB,
+            STRATEGY_INTERPOLATE,
+            STRATEGY_LOCAL,
+            STRATEGY_IRC,
+        ]:
+            # Strategy was explicitly set via mode, don't override it
+            pass
+        elif target == TARGET_PATH and strategy == STRATEGY_LOCAL:
             # Path target with local strategy doesn't make sense, default to NEB
             # UNLESS it's IRC which is a local strategy for path
             strategy = STRATEGY_NEB
-
         return target, strategy
 
     def _select_strategy_runner(self, target: str, strategy: str) -> tuple[str, str]:
@@ -667,7 +677,6 @@ class Explorer:
 
         # Build the primary strategy key
         primary_key = f"{target}:{strategy}"
-
         # Check if primary key exists
         if primary_key in strategies:
             entry = strategies[primary_key]
@@ -867,6 +876,10 @@ class Explorer:
         call_kwargs.setdefault("explorer", self)
         call_kwargs.setdefault("local_optimizer_name", self.local_optimizer_name)
         call_kwargs.setdefault("verbose", self.verbose)
+        
+        # Override mode with the resolved strategy for runners that need it
+        # This ensures runners get the correct mode based on resolved target/strategy
+        call_kwargs["mode"] = strategy
 
         # Validate TS optimization setup - hardcoded restrictions
         if target == TARGET_TS and strategy == STRATEGY_LOCAL:
@@ -1083,10 +1096,23 @@ class Explorer:
                 )
 
     def _twoended_path_runner(self, atoms_list: list[Atoms], **kwargs: Any) -> Any:
-        """General path runner that dispatches between NEB and CI-NEB based on mode."""
+        """General path runner that dispatches based on mode."""
         mode = kwargs.get("mode", "neb").lower()
-
-        if mode == "cineb":
+        if mode == "interpolate":
+            # Raw interpolation - no optimization
+            from qme.core.twoended_strategies import path_generator
+            
+            # Remove dry_run from kwargs to prevent it from being passed to path_generator
+            clean_kwargs = {k: v for k, v in kwargs.items() if k != "dry_run"}
+            
+            return path_generator(
+                atoms_list,
+                npoints=clean_kwargs.get("npoints", 11),
+                method=clean_kwargs.get("method", "geodesic"),
+                optimize_path=False,  # Raw interpolation only
+                explorer=None,  # No explorer to prevent any optimization
+            )
+        elif mode == "cineb":
             from qme.core.twoended_strategies import twoended_cineb_runner
 
             return twoended_cineb_runner(atoms_list, **kwargs)

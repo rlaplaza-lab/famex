@@ -380,6 +380,7 @@ def twoended_ts_guess_runner(
     fmax: float = 0.05,
     steps: int = 1000,
     local_optimizer_name: str = "sella",
+    verbose: int = 1,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Two-ended TS guess runner via interpolation with local TS refinement.
@@ -577,6 +578,7 @@ def twoended_minima_runner(
     fmax: float = 0.05,
     steps: int = 1000,
     local_optimizer_name: str = "sella",
+    verbose: int = 1,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Interpolate path and attempt local minima optimizations on low-energy frames.
@@ -936,6 +938,7 @@ def twoended_neb_runner(
     steps: int = 1000,
     local_optimizer_name: str = "sella",
     spring_constant: float = 5.0,
+    verbose: int = 1,
     **kwargs: Any,
 ) -> list[Atoms]:
     """Nudged Elastic Band (NEB) optimization using geodesic interpolation.
@@ -989,6 +992,7 @@ def twoended_neb_runner(
             device=explorer.device,
             default_charge=explorer.default_charge,
             default_spin=explorer.default_spin,
+            verbose=explorer.verbose,
         )
 
     if calculator is not None and _supports_batch_evaluation(calculator):
@@ -1288,6 +1292,7 @@ def twoended_cineb_runner(
     local_optimizer_name: str = "sella",
     spring_constant: float = 5.0,
     climb: bool = True,
+    verbose: int = 1,
     **kwargs: Any,
 ) -> list[Atoms]:
     """Climbing Image Nudged Elastic Band (CI-NEB) optimization using geodesic interpolation.
@@ -1341,6 +1346,7 @@ def twoended_cineb_runner(
             device=explorer.device,
             default_charge=explorer.default_charge,
             default_spin=explorer.default_spin,
+            verbose=explorer.verbose,
         )
 
     if calculator is not None and _supports_batch_evaluation(calculator):

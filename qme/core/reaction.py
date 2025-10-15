@@ -17,9 +17,6 @@ logger = get_qme_logger(__name__)
 class Reaction:
     """
     Represents a chemical reaction with reactant and product geometries.
-
-    Provides methods for generating reaction pathways using linear and
-    geodesic interpolation, similar to nudged elastic band (NEB) methods.
     """
 
     def __init__(
@@ -100,7 +97,6 @@ class Reaction:
         List[Geometry]
             List of interpolated geometries
         """
-
         if npoints < 2:
             raise ValueError("Need at least 2 points for interpolation")
 
