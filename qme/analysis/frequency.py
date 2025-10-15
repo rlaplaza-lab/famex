@@ -725,7 +725,7 @@ class HessianCalculator:
         n_coords = 3 * n_atoms
         hessian = np.zeros((n_coords, n_coords))
 
-        if self.verbose >= 1:
+        if self.verbose >= 2:
             logger.info(f"Calculating Hessian for {n_atoms} atoms using {self.method} differences")
 
         if self.method == "central":
@@ -765,7 +765,7 @@ class HessianCalculator:
         # Symmetrize Hessian
         hessian = 0.5 * (hessian + hessian.T)
 
-        if self.verbose >= 1:
+        if self.verbose >= 2:
             logger.info("Hessian calculation completed")
         return hessian
 
