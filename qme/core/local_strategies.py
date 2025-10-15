@@ -16,6 +16,10 @@ from typing import Any
 
 from ase import Atoms
 
+from qme.logging_utils import get_qme_logger
+
+logger = get_qme_logger(__name__)
+
 
 def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
     """Validate that TS optimization is using appropriate calculator and optimizer.
@@ -164,6 +168,7 @@ def local_minima_runner(
     steps: int = 1000,
     explorer: Any | None = None,
     local_optimizer_name: str = "sella",
+    verbose: int = 1,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Default minima runner.
@@ -179,6 +184,12 @@ def local_minima_runner(
     """
     if explorer is None:
         raise ValueError("explorer must be provided to default_minima_runner")
+    
+    # Log minima optimization start
+    if verbose >= 1:
+        logger.info(f"Starting local minima optimization with {local_optimizer_name}")
+        logger.info(f"Force threshold: {fmax} eV/Å, Max steps: {steps}")
+    
     opt_class = _get_local_optimizer_class(local_optimizer_name)
     # Accept either a single Atoms instance or a list of them
     single_input = False
@@ -226,6 +237,17 @@ def local_minima_runner(
         step_counts.append(steps_taken)
         converged_flags.append(converged)
 
+    # Log completion
+    if verbose >= 1:
+        if single_input and results:
+            converged = bool(converged_flags[0])
+            steps_taken = step_counts[0]
+            logger.info(f"Minima optimization completed: converged={converged}, steps={steps_taken}")
+        else:
+            total_converged = sum(converged_flags)
+            total_structures = len(converged_flags)
+            logger.info(f"Minima optimization completed: {total_converged}/{total_structures} structures converged")
+
     if single_input and results:
         return {
             "optimized_atoms": results[0],
@@ -248,6 +270,7 @@ def local_ts_runner(
     steps: int = 1000,
     explorer: Any | None = None,
     local_optimizer_name: str = "sella",
+    verbose: int = 1,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Default TS runner.
@@ -262,6 +285,11 @@ def local_ts_runner(
     """
     if explorer is None:
         raise ValueError("explorer must be provided to default_ts_runner")
+
+    # Log TS optimization start
+    if verbose >= 1:
+        logger.info(f"Starting local transition state optimization with {local_optimizer_name}")
+        logger.info(f"Force threshold: {fmax} eV/Å, Max steps: {steps}")
 
     # Validate TS optimization setup - hardcoded restrictions
     _validate_ts_optimization_setup(explorer.backend, local_optimizer_name)
@@ -325,6 +353,17 @@ def local_ts_runner(
         step_counts.append(steps_taken)
         converged_flags.append(converged)
 
+    # Log completion
+    if verbose >= 1:
+        if single_input and results:
+            converged = bool(converged_flags[0])
+            steps_taken = step_counts[0]
+            logger.info(f"Transition state optimization completed: converged={converged}, steps={steps_taken}")
+        else:
+            total_converged = sum(converged_flags)
+            total_structures = len(converged_flags)
+            logger.info(f"Transition state optimization completed: {total_converged}/{total_structures} structures converged")
+
     if single_input and results:
         return {
             "optimized_atoms": results[0],
@@ -349,6 +388,7 @@ def local_irc_runner(
     explorer: Any | None = None,
     local_optimizer_name: str = "bfgs",
     direction: str = "both",
+    verbose: int = 1,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """IRC (Intrinsic Reaction Coordinate) path calculation from a transition state.
@@ -416,6 +456,12 @@ def local_irc_runner(
     explorer._create_and_attach_calculator(ts_atoms)
     explorer._apply_constraints(ts_atoms)
 
+    # Log IRC calculation start
+    if verbose >= 1:
+        logger.info(f"Starting IRC calculation from transition state")
+        logger.info(f"Direction: {direction}, Max steps: {steps}, Step size: {step_size}")
+        logger.info(f"Force threshold: {fmax} eV/Å")
+
     # Get the initial forces and masses (commented out for now)
     # forces = ts_atoms.get_forces()
     # masses = ts_atoms.get_masses()
@@ -462,6 +508,8 @@ def local_irc_runner(
             max_force = np.max(np.abs(current_forces))
             if max_force < fmax:
                 # Optimize to local minimum
+                if verbose >= 2:
+                    logger.debug(f"IRC converged to minimum (max force: {max_force:.6f} eV/Å), optimizing endpoint")
                 opt_class = _get_local_optimizer_class(local_optimizer_name)
                 opt_copy = current.copy()
                 explorer._create_and_attach_calculator(opt_copy)
@@ -501,9 +549,13 @@ def local_irc_runner(
 
     # Follow IRC in requested direction(s)
     if direction.lower() in ("forward", "both"):
+        if verbose >= 2:
+            logger.debug("Following IRC in forward direction")
         forward_path.extend(follow_irc_direction(ts_atoms, 1.0, steps))
 
     if direction.lower() in ("backward", "both"):
+        if verbose >= 2:
+            logger.debug("Following IRC in backward direction")
         backward_path = follow_irc_direction(ts_atoms, -1.0, steps)
 
     # Combine paths: backward (reversed) + ts + forward
@@ -517,6 +569,11 @@ def local_irc_runner(
         raise ValueError(
             f"Invalid direction: {direction}. Must be 'forward', 'backward', or 'both'"
         )
+
+    # Log completion
+    if verbose >= 1:
+        logger.info(f"IRC calculation completed: {len(trajectory)} images generated")
+        logger.info(f"Forward path: {len(forward_path)} images, Backward path: {len(backward_path)} images")
 
     return {
         "trajectory": trajectory,

@@ -288,8 +288,8 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
     handler.setFormatter(QMEFormatter())
     qme_logger.addHandler(handler)
 
-    # Prevent propagation to root logger
-    qme_logger.propagate = False
+    # Allow propagation to root logger so child loggers can inherit handlers
+    qme_logger.propagate = True
 
     _qme_logging_configured = True
 

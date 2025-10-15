@@ -56,7 +56,7 @@ def __getattr__(name):
         "Geometry": (f"{__name__}.core.geometry", "Geometry"),
         "read_geometry": (f"{__name__}.core.geometry", "read_geometry"),
         "write_geometry": (f"{__name__}.core.geometry", "write_geometry"),
-        "Reaction": (f"{__name__}.core.reaction", "Reaction"),
+        "PathManager": (f"{__name__}.core.path_manager", "PathManager"),
         # frequency analysis
         "FrequencyAnalysis": (f"{__name__}.analysis.frequency", "FrequencyAnalysis"),
         "HessianCalculator": (f"{__name__}.analysis.frequency", "HessianCalculator"),
