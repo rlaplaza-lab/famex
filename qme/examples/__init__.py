@@ -57,7 +57,11 @@ class QMEExampleInterface:
             help="Device to use for calculations (default: auto-detect CUDA if available)",
         )
         parser.add_argument(
-            "--verbose", action="store_true", help="Print detailed progress information"
+            "--verbose", 
+            type=int, 
+            choices=[0, 1, 2], 
+            default=1,
+            help="Verbosity level: 0=quiet, 1=normal (default), 2=verbose"
         )
         parser.add_argument(
             "--output",
@@ -74,14 +78,14 @@ class QMEExampleInterface:
         return get_available_ml_backends()
 
     def filter_available_backends(
-        self, requested_backends: list[str], verbose: bool = False
+        self, requested_backends: list[str], verbose: int = 0
     ) -> list[str]:
         """Filter requested backends to only available ones."""
         available = []
         for backend in requested_backends:
             if is_backend_available(backend):
                 available.append(backend)
-            elif verbose:
+            elif verbose >= 1:
                 print(f"Warning: Backend '{backend}' not available, skipping")
 
         return available
@@ -145,6 +149,11 @@ class QMEExampleInterface:
         print_device_info(device)
         return device
 
+    def setup_logging(self, verbose: int = 1) -> None:
+        """Set up QME logging based on verbosity level."""
+        from qme.logging_utils import setup_qme_logging
+        setup_qme_logging(verbosity=verbose)
+
 
 def create_standard_epilog(example_type: str) -> str:
     """Create standardized epilog for different example types."""
@@ -159,7 +168,7 @@ Examples:
   python cli_demo.py --backends uma,aimnet2
 
   # Run with verbose output
-  python cli_demo.py --verbose
+  python cli_demo.py --verbose 2
         """
 
     elif example_type == "timing":
@@ -172,7 +181,7 @@ Examples:
   python timing_benchmark.py --backends uma,aimnet2
 
   # Run on GPU
-  python timing_benchmark.py --device cuda --verbose
+  python timing_benchmark.py --device cuda --verbose 2
         """
 
     elif example_type == "benchmark":
@@ -184,8 +193,24 @@ Examples:
   # Run with specific backends
   python benchmark.py --backends uma,aimnet2
 
-  # Quick test
-  python benchmark.py --quick --verbose
+  # Run with verbose output
+  python benchmark.py --verbose 2
+        """
+
+    elif example_type == "benchmark_quick":
+        return """
+Examples:
+  # Run with all available backends
+  python benchmark.py
+
+  # Run with specific backends
+  python benchmark.py --backends uma,aimnet2
+
+  # Quick test with subset of data
+  python benchmark.py --quick --verbose 2
+
+  # Very quick test with minimal data
+  python benchmark.py --quicker --verbose 2
         """
 
     else:
@@ -198,7 +223,7 @@ Examples:
   python example.py --backends uma,aimnet2
 
   # Run with verbose output
-  python example.py --verbose
+  python example.py --verbose 2
         """
 
 
@@ -207,7 +232,7 @@ def benchmark_optimization(
     optimizer: str,
     device: str | None = None,
     model_name: str | None = None,
-    verbose: bool = True,
+    verbose: int = 1,
     test_ts: bool = False,
     create_structure_func=None,
     suitable_optimizers: list[str] = None,
@@ -227,8 +252,8 @@ def benchmark_optimization(
         Device to use ('cpu' or 'cuda'). Auto-detected if None.
     model_name : str, optional
         Specific model name to use
-    verbose : bool
-        Whether to print progress information
+    verbose : int
+        Verbosity level: 0=quiet, 1=normal, 2=verbose
     test_ts : bool
         Whether to test transition state optimization
     create_structure_func : callable
@@ -637,7 +662,7 @@ def print_standard_help():
     print("\nCommon Options:")
     print("  --backends    Comma-separated list of backends to test")
     print("  --device      Device to use (cpu/cuda, default: auto-detect)")
-    print("  --verbose     Print detailed progress information")
+    print("  --verbose     Verbosity level: 0=quiet, 1=normal, 2=verbose")
     print("  --output      Output file for results")
     print("  --help        Show this help message")
     print("\nAvailable Backends:")

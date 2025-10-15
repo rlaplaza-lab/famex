@@ -770,7 +770,7 @@ def main():
     interface = QMEExampleInterface(
         name="BH28 Benchmark",
         description="Chemical Accuracy Evaluation",
-        epilog=create_standard_epilog("benchmark"),
+        epilog=create_standard_epilog("benchmark_quick"),
     )
 
     parser = interface.create_parser()
@@ -816,6 +816,9 @@ def main():
 
     args = parser.parse_args()
 
+    # Set up logging based on verbosity level
+    interface.setup_logging(args.verbose)
+
     # Initialize benchmark
     benchmark = BH28Benchmark(
         output_dir=args.output_dir,
@@ -830,7 +833,7 @@ def main():
     # Determine backends to test
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
-        backends = interface.filter_available_backends(requested_backends, verbose=True)
+        backends = interface.filter_available_backends(requested_backends, verbose=args.verbose)
         if not backends:
             interface.print_error("No requested backends are available!")
             return 1
