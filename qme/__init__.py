@@ -48,8 +48,8 @@ def __getattr__(name):
     import importlib
 
     _LAZY_IMPORTS = {
-        # core
-        "Explorer": (f"{__name__}.core.explorer", "Explorer"),
+    # core
+    "Explorer": (f"{__name__}.core.explorer", "Explorer"),
         # dependencies
         "deps": (f"{__name__}.dependencies", "deps"),
         # core types / IO

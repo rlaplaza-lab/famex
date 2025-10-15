@@ -54,7 +54,7 @@ class TestTrustKrylovBasics:
         opt = TrustKrylov(self.h2o, logfile=None)
         x = opt._positions_to_x()
         assert x.shape == (9,)  # 3 atoms × 3 coordinates
-        
+
         # Round trip conversion
         positions_back = opt._x_to_positions(x)
         assert positions_back.shape == (3, 3)
@@ -74,7 +74,7 @@ class TestTrustKrylovBasics:
         opt = TrustKrylov(self.h2o, logfile=None)
         x = opt._positions_to_x()
         grad = opt.gradient(x)
-        
+
         assert grad.shape == (9,)
         forces = self.h2o.get_forces()
         expected_grad = -forces.ravel()
@@ -84,12 +84,12 @@ class TestTrustKrylovBasics:
         """Test Hessian computation."""
         opt = TrustKrylov(self.h2o, logfile=None)
         x = opt._positions_to_x()
-        
+
         # First call should compute Hessian
         hessian = opt.hessian_func(x)
         assert hessian.shape == (9, 9)
         assert opt.hessian_calls == 1
-        
+
         # Should be symmetric
         assert np.allclose(hessian, hessian.T, atol=1e-10)
 
@@ -97,29 +97,29 @@ class TestTrustKrylovBasics:
         """Test that Hessian is cached when update_freq is None."""
         opt = TrustKrylov(self.h2o, logfile=None, hessian_update_freq=None)
         x = opt._positions_to_x()
-        
+
         # First call computes
-        h1 = opt.hessian_func(x)
+        opt.hessian_func(x)
         assert opt.hessian_calls == 1
-        
+
         # Increment step counter
         opt.nsteps = 1
         opt._last_hessian_step = 0
         opt._last_full_hessian_step = 0
-        
+
         # Second call should use BFGS or cache (no new full Hessian)
-        h2 = opt.hessian_func(x)
+        opt.hessian_func(x)
         assert opt.hessian_calls == 1  # Still only 1 full Hessian
 
     def test_convergence(self):
         """Test basic convergence check."""
         opt = TrustKrylov(self.h2o, logfile=None)
-        
+
         # Small forces should converge
         small_forces = np.array([0.001, 0.001, 0.001])
         opt.fmax = 0.05
         assert opt.converged(small_forces)
-        
+
         # Large forces should not converge
         large_forces = np.array([0.1, 0.1, 0.1])
         assert not opt.converged(large_forces)
@@ -141,7 +141,7 @@ class TestAllSciPyOptimizers:
         """Test initialization of all optimizer types."""
         h2o = molecule("H2O")
         h2o.calc = qme.MockCalculator(backend="mock")
-        
+
         opt = optimizer_class(h2o, logfile=None)
         assert opt.method == method
 
@@ -150,7 +150,7 @@ class TestAllSciPyOptimizers:
         """Test that all optimizers accept standard parameters."""
         h2o = molecule("H2O")
         h2o.calc = qme.MockCalculator(backend="mock")
-        
+
         opt = optimizer_class(
             h2o,
             logfile=None,
@@ -160,7 +160,7 @@ class TestAllSciPyOptimizers:
             use_bfgs_update=True,
             adaptive_hessian=True,
         )
-        
+
         assert opt.hessian_update_freq == 5
         assert opt.hessian_method == "finite_differences"
         assert opt.use_bfgs_update is True
@@ -180,16 +180,16 @@ class TestHessianUpdateStrategies:
         """Test default mode: compute Hessian once."""
         opt = TrustKrylov(self.h2o, logfile=None, hessian_update_freq=None)
         x = opt._positions_to_x()
-        
+
         # First call
         opt.hessian_func(x)
         assert opt.hessian_calls == 1
-        
+
         # Simulate several steps
         for step in range(5):
             opt.nsteps = step + 1
             opt.hessian_func(x)
-        
+
         # Should still be only 1 full Hessian (BFGS handles updates)
         assert opt.hessian_calls == 1
 
@@ -202,18 +202,18 @@ class TestHessianUpdateStrategies:
             adaptive_hessian=False,
         )
         x = opt._positions_to_x()
-        
+
         # Initial
         opt.hessian_func(x)
         assert opt.hessian_calls == 1
-        
+
         # Steps 1, 2 - no update
         for step in [1, 2]:
             opt.nsteps = step
             opt._last_full_hessian_step = 0
             opt.hessian_func(x)
         assert opt.hessian_calls == 1
-        
+
         # Step 3 - should trigger update
         opt.nsteps = 3
         opt._last_full_hessian_step = 0
@@ -229,22 +229,22 @@ class TestHessianUpdateStrategies:
             use_bfgs_update=True,
         )
         x = opt._positions_to_x()
-        
+
         # Initial Hessian
         opt.hessian_func(x)
         initial_bfgs = opt.bfgs_updates
-        
+
         # Compute gradient to initialize state
         opt.gradient(x)
-        
+
         # Move positions slightly
         x_new = x + np.random.RandomState(42).normal(0, 0.01, x.shape)
         opt.nsteps = 1
         opt._last_hessian_step = 0
-        
+
         # This should trigger BFGS update
         opt.hessian_func(x_new)
-        
+
         # BFGS counter should increase or stay same (depending on step size)
         assert opt.bfgs_updates >= initial_bfgs
 
@@ -255,7 +255,7 @@ class TestOptimizerWithoutCalculator:
     def test_requires_calculator(self):
         """Test that optimizer raises error without calculator."""
         h2o = molecule("H2O")
-        
+
         with pytest.raises(ValueError, match="calculator"):
             TrustKrylov(h2o, logfile=None)
 
@@ -269,12 +269,12 @@ class TestOptimizerRun:
         # Small perturbation
         h2o.positions += np.random.RandomState(42).normal(0, 0.01, h2o.positions.shape)
         h2o.calc = qme.MockCalculator(backend="mock")
-        
+
         opt = TrustKrylov(h2o, logfile=None)
-        
+
         # Run with relaxed convergence for speed
         converged = opt.run(fmax=0.5, steps=5)
-        
+
         # Should complete without errors (may or may not converge in 5 steps)
         assert isinstance(converged, bool)
         assert opt.nsteps > 0
@@ -284,12 +284,12 @@ class TestOptimizerRun:
         h2o = molecule("H2O")
         h2o.positions += np.random.RandomState(42).normal(0, 0.02, h2o.positions.shape)
         h2o.calc = qme.MockCalculator(backend="mock")
-        
+
         opt = TrustKrylov(h2o, logfile=None)
         initial_steps = opt.nsteps
-        
+
         opt.run(fmax=0.5, steps=3)
-        
+
         assert opt.nsteps > initial_steps
         assert opt.get_number_of_steps() == opt.nsteps
 
@@ -301,7 +301,7 @@ class TestInvalidConfiguration:
         """Test that invalid method raises error."""
         h2o = molecule("H2O")
         h2o.calc = qme.MockCalculator(backend="mock")
-        
+
         with pytest.raises(ValueError, match="Invalid method"):
             from qme.core.scipy_optimizers import SciPyHessianOptimizer
             SciPyHessianOptimizer(h2o, method="invalid-method", logfile=None)
@@ -310,7 +310,7 @@ class TestInvalidConfiguration:
         """Test that negative update frequency is handled."""
         h2o = molecule("H2O")
         h2o.calc = qme.MockCalculator(backend="mock")
-        
+
         # Should be converted to None (disable periodic updates)
         opt = TrustKrylov(h2o, logfile=None, hessian_update_freq=-1)
         assert opt.hessian_update_freq is None
@@ -319,7 +319,7 @@ class TestInvalidConfiguration:
         """Test that zero update frequency is handled."""
         h2o = molecule("H2O")
         h2o.calc = qme.MockCalculator(backend="mock")
-        
+
         # Should be converted to None
         opt = TrustKrylov(h2o, logfile=None, hessian_update_freq=0)
         assert opt.hessian_update_freq is None

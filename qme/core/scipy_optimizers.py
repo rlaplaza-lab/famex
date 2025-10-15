@@ -20,10 +20,10 @@ Supported optimizers:
 Based on ASE's SciPyOptimizer pattern but extended for Hessian-based methods.
 """
 
-from typing import IO, Any, Callable, Optional, Union
+from typing import IO, Any
 
 import numpy as np
-from ase import Atoms, units
+from ase import Atoms
 from ase.optimize.optimize import Optimizer
 from scipy.optimize import minimize
 
@@ -33,10 +33,9 @@ from qme.logging_utils import get_qme_logger
 logger = get_qme_logger(__name__)
 
 
-class Converged(Exception):
+class ConvergedError(Exception):
     """Exception raised when optimizer has converged."""
 
-    pass
 
 
 class SciPyHessianOptimizer(Optimizer):
@@ -100,12 +99,12 @@ class SciPyHessianOptimizer(Optimizer):
         self,
         atoms: Atoms,
         method: str = "trust-krylov",
-        logfile: Union[IO, str] = "-",
-        trajectory: Optional[str] = None,
-    hessian_update_freq: Optional[int] = None,
+        logfile: IO | str = "-",
+        trajectory: str | None = None,
+    hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
         hessian_delta: float = 0.01,
-        initial_hessian: Optional[np.ndarray] = None,
+        initial_hessian: np.ndarray | None = None,
         alpha: float = 1.0,
         use_bfgs_update: bool = True,
         adaptive_hessian: bool = False,
@@ -125,7 +124,7 @@ class SciPyHessianOptimizer(Optimizer):
             )
             freq = None
 
-        self.hessian_update_freq: Optional[int] = freq
+        self.hessian_update_freq: int | None = freq
         self.hessian_method = hessian_method
         self.alpha = alpha
         self.use_bfgs_update = use_bfgs_update
@@ -185,7 +184,7 @@ class SciPyHessianOptimizer(Optimizer):
             logger.info("BFGS approximate updates enabled between full Hessians")
         logger.info(f"Hessian calculation method: {hessian_method}")
 
-    def _positions_to_x(self, atoms: Optional[Atoms] = None) -> np.ndarray:
+    def _positions_to_x(self, atoms: Atoms | None = None) -> np.ndarray:
         """Convert atoms positions to 1D array for SciPy."""
         if atoms is None:
             atoms = self.atoms
@@ -236,7 +235,7 @@ class SciPyHessianOptimizer(Optimizer):
         # Forces are negative gradient
         forces = self.atoms.get_forces()
         gradient = -forces.ravel()
-        
+
         # Store for BFGS updates
         if self.use_bfgs_update:
             if self._last_gradient is None:
@@ -268,13 +267,12 @@ class SciPyHessianOptimizer(Optimizer):
             Hessian matrix (3N x 3N), scaled by alpha.
         """
         current_positions = x.copy()
-        steps_since_last = self.nsteps - self._last_hessian_step
         steps_since_full = self.nsteps - self._last_full_hessian_step
-        
+
         # Determine if we need a full Hessian update
         need_full_update = False
         reason = "unknown"
-        
+
         if self.hessian is None:
             # Always compute on first step
             need_full_update = True
@@ -282,13 +280,13 @@ class SciPyHessianOptimizer(Optimizer):
         elif self.adaptive_hessian:
             # Adaptive logic: update when needed
             current_fmax = self._get_current_fmax()
-            
+
             # Force-based criterion: large forces suggest need for update
             if current_fmax is not None and self._previous_fmax is not None:
                 if current_fmax > self._previous_fmax * self.force_threshold_ratio:
                     need_full_update = True
                     reason = f"force increase ({current_fmax:.4f} > {self._previous_fmax:.4f} × {self.force_threshold_ratio})"
-            
+
             # Periodic update based on base frequency
             if (
                 not need_full_update
@@ -305,7 +303,7 @@ class SciPyHessianOptimizer(Optimizer):
             ):
                 need_full_update = True
                 reason = f"fixed frequency ({self.hessian_update_freq} steps)"
-        
+
         if need_full_update:
             # Compute full Hessian
             self.atoms.set_positions(self._x_to_positions(x))
@@ -329,38 +327,40 @@ class SciPyHessianOptimizer(Optimizer):
             self.hessian = hessian
 
             logger.info(f"Full Hessian computed (shape: {hessian.shape})")
-            
+
             # Reset BFGS state after full Hessian
             self._last_positions = current_positions.copy()
             self._last_gradient = None
             self.bfgs_updates = 0
-            
+
         elif self.use_bfgs_update and self._last_positions is not None and self._last_gradient is not None:
             # BFGS approximate update
             self._last_hessian_step = self.nsteps
-            
+
             # Get current gradient
             current_gradient = self.gradient(x)
-            
+
             # Compute differences
             s = current_positions - self._last_positions  # position change
             y = current_gradient - self._last_gradient    # gradient change
-            
+
             # BFGS update formula: H_new = H + (y⊗y)/(y·s) - (H·s⊗H·s)/(s·H·s)
             sy = np.dot(s, y)
-            
+
             if sy > 1e-10:  # Ensure positive definiteness
                 # Rank-2 update (BFGS formula)
+                if self.hessian is None:
+                    raise RuntimeError("Hessian unavailable during BFGS update")
                 Hs = np.dot(self.hessian, s)
                 sHs = np.dot(s, Hs)
-                
+
                 # Update Hessian
                 self.hessian = (
-                    self.hessian 
-                    + np.outer(y, y) / sy 
+                    self.hessian
+                    + np.outer(y, y) / sy
                     - np.outer(Hs, Hs) / sHs
                 )
-                
+
                 self.bfgs_updates += 1
                 logger.debug(
                     f"BFGS Hessian update at step {self.nsteps} "
@@ -369,7 +369,7 @@ class SciPyHessianOptimizer(Optimizer):
                 )
             else:
                 logger.debug(f"Skipping BFGS update (sy = {sy:.2e} too small)")
-            
+
             # Store current state for next update
             self._last_positions = current_positions.copy()
             self._last_gradient = current_gradient.copy()
@@ -383,8 +383,8 @@ class SciPyHessianOptimizer(Optimizer):
         if self.hessian is None:
             raise RuntimeError("Hessian is None after update logic")
         return self.hessian / self.alpha
-    
-    def _get_current_fmax(self) -> Optional[float]:
+
+    def _get_current_fmax(self) -> float | None:
         """Get current maximum force magnitude."""
         try:
             forces = self.atoms.get_forces()
@@ -407,10 +407,10 @@ class SciPyHessianOptimizer(Optimizer):
         # Get forces and log
         forces = self.atoms.get_forces()
         fmax = np.max(np.abs(forces))
-        
+
         # Store for adaptive Hessian updates
         self._previous_fmax = fmax
-        
+
         self.log(forces)
         self.call_observers()
 
@@ -421,7 +421,7 @@ class SciPyHessianOptimizer(Optimizer):
         # Check convergence - converged() expects 1D gradient array
         forces_flat = forces.ravel()
         if self.converged(forces_flat):
-            raise Converged
+            raise ConvergedError
 
     def run(self, fmax: float = 0.05, steps: int = 100) -> bool:
         """
@@ -475,8 +475,7 @@ class SciPyHessianOptimizer(Optimizer):
 
             # Update final positions
             self.atoms.set_positions(self._x_to_positions(self._scipy_result.x))
-
-        except Converged:
+        except ConvergedError:
             logger.info("Optimization converged!")
             return True
 
@@ -501,11 +500,9 @@ class SciPyHessianOptimizer(Optimizer):
 
     def dump(self, data):
         """Dump optimizer state (not implemented for SciPy optimizers)."""
-        pass
 
     def load(self):
         """Load optimizer state (not implemented for SciPy optimizers)."""
-        pass
 
 
 class TrustKrylov(SciPyHessianOptimizer):
@@ -515,7 +512,7 @@ class TrustKrylov(SciPyHessianOptimizer):
     This optimizer uses SciPy's trust-krylov method, which is a trust-region
     algorithm that uses a Krylov subspace to approximately solve the
     trust-region subproblem. It's particularly good for:
-    
+
     - Transition state searches (handles indefinite Hessians)
     - Large systems (doesn't require storing full factorization)
     - Challenging potential energy surfaces
@@ -561,12 +558,12 @@ class TrustKrylov(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: Union[IO, str] = "-",
-        trajectory: Optional[str] = None,
-    hessian_update_freq: Optional[int] = None,
+        logfile: IO | str = "-",
+        trajectory: str | None = None,
+    hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
         hessian_delta: float = 0.01,
-        initial_hessian: Optional[np.ndarray] = None,
+        initial_hessian: np.ndarray | None = None,
         use_bfgs_update: bool = True,
     adaptive_hessian: bool = False,
         **kwargs,
@@ -587,6 +584,233 @@ class TrustKrylov(SciPyHessianOptimizer):
         )
 
 
+class TrustKrylovTS(TrustKrylov):
+    """Trust-Krylov transition state optimizer.
+
+    This variant of :class:`TrustKrylov` modifies the trust-region model
+    so that one direction is treated as an ascent direction while all
+    orthogonal directions remain minimization directions. The class follows
+    a min-mode following approach similar in spirit to Sella: the lowest
+    Hessian eigenvector is tracked and reflected so that the optimization
+    converges to an index-1 saddle point.
+
+    Notes
+    -----
+    The implementation reflects both the gradient and the Hessian along the
+    tracked mode. In practice this means the SciPy trust region solver sees a
+    locally convex model and can reuse the existing ``trust-krylov`` machinery
+    without invasive changes. Additional safeguards make sure no extra
+    negative curvature directions creep into the model, which would otherwise
+    destabilise the saddle search.
+    """
+
+    def __init__(
+        self,
+        atoms: Atoms,
+        logfile: IO | str = "-",
+        trajectory: str | None = None,
+        hessian_update_freq: int | None = None,
+        hessian_method: str = "auto",
+        hessian_delta: float = 0.01,
+        initial_hessian: np.ndarray | None = None,
+        use_bfgs_update: bool = False,
+        adaptive_hessian: bool = False,
+        mode_recompute_interval: int = 1,
+        index_tolerance: float = 5e-4,
+        min_positive_eigenvalue: float = 4e-3,
+        negative_mode_boost: float = 8e-3,
+        **kwargs,
+    ) -> None:
+        """Initialise the transition-state Trust-Krylov optimizer."""
+
+        super().__init__(
+            atoms=atoms,
+            logfile=logfile,
+            trajectory=trajectory,
+            hessian_update_freq=hessian_update_freq,
+            hessian_method=hessian_method,
+            hessian_delta=hessian_delta,
+            initial_hessian=initial_hessian,
+            use_bfgs_update=use_bfgs_update,
+            adaptive_hessian=adaptive_hessian,
+            **kwargs,
+        )
+
+        self._ts_mode_vector: np.ndarray | None = None
+        self._ts_mode_eigenvalue: float | None = None
+        self._ts_last_raw_gradient: np.ndarray | None = None
+        self._ts_last_raw_hessian: np.ndarray | None = None
+        self._ts_last_mode_step: int = -1
+        self._ts_mode_recompute_interval = max(1, mode_recompute_interval)
+        self._ts_index_tolerance = index_tolerance
+        self._ts_min_positive_eig = min_positive_eigenvalue
+        self._ts_negative_mode_boost = negative_mode_boost
+        self._ts_degrees_of_freedom = atoms.get_positions().size
+        self._ts_manual_mode_override = False
+
+    # ------------------------------------------------------------------
+    # Public helpers for seeding / inspecting the tracked transition mode
+    # ------------------------------------------------------------------
+    def set_transition_mode(self, mode: np.ndarray, eigenvalue: float | None = None) -> None:
+        """Seed the tracked transition mode manually.
+
+        Parameters
+        ----------
+        mode
+            Vector with the same dimensionality as the atomic coordinates (3N).
+        eigenvalue
+            Optional curvature estimate along the provided mode. If omitted,
+            a small negative curvature is assumed to maintain the saddle model.
+        """
+
+        vector = np.asarray(mode, dtype=float).reshape(-1)
+        if vector.size != self._ts_degrees_of_freedom:
+            raise ValueError(
+                f"Expected mode of length {self._ts_degrees_of_freedom}, got {vector.size}"
+            )
+
+        norm = np.linalg.norm(vector)
+        if norm < 1e-12:
+            raise ValueError("Mode vector must have non-zero norm")
+
+        self._ts_mode_vector = vector / norm
+        if eigenvalue is None:
+            eigenvalue = -abs(self._ts_negative_mode_boost)
+        self._ts_mode_eigenvalue = float(eigenvalue)
+        self._ts_last_mode_step = self.nsteps
+        self._ts_manual_mode_override = True
+
+    def get_transition_mode(self) -> np.ndarray | None:
+        """Return a copy of the current transition mode vector, if available."""
+
+        if self._ts_mode_vector is None:
+            return None
+        return self._ts_mode_vector.copy()
+
+    def get_transition_mode_info(self) -> dict[str, Any]:
+        """Return diagnostic information about the tracked transition mode."""
+
+        return {
+            "mode": None if self._ts_mode_vector is None else self._ts_mode_vector.copy(),
+            "eigenvalue": self._ts_mode_eigenvalue,
+            "last_update_step": self._ts_last_mode_step,
+            "age": None if self._ts_last_mode_step < 0 else self.nsteps - self._ts_last_mode_step,
+            "manual_override": self._ts_manual_mode_override,
+        }
+
+    # ------------------------------------------------------------------
+    # Helper utilities for mode tracking / reflection
+    # ------------------------------------------------------------------
+    def _should_update_mode(self) -> bool:
+        if self._ts_mode_vector is None:
+            return True
+        if self.nsteps - self._ts_last_mode_step >= self._ts_mode_recompute_interval:
+            self._ts_manual_mode_override = False
+            return True
+        return False
+
+    def _update_mode_from_hessian(self, hessian: np.ndarray) -> None:
+        """Update the tracked negative mode from the latest Hessian."""
+
+        sym_hessian = 0.5 * (hessian + hessian.T)
+        try:
+            eigenvalues, eigenvectors = np.linalg.eigh(sym_hessian)
+        except np.linalg.LinAlgError as exc:
+            logger.warning(f"Failed to diagonalize Hessian: {exc}")
+            self._ts_mode_vector = None
+            self._ts_mode_eigenvalue = None
+            return
+
+        min_index = int(np.argmin(eigenvalues))
+        min_value = float(eigenvalues[min_index])
+        mode_vector = eigenvectors[:, min_index]
+
+        if min_value >= -self._ts_index_tolerance:
+            # If Hessian is effectively positive definite, seed the mode with the
+            # current gradient direction so that we continue to climb along that axis.
+            gradient = self._ts_last_raw_gradient
+            if gradient is None or np.linalg.norm(gradient) < 1e-12:
+                self._ts_mode_vector = None
+                self._ts_mode_eigenvalue = None
+                return
+            mode_vector = gradient / np.linalg.norm(gradient)
+            min_value = -self._ts_negative_mode_boost
+
+        self._ts_mode_vector = mode_vector
+        self._ts_mode_eigenvalue = min_value
+        self._ts_last_mode_step = self.nsteps
+        self._ts_manual_mode_override = False
+
+    @staticmethod
+    def _reflect_along_mode(vector: np.ndarray, mode: np.ndarray) -> np.ndarray:
+        """Reflect *vector* along *mode* (Householder reflection)."""
+
+        mode_normalized = mode / np.linalg.norm(mode)
+        return vector - 2.0 * np.dot(vector, mode_normalized) * mode_normalized
+
+    def _stabilise_hessian(self, hessian: np.ndarray, primary_mode: np.ndarray) -> np.ndarray:
+        """Ensure the reflected Hessian is positive definite except for the flipped mode."""
+
+        sym_hessian = 0.5 * (hessian + hessian.T)
+        try:
+            eigenvalues, eigenvectors = np.linalg.eigh(sym_hessian)
+        except np.linalg.LinAlgError:
+            # Fallback: add diagonal ridge and hope for the best.
+            ridge = self._ts_min_positive_eig
+            return sym_hessian + ridge * np.eye(sym_hessian.shape[0])
+
+        # Ensure only the tracked mode carries the flipped signature.
+        stabilised = sym_hessian.copy()
+        primary_projection = eigenvectors.T @ primary_mode
+        primary_index = int(np.argmax(np.abs(primary_projection)))
+
+        for idx, value in enumerate(eigenvalues):
+            if idx == primary_index:
+                continue
+            if value < -self._ts_index_tolerance:
+                correction = (-value) + self._ts_min_positive_eig
+                vec = eigenvectors[:, idx]
+                stabilised += correction * np.outer(vec, vec)
+
+        # Guarantee a minimum curvature along the primary mode after reflection.
+        mode_curvature = float(primary_mode @ (stabilised @ primary_mode))
+        if mode_curvature < self._ts_min_positive_eig:
+            correction = self._ts_min_positive_eig - mode_curvature
+            stabilised += correction * np.outer(primary_mode, primary_mode)
+
+        return 0.5 * (stabilised + stabilised.T)
+
+    # ------------------------------------------------------------------
+    # Overrides for gradient / Hessian that perform the TS reflection
+    # ------------------------------------------------------------------
+    def gradient(self, x: np.ndarray) -> np.ndarray:
+        gradient = super().gradient(x)
+        self._ts_last_raw_gradient = gradient.copy()
+
+        if self._ts_mode_vector is None:
+            return gradient
+
+        reflected = self._reflect_along_mode(gradient, self._ts_mode_vector)
+        if self.use_bfgs_update:
+            self._last_gradient = reflected.copy()
+        return reflected
+
+    def hessian_func(self, x: np.ndarray) -> np.ndarray:
+        raw_hessian = super().hessian_func(x)
+        self._ts_last_raw_hessian = raw_hessian.copy()
+
+        if self._should_update_mode():
+            self._update_mode_from_hessian(raw_hessian)
+
+        if self._ts_mode_vector is None or self._ts_mode_eigenvalue is None:
+            return raw_hessian
+
+        mode = self._ts_mode_vector / np.linalg.norm(self._ts_mode_vector)
+        curvature = float(mode @ (raw_hessian @ mode))
+        reflected_hessian = raw_hessian - 2.0 * curvature * np.outer(mode, mode)
+        reflected_hessian = self._stabilise_hessian(reflected_hessian, mode)
+        return reflected_hessian
+
 class TrustNCG(SciPyHessianOptimizer):
     """
     Trust-NCG (Newton Conjugate Gradient) optimizer for ASE.
@@ -603,12 +827,12 @@ class TrustNCG(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: Union[IO, str] = "-",
-        trajectory: Optional[str] = None,
-    hessian_update_freq: Optional[int] = None,
+        logfile: IO | str = "-",
+        trajectory: str | None = None,
+    hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
         hessian_delta: float = 0.01,
-        initial_hessian: Optional[np.ndarray] = None,
+        initial_hessian: np.ndarray | None = None,
         use_bfgs_update: bool = True,
     adaptive_hessian: bool = False,
         **kwargs,
@@ -645,12 +869,12 @@ class TrustExact(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: Union[IO, str] = "-",
-        trajectory: Optional[str] = None,
-    hessian_update_freq: Optional[int] = None,
+        logfile: IO | str = "-",
+        trajectory: str | None = None,
+    hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
         hessian_delta: float = 0.01,
-        initial_hessian: Optional[np.ndarray] = None,
+        initial_hessian: np.ndarray | None = None,
         use_bfgs_update: bool = True,
     adaptive_hessian: bool = False,
         **kwargs,
@@ -686,12 +910,12 @@ class NewtonCG(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: Union[IO, str] = "-",
-        trajectory: Optional[str] = None,
-    hessian_update_freq: Optional[int] = None,
+        logfile: IO | str = "-",
+        trajectory: str | None = None,
+    hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
         hessian_delta: float = 0.01,
-        initial_hessian: Optional[np.ndarray] = None,
+        initial_hessian: np.ndarray | None = None,
         use_bfgs_update: bool = True,
     adaptive_hessian: bool = False,
         **kwargs,

@@ -6,5 +6,6 @@ core package. New exports should be added here so users can import from
 """
 
 from qme.core.explorer import Explorer
+from qme.core.scipy_optimizers import TrustKrylovTS
 
-__all__ = ["Explorer"]
+__all__ = ["Explorer", "TrustKrylovTS"]

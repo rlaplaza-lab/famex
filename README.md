@@ -1,6 +1,6 @@
 # QME: Quick Mechanistic Exploration
 
-**Quick mechanistic exploration using machine learning potentials for molecular geometry optimization and transition state searches with Sella optimizer.**
+**Quick mechanistic exploration using machine learning potentials for molecular geometry optimization and transition state searches with Sella or Trust-Krylov TS optimizers.**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-tested-green.svg)](https://www.python.org/downloads/)
@@ -59,7 +59,7 @@ The Explorer object supports the same strategies available via the CLI, so you c
 - 🧪 **Multiple ML Backends**: UMA, AIMNet2, MACE, Orb, SO3LR, TorchSim
 - ⚡ **GPU Acceleration**: CUDA support with up to 100x speedup
 - 🎯 **Optimization Methods**: Local (minima/TS) and two-ended strategies (NEB, CI-NEB, GSM)
-- 🔄 **Transition States**: Advanced TS search with Sella optimizer and Hessian-based trust-region solvers
+- 🔄 **Transition States**: Advanced TS search with Sella or the Trust-Krylov TS variant plus Hessian-based trust-region solvers
 - 🛤️ **Reaction Paths**: NEB/CI-NEB path optimization and IRC (Intrinsic Reaction Coordinate) from transition states
 - 📊 **Analysis Tools**: Frequency analysis, zero-point energy, and reaction energetics workflows
 - 🖥️ **Dual Interface**: Command-line and Python API share the same strategy registry
@@ -77,6 +77,7 @@ qme opt reactant.xyz --product product.xyz  # Two-ended minima search
 # Transition state optimization (outputs single TS, defaults to Sella)
 qme tsopt ts_guess.xyz  # Single-ended TS optimization
 qme tsopt reactant.xyz --product product.xyz  # Two-ended TS guess
+qme tsopt ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02
 
 # Reaction path optimization (outputs trajectories)
 qme path interpolate r.xyz p.xyz --npoints 15  # Raw interpolation
@@ -142,13 +143,14 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 |-----------|-------------|----------|-------------------|
 | `sella` | Modern saddle point optimizer | General TS searches | ✅ Yes |
 | `trust-krylov` | Trust-region Krylov subspace | Challenging landscapes | ⚠️ Not Yet* |
+| `trust-krylov-ts` | Trust-Krylov with min-mode reflection | Sella alternative when Hessians are cheap | ✅ Yes |
 | `trust-ncg` | Trust-region Newton-CG | High-accuracy minima | ⚠️ Not Yet* |
 | `trust-exact` | Trust-region exact solver | Maximum accuracy | ⚠️ Not Yet* |
 | `newton-cg` | Newton Conjugate Gradient | Second-order minima | ❌ No |
 
 > **Note**: Second-order optimizers use Hessian information for better convergence but are computationally more expensive. The trust-region methods (trust-krylov, trust-ncg, trust-exact) compute Hessians efficiently using ML potentials. By default, they compute the Hessian once at the start; use `hessian_update_freq` parameter for periodic updates.
 >
-> *The trust-region methods are theoretically capable of handling transition state searches (they can work with indefinite Hessians), but are currently restricted to minima optimization in QME. For TS optimization, use the `sella` optimizer which is specifically designed for saddle point searches.
+> *The dedicated `trust-krylov-ts` variant performs min-mode following for transition states. Other trust-region optimizers remain focused on minima searches in QME.*
 
 ## 🧪 Testing and Development
 

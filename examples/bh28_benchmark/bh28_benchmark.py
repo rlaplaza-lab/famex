@@ -810,7 +810,7 @@ def main():
     parser.add_argument(
         "--ts-optimizer",
         default="SELLA",
-        choices=["SELLA"],
+        choices=["SELLA", "trust-krylov-ts"],
         help="Transition state optimizer to use (default: SELLA)",
     )
 
