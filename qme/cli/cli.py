@@ -26,7 +26,8 @@ os.environ.setdefault("MPLBACKEND", "Agg")
         "QME CLI: Quick mechanistic exploration with ML potentials.\n\n"
         "Commands:\n"
         "  qme opt   : Minima optimization (outputs single structure, defaults to BFGS)\n"
-        "  qme tsopt : Transition state optimization (outputs single TS, defaults to Sella)\n"
+        "  qme tsopt : Transition state optimization (outputs single TS, defaults to Sella; "
+        "Trust-Krylov TS also available)\n"
         "  qme path  : Reaction path optimization (outputs trajectories)\n"
         "  qme cache : Manage model cache\n\n"
         "Examples:\n"
@@ -36,6 +37,7 @@ os.environ.setdefault("MPLBACKEND", "Agg")
         "  \n"
         "  # Transition state optimization (outputs single TS)\n"
         "  qme tsopt ts_guess.xyz --ts-kw order=1  # Uses Sella by default\n"
+        "  qme tsopt ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02\n"
         "  qme tsopt r.xyz --product p.xyz --npoints 15  # Two-ended TS guess\n"
         "  \n"
         "  # Reaction path optimization (outputs trajectories)\n"
@@ -94,7 +96,10 @@ def _common_explorer_options(f: Any) -> Any:
             "local_optimizer",
             default="bfgs",
             show_default=True,
-            help="Local optimizer: lbfgs|bfgs|fire|sella|trust-krylov|trust-ncg|trust-exact|newton-cg",
+            help=(
+                "Local optimizer: lbfgs|bfgs|fire|sella|trust-krylov|trust-krylov-ts|"
+                "trust-ncg|trust-exact|newton-cg"
+            ),
         ),
         click.option(
             "--optimizer-kw",

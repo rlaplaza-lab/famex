@@ -45,10 +45,11 @@ def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
             f"Use a real ML potential backend (uma, aimnet2, mace, so3lr) instead."
         )
 
-    if optimizer_name.lower() in FORBIDDEN_OPTIMIZERS_FOR_TS:
+    normalized_name = optimizer_name.lower()
+    if normalized_name in FORBIDDEN_OPTIMIZERS_FOR_TS:
         raise ValueError(
             f"Optimizer '{optimizer_name}' is not suitable for transition state "
-            f"optimization. Use 'sella' optimizer for TS searches."
+            "optimization. Use 'sella' or 'trust-krylov-ts' for TS searches."
         )
 
 
@@ -69,6 +70,15 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
         from qme.core.scipy_optimizers import TrustKrylov
 
         return TrustKrylov
+    if name in (
+        "trust-krylov-ts",
+        "trustkrylovts",
+        "trust_krylov_ts",
+        "trust-krylov-transition",
+    ):
+        from qme.core.scipy_optimizers import TrustKrylovTS
+
+        return TrustKrylovTS
     if name in ("trust-ncg", "trustncg", "trust_ncg"):
         from qme.core.scipy_optimizers import TrustNCG
 
@@ -136,11 +146,13 @@ def _get_convergence_status(optimizer, atoms) -> bool:
 
     if callable(converged_attr):
         try:
-            return converged_attr()
+            result = converged_attr()
+            return bool(result)
         except TypeError:
             # Some optimizers need gradient argument
             forces = atoms.get_forces()
-            return converged_attr(forces.flatten())
+            result = converged_attr(forces.flatten())
+            return bool(result)
 
     return bool(converged_attr)
 
@@ -274,7 +286,8 @@ def local_ts_runner(
         explorer._create_and_attach_calculator(atoms_copy)
         explorer._apply_constraints(atoms_copy)
         opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
-        if local_optimizer_name.lower() == "sella":
+        normalized_name = local_optimizer_name.lower()
+        if normalized_name == "sella":
             # Sella-specific kwargs for TS search
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("internal", True)
@@ -282,6 +295,18 @@ def local_ts_runner(
             # Check if Hessian is provided in explorer
             if hasattr(explorer, "initial_hessian") and explorer.initial_hessian is not None:
                 opt_kwargs["hessian"] = explorer.initial_hessian
+        elif normalized_name in {
+            "trust-krylov-ts",
+            "trustkrylovts",
+            "trust_krylov_ts",
+            "trust-krylov-transition",
+        }:
+            opt_kwargs = dict(opt_kwargs)
+            opt_kwargs.setdefault("hessian_update_freq", 1)
+            opt_kwargs.setdefault("mode_recompute_interval", 1)
+            opt_kwargs.setdefault("index_tolerance", 5e-4)
+            opt_kwargs.setdefault("min_positive_eigenvalue", 4e-3)
+            opt_kwargs.setdefault("negative_mode_boost", 8e-3)
 
         opt = opt_class(atoms_copy, **opt_kwargs)
         opt.run(fmax=fmax, steps=steps)
