@@ -36,9 +36,10 @@ os.environ.setdefault("MPLBACKEND", "Agg")
         "  qme opt reactant.xyz --product product.xyz --interp geodesic --npoints 21\n"
         "  \n"
         "  # Transition state optimization (outputs single TS)\n"
-        "  qme tsopt ts_guess.xyz --ts-kw order=1  # Uses Sella by default\n"
-        "  qme tsopt ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02\n"
-        "  qme tsopt r.xyz --product p.xyz --npoints 15  # Two-ended TS guess\n"
+        "  qme tsopt local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n"
+        "  qme tsopt interpolate r.xyz p.xyz --npoints 15  # TS via interpolation\n"
+        "  qme tsopt gsm r.xyz p.xyz --npoints 20 --step-size 0.1  # Growing string method\n"
+        "  qme tsopt local ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02\n"
         "  \n"
         "  # Reaction path optimization (outputs trajectories)\n"
         "  qme path interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n"
@@ -286,21 +287,115 @@ def opt(
     click.echo(f"Optimization completed. Saved: {out}")
 
 
-@main.command(
+@main.group(
     help=(
         "Transition state optimization from one or two XYZ files.\n\n"
-        "If only REACTANT is given, runs local TS optimization.\n"
-        "If --product is provided, generates TS guess via interpolation and refines it.\n\n"
-        "For two-ended TS guess, --product is required."
+        "Subcommands:\n"
+        "  local       : Local TS optimization from single structure\n"
+        "  interpolate : TS guess via interpolation between reactant/product\n"
+        "  gsm         : Growing string method (DE-GSM) for TS search\n\n"
+        "All subcommands output single TS structure and optionally save full paths."
+    )
+)
+def tsopt() -> None:
+    """Transition state optimization from one or two XYZ files."""
+
+
+@tsopt.command(
+    help=(
+        "Local transition state optimization from a single structure.\n\n"
+        "Optimizes the given structure to a transition state using local TS optimization."
+    )
+)
+@click.argument("ts_guess", type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--output",
+    "output_path",
+    type=click.Path(dir_okay=False),
+    default=None,
+    help="Output TS XYZ path",
+)
+@click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
+@click.option("--steps", type=int, default=1000, show_default=True, help="Max optimization steps")
+@_common_explorer_options
+def local(
+    ts_guess: str,
+    output_path: str | None,
+    fmax: float,
+    steps: int,
+    backend: str,
+    model_name: str | None,
+    model_path: str | None,
+    device: str | None,
+    default_charge: int,
+    default_spin: int,
+    local_optimizer: str,
+    optimizer_kw: list[str],
+    ts_kw: list[str],
+    constraints: str | None,
+    verbose: int,
+    dry_run: bool,
+) -> None:
+    ts_atoms = load_atoms_from_xyz(ts_guess)
+
+    optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
+    ts_kwargs = parse_kv_pairs(list(ts_kw))
+
+    # Convert verbose count to verbosity level (0=quiet, 1=normal, 2+=debug)
+    verbosity = max(0, verbose - 1)
+
+    if verbosity == 0:
+        ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
+    else:
+        ctx = nullcontext()  # type: ignore
+
+    with ctx:
+        exp = Explorer(
+            atoms=ts_atoms,
+            backend=backend,
+            model_name=model_name,
+            model_path=model_path,
+            device=device,
+            default_charge=default_charge,
+            default_spin=default_spin,
+            local_optimizer=local_optimizer,
+            optimizer_kwargs=optimizer_kwargs,
+            target="ts",
+            strategy="local",
+            ts_kwargs=ts_kwargs,
+            constraints=constraints,
+            verbose=verbosity,
+        )
+
+        if dry_run:
+            explanation = exp.explain_run(mode="ts")
+            click.echo("🔍 Dry-run analysis:")
+            click.echo(f"   Target: {explanation['target']}")
+            click.echo(f"   Strategy: {explanation['strategy']}")
+            click.echo(f"   Runner: {explanation['runner']}")
+            click.echo(f"   Valid: {explanation['valid']}")
+            click.echo(f"   Notes: {explanation['notes']}")
+            return
+
+        results = exp.run(mode="ts", fmax=fmax, steps=steps)
+        ts_atoms = results["optimized_atoms"]
+
+    # Default output next to the input file
+    out_base = os.path.splitext(ts_guess)[0]
+    out = output_path or (out_base + ".ts.local.xyz")
+
+    write_atoms(ts_atoms, out)
+    click.echo(f"Local TS optimization completed. Saved: {out}")
+
+
+@tsopt.command(
+    help=(
+        "Transition state optimization via interpolation between reactant and product.\n\n"
+        "Generates TS guess via interpolation and refines it with local TS optimization."
     )
 )
 @click.argument("reactant", type=click.Path(exists=True, dir_okay=False))
-@click.option(
-    "--product",
-    type=click.Path(exists=True, dir_okay=False),
-    default=None,
-    help="Product XYZ for two-ended TS guess",
-)
+@click.argument("product", type=click.Path(exists=True, dir_okay=False))
 @click.option(
     "--output",
     "output_path",
@@ -315,19 +410,19 @@ def opt(
     type=int,
     default=11,
     show_default=True,
-    help="Number of interpolation points for two-ended TS guess",
+    help="Number of interpolation points for TS guess",
 )
 @click.option(
     "--interp",
     type=click.Choice(["linear", "geodesic"], case_sensitive=False),
     default="geodesic",
     show_default=True,
-    help="Interpolation method for two-ended TS guess",
+    help="Interpolation method for TS guess",
 )
 @_common_explorer_options
-def tsopt(
+def interpolate(
     reactant: str,
-    product: str | None,
+    product: str,
     output_path: str | None,
     fmax: float,
     steps: int,
@@ -347,7 +442,7 @@ def tsopt(
     dry_run: bool,
 ) -> None:
     r_atoms = load_atoms_from_xyz(reactant)
-    p_atoms: Atoms | None = load_atoms_from_xyz(product) if product else None
+    p_atoms = load_atoms_from_xyz(product)
 
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
@@ -358,64 +453,202 @@ def tsopt(
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-
         ctx = nullcontext()  # type: ignore
 
     with ctx:
-        if p_atoms is None:
-            # Local TS optimization
-            exp = Explorer(
-                atoms=r_atoms,
-                backend=backend,
-                model_name=model_name,
-                model_path=model_path,
-                device=device,
-                default_charge=default_charge,
-                default_spin=default_spin,
-                local_optimizer=local_optimizer,
-                optimizer_kwargs=optimizer_kwargs,
-                target="ts",
-                strategy="local",
-                ts_kwargs=ts_kwargs,
-                constraints=constraints,
-                verbose=verbosity,
-            )
-            results = exp.run(mode="ts", fmax=fmax, steps=steps)
-            ts_atoms = results["optimized_atoms"]
-        else:
-            # TS from interpolated guess (interpolate strategy)
-            exp = Explorer(
-                atoms=[r_atoms, p_atoms],
-                backend=backend,
-                model_name=model_name,
-                model_path=model_path,
-                device=device,
-                default_charge=default_charge,
-                default_spin=default_spin,
-                local_optimizer=local_optimizer,
-                optimizer_kwargs=optimizer_kwargs,
-                target="ts",
-                strategy="interpolate",
-                ts_kwargs=ts_kwargs,
-                constraints=constraints,
-                verbose=verbosity,
-            )
+        # TS from interpolated guess (interpolate strategy)
+        exp = Explorer(
+            atoms=[r_atoms, p_atoms],
+            backend=backend,
+            model_name=model_name,
+            model_path=model_path,
+            device=device,
+            default_charge=default_charge,
+            default_spin=default_spin,
+            local_optimizer=local_optimizer,
+            optimizer_kwargs=optimizer_kwargs,
+            target="ts",
+            strategy="interpolate",
+            ts_kwargs=ts_kwargs,
+            constraints=constraints,
+            verbose=verbosity,
+        )
 
-            result = exp.run(
-                mode="ts",
-                npoints=npoints,
-                method=interp.lower(),
-                fmax=fmax,
-                steps=steps,
-            )
-            ts_atoms = result["optimized_atoms"]
+        if dry_run:
+            explanation = exp.explain_run(mode="ts")
+            click.echo("🔍 Dry-run analysis:")
+            click.echo(f"   Target: {explanation['target']}")
+            click.echo(f"   Strategy: {explanation['strategy']}")
+            click.echo(f"   Runner: {explanation['runner']}")
+            click.echo(f"   Valid: {explanation['valid']}")
+            click.echo(f"   Notes: {explanation['notes']}")
+            return
+
+        result = exp.run(
+            mode="ts",
+            npoints=npoints,
+            method=interp.lower(),
+            fmax=fmax,
+            steps=steps,
+        )
+        ts_atoms = result["optimized_atoms"]
 
     # Default output next to the reactant file
     out_base = os.path.splitext(reactant)[0]
-    out = output_path or (out_base + ".ts.xyz")
+    out = output_path or (out_base + ".ts.interpolate.xyz")
 
     write_atoms(ts_atoms, out)
-    click.echo(f"TS optimization completed. Saved: {out}")
+    click.echo(f"TS interpolation optimization completed. Saved: {out}")
+
+
+@tsopt.command(
+    help=(
+        "Growing string method (DE-GSM) for transition state search.\n\n"
+        "Grows strings from both reactant and product until they meet near the\n"
+        "transition state. This method is particularly effective for challenging\n"
+        "reaction pathways where interpolation-based methods may fail.\n\n"
+        "Outputs both the TS structure and the full reaction path."
+    )
+)
+@click.argument("reactant", type=click.Path(exists=True, dir_okay=False))
+@click.argument("product", type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--output",
+    "output_path",
+    type=click.Path(dir_okay=False),
+    default=None,
+    help="Output TS XYZ path (path will be saved as .gsm.xyz)",
+)
+@click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
+@click.option("--steps", type=int, default=100, show_default=True, help="Max growing iterations")
+@click.option(
+    "--npoints",
+    type=int,
+    default=15,
+    show_default=True,
+    help="Maximum number of images to generate",
+)
+@click.option(
+    "--step-size",
+    type=float,
+    default=0.1,
+    show_default=True,
+    help="Step size for adding new nodes (Å)",
+)
+@click.option(
+    "--distance-threshold",
+    type=float,
+    default=0.5,
+    show_default=True,
+    help="Distance threshold for strings to be considered 'met' (Å)",
+)
+@click.option(
+    "--optimize-endpoints/--no-optimize-endpoints",
+    default=True,
+    help="Optimize reactant and product before growing (default: True)",
+)
+@click.option(
+    "--refine-ts/--no-refine-ts",
+    default=True,
+    help="Refine TS with local optimization after finding it (default: True)",
+)
+@_common_explorer_options
+def gsm(
+    reactant: str,
+    product: str,
+    output_path: str | None,
+    fmax: float,
+    steps: int,
+    npoints: int,
+    step_size: float,
+    distance_threshold: float,
+    optimize_endpoints: bool,
+    refine_ts: bool,
+    backend: str,
+    model_name: str | None,
+    model_path: str | None,
+    device: str | None,
+    default_charge: int,
+    default_spin: int,
+    local_optimizer: str,
+    optimizer_kw: list[str],
+    ts_kw: list[str],
+    constraints: str | None,
+    verbose: int,
+    dry_run: bool,
+) -> None:
+    r_atoms = load_atoms_from_xyz(reactant)
+    p_atoms = load_atoms_from_xyz(product)
+
+    optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
+    ts_kwargs = parse_kv_pairs(list(ts_kw))
+
+    # Convert verbose count to verbosity level (0=quiet, 1=normal, 2+=debug)
+    verbosity = max(0, verbose - 1)
+
+    if verbosity == 0:
+        ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
+    else:
+        ctx = nullcontext()  # type: ignore
+
+    with ctx:
+        # Growing string method
+        exp = Explorer(
+            atoms=[r_atoms, p_atoms],
+            backend=backend,
+            model_name=model_name,
+            model_path=model_path,
+            device=device,
+            default_charge=default_charge,
+            default_spin=default_spin,
+            local_optimizer=local_optimizer,
+            optimizer_kwargs=optimizer_kwargs,
+            target="ts",
+            strategy="growing_string",
+            ts_kwargs=ts_kwargs,
+            constraints=constraints,
+            verbose=verbosity,
+        )
+
+        if dry_run:
+            explanation = exp.explain_run(mode="ts")
+            click.echo("🔍 Dry-run analysis:")
+            click.echo(f"   Target: {explanation['target']}")
+            click.echo(f"   Strategy: {explanation['strategy']}")
+            click.echo(f"   Runner: {explanation['runner']}")
+            click.echo(f"   Valid: {explanation['valid']}")
+            click.echo(f"   Notes: {explanation['notes']}")
+            return
+
+        result = exp.run(
+            mode="ts",
+            npoints=npoints,
+            fmax=fmax,
+            steps=steps,
+            step_size=step_size,
+            distance_threshold=distance_threshold,
+            optimize_endpoints=optimize_endpoints,
+            refine_ts=refine_ts,
+        )
+        ts_atoms = result["optimized_atoms"]
+        trajectory = result["trajectory"]
+
+    # Default output next to the reactant file
+    out_base = os.path.splitext(reactant)[0]
+    ts_out = output_path or (out_base + ".ts.gsm.xyz")
+    path_out = out_base + ".gsm.xyz"
+
+    # Save TS structure
+    write_atoms(ts_atoms, ts_out)
+    
+    # Save full path
+    write_atoms(trajectory, path_out)
+    
+    click.echo(f"GSM TS optimization completed.")
+    click.echo(f"  TS structure saved: {ts_out}")
+    click.echo(f"  Full path saved: {path_out}")
+    click.echo(f"  Path contains {len(trajectory)} images")
+    click.echo(f"  Strings met: {result.get('strings_met', False)}")
 
 
 @main.group(

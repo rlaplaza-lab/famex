@@ -103,6 +103,7 @@ def create_calculator(
         model_name=model_name,
         model_path=model_path,
         device=device,
+        verbose=verbose,
         **factory_kwargs,
     )
 

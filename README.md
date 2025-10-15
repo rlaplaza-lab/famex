@@ -74,9 +74,10 @@ qme opt molecule.xyz
 qme opt reactant.xyz --product product.xyz  # Two-ended minima search
 
 # Transition state optimization (outputs single TS, defaults to Sella)
-qme tsopt ts_guess.xyz  # Single-ended TS optimization
-qme tsopt reactant.xyz --product product.xyz  # Two-ended TS guess
-qme tsopt ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02
+qme tsopt local ts_guess.xyz  # Local TS optimization
+qme tsopt interpolate reactant.xyz product.xyz  # TS via interpolation
+qme tsopt gsm reactant.xyz product.xyz --npoints 20  # Growing string method
+qme tsopt local ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02
 
 # Reaction path optimization (outputs trajectories)
 qme path interpolate r.xyz p.xyz --npoints 15  # Raw interpolation
