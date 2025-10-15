@@ -181,7 +181,7 @@ class SciPyHessianOptimizer(Optimizer):
         if method not in valid_methods:
             raise ValueError(f"Invalid method '{method}'. Valid methods: {valid_methods}")
 
-        if self.verbose >= 1:
+        if self.verbose >= 2:
             logger.info(f"Initialized {method} optimizer with Hessian support")
             if adaptive_hessian:
                 if hessian_update_freq is None:
@@ -330,10 +330,11 @@ class SciPyHessianOptimizer(Optimizer):
             self._last_hessian_step = self.nsteps
             self._last_full_hessian_step = self.nsteps
 
-            logger.info(
-                f"Computing full Hessian at step {self.nsteps} "
-                f"(call #{self.hessian_calls}, reason: {reason})"
-            )
+            if self.verbose >= 2:
+                logger.info(
+                    f"Computing full Hessian at step {self.nsteps} "
+                    f"(call #{self.hessian_calls}, reason: {reason})"
+                )
 
             # Update FrequencyAnalysis with current atoms state
             self.freq_analysis.atoms = self.atoms.copy()
@@ -345,7 +346,8 @@ class SciPyHessianOptimizer(Optimizer):
             # Store for potential reuse
             self.hessian = hessian
 
-            logger.info(f"Full Hessian computed (shape: {hessian.shape})")
+            if self.verbose >= 2:
+                logger.info(f"Full Hessian computed (shape: {hessian.shape})")
 
             # Reset BFGS state after full Hessian
             self._last_positions = current_positions.copy()
@@ -470,7 +472,7 @@ class SciPyHessianOptimizer(Optimizer):
             # Count the initial step to match printed step numbers
             self.nsteps += 1
 
-        if self.verbose >= 1:
+        if self.verbose >= 2:
             logger.info(f"Starting {self.method} optimization")
             logger.info(f"Convergence criterion: fmax = {fmax} eV/Å")
             logger.info(f"Maximum steps: {steps}")
