@@ -45,44 +45,6 @@ def _ensure_charge_spin_info(atoms: Atoms, default_charge: int = 0, default_spin
 
 
 
-def _filter_structures_helper(
-    structures: list[Atoms],
-    input_structures: list[Atoms] | None = None,
-    rmsd_threshold: float = 0.1,
-    energy_threshold: float = 0.001,
-    strategy_name: str = "strategy",
-) -> tuple[list[Atoms], list[int], list[str]]:
-    """Filter redundant structures based on RMSD and energy similarity.
-
-    Wrapper around PathManager.filter_redundant_structures.
-
-    Parameters
-    ----------
-    structures : List[Atoms]
-        List of optimized structures to filter
-    input_structures : List[Atoms], optional
-        Original input structures for comparison
-    rmsd_threshold : float
-        RMSD threshold below which structures are considered redundant (Å)
-    energy_threshold : float
-        Energy threshold below which structures are considered redundant (eV)
-    strategy_name : str
-        Name of the strategy for warning messages
-
-    Returns
-    -------
-    Tuple[List[Atoms], List[int], List[str]]
-        (filtered_structures, removed_indices, warning_messages)
-    """
-    return PathManager.filter_redundant_structures(
-        structures=structures,
-        input_structures=input_structures,
-        rmsd_threshold=rmsd_threshold,
-        energy_threshold=energy_threshold,
-        strategy_name=strategy_name,
-    )
-
-
 def twoended_ts_guess_runner(
     atoms_list: Sequence[Atoms] | Atoms,
     npoints: int = 11,
@@ -1601,5 +1563,3 @@ __all__.append("twoended_minima_runner")
 __all__.append("twoended_neb_runner")
 __all__.append("twoended_cineb_runner")
 __all__.append("twoended_growing_string_runner")
-__all__.append("_filter_structures_helper")
-__all__.append("_calculate_rmsd")
