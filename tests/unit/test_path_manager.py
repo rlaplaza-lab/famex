@@ -84,7 +84,7 @@ class TestPathManager:
         atoms2 = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
 
         rmsd = qme.PathManager.calculate_rmsd(atoms1, atoms2)
-        
+
         assert isinstance(rmsd, float)
         assert rmsd >= 0
         assert rmsd < 1.0  # Should be small for similar structures
@@ -100,7 +100,7 @@ class TestPathManager:
             path.append(atoms)
 
         ts_structure, ts_index = qme.PathManager.find_ts_guess(path)
-        
+
         assert ts_structure is not None
         assert 0 <= ts_index < len(path)
         assert ts_structure == path[ts_index]
@@ -115,7 +115,7 @@ class TestPathManager:
             path.append(atoms)
 
         minima_indices = qme.PathManager.find_local_minima(path)
-        
+
         assert isinstance(minima_indices, list)
         assert len(minima_indices) > 0
         assert all(0 <= idx < len(path) for idx in minima_indices)

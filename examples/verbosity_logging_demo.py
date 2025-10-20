@@ -13,14 +13,11 @@ Usage:
 """
 
 import sys
-from pathlib import Path
 
 # Import QME components
 try:
-    from qme.examples import QMEExampleInterface, create_standard_epilog
+    from qme.examples import QMEExampleInterface
     from qme.logging_utils import get_qme_logger
-    from ase.build import molecule
-    import numpy as np
 except ImportError as e:
     print(f"❌ Error importing QME: {e}")
     print("   Please ensure QME is installed and accessible")
@@ -35,12 +32,12 @@ def demonstrate_logging_levels(verbose: int):
     print(f"\n{'=' * 60}")
     print(f"DEMONSTRATING VERBOSITY LEVEL {verbose}")
     print(f"{'=' * 60}")
-    
+
     # Test different log levels
     logger.info("This is an INFO message - should appear in normal and verbose modes")
     logger.warning("This is a WARNING message - should appear in all modes")
     logger.debug("This is a DEBUG message - should only appear in verbose mode (level 2)")
-    
+
     print(f"\nVerbosity level {verbose} mapping:")
     if verbose == 0:
         print("  - Log Level: WARNING and above (quiet)")
@@ -58,12 +55,12 @@ def demonstrate_explorer_verbosity(verbose: int):
     print(f"\n{'=' * 60}")
     print("EXPLORER VERBOSITY INTEGRATION")
     print(f"{'=' * 60}")
-    
+
     print("Note: Explorer integration with verbosity is working.")
     print("The Explorer class automatically calls setup_qme_logging(verbosity=verbose)")
     print("when initialized, ensuring consistent logging levels throughout QME.")
     print(f"Current verbosity level: {verbose}")
-    
+
     # For this demo, we'll just show the concept without actually running optimization
     # to avoid dependency issues
     print("✅ Explorer verbosity integration is properly configured!")

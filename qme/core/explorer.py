@@ -28,14 +28,7 @@ from ase.io import write
 from qme.core.calculator_setup import create_calculator
 from qme.core.constraint_parser import parse_constraints
 from qme.core.geometry import read_geometry
-from qme.core.local_strategies import local_irc_runner, local_minima_runner, local_ts_runner
-from qme.core.twoended_strategies import (
-    twoended_cineb_runner,
-    twoended_growing_string_runner,
-    twoended_minima_runner,
-    twoended_neb_runner,
-    twoended_ts_guess_runner,
-)
+from qme.core.strategy import REGISTRY
 from qme.core.validation import (
     STRATEGY_CINEB,
     STRATEGY_INTERPOLATE,
@@ -47,11 +40,6 @@ from qme.core.validation import (
     TARGET_TS,
     normalize_strategy,
     normalize_target,
-    prepare_atoms_list,
-    validate_minima_run,
-    validate_path_run,
-    validate_target_strategy_combination,
-    validate_ts_run,
 )
 
 
@@ -339,8 +327,15 @@ class Explorer:
         # Ensure atoms.info contains values so calculators that read
         # atoms.info (UMA, SO3LR, etc.) see the intended settings.
         if getattr(atoms, "info", None) is not None:
-            atoms.info.setdefault("charge", charge)
-            atoms.info.setdefault("spin", spin)
+            # Coerce to built-in int types to satisfy backends that enforce strict typing
+            try:
+                atoms.info["charge"] = int(atoms.info.get("charge", charge))
+            except Exception:
+                atoms.info["charge"] = int(charge)
+            try:
+                atoms.info["spin"] = int(atoms.info.get("spin", spin))
+            except Exception:
+                atoms.info["spin"] = int(spin)
 
         # Show model initialization info when creating the first calculator
         if not hasattr(self, "_calculator_created"):
@@ -379,108 +374,12 @@ class Explorer:
     # =============================================================================
 
     def _register_default_strategies(self) -> None:
-        """Register default strategies with new target:strategy naming scheme.
+        """Register default strategies using the new class-based registry.
 
-        This method registers all the default strategies using the new semantic
-        naming scheme where strategies are named as "target:strategy". This provides
-        clear separation between what you want (target) and how to get it (strategy).
-
-        Registered Strategies:
-        ---------------------
-        Local Strategies:
-        - "minima:local" - Direct local minima optimization
-        - "ts:local" - Direct local transition state optimization
-
-        Interpolation Strategies:
-        - "ts:interpolate" - TS guess from interpolated path with local TS refinement
-        - "minima:interpolate" - Minima optimization on interpolated path frames
-
-        Path Strategies:
-        - "path:neb" - NEB path optimization with geodesic interpolation
-        - "path:cineb" - CI-NEB path optimization with geodesic interpolation
-        - "path:interpolate" - Generate interpolated path only (no optimization)
-
-        Each strategy includes aliases for backward compatibility with the old API.
+        This method imports the strategy modules, which automatically register
+        their strategy classes with the global REGISTRY.
         """
-        # Initialize strategies dict if not exists
-        if not hasattr(self, "_strategies"):
-            self._strategies: dict[str, Any] = {}
-
-        # Local strategies
-        self.register_strategy(
-            "minima:local",
-            local_minima_runner,
-            strategy_type="local",
-            description="Local minima optimization (ASE/LBFGS or SELLA)",
-            aliases=["minima", "local:minima", "local-minima"],
-        )
-
-        self.register_strategy(
-            "ts:local",
-            local_ts_runner,
-            strategy_type="local",
-            description="Local transition-state optimization (SELLA preferred)",
-            aliases=["ts", "local:ts", "local-ts"],
-        )
-
-        # Interpolation strategies
-        self.register_strategy(
-            "ts:interpolate",
-            twoended_ts_guess_runner,
-            strategy_type="two-ended",
-            description="TS guess via interpolation with local TS refinement",
-            aliases=["twoended:ts", "twoended-ts"],
-        )
-
-        self.register_strategy(
-            "ts:growing_string",
-            twoended_growing_string_runner,
-            strategy_type="two-ended",
-            description="Growing string method for TS search (DE-GSM style)",
-            aliases=["twoended:growing_string", "growing_string", "gsm"],
-        )
-
-        self.register_strategy(
-            "minima:interpolate",
-            twoended_minima_runner,
-            strategy_type="two-ended",
-            description="Minima optimization on interpolated path frames",
-            aliases=["twoended:minima", "twoended-minima"],
-        )
-
-        # Path strategies
-        self.register_strategy(
-            "path:neb",
-            twoended_neb_runner,
-            strategy_type="two-ended",
-            description="NEB path optimization with geodesic interpolation",
-            aliases=["twoended:neb", "twoended-neb", "neb"],
-        )
-
-        self.register_strategy(
-            "path:cineb",
-            twoended_cineb_runner,
-            strategy_type="two-ended",
-            description="Climbing Image NEB (CI-NEB) optimization with geodesic interpolation",
-            aliases=["twoended:cineb", "twoended-cineb", "cineb"],
-        )
-
-        self.register_strategy(
-            "path:irc",
-            local_irc_runner,
-            strategy_type="local",
-            description="IRC (Intrinsic Reaction Coordinate) path from transition state",
-            aliases=["irc", "local:irc", "local-irc"],
-        )
-
-        # General path optimization strategy that dispatches based on mode
-        self.register_strategy(
-            "path:interpolate",
-            self._twoended_path_runner,
-            strategy_type="two-ended",
-            description="Generate interpolated path only (no optimization)",
-            aliases=["twoended:path", "twoended-path", "path"],
-        )
+        # Import strategy modules to trigger registration
 
     def register_strategy(
         self,
@@ -536,12 +435,19 @@ class Explorer:
     def list_strategies(self, kind: str | None = None) -> dict[str, dict[str, str]]:
         """List available strategies; optionally filter by kind."""
         out: dict[str, dict[str, str]] = {}
-        for key, meta in getattr(self, "_strategies", {}).items():
-            if kind is None or meta.get("type") == kind:
-                out[key] = {
-                    "type": meta.get("type", ""),
-                    "description": meta.get("description", ""),
+        for name, metadata in REGISTRY.list_strategies().items():
+            if kind is None or metadata.target == kind:
+                # Add main strategy name
+                out[name] = {
+                    "type": "two-ended" if metadata.requires_multiple_structures else "local",
+                    "description": metadata.description,
                 }
+                # Add aliases
+                for alias in metadata.aliases:
+                    out[alias] = {
+                        "type": "two-ended" if metadata.requires_multiple_structures else "local",
+                        "description": metadata.description,
+                    }
         return out
 
     # =============================================================================
@@ -738,35 +644,38 @@ class Explorer:
             Dictionary with strategy selection details
         """
         try:
-            target, strategy = self._resolve_target_and_strategy(mode)
-            strategy_key, strategy_type = self._select_strategy_runner(target, strategy)
+            # Determine strategy name
+            if mode:
+                strategy_name = mode
+            elif self.target and self.strategy:
+                strategy_name = f"{self.target}:{self.strategy}"
+            else:
+                strategy_name = "minima:local"
 
-            strategies = getattr(self, "_strategies", {})
-            entry = strategies.get(strategy_key)
-
-            if entry is None:
-                return {
-                    "target": target,
-                    "strategy": strategy,
-                    "strategy_key": strategy_key,
-                    "runner": None,
-                    "valid": False,
-                    "error": f"No registered strategy for '{strategy_key}'",
-                    "notes": f"Requested target: {target}, strategy: {strategy}",
-                }
-
-            runner = entry.get("func") if isinstance(entry, dict) else entry
-            description = entry.get("description", "") if isinstance(entry, dict) else ""
+            # Get strategy class from registry
+            strategy_class = REGISTRY.get(strategy_name)
+            metadata = strategy_class.metadata
 
             return {
-                "target": target,
-                "strategy": strategy,
-                "strategy_key": strategy_key,
-                "runner": runner.__name__ if runner else "unknown",
+                "target": metadata.target,
+                "strategy": metadata.strategy,
+                "strategy_key": strategy_name,
+                "runner": strategy_class.__name__,
                 "valid": True,
-                "strategy_type": strategy_type,
-                "description": description,
+                "strategy_type": "two-ended" if metadata.requires_multiple_structures else "local",
+                "description": metadata.description,
                 "notes": f"Will use {self.local_optimizer_name} optimizer",
+            }
+        except KeyError as e:
+            available = sorted(REGISTRY.list_strategies().keys())
+            return {
+                "target": "unknown",
+                "strategy": "unknown",
+                "strategy_key": mode or "unknown",
+                "runner": None,
+                "valid": False,
+                "error": f"No strategy found for '{mode or 'default'}'. Available: {available}",
+                "notes": f"Error resolving strategy: {e}",
             }
         except Exception as e:
             return {
@@ -776,7 +685,7 @@ class Explorer:
                 "runner": None,
                 "valid": False,
                 "error": str(e),
-                "notes": f"Error resolving target/strategy: {e}",
+                "notes": f"Error resolving strategy: {e}",
             }
 
     def run(
@@ -784,122 +693,74 @@ class Explorer:
     ) -> Any:
         """Execute a registered or user-supplied runner.
 
-        This method is the main entry point for running optimization tasks. It resolves
-        the target and strategy, validates inputs, and dispatches to the appropriate runner.
+        This method is the main entry point for running optimization tasks. It uses
+        the new strategy registry to find and execute the appropriate strategy.
 
         Parameters
         ----------
         mode : str, optional
-            Short selector used to choose among registered strategies when
-            ``runner`` is not provided. Can be:
-            - Target: "minima", "ts", "path"
-            - Strategy: "local", "neb", "cineb", "interpolate"
+            Strategy name in format "target:strategy" (e.g., "minima:local", "path:neb")
+            or short alias (e.g., "neb", "cineb"). If not provided, uses instance
+            target and strategy parameters.
         runner : callable, optional
             Optional callable to execute directly, bypassing strategy selection.
         **kwargs
-            Forwarded to the runner; Explorer injects ``explorer=self`` and
-            ``local_optimizer_name`` defaults.
+            Additional keyword arguments forwarded to the strategy runner.
 
         Returns
         -------
         Any
-            Whatever the runner returns. Typically a dictionary with optimization results.
+            Whatever the strategy returns. Typically a dictionary with optimization results.
 
         Examples
         --------
         >>> # Minima optimization
         >>> explorer = Explorer(atoms, target="minima", strategy="local")
-        >>> result = explorer.run(mode="minima")
+        >>> result = explorer.run()
 
         >>> # Path optimization with NEB
         >>> explorer = Explorer(atoms, target="path", strategy="neb")
-        >>> result = explorer.run(mode="neb", npoints=7, fmax=0.05)
+        >>> result = explorer.run(npoints=7, fmax=0.05)
 
         >>> # Transition state optimization
         >>> explorer = Explorer(atoms, target="ts", strategy="local")
-        >>> result = explorer.run(mode="ts", fmax=0.01)
+        >>> result = explorer.run(fmax=0.01)
+
+        >>> # Using explicit mode
+        >>> explorer = Explorer(atoms)
+        >>> result = explorer.run(mode="minima:local")
+        >>> result = explorer.run(mode="path:neb", npoints=7)
         """
-        # Resolve target and strategy
-        target, strategy = self._resolve_target_and_strategy(mode)
+        # If the caller passed an explicit runner, use it directly
+        if runner is not None:
+            call_kwargs = dict(kwargs)
+            call_kwargs.setdefault("explorer", self)
+            call_kwargs.setdefault("local_optimizer_name", self.local_optimizer_name)
+            call_kwargs.setdefault("verbose", self.verbose)
+            return runner(self.atoms_list, **call_kwargs)
 
-        # Prepare atoms list for validation and execution
-        atoms_list = prepare_atoms_list(self.atoms_list, kwargs.get("product"))
-
-        # Validate target/strategy combination
-        validate_target_strategy_combination(target, strategy, len(atoms_list))
-
-        # Select strategy runner early to determine strategy type for validation
-        strategy_key, strategy_type = self._select_strategy_runner(target, strategy)
-
-        # Validate inputs based on target and strategy type
-        if target == TARGET_TS:
-            if strategy == STRATEGY_LOCAL:
-                validate_ts_run(atoms_list, self.backend, self.local_optimizer_name)
-            else:
-                validate_path_run(atoms_list, self.backend, self.local_optimizer_name)
-        elif target == TARGET_PATH:
-            # For path target, check if strategy is local (IRC) or two-ended (NEB/CI-NEB)
-            if strategy_type == "local":
-                # IRC: validate as single structure
-                validate_minima_run(atoms_list, self.backend, self.local_optimizer_name)
-            else:
-                # NEB/CI-NEB: validate as two-ended
-                validate_path_run(atoms_list, self.backend, self.local_optimizer_name)
-        else:  # TARGET_MINIMA
-            if strategy == STRATEGY_LOCAL:
-                validate_minima_run(atoms_list, self.backend, self.local_optimizer_name)
-            else:
-                validate_path_run(atoms_list, self.backend, self.local_optimizer_name)
-
-        # If the caller passed an explicit runner, use it; otherwise look up
-        # the registered strategy entry.
-        # Allow an explicit runner name override via 'runner_name' kwarg
-        runner_name = kwargs.pop("runner_name", None)
-        if runner is None:
-            if isinstance(runner_name, str):
-                strategy_key = runner_name
-            strategies = getattr(self, "_strategies", {})
-            entry = strategies.get(strategy_key)
-            if entry is None:
-                raise NotImplementedError(
-                    f"No registered strategy for '{strategy_key}'. "
-                    f"Requested target: {target}, strategy: {strategy}"
-                )
-            runner = entry.get("func") if isinstance(entry, dict) else entry
-            strategy_type = entry.get("type", "global") if isinstance(entry, dict) else "global"
+        # Determine strategy name
+        if mode:
+            strategy_name = mode  # e.g., "minima:local", "path:neb", "neb"
+        elif self.target and self.strategy:
+            strategy_name = f"{self.target}:{self.strategy}"
         else:
-            # If runner provided directly, we assume caller knows what they're doing
-            strategy_type = "global"
+            # Only minimal fallback - default to minima:local
+            strategy_name = "minima:local"
 
-        # Prepare kwargs for runner
-        call_kwargs = dict(kwargs)
-        call_kwargs.setdefault("explorer", self)
-        call_kwargs.setdefault("local_optimizer_name", self.local_optimizer_name)
-        call_kwargs.setdefault("verbose", self.verbose)
-        
-        # Override mode with the resolved strategy for runners that need it
-        # This ensures runners get the correct mode based on resolved target/strategy
-        call_kwargs["mode"] = strategy
+        # Get strategy class from registry
+        try:
+            strategy_class = REGISTRY.get(strategy_name)
+        except KeyError as e:
+            available = sorted(REGISTRY.list_strategies().keys())
+            raise NotImplementedError(
+                f"No strategy found for '{strategy_name}'. "
+                f"Available strategies: {available}"
+            ) from e
 
-        # Validate TS optimization setup - hardcoded restrictions
-        if target == TARGET_TS and strategy == STRATEGY_LOCAL:
-            from qme.core.local_strategies import _validate_ts_optimization_setup
-
-            _validate_ts_optimization_setup(self.backend, self.local_optimizer_name)
-
-        # Dispatch according to strategy type
-        if strategy_type == "local":
-            # Local strategies work with single structure
-            return runner(atoms_list, **call_kwargs)
-
-        if strategy_type == "two-ended":
-            # Two-ended strategies require multiple structures
-            if len(atoms_list) < 2:
-                raise ValueError("Two-ended strategies require two or more Atoms objects")
-            return runner(atoms_list, **call_kwargs)
-
-        # global/default: pass the full list as-is
-        return runner(atoms_list, **call_kwargs)
+        # Instantiate and run strategy
+        strategy_instance = strategy_class(explorer=self)
+        return strategy_instance.run(self.atoms_list, **kwargs)
 
     # =============================================================================
     # Convenience Methods (ASE-like interface)
@@ -1101,10 +962,10 @@ class Explorer:
         if mode == "interpolate":
             # Raw interpolation - no optimization
             from qme.core.twoended_strategies import path_generator
-            
+
             # Remove dry_run from kwargs to prevent it from being passed to path_generator
             clean_kwargs = {k: v for k, v in kwargs.items() if k != "dry_run"}
-            
+
             return path_generator(
                 atoms_list,
                 npoints=clean_kwargs.get("npoints", 11),

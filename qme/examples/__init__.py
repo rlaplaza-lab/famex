@@ -57,9 +57,9 @@ class QMEExampleInterface:
             help="Device to use for calculations (default: auto-detect CUDA if available)",
         )
         parser.add_argument(
-            "--verbose", 
-            type=int, 
-            choices=[0, 1, 2], 
+            "--verbose",
+            type=int,
+            choices=[0, 1, 2],
             default=1,
             help="Verbosity level: 0=quiet, 1=normal (default), 2=verbose"
         )

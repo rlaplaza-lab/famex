@@ -16,6 +16,7 @@ import numpy as np
 from ase import Atoms
 
 from qme.core.geometry import Geometry
+from qme.core.interpolation import get_interpolation_strategy
 from qme.core.validation import validate_atoms_compatibility
 from qme.logging_utils import get_qme_logger
 
@@ -197,12 +198,9 @@ class PathManager:
         start_coords = start.coords3d
         end_coords = end.coords3d
 
-        if method == "linear":
-            path_coords = self._linear_interpolation(start_coords, end_coords, npoints)
-        elif method == "geodesic":
-            path_coords = self._geodesic_interpolation(start_coords, end_coords, npoints)
-        else:
-            raise ValueError(f"Unknown interpolation method: {method}")
+        # Use interpolation strategy
+        interpolator = get_interpolation_strategy(method)
+        path_coords = interpolator.interpolate(start_coords, end_coords, npoints)
 
         # Create geometry objects
         path_geometries = []
@@ -232,99 +230,6 @@ class PathManager:
 
         return path_geometries
 
-    def _linear_interpolation(
-        self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
-    ) -> list[np.ndarray]:
-        """Perform linear interpolation between start and end coordinates."""
-        path_coords = []
-        for i in range(npoints):
-            alpha = i / (npoints - 1)
-            coords = (1 - alpha) * start_coords + alpha * end_coords
-            path_coords.append(coords)
-
-        return path_coords
-
-    def _geodesic_interpolation(
-        self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
-    ) -> list[np.ndarray]:
-        """
-        Perform geodesic interpolation with better bond length preservation.
-
-        Uses distance geometry principles to create more chemically reasonable
-        intermediate structures, similar to approaches in NEB methods.
-        """
-        path_coords = []
-
-        # Get all pairwise distances at start and end
-        start_dists = self._get_distance_matrix(start_coords)
-        end_dists = self._get_distance_matrix(end_coords)
-
-        for i in range(npoints):
-            alpha = i / (npoints - 1)
-
-            # Interpolate distances rather than coordinates
-            target_dists = (1 - alpha) * start_dists + alpha * end_dists
-
-            # Use linear interpolation as starting guess
-            linear_coords = (1 - alpha) * start_coords + alpha * end_coords
-
-            # Refine coordinates to better match target distances
-            refined_coords = self._refine_coordinates(linear_coords, target_dists)
-
-            path_coords.append(refined_coords)
-
-        return path_coords
-
-    def _get_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
-        """Get pairwise distance matrix."""
-        n_atoms = len(coords)
-        dists = np.zeros((n_atoms, n_atoms))
-
-        for i in range(n_atoms):
-            for j in range(i + 1, n_atoms):
-                dist = np.linalg.norm(coords[i] - coords[j])
-                dists[i, j] = dists[j, i] = dist
-
-        return dists
-
-    def _refine_coordinates(
-        self, coords: np.ndarray, target_dists: np.ndarray, max_iter: int = 10
-    ) -> np.ndarray:
-        """
-        Refine coordinates to better match target distance matrix.
-
-        Uses simple iterative coordinate adjustment to improve bond lengths.
-        """
-        coords = coords.copy()
-        n_atoms = len(coords)
-
-        for _iteration in range(max_iter):
-            current_dists = self._get_distance_matrix(coords)
-
-            # Calculate forces to adjust distances
-            forces = np.zeros_like(coords)
-
-            for i in range(n_atoms):
-                for j in range(i + 1, n_atoms):
-                    current_dist = current_dists[i, j]
-                    target_dist = target_dists[i, j]
-
-                    if current_dist > 1e-6:  # Avoid division by zero
-                        # Direction vector
-                        direction = coords[j] - coords[i]
-                        direction /= current_dist
-
-                        # Force magnitude proportional to distance error
-                        force_mag = (target_dist - current_dist) * 0.1
-
-                        # Apply forces
-                        forces[i] -= force_mag * direction
-                        forces[j] += force_mag * direction
-
-            # Update coordinates
-            coords += forces * 0.1
-
-        return coords
 
     def _optimize_path(self, path_geometries: list[Geometry], calculator) -> list[Geometry]:
         """
