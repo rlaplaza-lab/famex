@@ -101,36 +101,45 @@ def run_command(cmd, desc, backend, timeout=600) -> tuple[bool, float, str, str]
 
 
 def create_example_commands(example_files: Path, backend: str, steps: int = 500) -> list[dict]:
-    """Create example commands for a specific backend using default settings."""
-    return [
+    """Create example commands for a specific backend using default settings.
+
+    Notes
+    -----
+    - TS optimizations are not supported on the 'mock' backend. We skip
+      'tsopt' examples when backend == 'mock' to avoid hard errors. Timeouts
+      are acceptable for heavy runs, but CLI argument mistakes are not.
+    """
+    # Prefer custom TS file if present, otherwise fall back to bundled example
+    ts_input = str(example_files / "A_C_A_B_A_C_ts.xyz")
+
+    commands = [
         {
             "desc": "Structure optimization using 'opt' command",
             "cmd": [
                 "qme",
                 "opt",
-                str(example_files / "reaction_001_reactant.xyz"),
+                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
                 "--backend",
                 backend,
                 "--steps",
                 str(steps),
                 "--output",
                 f"test_opt_{backend}.xyz",
-                "--no-quiet",
             ],
         },
         {
-            "desc": "Transition state optimization using 'tsopt' command",
+            "desc": "Transition state optimization using 'tsopt local' subcommand",
             "cmd": [
                 "qme",
                 "tsopt",
-                str(example_files / "reaction_001_ts.xyz"),
+                "local",
+                str(example_files / "A_C_A_B_A_C_ts.xyz"),
                 "--backend",
                 backend,
                 "--steps",
                 str(steps),
                 "--output",
                 f"test_tsopt_{backend}.xyz",
-                "--no-quiet",
             ],
         },
         {
@@ -138,9 +147,9 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
             "cmd": [
                 "qme",
                 "opt",
-                str(example_files / "reaction_001_reactant.xyz"),
+                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
                 "--product",
-                str(example_files / "reaction_001_product.xyz"),
+                str(example_files / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -151,17 +160,16 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "geodesic",
                 "--output",
                 f"test_twoended_{backend}.xyz",
-                "--no-quiet",
             ],
         },
         {
-            "desc": "Two-ended TS optimization using 'tsopt' command",
+            "desc": "Two-ended TS optimization using 'tsopt interpolate' subcommand",
             "cmd": [
                 "qme",
                 "tsopt",
-                str(example_files / "reaction_001_reactant.xyz"),
-                "--product",
-                str(example_files / "reaction_001_product.xyz"),
+                "interpolate",
+                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                str(example_files / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -172,7 +180,6 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "geodesic",
                 "--output",
                 f"test_ts_twoended_{backend}.xyz",
-                "--no-quiet",
             ],
         },
         {
@@ -181,8 +188,8 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "qme",
                 "path",
                 "interpolate",
-                str(example_files / "reaction_001_reactant.xyz"),
-                str(example_files / "reaction_001_product.xyz"),
+                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                str(example_files / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
                 "--npoints",
@@ -191,7 +198,6 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "geodesic",
                 "--output",
                 f"test_interpolate_{backend}.xyz",
-                "--no-quiet",
             ],
         },
         {
@@ -200,19 +206,18 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "qme",
                 "path",
                 "neb",
-                str(example_files / "reaction_001_reactant.xyz"),
-                str(example_files / "reaction_001_product.xyz"),
+                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                str(example_files / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
-                str(steps),
+                "50",  # Reduced steps for faster demo
                 "--npoints",
                 "3",
                 "--spring-constant",
-                "1.0",  # Moderate spring constant for demo
+                "0.5",  # Lower spring constant for better convergence
                 "--output",
                 f"test_neb_{backend}.xyz",
-                "--no-quiet",
             ],
         },
         {
@@ -221,22 +226,52 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "qme",
                 "path",
                 "cineb",
-                str(example_files / "reaction_001_reactant.xyz"),
-                str(example_files / "reaction_001_product.xyz"),
+                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                str(example_files / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
-                str(steps),
+                "50",  # Reduced steps for faster demo
                 "--npoints",
                 "3",
                 "--spring-constant",
-                "1.0",  # Moderate spring constant for demo
+                "0.5",  # Lower spring constant for better convergence
                 "--output",
                 f"test_cineb_{backend}.xyz",
-                "--no-quiet",
+            ],
+        },
+        {
+            "desc": "IRC path from transition state using 'path irc'",
+            "cmd": [
+                "qme",
+                "path",
+                "irc",
+                ts_input,
+                "--backend",
+                backend,
+                "--steps",
+                "50",
+                "--step-size",
+                "0.1",
+                "--direction",
+                "both",
+                "--output",
+                f"test_irc_{backend}.xyz",
             ],
         },
     ]
+
+    if backend.lower() == "mock":
+        # Filter out TS optimizations which are unsupported on mock backend
+        commands = [
+            c
+            for c in commands
+            if not c["desc"].startswith("Transition state optimization")
+            and not c["desc"].startswith("Two-ended TS optimization")
+            and not c["desc"].startswith("IRC path from transition state")
+        ]
+
+    return commands
 
 
 def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
@@ -278,9 +313,9 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
 
     # Check required files exist
     required_files = [
-        "reaction_001_reactant.xyz",
-        "reaction_001_product.xyz",
-        "reaction_001_ts.xyz",
+        "A_C_A_B_A_C_reactant.xyz",
+        "A_C_A_B_A_C_product.xyz",
+        "A_C_A_B_A_C_ts.xyz",
     ]
 
     for filename in required_files:

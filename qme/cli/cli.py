@@ -130,6 +130,12 @@ def _common_explorer_options(f: Any) -> Any:
             default=False,
             help="Validate inputs and show strategy selection without running",
         ),
+        click.option(
+            "--validate-ts",
+            is_flag=True,
+            default=False,
+            help="Validate TS structure via frequency analysis after optimization",
+        ),
     ]
     for opt in reversed(opts):
         f = opt(f)
@@ -169,7 +175,7 @@ def _common_explorer_options(f: Any) -> Any:
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic"], case_sensitive=False),
+    type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
     default="geodesic",
     show_default=True,
     help="Interpolation method for two-ended minima search",
@@ -195,6 +201,7 @@ def opt(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
+    validate_ts: bool,
 ) -> None:
     atoms = load_atoms_from_xyz(input)
     p_atoms: Atoms | None = load_atoms_from_xyz(product) if product else None
@@ -335,6 +342,7 @@ def local(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
+    validate_ts: bool,
 ) -> None:
     ts_atoms = load_atoms_from_xyz(ts_guess)
 
@@ -377,7 +385,11 @@ def local(
             click.echo(f"   Notes: {explanation['notes']}")
             return
 
-        results = exp.run(mode="ts", fmax=fmax, steps=steps)
+        # Pass validate_ts as kwarg only if flag is used
+        run_kwargs = {"fmax": fmax, "steps": steps}
+        if validate_ts:
+            run_kwargs["validate_ts"] = True
+        results = exp.run(mode="ts", **run_kwargs)
         ts_atoms = results["optimized_atoms"]
 
     # Default output next to the input file
@@ -414,7 +426,7 @@ def local(
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic"], case_sensitive=False),
+    type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
     default="geodesic",
     show_default=True,
     help="Interpolation method for TS guess",
@@ -440,6 +452,7 @@ def interpolate(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
+    validate_ts: bool,
 ) -> None:
     r_atoms = load_atoms_from_xyz(reactant)
     p_atoms = load_atoms_from_xyz(product)
@@ -484,13 +497,16 @@ def interpolate(
             click.echo(f"   Notes: {explanation['notes']}")
             return
 
-        result = exp.run(
-            mode="ts",
-            npoints=npoints,
-            method=interp.lower(),
-            fmax=fmax,
-            steps=steps,
-        )
+        # Pass validate_ts as kwarg only if flag is used
+        run_kwargs = {
+            "npoints": npoints,
+            "method": interp.lower(),
+            "fmax": fmax,
+            "steps": steps,
+        }
+        if validate_ts:
+            run_kwargs["validate_ts"] = True
+        result = exp.run(mode="interpolate", **run_kwargs)
         ts_atoms = result["optimized_atoms"]
 
     # Default output next to the reactant file
@@ -576,6 +592,7 @@ def gsm(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
+    validate_ts: bool,
 ) -> None:
     r_atoms = load_atoms_from_xyz(reactant)
     p_atoms = load_atoms_from_xyz(product)
@@ -620,16 +637,19 @@ def gsm(
             click.echo(f"   Notes: {explanation['notes']}")
             return
 
-        result = exp.run(
-            mode="ts",
-            npoints=npoints,
-            fmax=fmax,
-            steps=steps,
-            step_size=step_size,
-            distance_threshold=distance_threshold,
-            optimize_endpoints=optimize_endpoints,
-            refine_ts=refine_ts,
-        )
+        # Pass validate_ts as kwarg only if flag is used
+        run_kwargs = {
+            "npoints": npoints,
+            "fmax": fmax,
+            "steps": steps,
+            "step_size": step_size,
+            "distance_threshold": distance_threshold,
+            "optimize_endpoints": optimize_endpoints,
+            "refine_ts": refine_ts,
+        }
+        if validate_ts:
+            run_kwargs["validate_ts"] = True
+        result = exp.run(mode="ts", **run_kwargs)
         ts_atoms = result["optimized_atoms"]
         trajectory = result["trajectory"]
 
@@ -640,11 +660,11 @@ def gsm(
 
     # Save TS structure
     write_atoms(ts_atoms, ts_out)
-    
+
     # Save full path
     write_atoms(trajectory, path_out)
-    
-    click.echo(f"GSM TS optimization completed.")
+
+    click.echo("GSM TS optimization completed.")
     click.echo(f"  TS structure saved: {ts_out}")
     click.echo(f"  Full path saved: {path_out}")
     click.echo(f"  Path contains {len(trajectory)} images")
@@ -691,13 +711,13 @@ def path() -> None:
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic"], case_sensitive=False),
+    type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
     default="geodesic",
     show_default=True,
     help="Interpolation method",
 )
 @_common_explorer_options
-def interpolate(
+def interpolate_path(
     reactant: str,
     product: str,
     output_path: str | None,
@@ -809,7 +829,7 @@ def interpolate(
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic"], case_sensitive=False),
+    type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
     default="geodesic",
     show_default=True,
     help="Initial interpolation method",
@@ -817,7 +837,7 @@ def interpolate(
 @click.option(
     "--spring-constant",
     type=float,
-    default=5.0,
+    default=0.5,
     show_default=True,
     help="Spring constant for NEB",
 )
@@ -843,6 +863,7 @@ def neb(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
+    validate_ts: bool,
 ) -> None:
     r_atoms = load_atoms_from_xyz(reactant)
     p_atoms = load_atoms_from_xyz(product)
@@ -932,7 +953,7 @@ def neb(
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic"], case_sensitive=False),
+    type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
     default="geodesic",
     show_default=True,
     help="Initial interpolation method",
@@ -940,7 +961,7 @@ def neb(
 @click.option(
     "--spring-constant",
     type=float,
-    default=5.0,
+    default=0.5,
     show_default=True,
     help="Spring constant for CI-NEB",
 )
@@ -966,6 +987,7 @@ def cineb(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
+    validate_ts: bool,
 ) -> None:
     r_atoms = load_atoms_from_xyz(reactant)
     p_atoms = load_atoms_from_xyz(product)
@@ -1082,6 +1104,7 @@ def irc(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
+    validate_ts: bool,
 ) -> None:
     ts_atoms = load_atoms_from_xyz(ts_structure)
 

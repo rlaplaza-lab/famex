@@ -22,7 +22,7 @@ import qme
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from qme import Explorer
-from qme.core.ase_optimizer_wrappers import VerboseBFGS, VerboseFIRE, VerboseLBFGS, VerboseSella
+from qme.core.ase_optimizer_wrappers import VerboseBFGS, VerboseFIRE, VerboseLBFGS
 from qme.core.scipy_optimizers import NewtonCG, TrustExact, TrustKrylov, TrustKrylovTS, TrustNCG
 
 
@@ -99,12 +99,12 @@ def test_explorer_integration():
         print(f"\nExplorer with {opt_name.upper()} - Quiet mode (verbose=0):")
         print("-" * 40)
         exp = Explorer(h2o, backend="mock", local_optimizer=opt_name, verbose=0)
-        result = exp.run(mode="minima", fmax=0.5, steps=2)
+        exp.run(mode="minima", fmax=0.5, steps=2)
 
         print(f"\nExplorer with {opt_name.upper()} - Normal mode (verbose=1):")
         print("-" * 40)
         exp = Explorer(h2o, backend="mock", local_optimizer=opt_name, verbose=1)
-        result = exp.run(mode="minima", fmax=0.5, steps=2)
+        exp.run(mode="minima", fmax=0.5, steps=2)
 
 
 def main():

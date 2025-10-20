@@ -14,6 +14,39 @@ QME supports multiple machine learning potential backends, each with different s
 | `torchsim_*` | TorchSim accelerated backends | `pip install qme-ml-ml[torchsim]` | High performance, GPU |
 | `mock` | Harmonic oscillator for testing | Built-in | Testing, development |
 
+## Interpolation Methods
+
+QME supports multiple interpolation strategies for generating reaction pathways between molecular structures. These methods are used in two-ended optimizations, NEB calculations, and transition state searches.
+
+| Method | Description | Best For |
+|--------|-------------|----------|
+| `linear` | Simple linear interpolation between coordinates | Quick initial guesses, simple systems |
+| `geodesic` | Distance-preserving interpolation with bond length refinement | Chemically reasonable intermediates (default) |
+| `idpp` | Image-Dependent Pair Potential interpolation | Large geometry changes, robust pathways |
+| `quadratic` | Quadratic curve fitting through start, midpoint, and end | When approximate transition region is known |
+| `spline` | Cubic spline interpolation for smooth pathways | Smooth, continuous reaction coordinates |
+
+### Usage
+
+```bash
+# Command line - specify interpolation method
+qme opt reactant.xyz --product product.xyz --interp idpp
+qme path neb reactant.xyz product.xyz --interp spline
+qme tsopt interpolate reactant.xyz product.xyz --interp quadratic
+
+# Python API
+explorer = qme.Explorer(atoms=[reactant, product], target="path", strategy="interpolate")
+result = explorer.run(method="idpp", npoints=15)
+```
+
+### Method Selection Guide
+
+- **linear**: Fastest, good for initial exploration
+- **geodesic**: Default choice, balances speed and chemical reasonableness  
+- **idpp**: Most robust for large structural changes, slower but more reliable
+- **quadratic**: Good when you have a rough idea of the transition region
+- **spline**: Smoothest pathways, good for visualization and analysis
+
 ## UMA Backend
 
 **Universal Materials Accelerator** from Meta AI's FAIR research.

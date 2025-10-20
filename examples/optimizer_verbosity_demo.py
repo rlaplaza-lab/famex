@@ -9,7 +9,6 @@ the amount of output from QME optimizers through the Explorer class.
 import numpy as np
 from ase.build import molecule
 
-import qme
 from qme import Explorer
 
 
@@ -32,17 +31,17 @@ def main():
         # Quiet mode (verbose=0)
         print("  Quiet mode (verbose=0) - No output:")
         exp = Explorer(h2o, backend="mock", local_optimizer=opt_name, verbose=0)
-        result = exp.run(mode="minima", fmax=0.5, steps=2)
+        exp.run(mode="minima", fmax=0.5, steps=2)
 
         # Normal mode (verbose=1)
         print("  Normal mode (verbose=1) - Essential information:")
         exp = Explorer(h2o, backend="mock", local_optimizer=opt_name, verbose=1)
-        result = exp.run(mode="minima", fmax=0.5, steps=2)
+        exp.run(mode="minima", fmax=0.5, steps=2)
 
         # Verbose mode (verbose=2)
         print("  Verbose mode (verbose=2) - Detailed information:")
         exp = Explorer(h2o, backend="mock", local_optimizer=opt_name, verbose=2)
-        result = exp.run(mode="minima", fmax=0.5, steps=2)
+        exp.run(mode="minima", fmax=0.5, steps=2)
 
     print("\n" + "=" * 50)
     print("Demo completed! All optimizers now support verbosity control:")
