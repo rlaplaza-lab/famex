@@ -4,7 +4,8 @@ import pytest
 from ase import Atoms
 
 from qme.core.explorer import Explorer
-from qme.core.twoended_strategies import twoended_growing_string_runner
+
+# Function runner removed - use Explorer class instead
 
 
 class TestGrowingStringMethod:
@@ -20,10 +21,11 @@ class TestGrowingStringMethod:
         explorer = Explorer(reactant, backend="mock")
 
         # Run growing string method
-        result = twoended_growing_string_runner(
-            [reactant, product],
+        # Set the atoms_list on the explorer first
+        explorer.atoms_list = [reactant, product]
+        result = explorer.run(
+            mode="ts:growing_string",
             npoints=10,
-            explorer=explorer,
             fmax=0.5,
             steps=20,
             step_size=0.1,
@@ -41,7 +43,7 @@ class TestGrowingStringMethod:
         assert "backward_string" in result
 
         # Verify strategy name
-        assert result["strategy"] == "twoended_growing_string_runner"
+        assert result["strategy"] == "ts:growing_string"
 
         # Verify trajectory is a list
         assert isinstance(result["trajectory"], list)
@@ -62,52 +64,71 @@ class TestGrowingStringMethod:
         explorer = Explorer(single_atoms, backend="mock")
 
         # Should raise ValueError for single Atoms
+        explorer.atoms_list = single_atoms
         with pytest.raises(ValueError, match="requires two Atoms objects"):
-            twoended_growing_string_runner(single_atoms, explorer=explorer)
+            explorer.run(mode="ts:growing_string")
 
         # Should raise ValueError for more than two Atoms
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
         intermediate = Atoms("H2", positions=[(0, 0, 0), (1.0, 0, 0)])
 
+        explorer.atoms_list = [reactant, intermediate, product]
         with pytest.raises(ValueError, match="exactly 2 Atoms objects"):
-            twoended_growing_string_runner([reactant, intermediate, product], explorer=explorer)
+            explorer.run(mode="ts:growing_string")
 
-    def test_growing_string_with_endpoint_optimization(self):
-        """Test growing string with endpoint optimization enabled."""
+    @pytest.mark.parametrize(
+        "optimize_endpoints,refine_ts",
+        [
+            (True, False),
+            (False, False),
+        ],
+    )
+    def test_growing_string_optimization_options(self, optimize_endpoints, refine_ts):
+        """Test growing string with different optimization options."""
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
         explorer = Explorer(reactant, backend="mock")
+        explorer.atoms_list = [reactant, product]
 
-        result = twoended_growing_string_runner(
-            [reactant, product],
-            npoints=8,
-            explorer=explorer,
-            fmax=0.5,
-            steps=10,
-            optimize_endpoints=True,  # Enable endpoint optimization
-            refine_ts=False,
-        )
+        if refine_ts:
+            # Mock backend doesn't support TS optimization, so this should fail
+            with pytest.raises(ValueError, match="not suitable for transition state"):
+                explorer.run(
+                    mode="ts:growing_string",
+                    npoints=8,
+                    fmax=0.5,
+                    steps=10,
+                    optimize_endpoints=optimize_endpoints,
+                    refine_ts=refine_ts,
+                )
+        else:
+            result = explorer.run(
+                mode="ts:growing_string",
+                npoints=8,
+                fmax=0.5,
+                steps=10,
+                optimize_endpoints=optimize_endpoints,
+                refine_ts=refine_ts,
+            )
+            # Should complete successfully
+            assert result["strategy"] == "ts:growing_string"
+            assert len(result["trajectory"]) >= 2
 
-        # Should still complete successfully
-        assert result["strategy"] == "twoended_growing_string_runner"
-        assert len(result["trajectory"]) >= 2
-
-    def test_growing_string_with_ts_refinement(self):
-        """Test growing string with TS refinement enabled."""
+    def test_growing_string_with_ts_refinement_fails(self):
+        """Test growing string with TS refinement fails with mock backend."""
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
         explorer = Explorer(reactant, backend="mock")
+        explorer.atoms_list = [reactant, product]
 
         # Mock backend doesn't support TS optimization, so this should fail
-        # when refine_ts=True. Test that it raises the appropriate error.
         with pytest.raises(ValueError, match="not suitable for transition state"):
-            twoended_growing_string_runner(
-                [reactant, product],
+            explorer.run(
+                mode="ts:growing_string",
                 npoints=8,
-                explorer=explorer,
                 fmax=0.5,
                 steps=10,
                 optimize_endpoints=False,
@@ -126,7 +147,7 @@ class TestGrowingStringMethod:
         assert "gsm" in strategies
 
         # Verify strategy type
-        assert strategies["ts:growing_string"]["type"] == "two-ended"
+        assert strategies["ts:growing_string"]["type"] == "multi-structure"
 
     def test_growing_string_via_explorer_run(self):
         """Test growing string method registration and basic interface."""
@@ -144,44 +165,44 @@ class TestGrowingStringMethod:
         assert "gsm" in all_strategies
 
         # Verify it's registered as two-ended strategy for TS
-        assert all_strategies["ts:growing_string"]["type"] == "two-ended"
+        assert all_strategies["ts:growing_string"]["type"] == "multi-structure"
         assert "growing string" in all_strategies["ts:growing_string"]["description"].lower()
 
-    def test_growing_string_max_images_limit(self):
+    @pytest.mark.parametrize("npoints,steps", [(5, 100), (10, 50), (3, 20)])
+    def test_growing_string_max_images_limit(self, npoints, steps):
         """Test that growing string respects maximum images limit."""
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
         explorer = Explorer(reactant, backend="mock")
-
-        result = twoended_growing_string_runner(
-            [reactant, product],
-            npoints=5,  # Small limit
-            explorer=explorer,
+        explorer.atoms_list = [reactant, product]
+        result = explorer.run(
+            mode="ts:growing_string",
+            npoints=npoints,
             fmax=0.5,
-            steps=100,  # Many steps but should stop at npoints
+            steps=steps,
             optimize_endpoints=False,
             refine_ts=False,
         )
 
         # Total images should not exceed npoints
         total_images = len(result["forward_string"]) + len(result["backward_string"])
-        assert total_images <= 5
+        assert total_images <= npoints
 
-    def test_growing_string_distance_threshold(self):
+    @pytest.mark.parametrize("distance_threshold", [0.5, 1.0, 2.0])
+    def test_growing_string_distance_threshold(self, distance_threshold):
         """Test that growing string uses distance threshold for convergence."""
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (0.8, 0, 0)])  # Very close
 
         explorer = Explorer(reactant, backend="mock")
-
-        result = twoended_growing_string_runner(
-            [reactant, product],
+        explorer.atoms_list = [reactant, product]
+        result = explorer.run(
+            mode="ts:growing_string",
             npoints=20,
-            explorer=explorer,
             fmax=0.5,
             steps=50,
-            distance_threshold=1.0,  # Large threshold
+            distance_threshold=distance_threshold,
             optimize_endpoints=False,
             refine_ts=False,
         )

@@ -153,6 +153,7 @@ def benchmark_backend(
             device=device,
             default_charge=0,
             default_spin=1,
+            local_optimizer="bfgs",
         )
 
         init_time = time.perf_counter() - init_start
@@ -231,7 +232,6 @@ def benchmark_backend(
             mode="minima",
             fmax=0.01,
             steps=1000,
-            local_optimizer_name="BFGS",
         )
 
         opt_time = time.perf_counter() - opt_start
@@ -479,7 +479,9 @@ def main():
     # Determine which backends to test
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
-        available_backends = interface.filter_available_backends(requested_backends, verbose=args.verbose)
+        available_backends = interface.filter_available_backends(
+            requested_backends, verbose=args.verbose
+        )
 
         if not available_backends:
             interface.print_error("No requested backends are available!")

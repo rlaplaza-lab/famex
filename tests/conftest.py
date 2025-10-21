@@ -15,7 +15,21 @@ root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
 
 # Import test utilities after path setup
-from tests.test_utils import StandardTestAssertions, TestMoleculeFactory  # noqa: E402
+from tests.test_utils import (  # noqa: E402
+    BackendTestRunner,
+    BackendTestWarning,
+    StandardTestAssertions,
+    TestMoleculeFactory,
+    backend_test_with_warnings,
+    run_backend_test_with_warnings,
+)
 
 # Re-export for easy access in tests
-__all__ = ["StandardTestAssertions", "TestMoleculeFactory"]
+__all__ = [
+    "BackendTestRunner",
+    "BackendTestWarning",
+    "StandardTestAssertions",
+    "TestMoleculeFactory",
+    "backend_test_with_warnings",
+    "run_backend_test_with_warnings",
+]

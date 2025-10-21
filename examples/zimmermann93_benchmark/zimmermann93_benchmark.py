@@ -218,22 +218,30 @@ class Zimmermann93Benchmark:
                         reaction_data["timings"]["structure_loading"] = load_time
 
                         # Initialize Explorer with both reactant and product
-                        # for two-ended TS optimization
+                        # for growing string method TS optimization
                         init_start = time.perf_counter()
                         explorer = Explorer(
                             atoms=[reactant, product],
                             backend=backend,
-                            strategy="two-ended",
                             target="ts",
-                            mode="interpolate",
+                            strategy="growing_string",
+                            verbose=0,  # Suppress output since we're using suppress_verbose_output()
                         )
                         init_time = time.perf_counter() - init_start
                         reaction_data["timings"]["initialization"] = init_time
 
-                        # Run two-ended TS optimization
+                        # Run growing string method TS optimization
                         opt_start = time.perf_counter()
                         with suppress_verbose_output():
-                            ts_result = explorer.run(mode="ts", fmax=fmax, steps=steps)
+                            ts_result = explorer.run(
+                                fmax=fmax,
+                                steps=steps,
+                                npoints=npoints,
+                                step_size=0.1,
+                                distance_threshold=0.5,
+                                optimize_endpoints=True,
+                                refine_ts=True,
+                            )
                         opt_time = time.perf_counter() - opt_start
                         reaction_data["timings"]["optimization"] = opt_time
 

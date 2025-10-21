@@ -20,16 +20,18 @@ class TestConstraintManager:
     def test_initialization(self):
         assert len(self.constraint_manager.constraints) == 0
 
-    def test_add_fixed_atoms(self):
-        self.constraint_manager.add_fixed_atoms([0])
+    @pytest.mark.parametrize("atom_indices", [[0], [1], [2], [0, 2]])
+    def test_add_fixed_atoms(self, atom_indices):
+        self.constraint_manager.add_fixed_atoms(atom_indices)
         assert len(self.constraint_manager.constraints) == 1
         assert isinstance(self.constraint_manager.constraints[0], FixedAtomsConstraint)
 
         info = self.constraint_manager.get_constraint_info()
-        assert info["fixed_atoms"] == [0]
+        assert info["fixed_atoms"] == atom_indices
 
-    def test_add_harmonic_bond_constraint(self):
-        self.constraint_manager.add_harmonic_constraint("bond", [0, 1], 5.0)
+    @pytest.mark.parametrize("atoms,force_constant", [([0, 1], 5.0), ([1, 2], 3.0), ([0, 2], 2.5)])
+    def test_add_harmonic_bond_constraint(self, atoms, force_constant):
+        self.constraint_manager.add_harmonic_constraint("bond", atoms, force_constant)
         assert len(self.constraint_manager.constraints) == 1
         assert isinstance(self.constraint_manager.constraints[0], HarmonicBondConstraint)
 
@@ -37,11 +39,12 @@ class TestConstraintManager:
         assert len(info["harmonic_constraints"]) == 1
         hc = info["harmonic_constraints"][0]
         assert hc["type"] == "bond"
-        assert hc["atoms"] == [0, 1]
-        assert hc["force_constant"] == 5.0
+        assert hc["atoms"] == atoms
+        assert hc["force_constant"] == force_constant
 
-    def test_add_harmonic_angle_constraint(self):
-        self.constraint_manager.add_harmonic_constraint("angle", [1, 0, 2], 2.0)
+    @pytest.mark.parametrize("atoms,force_constant", [([1, 0, 2], 2.0), ([0, 1, 2], 1.5)])
+    def test_add_harmonic_angle_constraint(self, atoms, force_constant):
+        self.constraint_manager.add_harmonic_constraint("angle", atoms, force_constant)
         assert len(self.constraint_manager.constraints) == 1
         assert isinstance(self.constraint_manager.constraints[0], HarmonicAngleConstraint)
 
@@ -54,18 +57,34 @@ class TestConstraintParsing:
     def setup_method(self):
         self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
 
-    def test_parse_fixed_atoms(self):
-        cm = parse_constraint_string("fix 0", self.atoms)
+    @pytest.mark.parametrize(
+        "constraint_string,expected_atoms",
+        [
+            ("fix 0", [0]),
+            ("fix 1", [1]),
+            ("fix 0,2", [0, 2]),
+        ],
+    )
+    def test_parse_fixed_atoms(self, constraint_string, expected_atoms):
+        cm = parse_constraint_string(constraint_string, self.atoms)
         info = cm.get_constraint_info()
-        assert info["fixed_atoms"] == [0]
+        assert info["fixed_atoms"] == expected_atoms
 
-    def test_parse_harmonic_bond(self):
-        cm = parse_constraint_string("harmonic_bond 0,1 k=5.0", self.atoms)
+    @pytest.mark.parametrize(
+        "constraint_string,expected_atoms,expected_k",
+        [
+            ("harmonic_bond 0,1 k=5.0", [0, 1], 5.0),
+            ("harmonic_bond 1,2 k=3.0", [1, 2], 3.0),
+            ("harmonic_bond 0,2 k=2.5", [0, 2], 2.5),
+        ],
+    )
+    def test_parse_harmonic_bond(self, constraint_string, expected_atoms, expected_k):
+        cm = parse_constraint_string(constraint_string, self.atoms)
         info = cm.get_constraint_info()
         hc = info["harmonic_constraints"][0]
         assert hc["type"] == "bond"
-        assert hc["atoms"] == [0, 1]
-        assert hc["force_constant"] == 5.0
+        assert hc["atoms"] == expected_atoms
+        assert hc["force_constant"] == expected_k
 
     def test_parse_invalid(self):
         with pytest.raises(ValueError):
@@ -76,16 +95,19 @@ class TestConstraintValidation:
     def setup_method(self):
         self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
 
-    def test_validate_valid_indices(self):
-        assert validate_atom_indices([0, 1, 2], self.atoms) is True
+    @pytest.mark.parametrize("indices", [[0], [1], [2], [0, 1], [0, 2], [1, 2], [0, 1, 2]])
+    def test_validate_valid_indices(self, indices):
+        assert validate_atom_indices(indices, self.atoms) is True
 
-    def test_validate_invalid_indices(self):
+    @pytest.mark.parametrize("invalid_indices", [[0, 3], [1, 4], [0, 1, 3]])
+    def test_validate_invalid_indices(self, invalid_indices):
         with pytest.raises(ValueError):
-            validate_atom_indices([0, 3], self.atoms)
+            validate_atom_indices(invalid_indices, self.atoms)
 
-    def test_validate_non_integer(self):
+    @pytest.mark.parametrize("non_integer_indices", [[0, 1.5], [1.0, 2], [0.5]])
+    def test_validate_non_integer(self, non_integer_indices):
         with pytest.raises(ValueError):
-            validate_atom_indices([0, 1.5], self.atoms)  # type: ignore
+            validate_atom_indices(non_integer_indices, self.atoms)  # type: ignore
 
 
 class TestHarmonicConstraintInternals:
