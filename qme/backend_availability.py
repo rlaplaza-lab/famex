@@ -6,7 +6,10 @@ that avoids expensive calculator instantiation while still catching most
 compatibility issues.
 """
 
+from __future__ import annotations
+
 import importlib
+from typing import Union
 
 from qme.dependencies import deps
 
@@ -23,7 +26,7 @@ BACKEND_TORCHSIM_UMA = "torchsim_uma"
 
 def _check_package_conflict(
     package1: str, package2: str, conflict_packages: dict[tuple[str, str], str]
-) -> str | None:
+) -> Union[str, None]:
     """
     Check if two packages have known version conflicts.
 
@@ -48,7 +51,7 @@ def _check_package_conflict(
     }
 
     conflict_key = tuple(sorted([package1, package2]))
-    return conflicts.get(conflict_key)
+    return conflicts.get(conflict_key)  # type: ignore[arg-type]
 
 
 def _get_package_version(package_name: str) -> str | None:

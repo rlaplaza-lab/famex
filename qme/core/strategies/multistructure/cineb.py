@@ -1,7 +1,9 @@
 """CI-NEB (Climbing Image Nudged Elastic Band) path optimization strategy."""
 
+from __future__ import annotations
+
 import warnings
-from typing import Any
+from typing import Any, Union
 
 from ase import Atoms
 
@@ -31,8 +33,8 @@ class MultiStructureCINEBStrategy(BaseStrategy):
         steps: int = 1000,
         spring_constant: float = 5.0,
         climb: bool = True,
-        **kwargs,
-    ) -> dict[str, Any]:
+        **kwargs: Any,
+    ) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
         """Run CI-NEB path optimization.
 
         Parameters
@@ -51,13 +53,20 @@ class MultiStructureCINEBStrategy(BaseStrategy):
             Spring constant for NEB spring forces
         climb : bool, default=True
             Whether to enable climbing image behavior
-        **kwargs
+        **kwargs : Any
             Additional keyword arguments
 
         Returns
         -------
-        dict[str, Any]
-            Standardized result dictionary
+        dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
+            Standardized result dictionary containing:
+            - optimized_atoms: CI-NEB path structures (list[Atoms])
+            - strategy: Strategy name (str)
+            - converged: Whether CI-NEB optimization converged (bool)
+            - steps_taken: Number of optimization steps (int)
+            - npoints: Number of images in the path (int)
+            - method: Interpolation method used (str)
+            - climb: Whether climbing image was used (bool)
         """
         self.validate_inputs(atoms_list)
 

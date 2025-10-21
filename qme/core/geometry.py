@@ -2,7 +2,9 @@
 Geometry class for representing molecular structures in QME.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, Union
 
 import numpy as np
 from ase import Atoms
@@ -89,13 +91,13 @@ class Geometry(Atoms):
         # Store additional properties
         self.charge = charge
         self.mult = mult
-        self._energy = None
-        self._forces = None
+        self._energy: Union[float, None] = None
+        self._forces: Union[np.ndarray, None] = None
 
     @property
     def coords3d(self) -> np.ndarray:
         """Get coordinates as (n_atoms, 3) array."""
-        return self.get_positions()
+        return np.array(self.get_positions())
 
     @coords3d.setter
     def coords3d(self, positions: np.ndarray) -> None:
@@ -105,7 +107,7 @@ class Geometry(Atoms):
     @property
     def coords(self) -> np.ndarray:
         """Get coordinates as flat array [x1, y1, z1, x2, y2, z2, ...]."""
-        return self.coords3d.flatten()
+        return np.array(self.coords3d).flatten()
 
     @coords.setter
     def coords(self, coords: np.ndarray) -> None:
@@ -118,30 +120,32 @@ class Geometry(Atoms):
         return list(super().get_chemical_symbols())
 
     @property
-    def energy(self) -> float | None:
+    def energy(self) -> Union[float, None]:
         """Get energy if calculated."""
         if self.calc is not None:
             try:
-                return self.get_potential_energy()
+                energy_val = self.get_potential_energy()
+                return float(energy_val) if energy_val is not None else None
             except Exception:
                 return self._energy
         return self._energy
 
     @energy.setter
-    def energy(self, value: float | None) -> None:
+    def energy(self, value: Union[float, None]) -> None:
         """Set energy value."""
         self._energy = value
 
-    def get_forces(self, apply_constraint: bool = True, md: bool = False) -> np.ndarray | None:
+    def get_forces(self, apply_constraint: bool = True, md: bool = False) -> Union[np.ndarray, None]:
         """Get forces if calculated."""
         if self.calc is not None:
             try:
-                return super().get_forces(apply_constraint, md)
+                forces = super().get_forces(apply_constraint, md)
+                return np.array(forces) if forces is not None else None
             except Exception:
                 return getattr(self, "_forces", None)
         return getattr(self, "_forces", None)
 
-    def copy(self) -> "Geometry":
+    def copy(self) -> Geometry:
         """Create a copy of the geometry."""
         atoms_copy = super().copy()
         new_geom = Geometry(ase_atoms=atoms_copy, charge=self.charge, mult=self.mult)
@@ -151,11 +155,11 @@ class Geometry(Atoms):
 
     def get_distance_between(self, atom1: int, atom2: int) -> float:
         """Get distance between two atoms."""
-        return self.get_distance(atom1, atom2)
+        return float(self.get_distance(atom1, atom2))
 
     def get_all_pairwise_distances(self) -> np.ndarray:
         """Get all pairwise distances."""
-        return super().get_all_distances()
+        return np.array(super().get_all_distances())
 
     def get_angle_degrees(self, atom1: int, atom2: int, atom3: int) -> float:
         """Get angle between three atoms in degrees.
@@ -170,7 +174,7 @@ class Geometry(Atoms):
         float
             Angle in degrees
         """
-        return self.get_angle(atom1, atom2, atom3) * 180.0 / np.pi
+        return float(self.get_angle(atom1, atom2, atom3) * 180.0 / np.pi)
 
     def get_dihedral_degrees(self, atom1: int, atom2: int, atom3: int, atom4: int) -> float:
         """Get dihedral angle between four atoms in degrees.
@@ -185,7 +189,7 @@ class Geometry(Atoms):
         float
             Dihedral angle in degrees
         """
-        return self.get_dihedral(atom1, atom2, atom3, atom4) * 180.0 / np.pi
+        return float(self.get_dihedral(atom1, atom2, atom3, atom4) * 180.0 / np.pi)
 
     def center_of_mass(self) -> np.ndarray:
         """Get center of mass coordinates.
@@ -195,7 +199,7 @@ class Geometry(Atoms):
         np.ndarray
             Center of mass coordinates (x, y, z)
         """
-        return self.get_center_of_mass()
+        return np.array(self.get_center_of_mass())
 
     def __str__(self) -> str:
         """String representation."""
@@ -205,7 +209,7 @@ class Geometry(Atoms):
         return self.__str__()
 
 
-def read_geometry(filename: str, **kwargs: Any) -> Geometry:
+def read_geometry(filename: str, **kwargs: Any) -> Union[Geometry, list[Geometry]]:
     """
     Read geometry from file using ASE.
 
@@ -213,12 +217,12 @@ def read_geometry(filename: str, **kwargs: Any) -> Geometry:
     ----------
     filename : str
         Path to geometry file
-    **kwargs
+    **kwargs : Any
         Additional arguments passed to ase.io.read
 
     Returns
     -------
-    Geometry or List[Geometry]
+    Geometry or list[Geometry]
         QME Geometry object(s) with loaded structure(s)
     """
     atoms = read(filename, **kwargs)
@@ -228,7 +232,7 @@ def read_geometry(filename: str, **kwargs: Any) -> Geometry:
         return Geometry(ase_atoms=atoms)
 
 
-def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> None:
+def write_geometry(geometry: Union[Geometry, Atoms], filename: str, **kwargs: Any) -> None:
     """
     Write geometry to file using ASE.
 
@@ -238,7 +242,7 @@ def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> 
         Geometry to write (can be Geometry object or ASE Atoms object)
     filename : str
         Output filename
-    **kwargs
+    **kwargs : Any
         Additional arguments passed to ase.io.write
     """
     # Handle both Geometry objects (which inherit from Atoms) and plain ASE Atoms
@@ -251,22 +255,28 @@ def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> 
         write(filename, geometry, **kwargs)
 
 
-def read_gaussian_input(filename: str) -> (Atoms, str):
+def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
     """Reads a Gaussian input file (.com or .gjf) and determines the intended calculation type.
 
     Parses the route section to detect if it's a minimization or a transition state search
     and extracts the molecular geometry.
 
-    Args:
-        filename: Path to the Gaussian input file.
+    Parameters
+    ----------
+    filename : str
+        Path to the Gaussian input file
 
-    Returns:
+    Returns
+    -------
+    tuple[Geometry, str]
         A tuple containing:
-        - a Geometry object with the structure, charge, and multiplicity.
-        - a string indicating the job type ('minimize' or 'transition_state').
+        - Geometry object with the structure, charge, and multiplicity
+        - String indicating the job type ('minimize' or 'transition_state')
 
-    Raises:
-        ValueError: If the file cannot be parsed or the job type is unclear.
+    Raises
+    ------
+    ValueError
+        If the file cannot be parsed or the job type is unclear
     """
     with open(filename) as f:
         lines = f.readlines()

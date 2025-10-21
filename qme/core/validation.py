@@ -4,6 +4,8 @@ This module provides input validation for different types of optimization runs,
 checking atoms, optimizer compatibility, backend requirements, and other constraints.
 """
 
+from __future__ import annotations
+
 from ase import Atoms
 
 

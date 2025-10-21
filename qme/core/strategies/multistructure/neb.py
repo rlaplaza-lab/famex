@@ -1,7 +1,9 @@
 """NEB (Nudged Elastic Band) path optimization strategy."""
 
+from __future__ import annotations
+
 import warnings
-from typing import Any
+from typing import Any, Union
 
 from ase import Atoms
 
@@ -30,8 +32,8 @@ class MultiStructureNEBStrategy(BaseStrategy):
         fmax: float = 0.05,
         steps: int = 1000,
         spring_constant: float = 5.0,
-        **kwargs,
-    ) -> dict[str, Any]:
+        **kwargs: Any,
+    ) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
         """Run NEB path optimization.
 
         Parameters
@@ -48,13 +50,19 @@ class MultiStructureNEBStrategy(BaseStrategy):
             Maximum optimization steps
         spring_constant : float, default=5.0
             Spring constant for NEB spring forces
-        **kwargs
+        **kwargs : Any
             Additional keyword arguments
 
         Returns
         -------
-        dict[str, Any]
-            Standardized result dictionary
+        dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
+            Standardized result dictionary containing:
+            - optimized_atoms: NEB path structures (list[Atoms])
+            - strategy: Strategy name (str)
+            - converged: Whether NEB optimization converged (bool)
+            - steps_taken: Number of optimization steps (int)
+            - npoints: Number of images in the path (int)
+            - method: Interpolation method used (str)
         """
         self.validate_inputs(atoms_list)
 

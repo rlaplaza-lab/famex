@@ -54,12 +54,15 @@ class LinearInterpolation(InterpolationStrategy):
         self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
     ) -> list[np.ndarray]:
         """Perform linear interpolation between start and end coordinates."""
-        path_coords = []
+        n_atoms, n_dims = start_coords.shape
+        path_coords_array = np.empty((npoints, n_atoms, n_dims))
+        
         for i in range(npoints):
             alpha = i / (npoints - 1)
-            coords = (1 - alpha) * start_coords + alpha * end_coords
-            path_coords.append(coords)
-        return path_coords
+            path_coords_array[i] = (1 - alpha) * start_coords + alpha * end_coords
+        
+        # Convert to list of arrays for API compatibility
+        return [path_coords_array[i] for i in range(npoints)]
 
 
 class GeodesicInterpolation(InterpolationStrategy):
@@ -74,7 +77,8 @@ class GeodesicInterpolation(InterpolationStrategy):
         self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
     ) -> list[np.ndarray]:
         """Perform geodesic interpolation with bond length preservation."""
-        path_coords = []
+        n_atoms, n_dims = start_coords.shape
+        path_coords_array = np.empty((npoints, n_atoms, n_dims))
 
         # Get all pairwise distances at start and end
         start_dists = self._get_distance_matrix(start_coords)
@@ -91,22 +95,15 @@ class GeodesicInterpolation(InterpolationStrategy):
 
             # Refine coordinates to better match target distances
             refined_coords = self._refine_coordinates(linear_coords, target_dists)
+            path_coords_array[i] = refined_coords
 
-            path_coords.append(refined_coords)
-
-        return path_coords
+        # Convert to list of arrays for API compatibility
+        return [path_coords_array[i] for i in range(npoints)]
 
     def _get_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
-        """Get pairwise distance matrix."""
-        n_atoms = len(coords)
-        dists = np.zeros((n_atoms, n_atoms))
-
-        for i in range(n_atoms):
-            for j in range(i + 1, n_atoms):
-                dist = np.linalg.norm(coords[i] - coords[j])
-                dists[i, j] = dists[j, i] = dist
-
-        return dists
+        """Get pairwise distance matrix using vectorized operations."""
+        from scipy.spatial.distance import cdist
+        return cdist(coords, coords, metric='euclidean')
 
     def _refine_coordinates(
         self, coords: np.ndarray, target_dists: np.ndarray, max_iter: int = 10
@@ -163,7 +160,8 @@ class IDPPInterpolation(InterpolationStrategy):
         self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
     ) -> list[np.ndarray]:
         """Perform IDPP interpolation."""
-        path_coords = []
+        n_atoms, n_dims = start_coords.shape
+        path_coords_array = np.empty((npoints, n_atoms, n_dims))
 
         # Start with linear interpolation
         linear_interp = LinearInterpolation()
@@ -173,13 +171,14 @@ class IDPPInterpolation(InterpolationStrategy):
         for i, coords in enumerate(initial_path):
             if i in (0, npoints - 1):
                 # Keep endpoints unchanged
-                path_coords.append(coords)
+                path_coords_array[i] = coords
             else:
                 # Refine intermediate images
                 refined_coords = self._idpp_refine(coords, start_coords, end_coords, i, npoints)
-                path_coords.append(refined_coords)
+                path_coords_array[i] = refined_coords
 
-        return path_coords
+        # Convert to list of arrays for API compatibility
+        return [path_coords_array[i] for i in range(npoints)]
 
     def _idpp_refine(
         self,
@@ -231,16 +230,9 @@ class IDPPInterpolation(InterpolationStrategy):
         return coords
 
     def _get_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
-        """Get pairwise distance matrix."""
-        n_atoms = len(coords)
-        dists = np.zeros((n_atoms, n_atoms))
-
-        for i in range(n_atoms):
-            for j in range(i + 1, n_atoms):
-                dist = np.linalg.norm(coords[i] - coords[j])
-                dists[i, j] = dists[j, i] = dist
-
-        return dists
+        """Get pairwise distance matrix using vectorized operations."""
+        from scipy.spatial.distance import cdist
+        return cdist(coords, coords, metric='euclidean')
 
 
 class QuadraticInterpolation(InterpolationStrategy):
@@ -255,7 +247,8 @@ class QuadraticInterpolation(InterpolationStrategy):
         self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
     ) -> list[np.ndarray]:
         """Perform quadratic interpolation."""
-        path_coords = []
+        n_atoms, n_dims = start_coords.shape
+        path_coords_array = np.empty((npoints, n_atoms, n_dims))
 
         # Create midpoint guess (average of start and end)
         midpoint_coords = 0.5 * (start_coords + end_coords)
@@ -273,9 +266,10 @@ class QuadraticInterpolation(InterpolationStrategy):
                 t = 2 * (alpha - 0.5)
                 coords = self._quadratic_interpolate(midpoint_coords, end_coords, t)
 
-            path_coords.append(coords)
+            path_coords_array[i] = coords
 
-        return path_coords
+        # Convert to list of arrays for API compatibility
+        return [path_coords_array[i] for i in range(npoints)]
 
     def _quadratic_interpolate(self, start: np.ndarray, end: np.ndarray, t: float) -> np.ndarray:
         """Quadratic interpolation between two points."""
@@ -298,7 +292,8 @@ class CubicSplineInterpolation(InterpolationStrategy):
         self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
     ) -> list[np.ndarray]:
         """Perform cubic spline interpolation."""
-        path_coords = []
+        n_atoms, n_dims = start_coords.shape
+        path_coords_array = np.empty((npoints, n_atoms, n_dims))
 
         # Create control points for spline
         # Use start, two intermediate points, and end
@@ -313,9 +308,10 @@ class CubicSplineInterpolation(InterpolationStrategy):
         for i in range(npoints):
             t = i / (npoints - 1)
             coords = self._cubic_spline_interpolate(control_points, t)
-            path_coords.append(coords)
+            path_coords_array[i] = coords
 
-        return path_coords
+        # Convert to list of arrays for API compatibility
+        return [path_coords_array[i] for i in range(npoints)]
 
     def _cubic_spline_interpolate(self, control_points: list[np.ndarray], t: float) -> np.ndarray:
         """Cubic spline interpolation through control points."""

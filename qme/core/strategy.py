@@ -6,9 +6,11 @@ This module provides the foundation for the strategy system, including:
 - StrategyRegistry: Registry for managing strategy classes
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Union
 
 from ase import Atoms
 
@@ -50,7 +52,7 @@ class BaseStrategy(ABC):
 
     metadata: ClassVar[StrategyMetadata]
 
-    def __init__(self, explorer: Any):
+    def __init__(self, explorer: Any) -> None:
         """Initialize strategy with explorer instance.
 
         Parameters
@@ -61,23 +63,24 @@ class BaseStrategy(ABC):
         self.explorer = explorer
 
     @abstractmethod
-    def run(self, atoms_list: list[Atoms], **kwargs) -> dict[str, Any]:
+    def run(self, atoms_list: list[Atoms], **kwargs: Any) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
         """Execute strategy. Returns standardized result dict.
 
         Parameters
         ----------
         atoms_list : list[Atoms]
             List of structures to optimize
-        **kwargs
+        **kwargs : Any
             Strategy-specific parameters
 
         Returns
         -------
-        dict[str, Any]
+        dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
             Standardized result dictionary with at least:
-            - optimized_atoms: Optimized structure(s)
-            - strategy: Strategy name
-            - converged: Whether optimization converged
+            - optimized_atoms: Optimized structure(s) (Atoms or list[Atoms])
+            - strategy: Strategy name (str)
+            - converged: Whether optimization converged (bool)
+            - Additional strategy-specific metadata
         """
 
     def validate_inputs(self, atoms_list: list[Atoms]) -> None:
@@ -99,26 +102,32 @@ class BaseStrategy(ABC):
         if self.metadata.requires_multiple_structures and len(atoms_list) < 2:
             raise ValueError(f"{self.metadata.name} requires 2+ structures, got {len(atoms_list)}")
 
-    def prepare_result(self, optimized_atoms: Any, **metadata) -> dict[str, Any]:
+    def prepare_result(self, optimized_atoms: Union[Atoms, list[Atoms]], **metadata: Any) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
         """Standardize result format.
 
         Parameters
         ----------
-        optimized_atoms : Any
+        optimized_atoms : Atoms or list[Atoms]
             Optimized structure(s) from strategy
-        **metadata
+        **metadata : Any
             Additional metadata to include in result
 
         Returns
         -------
-        dict[str, Any]
+        dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
             Standardized result dictionary
         """
-        result = {
+        result: dict[str, Union[Atoms, list[Atoms], bool, int, float, str]] = {
             "optimized_atoms": optimized_atoms,
             "strategy": self.metadata.name,
         }
-        result.update(metadata)
+        # Convert metadata values to the expected types
+        for key, value in metadata.items():
+            if isinstance(value, (Atoms, list, bool, int, float, str)):
+                result[key] = value
+            else:
+                # Convert other types to string for compatibility
+                result[key] = str(value)
         return result
 
 
@@ -128,7 +137,7 @@ class StrategyRegistry:
     Manages registration and lookup of strategy classes by name or alias.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize empty registry."""
         self._strategies: dict[str, type[BaseStrategy]] = {}
 

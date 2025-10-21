@@ -1,6 +1,8 @@
 """Local minima optimization strategy."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, Union
 
 from ase import Atoms
 
@@ -25,8 +27,8 @@ class LocalMinimaStrategy(BaseStrategy):
     )
 
     def run(
-        self, atoms_list: list[Atoms], fmax: float = 0.05, steps: int = 1000, **kwargs
-    ) -> dict[str, Any]:
+        self, atoms_list: list[Atoms], fmax: float = 0.05, steps: int = 1000, **kwargs: Any
+    ) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
         """Run local minima optimization.
 
         Parameters
@@ -37,13 +39,17 @@ class LocalMinimaStrategy(BaseStrategy):
             Force convergence threshold
         steps : int, default=1000
             Maximum optimization steps
-        **kwargs
+        **kwargs : Any
             Additional keyword arguments
 
         Returns
         -------
-        dict[str, Any]
-            Standardized result dictionary
+        dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
+            Standardized result dictionary containing:
+            - optimized_atoms: Optimized structure(s) (Atoms or list[Atoms])
+            - strategy: Strategy name (str)
+            - converged: Whether optimization converged (bool)
+            - steps_taken: Number of optimization steps (int)
         """
         self.validate_inputs(atoms_list)
 

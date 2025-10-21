@@ -9,8 +9,10 @@ This module provides comprehensive path management including:
 - Energy profile calculations
 """
 
+from __future__ import annotations
+
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 from ase import Atoms

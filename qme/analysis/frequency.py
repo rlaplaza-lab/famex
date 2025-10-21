@@ -12,7 +12,9 @@ Based on ASE's Vibrations class but extended for QME functionality with automati
 method selection and enhanced calculator integration.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, Union
 
 import numpy as np
 from ase import Atoms, units
@@ -71,7 +73,7 @@ class FrequencyAnalysis:
             - 1: Normal (default, shows progress)
             - 2: Verbose (detailed information)
         """
-        self.atoms = atoms.copy()
+        self.atoms = atoms
         self.calculator = calculator
         self.atoms.calc = calculator
         self.delta = delta
@@ -420,7 +422,7 @@ class FrequencyAnalysis:
 
         return self._normal_modes[:, self.nfree :]
 
-    def is_transition_state(self, threshold: float = 50.0) -> dict[str, Any]:
+    def is_transition_state(self, threshold: float = 50.0) -> dict[str, Union[bool, int, list[float], str]]:
         """
         Check if structure is a transition state (exactly one imaginary frequency).
 
@@ -429,10 +431,17 @@ class FrequencyAnalysis:
         threshold : float
             Minimum frequency magnitude in cm^-1 to consider significant
 
-        Returns:
-        --------
-        Dict[str, Any]
-            Dictionary with TS verification results
+        Returns
+        -------
+        dict[str, Union[bool, int, list[float], str]]
+            Dictionary with TS verification results containing:
+            - is_transition_state: Whether structure is a TS (bool)
+            - n_imaginary_frequencies: Number of imaginary frequencies (int)
+            - imaginary_frequencies: List of imaginary frequencies (list[float])
+            - n_near_zero_frequencies: Number of near-zero frequencies (int)
+            - all_frequencies: All frequencies (list[float])
+            - threshold: Threshold used (float)
+            - assessment: Assessment string (str)
         """
         frequencies = self.get_frequencies()
 
@@ -469,7 +478,7 @@ class FrequencyAnalysis:
 
     def is_minima(
         self, threshold: float = 50.0, small_negative_cutoff: float = -10.0
-    ) -> dict[str, Any]:
+    ) -> dict[str, Union[bool, int, list[float], str]]:
         """
         Check if structure is a minimum (no significant imaginary frequencies).
 
@@ -481,10 +490,20 @@ class FrequencyAnalysis:
             Maximum negative frequency in cm^-1 to consider as "small negative"
             (likely numerical noise, not a true imaginary frequency)
 
-        Returns:
-        --------
-        Dict[str, Any]
-            Dictionary with minima verification results
+        Returns
+        -------
+        dict[str, Union[bool, int, list[float], str]]
+            Dictionary with minima verification results containing:
+            - is_minimum: Whether structure is a minimum (bool)
+            - n_significant_imaginary_frequencies: Number of significant imaginary frequencies (int)
+            - n_small_negative_frequencies: Number of small negative frequencies (int)
+            - significant_imaginary_frequencies: List of significant imaginary frequencies (list[float])
+            - small_negative_frequencies: List of small negative frequencies (list[float])
+            - n_near_zero_frequencies: Number of near-zero frequencies (int)
+            - all_frequencies: All frequencies (list[float])
+            - threshold: Threshold used (float)
+            - small_negative_cutoff: Small negative cutoff used (float)
+            - assessment: Assessment string (str)
         """
         frequencies = self.get_frequencies()
 
@@ -574,7 +593,7 @@ class FrequencyAnalysis:
         self._zero_point_energy = zpe
         return zpe
 
-    def get_thermodynamic_properties(self, temperature: float = 298.15) -> dict[str, float]:
+    def get_thermodynamic_properties(self, temperature: float = 298.15) -> dict[str, Union[float, int, list[float]]]:
         """
         Calculate thermodynamic properties at given temperature.
 
@@ -583,10 +602,17 @@ class FrequencyAnalysis:
         temperature : float
             Temperature in Kelvin
 
-        Returns:
-        --------
-        Dict[str, float]
-            Dictionary with thermodynamic properties (all in eV except entropy in eV/K)
+        Returns
+        -------
+        dict[str, Union[float, int, list[float]]]
+            Dictionary with thermodynamic properties containing:
+            - temperature: Temperature in Kelvin (float)
+            - zero_point_energy: Zero-point energy in eV (float)
+            - internal_energy: Internal energy in eV (float)
+            - heat_capacity: Heat capacity in eV/K (float)
+            - entropy: Entropy in eV/K (float)
+            - n_vibrational_modes: Number of vibrational modes (int)
+            - frequencies_cm_1: Frequencies in cm⁻¹ (list[float])
         """
         frequencies = self.get_frequencies()  # in cm^-1
         # Only include real frequencies
@@ -704,7 +730,7 @@ class HessianCalculator:
             - 1: Normal (default, shows progress)
             - 2: Verbose (detailed information)
         """
-        self.atoms = atoms.copy()
+        self.atoms = atoms
         self.calculator = calculator
         self.atoms.calc = calculator
         self.delta = delta

@@ -1,6 +1,8 @@
 """IRC (Intrinsic Reaction Coordinate) path calculation strategy."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, Union
 
 import numpy as np
 from ase import Atoms
@@ -32,8 +34,8 @@ class LocalIRCStrategy(BaseStrategy):
         step_size: float = 0.1,
         direction: str = "both",
         validate_ts: bool = True,
-        **kwargs,
-    ) -> dict[str, Any]:
+        **kwargs: Any,
+    ) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
         """Run IRC path calculation.
 
         Parameters
@@ -50,13 +52,19 @@ class LocalIRCStrategy(BaseStrategy):
             Direction to follow: "forward", "backward", or "both"
         validate_ts : bool, default=True
             Whether to validate that the starting structure is a transition state
-        **kwargs
+        **kwargs : Any
             Additional keyword arguments
 
         Returns
         -------
-        dict[str, Any]
-            Standardized result dictionary
+        dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
+            Standardized result dictionary containing:
+            - optimized_atoms: IRC path structures (list[Atoms])
+            - strategy: Strategy name (str)
+            - converged: Whether IRC calculation converged (bool)
+            - steps_taken: Number of IRC steps taken (int)
+            - direction: Direction followed (str)
+            - ts_validation: Transition state validation results (dict, optional)
         """
         self.validate_inputs(atoms_list)
 

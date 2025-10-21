@@ -7,8 +7,10 @@ and provides a compatible ``calculate`` signature so subclasses can call
 setup work.
 """
 
+from __future__ import annotations
+
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Union
 
 from ase import Atoms
 
@@ -83,28 +85,32 @@ class BasePotential:
         # ``self.results`` when appropriate.
         return
 
-    def _prepare_calculation(self, atoms: Atoms | None = None) -> Any | None:
+    def _prepare_calculation(self, atoms: Atoms | None = None) -> Union[Any, None]:
         """Prepare for a calculation by setting atoms and ensuring backend is loaded.
 
-        Args:
-            atoms: An optional ASE Atoms object. If provided, it will be set
-                   as `self.atoms`.
+        Parameters
+        ----------
+        atoms : Atoms, optional
+            An optional ASE Atoms object. If provided, it will be set
+            as `self.atoms`.
 
-        Returns:
+        Returns
+        -------
+        Any or None
             The loaded backend calculator object, or None if loading failed.
         """
         if atoms is not None:
             self.atoms = atoms
         return self.ensure_loaded()
 
-    def _backend_obj(self) -> Any | None:
+    def _backend_obj(self) -> Union[Any, None]:
         """Return the standardized backend calculator stored in ``self._calc``.
 
         If the attribute is not present or is None, return None.
         """
         return getattr(self, "_calc", None)
 
-    def ensure_loaded(self) -> Any | None:
+    def ensure_loaded(self) -> Union[Any, None]:
         """Ensure the underlying backend calculator is loaded.
 
         Calls subclass ``_load_calculator`` if no backend object is present.
@@ -143,7 +149,7 @@ class BasePotential:
         self.calculate(self.atoms, properties=["energy"], system_changes=None)
         return float(self.results.get("energy", 0.0))
 
-    def get_forces(self, atoms: Atoms | None = None) -> Any | None:
+    def get_forces(self, atoms: Atoms | None = None) -> Union[Any, None]:
         """Generic get_forces that delegates to underlying backend.
 
         If the backend provides ``get_forces`` it is delegated to. Otherwise a
