@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, ClassVar, Union
+from typing import Any, ClassVar
 
 from ase import Atoms
 
@@ -52,18 +52,21 @@ class BaseStrategy(ABC):
 
     metadata: ClassVar[StrategyMetadata]
 
-    def __init__(self, explorer: Any) -> None:
+    def __init__(self, explorer: Any, profiler: Any | None = None) -> None:
         """Initialize strategy with explorer instance.
 
         Parameters
         ----------
         explorer : Any
             Explorer instance for calculator and constraint management
+        profiler : Any, optional
+            Performance profiler instance for tracking execution metrics
         """
         self.explorer = explorer
+        self.profiler = profiler
 
     @abstractmethod
-    def run(self, atoms_list: list[Atoms], **kwargs: Any) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
+    def run(self, atoms_list: list[Atoms], **kwargs: Any) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Execute strategy. Returns standardized result dict.
 
         Parameters
@@ -99,10 +102,24 @@ class BaseStrategy(ABC):
         if not atoms_list:
             raise ValueError("No atoms provided")
 
-        if self.metadata.requires_multiple_structures and len(atoms_list) < 2:
-            raise ValueError(f"{self.metadata.name} requires 2+ structures, got {len(atoms_list)}")
+    def _merge_profiler_results(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Merge profiler results into strategy result if profiler is available.
 
-    def prepare_result(self, optimized_atoms: Union[Atoms, list[Atoms]], **metadata: Any) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
+        Parameters
+        ----------
+        result : dict[str, Any]
+            Strategy result dictionary
+
+        Returns
+        -------
+        dict[str, Any]
+            Result dictionary with profiler data merged in
+        """
+        if self.profiler is not None:
+            result["performance"] = self.profiler.get_summary()
+        return result
+
+    def prepare_result(self, optimized_atoms: Atoms | list[Atoms], **metadata: Any) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Standardize result format.
 
         Parameters
@@ -117,7 +134,7 @@ class BaseStrategy(ABC):
         dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
             Standardized result dictionary
         """
-        result: dict[str, Union[Atoms, list[Atoms], bool, int, float, str]] = {
+        result: dict[str, Atoms | list[Atoms] | bool | int | float | str] = {
             "optimized_atoms": optimized_atoms,
             "strategy": self.metadata.name,
         }

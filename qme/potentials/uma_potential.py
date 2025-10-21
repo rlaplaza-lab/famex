@@ -5,7 +5,7 @@ UMA Machine Learning Potential integration for ASE.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -209,7 +209,7 @@ class UMAPotential(BasePotential):
         """Get potential energy (ASE-compatible)."""
         return super().get_potential_energy(atoms, force_consistent)
 
-    def get_forces(self, atoms: Atoms | None = None) -> Union[np.ndarray, None]:
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray | None:
         """Get forces (ASE-compatible)."""
         return super().get_forces(atoms)
 
@@ -234,7 +234,7 @@ def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs: Any) -> UMAPoten
     --------
     >>> # Get default UMA calculator
     >>> calc = get_uma_calculator()
-    
+
     >>> # Get specific model
     >>> calc = get_uma_calculator("uma-s-1p1", device="cuda")
     """

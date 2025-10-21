@@ -9,7 +9,6 @@ compatibility issues.
 from __future__ import annotations
 
 import importlib
-from typing import Union
 
 from qme.dependencies import deps
 
@@ -27,7 +26,7 @@ BACKEND_TORCHSIM_UMA = "torchsim_uma"
 
 def _check_package_conflict(
     package1: str, package2: str, conflict_packages: dict[tuple[str, str], str]
-) -> Union[str, None]:
+) -> str | None:
     """
     Check if two packages have known version conflicts.
 
@@ -129,7 +128,7 @@ class BackendAvailabilityChecker:
     def __init__(self) -> None:
         self._cache: dict[str, bool] = {}
         self._conflict_cache: dict[str, str | None] = {}
-        
+
         # Centralized requirements mapping
         self._requirements = {
             BACKEND_MOCK: [],
@@ -142,7 +141,7 @@ class BackendAvailabilityChecker:
             BACKEND_TORCHSIM_MACE: ["torch_sim", "torch"],
             BACKEND_TORCHSIM_UMA: ["torch_sim", "torch", "fairchem"],
         }
-        
+
         # Human-readable package names for error messages
         self._package_names = {
             BACKEND_AIMNET2: ["torch", "torch-cluster"],
