@@ -20,6 +20,7 @@ BACKEND_UMA = "uma"
 BACKEND_MACE = "mace"
 BACKEND_SO3LR = "so3lr"
 BACKEND_ORB = "orb"
+BACKEND_TBLITE = "tblite"
 BACKEND_TORCHSIM_MACE = "torchsim_mace"
 BACKEND_TORCHSIM_UMA = "torchsim_uma"
 
@@ -138,6 +139,7 @@ class BackendAvailabilityChecker:
             BACKEND_SO3LR: ["so3lr"],
             BACKEND_MACE: ["mace", "torch"],
             BACKEND_ORB: ["orb_models", "torch"],
+            BACKEND_TBLITE: ["tblite"],
             BACKEND_TORCHSIM_MACE: ["torch_sim", "torch"],
             BACKEND_TORCHSIM_UMA: ["torch_sim", "torch", "fairchem"],
         }
@@ -232,6 +234,7 @@ class BackendAvailabilityChecker:
                 BACKEND_SO3LR: ["so3lr"],
                 BACKEND_MACE: ["mace-torch", "torch"],
                 BACKEND_ORB: ["orb-models", "torch"],
+                BACKEND_TBLITE: ["tblite"],
                 BACKEND_TORCHSIM_MACE: ["torch-sim-atomistic", "torch"],
                 BACKEND_TORCHSIM_UMA: ["torch-sim-atomistic", "torch", "fairchem-core"],
             }
@@ -257,6 +260,7 @@ class BackendAvailabilityChecker:
             BACKEND_SO3LR,
             BACKEND_MACE,
             BACKEND_ORB,
+            BACKEND_TBLITE,
             BACKEND_TORCHSIM_MACE,
             BACKEND_TORCHSIM_UMA,
         ]
@@ -313,6 +317,7 @@ def get_backend_error_message(backend: str) -> str:
         BACKEND_MACE: "pip install qme-ml[mace]",
         BACKEND_SO3LR: "pip install qme-ml[so3lr]",
         BACKEND_ORB: "pip install qme-ml[orb]",
+        BACKEND_TBLITE: "pip install qme-ml[tblite]",
         BACKEND_TORCHSIM_MACE: "pip install qme-ml[torchsim]",
         BACKEND_TORCHSIM_UMA: "pip install qme-ml[torchsim,uma]",
     }
@@ -330,6 +335,7 @@ ALL_BACKENDS = [
     BACKEND_UMA,
     BACKEND_SO3LR,
     BACKEND_ORB,
+    BACKEND_TBLITE,
     BACKEND_TORCHSIM_MACE,
     BACKEND_TORCHSIM_UMA,
 ]
@@ -340,6 +346,7 @@ ML_BACKENDS = [
     BACKEND_UMA,
     BACKEND_SO3LR,
     BACKEND_ORB,
+    BACKEND_TBLITE,
     BACKEND_TORCHSIM_MACE,
     BACKEND_TORCHSIM_UMA,
 ]
@@ -353,6 +360,7 @@ REGULAR_BACKENDS = [
     BACKEND_UMA,
     BACKEND_SO3LR,
     BACKEND_ORB,
+    BACKEND_TBLITE,
 ]
 
 

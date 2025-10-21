@@ -148,22 +148,10 @@ class Zimmermann93Benchmark:
 
     def get_available_backends(self) -> list[str]:
         """Get list of available ML backends (excluding mock)."""
-        available = []
-        ml_backends = [
-            "aimnet2",
-            "uma",
-            "so3lr",
-            "mace",
-            "orb",
-            "torchsim_mace",
-            "torchsim_uma",
-        ]
-
-        for backend in ml_backends:
-            if calculator_registry.is_backend_available(backend):
-                available.append(backend)
-
-        return available
+        # Use the centralized backend availability system
+        from qme.backend_availability import get_available_ml_backends
+        
+        return get_available_ml_backends()
 
     def filter_available_backends(
         self, requested_backends: list[str], verbose: bool = False
