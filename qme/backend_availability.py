@@ -129,10 +129,9 @@ class BackendAvailabilityChecker:
     def __init__(self) -> None:
         self._cache: dict[str, bool] = {}
         self._conflict_cache: dict[str, str | None] = {}
-
-    def _check_basic_dependencies(self, backend: str) -> bool:
-        """Check basic package dependencies for a backend."""
-        requirements = {
+        
+        # Centralized requirements mapping
+        self._requirements = {
             BACKEND_MOCK: [],
             BACKEND_AIMNET2: ["aimnet2"],  # Use backend name, deps.has() will handle the mapping
             BACKEND_UMA: ["fairchem", "torch"],
@@ -143,8 +142,22 @@ class BackendAvailabilityChecker:
             BACKEND_TORCHSIM_MACE: ["torch_sim", "torch"],
             BACKEND_TORCHSIM_UMA: ["torch_sim", "torch", "fairchem"],
         }
+        
+        # Human-readable package names for error messages
+        self._package_names = {
+            BACKEND_AIMNET2: ["torch", "torch-cluster"],
+            BACKEND_UMA: ["fairchem-core", "torch"],
+            BACKEND_SO3LR: ["so3lr"],
+            BACKEND_MACE: ["mace-torch", "torch"],
+            BACKEND_ORB: ["orb-models", "torch"],
+            BACKEND_TBLITE: ["tblite"],
+            BACKEND_TORCHSIM_MACE: ["torch-sim-atomistic", "torch"],
+            BACKEND_TORCHSIM_UMA: ["torch-sim-atomistic", "torch", "fairchem-core"],
+        }
 
-        required = requirements.get(backend, [])
+    def _check_basic_dependencies(self, backend: str) -> bool:
+        """Check basic package dependencies for a backend."""
+        required = self._requirements.get(backend, [])
         return all(deps.has(pkg) for pkg in required)
 
     def _check_import_compatibility(self, backend: str) -> str | None:
@@ -228,17 +241,7 @@ class BackendAvailabilityChecker:
             return "Always available"
 
         if not self._check_basic_dependencies(backend):
-            requirements = {
-                BACKEND_AIMNET2: ["torch", "torch-cluster"],
-                BACKEND_UMA: ["fairchem-core", "torch"],
-                BACKEND_SO3LR: ["so3lr"],
-                BACKEND_MACE: ["mace-torch", "torch"],
-                BACKEND_ORB: ["orb-models", "torch"],
-                BACKEND_TBLITE: ["tblite"],
-                BACKEND_TORCHSIM_MACE: ["torch-sim-atomistic", "torch"],
-                BACKEND_TORCHSIM_UMA: ["torch-sim-atomistic", "torch", "fairchem-core"],
-            }
-            required = requirements.get(backend, [])
+            required = self._package_names.get(backend, [])
             return f"Missing dependencies: {', '.join(required)}"
 
         conflict = self._check_known_conflicts(backend)
@@ -253,17 +256,7 @@ class BackendAvailabilityChecker:
 
     def get_available_backends(self, include_mock: bool = True) -> list[str]:
         """Get list of all available backends."""
-        all_backends = [
-            BACKEND_MOCK,
-            BACKEND_AIMNET2,
-            BACKEND_UMA,
-            BACKEND_SO3LR,
-            BACKEND_MACE,
-            BACKEND_ORB,
-            BACKEND_TBLITE,
-            BACKEND_TORCHSIM_MACE,
-            BACKEND_TORCHSIM_UMA,
-        ]
+        all_backends = ALL_BACKENDS.copy()
         if not include_mock:
             all_backends = all_backends[1:]  # Remove mock
 

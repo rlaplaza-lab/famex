@@ -104,8 +104,8 @@ class CalculatorRegistry:
         """
         self._registry[backend_name] = factory_func
 
-    def get_available_backends(self) -> list[str]:
-        """Get list of available backend names."""
+    def get_registered_backends(self) -> list[str]:
+        """Get list of all registered backend names (regardless of availability)."""
         # Return all known backends from lazy registry
         # We don't try to load them here to avoid heavy imports
         return list(self._lazy_registry.keys())
@@ -149,8 +149,9 @@ class CalculatorRegistry:
             # If the requested backend couldn't be loaded, raise a clear error
             from qme.core.validation import BackendError
 
-            # Get actually available backends (not just registered ones)
-            available = [b for b in self.get_available_backends() if self.is_backend_available(b)]
+            # Get actually available backends using the centralized system
+            from qme.backend_availability import get_available_backends
+            available = get_available_backends(include_mock=False)
             raise BackendError(backend, available, "calculator creation")
 
         factory_func = self._registry[backend]
