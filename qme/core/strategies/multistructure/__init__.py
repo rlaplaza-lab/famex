@@ -11,10 +11,10 @@ This module contains strategies that require multiple input structures:
 
 import qme.core.strategies.multistructure.cineb  # noqa: F401
 import qme.core.strategies.multistructure.growing_string  # noqa: F401
-import qme.core.strategies.multistructure.neb  # noqa: F401
 
 # Import multistructure strategies to register them
 import qme.core.strategies.multistructure.minima_interpolate  # noqa: F401
+import qme.core.strategies.multistructure.neb  # noqa: F401
 import qme.core.strategies.multistructure.neb_optimizer  # noqa: F401
 import qme.core.strategies.multistructure.path_interpolate  # noqa: F401
 import qme.core.strategies.multistructure.ts_interpolate  # noqa: F401
