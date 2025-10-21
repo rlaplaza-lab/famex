@@ -272,7 +272,7 @@ class FrequencyAnalysis:
         # First check implemented_properties if available
         if hasattr(self.calculator, "implemented_properties"):
             return "hessian" in self.calculator.implemented_properties
-        
+
         # Fallback: check for methods only if implemented_properties is not available
         return hasattr(self.calculator, "get_hessian") or hasattr(
             self.calculator, "calculate_hessian"

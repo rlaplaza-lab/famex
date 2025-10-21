@@ -104,7 +104,7 @@ class ProfilerCalculatorWrapper(Calculator):
             return self.calculator.get_hessian(atoms)
         else:
             raise AttributeError(f"Calculator {type(self.calculator).__name__} does not support Hessian calculation")
-    
+
 
     def check_state(self, atoms, tol=1e-15):
         """Check calculator state (delegate to wrapped calculator)."""
