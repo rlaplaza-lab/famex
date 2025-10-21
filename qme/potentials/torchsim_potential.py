@@ -6,6 +6,7 @@ providing significant speedup over traditional ASE-based implementations through
 automatic batching and efficient GPU memory management.
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -192,13 +193,14 @@ class TorchSimPotential(BasePotential):
         original_mace_forward = self._mace_model.model.forward
 
         def patched_macemodel_forward(state: Any, *args: Any, **kwargs: Any) -> Any:
-
+            """Patched MACE model forward pass to ensure gradients are enabled."""
             # Enable gradients on positions before processing
             if hasattr(state, "positions") and not state.positions.requires_grad:
                 state.positions.requires_grad_(True)
             return original_macemodel_forward(state, *args, **kwargs)
 
         def patched_mace_forward(data: Any, *args: Any, **kwargs: Any) -> Any:
+            """Patched MACE forward pass to handle charge and spin information."""
             import torch
 
             # Get atoms object from the calculator instance
@@ -287,7 +289,7 @@ class TorchSimPotential(BasePotential):
     def calculate(
         self,
         atoms: Atoms | None = None,
-        properties: list[str] | None = None,
+        properties: Sequence[str] | None = None,
         system_changes: Any = all_changes,
     ) -> None:
         """Calculate properties using TorchSim."""
@@ -295,10 +297,11 @@ class TorchSimPotential(BasePotential):
         super().calculate(atoms, properties, system_changes)
 
         # Set default charge and spin if not already set to avoid warnings
-        if "charge" not in self.atoms.info:
-            self.atoms.info["charge"] = self.default_charge
-        if "spin" not in self.atoms.info:
-            self.atoms.info["spin"] = self.default_spin
+        if self.atoms is not None:
+            if "charge" not in self.atoms.info:
+                self.atoms.info["charge"] = self.default_charge
+            if "spin" not in self.atoms.info:
+                self.atoms.info["spin"] = self.default_spin
 
         # Ensure calculator is loaded
         if self._torch_sim is None:

@@ -185,7 +185,7 @@ class TestIRCPathCalculation:
         )
 
         # Run IRC with limited steps for testing
-        result = explorer.run(mode="irc", steps=10, step_size=0.1, fmax=0.1, direction=direction)
+        result = explorer.run(steps=10, step_size=0.1, fmax=0.1, direction=direction)
 
         # Check that result is a dictionary with trajectory
         assert isinstance(result, dict)
@@ -220,7 +220,7 @@ class TestIRCPathCalculation:
 
         # Should raise an error because IRC expects single structure
         try:
-            explorer.run(mode="irc", steps=5, step_size=0.1, fmax=0.1)
+            explorer.run(steps=5, step_size=0.1, fmax=0.1)
             # If no error is raised, check if implementation handled it differently
             # This allows for flexibility in error handling
             assert True
@@ -239,7 +239,7 @@ class TestIRCPathCalculation:
             strategy="irc",
         )
 
-        result = explorer.run(mode="irc", steps=5, step_size=0.1, fmax=0.1, direction="both")
+        result = explorer.run(steps=5, step_size=0.1, fmax=0.1, direction="both")
 
         trajectory = result["trajectory"]
 

@@ -145,6 +145,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 backend,
                 "--steps",
                 str(steps),
+                "--validate-ts",
                 "--output",
                 f"test_tsopt_{backend}.xyz",
             ],
@@ -189,6 +190,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "7",
                 "--interp",
                 "geodesic",
+                "--validate-ts",
                 "--output",
                 f"test_ts_twoended_{backend}.xyz",
             ],
@@ -215,6 +217,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "50",
                 "--distance-threshold",
                 "0.1",
+                "--validate-ts",
                 "--output",
                 f"test_ts_gsm_{backend}.xyz",
             ],
@@ -299,6 +302,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "0.1",
                 "--direction",
                 "both",
+                "--validate-ts",
                 "--output",
                 f"test_irc_{backend}.xyz",
             ],
@@ -370,7 +374,7 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
     # Performance tracking
     backend_results = {}
     total_start_time = time.time()
-    total_examples_per_backend = 7  # minima, ts, twoended, ts_twoended, ts_gsm, neb, and cineb commands
+    total_examples_per_backend = 9  # Complete matrix: minima+local, minima+interpolate, ts+local, ts+interpolate, ts+growing_string, path+interpolate, path+neb, path+cineb, path+irc
     steps = 500  # Reduced steps for faster testing
 
     # Run examples for each backend

@@ -8,7 +8,7 @@ based on the AIMNet2 repository implementation.
 from __future__ import annotations
 
 import os
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 import requests
@@ -35,6 +35,8 @@ def _get_torch() -> Any:
 
 # Create a module-level torch that's lazy
 class _LazyTorch:
+    """Lazy proxy for torch module to defer import until needed."""
+
     def __getattr__(self, name: str) -> Any:
         torch = _get_torch()
         return getattr(torch, name)

@@ -4,7 +4,7 @@ Geometry class for representing molecular structures in QME.
 
 from __future__ import annotations
 
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -91,8 +91,8 @@ class Geometry(Atoms):
         # Store additional properties
         self.charge = charge
         self.mult = mult
-        self._energy: Union[float, None] = None
-        self._forces: Union[np.ndarray, None] = None
+        self._energy: float | None = None
+        self._forces: np.ndarray | None = None
 
     @property
     def coords3d(self) -> np.ndarray:
@@ -120,7 +120,7 @@ class Geometry(Atoms):
         return list(super().get_chemical_symbols())
 
     @property
-    def energy(self) -> Union[float, None]:
+    def energy(self) -> float | None:
         """Get energy if calculated."""
         if self.calc is not None:
             try:
@@ -131,11 +131,11 @@ class Geometry(Atoms):
         return self._energy
 
     @energy.setter
-    def energy(self, value: Union[float, None]) -> None:
+    def energy(self, value: float | None) -> None:
         """Set energy value."""
         self._energy = value
 
-    def get_forces(self, apply_constraint: bool = True, md: bool = False) -> Union[np.ndarray, None]:
+    def get_forces(self, apply_constraint: bool = True, md: bool = False) -> np.ndarray | None:
         """Get forces if calculated."""
         if self.calc is not None:
             try:
@@ -209,7 +209,7 @@ class Geometry(Atoms):
         return self.__str__()
 
 
-def read_geometry(filename: str, **kwargs: Any) -> Union[Geometry, list[Geometry]]:
+def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
     """
     Read geometry from file using ASE.
 
@@ -232,7 +232,7 @@ def read_geometry(filename: str, **kwargs: Any) -> Union[Geometry, list[Geometry
         return Geometry(ase_atoms=atoms)
 
 
-def write_geometry(geometry: Union[Geometry, Atoms], filename: str, **kwargs: Any) -> None:
+def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> None:
     """
     Write geometry to file using ASE.
 

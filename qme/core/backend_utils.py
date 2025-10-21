@@ -1,8 +1,11 @@
 """
 Shared utilities for backend handling in QME.
 
-This module provides a centralized way to handle backend availability
-and ensures consistent behavior across examples, tests, and other modules.
+This module provides convenience wrappers around the core backend availability
+system (qme.backend_availability) with additional logging and user-friendly
+interfaces. This module is primarily used by examples and tests.
+
+For core backend availability logic, see qme.backend_availability.
 """
 
 import sys
@@ -15,30 +18,14 @@ except ImportError as e:
         "Make sure QME is properly installed or you're in the QME package directory."
     ) from e
 
+from qme.backend_availability import (
+    ALL_BACKENDS,
+    ML_BACKENDS,
+    TORCHSIM_BACKENDS,
+)
 from qme.logging_utils import get_qme_logger
 
 logger = get_qme_logger(__name__)
-
-
-# All possible backends that QME supports
-ALL_BACKENDS = [
-    "mock",
-    "aimnet2",
-    "mace",
-    "uma",
-    "so3lr",
-    "torchsim_mace",
-    "torchsim_uma",
-]
-
-# ML backends (excluding mock)
-ML_BACKENDS = ["aimnet2", "mace", "uma", "so3lr", "torchsim_mace", "torchsim_uma"]
-
-# TorchSim-specific backends
-TORCHSIM_BACKENDS = ["torchsim_mace", "torchsim_uma"]
-
-# Non-TorchSim backends
-REGULAR_BACKENDS = ["mock", "aimnet2", "mace", "uma", "so3lr"]
 
 
 def get_available_backends(
@@ -290,8 +277,3 @@ def get_backend_pairs() -> list[tuple[str, str]]:
     return pairs
 
 
-# Pre-computed lists for convenience (computed at import time)
-AVAILABLE_BACKENDS = get_available_backends()
-AVAILABLE_ML_BACKENDS = get_available_ml_backends()
-AVAILABLE_TORCHSIM_BACKENDS = get_available_torchsim_backends()
-AVAILABLE_BACKEND_PAIRS = get_backend_pairs()

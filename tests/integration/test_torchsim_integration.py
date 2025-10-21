@@ -69,7 +69,7 @@ def test_torchsim_minima_smoke():
         strategy="local",
     )
 
-    result = explorer.run(mode="minima", local_optimizer_name="BFGS", fmax=0.1, steps=5)
+    result = explorer.run(local_optimizer_name="BFGS", fmax=0.1, steps=5)
     processed = TestResultHandler.process_result(result, backend="torchsim_mace")
 
     StandardTestAssertions.assert_optimization_result(processed)

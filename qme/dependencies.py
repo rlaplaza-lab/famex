@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
-from typing import Any, Union
+from typing import Any
 
 
 class _DependencyContext:
@@ -20,7 +20,7 @@ class _DependencyContext:
         self.deps_names = deps_names
         self.modules = None
 
-    def __enter__(self) -> Union[Any, tuple]:
+    def __enter__(self) -> Any | tuple:
         if len(self.deps_names) == 1:
             self.modules = self.manager.require_multiple(*self.deps_names)
             return self.modules
@@ -134,7 +134,7 @@ class DependencyManager:
 
     def require_multiple(
         self, *deps_names: str, purpose: str = "this functionality"
-    ) -> Union[dict[str, Any], None]:
+    ) -> dict[str, Any] | None:
         """Require multiple dependencies, raising DependencyError if any are missing.
 
         Parameters
@@ -178,7 +178,7 @@ class DependencyManager:
                 raise DependencyError(", ".join(missing), purpose, install_command)
             return results
 
-    def need(self, *deps_names: str) -> "_DependencyContext":
+    def need(self, *deps_names: str) -> _DependencyContext:
         """
         Context manager that ensures dependencies are available within a block.
 

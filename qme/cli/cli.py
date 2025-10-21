@@ -25,73 +25,77 @@ def _common_explorer_options(f: Any) -> Any:
         click.option(
             "--backend",
             default="uma",
-            help="Backend to use for calculations",
+            show_default=True,
+            help="Backend: uma|so3lr|aimnet2|mace|orb|torchsim|torchsim_mace|"
+            "torchsim_fairchem|mock",
         ),
-        click.option(
-            "--model-name",
-            default=None,
-            help="Model name for the backend",
-        ),
-        click.option(
-            "--model-path",
-            default=None,
-            help="Path to model file",
-        ),
-        click.option(
-            "--device",
-            default=None,
-            help="Device to use (e.g., 'cuda', 'cpu')",
-        ),
+        click.option("--model-name", default=None, help="Model name for backend"),
+        click.option("--model-path", default=None, help="Path to model file (if applicable)"),
+        click.option("--device", default=None, help="Device: cpu|cuda"),
         click.option(
             "--default-charge",
+            type=int,
             default=0,
-            help="Default charge for the system",
+            show_default=True,
+            help="Default molecular charge",
         ),
         click.option(
             "--default-spin",
-            default=0,
-            help="Default spin multiplicity for the system",
+            type=int,
+            default=1,
+            show_default=True,
+            help="Default spin multiplicity",
         ),
         click.option(
             "--local-optimizer",
-            default="BFGS",
-            help="Local optimizer to use",
+            "local_optimizer",
+            default="default",
+            show_default=True,
+            help=(
+                "Local optimizer: default|lbfgs|bfgs|fire|sella|trust-krylov|trust-krylov-ts|"
+                "trust-ncg|trust-exact|newton-cg (default=auto-select based on target)"
+            ),
         ),
         click.option(
             "--optimizer-kw",
             multiple=True,
-            help="Additional keyword arguments for the optimizer",
+            help="Optimizer kwargs as key=value, repeatable",
         ),
         click.option(
             "--ts-kw",
             multiple=True,
-            help="Additional keyword arguments for transition state optimization",
+            help="TS optimizer kwargs as key=value, repeatable",
         ),
         click.option(
             "--constraints",
             default=None,
-            help="Constraints to apply during optimization",
+            help="Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0'",
         ),
         click.option(
             "--verbose",
             "-v",
             count=True,
-            help="Increase verbosity (can be used multiple times)",
+            default=1,
+            help="Verbosity level: -v=quiet, -vv=normal, -vvv=debug",
         ),
         click.option(
             "--dry-run",
             is_flag=True,
-            help="Show what would be done without actually running",
+            default=False,
+            help="Validate inputs and show strategy selection without running",
         ),
         click.option(
             "--validate-ts",
             is_flag=True,
-            help="Validate transition state after optimization",
+            default=False,
+            help="Validate TS structure via frequency analysis after optimization",
         ),
     ]
     for opt in reversed(opts):
         f = opt(f)
     return f
+
+
 
 
 @click.group(
@@ -111,7 +115,7 @@ def _common_explorer_options(f: Any) -> Any:
         "  qme ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n"
         "  qme ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n"
         "  qme ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n"
-        "  qme ts --strategy local ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02\n"
+        "  qme ts --strategy local ts_guess.xyz --local-optimizer trust-krylov-ts --fmax 0.02\n"
         "  \n"
         "  # Reaction path optimization (outputs trajectories)\n"
         "  qme path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n"
@@ -241,8 +245,7 @@ def minima(
         )
 
         if dry_run:
-            mode = "minima:local" if strategy == "local" else "path:interpolate"
-            explanation = exp.explain_run(mode=mode)
+            explanation = exp.explain_run()
             click.echo("🔍 Dry-run analysis:")
             click.echo(f"   Target: {explanation['target']}")
             click.echo(f"   Strategy: {explanation['strategy']}")
@@ -253,12 +256,11 @@ def minima(
 
         # Run optimization
         if strategy == "local":
-            results = exp.run(mode="minima:local", fmax=fmax, steps=steps)
+            results = exp.run(fmax=fmax, steps=steps)
             result_atoms = results["optimized_atoms"]
             out_default = os.path.splitext(input)[0] + ".opt.local.xyz"
         else:  # interpolate
             result_atoms = exp.run(
-                mode="path:interpolate",
                 npoints=npoints,
                 method=interp.lower(),
                 fmax=fmax,
@@ -405,8 +407,7 @@ def ts(
         )
 
         if dry_run:
-            mode = f"ts:{strategy}"
-            explanation = exp.explain_run(mode=mode)
+            explanation = exp.explain_run()
             click.echo("🔍 Dry-run analysis:")
             click.echo(f"   Target: {explanation['target']}")
             click.echo(f"   Strategy: {explanation['strategy']}")
@@ -417,12 +418,11 @@ def ts(
 
         # Run optimization
         if strategy == "local":
-            results = exp.run(mode="ts:local", fmax=fmax, steps=steps)
+            results = exp.run(fmax=fmax, steps=steps)
             result_atoms = results["optimized_atoms"]
             out_default = os.path.splitext(input)[0] + ".ts.local.xyz"
         elif strategy == "interpolate":
             result_atoms = exp.run(
-                mode="ts:interpolate",
                 npoints=npoints,
                 method=interp.lower(),
                 fmax=fmax,
@@ -431,7 +431,6 @@ def ts(
             out_default = os.path.splitext(input)[0] + ".ts.interpolate.xyz"
         else:  # growing_string
             result_atoms = exp.run(
-                mode="ts:growing_string",
                 npoints=npoints,
                 max_images=max_images,
                 distance_threshold=distance_threshold,
@@ -449,82 +448,6 @@ def ts(
 
 # Add cache commands
 main.add_command(cache)
-
-
-def _common_explorer_options(f: Any) -> Any:
-    opts = [
-        click.option(
-            "--backend",
-            default="uma",
-            show_default=True,
-            help="Backend: uma|so3lr|aimnet2|mace|orb|torchsim|torchsim_mace|"
-            "torchsim_fairchem|mock",
-        ),
-        click.option("--model-name", default=None, help="Model name for backend"),
-        click.option("--model-path", default=None, help="Path to model file (if applicable)"),
-        click.option("--device", default=None, help="Device: cpu|cuda"),
-        click.option(
-            "--default-charge",
-            type=int,
-            default=0,
-            show_default=True,
-            help="Default molecular charge",
-        ),
-        click.option(
-            "--default-spin",
-            type=int,
-            default=1,
-            show_default=True,
-            help="Default spin multiplicity",
-        ),
-        click.option(
-            "--optimizer",
-            "local_optimizer",
-            default="bfgs",
-            show_default=True,
-            help=(
-                "Local optimizer: lbfgs|bfgs|fire|sella|trust-krylov|trust-krylov-ts|"
-                "trust-ncg|trust-exact|newton-cg"
-            ),
-        ),
-        click.option(
-            "--optimizer-kw",
-            multiple=True,
-            help="Optimizer kwargs as key=value, repeatable",
-        ),
-        click.option(
-            "--ts-kw",
-            multiple=True,
-            help="TS optimizer kwargs as key=value, repeatable",
-        ),
-        click.option(
-            "--constraints",
-            default=None,
-            help="Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0'",
-        ),
-        click.option(
-            "--verbose",
-            "-v",
-            count=True,
-            default=1,
-            help="Verbosity level: -v=quiet, -vv=normal, -vvv=debug",
-        ),
-        click.option(
-            "--dry-run",
-            is_flag=True,
-            default=False,
-            help="Validate inputs and show strategy selection without running",
-        ),
-        click.option(
-            "--validate-ts",
-            is_flag=True,
-            default=False,
-            help="Validate TS structure via frequency analysis after optimization",
-        ),
-    ]
-    for opt in reversed(opts):
-        f = opt(f)
-    return f
 
 
 @main.command()
@@ -669,8 +592,7 @@ def path(
         )
 
         if dry_run:
-            mode = f"path:{strategy}"
-            explanation = exp.explain_run(mode=mode)
+            explanation = exp.explain_run()
             click.echo("🔍 Dry-run analysis:")
             click.echo(f"   Target: {explanation['target']}")
             click.echo(f"   Strategy: {explanation['strategy']}")
@@ -682,14 +604,12 @@ def path(
         # Run path optimization
         if strategy == "interpolate":
             result = exp.run(
-                mode="path:interpolate",
                 npoints=npoints,
                 method=interp.lower(),
             )
             out_default = os.path.splitext(input)[0] + ".path.interpolate.xyz"
         elif strategy == "neb":
             result = exp.run(
-                mode="path:neb",
                 npoints=npoints,
                 method=interp.lower(),
                 fmax=fmax,
@@ -699,7 +619,6 @@ def path(
             out_default = os.path.splitext(input)[0] + ".path.neb.xyz"
         elif strategy == "cineb":
             result = exp.run(
-                mode="path:cineb",
                 npoints=npoints,
                 method=interp.lower(),
                 fmax=fmax,
@@ -710,7 +629,6 @@ def path(
             out_default = os.path.splitext(input)[0] + ".path.cineb.xyz"
         elif strategy == "irc":
             result = exp.run(
-                mode="path:irc",
                 fmax=fmax,
                 steps=steps,
                 step_size=step_size,

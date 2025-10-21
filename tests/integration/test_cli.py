@@ -140,7 +140,7 @@ class TestBackendTransitionStateIntegration:
         def _run_ts(backend: str):
             atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
             explorer = qme.Explorer(atoms=atoms, backend=backend, target="ts", strategy="local")
-            result = explorer.run(mode="ts", fmax=0.1, steps=50)
+            result = explorer.run(fmax=0.1, steps=50)
             processed = TestResultHandler.process_result(result, backend)
             StandardTestAssertions.assert_optimization_result(processed)
             StandardTestAssertions.assert_reasonable_geometry(processed["optimized_atoms"], backend)
@@ -179,7 +179,7 @@ class TestBackendPathIntegration:
             target="path",
             strategy="neb",
         )
-        explanation = explorer.explain_run("neb")
+        explanation = explorer.explain_run()
         assert explanation["valid"] is True
         assert explanation["strategy"] == "neb"
         assert explanation["strategy_type"] == "multi-structure"

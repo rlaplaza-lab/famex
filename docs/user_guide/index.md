@@ -66,15 +66,15 @@ qme cache info
 import qme
 
 # Local minima optimization
-explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2")
-result = explorer.run(target="minima", strategy="local")
+explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2", target="minima", strategy="local")
+result = explorer.run(fmax=0.05, steps=1000)
 
 # Transition state from interpolation
-explorer = qme.Explorer([reactant, product], target="ts", strategy="interpolate")
+explorer = qme.Explorer([reactant, product], backend="aimnet2", target="ts", strategy="interpolate")
 result = explorer.run(npoints=15)
 
 # NEB path optimization
-explorer = qme.Explorer([reactant, product], target="path", strategy="neb")
+explorer = qme.Explorer([reactant, product], backend="aimnet2", target="path", strategy="neb")
 result = explorer.run(npoints=11)
 
 # Save results
@@ -100,8 +100,8 @@ qme minima --strategy local molecule.xyz --backend mock       # Mock (testing)
 qme minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.01
 
 # Python
-explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2")
-result = explorer.run(target="minima", strategy="local", fmax=0.01)
+explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2", target="minima", strategy="local")
+result = explorer.run(fmax=0.01)
 ```
 
 ### Transition State Search
@@ -113,7 +113,7 @@ qme ts --strategy local ts_guess.xyz --backend aimnet2
 qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15
 
 # Python
-explorer = qme.Explorer([reactant, product], target="ts", strategy="interpolate")
+explorer = qme.Explorer([reactant, product], backend="aimnet2", target="ts", strategy="interpolate")
 result = explorer.run(npoints=15)
 ```
 
@@ -126,7 +126,7 @@ qme path --strategy neb reactant.xyz --product product.xyz --npoints 11
 qme path --strategy irc ts.xyz --direction both
 
 # Python
-explorer = qme.Explorer([reactant, product], target="path", strategy="neb")
+explorer = qme.Explorer([reactant, product], backend="aimnet2", target="path", strategy="neb")
 result = explorer.run(npoints=11)
 ```
 

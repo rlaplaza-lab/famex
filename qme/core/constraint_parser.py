@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Union
+from typing import Any
 
 from ase import Atoms
 from ase.constraints import FixConstraint
@@ -14,7 +14,7 @@ logger = get_qme_logger(__name__)
 
 
 def parse_constraints(
-    constraint_specs: Union[str, list[str], list[FixConstraint], dict[str, Any]],
+    constraint_specs: str | list[str] | list[FixConstraint] | dict[str, Any],
     atoms: Atoms,
     verbose: bool = False,
 ) -> list[FixConstraint]:

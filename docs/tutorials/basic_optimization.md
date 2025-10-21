@@ -63,10 +63,10 @@ qme minima --strategy local water.xyz --fmax 0.01 --steps 1000
 import qme
 
 # Create Explorer instance
-explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2")
+explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2", target="minima", strategy="local")
 
 # Run optimization
-result = explorer.run(target="minima", strategy="local")
+result = explorer.run(fmax=0.05, steps=1000)
 
 # Save results
 explorer.save_structure(result['optimized_atoms'], "water_optimized.xyz")
@@ -88,8 +88,8 @@ QME supports multiple optimization algorithms. Let's compare them:
 qme minima --strategy local water.xyz --optimizer bfgs
 
 # Python
-result = explorer.run(target="minima", strategy="local",
-                     local_optimizer="bfgs")
+explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2", target="minima", strategy="local", local_optimizer="bfgs")
+result = explorer.run(fmax=0.05, steps=1000)
 ```
 
 **Characteristics:**
@@ -104,8 +104,8 @@ result = explorer.run(target="minima", strategy="local",
 qme minima --strategy local water.xyz --optimizer lbfgs
 
 # Python
-result = explorer.run(target="minima", strategy="local",
-                     local_optimizer="lbfgs")
+explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2", target="minima", strategy="local", local_optimizer="lbfgs")
+result = explorer.run(fmax=0.05, steps=1000)
 ```
 
 **Characteristics:**
@@ -120,8 +120,8 @@ result = explorer.run(target="minima", strategy="local",
 qme minima --strategy local water.xyz --optimizer fire
 
 # Python
-result = explorer.run(target="minima", strategy="local",
-                     local_optimizer="fire")
+explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2", target="minima", strategy="local", local_optimizer="fire")
+result = explorer.run(fmax=0.05, steps=1000)
 ```
 
 **Characteristics:**
@@ -136,8 +136,8 @@ result = explorer.run(target="minima", strategy="local",
 qme minima --strategy local water.xyz --optimizer sella
 
 # Python
-result = explorer.run(target="minima", strategy="local",
-                     local_optimizer="sella")
+explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2", target="minima", strategy="local", local_optimizer="sella")
+result = explorer.run(fmax=0.05, steps=1000)
 ```
 
 **Characteristics:**
@@ -179,16 +179,13 @@ qme minima --strategy local water.xyz --steps 100
 explorer = qme.Explorer.from_file(
     "water.xyz",
     backend="aimnet2",
+    target="minima",
+    strategy="local",
     local_optimizer="lbfgs"
 )
 
 # Run with custom convergence criteria
-result = explorer.run(
-    target="minima",
-    strategy="local",
-    fmax=0.01,
-    steps=1000
-)
+result = explorer.run(fmax=0.01, steps=1000)
 ```
 
 ## Step 6: Two-Ended Minima Optimization
@@ -200,7 +197,7 @@ For finding minima along a reaction path between two structures:
 qme minima --strategy interpolate reactant.xyz --product product.xyz --npoints 11
 
 # Python
-explorer = qme.Explorer([reactant, product], target="minima", strategy="interpolate")
+explorer = qme.Explorer([reactant, product], backend="aimnet2", target="minima", strategy="interpolate")
 result = explorer.run(npoints=11, method="geodesic")
 ```
 
@@ -247,8 +244,8 @@ new_explorer = qme.Explorer.from_file("optimized.xyz")
 import qme
 
 # Optimize methane
-explorer = qme.Explorer.from_file("methane.xyz", backend="aimnet2")
-result = explorer.run(target="minima", strategy="local", fmax=0.01)
+explorer = qme.Explorer.from_file("methane.xyz", backend="aimnet2", target="minima", strategy="local")
+result = explorer.run(fmax=0.01)
 
 print(f"Methane optimized energy: {result['final_energy']:.6f} eV")
 ```
@@ -263,8 +260,8 @@ from pathlib import Path
 xyz_files = list(Path(".").glob("*.xyz"))
 
 for xyz_file in xyz_files:
-    explorer = qme.Explorer.from_file(xyz_file, backend="aimnet2")
-    result = explorer.run(target="minima", strategy="local")
+    explorer = qme.Explorer.from_file(xyz_file, backend="aimnet2", target="minima", strategy="local")
+    result = explorer.run(fmax=0.05, steps=1000)
 
     # Save with descriptive name
     output_name = f"{xyz_file.stem}_optimized.xyz"
@@ -285,8 +282,8 @@ qme minima --strategy local molecule.xyz --constraints "harmonic_bond 0,1 k=5.0"
 
 ```python
 # Python API with constraints
-explorer = qme.Explorer.from_file("molecule.xyz", constraints="fix 0,1,2")
-result = explorer.run(target="minima", strategy="local")
+explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2", target="minima", strategy="local", constraints="fix 0,1,2")
+result = explorer.run(fmax=0.05, steps=1000)
 ```
 
 ## Troubleshooting
@@ -361,8 +358,8 @@ qme minima --strategy local molecule.xyz --constraints "fix 0,1,2"
 
 ### Python Quick Start
 ```python
-explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2")
-result = explorer.run(target="minima", strategy="local", fmax=0.01)
+explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2", target="minima", strategy="local")
+result = explorer.run(fmax=0.01)
 explorer.save_structure(result['optimized_atoms'], "optimized.xyz")
 ```
 

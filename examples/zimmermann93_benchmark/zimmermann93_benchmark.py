@@ -150,7 +150,7 @@ class Zimmermann93Benchmark:
         """Get list of available ML backends (excluding mock)."""
         # Use the centralized backend availability system
         from qme.backend_availability import get_available_ml_backends
-        
+
         return get_available_ml_backends()
 
     def filter_available_backends(
@@ -233,10 +233,8 @@ class Zimmermann93Benchmark:
                         opt_time = time.perf_counter() - opt_start
                         reaction_data["timings"]["optimization"] = opt_time
 
-                        # Normalize TS result
-                        if isinstance(ts_result, list) and len(ts_result) == 1:
-                            ts_result = ts_result[0]
-
+                        # Handle TS result from Explorer.run() method
+                        # The run() method returns a dictionary with standardized results
                         if isinstance(ts_result, dict):
                             ts_opt_atoms = ts_result.get("optimized_atoms", reactant)
                             ts_success = bool(ts_result.get("converged", False))
