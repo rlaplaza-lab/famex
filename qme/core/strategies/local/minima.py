@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Union
+from contextlib import nullcontext
+from typing import Any
 
 from ase import Atoms
 
@@ -28,7 +29,7 @@ class LocalMinimaStrategy(BaseStrategy):
 
     def run(
         self, atoms_list: list[Atoms], fmax: float = 0.05, steps: int = 1000, **kwargs: Any
-    ) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
+    ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Run local minima optimization.
 
         Parameters
@@ -56,6 +57,10 @@ class LocalMinimaStrategy(BaseStrategy):
         local_optimizer_name = kwargs.get("local_optimizer_name", "sella")
         verbose = kwargs.get("verbose", 1)
 
+        # Start profiling if available
+        if self.profiler is not None:
+            self.profiler.snapshot_memory()
+
         # Log minima optimization start
         if verbose >= 1:
             logger.info(f"Starting local minima optimization with {local_optimizer_name}")
@@ -82,12 +87,17 @@ class LocalMinimaStrategy(BaseStrategy):
             # that corrupt the coordinate system for subsequent Hessian calculations
             atoms_copy = atoms.copy()
 
-            self.explorer._create_and_attach_calculator(atoms_copy)
-            self.explorer._apply_constraints(atoms_copy)
+            # Profile calculator setup
+            with self.profiler.profile_section("calculator_setup") if self.profiler else nullcontext():
+                self.explorer._create_and_attach_calculator(atoms_copy)
+                self.explorer._apply_constraints(atoms_copy)
+
             opt_kwargs = getattr(self.explorer, "optimizer_kwargs", {}) or {}
-            # Add verbosity control
+            # Add verbosity control and profiler
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("verbose", getattr(self.explorer, "verbose", 1))
+            if self.profiler is not None:
+                opt_kwargs["profiler"] = self.profiler
 
             if local_optimizer_name.lower() == "sella":
                 # Sella-specific kwargs for minima search
@@ -101,11 +111,18 @@ class LocalMinimaStrategy(BaseStrategy):
                     opt_kwargs["hessian"] = self.explorer.initial_hessian
 
             opt = opt_class(atoms_copy, **opt_kwargs)
-            opt.run(fmax=fmax, steps=steps)
+
+            # Profile optimization execution
+            with self.profiler.profile_section("optimization") if self.profiler else nullcontext():
+                opt.run(fmax=fmax, steps=steps)
 
             # Get step count and convergence status using helpers
             steps_taken = StrategyUtils.get_step_count(opt)
             converged = StrategyUtils.get_convergence_status(opt, atoms_copy)
+
+            # Increment step counter in profiler
+            if self.profiler is not None:
+                self.profiler.increment_call("optimizer_steps", steps_taken)
 
             results.append(atoms_copy)
             step_counts.append(steps_taken)
@@ -126,18 +143,21 @@ class LocalMinimaStrategy(BaseStrategy):
                     f"Minima optimization completed: {total_converged}/{total_structures} structures converged"
                 )
 
+        # Prepare result and merge profiler data
         if single_input and results:
-            return self.prepare_result(
+            result = self.prepare_result(
                 results[0],
                 steps_taken=step_counts[0],
                 converged=bool(converged_flags[0]),
             )
         else:
-            return self.prepare_result(
+            result = self.prepare_result(
                 results,
                 steps_taken=step_counts,
                 converged=[bool(c) for c in converged_flags],
             )
+
+        return self._merge_profiler_results(result)
 
 
 # Register the strategy

@@ -215,7 +215,7 @@ class Explorer:
         device: str | None = None,
         default_charge: int = 0,
         default_spin: int = 1,
-        local_optimizer: str = "sella",
+        local_optimizer: str = "default",
         optimizer_kwargs: dict[str, Any] | None = None,
         strategy: str | None = "local",
         target: str | None = "minima",
@@ -292,6 +292,20 @@ class Explorer:
             return "mock-model"
         else:
             return "default-model"
+
+    def _get_effective_optimizer(self) -> str:
+        """Get the effective optimizer that will actually be used.
+
+        Returns the optimizer name after applying context-aware defaults.
+        """
+        if self.local_optimizer_name != "default":
+            return self.local_optimizer_name
+
+        # Context-aware selection based on target
+        if self.target == "ts":
+            return "sella"
+        else:  # minima or path
+            return "lbfgs"
 
     def _create_and_attach_calculator(self, atoms: Atoms) -> Any:
         """Create and attach an ASE calculator to ``atoms``.
@@ -375,13 +389,8 @@ class Explorer:
     # Execution
     # =============================================================================
 
-    def explain_run(self, mode: str | None = None) -> dict[str, str | bool | int | None]:
+    def explain_run(self) -> dict[str, str | bool | int | None]:
         """Explain what strategy would be selected without running.
-
-        Parameters
-        ----------
-        mode : str, optional
-            Mode to explain (uses instance target if None)
 
         Returns
         -------
@@ -398,10 +407,8 @@ class Explorer:
             - error: Error message if invalid (str, optional)
         """
         try:
-            # Determine strategy name
-            if mode:
-                strategy_name = mode
-            elif self.target and self.strategy:
+            # Determine strategy name from constructor target/strategy
+            if self.target and self.strategy:
                 strategy_name = f"{self.target}:{self.strategy}"
             else:
                 strategy_name = "minima:local"
@@ -409,6 +416,8 @@ class Explorer:
             # Get strategy class from registry
             strategy_class = REGISTRY.get(strategy_name)
             metadata = strategy_class.metadata
+
+            effective_optimizer = self._get_effective_optimizer()
 
             return {
                 "target": metadata.target,
@@ -420,17 +429,17 @@ class Explorer:
                     "multi-structure" if metadata.requires_multiple_structures else "local"
                 ),
                 "description": metadata.description,
-                "notes": f"Will use {self.local_optimizer_name} optimizer",
+                "notes": f"Will use {effective_optimizer} optimizer",
             }
         except KeyError as e:
             available = sorted(REGISTRY.list_strategies().keys())
             return {
                 "target": "unknown",
                 "strategy": "unknown",
-                "strategy_key": mode or "unknown",
+                "strategy_key": "unknown",
                 "runner": None,
                 "valid": False,
-                "error": f"No strategy found for '{mode or 'default'}'. Available: {available}",
+                "error": f"No strategy found for '{strategy_name}'. Available: {available}",
                 "notes": f"Error resolving strategy: {e}",
             }
         except Exception as e:
@@ -445,7 +454,7 @@ class Explorer:
             }
 
     def run(
-        self, mode: str | None = None, runner: Callable[..., Any] | None = None, **kwargs: Any
+        self, runner: Callable[..., Any] | None = None, **kwargs: Any
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Execute a registered or user-supplied runner.
 
@@ -454,10 +463,6 @@ class Explorer:
 
         Parameters
         ----------
-        mode : str, optional
-            Strategy name in format "target:strategy" (e.g., "minima:local", "path:neb")
-            or short alias (e.g., "neb", "cineb"). If not provided, uses instance
-            target and strategy parameters.
         runner : callable, optional
             Optional callable to execute directly, bypassing strategy selection.
         **kwargs
@@ -486,17 +491,12 @@ class Explorer:
         >>> # Transition state optimization
         >>> explorer = Explorer(atoms, target="ts", strategy="local")
         >>> result = explorer.run(fmax=0.01)
-
-        >>> # Using explicit mode
-        >>> explorer = Explorer(atoms)
-        >>> result = explorer.run(mode="minima:local")
-        >>> result = explorer.run(mode="path:neb", npoints=7)
         """
         # If the caller passed an explicit runner function, use it directly
         if runner is not None:
             call_kwargs = dict(kwargs)
             call_kwargs.setdefault("explorer", self)
-            call_kwargs.setdefault("local_optimizer_name", self.local_optimizer_name)
+            call_kwargs.setdefault("local_optimizer_name", self._get_effective_optimizer())
             call_kwargs.setdefault("verbose", self.verbose)
             result = runner(self.atoms_list, **call_kwargs)
             # Ensure result is properly typed
@@ -506,13 +506,11 @@ class Explorer:
                 # Convert to expected format if needed
                 return {"optimized_atoms": result, "strategy": "custom"}
 
-        # Determine strategy name
-        if mode:
-            strategy_name = mode  # e.g., "minima:local", "path:neb", "neb"
-        elif self.target and self.strategy:
+        # Determine strategy name from constructor target/strategy
+        if self.target and self.strategy:
             strategy_name = f"{self.target}:{self.strategy}"
         else:
-            # Only minimal fallback - default to minima:local
+            # Default to minima:local
             strategy_name = "minima:local"
 
         # Get strategy class from registry
@@ -526,6 +524,9 @@ class Explorer:
 
         # Instantiate and run strategy
         strategy_instance = strategy_class(explorer=self, profiler=self.profiler)
+        # Pass the effective optimizer name to the strategy
+        kwargs.setdefault("local_optimizer_name", self._get_effective_optimizer())
+        kwargs.setdefault("verbose", self.verbose)
         return strategy_instance.run(self.atoms_list, **kwargs)
 
     # =============================================================================
@@ -713,7 +714,7 @@ class Explorer:
         Examples
         --------
         >>> explorer = Explorer(atoms=[reactant, product], target="path")
-        >>> result = explorer.run(mode="neb", npoints=7)
+        >>> result = explorer.run(npoints=7)
         >>> explorer.save_trajectory(result, "reaction_path.xyz")
         """
         output_file = Path(output_file)

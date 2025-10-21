@@ -3,7 +3,7 @@
 QME Timing Benchmark - ML Backend Performance Analysis
 
 This benchmark evaluates the performance of different QME ML backends for simple
-geometry optimization and frequency analysis using benzene as a test case. All
+geometry optimization and frequency analysis using example structures. All
 backends use the same default optimizer (BFGS) to ensure fair comparison of
 backend performance rather than optimizer differences.
 
@@ -53,21 +53,15 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 # QMEExampleInterface already imported above
 
 
-def create_benzene_molecule() -> Atoms:
-    """Create a benzene molecule for benchmarking."""
-    # Create benzene with slightly distorted geometry to ensure optimization is needed
-    benzene = molecule("C6H6")
+def create_benchmark_molecule() -> Atoms:
+    """Create a molecule for benchmarking using example files."""
+    import os
+    from ase.io import read
 
-    # Add some distortion to make optimization non-trivial
-    positions = benzene.get_positions()
-    # Slightly distort the ring
-    for i in range(6):  # Carbon atoms
-        angle = i * np.pi / 3
-        positions[i, 0] += 0.1 * np.cos(angle)  # x displacement
-        positions[i, 1] += 0.1 * np.sin(angle)  # y displacement
-
-    benzene.set_positions(positions)
-    return benzene
+    # Use the ACABAC reactant structure from example files
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    structure = read(os.path.join(script_dir, "example_files", "A_C_A_B_A_C_reactant.xyz"))
+    return structure
 
 
 def time_function(func, *args, **kwargs):
@@ -136,10 +130,10 @@ def benchmark_backend(
         if verbose:
             print("Status: ✅ Backend available")
 
-        # Create benzene molecule
+        # Create benchmark molecule
         if verbose:
-            print("Creating benzene molecule...")
-        benzene = create_benzene_molecule()
+            print("Creating benchmark molecule...")
+        molecule = create_benchmark_molecule()
 
         # Initialize QME optimizer
         if verbose:
@@ -147,13 +141,16 @@ def benchmark_backend(
         init_start = time.perf_counter()
 
         explorer = Explorer(
-            atoms=benzene,
+            atoms=molecule,
             backend=backend,
             model_name=model_name,
             device=device,
             default_charge=0,
             default_spin=1,
-            local_optimizer="bfgs",
+            local_optimizer="lbfgs",
+            target="minima",
+            strategy="local",
+            profile=True,  # Enable profiling for timing benchmark
         )
 
         init_time = time.perf_counter() - init_start
@@ -229,7 +226,6 @@ def benchmark_backend(
 
         # Use Explorer's run method with proper strategy
         run_results = explorer.run(
-            mode="minima",
             fmax=0.01,
             steps=1000,
         )
@@ -237,22 +233,16 @@ def benchmark_backend(
         opt_time = time.perf_counter() - opt_start
 
         # Handle results from Explorer's run method
-        # For local strategies, run() returns a list of results
-        if isinstance(run_results, list) and len(run_results) == 1:
-            strategy_result = run_results[0]
+        # The run() method returns a dictionary with standardized results
+        if isinstance(run_results, dict):
+            steps_taken = run_results.get("steps_taken", 0)
+            converged = run_results.get("converged", False)
+            optimized_atoms = run_results.get("optimized_atoms", explorer.atoms_list[0])
         else:
-            strategy_result = run_results
-
-        # Extract step tracking information from strategy result
-        if isinstance(strategy_result, dict):
-            steps_taken = strategy_result.get("steps_taken", 0)
-            converged = strategy_result.get("converged", False)
-            optimized_atoms = strategy_result.get("optimized_atoms", explorer.atoms_list[0])
-        else:
-            # Fallback for old format
+            # Fallback for unexpected format
             steps_taken = 0
             converged = True
-            optimized_atoms = strategy_result
+            optimized_atoms = run_results
 
         # Calculate average time per optimization step
         if isinstance(steps_taken, (int, float)) and steps_taken > 0:
@@ -280,6 +270,10 @@ def benchmark_backend(
             "max_force": opt_results["max_force"],
             "steps_taken": steps_taken,
         }
+
+        # Extract performance data from profiler if available
+        if isinstance(run_results, dict) and "performance" in run_results:
+            results["performance"] = run_results["performance"]
 
         if verbose:
             print(f"Optimization time: {opt_time:.3f} seconds")
@@ -393,59 +387,93 @@ def print_summary(results_list: list[dict[str, Any]]):
 
     print("=" * 120)
 
-    # Detailed breakdown for available backends
+    # Note about detailed breakdown
     available_results = [r for r in results_list if r["available"]]
     if available_results:
-        print("\n🔍 DETAILED BREAKDOWN")
-        print(f"{'=' * 80}")
+        print("\nNote: Detailed timing breakdown is now available in the Performance Profiler section below.")
 
-        for results in available_results:
-            backend_name = results["backend"].upper()
-            print(f"\n📈 {backend_name} PERFORMANCE BREAKDOWN")
-            print(f"{'-' * 50}")
 
-            timings = results["timings"]
-            total = timings.get("total", 0)
-            opt_results = results.get("optimization_results", {})
+def print_performance_summary(results_list: list[dict[str, Any]]):
+    """Print comprehensive performance profiler data."""
+    # Check for performance data
+    has_performance_data = any(
+        results.get("available") and "performance" in results
+        for results in results_list
+    )
 
-            # Timing breakdown with percentages
-            individual_steps = [
-                ("initialization", "Initialization"),
-                ("structure_loading", "Calculator Attachment"),
-                ("single_energy_first", "Energy (1st call + model loading)"),
-                ("single_energy_second", "Energy (2nd call, pure eval)"),
-                ("single_forces", "Force Calculation"),
-                ("optimization", "Geometry Optimization"),
-                ("frequency_analysis", "Frequency Analysis"),
-            ]
+    if not has_performance_data:
+        print(f"\n{'=' * 120}")
+        print("PERFORMANCE PROFILER SUMMARY")
+        print(f"{'=' * 120}")
+        print("No performance profiler data available.")
+        return
 
-            for step_key, step_display in individual_steps:
-                time_val = timings.get(step_key, 0)
-                if time_val is not None and time_val > 0:
-                    percentage = (time_val / total) * 100 if total > 0 else 0
-                    print(f"  {step_display:<30}: {time_val:>8.3f}s ({percentage:>5.1f}%)")
+    # Section 1: Calculator Calls & Memory
+    print(f"\n{'=' * 120}")
+    print("CALCULATOR CALLS & MEMORY USAGE")
+    print(f"{'=' * 120}")
 
-            # Optimization metrics
-            steps_taken = opt_results.get("steps_taken", 0)
-            avg_time_per_step = timings.get("avg_time_per_step", 0)
-            final_energy = opt_results.get("final_energy", None)
-            converged = opt_results.get("converged", None)
+    # Header (no optimizer column for timing benchmark)
+    print(f"{'Backend':<12} {'Energy Calls':<12} {'Force Calls':<12} "
+          f"{'Hessian Calls':<13} {'Peak Mem (MB)':<14} {'GPU Peak (MB)':<14}")
+    print("=" * 120)
 
-            print(f"  {'-' * 48}")
-            if steps_taken > 0:
-                print(f"  {'Optimization Steps':<30}: {steps_taken:>8}")
-                if avg_time_per_step is not None and avg_time_per_step > 0:
-                    print(f"  {'Time per Step':<30}: {avg_time_per_step:>8.4f}s")
+    # Results
+    for results in results_list:
+        if results.get("available") and "performance" in results:
+            perf = results["performance"]
+            calls = perf.get("calculator_calls", {})
+            mem = perf.get("memory", {})
 
-            if final_energy is not None:
-                print(f"  {'Final Energy':<30}: {final_energy:>8.3f} eV")
+            print(f"{results['backend']:<12} "
+                  f"{calls.get('energy', 0):<12} {calls.get('forces', 0):<12} "
+                  f"{calls.get('hessian', 0):<13} "
+                  f"{mem.get('peak_mb', 0.0):<14.1f} {mem.get('gpu_peak_mb', 0.0):<14.1f}")
 
-            if converged is not None:
-                status = "✅ Yes" if str(converged) == "True" else "❌ No"
-                print(f"  {'Converged':<30}: {status:>8}")
+    print("=" * 120)
 
-            print(f"  {'=' * 48}")
-            print(f"  {'TOTAL TIME':<30}: {total:>8.3f}s")
+    # Section 2: Detailed Timing Breakdown
+    print(f"\n{'=' * 120}")
+    print("DETAILED TIMING BREAKDOWN")
+    print(f"{'=' * 120}")
+
+    # Collect all unique timing sections from all results
+    all_sections = set()
+    for results in results_list:
+        if results.get("available") and "performance" in results:
+            perf = results["performance"]
+            timings = perf.get("timings", {})
+            all_sections.update(timings.keys())
+
+    if not all_sections:
+        print("No timing data available.")
+        return
+
+    # Header for detailed timing
+    print(f"{'Section':<18} {'Total (s)':<12} {'Count':<8} {'Avg (s)':<12} {'Min (s)':<12} {'Max (s)':<12}")
+    print("=" * 120)
+
+    # Show timing statistics for each section
+    for section in sorted(all_sections):
+        section_stats = []
+        for results in results_list:
+            if results.get("available") and "performance" in results:
+                perf = results["performance"]
+                timings = perf.get("timings", {})
+                if section in timings:
+                    section_stats.append(timings[section])
+
+        if section_stats:
+            # Calculate aggregate statistics across all results
+            total_time = sum(stat.get("total_time", 0.0) for stat in section_stats)
+            total_count = sum(stat.get("count", 0) for stat in section_stats)
+            avg_time = sum(stat.get("avg_time", 0.0) * stat.get("count", 0) for stat in section_stats) / total_count if total_count > 0 else 0.0
+            min_time = min(stat.get("min_time", 0.0) for stat in section_stats)
+            max_time = max(stat.get("max_time", 0.0) for stat in section_stats)
+
+            print(f"{section:<18} {total_time:<12.3f} {total_count:<8} {avg_time:<12.3f} {min_time:<12.3f} {max_time:<12.3f}")
+
+    print("=" * 120)
 
 
 def save_results(results_list: list[dict[str, Any]], output_file: str):
@@ -538,6 +566,7 @@ def main():
 
     # Print summary
     print_summary(results_list)
+    print_performance_summary(results_list)
 
     # Save results
     save_results(results_list, args.output or interface.get_default_output_file())

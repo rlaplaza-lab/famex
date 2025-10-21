@@ -18,12 +18,12 @@ Examples:
     Basic geometry optimization:
     >>> from qme import Explorer
     >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2")
-    >>> results = explorer.run(mode="minima")
+    >>> results = explorer.run()
     >>> explorer.save_structure(results['optimized_atoms'], "optimized.xyz")
 
     Reaction path optimization (NEB/CI-NEB):
     >>> explorer = Explorer(atoms=[reactant, product], target="path")
-    >>> path = explorer.run(mode="neb", npoints=7)
+    >>> path = explorer.run(npoints=7)
     >>> explorer.save_trajectory(path, "reaction_path.xyz")
 """
 
@@ -50,6 +50,7 @@ def __getattr__(name):
     _LAZY_IMPORTS = {
         # core
         "Explorer": (f"{__name__}.core.explorer", "Explorer"),
+        "PerformanceProfiler": (f"{__name__}.core.profiler", "PerformanceProfiler"),
         # dependencies
         "deps": (f"{__name__}.dependencies", "deps"),
         # core types / IO
@@ -101,6 +102,7 @@ __all__ = [
     # Core classes
     "Explorer",
     "Geometry",
+    "PerformanceProfiler",
     # Frequency analysis
     "FrequencyAnalysis",
     "HessianCalculator",

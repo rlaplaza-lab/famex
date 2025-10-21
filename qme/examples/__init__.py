@@ -351,6 +351,9 @@ def benchmark_optimization(
             default_charge=0,
             default_spin=1,
             local_optimizer=optimizer,
+            target="ts" if test_ts else "minima",
+            strategy="local",
+            profile=True,  # Enable profiling for benchmark mode
         )
 
         init_time = time.perf_counter() - init_start
@@ -429,17 +432,13 @@ def benchmark_optimization(
         try:
             if test_ts:
                 run_results = explorer.run(
-                    mode="ts",
                     fmax=0.005,  # Stricter criteria for TS
                     steps=1000,
-                    local_optimizer_name=optimizer,
                 )
             else:
                 run_results = explorer.run(
-                    mode="minima",
                     fmax=0.01,  # Standard criteria for minima
                     steps=1000,
-                    local_optimizer_name=optimizer,
                 )
         except ValueError as e:
             if "not suitable for transition state optimization" in str(e):
@@ -450,27 +449,21 @@ def benchmark_optimization(
             raise
 
         # Handle results from Explorer's run method
-        # For local strategies, run() returns a list of results
-        if isinstance(run_results, list) and len(run_results) == 1:
-            strategy_result = run_results[0]
-        else:
-            strategy_result = run_results
-
-        # Extract step tracking information from strategy result
-        if isinstance(strategy_result, dict):
-            steps_taken = strategy_result.get("steps_taken", 0)
-            converged_raw = strategy_result.get("converged", False)
+        # The run() method returns a dictionary with standardized results
+        if isinstance(run_results, dict):
+            steps_taken = run_results.get("steps_taken", 0)
+            converged_raw = run_results.get("converged", False)
             # Ensure converged is always a boolean
             if isinstance(converged_raw, str):
                 converged = converged_raw.lower() in ("true", "1", "yes")
             else:
                 converged = bool(converged_raw)
-            optimized_atoms = strategy_result.get("optimized_atoms", explorer.atoms_list[0])
+            optimized_atoms = run_results.get("optimized_atoms", explorer.atoms_list[0])
         else:
-            # Fallback for old format
+            # Fallback for unexpected format
             steps_taken = 0
             converged = True
-            optimized_atoms = strategy_result
+            optimized_atoms = run_results
 
         # Get optimization results
         if optimized_atoms is not None and hasattr(optimized_atoms, "get_potential_energy"):
@@ -511,6 +504,10 @@ def benchmark_optimization(
             "max_force": opt_results["max_force"],
             "steps_taken": steps_taken,
         }
+
+        # Extract performance data from profiler if available
+        if isinstance(run_results, dict) and "performance" in run_results:
+            results["performance"] = run_results["performance"]
 
         if verbose:
             print(f"Optimization time: {opt_time:.3f} seconds")
@@ -652,21 +649,3 @@ def benchmark_optimization(
     return results
 
 
-def print_standard_help():
-    """Print standardized help information."""
-    print("\n🔧 QME Examples Help")
-    print("=" * 50)
-    print("All QME examples follow a consistent interface:")
-    print("\nCommon Options:")
-    print("  --backends    Comma-separated list of backends to test")
-    print("  --device      Device to use (cpu/cuda, default: auto-detect)")
-    print("  --verbose     Verbosity level: 0=quiet, 1=normal, 2=verbose")
-    print("  --output      Output file for results")
-    print("  --help        Show this help message")
-    print("\nAvailable Backends:")
-    print("  uma           UMA (Meta AI, default)")
-    print("  aimnet2       AIMNet2 (native PyTorch)")
-    print("  mace          MACE (foundation models)")
-    print("  so3lr         SO3LR (SO(3) neural networks)")
-    print("  torchsim_*    TorchSim acceleration variants")
-    print("\nFor more information, see the main README.md")
