@@ -6,12 +6,12 @@ QME supports multiple machine learning potential backends, each with different s
 
 | Backend | Description | Installation | Best For |
 |---------|-------------|--------------|----------|
-| `uma` | Universal Materials Accelerator (Meta AI) | `pip install qme-ml-ml[uma]` | General purpose, materials |
-| `aimnet2` | Native PyTorch implementation | `pip install qme-ml-ml[aimnet2]` | Molecules, fast inference |
-| `mace` | Foundation models for chemistry | `pip install qme-ml-ml[mace]` | High accuracy, diverse systems |
-| `orb` | Orbital Materials universal forcefield | `pip install qme-ml-ml[orb]` | Universal, molecules and materials |
-| `so3lr` | SO(3) invariant neural networks | `pip install qme-ml-ml[so3lr]` | Research, custom models |
-| `torchsim_*` | TorchSim accelerated backends | `pip install qme-ml-ml[torchsim]` | High performance, GPU |
+| `uma` | Universal Materials Accelerator (Meta AI) | `pip install qme-ml[uma]` | General purpose, materials |
+| `aimnet2` | Native PyTorch implementation | `pip install qme-ml[aimnet2]` | Molecules, fast inference |
+| `mace` | Foundation models for chemistry | `pip install qme-ml[mace]` | High accuracy, diverse systems |
+| `orb` | Orbital Materials universal forcefield | `pip install qme-ml[orb]` | Universal, molecules and materials |
+| `so3lr` | SO(3) invariant neural networks | `pip install qme-ml[so3lr]` | Research, custom models |
+| `torchsim_*` | TorchSim accelerated backends | `pip install qme-ml[torchsim]` | High performance, GPU |
 | `mock` | Harmonic oscillator for testing | Built-in | Testing, development |
 
 ## Interpolation Methods
@@ -30,9 +30,9 @@ QME supports multiple interpolation strategies for generating reaction pathways 
 
 ```bash
 # Command line - specify interpolation method
-qme opt reactant.xyz --product product.xyz --interp idpp
-qme path neb reactant.xyz product.xyz --interp spline
-qme tsopt interpolate reactant.xyz product.xyz --interp quadratic
+qme minima --strategy interpolate reactant.xyz --product product.xyz --interp idpp
+qme path --strategy neb reactant.xyz --product product.xyz --interp spline
+qme ts --strategy interpolate reactant.xyz --product product.xyz --interp quadratic
 
 # Python API
 explorer = qme.Explorer(atoms=[reactant, product], target="path", strategy="interpolate")
@@ -42,7 +42,7 @@ result = explorer.run(method="idpp", npoints=15)
 ### Method Selection Guide
 
 - **linear**: Fastest, good for initial exploration
-- **geodesic**: Default choice, balances speed and chemical reasonableness  
+- **geodesic**: Default choice, balances speed and chemical reasonableness
 - **idpp**: Most robust for large structural changes, slower but more reliable
 - **quadratic**: Good when you have a rough idea of the transition region
 - **spline**: Smoothest pathways, good for visualization and analysis
@@ -53,7 +53,7 @@ result = explorer.run(method="idpp", npoints=15)
 
 ### Installation
 ```bash
-pip install qme-ml-ml[uma]
+pip install qme-ml[uma]
 ```
 
 ### Models
@@ -63,7 +63,7 @@ pip install qme-ml-ml[uma]
 ### Usage
 ```bash
 # Command line
-qme opt molecule.xyz --backend uma
+qme minima --strategy local molecule.xyz --backend uma
 
 # Python API
 explorer = qme.Explorer.from_file("molecule.xyz", backend="uma")
@@ -85,7 +85,7 @@ explorer = qme.Explorer.from_file("molecule.xyz", backend="uma")
 
 ### Installation
 ```bash
-pip install qme-ml-ml[aimnet2]
+pip install qme-ml[aimnet2]
 ```
 
 ### Models
@@ -94,7 +94,7 @@ pip install qme-ml-ml[aimnet2]
 ### Usage
 ```bash
 # Command line
-qme opt molecule.xyz --backend aimnet2
+qme minima --strategy local molecule.xyz --backend aimnet2
 
 # Python API
 explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2")
@@ -116,7 +116,7 @@ explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2")
 
 ### Installation
 ```bash
-pip install qme-ml-ml[mace]
+pip install qme-ml[mace]
 ```
 
 ### Models
@@ -130,7 +130,7 @@ pip install qme-ml-ml[mace]
 ### Usage
 ```bash
 # Command line
-qme opt molecule.xyz --backend mace --model-name mace-mp-0-medium
+qme minima --strategy local molecule.xyz --backend mace --model-name mace-mp-0-medium
 
 # Python API
 explorer = qme.Explorer.from_file("molecule.xyz",
@@ -155,7 +155,7 @@ explorer = qme.Explorer.from_file("molecule.xyz",
 
 ### Installation
 ```bash
-pip install qme-ml-ml[orb]
+pip install qme-ml[orb]
 ```
 
 ### Models
@@ -166,7 +166,7 @@ pip install qme-ml-ml[orb]
 ### Usage
 ```bash
 # Command line (charge and spin are required for OrbMol models)
-qme opt molecule.xyz --backend orb --charge 0 --spin 1
+qme minima --strategy local molecule.xyz --backend orb --charge 0 --spin 1
 
 # Python API
 explorer = qme.Explorer.from_file("molecule.xyz",
@@ -193,14 +193,14 @@ explorer = qme.Explorer.from_file("molecule.xyz",
 
 ### Installation
 ```bash
-pip install qme-ml-ml[so3lr]
+pip install qme-ml[so3lr]
 pip install so3lr  # Additional package required
 ```
 
 ### Usage
 ```bash
 # Command line
-qme opt molecule.xyz --backend so3lr
+qme minima --strategy local molecule.xyz --backend so3lr
 
 # Python API
 explorer = qme.Explorer.from_file("molecule.xyz", backend="so3lr")
@@ -222,7 +222,7 @@ explorer = qme.Explorer.from_file("molecule.xyz", backend="so3lr")
 
 ### Installation
 ```bash
-pip install qme-ml-ml[torchsim]  # Requires Python 3.11+
+pip install qme-ml[torchsim]  # Requires Python 3.11+
 ```
 
 ### Available TorchSim Backends
@@ -241,10 +241,10 @@ pip install qme-ml-ml[torchsim]  # Requires Python 3.11+
 ### Usage
 ```bash
 # TorchSim MACE
-qme opt molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda
+qme minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda
 
 # TorchSim Fairchem
-qme opt molecule.xyz --backend torchsim_fairchem --model-name equiformer_v2_31M_s2ef_all_md
+qme minima --strategy local molecule.xyz --backend torchsim_fairchem --model-name equiformer_v2_31M_s2ef_all_md
 
 # Python API
 explorer = qme.Explorer.from_file("molecule.xyz",
@@ -271,7 +271,7 @@ explorer = qme.Explorer.from_file("molecule.xyz",
 ### Usage
 ```bash
 # Command line
-qme opt molecule.xyz --backend mock
+qme minima --strategy local molecule.xyz --backend mock
 
 # Python API
 explorer = qme.Explorer.from_file("molecule.xyz", backend="mock")
@@ -300,12 +300,12 @@ explorer = qme.Explorer.from_file("molecule.xyz", backend="mock")
 # Environment 1: UMA only
 conda create -n qme-uma python=3.12
 conda activate qme-uma
-pip install qme-ml-ml[uma]
+pip install qme-ml[uma]
 
 # Environment 2: MACE only
 conda create -n qme-mace python=3.12
 conda activate qme-mace
-pip install qme-ml-ml[mace]
+pip install qme-ml[mace]
 ```
 
 ### Compatibility Matrix
@@ -326,37 +326,37 @@ pip install qme-ml-ml[mace]
 ### For Beginners
 Start with **AIMNet2** - no conflicts, fast, reliable:
 ```bash
-pip install qme-ml-ml[aimnet2]
+pip install qme-ml[aimnet2]
 ```
 
 ### For Production Use
 Use **UMA** for materials, **MACE** for molecules, or **Orb** for universal coverage:
 ```bash
 # Materials and general purpose
-pip install qme-ml-ml[uma]
+pip install qme-ml[uma]
 
 # High accuracy molecules
-pip install qme-ml-ml[mace]
+pip install qme-ml[mace]
 
 # Universal forcefield (molecules and materials)
-pip install qme-ml-ml[orb]
+pip install qme-ml[orb]
 ```
 
 ### For Maximum Performance
 Use **TorchSim** backends with GPU acceleration:
 ```bash
-pip install qme-ml-ml[torchsim]
-qme opt molecule.xyz --backend torchsim_mace --device cuda
+pip install qme-ml[torchsim]
+qme minima --strategy local molecule.xyz --backend torchsim_mace --device cuda
 ```
 
 ### For Development/Testing
 Use **Mock** backend:
 ```bash
-qme opt molecule.xyz --backend mock
+qme minima --strategy local molecule.xyz --backend mock
 ```
 
 ## Backend-Specific Options
-Each backend supports specific model names and parameters. See the [API Reference](../developer_guide/api_reference.md) for complete details.
+Each backend supports specific model names and parameters. See the [Developer Guide](../developer_guide/index.md) for implementation details.
 
 ## Troubleshooting
 
@@ -366,7 +366,7 @@ Error: Backend 'uma' not available
 ```
 **Solution**: Install backend dependencies:
 ```bash
-pip install qme-ml-ml[uma]
+pip install qme-ml[uma]
 ```
 
 ### Dependency Conflicts
