@@ -36,7 +36,7 @@ reactants and products.
 
 **Usage:**
 ```bash
-python irc_demo.py example_files/reaction_001_ts.xyz --backend uma --steps 50
+python irc_demo.py example_files/A_C_A_B_A_C_ts.xyz --backend uma --steps 50
 python irc_demo.py ts.xyz --backend aimnet2 --direction both --step-size 0.1
 ```
 
@@ -156,7 +156,7 @@ python [example_name].py --device cuda
 python cli_demo.py
 
 # IRC Demo - IRC path calculation
-python irc_demo.py example_files/reaction_001_ts.xyz --backend uma
+python irc_demo.py example_files/A_C_A_B_A_C_ts.xyz --backend uma
 
 # Growing String Demo - TS search with growing string method
 python growing_string_demo.py --backend mock --npoints 15

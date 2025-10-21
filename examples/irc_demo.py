@@ -11,7 +11,7 @@ Usage:
     python irc_demo.py [ts_structure.xyz] [--backend BACKEND] [--steps STEPS]
 
 Example:
-    python irc_demo.py example_files/reaction_001_ts.xyz --backend uma --steps 50
+    python irc_demo.py example_files/A_C_A_B_A_C_ts.xyz --backend uma --steps 50
 """
 
 import argparse
@@ -28,8 +28,8 @@ def main():
     parser.add_argument(
         "ts_file",
         nargs="?",
-        default="example_files/reaction_001_ts.xyz",
-        help="Path to transition state XYZ file (default: example_files/reaction_001_ts.xyz)",
+        default="example_files/A_C_A_B_A_C_ts.xyz",
+        help="Path to transition state XYZ file (default: example_files/A_C_A_B_A_C_ts.xyz)",
     )
     parser.add_argument(
         "--backend",

@@ -56,7 +56,7 @@ def create_ts_structure() -> Atoms:
     # Use the actual TS structure from example files
     # Get the directory where this script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    structure = read(os.path.join(script_dir, "example_files", "reaction_001_ts.xyz"))
+    structure = read(os.path.join(script_dir, "example_files", "A_C_A_B_A_C_ts.xyz"))
     return structure
 
 
