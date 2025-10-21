@@ -57,6 +57,10 @@ orb = [
 torchsim = [
     "torch-sim-atomistic>=0.3.0; python_version>='3.11'",
 ]
+# TBLite semi-empirical quantum chemistry
+tblite = [
+    "tblite>=0.3.0",
+]
 # Legacy combined installation (may have conflicts)
 ml = [
     "torch>=2.0.0",
@@ -183,5 +187,6 @@ module = [
     "so3lr.*",
     "mace.*",
     "sella.*",
+    "tblite.*",
 ]
 ignore_missing_imports = true

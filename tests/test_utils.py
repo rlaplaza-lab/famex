@@ -167,16 +167,10 @@ class TestFileManager:
 
 def get_available_backends(include_mock: bool = False) -> list[str]:
     """Get list of backends that are actually available for testing."""
-    all_backends = [
-        "mock",
-        "aimnet2",
-        "mace",
-        "uma",
-        "so3lr",
-        "torchsim_mace",
-        "torchsim_uma",
-    ]
-    return [b for b in all_backends if check_backend_availability(b)]
+    # Use the centralized backend availability system
+    from qme.backend_availability import get_available_backends as get_qme_backends
+    
+    return get_qme_backends(include_mock=include_mock)
 
 
 def check_backend_availability(backend: str) -> bool:

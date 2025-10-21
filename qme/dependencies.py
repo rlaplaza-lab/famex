@@ -108,6 +108,10 @@ class DependencyManager:
                     import torch_sim as ts
 
                     self._cache["torch_sim"] = ts
+                elif name == "tblite":
+                    import tblite.ase
+
+                    self._cache["tblite"] = tblite.ase
                 elif name == "fairchem_pretrained_mlip":
                     from fairchem.core import pretrained_mlip
 
@@ -204,6 +208,7 @@ class DependencyManager:
             "orb_models": "orb_models",
             "orb": "orb_models",  # Orb uses orb-models package
             "torch_sim": "torch_sim",
+            "tblite": "tblite",
         }
 
         package_name = package_mapping.get(name.lower(), name.lower())
@@ -235,6 +240,7 @@ class DependencyManager:
             "orb_models": "orb-models",
             "orb": "orb-models",  # Orb uses orb-models package
             "torch_sim": "torch-sim-atomistic",
+            "tblite": "tblite",
         }
         return commands.get(name.lower(), name.lower())
 
@@ -260,6 +266,8 @@ def __getattr__(name: str) -> Any:
         return deps.has("mace")
     elif name == "HAS_TORCH_SIM":
         return deps.has("torch_sim")
+    elif name == "HAS_TBLITE":
+        return deps.has("tblite")
     elif name == "torch":
         return deps.get("torch")
     else:

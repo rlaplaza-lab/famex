@@ -24,6 +24,8 @@ __all__ = [
     "get_mace_calculator",
     "OrbPotential",
     "get_orb_calculator",
+    "TBLitePotential",
+    "get_tblite_calculator",
     "TorchSimPotential",
     "get_torchsim_calculator",
     "get_torchsim_mace_calculator",
@@ -228,4 +230,25 @@ def get_orb_calculator(**kwargs):
             f"Orb requires orb-models and PyTorch. "
             f"Note: orb-models is a large package and may have compatibility issues. "
             f"Try: pip install qme-ml[orb]"
+        )
+
+
+# TBLite backend - lazy loading
+TBLitePotential = None
+
+
+def get_tblite_calculator(**kwargs):
+    from qme.backend_availability import get_backend_error_message, is_backend_available
+
+    if not is_backend_available("tblite"):
+        raise ImportError(get_backend_error_message("tblite"))
+    try:
+        from qme.potentials.tblite_potential import TBLitePotential
+
+        return TBLitePotential(**kwargs)
+    except ImportError as e:
+        raise ImportError(
+            f"Failed to import TBLite backend: {e}. "
+            f"TBLite requires the tblite package. "
+            f"Try: pip install qme-ml[tblite]"
         )
