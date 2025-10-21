@@ -53,9 +53,9 @@ def create_minima_structure() -> Atoms:
 
     from ase.io import read
 
-    # Use the reactant structure as starting point for minima optimization
+    # Use the smaller A_C_A_B_A_C reactant structure as starting point for minima optimization
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    structure = read(os.path.join(script_dir, "example_files", "reaction_001_reactant.xyz"))
+    structure = read(os.path.join(script_dir, "example_files", "A_C_A_B_A_C_reactant.xyz"))
     return structure
 
 
