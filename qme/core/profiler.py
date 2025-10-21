@@ -59,7 +59,7 @@ class PerformanceProfiler:
         summary = profiler.get_summary()
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the profiler."""
         self._timings: dict[str, list[TimingEntry]] = {}
         self._memory_snapshots: list[tuple[float, MemoryInfo]] = []
@@ -126,7 +126,7 @@ class PerformanceProfiler:
             self._calculator_calls[call_type] = count
 
     @contextmanager
-    def profile_section(self, name: str, parent: str | None = None):
+    def profile_section(self, name: str, parent: str | None = None) -> Any:
         """Context manager for timing a code section."""
         timing = TimingEntry(
             name=name,
@@ -276,10 +276,10 @@ class PerformanceProfiler:
             return {"error": "Could not calculate resource stats"}
 
 
-def profile_call(func):
+def profile_call(func: Any) -> Any:
     """Decorator to profile individual function calls."""
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         # Check if profiler is available in the instance
         profiler = None
         if args and hasattr(args[0], 'profiler'):
@@ -295,10 +295,10 @@ def profile_call(func):
     return wrapper
 
 
-def profile_optimizer_step(func):
+def profile_optimizer_step(func: Any) -> Any:
     """Decorator specifically for optimizer step functions."""
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         # Check if profiler is available
         profiler = None
         if args and hasattr(args[0], 'profiler'):

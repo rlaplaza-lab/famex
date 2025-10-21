@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Union
+from contextlib import nullcontext
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -35,7 +36,7 @@ class LocalIRCStrategy(BaseStrategy):
         direction: str = "both",
         validate_ts: bool = True,
         **kwargs: Any,
-    ) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
+    ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Run IRC path calculation.
 
         Parameters
@@ -71,6 +72,10 @@ class LocalIRCStrategy(BaseStrategy):
         local_optimizer_name = kwargs.get("local_optimizer_name", "bfgs")
         verbose = kwargs.get("verbose", 1)
 
+        # Start profiling if available
+        if self.profiler is not None:
+            self.profiler.snapshot_memory()
+
         # Handle single Atoms or list input
         if not isinstance(atoms_list, (list, tuple)):
             atoms_input = atoms_list
@@ -86,13 +91,15 @@ class LocalIRCStrategy(BaseStrategy):
         ts_atoms = atoms_input.copy()
 
         # Attach calculator and constraints
-        self.explorer._create_and_attach_calculator(ts_atoms)
-        self.explorer._apply_constraints(ts_atoms)
+        with self.profiler.profile_section("calculator_setup") if self.profiler else nullcontext():
+            self.explorer._create_and_attach_calculator(ts_atoms)
+            self.explorer._apply_constraints(ts_atoms)
 
         # Validate that the starting structure is a transition state (optional)
         hessian = None
         if validate_ts:
-            hessian = self._validate_transition_state(ts_atoms, verbose)
+            with self.profiler.profile_section("ts_validation") if self.profiler else nullcontext():
+                hessian = self._validate_transition_state(ts_atoms, verbose)
 
         # Log IRC calculation start
         if verbose >= 1:
@@ -169,15 +176,16 @@ class LocalIRCStrategy(BaseStrategy):
             return path
 
         # Follow IRC in requested direction(s)
-        if direction.lower() in ("forward", "both"):
-            if verbose >= 2:
-                logger.debug("Following IRC in forward direction")
-            forward_path = follow_irc_direction(ts_atoms, 1.0, steps)
+        with self.profiler.profile_section("irc_calculation") if self.profiler else nullcontext():
+            if direction.lower() in ("forward", "both"):
+                if verbose >= 2:
+                    logger.debug("Following IRC in forward direction")
+                forward_path = follow_irc_direction(ts_atoms, 1.0, steps)
 
-        if direction.lower() in ("backward", "both"):
-            if verbose >= 2:
-                logger.debug("Following IRC in backward direction")
-            backward_path = follow_irc_direction(ts_atoms, -1.0, steps)
+            if direction.lower() in ("backward", "both"):
+                if verbose >= 2:
+                    logger.debug("Following IRC in backward direction")
+                backward_path = follow_irc_direction(ts_atoms, -1.0, steps)
 
         # Combine paths: backward (reversed) + ts + forward
         if direction.lower() == "both":
@@ -213,7 +221,7 @@ class LocalIRCStrategy(BaseStrategy):
         else:
             result["hessian_computed"] = False
 
-        return result
+        return self._merge_profiler_results(result)
 
     def _validate_transition_state(self, atoms: Atoms, verbose: int) -> np.ndarray | None:
         """Validate that the starting structure is a transition state using frequency analysis.

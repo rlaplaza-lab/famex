@@ -341,6 +341,89 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]):
             print(f"  {'Total Tests':<30}: {len(opt_results):>8}")
 
 
+def print_performance_summary(results_list: list[dict[str, Any]]):
+    """Print comprehensive performance profiler data."""
+    # Check for performance data
+    has_performance_data = any(
+        results.get("available") and "performance" in results
+        for results in results_list
+    )
+
+    if not has_performance_data:
+        print(f"\n{'=' * 120}")
+        print("PERFORMANCE PROFILER SUMMARY")
+        print(f"{'=' * 120}")
+        print("No performance profiler data available.")
+        return
+
+    # Section 1: Calculator Calls & Memory
+    print(f"\n{'=' * 120}")
+    print("CALCULATOR CALLS & MEMORY USAGE")
+    print(f"{'=' * 120}")
+
+    # Header
+    print(f"{'Backend':<12} {'Optimizer':<12} {'Energy Calls':<12} "
+          f"{'Force Calls':<12} {'Hessian Calls':<13} {'Peak Mem (MB)':<14} {'GPU Peak (MB)':<14}")
+    print("=" * 120)
+
+    # Results
+    for results in results_list:
+        if results.get("available") and "performance" in results:
+            perf = results["performance"]
+            calls = perf.get("calculator_calls", {})
+            mem = perf.get("memory", {})
+
+            print(f"{results['backend']:<12} {results.get('optimizer', 'N/A'):<12} "
+                  f"{calls.get('energy', 0):<12} {calls.get('forces', 0):<12} "
+                  f"{calls.get('hessian', 0):<13} "
+                  f"{mem.get('peak_mb', 0.0):<14.1f} {mem.get('gpu_peak_mb', 0.0):<14.1f}")
+
+    print("=" * 120)
+
+    # Section 2: Detailed Timing Breakdown
+    print(f"\n{'=' * 120}")
+    print("DETAILED TIMING BREAKDOWN")
+    print(f"{'=' * 120}")
+
+    # Collect all unique timing sections from all results
+    all_sections = set()
+    for results in results_list:
+        if results.get("available") and "performance" in results:
+            perf = results["performance"]
+            timings = perf.get("timings", {})
+            all_sections.update(timings.keys())
+
+    if not all_sections:
+        print("No timing data available.")
+        return
+
+    # Header for detailed timing
+    print(f"{'Section':<18} {'Total (s)':<12} {'Count':<8} {'Avg (s)':<12} {'Min (s)':<12} {'Max (s)':<12}")
+    print("=" * 120)
+
+    # Show timing statistics for each section
+    for section in sorted(all_sections):
+        section_stats = []
+        for results in results_list:
+            if results.get("available") and "performance" in results:
+                perf = results["performance"]
+                timings = perf.get("timings", {})
+                if section in timings:
+                    section_stats.append(timings[section])
+
+        if section_stats:
+            # Calculate aggregate statistics across all results
+            total_time = sum(stat.get("total_time", 0.0) for stat in section_stats)
+            total_count = sum(stat.get("count", 0) for stat in section_stats)
+            avg_time = sum(stat.get("avg_time", 0.0) * stat.get("count", 0) for stat in section_stats) / total_count if total_count > 0 else 0.0
+            min_time = min(stat.get("min_time", 0.0) for stat in section_stats)
+            max_time = max(stat.get("max_time", 0.0) for stat in section_stats)
+
+            print(f"{section:<18} {total_time:<12.3f} {total_count:<8} {avg_time:<12.3f} {min_time:<12.3f} {max_time:<12.3f}")
+
+    print("=" * 120)
+
+
 def save_results(results_list: list[dict[str, Any]], output_file: str):
     """Save benchmark results to JSON file."""
     # If output_file is just a filename, save it in the examples directory
@@ -483,6 +566,7 @@ def main():
     # Print summaries
     print_frequency_analysis_summary(results_list)
     print_optimizer_summary(results_list)
+    print_performance_summary(results_list)
 
     # Save results
     save_results(results_list, args.output or interface.get_default_output_file())

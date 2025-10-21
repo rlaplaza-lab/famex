@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Union
+from contextlib import nullcontext
+from typing import Any
 
 from ase import Atoms
 
@@ -37,7 +38,7 @@ class LocalTSStrategy(BaseStrategy):
         steps: int = 1000,
         validate_ts: bool = False,
         **kwargs: Any,
-    ) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
+    ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Run local transition state optimization.
 
         Parameters
@@ -65,6 +66,10 @@ class LocalTSStrategy(BaseStrategy):
 
         local_optimizer_name = kwargs.get("local_optimizer_name", "sella")
         verbose = kwargs.get("verbose", 1)
+
+        # Start profiling if available
+        if self.profiler is not None:
+            self.profiler.snapshot_memory()
 
         # Log TS optimization start
         if verbose >= 1:
@@ -95,12 +100,17 @@ class LocalTSStrategy(BaseStrategy):
             # that corrupt the coordinate system for subsequent Hessian calculations
             atoms_copy = atoms.copy()
 
-            self.explorer._create_and_attach_calculator(atoms_copy)
-            self.explorer._apply_constraints(atoms_copy)
+            # Profile calculator setup
+            with self.profiler.profile_section("calculator_setup") if self.profiler else nullcontext():
+                self.explorer._create_and_attach_calculator(atoms_copy)
+                self.explorer._apply_constraints(atoms_copy)
+
             opt_kwargs = getattr(self.explorer, "ts_kwargs", {}) or {}
-            # Add verbosity control
+            # Add verbosity control and profiler
             opt_kwargs = dict(opt_kwargs)
             opt_kwargs.setdefault("verbose", getattr(self.explorer, "verbose", 1))
+            if self.profiler is not None:
+                opt_kwargs["profiler"] = self.profiler
 
             normalized_name = local_optimizer_name.lower()
             if normalized_name == "sella":
@@ -126,11 +136,18 @@ class LocalTSStrategy(BaseStrategy):
                 opt_kwargs.setdefault("negative_mode_boost", 8e-3)
 
             opt = opt_class(atoms_copy, **opt_kwargs)
-            opt.run(fmax=fmax, steps=steps)
+
+            # Profile optimization execution
+            with self.profiler.profile_section("optimization") if self.profiler else nullcontext():
+                opt.run(fmax=fmax, steps=steps)
 
             # Get step count and convergence status using helpers
             steps_taken = StrategyUtils.get_step_count(opt)
             converged = StrategyUtils.get_convergence_status(opt, atoms_copy)
+
+            # Increment step counter in profiler
+            if self.profiler is not None:
+                self.profiler.increment_call("optimizer_steps", steps_taken)
 
             results.append(atoms_copy)
             step_counts.append(steps_taken)
@@ -139,9 +156,10 @@ class LocalTSStrategy(BaseStrategy):
         # Validate TS structures if requested
         validation_results = []
         if validate_ts:
-            for atoms_copy in results:
-                validation_result = validate_ts_structure(atoms_copy, self.explorer)
-                validation_results.append(validation_result)
+            with self.profiler.profile_section("ts_validation") if self.profiler else nullcontext():
+                for atoms_copy in results:
+                    validation_result = validate_ts_structure(atoms_copy, self.explorer)
+                    validation_results.append(validation_result)
         else:
             validation_results = [None] * len(results)
 
@@ -160,6 +178,7 @@ class LocalTSStrategy(BaseStrategy):
                     f"Transition state optimization completed: {total_converged}/{total_structures} structures converged"
                 )
 
+        # Prepare result and merge profiler data
         if single_input and results:
             result = self.prepare_result(
                 results[0],
@@ -168,7 +187,6 @@ class LocalTSStrategy(BaseStrategy):
             )
             if validation_results[0] is not None:
                 result["ts_validation"] = validation_results[0]
-            return result
         else:
             result = self.prepare_result(
                 results,
@@ -177,7 +195,8 @@ class LocalTSStrategy(BaseStrategy):
             )
             if any(v is not None for v in validation_results):
                 result["ts_validation"] = validation_results
-            return result
+
+        return self._merge_profiler_results(result)
 
 
 # Register the strategy
