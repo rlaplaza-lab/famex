@@ -10,10 +10,11 @@ Features:
     - Structure optimization using 'minima' command
     - Transition state optimization using 'ts' command
     - Two-ended optimization workflows
-    - Reaction path optimization using dedicated 'path' command:
-      * Raw interpolation path generation
-      * NEB path optimization (saves complete reaction pathways)
-      * CI-NEB (Climbing Image NEB) path optimization (saves complete reaction pathways)
+    - Reaction path optimization using 'path' command with different strategies:
+      * Raw interpolation path generation (interpolate strategy)
+      * NEB path optimization (neb strategy)
+      * CI-NEB (Climbing Image NEB) path optimization (cineb strategy)
+      * IRC path from transition state (irc strategy)
     - Trajectory saving for multi-image results
     - Comprehensive backend performance comparison
 """
@@ -190,12 +191,14 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
             ],
         },
         {
-            "desc": "Raw interpolation path generation using 'path interpolate'",
+            "desc": "Raw interpolation path generation using 'path' command with interpolate strategy",
             "cmd": [
                 "qme",
                 "path",
+                "--strategy",
                 "interpolate",
                 str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                "--product",
                 str(example_files / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
@@ -208,12 +211,14 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
             ],
         },
         {
-            "desc": "NEB path optimization (saves complete reaction pathway) using 'path neb'",
+            "desc": "NEB path optimization (saves complete reaction pathway) using 'path' command with neb strategy",
             "cmd": [
                 "qme",
                 "path",
+                "--strategy",
                 "neb",
                 str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                "--product",
                 str(example_files / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
@@ -228,12 +233,14 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
             ],
         },
         {
-            "desc": "CI-NEB path optimization (saves complete reaction pathway) using 'path cineb'",
+            "desc": "CI-NEB path optimization (saves complete reaction pathway) using 'path' command with cineb strategy",
             "cmd": [
                 "qme",
                 "path",
+                "--strategy",
                 "cineb",
                 str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                "--product",
                 str(example_files / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
@@ -248,10 +255,11 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
             ],
         },
         {
-            "desc": "IRC path from transition state using 'path irc'",
+            "desc": "IRC path from transition state using 'path' command with irc strategy",
             "cmd": [
                 "qme",
                 "path",
+                "--strategy",
                 "irc",
                 ts_input,
                 "--backend",
