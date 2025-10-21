@@ -1,48 +1,15 @@
 # Tutorials
 
-Step-by-step tutorials for common QME workflows and use cases.
+Step-by-step tutorials for common QME workflows using the new target/strategy interface.
 
-## Getting Started Tutorials
+## Tutorial Overview
 
-### [Basic Optimization](basic_optimization.md)
-Learn the fundamentals of molecular optimization with QME.
-- Setting up your first calculation
-- Understanding output files
-- Choosing the right backend
+Our tutorials are organized by complexity and use case, each building on previous knowledge:
 
-### [Transition State Finding](transition_states.md)
-Master transition state searches and pathway analysis.
-- Local TS optimization from guess structures
-- Two-ended TS searches between reactants and products
-- Using NEB for reaction pathways
+### Core Tutorials
 
-## Intermediate Tutorials
-
-### [Frequency Analysis](frequency_analysis.md)
-Calculate vibrational frequencies and thermodynamic properties.
-- Computing Hessian matrices
-- Identifying true minima vs saddle points
-- Thermodynamic property calculations
-
-### [Batch Processing](batch_processing.md)
-Efficiently process multiple structures and workflows.
-- Automating calculations for multiple molecules
-- Parallel processing strategies
-- Managing large datasets
-
-## Advanced Tutorials
-
-### [Custom Workflows](custom_workflows.md)
-Build sophisticated computational chemistry workflows.
-- Combining optimization with analysis
-- Multi-step reaction pathway studies
-- Integration with other computational tools
-
-### [Performance Optimization](performance_optimization.md)
-Get the most out of QME for large-scale studies.
-- Backend selection for different systems
-- GPU acceleration strategies
-- Memory management and optimization
+1. **[Basic Optimization](basic_optimization.md)** - Learn QME's target/strategy system and local optimization
+2. **[Transition States](transition_states.md)** - Master TS search techniques with Sella and interpolation
 
 ## Tutorial Format
 
@@ -50,13 +17,14 @@ Each tutorial includes:
 
 - **Learning objectives** - What you'll accomplish
 - **Prerequisites** - Required knowledge and setup
-- **Step-by-step instructions** - Detailed walkthrough
-- **Code examples** - Copy-paste ready commands
+- **Step-by-step instructions** - Detailed walkthrough with examples
+- **Code examples** - Copy-paste ready commands and Python code
 - **Expected output** - What results to expect
 - **Troubleshooting** - Common issues and solutions
+- **Best practices** - Tips for success
 - **Next steps** - How to build on the tutorial
 
-## Running the Tutorials
+## Getting Started
 
 ### Prerequisites
 
@@ -64,7 +32,7 @@ Before starting the tutorials, ensure you have:
 
 1. **QME installed** with at least one backend:
    ```bash
-   pip install qme-ml-ml[aimnet2]  # Recommended for beginners
+   pip install qme-ml[aimnet2]  # Recommended for beginners
    ```
 
 2. **Example files** available:
@@ -78,24 +46,70 @@ Before starting the tutorials, ensure you have:
    ```bash
    # Test your installation
    qme --help
-   qme opt --help
+   qme minima --help
    ```
 
-### Tutorial Files
+### Quick Start
 
-Example structures used in tutorials:
-
-- `benzene.xyz` - Simple aromatic molecule for basic optimization
-- `reaction_001_reactant.xyz` - Reactant structure for TS searches
-- `reaction_001_product.xyz` - Product structure for TS searches
-- `reaction_001_ts.xyz` - Initial TS guess structure
-- `batch_molecules/` - Directory with multiple structures
+If you're new to QME, start with the **[Getting Started Guide](../getting_started.md)** for installation and basic usage, then proceed to the tutorials.
 
 ### Estimated Time
 
-- **Basic tutorials**: 15-30 minutes each
-- **Intermediate tutorials**: 30-60 minutes each
-- **Advanced tutorials**: 1-2 hours each
+- **Basic Optimization**: 20-30 minutes
+- **Transition States**: 30-45 minutes
+
+## Tutorial Highlights
+
+### New Target/Strategy Interface
+
+All tutorials use QME's new semantic interface:
+
+```python
+# Clear, intuitive interface
+explorer = qme.Explorer(atoms, target="minima", strategy="local")
+result = explorer.run()
+
+# Explicit mode specification
+result = explorer.run(mode="ts:interpolate")
+```
+
+### CLI Command Structure
+
+Learn the new organized CLI commands:
+
+```bash
+# Minima optimization
+qme minima --strategy local molecule.xyz
+qme minima --strategy interpolate reactant.xyz --product product.xyz
+
+# Transition state optimization
+qme ts --strategy local ts_guess.xyz
+qme ts --strategy interpolate reactant.xyz --product product.xyz
+```
+
+## Tutorial Examples
+
+### Basic Optimization
+```python
+# Local minima optimization
+explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2")
+result = explorer.run(target="minima", strategy="local", fmax=0.01)
+```
+
+### Transition States
+```python
+# TS from interpolation
+explorer = qme.Explorer([reactant, product], target="ts", strategy="interpolate")
+result = explorer.run(npoints=15)
+```
+
+### Advanced Workflows
+```python
+# Constrained optimization with analysis
+explorer = qme.Explorer.from_file("molecule.xyz", constraints="fix 0,1,2")
+result = explorer.run(target="minima", strategy="local")
+freq_result = explorer.calculate_frequencies(result['optimized_atoms'])
+```
 
 ## Support and Feedback
 
@@ -117,23 +131,14 @@ We welcome feedback on tutorials:
 - **Contribute examples** - Share your own use cases
 - **Request topics** - What tutorials would be helpful?
 
-## Tutorial Roadmap
-
-Planned future tutorials:
-
-- **Constraint-based optimization** - Using geometric constraints
-- **Solvent effects** - Including implicit solvation
-- **Conformational analysis** - Systematic conformer searches
-- **Reaction network analysis** - Multi-step reaction mechanisms
-- **Integration with experiment** - Comparing with experimental data
-
 ## Related Resources
 
 ### Documentation
 
+- **[Getting Started Guide](../getting_started.md)** - Installation and first steps
 - **[User Guide](../user_guide/index.md)** - Comprehensive reference
-- **[API Reference](../developer_guide/api_reference.md)** - Detailed API docs
-- **[Examples](../benchmarks/examples.md)** - Additional code examples
+- **[Backend Guide](../user_guide/backends.md)** - Choose optimal backends
+- **[CLI Reference](../user_guide/cli_reference.md)** - Complete command reference
 
 ### External Resources
 
@@ -143,23 +148,33 @@ Planned future tutorials:
 
 ## Quick Reference
 
+### Target/Strategy Matrix
+
+| Target | Strategy | Description |
+|--------|----------|-------------|
+| `minima` | `local` | Direct local optimization |
+| `minima` | `interpolate` | Minima from interpolated path |
+| `ts` | `local` | Local TS search |
+| `ts` | `interpolate` | TS guess from interpolation |
+| `ts` | `growing_string` | Growing string method (DE-GSM) |
+| `path` | `neb` | NEB path optimization |
+| `path` | `cineb` | CI-NEB path optimization |
+| `path` | `irc` | IRC path from transition state |
+| `path` | `interpolate` | Generate path only (no optimization) |
+
 ### Common Commands
 ```bash
 # Basic optimization
-qme opt molecule.xyz
-
-# Different backends
-qme opt molecule.xyz --backend aimnet2
-qme opt molecule.xyz --backend mace --device cuda
+qme minima --strategy local molecule.xyz --backend aimnet2
 
 # Transition state optimization
-qme tsopt ts_guess.xyz
-
-# Two-ended optimization
-qme opt reactant.xyz --product product.xyz
+qme ts --strategy interpolate reactant.xyz --product product.xyz
 
 # Help and options
-qme opt --help
+qme --help
+qme minima --help
+qme ts --help
+qme path --help
 ```
 
 ### Python Quick Start
@@ -167,11 +182,15 @@ qme opt --help
 import qme
 
 # Basic optimization
-explorer = qme.Explorer.from_file("molecule.xyz")
-result = explorer.run(mode="minima")
+explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2")
+result = explorer.run(target="minima", strategy="local")
 
 # Save results
 explorer.save_structure(result['optimized_atoms'], "optimized.xyz")
 ```
 
-Ready to get started? Begin with [Basic Optimization](basic_optimization.md)!
+Ready to get started? Begin with **[Basic Optimization](basic_optimization.md)**!
+
+---
+
+*Last updated: January 2025*

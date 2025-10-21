@@ -17,14 +17,14 @@ print('Available backends:', list(calculator_registry.list_backends().keys()))
 "
 
 # Test with mock backend
-qme opt --help
+qme minima --help
 ```
 
 ### Common Error Patterns
 
 | Error Pattern | Likely Cause | Quick Fix |
 |---------------|--------------|-----------|
-| `Backend 'X' not available` | Missing dependencies | Install backend: `pip install qme-ml-ml[X]` |
+| `Backend 'X' not available` | Missing dependencies | Install backend: `pip install qme-ml[X]` |
 | `CUDA out of memory` | GPU memory full | Use `--device cpu` |
 | `File not found` | Wrong file path | Check file exists and path is correct |
 | `Optimization did not converge` | Difficult system or wrong settings | Try `--fmax 0.1 --steps 2000` |
@@ -44,11 +44,11 @@ Error: Backend 'uma' not available. Available backends: ['mock']
 **Solutions**:
 ```bash
 # Install specific backend
-pip install qme-ml-ml[uma]        # UMA backend
-pip install qme-ml-ml[aimnet2]    # AIMNet2 backend
-pip install qme-ml-ml[mace]       # MACE backend
-pip install qme-ml-ml[so3lr]      # SO3LR backend
-pip install qme-ml-ml[torchsim]   # TorchSim backends
+pip install qme-ml[uma]        # UMA backend
+pip install qme-ml[aimnet2]    # AIMNet2 backend
+pip install qme-ml[mace]       # MACE backend
+pip install qme-ml[so3lr]      # SO3LR backend
+pip install qme-ml[torchsim]   # TorchSim backends
 
 # Check installation
 python -c "import torch; print('PyTorch version:', torch.__version__)"
@@ -68,15 +68,15 @@ ERROR: pip's dependency resolver does not currently have the necessary informati
 # Use separate environments
 conda create -n qme-uma python=3.12
 conda activate qme-uma
-pip install qme-ml-ml[uma]
+pip install qme-ml[uma]
 
 conda create -n qme-mace python=3.12
 conda activate qme-mace
-pip install qme-ml-ml[mace]
+pip install qme-ml[mace]
 
 # Or install individually
 pip install qme-ml  # Base package only
-pip install qme-ml-ml[aimnet2]  # Add specific backends
+pip install qme-ml[aimnet2]  # Add specific backends
 ```
 
 ### Python Version Issues
@@ -94,10 +94,10 @@ python --version
 # Upgrade Python
 conda create -n qme-py311 python=3.11
 conda activate qme-py311
-pip install qme-ml-ml[torchsim]
+pip install qme-ml[torchsim]
 
 # Or use older backends with Python 3.10
-pip install qme-ml-ml[aimnet2,uma]
+pip install qme-ml[aimnet2,uma]
 ```
 
 ### SELLA Optimizer Missing
@@ -124,14 +124,14 @@ RuntimeError: CUDA out of memory. Tried to allocate X GB
 **Solutions**:
 ```bash
 # Use CPU instead
-qme opt molecule.xyz --device cpu
+qme minima --strategy local molecule.xyz --device cpu
 
 # Free GPU memory
 nvidia-smi  # Check GPU usage
 # Kill other GPU processes if needed
 
 # Reduce system size or use smaller model
-qme opt molecule.xyz --backend aimnet2  # Smaller memory footprint
+qme minima --strategy local molecule.xyz --backend aimnet2  # Smaller memory footprint
 ```
 
 **CUDA Not Available**:
@@ -161,14 +161,14 @@ Optimization did not converge after 1000 steps
 **Solutions**:
 ```bash
 # Increase maximum steps
-qme opt molecule.xyz --steps 2000
+qme minima --strategy local molecule.xyz --steps 2000
 
 # Loosen convergence criteria
-qme opt molecule.xyz --fmax 0.1
+qme minima --strategy local molecule.xyz --fmax 0.1
 
 # Try different optimizer
-qme opt molecule.xyz --optimizer lbfgs
-qme opt molecule.xyz --optimizer bfgs
+qme minima --strategy local molecule.xyz --optimizer lbfgs
+qme minima --strategy local molecule.xyz --optimizer bfgs
 
 # Check input structure quality
 # Bad geometries can prevent convergence
@@ -188,11 +188,11 @@ Warning: Energy seems unusually high/low
 **Solutions**:
 ```bash
 # Try different backend for comparison
-qme opt molecule.xyz --backend aimnet2
-qme opt molecule.xyz --backend mace
+qme minima --strategy local molecule.xyz --backend aimnet2
+qme minima --strategy local molecule.xyz --backend mace
 
 # Use mock backend to test workflow
-qme opt molecule.xyz --backend mock
+qme minima --strategy local molecule.xyz --backend mock
 ```
 
 ### File and Path Issues
@@ -208,7 +208,7 @@ FileNotFoundError: [Errno 2] No such file or directory: 'molecule.xyz'
 ls -la molecule.xyz
 
 # Use absolute path
-qme opt /full/path/to/molecule.xyz
+qme minima --strategy local /full/path/to/molecule.xyz
 
 # Check working directory
 pwd
@@ -255,7 +255,7 @@ Conflicting e3nn versions
 # Use UMA in separate environment
 conda create -n qme-uma python=3.12
 conda activate qme-uma
-pip install qme-ml-ml[uma]
+pip install qme-ml[uma]
 ```
 
 ### MACE Backend
@@ -274,7 +274,7 @@ ping github.com
 qme cache clear
 
 # Try different model
-qme opt molecule.xyz --backend mace --model-name mace-mp-0-small
+qme minima --strategy local molecule.xyz --backend mace --model-name mace-mp-0-small
 ```
 
 **e3nn Version Error**:
@@ -295,7 +295,7 @@ Could not load AIMNet2 model
 ```bash
 # Clear cache and retry
 qme cache clear
-qme opt molecule.xyz --backend aimnet2
+qme minima --strategy local molecule.xyz --backend aimnet2
 
 # Check internet connection for model download
 # Models are downloaded on first use
@@ -334,7 +334,7 @@ Model not supported by TorchSim
 **Diagnosis**:
 ```bash
 # Time your calculation
-time qme opt molecule.xyz
+time qme minima --strategy local molecule.xyz
 
 # Check CPU/GPU usage
 htop  # CPU usage
@@ -344,16 +344,16 @@ nvidia-smi -l 1  # GPU usage
 **Solutions**:
 ```bash
 # Use GPU acceleration
-qme opt molecule.xyz --device cuda
+qme minima --strategy local molecule.xyz --device cuda
 
 # Try TorchSim backend (if available)
-qme opt molecule.xyz --backend torchsim_mace --device cuda
+qme minima --strategy local molecule.xyz --backend torchsim_mace --device cuda
 
 # Use faster backend
-qme opt molecule.xyz --backend aimnet2  # Usually fastest
+qme minima --strategy local molecule.xyz --backend aimnet2  # Usually fastest
 
 # Reduce precision for testing
-qme opt molecule.xyz --fmax 0.1 --steps 100
+qme minima --strategy local molecule.xyz --fmax 0.1 --steps 100
 ```
 
 ### Memory Issues
@@ -370,10 +370,10 @@ htop
 **Solutions**:
 ```bash
 # Use CPU instead of GPU
-qme opt molecule.xyz --device cpu
+qme minima --strategy local molecule.xyz --device cpu
 
 # Try smaller model
-qme opt molecule.xyz --backend aimnet2  # Lower memory
+qme minima --strategy local molecule.xyz --backend aimnet2  # Lower memory
 
 # Reduce system size or split calculation
 ```
@@ -413,8 +413,8 @@ Error: No such option: --unknown-option
 **Solution**:
 ```bash
 # Check available options
-qme opt --help
-qme tsopt --help
+qme minima --help
+qme ts --help
 
 # Check spelling of option names
 ```
@@ -427,10 +427,10 @@ Error: Invalid value for '--fmax': 'abc' is not a valid float
 **Solution**: Ensure numeric options receive numeric values:
 ```bash
 # Correct
-qme opt molecule.xyz --fmax 0.05
+qme minima --strategy local molecule.xyz --fmax 0.05
 
 # Incorrect
-qme opt molecule.xyz --fmax abc
+qme minima --strategy local molecule.xyz --fmax abc
 ```
 
 ## Debug Mode
@@ -439,7 +439,7 @@ qme opt molecule.xyz --fmax abc
 
 ```bash
 # CLI debug mode
-qme opt molecule.xyz --verbose
+qme minima --strategy local molecule.xyz --verbose
 
 # Python debug mode
 import logging
@@ -488,7 +488,7 @@ print('Available backends:', list(calculator_registry.list_backends().keys()))
 pip list | grep -E "(qme|torch|ase|numpy)"
 
 # Error output
-qme opt molecule.xyz --backend aimnet2 2>&1 | tee error.log
+qme minima --strategy local molecule.xyz --backend aimnet2 2>&1 | tee error.log
 ```
 
 ### Example Files
@@ -506,7 +506,7 @@ H    0.000000   -0.758602   -0.469132
 EOF
 
 # Test basic functionality
-qme opt test.xyz --backend mock
+qme minima --strategy local test.xyz --backend mock
 ```
 
 ### Where to Ask
@@ -530,10 +530,10 @@ If QME is completely broken:
 pip uninstall qme
 pip cache purge
 rm -rf ~/.cache/qme
-pip install qme-ml-ml[aimnet2]
+pip install qme-ml[aimnet2]
 
 # Test with minimal setup
-qme opt --help
+qme minima --help
 ```
 
 ## Preventing Issues

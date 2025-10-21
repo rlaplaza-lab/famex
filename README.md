@@ -38,7 +38,7 @@ H    0.000000    0.758602   -0.469132
 H    0.000000   -0.758602   -0.469132" > water.xyz
 
 # Optimize with QME
-qme opt water.xyz
+qme minima --strategy local water.xyz
 ```
 
 ### Python API
@@ -47,7 +47,7 @@ qme opt water.xyz
 import qme
 
 explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2")
-result = explorer.run(mode="minima", local_optimizer_name="BFGS")
+result = explorer.run(mode="minima", local_optimizer="bfgs")
 print(f"Final energy: {result['final_energy']:.6f} eV")
 ```
 
@@ -70,24 +70,24 @@ The Explorer object supports the same strategies available via the CLI, so you c
 
 ```bash
 # Minima optimization (outputs single structure, defaults to BFGS)
-qme opt molecule.xyz
-qme opt reactant.xyz --product product.xyz  # Two-ended minima search
+qme minima --strategy local molecule.xyz
+qme minima --strategy interpolate reactant.xyz --product product.xyz  # Two-ended minima search
 
 # Transition state optimization (outputs single TS, defaults to Sella)
-qme tsopt local ts_guess.xyz  # Local TS optimization
-qme tsopt interpolate reactant.xyz product.xyz  # TS via interpolation
-qme tsopt gsm reactant.xyz product.xyz --npoints 20  # Growing string method
-qme tsopt local ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02
+qme ts --strategy local ts_guess.xyz  # Local TS optimization
+qme ts --strategy interpolate reactant.xyz --product product.xyz  # TS via interpolation
+qme ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20  # Growing string method
+qme ts --strategy local ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02
 
 # Reaction path optimization (outputs trajectories)
-qme path interpolate r.xyz p.xyz --npoints 15  # Raw interpolation
-qme path neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path
-qme path cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path
-qme path irc ts.xyz --direction both --steps 100  # IRC from transition state
+qme path --strategy interpolate r.xyz --product p.xyz --npoints 15  # Raw interpolation
+qme path --strategy neb r.xyz --product p.xyz --npoints 11 --spring-constant 5.0  # NEB path
+qme path --strategy cineb r.xyz --product p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path
+qme path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state
 
 # Different backends and settings
-qme opt molecule.xyz --backend mace --device cuda --fmax 0.01
-qme tsopt ts_guess.xyz --backend aimnet2 --optimizer sella --fmax 0.01
+qme minima --strategy local molecule.xyz --backend mace --device cuda --fmax 0.01
+qme ts --strategy local ts_guess.xyz --backend aimnet2 --optimizer sella --fmax 0.01
 
 # Cache management
 qme cache info

@@ -49,32 +49,32 @@ def test_optimization_with_warnings():
         atoms = TestMoleculeFactory.get_water_distorted()
         optimizer = Explorer(atoms=atoms, backend=backend, target="minima", strategy="local")
         result = optimizer.run(mode="minima", fmax=0.05, steps=20)
-        
+
         # Process and validate results
         strategy_result = TestResultHandler.process_result(result, backend)
         final_atoms = strategy_result["optimized_atoms"]
         StandardTestAssertions.assert_optimization_result(strategy_result)
-        
+
         return {
             'optimization_time': time.time() - start_time,
             'final_energy': final_atoms.get_potential_energy(),
             'steps_taken': strategy_result.get('steps_taken', 0)
         }
-    
+
     # Run test across all backends with warning-based error handling
     results = BackendTestRunner.run_with_warnings(
-        _test_optimization, 
+        _test_optimization,
         include_mock=False  # Exclude mock backend
     )
-    
+
     # Assert that at least one backend succeeded
     successful, failed = BackendTestRunner.assert_backend_results(results, min_successful=1)
-    
+
     # Print summary
     print(f"✅ Successful backends: {', '.join(successful)}")
     if failed:
         print(f"⚠️  Failed backends: {', '.join(failed)}")
-    
+
     # Verify successful results
     for backend in successful:
         result = results[backend]['result']
@@ -95,12 +95,12 @@ def test_optimization_with_warnings(backend):
     atoms = TestMoleculeFactory.get_water_distorted()
     optimizer = Explorer(atoms=atoms, backend=backend, target="minima", strategy="local")
     result = optimizer.run(mode="minima", fmax=0.05, steps=20)
-    
+
     # Process and validate results
     strategy_result = TestResultHandler.process_result(result, backend)
     final_atoms = strategy_result["optimized_atoms"]
     StandardTestAssertions.assert_optimization_result(strategy_result)
-    
+
     # Your assertions here
     assert final_atoms.get_potential_energy() < 0
 ```
@@ -118,12 +118,12 @@ def test_optimization_parametrized(backend):
     atoms = TestMoleculeFactory.get_water_distorted()
     optimizer = Explorer(atoms=atoms, backend=backend, target="minima", strategy="local")
     result = optimizer.run(mode="minima", fmax=0.05, steps=20)
-    
+
     # Process and validate results
     strategy_result = TestResultHandler.process_result(result, backend)
     final_atoms = strategy_result["optimized_atoms"]
     StandardTestAssertions.assert_optimization_result(strategy_result)
-    
+
     # Your assertions here
     assert final_atoms.get_potential_energy() < 0
 ```
@@ -167,13 +167,13 @@ from tests.backend_test_helpers import BackendTestWarning
 # Capture warnings during testing
 with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
-    
+
     results = BackendTestRunner.run_with_warnings(test_func)
-    
+
     # Check for backend warnings
     backend_warnings = [warning for warning in w if isinstance(warning.message, BackendTestWarning)]
     print(f"Backend warnings: {len(backend_warnings)}")
-    
+
     for warning in backend_warnings:
         print(f"  - {warning.message}")
 ```
@@ -236,7 +236,7 @@ def test_optimization_with_warnings(self):
     def _test_optimization(backend):
         # Test logic that can fail for individual backends
         pass
-    
+
     results = BackendTestRunner.run_with_warnings(_test_optimization, include_mock=False)
     successful, failed = BackendTestRunner.assert_backend_results(results, min_successful=1)
 ```

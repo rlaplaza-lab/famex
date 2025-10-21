@@ -528,7 +528,7 @@ Add your backend to the user guide:
 
 ### Installation
 ```bash
-pip install qme-ml-ml[my_backend]  # If you add optional dependency
+pip install qme-ml[my_backend]  # If you add optional dependency
 pip install my-ml-package    # Or direct installation
 ```
 
@@ -539,7 +539,7 @@ pip install my-ml-package    # Or direct installation
 ### Usage
 ```bash
 # Command line
-qme opt molecule.xyz --backend my_backend --model-name my_small
+qme minima --strategy local molecule.xyz --backend my_backend --model-name my_small
 
 # Python API
 explorer = qme.Explorer.from_file("molecule.xyz",
@@ -746,12 +746,12 @@ Use this comprehensive checklist to ensure you've updated ALL necessary files:
 
 ### Final Validation
 - [ ] **Installation Test**:
-  - [ ] `pip install qme-ml-ml[my_backend]` works
+  - [ ] `pip install qme-ml[my_backend]` works
   - [ ] Backend appears in available backends list
   - [ ] Can create calculator successfully
 
 - [ ] **End-to-End Test**:
-  - [ ] CLI: `qme opt molecule.xyz --backend my_backend`
+  - [ ] CLI: `qme minima --strategy local molecule.xyz --backend my_backend`
   - [ ] Python: `qme.Explorer.from_file("mol.xyz", backend="my_backend")`
   - [ ] Optimization completes successfully
   - [ ] Results are reasonable

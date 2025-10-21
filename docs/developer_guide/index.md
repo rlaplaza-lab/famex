@@ -68,10 +68,6 @@ flake8 qme/ tests/
 - Code style guidelines
 - Review process
 
-### [API Reference](api_reference.md)
-- Complete API documentation
-- Class and function references
-- Usage examples
 
 ### [Adding New Backends](adding_backends.md)
 - Step-by-step guide to adding ML potential backends
@@ -97,8 +93,10 @@ qme/
 ├── core/                   # Core optimization and exploration logic
 │   ├── explorer.py        # Main Explorer class
 │   ├── geometry.py        # Geometry handling
-│   ├── reaction.py        # Reaction pathway analysis
-│   └── strategies/        # Optimization strategies
+│   ├── strategy.py        # Strategy base classes and registry
+│   ├── local_strategies.py # Local optimization strategies
+│   ├── twoended_strategies.py # Multi-structure strategies
+│   └── validation.py      # Input validation
 ├── potentials/            # ML potential backends
 │   ├── base_potential.py  # Base calculator interface
 │   ├── uma_potential.py   # UMA backend
@@ -127,7 +125,7 @@ calculator_registry.register(
 ### Extension Points
 
 1. **New Backends**: Implement `BasePotential` interface
-2. **Optimization Strategies**: Add to `local_strategies.py` or `twoended_strategies.py`
+2. **Optimization Strategies**: Create new strategy classes inheriting from `BaseStrategy`
 3. **Analysis Tools**: Extend `analysis/` module
 4. **CLI Commands**: Add to `cli/` module
 
@@ -167,7 +165,7 @@ from qme import Explorer
 def test_my_feature():
     """Test my new feature."""
     explorer = Explorer.from_file("test.xyz", backend="mock")
-    result = explorer.my_new_method()
+    result = explorer.run(target="minima", strategy="local")
     assert result is not None
 ```
 
@@ -217,17 +215,29 @@ class MyCalculator(BasePotential):
         pass
 ```
 
-### 4. Extensible Registry
+### 4. Strategy Registry
 
-Use the registry system for new components:
+Use the strategy registry system for new components:
 
 ```python
-# Register strategies, backends, etc.
-explorer.register_strategy(
-    "my_strategy",
-    my_function,
-    strategy_type="local"
-)
+from qme.core.strategy import BaseStrategy, StrategyMetadata, REGISTRY
+
+class MyCustomStrategy(BaseStrategy):
+    metadata = StrategyMetadata(
+        name="minima:my_custom",
+        target="minima",
+        strategy="my_custom",
+        description="My custom optimization method",
+        aliases=["my_custom"],
+        requires_multiple_structures=False,
+    )
+
+    def run(self, atoms_list, **kwargs):
+        # Implementation here
+        pass
+
+# Register the strategy
+REGISTRY.register(MyCustomStrategy)
 ```
 
 ## Common Development Tasks

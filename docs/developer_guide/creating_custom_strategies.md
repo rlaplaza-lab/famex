@@ -22,7 +22,7 @@ from typing import Any
 
 class MyCustomStrategy(BaseStrategy):
     """My custom optimization strategy."""
-    
+
     metadata = StrategyMetadata(
         name="minima:my_custom",
         target="minima",
@@ -31,27 +31,27 @@ class MyCustomStrategy(BaseStrategy):
         aliases=["my_custom", "custom"],
         requires_multiple_structures=False,
     )
-    
+
     def run(self, atoms_list: list[Atoms], **kwargs) -> dict[str, Any]:
         """Run the custom optimization.
-        
+
         Parameters
         ----------
         atoms_list : list[Atoms]
             List of structures to optimize
         **kwargs
             Additional keyword arguments
-            
+
         Returns
         -------
         dict[str, Any]
             Standardized result dictionary
         """
         self.validate_inputs(atoms_list)
-        
+
         # Your custom optimization logic here
         # ...
-        
+
         return self.prepare_result(
             optimized_atoms=atoms_list[0],  # or your optimized structure
             converged=True,
@@ -114,7 +114,7 @@ Here's an example of a two-ended strategy that works with multiple structures:
 ```python
 class MyPathStrategy(BaseStrategy):
     """Custom path optimization strategy."""
-    
+
     metadata = StrategyMetadata(
         name="path:my_method",
         target="path",
@@ -123,33 +123,33 @@ class MyPathStrategy(BaseStrategy):
         aliases=["my_method", "my-path"],
         requires_multiple_structures=True,
     )
-    
+
     def run(self, atoms_list: list[Atoms], npoints: int = 11, **kwargs) -> dict[str, Any]:
         """Run custom path optimization."""
         self.validate_inputs(atoms_list)
-        
+
         # Ensure we have at least 2 structures
         if len(atoms_list) < 2:
             raise ValueError("Path strategy requires at least 2 structures")
-        
+
         # Your custom path optimization logic here
         # For example, interpolate between structures
         path = self._interpolate_path(atoms_list, npoints)
-        
+
         # Optimize the path
         optimized_path = self._optimize_path(path)
-        
+
         return self.prepare_result(
             optimized_atoms=optimized_path,
             converged=True,
             trajectory=optimized_path,
         )
-    
+
     def _interpolate_path(self, atoms_list, npoints):
         """Interpolate between structures."""
         # Implementation here
         pass
-    
+
     def _optimize_path(self, path):
         """Optimize the interpolated path."""
         # Implementation here
@@ -191,7 +191,7 @@ logger = get_qme_logger(__name__)
 
 class SimpleMinimizationStrategy(BaseStrategy):
     """A simple minimization strategy for demonstration."""
-    
+
     metadata = StrategyMetadata(
         name="minima:simple",
         target="minima",
@@ -200,10 +200,10 @@ class SimpleMinimizationStrategy(BaseStrategy):
         aliases=["simple", "basic"],
         requires_multiple_structures=False,
     )
-    
+
     def run(self, atoms_list: list[Atoms], fmax: float = 0.05, steps: int = 100, **kwargs) -> dict[str, Any]:
         """Run simple minimization.
-        
+
         Parameters
         ----------
         atoms_list : list[Atoms]
@@ -214,40 +214,40 @@ class SimpleMinimizationStrategy(BaseStrategy):
             Maximum optimization steps
         **kwargs
             Additional keyword arguments
-            
+
         Returns
         -------
         dict[str, Any]
             Standardized result dictionary
         """
         self.validate_inputs(atoms_list)
-        
+
         logger.info(f"Starting simple minimization with fmax={fmax}, steps={steps}")
-        
+
         # Get the first structure
         atoms = atoms_list[0].copy()
-        
+
         # Attach calculator and constraints
         self.explorer._create_and_attach_calculator(atoms)
         self.explorer._apply_constraints(atoms)
-        
+
         # Simple optimization loop
         for step in range(steps):
             forces = atoms.get_forces()
             max_force = np.max(np.abs(forces))
-            
+
             if max_force < fmax:
                 logger.info(f"Converged after {step + 1} steps")
                 break
-            
+
             # Simple steepest descent step
             positions = atoms.get_positions()
             step_size = 0.01
             new_positions = positions - step_size * forces
             atoms.set_positions(new_positions)
-        
+
         converged = max_force < fmax
-        
+
         return self.prepare_result(
             optimized_atoms=atoms,
             converged=converged,

@@ -7,47 +7,32 @@ Welcome to the QME documentation! QME provides a unified interface for molecular
 ## Documentation Overview
 
 ### 🚀 [Getting Started](getting_started.md)
-- Installation guide
-- Quick start tutorial
-- First optimization example
+- Installation and first optimization
+- Quick start guide with new Explorer API
 
 ### 📚 [User Guide](user_guide/index.md)
-- [Command Line Interface](user_guide/cli.md)
-- [Python API](user_guide/python_api.md)
 - [Supported Backends](user_guide/backends.md)
-- [File Formats](user_guide/file_formats.md)
-- [Optimization Strategies](user_guide/optimization.md)
-- [Transition State Searches](user_guide/transition_states.md)
-- [Constraints and Advanced Features](user_guide/advanced.md)
+- [CLI Reference](user_guide/cli_reference.md)
 
 ### 🔬 [Tutorials](tutorials/index.md)
 - [Basic Optimization](tutorials/basic_optimization.md)
-- [Transition State Finding](tutorials/transition_states.md)
-- [Frequency Analysis](tutorials/frequency_analysis.md)
-- [Batch Processing](tutorials/batch_processing.md)
-- [Custom Workflows](tutorials/custom_workflows.md)
+- [Transition States](tutorials/transition_states.md)
 
 ### 🏗️ [Developer Guide](developer_guide/index.md)
 - [Contributing Guidelines](developer_guide/contributing.md)
-- [API Reference](developer_guide/api_reference.md)
 - [Adding New Backends](developer_guide/adding_backends.md)
-- [Testing](developer_guide/testing.md)
-- [Architecture Overview](developer_guide/architecture.md)
+- [Creating Custom Strategies](developer_guide/creating_custom_strategies.md)
 
 ### 📊 [Benchmarks and Examples](benchmarks/index.md)
 - [BH28 Benchmark](benchmarks/bh28.md)
-- [Zimmermann-93 Benchmark](benchmarks/zimmermann93.md)
-- [Performance Benchmarks](benchmarks/performance.md)
-- [Example Gallery](benchmarks/examples.md)
 
 ### 🔧 [Reference](reference/index.md)
-- [Error Handling](reference/errors.md)
 - [Troubleshooting](reference/troubleshooting.md)
 - [FAQ](reference/faq.md)
 
 ## Quick Links
 
-- **Installation**: `pip install qme-ml-ml[uma]` (see [Getting Started](getting_started.md) for details)
+- **Installation**: `pip install qme-ml[aimnet2]` (see [Getting Started](getting_started.md) for details)
 - **GitHub Repository**: [https://github.com/rlaplaza-lab/qme](https://github.com/rlaplaza-lab/qme)
 - **Issue Tracker**: [Report bugs and request features](https://github.com/rlaplaza-lab/qme/issues)
 - **License**: MIT License
@@ -56,7 +41,7 @@ Welcome to the QME documentation! QME provides a unified interface for molecular
 
 - 🧪 **Multiple ML Backends**: UMA, AIMNet2, MACE, SO3LR, TorchSim
 - ⚡ **GPU Acceleration**: CUDA support for compatible backends
-- 🎯 **Optimization Methods**: Local and two-ended optimization strategies
+- 🎯 **Optimization Methods**: Target/strategy system (minima, ts, path)
 - 🔄 **Transition States**: Advanced TS search algorithms including NEB
 - 📊 **Frequency Analysis**: Vibrational frequency calculations and thermodynamics
 - 🖥️ **CLI and Python API**: Both command-line and programmatic interfaces
