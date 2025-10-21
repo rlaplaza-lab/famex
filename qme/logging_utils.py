@@ -2,12 +2,15 @@
 Logging utilities for QME to manage verbose output from ML backends.
 """
 
+from __future__ import annotations
+
 import contextlib
 import logging
 import sys
 import threading
 import warnings
 from collections.abc import Generator
+from typing import Union
 
 # Thread-local storage to track if we're already in a quiet_backend_loading context
 _quiet_context_local = threading.local()

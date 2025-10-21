@@ -9,7 +9,9 @@ The design is deliberately simplified to cover 90% of practical constraint needs
 while maintaining ease of use and integration with existing QME workflows.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, Union
 
 import numpy as np
 from ase import Atoms
@@ -73,6 +75,7 @@ class QMEConstraintManager:
         existing_constraints = getattr(atoms, "constraints", [])
         all_constraints = existing_constraints + ase_constraints
         atoms.set_constraint(all_constraints)
+        return all_constraints
 
     def get_constraint_info(self) -> dict[str, Any]:
         """Get summary of active constraints"""
@@ -347,7 +350,7 @@ def get_constraint_summary(atoms: Atoms) -> dict[str, Any]:
 
         elif isinstance(constraint, Hookean):
             # Use hasattr to safely access Hookean constraint attributes
-            constraint_info = {}
+            constraint_info: dict[str, Any] = {}
 
             # Get atom indices
             atoms_list = []

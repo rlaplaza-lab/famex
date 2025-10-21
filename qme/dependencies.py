@@ -5,9 +5,11 @@ This module handles all optional dependencies and provides consistent
 import patterns across the package with lazy loading.
 """
 
+from __future__ import annotations
+
 import importlib
 import importlib.util
-from typing import Any
+from typing import Any, Union
 
 
 class _DependencyContext:
@@ -18,7 +20,7 @@ class _DependencyContext:
         self.deps_names = deps_names
         self.modules = None
 
-    def __enter__(self) -> Any | tuple:
+    def __enter__(self) -> Union[Any, tuple]:
         if len(self.deps_names) == 1:
             self.modules = self.manager.require_multiple(*self.deps_names)
             return self.modules
@@ -128,7 +130,7 @@ class DependencyManager:
 
     def require_multiple(
         self, *deps_names: str, purpose: str = "this functionality"
-    ) -> dict[str, Any] | None:
+    ) -> Union[dict[str, Any], None]:
         """Require multiple dependencies, raising DependencyError if any are missing.
 
         Parameters

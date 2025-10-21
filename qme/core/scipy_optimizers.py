@@ -340,7 +340,7 @@ class SciPyHessianOptimizer(Optimizer):
                 )
 
             # Update FrequencyAnalysis with current atoms state
-            self.freq_analysis.atoms = self.atoms.copy()
+            self.freq_analysis.atoms = self.atoms
             self.freq_analysis.atoms.calc = self.atoms.calc
 
             # Compute Hessian using QME's infrastructure

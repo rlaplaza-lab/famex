@@ -5,8 +5,10 @@ This module implements a native AIMNet2 calculator without external dependencies
 based on the AIMNet2 repository implementation.
 """
 
+from __future__ import annotations
+
 import os
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import requests

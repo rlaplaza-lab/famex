@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 from ase import Atoms
@@ -53,13 +55,17 @@ def _extract_charge_spin(
     if hasattr(atoms, "info") and atoms.info is not None:
         if charge is None and "charge" in atoms.info:
             try:
-                charge = int(atoms.info.get("charge"))
+                charge_val = atoms.info.get("charge")
+                if charge_val is not None:
+                    charge = int(charge_val)
             except (ValueError, TypeError):
                 pass
 
         if spin is None and "spin" in atoms.info:
             try:
-                spin = int(atoms.info.get("spin"))
+                spin_val = atoms.info.get("spin")
+                if spin_val is not None:
+                    spin = int(spin_val)
             except (ValueError, TypeError):
                 pass
 
@@ -75,46 +81,79 @@ def _extract_charge_spin(
 class Explorer:
     """Explorer runs optimizations/TS searches on one or more Atoms.
 
-    The Explorer provides a clear semantic interface for quantum chemistry calculations:
+    The Explorer provides a clear semantic interface for quantum chemistry calculations
+    using machine learning potentials. It supports various optimization strategies
+    for finding minima, transition states, and reaction pathways.
 
+    The Explorer uses a target/strategy paradigm:
     - **target**: What you want to obtain (minima, ts, path)
     - **strategy**: How to get there (local, neb, cineb, interpolate)
 
     Parameters
     ----------
-    atoms
-        Single :class:`ase.Atoms` or a sequence of Atoms to operate on.
-    backend
-        Calculator backend key (e.g., ``uma``, ``aimnet2``, ``mace``, ``so3lr``,
-        ``mock``).
-    model_name, model_path, device
-        Forwarded to calculator factory when applicable.
-    default_charge, default_spin
-        Default total charge and spin multiplicity used when per-structure
-        metadata is not available.
-    local_optimizer
-        Local optimizer short name, e.g. ``sella``, ``lbfgs``, ``bfgs``, ``fire``.
-    optimizer_kwargs
-        Keyword arguments forwarded to local minima optimizer.
-    strategy, target
-        High-level run selection. ``target`` specifies what you want (minima, ts, path).
-        ``strategy`` specifies how to get there (local, neb, cineb, interpolate).
-    ts_kwargs
-        Keyword arguments forwarded to the local TS optimizer.
-    constraints
-        Constraint specification as string or pre-built ASE constraints.
-    auto_register
-        If True, registers package default strategies; set False for fully
-        custom registries.
+    atoms : Atoms or Sequence[Atoms]
+        Single ASE Atoms object or a sequence of Atoms to operate on.
+        For multi-structure strategies (NEB, CI-NEB), provide multiple structures.
+    backend : str, default "uma"
+        Calculator backend key. Available options:
+        - "uma": Universal Model for Atoms (recommended)
+        - "aimnet2": AIMNet2 neural network potential
+        - "mace": MACE (Message Passing Neural Network)
+        - "so3lr": SO3LR equivariant neural network
+        - "mock": Mock calculator for testing
+    model_name : str, optional
+        Name of the specific model to use. If None, uses backend defaults.
+    model_path : str, optional
+        Path to local model file (required for SO3LR, optional for others).
+    device : str, optional
+        Device for computations ("cpu" or "cuda"). Auto-detected if None.
+    default_charge : int, default 0
+        Default total charge used when per-structure metadata is not available.
+    default_spin : int, default 1
+        Default spin multiplicity used when per-structure metadata is not available.
+    local_optimizer : str, default "sella"
+        Local optimizer for geometry optimization. Options:
+        - "sella": SELLA optimizer (recommended for TS searches)
+        - "lbfgs": L-BFGS optimizer
+        - "bfgs": BFGS optimizer
+        - "fire": FIRE optimizer
+    optimizer_kwargs : dict[str, Any], optional
+        Keyword arguments forwarded to the local optimizer.
+    strategy : str, optional, default "local"
+        Strategy type for optimization. Options:
+        - "local": Direct local optimization
+        - "neb": Nudged Elastic Band
+        - "cineb": Climbing Image NEB
+        - "interpolate": Path interpolation only
+        - "growing_string": Growing string method
+        - "irc": Intrinsic Reaction Coordinate
+    target : str, optional, default "minima"
+        Target type for optimization. Options:
+        - "minima": Find local minimum
+        - "ts": Find transition state
+        - "path": Find reaction pathway
+    ts_kwargs : dict[str, Any], optional
+        Keyword arguments forwarded to transition state optimizers.
+    constraints : str or list or dict, optional
+        Constraint specification. Can be:
+        - String: "fix 0 1 2" (fix atoms 0, 1, 2)
+        - List: [FixAtoms(indices=[0, 1, 2])]
+        - Dict: {"fix": [0, 1, 2]}
+    initial_hessian : np.ndarray, optional
+        Initial Hessian matrix for optimization (3N x 3N).
+    auto_register : bool, default True
+        If True, registers package default strategies automatically.
+    verbose : int, default 1
+        Verbosity level (0=quiet, 1=normal, 2=verbose).
 
     Notes
     -----
     - If a provided structure exposes ``charge``/``mult`` attributes or
       ``atoms.info`` includes ``charge``/``spin``, those values override the
       defaults when creating calculators.
-    - Use :meth:`list_strategies` to discover available runners and their
+    - Use :meth:`list_strategies` to discover available strategies and their
       descriptions.
-
+    - The Explorer automatically handles calculator creation and caching.
 
     Examples
     --------
@@ -249,7 +288,7 @@ class Explorer:
         else:
             return "default-model"
 
-    def _create_and_attach_calculator(self, atoms: Atoms):
+    def _create_and_attach_calculator(self, atoms: Atoms) -> Any:
         """Create and attach an ASE calculator to ``atoms``.
 
         Prefers explicit ``charge``/``mult`` found on Geometry-like objects or
@@ -294,7 +333,7 @@ class Explorer:
         atoms.calc = calc
         return calc
 
-    def _apply_constraints(self, atoms: Atoms):
+    def _apply_constraints(self, atoms: Atoms) -> list[Any]:
         """Parse and apply constraints to ``atoms`` if specified.
 
         Returns the ASE constraints list after application.
@@ -331,7 +370,7 @@ class Explorer:
     # Execution
     # =============================================================================
 
-    def explain_run(self, mode: str | None = None) -> dict[str, Any]:
+    def explain_run(self, mode: str | None = None) -> dict[str, Union[str, bool, int, None]]:
         """Explain what strategy would be selected without running.
 
         Parameters
@@ -341,8 +380,17 @@ class Explorer:
 
         Returns
         -------
-        dict
-            Dictionary with strategy selection details
+        dict[str, Union[str, bool, int, None]]
+            Dictionary with strategy selection details containing:
+            - target: Target type (str)
+            - strategy: Strategy type (str)
+            - strategy_key: Full strategy name (str)
+            - runner: Strategy class name (str or None)
+            - valid: Whether strategy is valid (bool)
+            - strategy_type: Type of strategy (str)
+            - description: Strategy description (str)
+            - notes: Additional notes (str)
+            - error: Error message if invalid (str, optional)
         """
         try:
             # Determine strategy name
@@ -393,7 +441,7 @@ class Explorer:
 
     def run(
         self, mode: str | None = None, runner: Callable[..., Any] | None = None, **kwargs: Any
-    ) -> Any:
+    ) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
         """Execute a registered or user-supplied runner.
 
         This method is the main entry point for running optimization tasks. It uses
@@ -412,8 +460,13 @@ class Explorer:
 
         Returns
         -------
-        Any
-            Whatever the strategy returns. Typically a dictionary with optimization results.
+        dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
+            Standardized result dictionary containing:
+            - optimized_atoms: Optimized structure(s) (Atoms or list[Atoms])
+            - strategy: Strategy name used (str)
+            - converged: Whether optimization converged (bool)
+            - steps_taken: Number of optimization steps (int)
+            - Additional strategy-specific metadata
 
         Examples
         --------
@@ -440,7 +493,13 @@ class Explorer:
             call_kwargs.setdefault("explorer", self)
             call_kwargs.setdefault("local_optimizer_name", self.local_optimizer_name)
             call_kwargs.setdefault("verbose", self.verbose)
-            return runner(self.atoms_list, **call_kwargs)
+            result = runner(self.atoms_list, **call_kwargs)
+            # Ensure result is properly typed
+            if isinstance(result, dict):
+                return result
+            else:
+                # Convert to expected format if needed
+                return {"optimized_atoms": result, "strategy": "custom"}
 
         # Determine strategy name
         if mode:
@@ -479,25 +538,66 @@ class Explorer:
         default_charge: int = 0,
         default_spin: int = 1,
         verbose: int = 1,
-        **kwargs,
-    ) -> "Explorer":
+        **kwargs: Any,
+    ) -> Explorer:
         """Create Explorer instance from a geometry file.
+
+        This is a convenience method that loads a molecular structure from a file
+        and creates an Explorer instance ready for optimization.
 
         Parameters
         ----------
         filename : str or Path
-            Path to geometry file (xyz, cif, pdb, etc.)
-        backend, model_name, model_path, device, default_charge, default_spin
-            Same as Explorer constructor
-        **kwargs
-            Additional arguments passed to Explorer constructor
+            Path to geometry file. Supported formats:
+            - .xyz: Extended XYZ format
+            - .cif: Crystallographic Information File
+            - .pdb: Protein Data Bank format
+            - .vasp: VASP POSCAR format
+            - .json: ASE JSON format
+        backend : str, default "uma"
+            Calculator backend to use (see Explorer.__init__ for options).
+        model_name : str, optional
+            Specific model name to use.
+        model_path : str, optional
+            Path to local model file.
+        device : str, optional
+            Device for computations ("cpu" or "cuda").
+        default_charge : int, default 0
+            Default charge for the system.
+        default_spin : int, default 1
+            Default spin multiplicity for the system.
+        verbose : int, default 1
+            Verbosity level for the Explorer.
+        **kwargs : Any
+            Additional arguments passed to Explorer constructor.
 
         Returns
         -------
         Explorer
-            New Explorer instance with loaded geometry
+            New Explorer instance with loaded geometry ready for optimization.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the specified file does not exist.
+        ValueError
+            If the file format is not supported or file is corrupted.
+
+        Examples
+        --------
+        >>> # Load from XYZ file
+        >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2")
+        >>> result = explorer.run(target="minima")
+
+        >>> # Load with custom settings
+        >>> explorer = Explorer.from_file(
+        ...     "structure.cif", 
+        ...     backend="mace", 
+        ...     device="cuda",
+        ...     default_charge=1
+        ... )
         """
-        geom = read_geometry(filename)
+        geom = read_geometry(str(filename))
         if isinstance(geom, list):
             geom = geom[0]
         return cls(
@@ -526,9 +626,9 @@ class Explorer:
             Loaded geometry
         """
         if isinstance(filename_or_geom, (str, Path)):
-            geom = read_geometry(filename_or_geom)
+            geom = read_geometry(str(filename_or_geom))
         else:
-            geom = filename_or_geom
+            geom = filename_or_geom  # type: ignore[assignment]
 
         if isinstance(geom, list):
             geom = geom[0]
@@ -659,7 +759,7 @@ class Explorer:
         save_hessian: bool = True,
         indices: list[int] | None = None,
         **kwargs: Any,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Union[list[float], float, dict[str, Any], str, int, np.ndarray]]:
         """Calculate vibrational frequencies and thermodynamic properties.
 
         Parameters
@@ -681,9 +781,23 @@ class Explorer:
 
         Returns
         -------
-        dict
-            Dictionary containing frequencies, normal modes, thermodynamic
-            properties, etc.
+        dict[str, Union[list[float], float, dict[str, Any], str, int, np.ndarray]]
+            Dictionary containing:
+            - frequencies: Vibrational frequencies in cm⁻¹ (list[float])
+            - all_frequencies: All frequencies including trans/rot modes (list[float])
+            - normal_modes: Normal mode vectors (list[float])
+            - zero_point_energy: Zero-point energy in eV (float)
+            - thermodynamic_properties: Thermodynamic data (dict[str, Any])
+            - ts_analysis: Transition state analysis (dict[str, Any])
+            - minima_analysis: Minima analysis (dict[str, Any])
+            - is_ts: Whether structure is a transition state (bool)
+            - is_minimum: Whether structure is a minimum (bool)
+            - method_used: Hessian calculation method (str)
+            - delta: Finite difference step size (float)
+            - temperature: Temperature for thermodynamic properties (float)
+            - n_atoms: Number of atoms (int)
+            - indices: Atom indices included (list[int])
+            - hessian: Hessian matrix (np.ndarray, optional)
         """
         from qme.analysis.frequency import FrequencyAnalysis
 

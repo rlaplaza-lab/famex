@@ -5,10 +5,12 @@ This module provides centralized calculator creation logic to eliminate
 code duplication across the codebase.
 """
 
+from __future__ import annotations
+
 import importlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Union
 
 
 class CalculatorRegistry:
@@ -57,7 +59,7 @@ class CalculatorRegistry:
             ),
         }
 
-    def _load_backend(self, backend_name: str) -> Any:
+    def _load_backend(self, backend_name: str) -> None:
         """Lazy load a backend when first accessed."""
         if backend_name in self._registry:
             return  # Already loaded

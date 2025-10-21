@@ -5,7 +5,9 @@ SO3LR is an open source neural network potential with SO(3) invariant architectu
 This module provides ASE Calculator interface for SO3LR models.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, Union
 
 import numpy as np
 from ase import Atoms
