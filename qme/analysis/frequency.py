@@ -163,6 +163,7 @@ class FrequencyAnalysis:
             elif _supports_batch_evaluation(self.calculator):
                 method = "batch"
             elif self._supports_direct_hessian():
+                # Try direct method but be prepared to fall back
                 method = "direct"
             else:
                 method = "finite_differences"
@@ -268,12 +269,11 @@ class FrequencyAnalysis:
 
     def _supports_direct_hessian(self) -> bool:
         """Check if calculator supports direct Hessian calculation."""
-        if (
-            hasattr(self.calculator, "implemented_properties")
-            and "hessian" in self.calculator.implemented_properties
-        ):
-            return True
-
+        # First check implemented_properties if available
+        if hasattr(self.calculator, "implemented_properties"):
+            return "hessian" in self.calculator.implemented_properties
+        
+        # Fallback: check for methods only if implemented_properties is not available
         return hasattr(self.calculator, "get_hessian") or hasattr(
             self.calculator, "calculate_hessian"
         )

@@ -37,7 +37,7 @@ class ProfilerCalculatorWrapper(Calculator):
         # Copy calculator properties to ensure proper delegation
         self._name = getattr(calculator, 'name', 'wrapped')
         # Copy implemented_properties to ensure ASE property checks work correctly
-        self.implemented_properties = getattr(calculator, 'implemented_properties', set()).copy()
+        self.implemented_properties = getattr(calculator, 'implemented_properties', ['energy', 'forces']).copy()
 
     def calculate(self, atoms=None, properties=None, system_changes=None):
         """Calculate properties and track calls in profiler."""
@@ -104,6 +104,7 @@ class ProfilerCalculatorWrapper(Calculator):
             return self.calculator.get_hessian(atoms)
         else:
             raise AttributeError(f"Calculator {type(self.calculator).__name__} does not support Hessian calculation")
+    
 
     def check_state(self, atoms, tol=1e-15):
         """Check calculator state (delegate to wrapped calculator)."""
