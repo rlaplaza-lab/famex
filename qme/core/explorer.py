@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -11,6 +11,7 @@ from ase.io import write
 from qme.core.calculator_setup import create_calculator
 from qme.core.constraint_parser import parse_constraints
 from qme.core.geometry import read_geometry
+from qme.core.profiler import PerformanceProfiler
 from qme.core.strategy import REGISTRY
 
 
@@ -223,6 +224,7 @@ class Explorer:
         initial_hessian: np.ndarray | None = None,
         auto_register: bool = True,
         verbose: int = 1,
+        profile: bool = False,
     ) -> None:
         if isinstance(atoms, Atoms):
             self.atoms_list: list[Atoms] = [atoms]
@@ -236,6 +238,9 @@ class Explorer:
         self.default_charge = default_charge
         self.default_spin = default_spin
         self.verbose = verbose
+
+        # Initialize performance profiler if requested
+        self.profiler = PerformanceProfiler() if profile else None
 
         # Setup QME logging with specified verbosity
         from qme.logging_utils import setup_qme_logging
@@ -370,7 +375,7 @@ class Explorer:
     # Execution
     # =============================================================================
 
-    def explain_run(self, mode: str | None = None) -> dict[str, Union[str, bool, int, None]]:
+    def explain_run(self, mode: str | None = None) -> dict[str, str | bool | int | None]:
         """Explain what strategy would be selected without running.
 
         Parameters
@@ -441,7 +446,7 @@ class Explorer:
 
     def run(
         self, mode: str | None = None, runner: Callable[..., Any] | None = None, **kwargs: Any
-    ) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
+    ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Execute a registered or user-supplied runner.
 
         This method is the main entry point for running optimization tasks. It uses
@@ -520,7 +525,7 @@ class Explorer:
             ) from e
 
         # Instantiate and run strategy
-        strategy_instance = strategy_class(explorer=self)
+        strategy_instance = strategy_class(explorer=self, profiler=self.profiler)
         return strategy_instance.run(self.atoms_list, **kwargs)
 
     # =============================================================================
@@ -538,6 +543,7 @@ class Explorer:
         default_charge: int = 0,
         default_spin: int = 1,
         verbose: int = 1,
+        profile: bool = False,
         **kwargs: Any,
     ) -> Explorer:
         """Create Explorer instance from a geometry file.
@@ -591,8 +597,8 @@ class Explorer:
 
         >>> # Load with custom settings
         >>> explorer = Explorer.from_file(
-        ...     "structure.cif", 
-        ...     backend="mace", 
+        ...     "structure.cif",
+        ...     backend="mace",
         ...     device="cuda",
         ...     default_charge=1
         ... )
@@ -609,6 +615,7 @@ class Explorer:
             default_charge=default_charge,
             default_spin=default_spin,
             verbose=verbose,
+            profile=profile,
             **kwargs,
         )
 
@@ -759,7 +766,7 @@ class Explorer:
         save_hessian: bool = True,
         indices: list[int] | None = None,
         **kwargs: Any,
-    ) -> dict[str, Union[list[float], float, dict[str, Any], str, int, np.ndarray]]:
+    ) -> dict[str, list[float] | float | dict[str, Any] | str | int | np.ndarray]:
         """Calculate vibrational frequencies and thermodynamic properties.
 
         Parameters

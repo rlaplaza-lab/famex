@@ -9,11 +9,65 @@ from typing import IO, Any
 
 import numpy as np
 from ase import Atoms
+from ase.calculators.calculator import Calculator
 from ase.optimize.optimize import Optimizer
 
 from qme.logging_utils import get_qme_logger, setup_qme_logging
 
 logger = get_qme_logger(__name__)
+
+
+class ProfilerCalculatorWrapper(Calculator):
+    """Wrapper for ASE calculators that tracks energy and force calls for profiling."""
+
+    def __init__(self, calculator: Calculator, profiler: Any):
+        """Initialize the profiler calculator wrapper.
+
+        Parameters
+        ----------
+        calculator : Calculator
+            The ASE calculator to wrap
+        profiler : Any
+            Performance profiler instance
+        """
+        super().__init__()
+        self.calculator = calculator
+        self.profiler = profiler
+
+        # Copy calculator properties
+        self._name = getattr(calculator, 'name', 'wrapped')
+        self.implemented_properties = getattr(calculator, 'implemented_properties', set())
+
+    def calculate(self, atoms=None, properties=None, system_changes=None):
+        """Calculate properties and track calls in profiler."""
+        if properties is None:
+            properties = ['energy']
+        # Track energy calls
+        if 'energy' in properties:
+            self.profiler.increment_call('energy')
+
+        # Track force calls
+        if 'forces' in properties:
+            self.profiler.increment_call('forces')
+
+        # Track hessian calls
+        if 'hessian' in properties:
+            self.profiler.increment_call('hessian')
+
+        # Delegate to wrapped calculator
+        return self.calculator.calculate(atoms, properties, system_changes)
+
+    @property
+    def name(self):
+        """Get calculator name."""
+        return self._name
+
+    def __getattr__(self, name):
+        """Delegate attribute access to wrapped calculator."""
+        if name in ('calculator', 'profiler', '_name'):
+            # Prevent recursion when accessing our own attributes
+            return object.__getattribute__(self, name)
+        return getattr(self.calculator, name)
 
 
 class VerboseOptimizerWrapper(Optimizer):
@@ -32,6 +86,7 @@ class VerboseOptimizerWrapper(Optimizer):
         logfile: IO | str = "-",
         trajectory: str | None = None,
         verbose: int = 1,
+        profiler: Any = None,
         **kwargs: Any,
     ):
         """Initialize the verbose optimizer wrapper.
@@ -54,8 +109,9 @@ class VerboseOptimizerWrapper(Optimizer):
         **kwargs
             Additional arguments passed to the wrapped optimizer.
         """
-        # Store verbosity level
+        # Store verbosity level and profiler
         self.verbose = verbose
+        self.profiler = profiler
 
         # Set up QME logging if not already configured
         setup_qme_logging(verbosity=verbose, force=True)
@@ -84,13 +140,22 @@ class VerboseOptimizerWrapper(Optimizer):
 
         # Ensure calculator is properly attached to both atoms objects
         if hasattr(atoms, "calc") and atoms.calc is not None:
-            self.atoms.calc = atoms.calc
-            self.wrapped_optimizer.atoms.calc = atoms.calc
+            # Wrap calculator with profiler if available
+            if self.profiler is not None:
+                self.atoms.calc = ProfilerCalculatorWrapper(atoms.calc, self.profiler)
+                self.wrapped_optimizer.atoms.calc = self.atoms.calc
+            else:
+                self.atoms.calc = atoms.calc
+                self.wrapped_optimizer.atoms.calc = atoms.calc
         else:
             # If no calculator, try to get it from the original atoms
             if hasattr(atoms, "calc"):
-                self.atoms.calc = atoms.calc
-                self.wrapped_optimizer.atoms.calc = atoms.calc
+                if self.profiler is not None:
+                    self.atoms.calc = ProfilerCalculatorWrapper(atoms.calc, self.profiler)
+                    self.wrapped_optimizer.atoms.calc = self.atoms.calc
+                else:
+                    self.atoms.calc = atoms.calc
+                    self.wrapped_optimizer.atoms.calc = atoms.calc
 
         if self.verbose >= 2:
             optimizer_name = wrapped_optimizer_class.__name__

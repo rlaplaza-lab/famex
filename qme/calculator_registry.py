@@ -10,7 +10,7 @@ from __future__ import annotations
 import importlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Any
 
 
 class CalculatorRegistry:
@@ -147,10 +147,9 @@ class CalculatorRegistry:
         self._load_backend(backend)
         if backend not in self._registry:
             # If the requested backend couldn't be loaded, raise a clear error
-            from qme.core.validation import BackendError
-
             # Get actually available backends using the centralized system
             from qme.backend_availability import get_available_backends
+            from qme.core.validation import BackendError
             available = get_available_backends(include_mock=False)
             raise BackendError(backend, available, "calculator creation")
 

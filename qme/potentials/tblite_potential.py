@@ -212,7 +212,7 @@ class TBLitePotential(BasePotential):
         if self._calc is None:
             self._load_calculator()
 
-        if hasattr(self._calc, "get_charges"):
+        if self._calc is not None and hasattr(self._calc, "get_charges"):
             return self._calc.get_charges(atoms)
         else:
             msg = "Charge calculation not supported by this TBLite method"
@@ -226,7 +226,7 @@ class TBLitePotential(BasePotential):
         if self._calc is None:
             self._load_calculator()
 
-        if hasattr(self._calc, "get_dipole_moment"):
+        if self._calc is not None and hasattr(self._calc, "get_dipole_moment"):
             return self._calc.get_dipole_moment(atoms)
         else:
             msg = "Dipole moment calculation not supported by this TBLite method"
@@ -240,7 +240,7 @@ class TBLitePotential(BasePotential):
         if self._calc is None:
             self._load_calculator()
 
-        if hasattr(self._calc, "get_stress"):
+        if self._calc is not None and hasattr(self._calc, "get_stress"):
             return self._calc.get_stress(atoms)
         else:
             msg = "Stress calculation not supported by this TBLite method"
