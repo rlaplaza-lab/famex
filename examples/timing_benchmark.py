@@ -28,7 +28,6 @@ from typing import Any
 
 import numpy as np
 from ase import Atoms
-from ase.build import molecule
 
 # Use consolidated backend availability from qme.backend_availability
 
@@ -56,6 +55,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 def create_benchmark_molecule() -> Atoms:
     """Create a molecule for benchmarking using example files."""
     import os
+
     from ase.io import read
 
     # Use the ACABAC reactant structure from example files

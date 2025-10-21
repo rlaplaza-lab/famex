@@ -69,7 +69,7 @@ class ProfilerCalculatorWrapper(Calculator):
             # Prevent recursion when accessing our own attributes
             return object.__getattribute__(self, name)
         return getattr(self.calculator, name)
-    
+
     def get_property(self, name, atoms, allow_calculation=True):
         """Get a property from the calculator and track calls in profiler."""
         # Track the call in profiler
@@ -79,24 +79,24 @@ class ProfilerCalculatorWrapper(Calculator):
             self.profiler.increment_call('forces')
         elif name == 'hessian':
             self.profiler.increment_call('hessian')
-        
+
         return self.calculator.get_property(name, atoms, allow_calculation)
-    
+
     def get_potential_energy(self, atoms, force_consistent=False):
         """Get potential energy and track call in profiler."""
         self.profiler.increment_call('energy')
         return self.calculator.get_potential_energy(atoms, force_consistent)
-    
+
     def get_forces(self, atoms):
         """Get forces and track call in profiler."""
         self.profiler.increment_call('forces')
         return self.calculator.get_forces(atoms)
-    
+
     def get_stress(self, atoms):
         """Get stress and track call in profiler."""
         # Note: stress calls are not tracked separately, but could be added if needed
         return self.calculator.get_stress(atoms)
-    
+
     def get_hessian(self, atoms):
         """Get Hessian and track call in profiler."""
         self.profiler.increment_call('hessian')
@@ -104,7 +104,7 @@ class ProfilerCalculatorWrapper(Calculator):
             return self.calculator.get_hessian(atoms)
         else:
             raise AttributeError(f"Calculator {type(self.calculator).__name__} does not support Hessian calculation")
-    
+
     def check_state(self, atoms, tol=1e-15):
         """Check calculator state (delegate to wrapped calculator)."""
         return self.calculator.check_state(atoms, tol)
