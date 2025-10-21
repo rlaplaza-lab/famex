@@ -78,6 +78,9 @@ class LocalIRCStrategy(BaseStrategy):
         self.explorer._create_and_attach_calculator(ts_atoms)
         self.explorer._apply_constraints(ts_atoms)
 
+        # Validate that the starting structure is a transition state
+        self._validate_transition_state(ts_atoms, verbose)
+
         # Log IRC calculation start
         if verbose >= 1:
             logger.info("Starting IRC calculation from transition state")
@@ -151,6 +154,57 @@ class LocalIRCStrategy(BaseStrategy):
                 current = next_atoms
 
             return path
+
+    def _validate_transition_state(self, atoms: Atoms, verbose: int) -> None:
+        """Validate that the starting structure is a transition state using frequency analysis.
+        
+        Parameters
+        ----------
+        atoms : Atoms
+            Structure to validate as transition state
+        verbose : int
+            Verbosity level for logging
+        """
+        try:
+            # Import frequency analysis
+            from qme.analysis.frequency import FrequencyAnalysis
+            
+            # Perform frequency analysis to check if structure is a transition state
+            freq_analysis = FrequencyAnalysis(atoms=atoms, calculator=atoms.calc, verbose=0)
+            freq_analysis.calculate_hessian(method="auto")
+            freq_analysis.diagonalize_hessian()
+            
+            # Check if it's a transition state
+            ts_analysis = freq_analysis.is_transition_state(threshold=50.0)
+            
+            if not ts_analysis["is_transition_state"]:
+                # Log warning about non-transition state
+                n_imaginary = ts_analysis["n_imaginary_frequencies"]
+                assessment = ts_analysis["assessment"]
+                
+                if verbose >= 1:
+                    logger.warning(
+                        f"WARNING: Starting structure does not appear to be a transition state. "
+                        f"Found {n_imaginary} imaginary frequency(ies). Assessment: {assessment}. "
+                        f"IRC calculation will proceed but results may be unreliable."
+                    )
+                    
+                if verbose >= 2:
+                    imaginary_freqs = ts_analysis["imaginary_frequencies"]
+                    if imaginary_freqs:
+                        logger.warning(f"Imaginary frequencies (cm^-1): {[f'{f:.1f}' for f in imaginary_freqs]}")
+                    
+            elif verbose >= 2:
+                # Log confirmation for valid transition state
+                logger.info("✓ Starting structure validated as transition state (1 imaginary frequency)")
+                
+        except Exception as e:
+            # If frequency analysis fails, log warning but continue
+            if verbose >= 1:
+                logger.warning(
+                    f"Could not validate transition state: {e}. "
+                    f"IRC calculation will proceed without validation."
+                )
 
         # Follow IRC in requested direction(s)
         if direction.lower() in ("forward", "both"):
