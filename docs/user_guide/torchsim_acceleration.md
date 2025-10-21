@@ -59,17 +59,17 @@ QME provides three TorchSim-accelerated backends:
 
 ```bash
 # TorchSim MACE with GPU acceleration
-qme opt molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda
+qme minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda
 
 # TorchSim Fairchem
-qme opt molecule.xyz --backend torchsim_fairchem \
+qme minima --strategy local molecule.xyz --backend torchsim_fairchem \
     --model-name equiformer_v2_31M_s2ef_all_md --device cuda
 
 # Generic TorchSim (defaults to MACE)
-qme opt molecule.xyz --backend torchsim --model-name mace-mp-medium --device cuda
+qme minima --strategy local molecule.xyz --backend torchsim --model-name mace-mp-medium --device cuda
 
 # CPU usage (not recommended but possible)
-qme opt molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cpu
+qme minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cpu
 ```
 
 ### Python API
@@ -190,7 +190,7 @@ explorer = qme.Explorer.from_file(
 nvidia-smi -l 1
 
 # For maximum performance
-qme opt molecule.xyz \
+qme minima --strategy local molecule.xyz \
     --backend torchsim_mace \
     --model-name mace-omol-0 \
     --device cuda \

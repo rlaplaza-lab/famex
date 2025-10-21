@@ -22,7 +22,7 @@ repos:
     hooks:
       - id: mypy
         args: [--config-file=pyproject.toml]
-        additional_dependencies: 
+        additional_dependencies:
           - types-requests
           - numpy
 

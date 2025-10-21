@@ -366,7 +366,9 @@ def main():
     # Determine which backends to test
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
-        available_backends = interface.filter_available_backends(requested_backends, verbose=args.verbose)
+        available_backends = interface.filter_available_backends(
+            requested_backends, verbose=args.verbose
+        )
 
         if not available_backends:
             interface.print_error("No requested backends are available!")

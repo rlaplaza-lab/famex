@@ -26,10 +26,7 @@ class InterpolationStrategy(ABC):
 
     @abstractmethod
     def interpolate(
-        self,
-        start_coords: np.ndarray,
-        end_coords: np.ndarray,
-        npoints: int
+        self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
     ) -> list[np.ndarray]:
         """
         Interpolate between start and end coordinates.
@@ -54,10 +51,7 @@ class LinearInterpolation(InterpolationStrategy):
     """Simple linear interpolation between coordinates."""
 
     def interpolate(
-        self,
-        start_coords: np.ndarray,
-        end_coords: np.ndarray,
-        npoints: int
+        self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
     ) -> list[np.ndarray]:
         """Perform linear interpolation between start and end coordinates."""
         path_coords = []
@@ -77,10 +71,7 @@ class GeodesicInterpolation(InterpolationStrategy):
     """
 
     def interpolate(
-        self,
-        start_coords: np.ndarray,
-        end_coords: np.ndarray,
-        npoints: int
+        self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
     ) -> list[np.ndarray]:
         """Perform geodesic interpolation with bond length preservation."""
         path_coords = []
@@ -169,10 +160,7 @@ class IDPPInterpolation(InterpolationStrategy):
     """
 
     def interpolate(
-        self,
-        start_coords: np.ndarray,
-        end_coords: np.ndarray,
-        npoints: int
+        self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
     ) -> list[np.ndarray]:
         """Perform IDPP interpolation."""
         path_coords = []
@@ -199,7 +187,7 @@ class IDPPInterpolation(InterpolationStrategy):
         start_coords: np.ndarray,
         end_coords: np.ndarray,
         image_idx: int,
-        npoints: int
+        npoints: int,
     ) -> np.ndarray:
         """Refine coordinates using IDPP potential."""
         coords = coords.copy()
@@ -207,7 +195,9 @@ class IDPPInterpolation(InterpolationStrategy):
 
         # Calculate target distances for this image
         alpha = image_idx / (npoints - 1)
-        target_dists = (1 - alpha) * self._get_distance_matrix(start_coords) + alpha * self._get_distance_matrix(end_coords)
+        target_dists = (1 - alpha) * self._get_distance_matrix(
+            start_coords
+        ) + alpha * self._get_distance_matrix(end_coords)
 
         # IDPP refinement iterations
         for _iteration in range(20):  # Max iterations
@@ -262,10 +252,7 @@ class QuadraticInterpolation(InterpolationStrategy):
     """
 
     def interpolate(
-        self,
-        start_coords: np.ndarray,
-        end_coords: np.ndarray,
-        npoints: int
+        self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
     ) -> list[np.ndarray]:
         """Perform quadratic interpolation."""
         path_coords = []
@@ -308,10 +295,7 @@ class CubicSplineInterpolation(InterpolationStrategy):
     """
 
     def interpolate(
-        self,
-        start_coords: np.ndarray,
-        end_coords: np.ndarray,
-        npoints: int
+        self, start_coords: np.ndarray, end_coords: np.ndarray, npoints: int
     ) -> list[np.ndarray]:
         """Perform cubic spline interpolation."""
         path_coords = []
@@ -322,7 +306,7 @@ class CubicSplineInterpolation(InterpolationStrategy):
             start_coords,
             start_coords + 0.33 * (end_coords - start_coords),
             start_coords + 0.67 * (end_coords - start_coords),
-            end_coords
+            end_coords,
         ]
 
         # Generate spline points
@@ -388,8 +372,7 @@ def get_interpolation_strategy(method: str) -> InterpolationStrategy:
     if method_lower not in INTERPOLATION_REGISTRY:
         available = ", ".join(INTERPOLATION_REGISTRY.keys())
         raise ValueError(
-            f"Unknown interpolation method: '{method}'. "
-            f"Available methods: {available}"
+            f"Unknown interpolation method: '{method}'. " f"Available methods: {available}"
         )
 
     strategy_class = INTERPOLATION_REGISTRY[method_lower]
@@ -413,5 +396,7 @@ def list_interpolation_methods() -> dict[str, str]:
         "spline": "Cubic spline interpolation for smooth pathways",
     }
 
-    return {method: descriptions.get(method, "No description available")
-            for method in INTERPOLATION_REGISTRY}
+    return {
+        method: descriptions.get(method, "No description available")
+        for method in INTERPOLATION_REGISTRY
+    }

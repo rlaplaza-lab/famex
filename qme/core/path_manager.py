@@ -230,7 +230,6 @@ class PathManager:
 
         return path_geometries
 
-
     def _optimize_path(self, path_geometries: list[Geometry], calculator) -> list[Geometry]:
         """
         Optimize path using simplified NEB-like forces.
@@ -722,9 +721,7 @@ class PathManager:
             "energies": energies,
             "min_energy": min(valid_energies) if valid_energies else None,
             "max_energy": max(valid_energies) if valid_energies else None,
-            "energy_range": (
-                max(valid_energies) - min(valid_energies) if valid_energies else None
-            ),
+            "energy_range": (max(valid_energies) - min(valid_energies) if valid_energies else None),
         }
 
         # Find TS and minima/maxima
@@ -752,4 +749,3 @@ class PathManager:
 
     def __repr__(self) -> str:
         return self.__str__()
-
