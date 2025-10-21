@@ -452,13 +452,14 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
             successful_backends, key=lambda x: (x[1]["successful"], -x[1]["total_time"])
         )
         print(f"\nBest performing backend: {best_backend[0].upper()}")
+        actual_examples = best_backend[1]['successful'] + best_backend[1]['failed']
         print(
             f"  Success rate: "
-            f"{best_backend[1]['successful']}/{total_examples_per_backend} examples"
+            f"{best_backend[1]['successful']}/{actual_examples} examples"
         )
         print(
             f"  Average time per task: "
-            f"{best_backend[1]['total_time'] / total_examples_per_backend:.2f}s"
+            f"{best_backend[1]['total_time'] / actual_examples:.2f}s"
         )
 
     print(f"\nTotal benchmark time: {total_time:.2f} seconds")
