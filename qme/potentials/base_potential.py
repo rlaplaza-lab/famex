@@ -59,7 +59,13 @@ class BasePotential:
         self.results: dict[str, Any] = {}
 
         # Default implemented properties; subclasses may override
-        self.implemented_properties: list[str] = kwargs.get("implemented_properties", [])
+        # Preserve class-level implemented_properties if it exists
+        if hasattr(self, 'implemented_properties'):
+            # Class already defines implemented_properties, use it unless explicitly overridden
+            self.implemented_properties = kwargs.get("implemented_properties", self.implemented_properties)
+        else:
+            # No class-level definition, use from kwargs or default to empty list
+            self.implemented_properties: list[str] = kwargs.get("implemented_properties", [])
 
         # Batch evaluation support
         self._supports_batch_evaluation: bool = kwargs.get("supports_batch_evaluation", False)
