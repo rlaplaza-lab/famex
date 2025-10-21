@@ -1,22 +1,3 @@
-"""Explorer: ASE-like multi-structure optimizer and TS search wrapper.
-
-The :class:`Explorer` provides an ASE-inspired façade for common tasks:
-- Local minima optimization on one or more structures
-- Local transition-state (TS) searches
-- Two-ended, interpolation-based path workflows for minima or TS guesses
-
-Design goals:
-- Keep an ASE-optimizer-like surface (e.g., ``optimize_minima``, ``optimize_ts``)
-- Provide robust defaults and graceful fallbacks when optional deps are missing
-- Offer a pluggable strategy system to register new runners without core edits
-
-Implementation notes:
-- Calculator creation is delegated to ``qme.core.calculator_setup``
-- Constraints are parsed/applied via ``qme.core.constraint_parser``
-- Default local runners live in ``qme.core.local_strategies``
-- Default two-ended runners live in ``qme.core.twoended_strategies``
-"""
-
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -29,18 +10,6 @@ from qme.core.calculator_setup import create_calculator
 from qme.core.constraint_parser import parse_constraints
 from qme.core.geometry import read_geometry
 from qme.core.strategy import REGISTRY
-from qme.core.validation import (
-    STRATEGY_CINEB,
-    STRATEGY_INTERPOLATE,
-    STRATEGY_IRC,
-    STRATEGY_LOCAL,
-    STRATEGY_NEB,
-    TARGET_MINIMA,
-    TARGET_PATH,
-    TARGET_TS,
-    normalize_strategy,
-    normalize_target,
-)
 
 
 def _extract_charge_spin(
@@ -146,36 +115,6 @@ class Explorer:
     - Use :meth:`list_strategies` to discover available runners and their
       descriptions.
 
-    Migration Guide
-    ---------------
-    The Explorer API has been updated with clearer target/strategy semantics:
-
-    **Old API (still supported via aliases):**
-    ```python
-    # Old two-ended approach
-    explorer = Explorer(atoms, strategy="two-ended", target="path")
-    result = explorer.run(mode="neb")
-
-    # Old local approach
-    explorer = Explorer(atoms, strategy="local", target="minima")
-    result = explorer.run(mode="minima")
-    ```
-
-    **New API (recommended):**
-    ```python
-    # Clear target/strategy semantics
-    explorer = Explorer(atoms, target="path", strategy="neb")
-    result = explorer.run(mode="neb")
-
-    explorer = Explorer(atoms, target="minima", strategy="local")
-    result = explorer.run(mode="minima")
-    ```
-
-    **Key Changes:**
-    - ``target``: What you want (minima, ts, path)
-    - ``strategy``: How to get there (local, neb, cineb, interpolate)
-    - Old ``strategy="two-ended"`` → New ``strategy="interpolate"`` or ``"neb"`` or ``"cineb"``
-    - Backward compatibility maintained through aliases
 
     Examples
     --------
@@ -240,8 +179,6 @@ class Explorer:
         optimizer_kwargs: dict[str, Any] | None = None,
         strategy: str | None = "local",
         target: str | None = "minima",
-        mode: str | None = None,
-        ts_method: str | None = None,
         ts_kwargs: dict[str, Any] | None = None,
         constraints: str | list | dict | None = None,
         initial_hessian: np.ndarray | None = None,
@@ -269,13 +206,9 @@ class Explorer:
         self.local_optimizer_name = local_optimizer
         self.optimizer_kwargs = optimizer_kwargs or {}
 
-        # Strategy/target/mode control how run() selects a runner.
+        # Strategy/target control how run() selects a strategy.
         self.strategy = (strategy or "").strip().lower()
         self.target = (target or "").strip().lower()
-        # Mode is a secondary selector; for two-ended it should be 'interpolate'
-        self.mode = (mode or "").strip().lower() if mode is not None else None
-
-        self.ts_method = ts_method
         self.ts_kwargs = ts_kwargs or {}
 
         self.constraints_spec = constraints
@@ -283,7 +216,8 @@ class Explorer:
 
         # Auto-register default strategies unless caller opts out
         if auto_register:
-            self._register_default_strategies()
+            # Strategies are auto-registered via imports in __init__.py
+            pass
 
     # =============================================================================
     # Calculator & Constraints Management
@@ -373,65 +307,6 @@ class Explorer:
     # Strategy Management
     # =============================================================================
 
-    def _register_default_strategies(self) -> None:
-        """Register default strategies using the new class-based registry.
-
-        This method imports the strategy modules, which automatically register
-        their strategy classes with the global REGISTRY.
-        """
-        # Import strategy modules to trigger registration
-
-    def register_strategy(
-        self,
-        name: str,
-        func: Callable[..., Any],
-        strategy_type: str = "global",
-        description: str | None = None,
-        aliases: list[str] | None = None,
-    ) -> None:
-        """Register a strategy/runner callable under a name.
-
-        The callable must accept the atoms list as the first positional
-        argument. Explorer injects ``explorer=self`` and a few standardized
-        keywords (e.g., ``local_optimizer_name``) unless explicitly overridden.
-
-        Parameters
-        ----------
-        name
-            Unique key under which the strategy is registered.
-        func
-            Callable implementing the strategy.
-        strategy_type
-            One of ``local``, ``two-ended`` or ``global`` (dispatch shape).
-        description
-            Short human-readable description for discovery/CLI help.
-        aliases
-            Optional list of alternative keys mapping to the same entry.
-
-        Returns
-        -------
-        None
-        """
-        if not hasattr(self, "_strategies"):
-            self._strategies: dict[str, Any] = {}
-        # Normalize strategy_type to one of the supported kinds
-        stype = (strategy_type or "").strip().lower()
-        if stype in ("local", "one-ended", "oneended", "one_ended"):
-            stype = "local"
-        elif stype in ("two-ended", "two_ended", "twoended", "two"):
-            stype = "two-ended"
-        else:
-            stype = "global"
-
-        # Store a small descriptor so run() can apply simple arity/shape
-        # checks and adapt calling convention for local (single-Atoms)
-        # strategies.
-        entry = {"func": func, "type": stype, "description": description or ""}
-        self._strategies[name] = entry
-        if aliases:
-            for alias in aliases:
-                self._strategies[alias] = entry
-
     def list_strategies(self, kind: str | None = None) -> dict[str, dict[str, str]]:
         """List available strategies; optionally filter by kind."""
         out: dict[str, dict[str, str]] = {}
@@ -439,192 +314,18 @@ class Explorer:
             if kind is None or metadata.target == kind:
                 # Add main strategy name
                 out[name] = {
-                    "type": "two-ended" if metadata.requires_multiple_structures else "local",
+                    "type": "multi-structure" if metadata.requires_multiple_structures else "local",
                     "description": metadata.description,
                 }
                 # Add aliases
                 for alias in metadata.aliases:
                     out[alias] = {
-                        "type": "two-ended" if metadata.requires_multiple_structures else "local",
+                        "type": (
+                            "multi-structure" if metadata.requires_multiple_structures else "local"
+                        ),
                         "description": metadata.description,
                     }
         return out
-
-    # =============================================================================
-    # Target/Strategy Resolution and Selection
-    # =============================================================================
-
-    def _resolve_target_and_strategy(self, mode: str | None = None) -> tuple[str, str]:
-        """Resolve target and strategy with clear precedence rules.
-
-        This method determines the final target and strategy to use based on:
-        1. Runtime mode parameter (highest priority)
-        2. Instance target and strategy parameters
-        3. Smart defaults based on context
-
-        Parameters
-        ----------
-        mode : str, optional
-            Runtime mode parameter that can override instance settings.
-            Can be a target (minima, ts, path) or strategy (local, neb, cineb, interpolate).
-
-        Returns
-        -------
-        tuple[str, str]
-            (target, strategy) tuple with normalized values
-
-        Examples
-        --------
-        >>> explorer = Explorer(atoms, target="path", strategy="neb")
-        >>> target, strategy = explorer._resolve_target_and_strategy("cineb")
-        >>> # Returns: ("path", "cineb") - strategy from mode, target from instance
-
-        >>> explorer = Explorer(atoms, target="minima")
-        >>> target, strategy = explorer._resolve_target_and_strategy("ts")
-        >>> # Returns: ("ts", "local") - target from mode, strategy defaults to local
-        """
-        if mode:
-            # Runtime mode overrides everything
-            # Check if mode is a strategy first (prioritize strategy over target)
-            normalized_strategy = normalize_strategy(mode)
-
-            # If mode is a known strategy, treat it as a strategy
-            if normalized_strategy in [
-                STRATEGY_NEB,
-                STRATEGY_CINEB,
-                STRATEGY_INTERPOLATE,
-                STRATEGY_LOCAL,
-                STRATEGY_IRC,
-            ]:
-                # Strategy specified as mode - infer target from instance or default to path
-                target = normalize_target(self.target or TARGET_PATH)
-                strategy = normalized_strategy
-            else:
-                # Mode is a target
-                target = normalize_target(mode)
-                # Use instance strategy or smart default
-                if self.strategy:
-                    strategy = normalize_strategy(self.strategy)
-                else:
-                    # Smart defaults based on target
-                    if target == TARGET_PATH:
-                        strategy = STRATEGY_NEB  # Default to NEB for path
-                    elif target == TARGET_TS:
-                        strategy = STRATEGY_LOCAL  # Default to local for TS
-                    else:
-                        strategy = STRATEGY_LOCAL  # Default to local for minima
-        else:
-            # Use instance parameters
-            target = normalize_target(self.target or TARGET_MINIMA)
-
-            if self.strategy:
-                strategy = normalize_strategy(self.strategy)
-            else:
-                # Smart defaults based on target
-                if target == TARGET_PATH:
-                    strategy = STRATEGY_NEB  # Default to NEB for path
-                elif target == TARGET_TS:
-                    strategy = STRATEGY_LOCAL  # Default to local for TS
-                else:
-                    strategy = STRATEGY_LOCAL  # Default to local for minima
-
-        # Auto-infer strategy from target if ambiguous
-        # Only override strategy if it wasn't explicitly set via mode parameter
-        if mode and normalize_strategy(mode) in [
-            STRATEGY_NEB,
-            STRATEGY_CINEB,
-            STRATEGY_INTERPOLATE,
-            STRATEGY_LOCAL,
-            STRATEGY_IRC,
-        ]:
-            # Strategy was explicitly set via mode, don't override it
-            pass
-        elif target == TARGET_PATH and strategy == STRATEGY_LOCAL:
-            # Path target with local strategy doesn't make sense, default to NEB
-            # UNLESS it's IRC which is a local strategy for path
-            strategy = STRATEGY_NEB
-        return target, strategy
-
-    def _select_strategy_runner(self, target: str, strategy: str) -> tuple[str, str]:
-        """Select the appropriate strategy runner based on target and strategy.
-
-        This method maps the resolved target/strategy combination to the actual
-        registered strategy runner and its type.
-
-        Parameters
-        ----------
-        target : str
-            Normalized target (minima, ts, path)
-        strategy : str
-            Normalized strategy (local, neb, cineb, interpolate)
-
-        Returns
-        -------
-        tuple[str, str]
-            (strategy_key, strategy_type) where:
-            - strategy_key: The registered strategy name (e.g., "minima:local", "path:neb")
-            - strategy_type: The strategy type ("local", "two-ended", "global")
-
-        Raises
-        ------
-        NotImplementedError
-            If no matching strategy is found for the target/strategy combination
-
-        Examples
-        --------
-        >>> explorer = Explorer(atoms)
-        >>> key, type_ = explorer._select_strategy_runner("minima", "local")
-        >>> # Returns: ("minima:local", "local")
-
-        >>> key, type_ = explorer._select_strategy_runner("path", "neb")
-        >>> # Returns: ("path:neb", "two-ended")
-        """
-        strategies = getattr(self, "_strategies", {})
-
-        # Build the primary strategy key
-        primary_key = f"{target}:{strategy}"
-        # Check if primary key exists
-        if primary_key in strategies:
-            entry = strategies[primary_key]
-            strategy_type = entry.get("type", "global")
-            return primary_key, strategy_type
-
-        # Fallback to aliases
-        for key, entry in strategies.items():
-            if isinstance(entry, dict) and "aliases" in entry:
-                aliases = entry.get("aliases", [])
-                if strategy in aliases or target in aliases:
-                    strategy_type = entry.get("type", "global")
-                    return key, strategy_type
-
-        # Final fallback - try to find any matching strategy
-        if target == TARGET_PATH and strategy in [STRATEGY_NEB, STRATEGY_CINEB]:
-            # Look for path strategies
-            for key in ["path:neb", "path:cineb", "twoended:neb", "twoended:cineb"]:
-                if key in strategies:
-                    entry = strategies[key]
-                    strategy_type = entry.get("type", "global")
-                    return key, strategy_type
-        elif target == TARGET_TS and strategy == STRATEGY_LOCAL:
-            # Look for local TS strategies
-            for key in ["ts:local", "local:ts", "ts"]:
-                if key in strategies:
-                    entry = strategies[key]
-                    strategy_type = entry.get("type", "global")
-                    return key, strategy_type
-        elif target == TARGET_MINIMA and strategy == STRATEGY_LOCAL:
-            # Look for local minima strategies
-            for key in ["minima:local", "local:minima", "minima"]:
-                if key in strategies:
-                    entry = strategies[key]
-                    strategy_type = entry.get("type", "global")
-                    return key, strategy_type
-
-        # If nothing found, raise error
-        raise NotImplementedError(
-            f"No strategy found for target='{target}', strategy='{strategy}'. "
-            f"Available strategies: {list(strategies.keys())}"
-        )
 
     # =============================================================================
     # Execution
@@ -662,7 +363,9 @@ class Explorer:
                 "strategy_key": strategy_name,
                 "runner": strategy_class.__name__,
                 "valid": True,
-                "strategy_type": "two-ended" if metadata.requires_multiple_structures else "local",
+                "strategy_type": (
+                    "multi-structure" if metadata.requires_multiple_structures else "local"
+                ),
                 "description": metadata.description,
                 "notes": f"Will use {self.local_optimizer_name} optimizer",
             }
@@ -731,7 +434,7 @@ class Explorer:
         >>> result = explorer.run(mode="minima:local")
         >>> result = explorer.run(mode="path:neb", npoints=7)
         """
-        # If the caller passed an explicit runner, use it directly
+        # If the caller passed an explicit runner function, use it directly
         if runner is not None:
             call_kwargs = dict(kwargs)
             call_kwargs.setdefault("explorer", self)
@@ -754,25 +457,12 @@ class Explorer:
         except KeyError as e:
             available = sorted(REGISTRY.list_strategies().keys())
             raise NotImplementedError(
-                f"No strategy found for '{strategy_name}'. "
-                f"Available strategies: {available}"
+                f"No strategy found for '{strategy_name}'. " f"Available strategies: {available}"
             ) from e
 
         # Instantiate and run strategy
         strategy_instance = strategy_class(explorer=self)
         return strategy_instance.run(self.atoms_list, **kwargs)
-
-    # =============================================================================
-    # Convenience Methods (ASE-like interface)
-    # =============================================================================
-
-    def optimize_minima(self, fmax: float = 0.05, steps: int = 1000, **kwargs: Any) -> Any:
-        """Run a local minima optimization (ASE-like convenience method)."""
-        return self.run(mode="minima", fmax=fmax, steps=steps, **kwargs)
-
-    def optimize_ts(self, fmax: float = 0.05, steps: int = 1000, **kwargs: Any) -> Any:
-        """Run a local transition-state optimization (ASE-like convenience method)."""
-        return self.run(mode="ts", fmax=fmax, steps=steps, **kwargs)
 
     # =============================================================================
     # File I/O Methods
@@ -955,33 +645,6 @@ class Explorer:
                     f"Failed to save trajectory to {output_file}: {e}. "
                     f"Clean attempt also failed: {e2}"
                 )
-
-    def _twoended_path_runner(self, atoms_list: list[Atoms], **kwargs: Any) -> Any:
-        """General path runner that dispatches based on mode."""
-        mode = kwargs.get("mode", "neb").lower()
-        if mode == "interpolate":
-            # Raw interpolation - no optimization
-            from qme.core.twoended_strategies import path_generator
-
-            # Remove dry_run from kwargs to prevent it from being passed to path_generator
-            clean_kwargs = {k: v for k, v in kwargs.items() if k != "dry_run"}
-
-            return path_generator(
-                atoms_list,
-                npoints=clean_kwargs.get("npoints", 11),
-                method=clean_kwargs.get("method", "geodesic"),
-                optimize_path=False,  # Raw interpolation only
-                explorer=None,  # No explorer to prevent any optimization
-            )
-        elif mode == "cineb":
-            from qme.core.twoended_strategies import twoended_cineb_runner
-
-            return twoended_cineb_runner(atoms_list, **kwargs)
-        else:
-            # Default to NEB for any other mode
-            from qme.core.twoended_strategies import twoended_neb_runner
-
-            return twoended_neb_runner(atoms_list, **kwargs)
 
     # =============================================================================
     # Analysis Methods

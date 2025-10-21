@@ -27,7 +27,7 @@ from ase import Atoms
 from ase.optimize.optimize import Optimizer
 from scipy.optimize import minimize
 
-from qme.analysis.frequency import FrequencyAnalysis
+# FrequencyAnalysis imported locally to avoid circular imports
 from qme.logging_utils import get_qme_logger, setup_qme_logging
 
 logger = get_qme_logger(__name__)
@@ -154,6 +154,9 @@ class SciPyHessianOptimizer(Optimizer):
         # Initialize FrequencyAnalysis for Hessian computation
         if atoms.calc is None:
             raise ValueError("Atoms object must have a calculator attached")
+
+        # Import locally to avoid circular imports
+        from qme.analysis.frequency import FrequencyAnalysis
 
         self.freq_analysis = FrequencyAnalysis(
             atoms=atoms, calculator=atoms.calc, delta=hessian_delta, verbose=verbose

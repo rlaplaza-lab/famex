@@ -8,7 +8,7 @@ Key Features:
 - Minimum energy geometry optimization
 - Transition state searches
 - Reaction path optimization (NEB/CI-NEB)
-- Two-ended optimization workflows
+- Multi-structure optimization workflows
 - Support for various file formats (xyz, cif, pdb, etc.)
 - Integration with UMA, SO3LR, AIMNET2, and MACE machine learning potentials
 - Mock calculator for testing without ML dependencies
@@ -84,7 +84,6 @@ def __getattr__(name):
         "QMEError": (f"{__name__}.core.validation", "QMEError"),
         "DependencyError": (f"{__name__}.core.validation", "DependencyError"),
         "BackendError": (f"{__name__}.core.validation", "BackendError"),
-        "ValidationError": (f"{__name__}.core.validation", "ValidationError"),
         # expose the cli package as a module object
         "cli": (f"{__name__}.cli", None),
     }
@@ -102,7 +101,6 @@ __all__ = [
     # Core classes
     "Explorer",
     "Geometry",
-    "Reaction",
     # Frequency analysis
     "FrequencyAnalysis",
     "HessianCalculator",
@@ -130,7 +128,6 @@ __all__ = [
     "QMEError",
     "DependencyError",
     "BackendError",
-    "ValidationError",
     "cli",
 ]
 
