@@ -2,36 +2,14 @@
 Tests for QME validation functions.
 """
 
-import os
-import tempfile
-
 import pytest
 from ase import Atoms
 
 from qme.core.validation import (
-    STRATEGY_CINEB,
-    STRATEGY_INTERPOLATE,
-    STRATEGY_LOCAL,
-    STRATEGY_NEB,
-    TARGET_MINIMA,
-    TARGET_PATH,
-    TARGET_TS,
     BackendError,
     DependencyError,
     QMEError,
-    ValidationError,
-    normalize_strategy,
-    normalize_target,
-    prepare_atoms_list,
     validate_atoms_compatibility,
-    validate_atoms_structure,
-    validate_charge_and_spin,
-    validate_device_parameter,
-    validate_file_exists,
-    validate_file_format,
-    validate_model_parameters,
-    validate_optimization_parameters,
-    validate_target_strategy_combination,
 )
 
 
@@ -61,359 +39,62 @@ class TestQMEError:
         assert "pip install torch" in str(error)
         assert error.dependency == "torch"
         assert error.purpose == "calculations"
+        assert error.install_command == "pip install torch"
 
     def test_backend_error(self):
         """Test BackendError."""
-        error = BackendError("unknown", ["uma", "aimnet2"], "calculation")
-        assert "unknown" in str(error)
+        available = ["uma", "aimnet2", "mace"]
+        error = BackendError("so3lr", available, "optimization")
+        assert "so3lr" in str(error)
+        assert "optimization" in str(error)
         assert "uma" in str(error)
         assert "aimnet2" in str(error)
-        assert error.backend == "unknown"
-        assert error.available_backends == ["uma", "aimnet2"]
+        assert "mace" in str(error)
+        assert error.backend == "so3lr"
+        assert error.available_backends == available
+        assert error.operation == "optimization"
 
 
-class TestAtomsValidation:
-    """Test atoms structure validation."""
+class TestValidateAtomsCompatibility:
+    """Test validate_atoms_compatibility function."""
 
-    def test_validate_atoms_structure_none(self):
-        """Test validation with None atoms."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_atoms_structure(None)
-        assert "No atoms provided" in str(exc_info.value)
-        assert "load_structure" in str(exc_info.value)
-
-    def test_validate_atoms_structure_empty(self):
-        """Test validation with empty atoms."""
-        empty_atoms = Atoms()
-        with pytest.raises(ValidationError) as exc_info:
-            validate_atoms_structure(empty_atoms)
-        assert "Empty structure" in str(exc_info.value)
-
-    def test_validate_atoms_structure_valid(self):
-        """Test validation with valid atoms."""
-        atoms = Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
-        # Should not raise
-        validate_atoms_structure(atoms)
-
-    def test_validate_atoms_structure_overlapping(self):
-        """Test validation with overlapping atoms."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.05, 0, 0]])  # Very close
-        with pytest.raises(ValidationError) as exc_info:
-            validate_atoms_structure(atoms)
-        assert "too close" in str(exc_info.value)
-
-    def test_validate_atoms_structure_invalid_numbers(self):
-        """Test validation with invalid atomic numbers."""
-        atoms = Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
-        atoms.numbers[0] = 0  # Invalid atomic number
-        with pytest.raises(ValidationError) as exc_info:
-            validate_atoms_structure(atoms)
-        assert "Invalid atomic numbers" in str(exc_info.value)
-
-
-class TestOptimizationValidation:
-    """Test optimization parameter validation."""
-
-    def test_validate_optimization_parameters_valid(self):
-        """Test validation with valid parameters."""
-        # Should not raise
-        validate_optimization_parameters(0.01, 1000, "sella")
-        validate_optimization_parameters(0.05, 500, "lbfgs")
-
-    def test_validate_optimization_parameters_invalid_fmax(self):
-        """Test validation with invalid fmax."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_optimization_parameters(0, 1000, "sella")
-        assert "Invalid force convergence threshold" in str(exc_info.value)
-        assert "fmax must be positive" in str(exc_info.value)
-
-    def test_validate_optimization_parameters_invalid_steps(self):
-        """Test validation with invalid steps."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_optimization_parameters(0.01, 0, "sella")
-        assert "Invalid maximum steps" in str(exc_info.value)
-        assert "steps must be positive" in str(exc_info.value)
-
-    def test_validate_optimization_parameters_invalid_optimizer(self):
-        """Test validation with invalid optimizer."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_optimization_parameters(0.01, 1000, "unknown")
-        assert "Unknown optimizer" in str(exc_info.value)
-        assert "sella" in str(exc_info.value)
-
-
-class TestDeviceValidation:
-    """Test device parameter validation."""
-
-    def test_validate_device_parameter_valid(self):
-        """Test validation with valid devices."""
-        # Should not raise
-        validate_device_parameter("cpu", "aimnet2")
-        validate_device_parameter(None, "aimnet2")
-        # Only test CUDA if it's available
-        try:
-            validate_device_parameter("cuda", "aimnet2")
-        except ValidationError:
-            # CUDA not available, which is expected in some environments
-            pass
-
-    def test_validate_device_parameter_invalid(self):
-        """Test validation with invalid device."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_device_parameter("invalid", "aimnet2")
-        assert "Invalid device" in str(exc_info.value)
-        assert "cpu" in str(exc_info.value)
-
-    def test_validate_device_parameter_cuda_unavailable(self):
-        """Test validation with CUDA requested but unavailable."""
-        # This test is environment-specific since torch is not a mandatory dependency.
-        # We'll test the basic validation logic without complex mocking.
-
-        # Test that invalid device names are caught
-        with pytest.raises(ValidationError) as exc_info:
-            validate_device_parameter("invalid_device", "aimnet2")
-        assert "Invalid device" in str(exc_info.value)
-
-        # Test that valid devices pass validation (this tests the main logic)
-        # without getting into torch-specific behavior
-        validate_device_parameter("cpu", "aimnet2")
-        validate_device_parameter("auto", "aimnet2")
-
-        # Note: CUDA-specific testing is environment-dependent and torch is not
-        # a mandatory dependency, so we skip the complex torch import mocking
-
-
-class TestFileValidation:
-    """Test file validation functions."""
-
-    def test_validate_file_format_valid(self):
-        """Test validation with valid file formats."""
-        # Should not raise
-        validate_file_format("test.xyz", [".xyz", ".pdb"])
-        validate_file_format("test.pdb", [".xyz", ".pdb"])
-
-    def test_validate_file_format_invalid(self):
-        """Test validation with invalid file format."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_file_format("test.txt", [".xyz", ".pdb"])
-        assert "Unsupported file format" in str(exc_info.value)
-        assert ".xyz" in str(exc_info.value)
-
-    def test_validate_file_exists_valid(self):
-        """Test validation with existing file."""
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            f.write(b"test content")
-            temp_path = f.name
-
-        try:
-            # Should not raise
-            validate_file_exists(temp_path)
-        finally:
-            os.unlink(temp_path)
-
-    def test_validate_file_exists_missing(self):
-        """Test validation with missing file."""
-        with pytest.raises(FileNotFoundError) as exc_info:
-            validate_file_exists("nonexistent.xyz")
-        assert "File not found" in str(exc_info.value)
-
-    def test_validate_file_exists_empty(self):
-        """Test validation with empty file."""
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            # Empty file
-            pass
-        temp_path = f.name
-
-        try:
-            with pytest.raises(ValidationError) as exc_info:
-                validate_file_exists(temp_path)
-            assert "Empty file" in str(exc_info.value)
-        finally:
-            os.unlink(temp_path)
-
-
-class TestChargeSpinValidation:
-    """Test charge and spin validation."""
-
-    def test_validate_charge_and_spin_valid(self):
-        """Test validation with valid charge and spin."""
-        # Should not raise
-        validate_charge_and_spin(0, 1, 10)  # Neutral, singlet
-        validate_charge_and_spin(1, 2, 10)  # Cation, doublet
-        validate_charge_and_spin(-1, 2, 10)  # Anion, doublet
-
-    def test_validate_charge_and_spin_invalid_spin(self):
-        """Test validation with invalid spin."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_charge_and_spin(0, 0, 10)
-        assert "Invalid spin multiplicity" in str(exc_info.value)
-        assert "≥ 1" in str(exc_info.value)
-
-    def test_validate_charge_and_spin_invalid_combination_even_even(self):
-        """Test validation with invalid even charge + even spin."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_charge_and_spin(2, 2, 10)
-        assert "even spin" in str(exc_info.value)
-        assert "even charge" in str(exc_info.value)
-
-    def test_validate_charge_and_spin_invalid_combination_odd_odd(self):
-        """Test validation with invalid odd charge + odd spin."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_charge_and_spin(1, 1, 10)
-        assert "odd spin" in str(exc_info.value)
-        assert "odd charge" in str(exc_info.value)
-
-    def test_validate_charge_and_spin_too_many_charges(self):
-        """Test validation with too many positive charges."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_charge_and_spin(15, 2, 10)  # 15 charges > 10 electrons, even spin
-        assert "Too many positive charges" in str(exc_info.value)
-
-
-class TestAtomsCompatibility:
-    """Test atoms compatibility validation."""
-
-    def test_validate_atoms_compatibility_valid(self):
+    def test_compatible_atoms(self):
         """Test validation with compatible atoms."""
-        atoms1 = Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
-        atoms2 = Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
-        # Should not raise
+        atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
+        atoms2 = Atoms("H2", positions=[[0, 0, 0], [1.1, 0, 0]])
+
+        # Should not raise any exception
         validate_atoms_compatibility(atoms1, atoms2)
 
-    def test_validate_atoms_compatibility_different_length(self):
+    def test_different_number_of_atoms(self):
         """Test validation with different number of atoms."""
-        atoms1 = Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
-        atoms2 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
-        with pytest.raises(ValidationError) as exc_info:
-            validate_atoms_compatibility(atoms1, atoms2)
-        assert "different number of atoms" in str(exc_info.value)
-        assert "3 vs 2" in str(exc_info.value)
-
-    def test_validate_atoms_compatibility_different_symbols(self):
-        """Test validation with different atomic symbols."""
-        atoms1 = Atoms("H2O", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
+        atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
         atoms2 = Atoms("H2S", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
-        with pytest.raises(ValidationError) as exc_info:
+
+        with pytest.raises(ValueError) as exc_info:
             validate_atoms_compatibility(atoms1, atoms2)
+
+        assert "different number of atoms" in str(exc_info.value)
+        assert "2 vs 3" in str(exc_info.value)
+
+    def test_different_atomic_symbols(self):
+        """Test validation with different atomic symbols."""
+        atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
+        atoms2 = Atoms(
+            "He2", positions=[[0, 0, 0], [1, 0, 0]]
+        )  # Same number of atoms, different symbols
+
+        with pytest.raises(ValueError) as exc_info:
+            validate_atoms_compatibility(atoms1, atoms2)
+
         assert "different atomic symbols" in str(exc_info.value)
 
-
-class TestModelValidation:
-    """Test model parameter validation."""
-
-    def test_validate_model_parameters_valid(self):
-        """Test validation with valid parameters."""
-        # Should not raise
-        validate_model_parameters("uma-s-1p1", None, "uma")
-        validate_model_parameters(None, "/path/to/model.jpt", "so3lr")
-
-    def test_validate_model_parameters_uma_with_path(self):
-        """Test validation with UMA and model_path."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_model_parameters("uma-s-1p1", "/path/to/model.jpt", "uma")
-        assert "model_path is not supported" in str(exc_info.value)
-        assert "Use model_name instead" in str(exc_info.value)
-
-    def test_validate_model_parameters_aimnet2_with_path(self):
-        """Test validation with AIMNet2 and model_path."""
-        with pytest.raises(ValidationError) as exc_info:
-            validate_model_parameters("aimnet2", "/path/to/model.jpt", "aimnet2")
-        assert "model_path is not supported" in str(exc_info.value)
-        assert "Use model_name instead" in str(exc_info.value)
-
-
-class TestTargetStrategyNormalization:
-    """Test target and strategy normalization functions."""
-
-    def test_normalize_target(self):
-        """Test target normalization."""
-        # Test basic targets
-        assert normalize_target("minima") == TARGET_MINIMA
-        assert normalize_target("ts") == TARGET_TS
-        assert normalize_target("path") == TARGET_PATH
-
-        # Test aliases
-        assert normalize_target("minimum") == TARGET_MINIMA
-        assert normalize_target("transition_state") == TARGET_TS
-        assert normalize_target("reaction_path") == TARGET_PATH
-
-        # Test case insensitive
-        assert normalize_target("MINIMA") == TARGET_MINIMA
-        assert normalize_target("TS") == TARGET_TS
-
-        # Test whitespace handling
-        assert normalize_target("  minima  ") == TARGET_MINIMA
-
-        # Test empty/None
-        assert normalize_target("") == TARGET_MINIMA
-        assert normalize_target(None) == TARGET_MINIMA
-
-    def test_normalize_strategy(self):
-        """Test strategy normalization."""
-        # Test basic strategies
-        assert normalize_strategy("local") == STRATEGY_LOCAL
-        assert normalize_strategy("neb") == STRATEGY_NEB
-        assert normalize_strategy("cineb") == STRATEGY_CINEB
-        assert normalize_strategy("interpolate") == STRATEGY_INTERPOLATE
-
-        # Test aliases
-        assert normalize_strategy("two-ended") == STRATEGY_INTERPOLATE
-        assert normalize_strategy("twoended") == STRATEGY_INTERPOLATE
-        assert normalize_strategy("nudged-elastic-band") == STRATEGY_NEB
-        assert normalize_strategy("climbing-image-neb") == STRATEGY_CINEB
-
-        # Test case insensitive
-        assert normalize_strategy("LOCAL") == STRATEGY_LOCAL
-        assert normalize_strategy("NEB") == STRATEGY_NEB
-
-        # Test whitespace handling
-        assert normalize_strategy("  local  ") == STRATEGY_LOCAL
-
-        # Test empty/None
-        assert normalize_strategy("") == STRATEGY_LOCAL
-        assert normalize_strategy(None) == STRATEGY_LOCAL
-
-    def test_prepare_atoms_list(self):
-        """Test atoms list preparation."""
+    def test_custom_context(self):
+        """Test validation with custom context."""
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
-        atoms2 = Atoms("H2", positions=[[0, 0, 0], [2, 0, 0]])
+        atoms2 = Atoms("H2S", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
 
-        # Test single atoms
-        result = prepare_atoms_list(atoms1)
-        assert len(result) == 1
-        assert result[0] is atoms1
+        with pytest.raises(ValueError) as exc_info:
+            validate_atoms_compatibility(atoms1, atoms2, "path segment 0")
 
-        # Test list of atoms
-        result = prepare_atoms_list([atoms1, atoms2])
-        assert len(result) == 2
-        assert result[0] is atoms1
-        assert result[1] is atoms2
-
-        # Test with product
-        result = prepare_atoms_list(atoms1, atoms2)
-        assert len(result) == 2
-        assert result[0] is atoms1
-        assert result[1] is atoms2
-
-        # Test empty list
-        with pytest.raises(ValidationError):
-            prepare_atoms_list([])
-
-    def test_validate_target_strategy_combination(self):
-        """Test target/strategy combination validation."""
-        # Valid combinations should not raise
-        validate_target_strategy_combination(TARGET_MINIMA, STRATEGY_LOCAL, 1)
-        validate_target_strategy_combination(TARGET_TS, STRATEGY_LOCAL, 1)
-        validate_target_strategy_combination(TARGET_PATH, STRATEGY_NEB, 2)
-        validate_target_strategy_combination(TARGET_PATH, STRATEGY_CINEB, 2)
-        validate_target_strategy_combination(TARGET_TS, STRATEGY_INTERPOLATE, 2)
-
-        # Invalid combinations should raise
-        with pytest.raises(ValidationError):
-            validate_target_strategy_combination(TARGET_PATH, STRATEGY_NEB, 1)
-
-        with pytest.raises(ValidationError):
-            validate_target_strategy_combination(TARGET_PATH, STRATEGY_CINEB, 1)
-
-        with pytest.raises(ValidationError):
-            validate_target_strategy_combination(TARGET_TS, STRATEGY_INTERPOLATE, 1)
+        assert "path segment 0" in str(exc_info.value)

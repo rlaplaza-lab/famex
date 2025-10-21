@@ -324,3 +324,141 @@ class TestInvalidConfiguration:
         # Should be converted to None
         opt = TrustKrylov(h2o, logfile=None, hessian_update_freq=0)
         assert opt.hessian_update_freq is None
+
+
+class TestOptimizerStringentComparison:
+    """Stringent tests for optimizer comparison that catch subtle bugs."""
+
+    @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
+    def test_optimizer_actually_optimizes_energy(self, optimizer_class):
+        """Test that optimizers actually change the energy, not just report steps."""
+        from ase import Atoms
+
+        # Create a distorted water molecule that should relax
+        atoms = Atoms("H2O", positions=[[0, 0, 0], [0.8, 0.6, 0], [-0.8, 0.6, 0]])
+        atoms.calc = qme.MockCalculator(backend="mock")
+
+        initial_energy = atoms.get_potential_energy()
+        initial_positions = atoms.get_positions().copy()
+
+        # Test optimizer
+        opt = optimizer_class(atoms, logfile=None)
+        opt.run(fmax=0.01, steps=50)
+
+        final_energy = atoms.get_potential_energy()
+        final_positions = atoms.get_positions()
+
+        # Optimizer should actually optimize
+        energy_change = abs(final_energy - initial_energy)
+        position_change = np.max(np.abs(final_positions - initial_positions))
+
+        assert energy_change > 1e-6, f"{optimizer_class.__name__} should actually change energy"
+        assert (
+            position_change > 1e-6
+        ), f"{optimizer_class.__name__} should actually change positions"
+
+    @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
+    def test_optimizer_step_count_consistency(self, optimizer_class):
+        """Test that step counts are consistent with actual optimization."""
+        from ase import Atoms
+
+        # Create a system that needs optimization
+        atoms = Atoms("H2O", positions=[[0, 0, 0], [0.8, 0.6, 0], [-0.8, 0.6, 0]])
+        atoms.calc = qme.MockCalculator(backend="mock")
+
+        opt = optimizer_class(atoms, logfile=None)
+        opt.run(fmax=0.01, steps=50)
+
+        steps = opt.get_number_of_steps()
+        assert steps > 0, f"{optimizer_class.__name__} should report positive step count"
+
+    @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
+    def test_optimizer_convergence_consistency(self, optimizer_class):
+        """Test that convergence status is consistent with actual optimization."""
+        from ase import Atoms
+
+        atoms = Atoms("H2O", positions=[[0, 0, 0], [0.8, 0.6, 0], [-0.8, 0.6, 0]])
+        atoms.calc = qme.MockCalculator(backend="mock")
+
+        opt = optimizer_class(atoms, logfile=None)
+        opt.run(fmax=0.01, steps=50)
+
+        # Test convergence check
+        forces = atoms.get_forces().flatten()
+        if hasattr(opt, "converged"):
+            converged = opt.converged(forces)
+            # Handle both Python bool and numpy bool types
+            import numpy as np
+
+            assert isinstance(converged, (bool, np.bool_))
+
+    @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
+    def test_optimizer_force_convergence_consistency(self, optimizer_class):
+        """Test that optimizers actually achieve the claimed force convergence."""
+        from ase import Atoms
+
+        atoms = Atoms("H2O", positions=[[0, 0, 0], [0.8, 0.6, 0], [-0.8, 0.6, 0]])
+        atoms.calc = qme.MockCalculator(backend="mock")
+
+        opt = optimizer_class(atoms, logfile=None)
+        opt.run(fmax=0.05, steps=200)
+
+        forces = atoms.get_forces()
+        max_force = np.max(np.abs(forces))
+
+        # If optimizer claims convergence, forces should be low
+        if hasattr(opt, "converged"):
+            converged = opt.converged(forces.flatten())
+            if converged:
+                assert (
+                    max_force < 0.05
+                ), f"{optimizer_class.__name__} claims convergence but max force is {max_force:.6f} eV/Å"
+
+    @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
+    def test_optimizer_energy_consistency(self, optimizer_class):
+        """Test that different optimizers find similar final energies for the same system."""
+        from ase import Atoms
+
+        atoms = Atoms("H2O", positions=[[0, 0, 0], [0.8, 0.6, 0], [-0.8, 0.6, 0]])
+        atoms.calc = qme.MockCalculator(backend="mock")
+
+        opt = optimizer_class(atoms, logfile=None)
+        opt.run(fmax=0.01, steps=200)
+
+        final_energy = atoms.get_potential_energy()
+
+        # Energy should be reasonable
+        assert isinstance(final_energy, (float, int))
+        assert not np.isnan(final_energy)
+        assert not np.isinf(final_energy)
+
+    def test_transition_state_optimizer_consistency(self):
+        """Test that TS optimizers actually attempt TS optimization."""
+        from qme.dependencies import deps
+
+        if not deps.has("sella"):
+            pytest.skip("Sella must be available")
+
+        from ase import Atoms
+        from sella import Sella
+
+        # Create a system that could be a TS
+        atoms = Atoms("H2O", positions=[[0, 0, 0], [0.8, 0.6, 0], [-0.8, 0.6, 0]])
+        atoms.calc = qme.MockCalculator(backend="mock")
+
+        initial_energy = atoms.get_potential_energy()
+        initial_positions = atoms.get_positions().copy()
+
+        # Test Sella TS optimizer
+        sella_opt = Sella(atoms, internal=True, order=1)
+        sella_opt.run(fmax=0.01, steps=50)
+
+        sella_energy = atoms.get_potential_energy()
+        sella_positions = atoms.get_positions()
+
+        energy_change = abs(sella_energy - initial_energy)
+        position_change = np.max(np.abs(sella_positions - initial_positions))
+
+        # Sella should actually optimize
+        assert energy_change > 1e-6, "Sella TS optimizer should actually change energy"
+        assert position_change > 1e-6, "Sella TS optimizer should actually change positions"

@@ -7,8 +7,8 @@ various optimization tasks across all available ML backends and comparing their
 performance and reliability.
 
 Features:
-    - Structure optimization using 'opt' command
-    - Transition state optimization using 'tsopt' command
+    - Structure optimization using 'minima' command
+    - Transition state optimization using 'ts' command
     - Two-ended optimization workflows
     - Reaction path optimization using dedicated 'path' command:
       * Raw interpolation path generation
@@ -114,10 +114,12 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
 
     commands = [
         {
-            "desc": "Structure optimization using 'opt' command",
+            "desc": "Structure optimization using 'minima' command",
             "cmd": [
                 "qme",
-                "opt",
+                "minima",
+                "--strategy",
+                "local",
                 str(example_files / "A_C_A_B_A_C_reactant.xyz"),
                 "--backend",
                 backend,
@@ -128,10 +130,11 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
             ],
         },
         {
-            "desc": "Transition state optimization using 'tsopt local' subcommand",
+            "desc": "Transition state optimization using 'ts' command with local strategy",
             "cmd": [
                 "qme",
-                "tsopt",
+                "ts",
+                "--strategy",
                 "local",
                 str(example_files / "A_C_A_B_A_C_ts.xyz"),
                 "--backend",
@@ -143,10 +146,12 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
             ],
         },
         {
-            "desc": "Two-ended minima optimization using 'opt' command",
+            "desc": "Two-ended minima optimization using 'minima' command with interpolate strategy",
             "cmd": [
                 "qme",
-                "opt",
+                "minima",
+                "--strategy",
+                "interpolate",
                 str(example_files / "A_C_A_B_A_C_reactant.xyz"),
                 "--product",
                 str(example_files / "A_C_A_B_A_C_product.xyz"),
@@ -163,12 +168,14 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
             ],
         },
         {
-            "desc": "Two-ended TS optimization using 'tsopt interpolate' subcommand",
+            "desc": "Two-ended TS optimization using 'ts' command with interpolate strategy",
             "cmd": [
                 "qme",
-                "tsopt",
+                "ts",
+                "--strategy",
                 "interpolate",
                 str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                "--product",
                 str(example_files / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
@@ -326,7 +333,7 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
     # Performance tracking
     backend_results = {}
     total_start_time = time.time()
-    total_examples_per_backend = 6  # opt, tsopt, twoended, tsopt_twoended, neb, and cineb commands
+    total_examples_per_backend = 6  # minima, ts, twoended, ts_twoended, neb, and cineb commands
     steps = 500  # Reduced steps for faster testing
 
     # Run examples for each backend

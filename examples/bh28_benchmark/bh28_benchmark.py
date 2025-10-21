@@ -260,10 +260,11 @@ class BH28Benchmark:
                                     atoms=reactant,
                                     backend=backend,
                                     model_name=model_name,
+                                    local_optimizer=self.minima_optimizer.lower(),
+                                    verbose=0,  # Suppress output for consistency with suppress_verbose_output
                                 )
                                 result = optimizer.run(
                                     mode="minima",
-                                    local_optimizer_name=self.minima_optimizer,
                                     steps=500,
                                     fmax=0.01,
                                 )
@@ -324,12 +325,13 @@ class BH28Benchmark:
                                     atoms=ts_atoms,
                                     backend=backend,
                                     model_name=model_name,
+                                    local_optimizer=self.ts_optimizer.lower(),
+                                    verbose=0,  # Suppress output for consistency with suppress_verbose_output
                                 )
                                 ts_result = ts_optimizer.run(
                                     mode="ts",
                                     steps=500,
                                     fmax=0.01,
-                                    local_optimizer_name=self.ts_optimizer,
                                 )
 
                             ts_time = time.perf_counter() - ts_start

@@ -106,8 +106,10 @@ def main():
     # Setup Explorer
     print(f"\nSetting up Growing String Method with backend: {args.backend}")
     explorer = qme.Explorer(
-        [reactant, product],
+        atoms=[reactant, product],
         backend=args.backend,
+        target="ts",
+        strategy="growing_string",
     )
 
     # Run growing string method
@@ -119,12 +121,8 @@ def main():
     print(f"  Optimize endpoints: {args.optimize_endpoints}")
     print(f"  Refine TS: {args.refine_ts}")
 
-    from qme.core.twoended_strategies import twoended_growing_string_runner
-
-    result = twoended_growing_string_runner(
-        [reactant, product],
+    result = explorer.run(
         npoints=args.npoints,
-        explorer=explorer,
         fmax=args.fmax,
         steps=args.steps,
         step_size=args.step_size,

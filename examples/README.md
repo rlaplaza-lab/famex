@@ -10,8 +10,8 @@ This directory contains standardized examples and benchmarks demonstrating the c
 Demonstrates QME's command-line interface capabilities by running various optimization tasks across all available ML backends and comparing their performance and reliability.
 
 **Features:**
-- Structure optimization using 'opt' command (outputs single structure, defaults to BFGS)
-- Transition state optimization using 'tsopt' command (outputs single TS, defaults to Sella)
+- Structure optimization using 'minima' command (outputs single structure, defaults to BFGS)
+- Transition state optimization using 'ts' command (outputs single TS, defaults to Sella)
 - Reaction path optimization using dedicated 'path' command:
   * Raw interpolation path generation
   * NEB path optimization (saves complete reaction pathways)
@@ -40,7 +40,28 @@ python irc_demo.py example_files/reaction_001_ts.xyz --backend uma --steps 50
 python irc_demo.py ts.xyz --backend aimnet2 --direction both --step-size 0.1
 ```
 
-### 3. Timing Benchmark (`timing_benchmark.py`)
+### 3. Growing String Demo (`growing_string_demo.py`)
+**Growing String Method for Transition State Search**
+
+Demonstrates the Growing String Method (DE-GSM) for finding transition states between
+reactant and product configurations. This method dynamically grows a string of images
+between the endpoints to locate the transition state.
+
+**Features:**
+- Growing string method (DE-GSM) for TS search
+- Dynamic image addition between reactant and product
+- Optional endpoint optimization before growing
+- Optional TS refinement after finding
+- Configurable step size and convergence criteria
+- Saves complete reaction pathway
+
+**Usage:**
+```bash
+python growing_string_demo.py --reactant r.xyz --product p.xyz --backend uma
+python growing_string_demo.py --backend mock --npoints 20 --steps 100
+```
+
+### 4. Timing Benchmark (`timing_benchmark.py`)
 **ML Backend Performance Analysis**
 
 Comprehensive performance benchmark for QME ML backends using simple geometry optimization and frequency analysis. All backends use the same default optimizer (BFGS) to ensure fair comparison of backend performance.
@@ -52,34 +73,29 @@ Comprehensive performance benchmark for QME ML backends using simple geometry op
 - Detailed timing breakdown and performance comparison
 - ML backend performance comparison (not optimizer comparison)
 
-### 4. Minima Optimizer Benchmark (`minima_optimizer_benchmark.py`)
+### 5. Minima Optimizer Benchmark (`minima_optimizer_benchmark.py`)
 **Minima Optimization Comparison**
 
-Compares the performance of different minima optimizers (lbfgs, bfgs, fire) for minima finding using various QME ML backends.
+Compares the performance of different minima optimizers (lbfgs, bfgs, fire, trust-krylov) for minima finding using various QME ML backends.
 
 **Features:**
-- Minima optimizer comparison (lbfgs, bfgs, fire)
+- Minima optimizer comparison (lbfgs, bfgs, fire, trust-krylov)
 - All available ML backends tested
 - Detailed timing and convergence analysis
 - Minima-specific optimization evaluation
 - Focus on minima finding capabilities
 
-### 5. TS Optimizer Benchmark (`ts_optimizer_benchmark.py`)
+### 6. TS Optimizer Benchmark (`ts_optimizer_benchmark.py`)
 **Transition State Optimizer Comparison**
 
-Compares the performance of transition state optimizers (sella) for transition state finding using various QME ML backends.
+Compares the performance of transition state optimizers (sella, trust-krylov-ts) for transition state finding using various QME ML backends.
 
 **Features:**
-- Transition state optimizer comparison (sella)
+- Transition state optimizer comparison (sella, trust-krylov-ts)
 - All available ML backends tested
 - Detailed timing and convergence analysis
 - TS-specific optimization evaluation
 - Focus on TS finding capabilities
-
-### 6. Optimizer Comparison Benchmark
-**Combined Minima and TS Optimizer Comparison**
-
-The optimizer comparison functionality is now split into specialized benchmarks above. Use `minima_optimizer_benchmark.py` for minima optimizer testing and `ts_optimizer_benchmark.py` for transition state optimizer testing.
 
 ### 7. BH28 Benchmark (`bh28_benchmark/`)
 **Chemical Accuracy Evaluation**
@@ -138,6 +154,12 @@ python [example_name].py --device cuda
 ```bash
 # CLI Demo - Test all backends
 python cli_demo.py
+
+# IRC Demo - IRC path calculation
+python irc_demo.py example_files/reaction_001_ts.xyz --backend uma
+
+# Growing String Demo - TS search with growing string method
+python growing_string_demo.py --backend mock --npoints 15
 
 # Timing Benchmark - Performance analysis
 python timing_benchmark.py --device cuda --verbose
