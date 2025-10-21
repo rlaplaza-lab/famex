@@ -61,7 +61,7 @@ class QMEExampleInterface:
             type=int,
             choices=[0, 1, 2],
             default=1,
-            help="Verbosity level: 0=quiet, 1=normal (default), 2=verbose"
+            help="Verbosity level: 0=quiet, 1=normal (default), 2=verbose",
         )
         parser.add_argument(
             "--output",
@@ -152,14 +152,15 @@ class QMEExampleInterface:
     def setup_logging(self, verbose: int = 1) -> None:
         """Set up QME logging based on verbosity level."""
         from qme.logging_utils import setup_qme_logging
+
         setup_qme_logging(verbosity=verbose)
 
 
 def create_standard_epilog(example_type: str) -> str:
     """Create standardized epilog for different example types."""
 
-    if example_type == "demo":
-        return """
+    epilogs = {
+        "demo": """
 Examples:
   # Run with all available backends
   python cli_demo.py
@@ -169,10 +170,8 @@ Examples:
 
   # Run with verbose output
   python cli_demo.py --verbose 2
-        """
-
-    elif example_type == "timing":
-        return """
+        """,
+        "timing": """
 Examples:
   # Run with all available backends
   python timing_benchmark.py
@@ -182,10 +181,8 @@ Examples:
 
   # Run on GPU
   python timing_benchmark.py --device cuda --verbose 2
-        """
-
-    elif example_type == "benchmark":
-        return """
+        """,
+        "benchmark": """
 Examples:
   # Run with all available backends
   python benchmark.py
@@ -195,10 +192,8 @@ Examples:
 
   # Run with verbose output
   python benchmark.py --verbose 2
-        """
-
-    elif example_type == "benchmark_quick":
-        return """
+        """,
+        "benchmark_quick": """
 Examples:
   # Run with all available backends
   python benchmark.py
@@ -211,10 +206,12 @@ Examples:
 
   # Very quick test with minimal data
   python benchmark.py --quicker --verbose 2
-        """
+        """,
+    }
 
-    else:
-        return """
+    return epilogs.get(
+        example_type,
+        """
 Examples:
   # Run with default settings
   python example.py
@@ -224,7 +221,8 @@ Examples:
 
   # Run with verbose output
   python example.py --verbose 2
-        """
+        """,
+    )
 
 
 def benchmark_optimization(

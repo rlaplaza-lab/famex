@@ -32,6 +32,7 @@ class StrategyMetadata:
     requires_multiple_structures : bool
         Whether strategy needs 2+ structures
     """
+
     name: str
     target: str
     strategy: str
@@ -144,7 +145,7 @@ class StrategyRegistry:
         ValueError
             If strategy class is missing metadata
         """
-        if not hasattr(strategy_class, 'metadata'):
+        if not hasattr(strategy_class, "metadata"):
             raise ValueError(f"Strategy class {strategy_class.__name__} missing metadata")
 
         meta = strategy_class.metadata
@@ -153,9 +154,8 @@ class StrategyRegistry:
         # Auto-register aliases
         for alias in meta.aliases:
             if alias in self._strategies:
-                # Warn about duplicate aliases
-                import warnings
-                warnings.warn(f"Alias '{alias}' already registered, overwriting", stacklevel=2)
+                # Fail hard on duplicate aliases
+                raise ValueError(f"Alias '{alias}' already registered")
             self._strategies[alias] = strategy_class
 
     def get(self, strategy_name: str) -> type[BaseStrategy]:
@@ -179,8 +179,7 @@ class StrategyRegistry:
         if strategy_name not in self._strategies:
             available = sorted(self._strategies.keys())
             raise KeyError(
-                f"No strategy found for '{strategy_name}'. "
-                f"Available strategies: {available}"
+                f"No strategy found for '{strategy_name}'. " f"Available strategies: {available}"
             )
         return self._strategies[strategy_name]
 

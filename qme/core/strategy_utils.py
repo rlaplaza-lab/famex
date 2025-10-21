@@ -18,26 +18,6 @@ class StrategyUtils:
     """Shared utilities for strategy implementations."""
 
     @staticmethod
-    def supports_batch_evaluation(calculator: Any) -> bool:
-        """Check if calculator supports batch evaluation.
-
-        Parameters
-        ----------
-        calculator : Any
-            Calculator to check
-
-        Returns
-        -------
-        bool
-            True if calculator supports batch evaluation
-        """
-        return (
-            calculator is not None
-            and hasattr(calculator, "supports_batch_evaluation")
-            and calculator.supports_batch_evaluation
-        )
-
-    @staticmethod
     def ensure_charge_spin_info(atoms: Atoms, charge: int = 0, spin: int = 1) -> None:
         """Ensure atoms.info has charge and spin information.
 
@@ -110,87 +90,6 @@ class StrategyUtils:
                 return bool(result)
 
         return bool(converged_attr)
-
-    @staticmethod
-    def calculate_spring_force(
-        path: list[Atoms], index: int, spring_constant: float, energies: list[float]
-    ) -> np.ndarray:
-        """Calculate spring forces for NEB.
-
-        Parameters
-        ----------
-        path : list[Atoms]
-            List of structures in the path
-        index : int
-            Index of the structure to calculate forces for
-        spring_constant : float
-            Spring constant for NEB
-        energies : list[float]
-            Energies of all structures
-
-        Returns
-        -------
-        np.ndarray
-            Spring forces for the structure
-        """
-        if index in (0, len(path) - 1):
-            return np.zeros((len(path[index]), 3))
-
-        # Distance between adjacent images
-        prev_pos = path[index - 1].get_positions()
-        curr_pos = path[index].get_positions()
-        next_pos = path[index + 1].get_positions()
-
-        # Spring force towards previous image
-        spring_prev = spring_constant * (prev_pos - curr_pos)
-        # Spring force towards next image
-        spring_next = spring_constant * (next_pos - curr_pos)
-
-        return spring_prev + spring_next
-
-    @staticmethod
-    def calculate_tangent(path: list[Atoms], index: int, energies: list[float]) -> np.ndarray | None:
-        """Calculate tangent vector for NEB force projection.
-
-        Parameters
-        ----------
-        path : list[Atoms]
-            List of structures in the path
-        index : int
-            Index of the structure to calculate tangent for
-        energies : list[float]
-            Energies of all structures
-
-        Returns
-        -------
-        np.ndarray or None
-            Normalized tangent vector, or None for endpoints
-        """
-        if index in (0, len(path) - 1):
-            return None
-
-        # Use energy-weighted tangent calculation
-        prev_pos = path[index - 1].get_positions()
-        curr_pos = path[index].get_positions()
-        next_pos = path[index + 1].get_positions()
-
-        # Forward difference
-        forward = next_pos - curr_pos
-        # Backward difference
-        backward = curr_pos - prev_pos
-
-        # Energy-weighted tangent
-        if energies[index + 1] > energies[index - 1]:
-            tangent = forward
-        else:
-            tangent = backward
-
-        # Normalize
-        norm = np.linalg.norm(tangent)
-        if norm > 1e-10:
-            return tangent.flatten() / norm
-        else:
-            return None
 
     @staticmethod
     def check_batch_support(calculator: Any) -> bool:
@@ -286,6 +185,90 @@ class StrategyUtils:
         """
         max_force = max(np.linalg.norm(forces, axis=1).max() for forces in forces_list)
         if max_force < fmax:
-            logger.info("Optimization converged after %d steps (max force: %.6f)", step + 1, max_force)
+            logger.info(
+                "Optimization converged after %d steps (max force: %.6f)", step + 1, max_force
+            )
             return True
         return False
+
+    @staticmethod
+    def grow_string_node(
+        previous_node: Atoms,
+        direction: str,
+        step_size: float,
+        fmax: float,
+        explorer: Any | None = None,
+    ) -> Atoms | None:
+        """Grow string by adding a new node along the steepest descent direction.
+
+        Parameters
+        ----------
+        previous_node : Atoms
+            The last node in the string
+        direction : str
+            "forward" or "backward" to indicate growth direction
+        step_size : float
+            Step size for new node placement (Angstroms)
+        fmax : float
+            Force threshold for perpendicular optimization
+        explorer : Any, optional
+            Explorer instance for calculator management
+
+        Returns
+        -------
+        Atoms or None
+            New node, or None if growth failed
+        """
+        try:
+            # Get forces on previous node
+            forces = previous_node.get_forces()
+
+            # Create new node by copying and adjusting positions
+            new_node = previous_node.copy()
+
+            # Manually copy calculator reference (ASE copy() doesn't copy calculator)
+            if hasattr(previous_node, "calc") and previous_node.calc is not None:
+                new_node.calc = previous_node.calc
+
+            # For forward growth, move along negative gradient (downhill)
+            # For backward growth, also move along negative gradient
+            # The direction is handled by which end we're growing from
+            force_magnitude = np.linalg.norm(forces)
+            if force_magnitude < 1e-6:
+                logger.warning(
+                    f"Growing String: Very small forces ({force_magnitude:.2e}), " "skipping node"
+                )
+                return None
+
+            # Normalize and scale forces to get step direction
+            step_direction = -forces / force_magnitude  # Negative for downhill
+            displacement = step_direction * step_size
+
+            new_node.positions = previous_node.positions + displacement
+
+            # Re-attach calculator if using explorer (to ensure proper setup)
+            if explorer is not None:
+                explorer._create_and_attach_calculator(new_node)
+                explorer._apply_constraints(new_node)
+
+            # Optimize perpendicular to the path
+            # This is a simplified version - a full implementation would:
+            # 1. Calculate tangent to the path
+            # 2. Project forces perpendicular to tangent
+            # 3. Optimize only in perpendicular directions
+            # For now, we do a quick optimization with few steps
+            try:
+                from qme.core.strategies.local.helpers import _get_local_optimizer_class
+
+                OptClass = _get_local_optimizer_class("lbfgs")
+                opt = OptClass(new_node)
+                opt.run(fmax=fmax, steps=5)  # Limited optimization
+            except Exception as e:
+                logger.warning(f"Growing String: Perpendicular optimization failed: {e}")
+                # Continue anyway with unoptimized node
+
+            return new_node
+
+        except Exception as e:
+            logger.warning(f"Growing String: Failed to grow node: {e}")
+            return None
