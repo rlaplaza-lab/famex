@@ -8,7 +8,10 @@ performance and reliability.
 
 Features:
     - Structure optimization using 'minima' command
-    - Transition state optimization using 'ts' command
+    - Transition state optimization using 'ts' command with multiple strategies:
+      * Local TS optimization
+      * Two-ended TS optimization via interpolation
+      * Growing String Method (GSM) for TS optimization
     - Two-ended optimization workflows
     - Reaction path optimization using 'path' command with different strategies:
       * Raw interpolation path generation (interpolate strategy)
@@ -183,11 +186,37 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "--steps",
                 str(steps),
                 "--npoints",
-                "3",
+                "7",
                 "--interp",
                 "geodesic",
                 "--output",
                 f"test_ts_twoended_{backend}.xyz",
+            ],
+        },
+        {
+            "desc": "Two-ended TS optimization using 'ts' command with growing_string strategy",
+            "cmd": [
+                "qme",
+                "ts",
+                "--strategy",
+                "growing_string",
+                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                "--product",
+                str(example_files / "A_C_A_B_A_C_product.xyz"),
+                "--backend",
+                backend,
+                "--steps",
+                str(steps),
+                "--npoints",
+                "7",
+                "--step-size",
+                "0.1",
+                "--max-images",
+                "50",
+                "--distance-threshold",
+                "0.1",
+                "--output",
+                f"test_ts_gsm_{backend}.xyz",
             ],
         },
         {
@@ -295,7 +324,7 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
     if interface is None:
         interface = QMEExampleInterface("CLI Demo", "Comprehensive Backend Comparison")
 
-    interface.print_header("Testing: opt, tsopt, two-ended, NEB, and CI-NEB commands")
+    interface.print_header("Testing: opt, tsopt, two-ended, GSM, NEB, CI-NEB, and IRC commands")
 
     # Get available ML backends
     if backends:
@@ -341,7 +370,7 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
     # Performance tracking
     backend_results = {}
     total_start_time = time.time()
-    total_examples_per_backend = 6  # minima, ts, twoended, ts_twoended, neb, and cineb commands
+    total_examples_per_backend = 7  # minima, ts, twoended, ts_twoended, ts_gsm, neb, and cineb commands
     steps = 500  # Reduced steps for faster testing
 
     # Run examples for each backend
