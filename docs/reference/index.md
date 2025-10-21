@@ -4,14 +4,12 @@ Complete reference documentation for QME error handling and troubleshooting.
 
 ## Sections
 
-### [Error Handling](errors.md)
-Comprehensive guide to QME error messages, their meanings, and solutions.
-
 ### [Troubleshooting](troubleshooting.md)
 Common issues and their solutions, organized by category and backend.
 
 ### [FAQ](faq.md)
 Frequently asked questions about QME usage, installation, and best practices.
+
 
 ## Quick Reference
 
@@ -31,6 +29,11 @@ Frequently asked questions about QME usage, installation, and best practices.
 - `Optimization did not converge` → Increase steps, change optimizer, or loosen convergence
 - `Forces too large` → Check input structure quality
 - `Unrealistic energies` → Verify backend compatibility with your system
+
+**Strategy Issues**:
+- `No strategy found for 'target:strategy'` → Check strategy name and availability
+- `Strategy requires 2+ structures` → Provide multiple structures for multi-structure strategies
+- `Invalid target/strategy combination` → Use valid combinations from the target/strategy matrix
 
 ### Cache Directories
 

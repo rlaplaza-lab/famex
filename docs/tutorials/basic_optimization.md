@@ -1,443 +1,371 @@
 # Basic Optimization Tutorial
 
-Learn the fundamentals of molecular geometry optimization using QME.
+This tutorial covers the fundamentals of molecular geometry optimization using QME's new target/strategy interface.
 
 ## Learning Objectives
 
 By the end of this tutorial, you will:
-- Understand how to optimize molecular structures with QME
-- Know how to choose appropriate backends and settings
-- Be able to interpret optimization results
-- Understand the difference between local and two-ended optimization
+- Understand QME's target/strategy system
+- Perform local minima optimization using both CLI and Python API
+- Compare different optimizers (BFGS, LBFGS, FIRE)
+- Control convergence criteria and optimization settings
+- Save and analyze optimization results
 
 ## Prerequisites
 
-- QME installed with at least one backend: `pip install qme-ml-ml[aimnet2]`
-- Basic understanding of molecular structure
-- Familiarity with XYZ file format
+- QME installed with at least one backend
+- Basic understanding of molecular structures
+- Familiarity with command line or Python
 
-## Part 1: Your First Optimization
+## Step 1: Understanding Targets and Strategies
 
-### Step 1: Create a Test Molecule
+QME uses a semantic interface where you specify:
+- **Target**: What you want to achieve (`minima`, `ts`, `path`)
+- **Strategy**: How to achieve it (`local`, `interpolate`, `neb`, etc.)
 
-Create a file called `water.xyz`:
+For basic optimization, we use:
+- Target: `minima` (find energy minimum)
+- Strategy: `local` (direct local optimization)
 
-```
+## Step 2: Prepare Your Structure
+
+Let's create a simple test structure - a water molecule:
+
+```bash
+# Create water.xyz
+cat > water.xyz << EOF
 3
 Water molecule
 O    0.000000    0.000000    0.117283
 H    0.000000    0.758602   -0.469132
 H    0.000000   -0.758602   -0.469132
+EOF
 ```
 
-This represents a water molecule with slightly distorted geometry that we'll optimize.
+## Step 3: Basic Local Optimization
 
-### Step 2: Basic Optimization
-
-Run your first optimization:
+### Command Line Interface
 
 ```bash
-qme opt water.xyz
+# Basic optimization (uses default settings)
+qme minima --strategy local water.xyz
+
+# With specific backend
+qme minima --strategy local water.xyz --backend aimnet2
+
+# With custom convergence criteria
+qme minima --strategy local water.xyz --fmax 0.01 --steps 1000
 ```
 
-**Expected output:**
-```
-🔧 QME Optimization Starting
-Backend: aimnet2 (AIMNet2)
-Device: cpu
-Optimizer: sella
-Convergence: 0.050 eV/Å (using ASE units)
-
-📁 Loading structure from: water.xyz
-🧮 Attaching calculator...
-⚡ Starting optimization...
-
-Step    Energy (eV)    Max Force (eV/Å)
-0       -14.123        0.089
-5       -14.127        0.034
-8       -14.128        0.042  ✅ Converged!
-
-💾 Saved optimized structure to: water_opt_aimnet2.xyz
-⏱️  Total time: 3.2 seconds
-```
-
-### Step 3: Examine the Results
-
-Check the output file:
-```bash
-cat water_opt_aimnet2.xyz
-```
-
-You'll see the optimized geometry with lower energy and forces.
-
-## Part 2: Understanding Backends
-
-### Step 4: Try Different Backends
-
-Compare results with different ML potentials:
-
-```bash
-# AIMNet2 (default, fast and reliable)
-qme opt water.xyz --backend aimnet2
-
-# UMA (good for materials and molecules)
-qme opt water.xyz --backend uma
-
-# MACE (high accuracy)
-qme opt water.xyz --backend mace
-
-# Mock (for testing, harmonic potential)
-qme opt water.xyz --backend mock
-```
-
-**Note**: You may need to install additional backends:
-```bash
-pip install qme-ml-ml[uma]    # For UMA
-pip install qme-ml-ml[mace]   # For MACE
-```
-
-### Step 5: Backend Comparison
-
-Create a comparison script `compare_backends.py`:
+### Python API
 
 ```python
 import qme
-from ase.io import read
 
-# Load the initial structure
-atoms = read("water.xyz")
+# Create Explorer instance
+explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2")
 
-backends = ["aimnet2", "mock"]  # Add others if available
-results = {}
+# Run optimization
+result = explorer.run(target="minima", strategy="local")
 
-for backend in backends:
-    try:
-        print(f"\n--- Testing {backend} ---")
-        explorer = qme.Explorer.from_atoms(atoms.copy(), backend=backend)
-        result = explorer.run(mode="minima")
+# Save results
+explorer.save_structure(result['optimized_atoms'], "water_optimized.xyz")
 
-        results[backend] = {
-            'final_energy': result['final_energy'],
-            'n_steps': result['n_steps'],
-            'converged': result['converged']
-        }
-
-        print(f"Energy: {result['final_energy']:.6f} eV")
-        print(f"Steps: {result['n_steps']}")
-        print(f"Converged: {result['converged']}")
-
-    except Exception as e:
-        print(f"Error with {backend}: {e}")
-
-print("\n--- Summary ---")
-for backend, data in results.items():
-    print(f"{backend}: {data['final_energy']:.6f} eV in {data['n_steps']} steps")
+# Print results
+print(f"Optimization converged: {result['converged']}")
+print(f"Final energy: {result['final_energy']:.6f} eV")
+print(f"Steps taken: {result['steps_taken']}")
 ```
 
-Run it:
+## Step 4: Comparing Optimizers
+
+QME supports multiple optimization algorithms. Let's compare them:
+
+### BFGS (Broyden-Fletcher-Goldfarb-Shanno)
+
 ```bash
-python compare_backends.py
+# Command line
+qme minima --strategy local water.xyz --optimizer bfgs
+
+# Python
+result = explorer.run(target="minima", strategy="local",
+                     local_optimizer="bfgs")
 ```
 
-## Part 3: Optimization Settings
+**Characteristics:**
+- Good general-purpose optimizer
+- Uses gradient and Hessian approximation
+- Memory intensive for large systems
 
-### Step 6: Convergence Criteria
+### LBFGS (Limited-memory BFGS)
 
-Try different convergence thresholds:
+```bash
+# Command line
+qme minima --strategy local water.xyz --optimizer lbfgs
+
+# Python
+result = explorer.run(target="minima", strategy="local",
+                     local_optimizer="lbfgs")
+```
+
+**Characteristics:**
+- Memory-efficient version of BFGS
+- Good for large systems
+- Default optimizer for minima optimization
+
+### FIRE (Fast Inertial Relaxation Engine)
+
+```bash
+# Command line
+qme minima --strategy local water.xyz --optimizer fire
+
+# Python
+result = explorer.run(target="minima", strategy="local",
+                     local_optimizer="fire")
+```
+
+**Characteristics:**
+- Fast relaxation for initial structure preparation
+- Good for removing bad contacts
+- May not find true minimum
+
+### Sella (Transition State Optimizer)
+
+```bash
+# Command line
+qme minima --strategy local water.xyz --optimizer sella
+
+# Python
+result = explorer.run(target="minima", strategy="local",
+                     local_optimizer="sella")
+```
+
+**Characteristics:**
+- Designed for transition states but works for minima
+- Uses second-order information
+- More robust but slower
+
+## Step 5: Controlling Convergence
+
+### Force Convergence (`fmax`)
+
+Controls how small forces must be for convergence:
 
 ```bash
 # Loose convergence (faster)
-qme opt water.xyz --fmax 0.1
+qme minima --strategy local water.xyz --fmax 0.1
 
-# Default convergence
-qme opt water.xyz --fmax 0.05
+# Standard convergence (default)
+qme minima --strategy local water.xyz --fmax 0.05
 
-# Tight convergence (slower but more accurate)
-qme opt water.xyz --fmax 0.01
+# Tight convergence (slower, more accurate)
+qme minima --strategy local water.xyz --fmax 0.01
 ```
 
-### Step 7: Different Optimizers
-
-QME supports multiple optimization algorithms:
+### Maximum Steps
 
 ```bash
-# SELLA optimizer (default, good for TS)
-qme opt water.xyz --optimizer sella
+# Allow more steps for difficult optimizations
+qme minima --strategy local water.xyz --steps 2000
 
-# L-BFGS (memory efficient)
-qme opt water.xyz --optimizer lbfgs
-
-# BFGS (robust)
-qme opt water.xyz --optimizer bfgs
-
-# FIRE (simple and fast)
-qme opt water.xyz --optimizer fire
+# Quick optimization for testing
+qme minima --strategy local water.xyz --steps 100
 ```
 
-### Step 8: Maximum Steps
-
-Control the optimization length:
-
-```bash
-# Short optimization
-qme opt water.xyz --steps 50
-
-# Long optimization
-qme opt water.xyz --steps 2000
-```
-
-## Part 4: Larger Molecules
-
-### Step 9: Optimize Benzene
-
-Create `benzene.xyz`:
-```
-12
-Benzene molecule
-C    0.000000    1.396000    0.000000
-C    1.209000    0.698000    0.000000
-C    1.209000   -0.698000    0.000000
-C    0.000000   -1.396000    0.000000
-C   -1.209000   -0.698000    0.000000
-C   -1.209000    0.698000    0.000000
-H    0.000000    2.486000    0.000000
-H    2.153000    1.243000    0.000000
-H    2.153000   -1.243000    0.000000
-H    0.000000   -2.486000    0.000000
-H   -2.153000   -1.243000    0.000000
-H   -2.153000    1.243000    0.000000
-```
-
-Optimize it:
-```bash
-qme opt benzene.xyz --backend aimnet2
-```
-
-Notice how larger molecules take more time and steps to converge.
-
-### Step 10: GPU Acceleration
-
-If you have a CUDA-capable GPU:
-
-```bash
-# Use GPU acceleration
-qme opt benzene.xyz --backend mace --device cuda
-
-# Compare with CPU
-qme opt benzene.xyz --backend mace --device cpu
-```
-
-## Part 5: Two-Ended Optimization
-
-### Step 11: Optimize Between Two Structures
-
-Create a distorted benzene `benzene_distorted.xyz`:
-```
-12
-Distorted benzene
-C    0.100000    1.496000    0.100000
-C    1.309000    0.798000   -0.100000
-C    1.109000   -0.598000    0.100000
-C   -0.100000   -1.296000   -0.100000
-C   -1.309000   -0.598000    0.100000
-C   -1.109000    0.798000   -0.100000
-H    0.100000    2.586000    0.100000
-H    2.253000    1.343000   -0.100000
-H    2.053000   -1.143000    0.100000
-H   -0.100000   -2.386000   -0.100000
-H   -2.253000   -1.143000    0.100000
-H   -2.053000    1.343000   -0.100000
-```
-
-Now optimize from distorted to regular benzene:
-```bash
-qme opt benzene_distorted.xyz --product benzene.xyz
-```
-
-This creates an interpolated path between the two structures and optimizes it.
-
-## Part 6: Python API
-
-### Step 12: Using QME Programmatically
-
-Create `python_optimization.py`:
+### Python API with Custom Settings
 
 ```python
-import qme
-from ase.io import read, write
-from ase.build import molecule
-
-# Method 1: From file
-print("=== Optimizing from file ===")
-explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2")
-result = explorer.run(mode="minima")
-
-print(f"Initial energy: {result['initial_energy']:.6f} eV")
-print(f"Final energy: {result['final_energy']:.6f} eV")
-print(f"Energy change: {result['final_energy'] - result['initial_energy']:.6f} eV")
-print(f"Optimization steps: {result['n_steps']}")
-print(f"Converged: {result['converged']}")
-
-# Save the result
-explorer.save_structure(result['optimized_atoms'], "water_python.xyz")
-
-# Method 2: From ASE atoms
-print("\n=== Optimizing from ASE atoms ===")
-atoms = molecule('NH3')  # Ammonia
-explorer2 = qme.Explorer.from_atoms(atoms, backend="aimnet2")
-result2 = explorer2.run(mode="minima")
-
-print(f"Ammonia final energy: {result2['final_energy']:.6f} eV")
-
-# Method 3: With custom settings
-print("\n=== Custom settings ===")
-explorer3 = qme.Explorer.from_file(
+# Create Explorer with custom settings
+explorer = qme.Explorer.from_file(
     "water.xyz",
     backend="aimnet2",
-    device="cpu"
+    local_optimizer="lbfgs"
 )
 
-result3 = explorer3.run(
-    mode="minima",
-    fmax=0.01,          # Tight convergence
-    steps=500,          # Maximum steps
-    optimizer='lbfgs'   # Different optimizer
+# Run with custom convergence criteria
+result = explorer.run(
+    target="minima",
+    strategy="local",
+    fmax=0.01,
+    steps=1000
 )
-
-print(f"Tight optimization energy: {result3['final_energy']:.6f} eV")
 ```
 
-Run it:
+## Step 6: Two-Ended Minima Optimization
+
+For finding minima along a reaction path between two structures:
+
 ```bash
-python python_optimization.py
+# Command line - interpolate between reactant and product
+qme minima --strategy interpolate reactant.xyz --product product.xyz --npoints 11
+
+# Python
+explorer = qme.Explorer([reactant, product], target="minima", strategy="interpolate")
+result = explorer.run(npoints=11, method="geodesic")
 ```
 
-### Step 13: Error Handling
+## Step 7: Analyzing Results
 
-Create `error_handling.py`:
+### Understanding Output Files
+
+QME creates descriptive output files:
+- `water.opt.local.xyz` - Local optimization result
+- `water.opt.interpolate.xyz` - For two-ended optimizations
+
+### Result Dictionary Structure
+
+```python
+result = {
+    'optimized_atoms': <ASE Atoms object>,
+    'final_energy': -76.123456,  # eV
+    'converged': True,
+    'steps_taken': 45,
+    'strategy': 'minima:local',
+    'max_force': 0.008,  # Maximum force at convergence
+    'optimizer_info': {...}  # Optimizer-specific information
+}
+```
+
+### Saving and Loading Results
+
+```python
+# Save optimized structure
+explorer.save_structure(result['optimized_atoms'], "optimized.xyz")
+
+# Save with specific format
+explorer.save_structure(result['optimized_atoms'], "optimized.cif", format="cif")
+
+# Load structure for further analysis
+new_explorer = qme.Explorer.from_file("optimized.xyz")
+```
+
+## Step 8: Practical Examples
+
+### Example 1: Small Molecule Optimization
 
 ```python
 import qme
 
-def safe_optimization(filename, backend="aimnet2"):
-    """Safely optimize a structure with error handling."""
-    try:
-        explorer = qme.Explorer.from_file(filename, backend=backend)
-        result = explorer.run(mode="minima")
+# Optimize methane
+explorer = qme.Explorer.from_file("methane.xyz", backend="aimnet2")
+result = explorer.run(target="minima", strategy="local", fmax=0.01)
 
-        if result['converged']:
-            print(f"✅ Optimization converged in {result['n_steps']} steps")
-            print(f"Final energy: {result['final_energy']:.6f} eV")
-            return result
-        else:
-            print("⚠️ Optimization did not converge")
-            return None
-
-    except FileNotFoundError:
-        print(f"❌ File {filename} not found")
-        return None
-    except Exception as e:
-        print(f"❌ Error during optimization: {e}")
-        return None
-
-# Test with valid file
-result = safe_optimization("water.xyz")
-
-# Test with invalid file
-result = safe_optimization("nonexistent.xyz")
-
-# Test with invalid backend
-try:
-    explorer = qme.Explorer.from_file("water.xyz", backend="invalid_backend")
-except Exception as e:
-    print(f"❌ Invalid backend: {e}")
+print(f"Methane optimized energy: {result['final_energy']:.6f} eV")
 ```
 
-## Understanding Results
-
-### Energy Units
-- QME reports energies in **electronvolts (eV)**
-- Forces are in **eV/Å** (using ASE units)
-- Typical optimization reduces energy by 0.01-0.1 eV for small molecules
-
-### Convergence Criteria
-- **fmax**: Maximum force on any atom (default: 0.05 eV/Å, using ASE units)
-- Lower fmax = tighter convergence = more accurate but slower
-- Typical values: 0.1 (loose), 0.05 (default), 0.01 (tight)
-
-### ASE Units Integration
-QME uses ASE's unit system for all calculations. You can import and use ASE units in your code:
+### Example 2: Batch Optimization
 
 ```python
-from ase.units import eV, Ang, Bohr, Hartree, kcal, kJ
+import qme
+from pathlib import Path
 
-# Examples:
-energy_ev = 1.0 * eV
-distance_ang = 1.5 * Ang
-force_ev_ang = 0.05 * eV / Ang
-energy_hartree = 0.0367493 * Hartree  # Convert eV to Hartree
+# Optimize all XYZ files in directory
+xyz_files = list(Path(".").glob("*.xyz"))
+
+for xyz_file in xyz_files:
+    explorer = qme.Explorer.from_file(xyz_file, backend="aimnet2")
+    result = explorer.run(target="minima", strategy="local")
+
+    # Save with descriptive name
+    output_name = f"{xyz_file.stem}_optimized.xyz"
+    explorer.save_structure(result['optimized_atoms'], output_name)
+
+    print(f"{xyz_file.name} -> {output_name} (E = {result['final_energy']:.6f} eV)")
 ```
 
-### Optimization Steps
-- Simple molecules: 5-20 steps
-- Complex molecules: 20-100+ steps
-- If >500 steps, consider different optimizer or looser convergence
+### Example 3: Optimization with Constraints
 
-## Common Issues and Solutions
-
-### Problem: "Backend not available"
-```
-Error: Backend 'uma' not available
-```
-**Solution**: Install the backend dependencies:
 ```bash
-pip install qme-ml-ml[uma]
+# Fix specific atoms during optimization
+qme minima --strategy local molecule.xyz --constraints "fix 0,1,2"
+
+# Harmonic constraints
+qme minima --strategy local molecule.xyz --constraints "harmonic_bond 0,1 k=5.0"
 ```
 
-### Problem: Slow optimization
-**Solutions**:
-- Use looser convergence: `--fmax 0.1`
-- Try different optimizer: `--optimizer lbfgs`
-- Use faster backend: `--backend aimnet2`
-- Use GPU if available: `--device cuda`
+```python
+# Python API with constraints
+explorer = qme.Explorer.from_file("molecule.xyz", constraints="fix 0,1,2")
+result = explorer.run(target="minima", strategy="local")
+```
 
-### Problem: Optimization doesn't converge
-**Solutions**:
-- Increase max steps: `--steps 1000`
-- Try different optimizer: `--optimizer bfgs`
-- Check input structure for errors
-- Use looser convergence temporarily
+## Troubleshooting
 
-### Problem: Unrealistic results
-**Solutions**:
-- Check input file format
-- Verify atom coordinates are reasonable
-- Try different backend for comparison
-- Compare with known reference structures
+### Optimization Not Converging
+
+**Symptoms:**
+- `converged: False` in results
+- Large maximum forces
+- Optimization stops at step limit
+
+**Solutions:**
+1. Increase maximum steps: `--steps 2000`
+2. Loosen convergence: `--fmax 0.1`
+3. Try different optimizer: `--optimizer sella`
+4. Check input structure quality
+
+### Unrealistic Energies
+
+**Symptoms:**
+- Very high or very low energies
+- Energies that don't make chemical sense
+
+**Solutions:**
+1. Verify backend compatibility with your system
+2. Check charge/spin settings: `--default-charge 0 --default-spin 1`
+3. Try different backend
+4. Verify input structure
+
+### Memory Issues
+
+**Symptoms:**
+- Out of memory errors
+- Slow optimization
+
+**Solutions:**
+1. Use LBFGS instead of BFGS: `--optimizer lbfgs`
+2. Use CPU instead of GPU: `--device cpu`
+3. Reduce system size
+4. Use mock backend for testing: `--backend mock`
+
+## Best Practices
+
+1. **Start with loose convergence** (`fmax=0.1`) for initial exploration
+2. **Use LBFGS** for large systems to save memory
+3. **Check input structures** for unrealistic geometries
+4. **Use appropriate backends** for your chemical system
+5. **Save intermediate results** for long optimizations
+6. **Monitor convergence** and adjust settings as needed
 
 ## Next Steps
 
-Now that you understand basic optimization:
+Now that you understand basic optimization, explore:
 
-1. **[Transition State Finding](transition_states.md)** - Learn to find transition states
-2. **[Frequency Analysis](frequency_analysis.md)** - Calculate vibrational properties
-3. **[Batch Processing](batch_processing.md)** - Process multiple structures
-4. **[User Guide](../user_guide/index.md)** - Comprehensive reference
+1. **[Transition States Tutorial](transition_states.md)** - Learn TS search techniques
+2. **[Backend Guide](../user_guide/backends.md)** - Explore different ML backends
+3. **[CLI Reference](../user_guide/cli_reference.md)** - Complete command reference
 
-## Summary
+## Quick Reference
 
-You've learned:
-- ✅ How to run basic optimizations with QME
-- ✅ How to choose and compare different backends
-- ✅ How to adjust convergence criteria and optimization settings
-- ✅ How to use both CLI and Python API
-- ✅ How to handle common issues
+### Common Commands
+```bash
+# Basic optimization
+qme minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.01
 
-**Key takeaways**:
-- Start with AIMNet2 backend for reliability
-- Use default settings first, then adjust as needed
-- Always check convergence before trusting results
-- GPU acceleration can significantly speed up calculations
-- Error handling is important for automated workflows
+# Two-ended optimization
+qme minima --strategy interpolate reactant.xyz --product product.xyz --npoints 11
 
-Continue to the next tutorial to learn about transition state searches!
+# With constraints
+qme minima --strategy local molecule.xyz --constraints "fix 0,1,2"
+```
+
+### Python Quick Start
+```python
+explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2")
+result = explorer.run(target="minima", strategy="local", fmax=0.01)
+explorer.save_structure(result['optimized_atoms'], "optimized.xyz")
+```
+
+---
+
+*Last updated: January 2025*

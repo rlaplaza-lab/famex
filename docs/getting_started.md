@@ -1,173 +1,291 @@
 # Getting Started with QME
 
-This guide will help you install QME and run your first molecular optimization.
+Welcome to QME (Quick Mechanistic Exploration)! This guide will help you install QME and run your first molecular optimization.
 
 ## Installation
 
 ### Prerequisites
 
-- Python 3.10 or higher
-- For TorchSim acceleration: Python 3.11+
+- Python 3.10 or higher (Python 3.11+ required for TorchSim backends)
+- pip package manager
 
-### Recommended Installation (Per-Backend)
-
-Due to dependency conflicts between ML packages, we recommend installing backends individually:
+### Quick Installation
 
 ```bash
-# UMA backend (Meta AI, default)
-pip install qme-ml[uma]
+# Create a virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# AIMNet2 backend (native PyTorch)
-pip install qme-ml[aimnet2]
-
-# MACE backend (foundation models)
-pip install qme-ml[mace]
-
-# SO3LR backend
-pip install qme-ml[so3lr]
-pip install so3lr  # Install from PyPI or source
-
-# TorchSim acceleration (Python 3.11+ only)
-pip install qme-ml[torchsim]
+# Install QME with a backend
+pip install qme-ml[aimnet2]  # Recommended for beginners
 ```
 
-### Development Installation
+### Backend Selection
+
+QME supports multiple machine learning backends. Choose one based on your needs:
+
+| Backend | Best For | Installation |
+|---------|----------|--------------|
+| `aimnet2` | General use, no conflicts | `pip install qme-ml[aimnet2]` |
+| `mace` | High accuracy | `pip install qme-ml[mace]` |
+| `uma` | Materials science | `pip install qme-ml[uma]` |
+| `orb` | Universal forcefield | `pip install qme-ml[orb]` |
+| `torchsim` | Maximum performance | `pip install qme-ml[torchsim]` |
+
+> **Important**: Some backends have dependency conflicts (e.g., UMA vs MACE). Use separate environments or choose one backend per environment.
+
+### Alternative Installations
 
 ```bash
+# Development installation
 git clone https://github.com/rlaplaza-lab/qme.git
 cd qme
-pip install -e .[dev]
-```
+pip install -e .[dev,aimnet2]
 
-### Verify Installation
-
-```bash
-qme --help
+# Minimal installation (mock backend only)
+pip install qme-ml
 ```
 
 ## Your First Optimization
 
-### 1. Basic Structure Optimization
+### 1. Create a Test Structure
 
-Create a simple molecule file (`benzene.xyz`):
-```
-12
-Benzene molecule
-C    0.000000    1.396000    0.000000
-C    1.209000    0.698000    0.000000
-C    1.209000   -0.698000    0.000000
-C    0.000000   -1.396000    0.000000
-C   -1.209000   -0.698000    0.000000
-C   -1.209000    0.698000    0.000000
-H    0.000000    2.486000    0.000000
-H    2.153000    1.243000    0.000000
-H    2.153000   -1.243000    0.000000
-H    0.000000   -2.486000    0.000000
-H   -2.153000   -1.243000    0.000000
-H   -2.153000    1.243000    0.000000
-```
-
-Optimize the structure:
-```bash
-qme opt benzene.xyz
-```
-
-This will:
-- Use the default UMA backend
-- Optimize to a force convergence of 0.05 eV/Å (using ASE units)
-- Save the optimized structure to `benzene_opt_uma.xyz`
-
-### 2. Try Different Backends
+Create a simple water molecule:
 
 ```bash
-# Use AIMNet2 backend
-qme opt benzene.xyz --backend aimnet2
-
-# Use MACE backend with GPU acceleration
-qme opt benzene.xyz --backend mace --device cuda
-
-# Use mock backend for testing (no ML dependencies required)
-qme opt benzene.xyz --backend mock
+# Create water.xyz
+cat > water.xyz << EOF
+3
+Water molecule
+O    0.000000    0.000000    0.117283
+H    0.000000    0.758602   -0.469132
+H    0.000000   -0.758602   -0.469132
+EOF
 ```
 
-### 3. Customize Optimization
+### 2. Run Your First Optimization
+
+**Command Line Interface:**
+```bash
+# Basic optimization
+qme minima --strategy local water.xyz
+
+# With specific backend
+qme minima --strategy local water.xyz --backend aimnet2
+
+# With custom settings
+qme minima --strategy local water.xyz --fmax 0.01 --steps 500
+```
+
+**Python API:**
+```python
+import qme
+
+# Create Explorer and optimize
+explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2")
+result = explorer.run(target="minima", strategy="local")
+
+# Save results
+explorer.save_structure(result['optimized_atoms'], "water_optimized.xyz")
+print(f"Final energy: {result['final_energy']:.6f} eV")
+```
+
+### 3. Understanding the Output
+
+QME creates output files with descriptive names:
+- `water.opt.xyz` - Optimized structure
+- `water.opt.log` - Optimization log (if verbose)
+
+The result dictionary contains:
+- `optimized_atoms`: The optimized structure
+- `final_energy`: Final energy in eV
+- `converged`: Whether optimization converged
+- `steps_taken`: Number of optimization steps
+
+## Understanding QME's Interface
+
+### Target/Strategy System
+
+QME uses a semantic interface with two key concepts:
+
+- **Target**: What you want to obtain (`minima`, `ts`, `path`)
+- **Strategy**: How to get there (`local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string`)
+
+### Target/Strategy Matrix
+
+| Target | Strategy | Description |
+|--------|----------|-------------|
+| `minima` | `local` | Direct local optimization |
+| `minima` | `interpolate` | Minima from interpolated path |
+| `ts` | `local` | Local TS search |
+| `ts` | `interpolate` | TS guess from interpolation |
+| `ts` | `growing_string` | Growing string method (DE-GSM) |
+| `path` | `neb` | NEB path optimization |
+| `path` | `cineb` | CI-NEB path optimization |
+| `path` | `irc` | IRC path from transition state |
+| `path` | `interpolate` | Generate path only (no optimization) |
+
+### Command Line Structure
+
+QME's CLI is organized into three main commands:
 
 ```bash
-# Tighter convergence
-qme opt benzene.xyz --fmax 0.01
+# Minima optimization (outputs single structure)
+qme minima --strategy local molecule.xyz                           # Local optimization
+qme minima --strategy interpolate reactant.xyz --product product.xyz     # Two-ended minima search
 
-# More optimization steps
-qme opt benzene.xyz --steps 2000
+# Transition state optimization (outputs single TS)
+qme ts --strategy local ts_guess.xyz                   # Local TS optimization
+qme ts --strategy interpolate reactant.xyz --product product.xyz # TS via interpolation
+qme ts --strategy growing_string reactant.xyz --product product.xyz         # Growing string method
 
-# Different optimizer
-qme opt benzene.xyz --optimizer lbfgs
+# Reaction path optimization (outputs trajectories)
+qme path --strategy interpolate r.xyz --product p.xyz               # Raw interpolation
+qme path --strategy neb r.xyz --product p.xyz                       # NEB path
+qme path --strategy cineb r.xyz --product p.xyz                     # CI-NEB path
+qme path --strategy irc ts.xyz                            # IRC from transition state
 ```
 
-## Understanding the Output
+## Common Workflows
 
-QME will create output files and display progress:
+### Local Minima Optimization
 
-```
-🔧 QME Optimization Starting
-Backend: uma (UMA)
-Device: cpu
-Optimizer: sella
-Convergence: 0.050 eV/Å
+```bash
+# Command line
+qme minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.01
 
-📁 Loading structure from: benzene.xyz
-🧮 Attaching calculator...
-⚡ Starting optimization...
-
-Step    Energy (eV)    Max Force (eV/Å)
-0       -45.231        0.142
-10      -45.298        0.087
-20      -45.321        0.034
-23      -45.322        0.048  ✅ Converged!
-
-💾 Saved optimized structure to: benzene_opt_uma.xyz
-⏱️  Total time: 12.3 seconds
+# Python
+explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2")
+result = explorer.run(target="minima", strategy="local", fmax=0.01)
 ```
 
-### Output Files
+### Transition State Search
 
-- `benzene_opt_uma.xyz`: Optimized structure
-- Optimization trajectory (if requested with `--save-trajectory`)
-- Log files with detailed optimization information
+```bash
+# Command line - local TS optimization
+qme ts --strategy local ts_guess.xyz --backend aimnet2
+
+# Command line - TS from interpolation
+qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15
+
+# Python
+explorer = qme.Explorer([reactant, product], target="ts", strategy="interpolate")
+result = explorer.run(npoints=15)
+```
+
+### Reaction Path Optimization
+
+```bash
+# Command line - NEB path
+qme path --strategy neb reactant.xyz --product product.xyz --npoints 11
+
+# Command line - IRC from TS
+qme path --strategy irc ts.xyz --direction both
+
+# Python
+explorer = qme.Explorer([reactant, product], target="path", strategy="neb")
+result = explorer.run(npoints=11)
+```
+
+## Backend Selection Guide
+
+### For Beginners
+Start with **AIMNet2** - fast, reliable, no conflicts:
+```bash
+pip install qme-ml[aimnet2]
+```
+
+### For Production
+- **Materials**: Use `uma` backend
+- **Molecules**: Use `mace` backend
+- **Universal**: Use `orb` backend
+
+### For Maximum Performance
+Use **TorchSim** with GPU acceleration:
+```bash
+pip install qme-ml[torchsim]
+qme minima --strategy local molecule.xyz --backend torchsim_mace --device cuda
+```
+
+### For Testing
+Use **mock** backend (always available):
+```bash
+qme minima --strategy local molecule.xyz --backend mock
+```
+
+## Troubleshooting
+
+### Common Installation Issues
+
+**Dependency Conflicts:**
+```bash
+# Solution: Use separate environments
+conda create -n qme-uma python=3.12
+conda activate qme-uma
+pip install qme-ml[uma]
+
+conda create -n qme-mace python=3.12
+conda activate qme-mace
+pip install qme-ml[mace]
+```
+
+**Backend Not Available:**
+```bash
+# Check what's installed
+qme --help
+
+# Install specific backend
+pip install qme-ml[backend_name]
+```
+
+### Common Runtime Issues
+
+**Optimization Not Converging:**
+- Increase `--steps` parameter
+- Loosen `--fmax` convergence criteria
+- Try different optimizer: `--optimizer lbfgs`
+
+**CUDA Out of Memory:**
+- Use CPU: `--device cpu`
+- Reduce system size
+- Use smaller model
+
+**Unrealistic Energies:**
+- Verify backend compatibility with your system
+- Check charge/spin multiplicity settings
+- Try different backend
+
+### Getting Help
+
+```bash
+# Command help
+qme --help
+qme minima --help
+qme ts --help
+qme path --help
+```
 
 ## Next Steps
 
-Now that you have QME working, explore more features:
+Now that you've completed your first optimization, explore more advanced features:
 
-1. **[Transition State Searches](user_guide/transition_states.md)** - Find transition states between reactants and products
-2. **[Python API](user_guide/python_api.md)** - Use QME programmatically in your Python scripts
-3. **[Advanced Features](user_guide/advanced.md)** - Constraints, batch processing, and custom workflows
-4. **[Tutorials](tutorials/index.md)** - Step-by-step guides for common tasks
+1. **[Basic Optimization Tutorial](tutorials/basic_optimization.md)** - Learn about different optimizers and settings
+2. **[Transition States Tutorial](tutorials/transition_states.md)** - Master TS search techniques
+3. **[Backend Guide](user_guide/backends.md)** - Explore different ML backends
+4. **[CLI Reference](user_guide/cli_reference.md)** - Complete command reference
 
-## Common Issues
+## Examples
 
-### Backend Not Available
+The `examples/` directory contains many working examples:
+
+```bash
+# Run examples
+cd examples/
+python cli_demo.py
+python growing_string_demo.py
+python irc_demo.py
 ```
-Error: Backend 'uma' not available. Install with: pip install qme-ml[uma]
-```
-**Solution**: Install the required backend dependencies.
 
-### Dependency Conflicts
-```
-ERROR: pip's dependency resolver does not currently have the necessary information to solve this problem.
-```
-**Solution**: Use individual backend installations instead of combined installations.
+---
 
-### GPU Not Available
-```
-Warning: CUDA not available, falling back to CPU
-```
-**Solution**: Install PyTorch with CUDA support or use `--device cpu` explicitly.
-
-For more troubleshooting help, see the [Troubleshooting Guide](reference/troubleshooting.md).
-
-## Getting Help
-
-- **Documentation**: Browse the full [User Guide](user_guide/index.md)
-- **Examples**: Check out the [Tutorials](tutorials/index.md)
-- **Issues**: Report problems on [GitHub Issues](https://github.com/rlaplaza-lab/qme/issues)
-- **Questions**: Use [GitHub Discussions](https://github.com/rlaplaza-lab/qme/discussions)
+*Last updated: January 2025*
