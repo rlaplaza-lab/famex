@@ -819,6 +819,7 @@ class TrustKrylovTS(TrustKrylov):
     # Overrides for gradient / Hessian that perform the TS reflection
     # ------------------------------------------------------------------
     def gradient(self, x: np.ndarray) -> np.ndarray:
+        """Calculate gradient with transition state mode reflection."""
         gradient = super().gradient(x)
         self._ts_last_raw_gradient = gradient.copy()
 
@@ -831,6 +832,7 @@ class TrustKrylovTS(TrustKrylov):
         return reflected
 
     def hessian_func(self, x: np.ndarray) -> np.ndarray:
+        """Calculate Hessian with transition state mode stabilization."""
         raw_hessian = super().hessian_func(x)
         self._ts_last_raw_hessian = raw_hessian.copy()
 

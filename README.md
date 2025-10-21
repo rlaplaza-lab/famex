@@ -46,8 +46,8 @@ qme minima --strategy local water.xyz
 ```python
 import qme
 
-explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2")
-result = explorer.run(mode="minima", local_optimizer="bfgs")
+explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2", target="minima", strategy="local")
+result = explorer.run(fmax=0.05, steps=1000)
 print(f"Final energy: {result['final_energy']:.6f} eV")
 ```
 

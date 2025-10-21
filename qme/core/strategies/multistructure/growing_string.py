@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -29,7 +29,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         requires_multiple_structures=True,
     )
 
-    def run(self, atoms_list: list[Atoms], validate_ts: bool = False, **kwargs: Any) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
+    def run(self, atoms_list: list[Atoms], validate_ts: bool = False, **kwargs: Any) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Run growing string method using in-module helpers (no runner delegation)."""
         self.validate_inputs(atoms_list)
 

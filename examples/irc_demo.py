@@ -94,7 +94,6 @@ def main():
     print(f"  Force threshold: {args.fmax} eV/Angstrom")
 
     result = explorer.run(
-        mode="irc",
         steps=args.steps,
         step_size=args.step_size,
         fmax=args.fmax,

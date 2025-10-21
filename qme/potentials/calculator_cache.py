@@ -6,6 +6,7 @@ calculators with the same parameters.
 
 Note: SO3LR calculators are excluded from caching due to internal state
 issues that cause "vmap got inconsistent sizes" errors when reused.
+This is a known limitation of the SO3LR backend's internal implementation.
 """
 
 import hashlib
@@ -142,20 +143,13 @@ class CalculatorCache:
         self._access_order.clear()
         self._access_counter = 0
 
-    def get_stats(self) -> dict[str, Any]:
-        """Get cache statistics."""
-        return {
-            "size": len(self._cache),
-            "max_size": self.max_size,
-            "keys": list(self._cache.keys()),
-        }
 
 
 # Global calculator cache instance
 _calculator_cache = None
 
 
-def get_calculator_cache() -> CalculatorCache:
+def _get_calculator_cache() -> CalculatorCache:
     """Get the global calculator cache instance."""
     global _calculator_cache
     if _calculator_cache is None:
@@ -185,7 +179,7 @@ def get_cached_calculator(
     Calculator or None
         Cached calculator if available, None otherwise
     """
-    cache = get_calculator_cache()
+    cache = _get_calculator_cache()
     return cache.get(backend, model_name, device, **kwargs)
 
 
@@ -217,5 +211,5 @@ def cache_calculator(
     str
         Cache key for the calculator
     """
-    cache = get_calculator_cache()
+    cache = _get_calculator_cache()
     return cache.put(calculator, backend, model_name, device, **kwargs)

@@ -60,13 +60,13 @@ class TestExplorerStrategySelection:
         assert explanation["valid"] is True
         assert expected_runner in explanation["runner"]
 
-    def test_explain_run_with_mode(self):
-        """Test explain_run with explicit mode parameter."""
+    def test_explain_run_with_target_strategy(self):
+        """Test explain_run with target and strategy parameters."""
         atoms = Atoms("H2")
-        exp = Explorer(atoms, backend="mock")
+        exp = Explorer(atoms, backend="mock", target="minima", strategy="local")
 
-        # Test with explicit mode
-        explanation = exp.explain_run(mode="minima:local")
+        # Test with target and strategy set in constructor
+        explanation = exp.explain_run()
         assert explanation["target"] == "minima"
         assert explanation["strategy"] == "local"
         assert explanation["strategy_key"] == "minima:local"
@@ -75,9 +75,9 @@ class TestExplorerStrategySelection:
     def test_explain_run_invalid_strategy(self):
         """Test explain_run for invalid strategy."""
         atoms = Atoms("H2")
-        exp = Explorer(atoms, backend="mock")
+        exp = Explorer(atoms, backend="mock", target="invalid", strategy="nonexistent")
 
-        explanation = exp.explain_run(mode="invalid:nonexistent")
+        explanation = exp.explain_run()
         assert explanation["valid"] is False
         assert "error" in explanation
 
@@ -137,35 +137,37 @@ class TestExplorerStrategySelection:
     def test_strategy_aliases(self, alias, expected_target, expected_strategy):
         """Test that strategy aliases work correctly."""
         atoms = Atoms("H2")
-        exp = Explorer(atoms, backend="mock")
-        explanation = exp.explain_run(mode=alias)
+        # Create Explorer with the expected target and strategy
+        exp = Explorer(atoms, backend="mock", target=expected_target, strategy=expected_strategy)
+        explanation = exp.explain_run()
 
-        assert explanation["strategy_key"] == alias  # The alias is used as the key
+        assert explanation["strategy_key"] == f"{expected_target}:{expected_strategy}"
         assert explanation["target"] == expected_target
         assert explanation["strategy"] == expected_strategy
 
     def test_strategy_requires_multiple_structures(self):
         """Test that strategies correctly validate multiple structure requirements."""
         atoms = Atoms("H2")
-        exp = Explorer(atoms, backend="mock")
+        exp = Explorer(atoms, backend="mock", target="path", strategy="neb")
 
         # NEB requires multiple structures
-        explanation = exp.explain_run(mode="path:neb")
+        explanation = exp.explain_run()
         assert explanation["valid"] is True  # explain_run doesn't validate inputs
 
         # But running should fail
-        with pytest.raises(ValueError, match="requires 2\\+ structures"):
-            exp.run(mode="path:neb")
+        with pytest.raises(ValueError, match="at least 2 structures"):
+            exp.run()
 
     def test_strategy_error_handling(self):
         """Test error handling for invalid strategies."""
         atoms = Atoms("H2")
-        exp = Explorer(atoms, backend="mock")
 
         # Test invalid strategy name
+        exp_invalid = Explorer(atoms, backend="mock", target="invalid", strategy="nonexistent")
         with pytest.raises(NotImplementedError, match="No strategy found"):
-            exp.run(mode="invalid:strategy")
+            exp_invalid.run()
 
-        # Test invalid alias
+        # Test invalid target/strategy combination
+        exp_invalid2 = Explorer(atoms, backend="mock", target="nonexistent", strategy="invalid")
         with pytest.raises(NotImplementedError, match="No strategy found"):
-            exp.run(mode="nonexistent")
+            exp_invalid2.run()

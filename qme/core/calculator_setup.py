@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Union
+from typing import Any
 
 from qme.calculator_registry import calculator_registry
 from qme.potentials.calculator_cache import cache_calculator, get_cached_calculator

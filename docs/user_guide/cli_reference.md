@@ -23,7 +23,7 @@ All commands support these common options:
 | `--device` | `None` | Device: cpu\|cuda |
 | `--default-charge` | `0` | Default molecular charge |
 | `--default-spin` | `1` | Default spin multiplicity |
-| `--optimizer` | `bfgs` | Local optimizer: lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-krylov-ts\|trust-ncg\|trust-exact\|newton-cg |
+| `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-krylov-ts\|trust-ncg\|trust-exact\|newton-cg (default=auto-select based on target) |
 | `--optimizer-kw` | `None` | Optimizer kwargs as key=value, repeatable |
 | `--ts-kw` | `None` | TS optimizer kwargs as key=value, repeatable |
 | `--constraints` | `None` | Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0' |

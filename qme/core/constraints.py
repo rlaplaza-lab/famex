@@ -11,7 +11,7 @@ while maintaining ease of use and integration with existing QME workflows.
 
 from __future__ import annotations
 
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 from ase import Atoms

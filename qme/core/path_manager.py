@@ -12,7 +12,7 @@ This module provides comprehensive path management including:
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 from ase import Atoms

@@ -8,7 +8,7 @@ foundation model for molecular systems, transition metals, and cations.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Union
+from typing import Any
 
 from ase import Atoms
 

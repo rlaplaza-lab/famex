@@ -5,6 +5,7 @@ This module implements integration with Orbital Materials' Orb models,
 providing universal forcefields for molecular and materials calculations.
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -158,7 +159,7 @@ class OrbPotential(BasePotential):
     def calculate(
         self,
         atoms: Atoms | None = None,
-        properties: list[str] | None = None,
+        properties: Sequence[str] | None = None,
         system_changes: Any = all_changes,
     ) -> None:
         """Calculate properties using Orb potential."""
@@ -182,11 +183,11 @@ class OrbPotential(BasePotential):
         atoms.calc = self._calc
 
         # Calculate properties
-        if "energy" in properties:
+        if properties is not None and "energy" in properties:
             energy = atoms.get_potential_energy()
             self.results["energy"] = float(energy)
 
-        if "forces" in properties:
+        if properties is not None and "forces" in properties:
             forces = atoms.get_forces()
             self.results["forces"] = np.array(forces)
 

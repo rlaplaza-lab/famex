@@ -172,7 +172,7 @@ class BH28Benchmark:
         """Get list of available QME backends (excluding mock)."""
         # Use the centralized backend availability system
         from qme.backend_availability import get_available_ml_backends
-        
+
         return get_available_ml_backends()
 
     def filter_available_backends(
@@ -249,16 +249,16 @@ class BH28Benchmark:
                                     backend=backend,
                                     model_name=model_name,
                                     local_optimizer=self.minima_optimizer.lower(),
+                                    target="minima",
+                                    strategy="local",
                                     verbose=0,  # Suppress output for consistency with suppress_verbose_output
                                 )
                                 result = optimizer.run(
-                                    mode="minima",
                                     steps=500,
                                     fmax=0.01,
                                 )
-                            # Normalize result shape (Explorer.run returns [dict] for local)
-                            if isinstance(result, list) and len(result) == 1:
-                                result = result[0]
+                            # Handle result from Explorer.run() method
+                            # The run() method returns a dictionary with standardized results
                             if isinstance(result, dict):
                                 optimized = result.get("optimized_atoms", reactant)
                                 steps_taken = result.get("steps_taken", None)
@@ -314,19 +314,19 @@ class BH28Benchmark:
                                     backend=backend,
                                     model_name=model_name,
                                     local_optimizer=self.ts_optimizer.lower(),
+                                    target="ts",
+                                    strategy="local",
                                     verbose=0,  # Suppress output for consistency with suppress_verbose_output
                                 )
                                 ts_result = ts_optimizer.run(
-                                    mode="ts",
                                     steps=500,
                                     fmax=0.01,
                                 )
 
                             ts_time = time.perf_counter() - ts_start
 
-                            # Normalize TS result
-                            if isinstance(ts_result, list) and len(ts_result) == 1:
-                                ts_result = ts_result[0]
+                            # Handle TS result from Explorer.run() method
+                            # The run() method returns a dictionary with standardized results
                             if isinstance(ts_result, dict):
                                 ts_atoms_opt = ts_result.get("optimized_atoms", ts_atoms)
                                 ts_steps = ts_result.get("steps_taken", None)

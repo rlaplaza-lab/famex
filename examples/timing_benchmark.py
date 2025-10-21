@@ -290,6 +290,7 @@ def benchmark_backend(
         freq_start = time.perf_counter()
 
         freq_results = explorer.calculate_frequencies(
+            atoms=optimized_atoms,  # Use the optimized atoms with the correct calculator
             delta=0.01,
             method="auto",
             temperature=298.15,

@@ -56,11 +56,11 @@ class LinearInterpolation(InterpolationStrategy):
         """Perform linear interpolation between start and end coordinates."""
         n_atoms, n_dims = start_coords.shape
         path_coords_array = np.empty((npoints, n_atoms, n_dims))
-        
+
         for i in range(npoints):
             alpha = i / (npoints - 1)
             path_coords_array[i] = (1 - alpha) * start_coords + alpha * end_coords
-        
+
         # Convert to list of arrays for API compatibility
         return [path_coords_array[i] for i in range(npoints)]
 

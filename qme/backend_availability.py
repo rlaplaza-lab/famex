@@ -4,11 +4,12 @@ Efficient backend availability checking for QME.
 This module provides fast, dependency-based backend availability checking
 that avoids expensive calculator instantiation while still catching most
 compatibility issues.
+
+This is the core infrastructure module for backend availability. For convenience
+wrappers with logging (used in examples and tests), see qme.core.backend_utils.
 """
 
 from __future__ import annotations
-
-import importlib
 
 from qme.dependencies import deps
 
@@ -24,43 +25,8 @@ BACKEND_TORCHSIM_MACE = "torchsim_mace"
 BACKEND_TORCHSIM_UMA = "torchsim_uma"
 
 
-def _check_package_conflict(
-    package1: str, package2: str, conflict_packages: dict[tuple[str, str], str]
-) -> str | None:
-    """
-    Check if two packages have known version conflicts.
-
-    Args:
-        package1: First package name
-        package2: Second package name
-        conflict_packages: Dict mapping package names to their conflicting versions
-
-    Returns:
-        Error message if conflict detected, None otherwise
-    """
-    # Known conflicts
-    conflicts = {
-        (
-            BACKEND_MACE,
-            "fairchem",
-        ): "MACE 0.3.14 requires e3nn==0.4.4, but FairChem 2.7.0 requires e3nn>=0.5",
-        (
-            BACKEND_MACE,
-            "torchsim",
-        ): "MACE models with TorchSim affected by e3nn version conflicts",
-    }
-
-    conflict_key = tuple(sorted([package1, package2]))
-    return conflicts.get(conflict_key)  # type: ignore[arg-type]
 
 
-def _get_package_version(package_name: str) -> str | None:
-    """Get version of an installed package."""
-    try:
-        module = importlib.import_module(package_name)
-        return getattr(module, "__version__", "unknown")
-    except ImportError:
-        return None
 
 
 def _check_e3nn_conflict() -> str | None:
@@ -406,8 +372,3 @@ def require_backend(backend: str) -> None:
         pytest.skip(f"Backend {backend} not available in this environment")
 
 
-# Pre-computed lists for convenience
-AVAILABLE_BACKENDS = get_available_backends()
-AVAILABLE_ML_BACKENDS = get_available_ml_backends()
-AVAILABLE_TORCHSIM_BACKENDS = get_available_torchsim_backends()
-AVAILABLE_BACKEND_PAIRS = get_backend_pairs()

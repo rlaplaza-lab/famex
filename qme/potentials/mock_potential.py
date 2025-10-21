@@ -166,6 +166,9 @@ class MockCalculator(Calculator):
         The calculation uses pairwise harmonic bonds based on covalent radii
         and applies harmonic potential around equilibrium bond lengths.
         """
+        if atoms is None:
+            return
+
         # Pairwise harmonic bond mock: find bonded pairs using covalent radii
         # and apply harmonic potential around equilibrium bond lengths.
         from ase.data import covalent_radii
@@ -217,7 +220,7 @@ class MockCalculator(Calculator):
                         if dist <= self.lj_cutoff:
                             # Use Lennard-Jones potential for non-bonded interactions
                             lj_energy, lj_force_mag = self._lennard_jones_energy_force(
-                                dist, self.epsilon, self.sigma
+                                float(dist), self.epsilon, self.sigma
                             )
                             energy += lj_energy
 
@@ -242,7 +245,7 @@ class MockCalculator(Calculator):
                     dist = np.linalg.norm(rij)
 
                 # Use new modular harmonic bond function
-                bond_energy, bond_force_mag = self._harmonic_bond_energy_force(dist, r0, k)
+                bond_energy, bond_force_mag = self._harmonic_bond_energy_force(float(dist), float(r0), k)
                 energy += bond_energy
 
                 # force along bond direction
@@ -317,7 +320,7 @@ class MockCalculator(Calculator):
                         if dist <= self.lj_cutoff:
                             # Use Lennard-Jones potential for non-bonded interactions
                             lj_energy, lj_force_mag = self._lennard_jones_energy_force(
-                                dist, self.epsilon, self.sigma
+                                float(dist), self.epsilon, self.sigma
                             )
                             energy += lj_energy
 

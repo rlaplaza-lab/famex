@@ -10,7 +10,7 @@ setup work.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Union
+from typing import Any
 
 from ase import Atoms
 
@@ -85,7 +85,7 @@ class BasePotential:
         # ``self.results`` when appropriate.
         return
 
-    def _prepare_calculation(self, atoms: Atoms | None = None) -> Union[Any, None]:
+    def _prepare_calculation(self, atoms: Atoms | None = None) -> Any | None:
         """Prepare for a calculation by setting atoms and ensuring backend is loaded.
 
         Parameters
@@ -103,14 +103,14 @@ class BasePotential:
             self.atoms = atoms
         return self.ensure_loaded()
 
-    def _backend_obj(self) -> Union[Any, None]:
+    def _backend_obj(self) -> Any | None:
         """Return the standardized backend calculator stored in ``self._calc``.
 
         If the attribute is not present or is None, return None.
         """
         return getattr(self, "_calc", None)
 
-    def ensure_loaded(self) -> Union[Any, None]:
+    def ensure_loaded(self) -> Any | None:
         """Ensure the underlying backend calculator is loaded.
 
         Calls subclass ``_load_calculator`` if no backend object is present.
@@ -149,7 +149,7 @@ class BasePotential:
         self.calculate(self.atoms, properties=["energy"], system_changes=None)
         return float(self.results.get("energy", 0.0))
 
-    def get_forces(self, atoms: Atoms | None = None) -> Union[Any, None]:
+    def get_forces(self, atoms: Atoms | None = None) -> Any | None:
         """Generic get_forces that delegates to underlying backend.
 
         If the backend provides ``get_forces`` it is delegated to. Otherwise a

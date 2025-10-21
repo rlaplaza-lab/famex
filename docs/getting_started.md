@@ -82,8 +82,8 @@ qme minima --strategy local water.xyz --fmax 0.01 --steps 500
 import qme
 
 # Create Explorer and optimize
-explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2")
-result = explorer.run(target="minima", strategy="local")
+explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2", target="minima", strategy="local")
+result = explorer.run(fmax=0.05, steps=1000)
 
 # Save results
 explorer.save_structure(result['optimized_atoms'], "water_optimized.xyz")
@@ -93,8 +93,8 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 ### 3. Understanding the Output
 
 QME creates output files with descriptive names:
-- `water.opt.xyz` - Optimized structure
-- `water.opt.log` - Optimization log (if verbose)
+- `water.opt.local.xyz` - Local optimization result
+- `water.opt.interpolate.xyz` - For two-ended optimizations
 
 The result dictionary contains:
 - `optimized_atoms`: The optimized structure
@@ -155,8 +155,8 @@ qme path --strategy irc ts.xyz                            # IRC from transition 
 qme minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.01
 
 # Python
-explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2")
-result = explorer.run(target="minima", strategy="local", fmax=0.01)
+explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2", target="minima", strategy="local")
+result = explorer.run(fmax=0.01)
 ```
 
 ### Transition State Search
@@ -169,7 +169,7 @@ qme ts --strategy local ts_guess.xyz --backend aimnet2
 qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15
 
 # Python
-explorer = qme.Explorer([reactant, product], target="ts", strategy="interpolate")
+explorer = qme.Explorer([reactant, product], backend="aimnet2", target="ts", strategy="interpolate")
 result = explorer.run(npoints=15)
 ```
 
@@ -183,7 +183,7 @@ qme path --strategy neb reactant.xyz --product product.xyz --npoints 11
 qme path --strategy irc ts.xyz --direction both
 
 # Python
-explorer = qme.Explorer([reactant, product], target="path", strategy="neb")
+explorer = qme.Explorer([reactant, product], backend="aimnet2", target="path", strategy="neb")
 result = explorer.run(npoints=11)
 ```
 

@@ -10,7 +10,6 @@ import sys
 import threading
 import warnings
 from collections.abc import Generator
-from typing import Union
 
 # Thread-local storage to track if we're already in a quiet_backend_loading context
 _quiet_context_local = threading.local()
@@ -100,7 +99,10 @@ def suppress_ml_warnings() -> Generator[list[str], None, None]:
     captured_messages = []
 
     class FilteredStderr:
+        """Filtered stderr that suppresses verbose backend messages."""
+
         def write(self, text: str) -> None:
+            """Write text to stderr if not suppressed."""
             # Check if message should be suppressed
             should_suppress = any(pattern in text for pattern in verbose_filter.SUPPRESSED_PATTERNS)
             if not should_suppress and len(text.strip()) > 0:
@@ -108,9 +110,11 @@ def suppress_ml_warnings() -> Generator[list[str], None, None]:
                 captured_messages.append(text)
 
         def flush(self) -> None:
+            """Flush the original stderr."""
             original_stderr.flush()
 
         def close(self) -> None:
+            """Close the original stderr if it has a close method."""
             # Delegate close to original stderr if it has a close method
             if hasattr(original_stderr, "close"):
                 original_stderr.close()
@@ -277,7 +281,10 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
     # For INFO: just the message (clean output)
     # For DEBUG/WARNING/ERROR: include level
     class QMEFormatter(logging.Formatter):
+        """Custom formatter for QME logging with clean INFO output."""
+
         def format(self, record: logging.LogRecord) -> str:
+            """Format log record with clean output for INFO level."""
             if record.levelno == logging.INFO:
                 return record.getMessage()
             elif record.levelno == logging.DEBUG:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Any, Union
+from typing import Any
 
 from ase import Atoms
 
@@ -34,7 +34,7 @@ class MultiStructureCINEBStrategy(BaseStrategy):
         spring_constant: float = 5.0,
         climb: bool = True,
         **kwargs: Any,
-    ) -> dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]:
+    ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Run CI-NEB path optimization.
 
         Parameters

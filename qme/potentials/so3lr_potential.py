@@ -7,7 +7,8 @@ This module provides ASE Calculator interface for SO3LR models.
 
 from __future__ import annotations
 
-from typing import Any, Union
+from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 from ase import Atoms
@@ -94,7 +95,7 @@ class SO3LRPotential(BasePotential):
     def calculate(
         self,
         atoms: Atoms | None = None,
-        properties: list[str] | None = None,
+        properties: Sequence[str] | None = None,
         system_changes: Any = all_changes,
     ) -> None:
         """Calculate properties using SO3LR potential."""
@@ -115,13 +116,13 @@ class SO3LRPotential(BasePotential):
         self._calc.calculate(atoms, properties, system_changes)
 
         # Extract results from the underlying calculator
-        if "energy" in properties:
+        if properties is not None and "energy" in properties:
             try:
                 self.results["energy"] = self._calc.results["energy"]
             except Exception:
                 self.results["energy"] = self.results.get("energy")
 
-        if "forces" in properties:
+        if properties is not None and "forces" in properties:
             try:
                 self.results["forces"] = self._calc.results["forces"]
             except Exception:

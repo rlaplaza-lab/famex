@@ -14,7 +14,7 @@ method selection and enhanced calculator integration.
 
 from __future__ import annotations
 
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 from ase import Atoms, units
@@ -87,12 +87,12 @@ class FrequencyAnalysis:
             self.nfree = nfree
 
         # Initialize result storage
-        self._hessian = None
-        self._frequencies = None
-        self._normal_modes = None
-        self._zero_point_energy = None
+        self._hessian: np.ndarray | None = None
+        self._frequencies: np.ndarray | None = None
+        self._normal_modes: np.ndarray | None = None
+        self._zero_point_energy: float | None = None
         self._is_calculated = False
-        self._direct_frequencies = None  # For direct frequency calculation
+        self._direct_frequencies: np.ndarray | None = None  # For direct frequency calculation
 
     def _determine_nfree(self) -> int:
         """Determine number of degrees of freedom to remove (translation + rotation)."""
@@ -182,6 +182,8 @@ class FrequencyAnalysis:
         else:
             raise ValueError(f"Unknown Hessian method: {method}")
 
+        if self._hessian is None:
+            raise RuntimeError("Hessian calculation failed")
         return self._hessian
 
     def _calculate_hessian_batch(self) -> np.ndarray:
@@ -203,7 +205,7 @@ class FrequencyAnalysis:
         # Construct Hessian matrix from batch results
         return self._construct_hessian_from_batch(batch_results)
 
-    def _generate_displaced_structures(self):
+    def _generate_displaced_structures(self) -> list[Atoms]:
         """Generate all displaced structures for finite differences."""
         displaced_structures = []
 
@@ -225,7 +227,7 @@ class FrequencyAnalysis:
 
         return displaced_structures
 
-    def _construct_hessian_from_batch(self, batch_results):
+    def _construct_hessian_from_batch(self, batch_results: list[dict[str, Any]]) -> np.ndarray:
         """Construct Hessian matrix from batch calculation results."""
         n_atoms = len(self.indices)
         hessian = np.zeros((3 * n_atoms, 3 * n_atoms))
@@ -422,7 +424,7 @@ class FrequencyAnalysis:
 
         return self._normal_modes[:, self.nfree :]
 
-    def is_transition_state(self, threshold: float = 50.0) -> dict[str, Union[bool, int, list[float], str]]:
+    def is_transition_state(self, threshold: float = 50.0) -> dict[str, bool | int | list[float] | str]:
         """
         Check if structure is a transition state (exactly one imaginary frequency).
 
@@ -478,7 +480,7 @@ class FrequencyAnalysis:
 
     def is_minima(
         self, threshold: float = 50.0, small_negative_cutoff: float = -10.0
-    ) -> dict[str, Union[bool, int, list[float], str]]:
+    ) -> dict[str, bool | int | list[float] | str]:
         """
         Check if structure is a minimum (no significant imaginary frequencies).
 
@@ -593,7 +595,7 @@ class FrequencyAnalysis:
         self._zero_point_energy = zpe
         return zpe
 
-    def get_thermodynamic_properties(self, temperature: float = 298.15) -> dict[str, Union[float, int, list[float]]]:
+    def get_thermodynamic_properties(self, temperature: float = 298.15) -> dict[str, float | int | list[float]]:
         """
         Calculate thermodynamic properties at given temperature.
 
@@ -964,7 +966,7 @@ class BatchFrequencyAnalysis(FrequencyAnalysis):
         # Construct Hessian matrix from batch results
         return self._construct_hessian_from_batch(batch_results)
 
-    def _generate_displaced_structures(self):
+    def _generate_displaced_structures(self) -> list[Atoms]:
         """Generate all displaced structures for finite differences."""
         displaced_structures = []
 
@@ -986,7 +988,7 @@ class BatchFrequencyAnalysis(FrequencyAnalysis):
 
         return displaced_structures
 
-    def _construct_hessian_from_batch(self, batch_results):
+    def _construct_hessian_from_batch(self, batch_results: list[dict[str, Any]]) -> np.ndarray:
         """Construct Hessian matrix from batch calculation results."""
         n_atoms = len(self.indices)
         hessian = np.zeros((3 * n_atoms, 3 * n_atoms))

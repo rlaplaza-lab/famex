@@ -18,13 +18,10 @@ class TestGrowingStringMethod:
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
         # Create explorer with mock backend
-        explorer = Explorer(reactant, backend="mock")
+        explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="growing_string")
 
         # Run growing string method
-        # Set the atoms_list on the explorer first
-        explorer.atoms_list = [reactant, product]
         result = explorer.run(
-            mode="ts:growing_string",
             npoints=10,
             fmax=0.5,
             steps=20,
@@ -61,21 +58,20 @@ class TestGrowingStringMethod:
     def test_growing_string_requires_two_atoms(self):
         """Test that growing string requires exactly two Atoms objects."""
         single_atoms = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
-        explorer = Explorer(single_atoms, backend="mock")
+        explorer = Explorer(single_atoms, backend="mock", target="ts", strategy="growing_string")
 
         # Should raise ValueError for single Atoms
-        explorer.atoms_list = single_atoms
-        with pytest.raises(ValueError, match="requires two Atoms objects"):
-            explorer.run(mode="ts:growing_string")
+        with pytest.raises(ValueError, match="exactly 2 Atoms objects"):
+            explorer.run()
 
         # Should raise ValueError for more than two Atoms
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
         intermediate = Atoms("H2", positions=[(0, 0, 0), (1.0, 0, 0)])
 
-        explorer.atoms_list = [reactant, intermediate, product]
+        explorer_multi = Explorer([reactant, intermediate, product], backend="mock", target="ts", strategy="growing_string")
         with pytest.raises(ValueError, match="exactly 2 Atoms objects"):
-            explorer.run(mode="ts:growing_string")
+            explorer_multi.run()
 
     @pytest.mark.parametrize(
         "optimize_endpoints,refine_ts",
@@ -89,14 +85,12 @@ class TestGrowingStringMethod:
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
-        explorer = Explorer(reactant, backend="mock")
-        explorer.atoms_list = [reactant, product]
+        explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="growing_string")
 
         if refine_ts:
             # Mock backend doesn't support TS optimization, so this should fail
             with pytest.raises(ValueError, match="not suitable for transition state"):
                 explorer.run(
-                    mode="ts:growing_string",
                     npoints=8,
                     fmax=0.5,
                     steps=10,
@@ -105,7 +99,6 @@ class TestGrowingStringMethod:
                 )
         else:
             result = explorer.run(
-                mode="ts:growing_string",
                 npoints=8,
                 fmax=0.5,
                 steps=10,
@@ -121,13 +114,11 @@ class TestGrowingStringMethod:
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
-        explorer = Explorer(reactant, backend="mock")
-        explorer.atoms_list = [reactant, product]
+        explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="growing_string")
 
         # Mock backend doesn't support TS optimization, so this should fail
         with pytest.raises(ValueError, match="not suitable for transition state"):
             explorer.run(
-                mode="ts:growing_string",
                 npoints=8,
                 fmax=0.5,
                 steps=10,
@@ -174,10 +165,8 @@ class TestGrowingStringMethod:
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
-        explorer = Explorer(reactant, backend="mock")
-        explorer.atoms_list = [reactant, product]
+        explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="growing_string")
         result = explorer.run(
-            mode="ts:growing_string",
             npoints=npoints,
             fmax=0.5,
             steps=steps,
@@ -195,10 +184,8 @@ class TestGrowingStringMethod:
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (0.8, 0, 0)])  # Very close
 
-        explorer = Explorer(reactant, backend="mock")
-        explorer.atoms_list = [reactant, product]
+        explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="growing_string")
         result = explorer.run(
-            mode="ts:growing_string",
             npoints=20,
             fmax=0.5,
             steps=50,
