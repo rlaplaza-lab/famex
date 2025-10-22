@@ -882,6 +882,18 @@ class Explorer:
             atoms = self.atoms_list[0]
 
         if getattr(atoms, "calc", None) is None:
+            # Ensure atoms.info has charge/spin info before creating calculator
+            # This prevents repeated warnings during frequency calculations
+            if getattr(atoms, "info", None) is not None:
+                charge, spin = _extract_charge_spin(atoms, self.default_charge, self.default_spin)
+                try:
+                    atoms.info["charge"] = int(atoms.info.get("charge", charge))
+                except Exception:
+                    atoms.info["charge"] = int(charge)
+                try:
+                    atoms.info["spin"] = int(atoms.info.get("spin", spin))
+                except Exception:
+                    atoms.info["spin"] = int(spin)
             self._create_and_attach_calculator(atoms)
 
         freq_analysis = FrequencyAnalysis(
