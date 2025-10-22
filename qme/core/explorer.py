@@ -307,6 +307,57 @@ class Explorer:
         else:  # minima or path
             return "lbfgs"
 
+    def _check_missing_charge_spin(self, atoms: Atoms) -> tuple[bool, bool]:
+        """Check if charge and/or spin are missing from atoms.
+
+        Parameters
+        ----------
+        atoms : Atoms
+            The atoms object to check
+
+        Returns
+        -------
+        tuple[bool, bool]
+            (charge_missing, spin_missing) indicating if each is missing
+        """
+        charge_missing = True
+        spin_missing = True
+
+        # Check for attributes first (highest priority)
+        if hasattr(atoms, "charge"):
+            try:
+                if int(atoms.charge) is not None:
+                    charge_missing = False
+            except (ValueError, TypeError):
+                pass
+
+        if hasattr(atoms, "mult"):
+            try:
+                if int(atoms.mult) is not None:
+                    spin_missing = False
+            except (ValueError, TypeError):
+                pass
+
+        # Check atoms.info (medium priority)
+        if hasattr(atoms, "info") and atoms.info is not None:
+            if "charge" in atoms.info:
+                try:
+                    charge_val = atoms.info.get("charge")
+                    if charge_val is not None:
+                        charge_missing = False
+                except (ValueError, TypeError):
+                    pass
+
+            if "spin" in atoms.info:
+                try:
+                    spin_val = atoms.info.get("spin")
+                    if spin_val is not None:
+                        spin_missing = False
+                except (ValueError, TypeError):
+                    pass
+
+        return charge_missing, spin_missing
+
     def _create_and_attach_calculator(self, atoms: Atoms) -> Any:
         """Create and attach an ASE calculator to ``atoms``.
 
@@ -315,6 +366,22 @@ class Explorer:
         """
         # Extract charge and spin using helper function
         charge, spin = _extract_charge_spin(atoms, self.default_charge, self.default_spin)
+
+        # Check if we're using defaults and warn once
+        charge_missing, spin_missing = self._check_missing_charge_spin(atoms)
+
+        if (charge_missing or spin_missing) and not getattr(self, "_warned_about_defaults", False):
+            from qme.logging_utils import get_qme_logger
+            logger = get_qme_logger(__name__)
+
+            missing_parts = []
+            if charge_missing:
+                missing_parts.append(f"charge={charge}")
+            if spin_missing:
+                missing_parts.append(f"spin={spin}")
+
+            logger.warning(f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}")
+            self._warned_about_defaults = True
 
         # Ensure atoms.info contains values so calculators that read
         # atoms.info (UMA, SO3LR, etc.) see the intended settings.
