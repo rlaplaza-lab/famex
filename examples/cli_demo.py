@@ -310,8 +310,12 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
 
     interface.print_header("Testing: opt, tsopt, two-ended, GSM, NEB, CI-NEB, and IRC commands")
 
-    # Force MACE backend only
-    available_backends = ["mace"]
+    # Use provided backends or detect available ones
+    if backends:
+        available_backends = backends
+    else:
+        from qme.backends.availability import get_available_backends
+        available_backends = get_available_backends()
 
     if not available_backends:
         interface.print_error("No ML backends available for comparison.")
@@ -319,14 +323,19 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
 
     interface.print_backend_summary(available_backends, "Testing Backends")
 
+    print("\nChecking directory structure...", flush=True)
     # Ensure we're in the right directory structure
     examples_dir = Path("examples")
     if not examples_dir.exists():
+        print(f"ERROR: examples directory not found at {examples_dir.absolute()}", flush=True)
         return False
+    print(f"✓ Found examples directory at {examples_dir.absolute()}", flush=True)
 
     example_files = examples_dir / "example_files"
     if not example_files.exists():
+        print(f"ERROR: example_files directory not found at {example_files.absolute()}", flush=True)
         return False
+    print(f"✓ Found example_files directory at {example_files.absolute()}", flush=True)
 
     # Check required files exist
     required_files = [
@@ -337,7 +346,9 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
 
     for filename in required_files:
         if not (example_files / filename).exists():
+            print(f"ERROR: Required file not found: {(example_files / filename).absolute()}", flush=True)
             return False
+    print("✓ All required files found", flush=True)
 
     # Performance tracking
     backend_results = {}
@@ -345,8 +356,13 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
     total_examples_per_backend = 9  # Complete matrix: minima+local, minima+interpolate, ts+local, ts+interpolate, ts+growing_string, path+interpolate, path+neb, path+cineb, path+irc
     steps = 500  # Reduced steps for faster testing
 
+    print(f"\nStarting benchmark with {len(available_backends)} backend(s)...", flush=True)
+
     # Run examples for each backend
     for backend in available_backends:
+        print(f"\n{'='*80}", flush=True)
+        print(f"Testing backend: {backend}", flush=True)
+        print(f"{'='*80}", flush=True)
         backend_results[backend] = {
             "examples": [],
             "total_time": 0.0,
@@ -355,10 +371,12 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
         }
 
         examples = create_example_commands(example_files, backend, steps)
+        print(f"Created {len(examples)} example commands", flush=True)
 
         backend_start_time = time.time()
 
         for _i, example in enumerate(examples, 1):
+            print(f"\nRunning example {_i}/{len(examples)}: {example['desc']}", flush=True)
             success, runtime, stdout, stderr = run_command(example["cmd"], example["desc"], backend)
 
             backend_results[backend]["examples"].append(
@@ -373,8 +391,12 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
 
             if success:
                 backend_results[backend]["successful"] += 1
+                print(f"  ✓ Success (runtime: {runtime:.2f}s)", flush=True)
             else:
                 backend_results[backend]["failed"] += 1
+                print(f"  ✗ Failed (runtime: {runtime:.2f}s)", flush=True)
+                if stderr:
+                    print(f"    Error: {stderr[:200]}", flush=True)
 
             # Brief pause between examples
             time.sleep(0.5)
@@ -382,8 +404,13 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
         backend_results[backend]["total_time"] = time.time() - backend_start_time
 
         # Backend summary
+        print(f"\n{backend} Summary:", flush=True)
+        print(f"  Successful: {backend_results[backend]['successful']}/{len(examples)}", flush=True)
+        print(f"  Failed: {backend_results[backend]['failed']}/{len(examples)}", flush=True)
+        print(f"  Total time: {backend_results[backend]['total_time']:.2f}s", flush=True)
 
-    time.time() - total_start_time
+    total_time = time.time() - total_start_time
+    print(f"\nOverall completion time: {total_time:.2f}s", flush=True)
 
     # Overall comparison summary
 
@@ -441,8 +468,12 @@ def main() -> int | None:
         success = demo_cli(backends, interface)
         return 0 if success else 1
     except KeyboardInterrupt:
+        print("\nInterrupted by user")
         return 1
-    except Exception:
+    except Exception as e:
+        print(f"\nERROR: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 

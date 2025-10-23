@@ -45,7 +45,6 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 def create_minima_structure() -> Atoms:
     """Create a structure for minima optimization using example files."""
-    import os
     from pathlib import Path
 
     from ase.io import read
@@ -354,8 +353,12 @@ def main() -> int:
     # Set up logging based on verbosity level
     interface.setup_logging(args.verbose)
 
-    # Force MACE backend only
-    available_backends = ["mace"]
+    # Parse backends if provided
+    if args.backends:
+        available_backends = [b.strip() for b in args.backends.split(",")]
+    else:
+        from qme.backends.availability import get_available_backends
+        available_backends = get_available_backends()
 
     # Determine which optimizers to test
     if args.optimizers:
