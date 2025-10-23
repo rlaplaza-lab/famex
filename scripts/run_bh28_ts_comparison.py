@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 from ase.io import read
 
-from qme.dependencies import deps
+from qme.backends.dependencies import deps
 from qme.optimizers.scipy_optimizers import TrustKrylovTS
 from qme.potentials.uma_potential import get_uma_calculator
 

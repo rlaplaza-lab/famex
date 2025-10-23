@@ -17,7 +17,7 @@ from ase import Atoms
 
 from qme.interpolation.strategies import get_interpolation_strategy
 from qme.io.geometry import Geometry
-from qme.logging_utils import get_qme_logger
+from qme.utils.logging import get_qme_logger
 from qme.utils.validation import validate_atoms_compatibility
 
 if TYPE_CHECKING:

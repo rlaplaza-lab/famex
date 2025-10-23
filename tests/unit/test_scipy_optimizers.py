@@ -433,7 +433,7 @@ class TestOptimizerStringentComparison:
 
     def test_transition_state_optimizer_consistency(self) -> None:
         """Test that TS optimizers actually attempt TS optimization."""
-        from qme.dependencies import deps
+        from qme.backends.dependencies import deps
 
         if not deps.has("sella"):
             pytest.skip("Sella must be available")

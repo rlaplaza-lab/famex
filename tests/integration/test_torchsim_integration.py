@@ -4,7 +4,7 @@ import pytest
 from ase.build import molecule
 
 from qme import Explorer, calculator_registry
-from qme.dependencies import deps
+from qme.backends.dependencies import deps
 from tests.test_utils import BackendTestMixin, StandardTestAssertions, TestResultHandler
 
 

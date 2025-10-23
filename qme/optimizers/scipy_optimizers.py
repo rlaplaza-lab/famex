@@ -27,7 +27,7 @@ from ase.optimize.optimize import Optimizer
 from scipy.optimize import minimize
 
 # FrequencyAnalysis imported locally to avoid circular imports
-from qme.logging_utils import get_qme_logger, setup_qme_logging
+from qme.utils.logging import get_qme_logger, setup_qme_logging
 
 logger = get_qme_logger(__name__)
 

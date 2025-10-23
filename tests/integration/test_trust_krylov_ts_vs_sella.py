@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from ase.io import read
 
-from qme.dependencies import deps
+from qme.backends.dependencies import deps
 from qme.optimizers.scipy_optimizers import TrustKrylovTS
 from qme.potentials.uma_potential import get_uma_calculator
 from tests.test_utils import BackendTestMixin, TestMoleculeFactory

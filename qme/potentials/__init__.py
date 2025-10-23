@@ -2,14 +2,14 @@
 
 This module provides small, stable factories and class names for the
 potential backends. Heavy backends are imported only when their optional
-dependencies are available (via ``qme.dependencies.deps``). When a backend
+dependencies are available (via ``qme.backends.dependencies.deps``). When a backend
 is unavailable, a clear ImportError is raised with installation instructions.
 """
 
-# from collections.abc import Callable  # Unused for now
+import importlib
 from typing import Any
 
-from qme.dependencies import deps  # noqa: F401
+from qme.backends.availability import get_backend_error_message, is_backend_available
 
 __all__ = [
     "BasePotential",
@@ -45,253 +45,114 @@ except ImportError:  # pragma: no cover - tests expect MockCalculator
     MockCalculator = _MissingMock
 
 
-# UMA depends on fairchem-core (deps name 'fairchem') - lazy loading
+# Backend module mapping for generic factory
+_BACKEND_MODULES = {
+    "uma": ("qme.potentials.uma_potential", "UMAPotential"),
+    "so3lr": ("qme.potentials.so3lr_potential", "SO3LRPotential"),
+    "aimnet2": ("qme.potentials.aimnet2_potential", "AIMNet2Potential"),
+    "mace": ("qme.potentials.mace_potential", "MACEPotential"),
+    "orb": ("qme.potentials.orb_potential", "OrbPotential"),
+    "tblite": ("qme.potentials.tblite_potential", "TBLitePotential"),
+    "torchsim_mace": ("qme.potentials.torchsim_potential", "get_torchsim_mace_calculator"),
+    "torchsim_uma": ("qme.potentials.torchsim_potential", "get_torchsim_uma_calculator"),
+}
 
 
-def get_uma_calculator(**kwargs: Any) -> Any:
-    """Get UMA (Universal Materials Architecture) calculator.
+def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
+    """Generic calculator factory function.
 
-    Returns a UMAPotential instance for molecular and materials calculations.
-    Requires fairchem-core dependencies.
+    Parameters
+    ----------
+    backend : str
+        Backend name
+    **kwargs
+        Arguments passed to the calculator constructor
+
+    Returns
+    -------
+    Calculator instance
+
+    Raises
+    ------
+    ImportError
+        If backend is not available or cannot be imported
     """
-    from qme.backend_availability import get_backend_error_message, is_backend_available
+    if not is_backend_available(backend):
+        raise ImportError(get_backend_error_message(backend))
 
-    if not is_backend_available("uma"):
-        raise ImportError(get_backend_error_message("uma"))
+    if backend not in _BACKEND_MODULES:
+        raise ImportError(f"Unknown backend: {backend}")
+
+    module_name, class_or_func_name = _BACKEND_MODULES[backend]
+
     try:
-        from qme.potentials.uma_potential import UMAPotential
+        module = importlib.import_module(module_name)
+        class_or_func = getattr(module, class_or_func_name)
 
-        return UMAPotential(**kwargs)
+        # Handle both classes and functions
+        if callable(class_or_func):
+            return class_or_func(**kwargs)
+        else:
+            raise ImportError(f"Expected callable, got {type(class_or_func)}")
+
     except ImportError as e:
-        msg = (
-            f"Failed to import UMA backend: {e}. "
-            f"This may be due to missing FairChem dependencies or version conflicts. "
-            f"Try: pip install qme-ml[uma]"
-        )
-        raise ImportError(
-            msg,
-        )
+        # Provide helpful error messages for common backends
+        error_messages = {
+            "uma": f"Failed to import UMA backend: {e}. This may be due to missing FairChem dependencies or version conflicts. Try: pip install qme-ml[uma]",
+            "so3lr": f"Failed to import SO3LR backend: {e}. SO3LR requires JAX and must be installed separately from source. See the QME documentation for SO3LR installation instructions.",
+            "aimnet2": f"Failed to import AIMNet2 backend: {e}. AIMNet2 requires PyTorch and torch-cluster. Try: pip install qme-ml[aimnet2]",
+            "mace": f"Failed to import MACE backend: {e}. MACE requires PyTorch and mace-torch. Note: MACE cannot be installed with UMA due to e3nn version conflicts. Try: pip install qme-ml[mace]",
+            "orb": f"Failed to import Orb backend: {e}. Orb requires orb-models and PyTorch. Note: orb-models is a large package and may have compatibility issues. Try: pip install qme-ml[orb]",
+            "tblite": f"Failed to import TBLite backend: {e}. TBLite requires the tblite package. Try: pip install qme-ml[tblite]",
+            "torchsim_mace": f"Failed to import TorchSim MACE calculator: {e}. TorchSim MACE requires both MACE and TorchSim to be available. Try: pip install qme-ml[torchsim] (note: MACE conflicts with UMA)",
+            "torchsim_uma": f"Failed to import TorchSim UMA calculator: {e}. TorchSim UMA requires both UMA and TorchSim to be available. Try: pip install qme-ml[torchsim,uma]",
+        }
+
+        msg = error_messages.get(backend, f"Failed to import {backend} backend: {e}")
+        raise ImportError(msg)
 
 
-# SO3LR backend - lazy loading
+# Individual calculator factory functions (thin wrappers for backward compatibility)
+def get_uma_calculator(**kwargs: Any) -> Any:
+    """Get UMA (Universal Materials Architecture) calculator."""
+    return _get_calculator_generic("uma", **kwargs)
 
 
 def get_so3lr_calculator(**kwargs: Any) -> Any:
-    """Get SO3LR (SO(3) Local Reference) calculator.
-
-    Returns a SO3LRPotential instance for molecular calculations.
-    Requires so3lr dependencies.
-    """
-    from qme.backend_availability import get_backend_error_message, is_backend_available
-
-    if not is_backend_available("so3lr"):
-        raise ImportError(get_backend_error_message("so3lr"))
-    try:
-        from qme.potentials.so3lr_potential import SO3LRPotential
-
-        return SO3LRPotential(**kwargs)
-    except ImportError as e:
-        msg = (
-            f"Failed to import SO3LR backend: {e}. "
-            f"SO3LR requires JAX and must be installed separately from source. "
-            f"See the QME documentation for SO3LR installation instructions."
-        )
-        raise ImportError(
-            msg,
-        )
-
-
-# AIMNet2 backend - lazy loading
+    """Get SO3LR (SO(3) Local Reference) calculator."""
+    return _get_calculator_generic("so3lr", **kwargs)
 
 
 def get_aimnet2_calculator(**kwargs: Any) -> Any:
-    """Get AIMNet2 calculator.
-
-    Returns an AIMNet2Potential instance for molecular calculations.
-    Requires torch and torch_cluster dependencies.
-    """
-    from qme.backend_availability import get_backend_error_message, is_backend_available
-
-    if not is_backend_available("aimnet2"):
-        raise ImportError(get_backend_error_message("aimnet2"))
-    try:
-        from qme.potentials.aimnet2_potential import AIMNet2Potential
-
-        return AIMNet2Potential(**kwargs)
-    except ImportError as e:
-        msg = (
-            f"Failed to import AIMNet2 backend: {e}. "
-            f"AIMNet2 requires PyTorch and torch-cluster. "
-            f"Try: pip install qme-ml[aimnet2]"
-        )
-        raise ImportError(
-            msg,
-        )
-
-
-# MACE backend - lazy loading
+    """Get AIMNet2 calculator."""
+    return _get_calculator_generic("aimnet2", **kwargs)
 
 
 def get_mace_calculator(**kwargs: Any) -> Any:
-    """Get MACE (Multiscale Atomic Cluster Expansion) calculator.
-
-    Returns a MACEPotential instance for molecular and materials calculations.
-    Requires mace-torch dependencies.
-    """
-    from qme.backend_availability import get_backend_error_message, is_backend_available
-
-    if not is_backend_available("mace"):
-        raise ImportError(get_backend_error_message("mace"))
-    try:
-        from qme.potentials.mace_potential import MACEPotential
-
-        return MACEPotential(**kwargs)
-    except ImportError as e:
-        msg = (
-            f"Failed to import MACE backend: {e}. "
-            f"MACE requires PyTorch and mace-torch. "
-            f"Note: MACE cannot be installed with UMA due to e3nn version conflicts. "
-            f"Try: pip install qme-ml[mace]"
-        )
-        raise ImportError(
-            msg,
-        )
-
-
-# TorchSim backend - lazy loading
-
-
-def get_torchsim_calculator(**kwargs: Any) -> Any:
-    """Get TorchSim calculator (default MACE backend).
-
-    Returns a TorchSimPotential instance with MACE backend for accelerated calculations.
-    Requires torch-sim-atomistic and Python 3.11+.
-    """
-    from qme.backend_availability import get_backend_error_message, is_backend_available
-
-    if not is_backend_available("torchsim_mace"):
-        raise ImportError(get_backend_error_message("torchsim_mace"))
-    try:
-        from qme.potentials.torchsim_potential import TorchSimPotential
-
-        return TorchSimPotential(**kwargs)
-    except ImportError as e:
-        msg = (
-            f"Failed to import TorchSim backend: {e}. "
-            f"TorchSim requires Python 3.11+ and torch-sim-atomistic. "
-            f"Try: pip install qme-ml[torchsim]"
-        )
-        raise ImportError(
-            msg,
-        )
-
-
-def get_torchsim_mace_calculator(**kwargs: Any) -> Any:
-    """Get TorchSim calculator with MACE backend.
-
-    Returns a TorchSimPotential instance specifically configured for MACE models.
-    Requires both MACE and TorchSim dependencies.
-    """
-    from qme.backend_availability import get_backend_error_message, is_backend_available
-
-    if not is_backend_available("torchsim_mace"):
-        raise ImportError(get_backend_error_message("torchsim_mace"))
-    try:
-        from qme.potentials.torchsim_potential import (
-            get_torchsim_mace_calculator as _get_torchsim_mace_calculator,
-        )
-
-        return _get_torchsim_mace_calculator(**kwargs)
-    except ImportError as e:
-        msg = (
-            f"Failed to import TorchSim MACE calculator: {e}. "
-            f"TorchSim MACE requires both MACE and TorchSim to be available. "
-            f"Try: pip install qme-ml[torchsim] (note: MACE conflicts with UMA)"
-        )
-        raise ImportError(
-            msg,
-        )
-
-
-def get_torchsim_uma_calculator(**kwargs: Any) -> Any:
-    """Get TorchSim calculator with UMA backend.
-
-    Returns a TorchSimPotential instance specifically configured for UMA models.
-    Requires both UMA and TorchSim dependencies.
-    """
-    from qme.backend_availability import get_backend_error_message, is_backend_available
-
-    if not is_backend_available("torchsim_uma"):
-        raise ImportError(get_backend_error_message("torchsim_uma"))
-    try:
-        from qme.potentials.torchsim_potential import (
-            get_torchsim_uma_calculator as _get_torchsim_uma_calculator,
-        )
-
-        return _get_torchsim_uma_calculator(**kwargs)
-    except ImportError as e:
-        msg = (
-            f"Failed to import TorchSim UMA calculator: {e}. "
-            f"TorchSim UMA requires both UMA and TorchSim to be available. "
-            f"Try: pip install qme-ml[torchsim,uma]"
-        )
-        raise ImportError(
-            msg,
-        )
-
-
-# Orb backend - lazy loading
+    """Get MACE (Multiscale Atomic Cluster Expansion) calculator."""
+    return _get_calculator_generic("mace", **kwargs)
 
 
 def get_orb_calculator(**kwargs: Any) -> Any:
-    """Get Orb calculator.
-
-    Returns an OrbPotential instance for universal forcefield calculations.
-    Requires orb-models dependencies.
-    """
-    from qme.backend_availability import get_backend_error_message, is_backend_available
-
-    if not is_backend_available("orb"):
-        raise ImportError(get_backend_error_message("orb"))
-    try:
-        from qme.potentials.orb_potential import OrbPotential
-
-        return OrbPotential(**kwargs)
-    except ImportError as e:
-        msg = (
-            f"Failed to import Orb backend: {e}. "
-            f"Orb requires orb-models and PyTorch. "
-            f"Note: orb-models is a large package and may have compatibility issues. "
-            f"Try: pip install qme-ml[orb]"
-        )
-        raise ImportError(
-            msg,
-        )
-
-
-# TBLite backend - lazy loading
+    """Get Orb calculator."""
+    return _get_calculator_generic("orb", **kwargs)
 
 
 def get_tblite_calculator(**kwargs: Any) -> Any:
-    """Get TBLite calculator.
+    """Get TBLite calculator."""
+    return _get_calculator_generic("tblite", **kwargs)
 
-    Returns a TBLitePotential instance for semi-empirical quantum chemistry calculations.
-    Requires tblite dependencies.
-    """
-    from qme.backend_availability import get_backend_error_message, is_backend_available
 
-    if not is_backend_available("tblite"):
-        raise ImportError(get_backend_error_message("tblite"))
-    try:
-        from qme.potentials.tblite_potential import TBLitePotential
+def get_torchsim_calculator(**kwargs: Any) -> Any:
+    """Get TorchSim calculator (default MACE backend)."""
+    return _get_calculator_generic("torchsim_mace", **kwargs)
 
-        return TBLitePotential(**kwargs)
-    except ImportError as e:
-        msg = (
-            f"Failed to import TBLite backend: {e}. "
-            f"TBLite requires the tblite package. "
-            f"Try: pip install qme-ml[tblite]"
-        )
-        raise ImportError(
-            msg,
-        )
+
+def get_torchsim_mace_calculator(**kwargs: Any) -> Any:
+    """Get TorchSim calculator with MACE backend."""
+    return _get_calculator_generic("torchsim_mace", **kwargs)
+
+
+def get_torchsim_uma_calculator(**kwargs: Any) -> Any:
+    """Get TorchSim calculator with UMA backend."""
+    return _get_calculator_generic("torchsim_uma", **kwargs)

@@ -164,7 +164,7 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
                 optimizer_groups[opt_name] = []
             optimizer_groups[opt_name].append(result)
 
-        for opt_name, opt_results in optimizer_groups.items():
+        for _opt_name, opt_results in optimizer_groups.items():
             # Calculate statistics - filter out None values
             steps_list = [
                 r["optimization_results"].get("steps_taken", 0)

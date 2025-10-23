@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any
 
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
-from qme.logging_utils import get_qme_logger
 from qme.strategies.helpers import _get_local_optimizer_class
 from qme.strategies.utils import StrategyUtils
+from qme.utils.logging import get_qme_logger
 
 if TYPE_CHECKING:
     from ase import Atoms

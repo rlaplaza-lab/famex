@@ -14,9 +14,9 @@ import requests
 from ase.calculators.calculator import all_changes
 from torch_cluster import radius_graph
 
-from qme.dependencies import deps
-from qme.logging_utils import get_qme_logger
+from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
 
@@ -510,7 +510,7 @@ class AIMNet2Potential(BasePotential):
 
     def _load_calculator(self) -> None:
         """Load the AIMNET2 model directly."""
-        from qme.logging_utils import quiet_backend_loading
+        from qme.utils.ml_warnings import quiet_backend_loading
 
         try:
             # Ensure model_name is not None

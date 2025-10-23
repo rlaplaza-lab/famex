@@ -32,7 +32,7 @@ from ase import Atoms
 
 # Import QME components
 try:
-    from qme.calculator_registry import calculator_registry
+    from qme.backends.registry import calculator_registry
     from qme.core.explorer import Explorer
 except ImportError:
     sys.exit(1)

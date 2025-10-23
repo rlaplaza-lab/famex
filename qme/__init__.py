@@ -54,8 +54,12 @@ def __getattr__(name):
         # core
         "Explorer": (f"{__name__}.core.explorer", "Explorer"),
         "PerformanceProfiler": (f"{__name__}.utils.profiler", "PerformanceProfiler"),
-        # dependencies
-        "deps": (f"{__name__}.dependencies", "deps"),
+        # backends
+        "deps": (f"{__name__}.backends", "deps"),
+        "is_backend_available": (f"{__name__}.backends", "is_backend_available"),
+        "get_available_backends": (f"{__name__}.backends", "get_available_backends"),
+        "calculator_registry": (f"{__name__}.backends", "calculator_registry"),
+        "create_calculator": (f"{__name__}.backends", "create_calculator"),
         # core types / IO
         "Geometry": (f"{__name__}.io.geometry", "Geometry"),
         "read_geometry": (f"{__name__}.io.geometry", "read_geometry"),
@@ -79,11 +83,6 @@ def __getattr__(name):
         "get_aimnet2_calculator": (f"{__name__}.potentials", "get_aimnet2_calculator"),
         "MACEPotential": (f"{__name__}.potentials", "MACEPotential"),
         "get_mace_calculator": (f"{__name__}.potentials", "get_mace_calculator"),
-        # registry
-        "calculator_registry": (
-            f"{__name__}.calculator_registry",
-            "calculator_registry",
-        ),
         # errors
         "QMEError": (f"{__name__}.utils.validation", "QMEError"),
         "DependencyError": (f"{__name__}.utils.validation", "DependencyError"),
@@ -125,9 +124,12 @@ __all__ = [
     # ML Potentials
     "UMAPotential",
     "calculator_registry",
+    "create_calculator",
     "cli",
-    # Dependencies
+    # Backend management
     "deps",
+    "is_backend_available",
+    "get_available_backends",
     "get_aimnet2_calculator",
     "get_mace_calculator",
     "get_so3lr_calculator",
@@ -142,11 +144,11 @@ __all__ = [
 # returns the registry instance instead of the submodule object. These are
 # lightweight and safe to import at package import time.
 try:
-    from qme.calculator_registry import calculator_registry as calculator_registry
+    from qme.backends import calculator_registry as calculator_registry
 except Exception:
     # Leave it to lazy import machinery if something goes wrong
     pass
 
 
 with contextlib.suppress(Exception):
-    from qme.dependencies import deps as deps
+    from qme.backends import deps as deps

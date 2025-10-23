@@ -143,7 +143,7 @@ class Zimmermann93Benchmark:
     def get_available_backends(self) -> list[str]:
         """Get list of available ML backends (excluding mock)."""
         # Use the centralized backend availability system
-        from qme.backend_availability import get_available_ml_backends
+        from qme.backends.availability import get_available_ml_backends
 
         return get_available_ml_backends()
 

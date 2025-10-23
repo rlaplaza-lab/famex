@@ -5,8 +5,8 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 
-from qme.logging_utils import get_qme_logger
 from qme.strategies.utils import StrategyUtils
+from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
 

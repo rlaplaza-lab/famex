@@ -9,11 +9,11 @@ from ase import Atoms
 
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
-from qme.logging_utils import get_qme_logger
 from qme.strategies.helpers import validate_ts_structure
 from qme.strategies.minima import LocalMinimaStrategy
 from qme.strategies.ts import LocalTSStrategy
 from qme.strategies.utils import StrategyUtils
+from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
 

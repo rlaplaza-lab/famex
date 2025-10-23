@@ -2,7 +2,7 @@
 
 import click
 
-from qme.potentials.model_cache import get_model_cache
+from qme.backends.cache import get_model_cache
 
 
 @click.group(help="Manage QME model cache")
