@@ -5,7 +5,7 @@ This module contains utility functions used by local optimization strategies.
 
 from typing import Any
 
-from qme.logging_utils import get_qme_logger
+from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
 

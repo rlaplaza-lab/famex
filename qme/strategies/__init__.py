@@ -15,6 +15,6 @@ import qme.strategies.neb
 import qme.strategies.neb_optimizer
 import qme.strategies.path_interpolate
 import qme.strategies.ts
-import qme.strategies.ts_interpolate
+import qme.strategies.ts_interpolate  # noqa: F401
 
 __all__ = []

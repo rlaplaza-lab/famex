@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from qme.constraints.constraints import parse_constraint_string
-from qme.logging_utils import get_qme_logger
+from qme.utils.logging import get_qme_logger
 
 if TYPE_CHECKING:
     from ase import Atoms

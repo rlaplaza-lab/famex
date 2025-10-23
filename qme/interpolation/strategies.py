@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from qme.logging_utils import get_qme_logger
+from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
 

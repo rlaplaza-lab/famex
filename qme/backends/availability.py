@@ -1,27 +1,42 @@
-"""Efficient backend availability checking for QME.
+"""Backend availability checking for QME.
 
 This module provides fast, dependency-based backend availability checking
 that avoids expensive calculator instantiation while still catching most
-compatibility issues.
-
-This is the core infrastructure module for backend availability. For convenience
-wrappers with logging (used in examples and tests), see qme.core.backend_utils.
+compatibility issues. It combines the core availability logic with
+convenience functions for logging and user-friendly interfaces.
 """
 
 from __future__ import annotations
 
-from qme.dependencies import deps
+import sys
+from typing import TYPE_CHECKING
 
-# Backend name constants
-BACKEND_MOCK = "mock"
-BACKEND_AIMNET2 = "aimnet2"
-BACKEND_UMA = "uma"
-BACKEND_MACE = "mace"
-BACKEND_SO3LR = "so3lr"
-BACKEND_ORB = "orb"
-BACKEND_TBLITE = "tblite"
-BACKEND_TORCHSIM_MACE = "torchsim_mace"
-BACKEND_TORCHSIM_UMA = "torchsim_uma"
+from qme.backends.constants import (
+    ALL_BACKENDS,
+    BACKEND_AIMNET2,
+    BACKEND_MACE,
+    BACKEND_MOCK,
+    BACKEND_SO3LR,
+    BACKEND_TORCHSIM_MACE,
+    BACKEND_TORCHSIM_UMA,
+    BACKEND_UMA,
+    ML_BACKENDS,
+    TORCHSIM_BACKENDS,
+)
+from qme.backends.dependencies import deps
+
+if TYPE_CHECKING:
+    pass
+
+# Import logger only when needed to avoid circular imports
+def _get_logger():
+    try:
+        from qme.utils.logging import get_qme_logger
+        return get_qme_logger(__name__)
+    except ImportError:
+        # Fallback for when logging isn't available yet
+        import logging
+        return logging.getLogger(__name__)
 
 
 def _check_e3nn_conflict() -> str | None:
@@ -97,8 +112,8 @@ class BackendAvailabilityChecker:
             BACKEND_UMA: ["fairchem", "torch"],
             BACKEND_SO3LR: ["so3lr"],
             BACKEND_MACE: ["mace", "torch"],
-            BACKEND_ORB: ["orb_models", "torch"],
-            BACKEND_TBLITE: ["tblite"],
+            "orb": ["orb_models", "torch"],
+            "tblite": ["tblite"],
             BACKEND_TORCHSIM_MACE: ["torch_sim", "torch"],
             BACKEND_TORCHSIM_UMA: ["torch_sim", "torch", "fairchem"],
         }
@@ -109,8 +124,8 @@ class BackendAvailabilityChecker:
             BACKEND_UMA: ["fairchem-core", "torch"],
             BACKEND_SO3LR: ["so3lr"],
             BACKEND_MACE: ["mace-torch", "torch"],
-            BACKEND_ORB: ["orb-models", "torch"],
-            BACKEND_TBLITE: ["tblite"],
+            "orb": ["orb-models", "torch"],
+            "tblite": ["tblite"],
             BACKEND_TORCHSIM_MACE: ["torch-sim-atomistic", "torch"],
             BACKEND_TORCHSIM_UMA: ["torch-sim-atomistic", "torch", "fairchem-core"],
         }
@@ -231,7 +246,7 @@ class BackendAvailabilityChecker:
 _checker = BackendAvailabilityChecker()
 
 
-# Convenience functions
+# Core convenience functions
 def is_backend_available(backend: str) -> bool:
     """Check if a backend is available."""
     return _checker.is_backend_available(backend)
@@ -269,8 +284,8 @@ def get_backend_error_message(backend: str) -> str:
         BACKEND_UMA: "pip install qme-ml[uma]",
         BACKEND_MACE: "pip install qme-ml[mace]",
         BACKEND_SO3LR: "pip install qme-ml[so3lr]",
-        BACKEND_ORB: "pip install qme-ml[orb]",
-        BACKEND_TBLITE: "pip install qme-ml[tblite]",
+        "orb": "pip install qme-ml[orb]",
+        "tblite": "pip install qme-ml[tblite]",
         BACKEND_TORCHSIM_MACE: "pip install qme-ml[torchsim]",
         BACKEND_TORCHSIM_UMA: "pip install qme-ml[torchsim,uma]",
     }
@@ -280,81 +295,192 @@ def get_backend_error_message(backend: str) -> str:
     return f"Backend '{backend}' is not available.\nReason: {reason}\nInstall with: {cmd}"
 
 
-# Backend categorization constants
-ALL_BACKENDS = [
-    BACKEND_MOCK,
-    BACKEND_AIMNET2,
-    BACKEND_MACE,
-    BACKEND_UMA,
-    BACKEND_SO3LR,
-    BACKEND_ORB,
-    BACKEND_TBLITE,
-    BACKEND_TORCHSIM_MACE,
-    BACKEND_TORCHSIM_UMA,
-]
+# Extended convenience functions with logging (from utils/backend_utils.py)
+def get_available_backends_with_logging(
+    include_mock: bool = True,
+    include_torchsim: bool = True,
+    verbose: bool = False,
+) -> list[str]:
+    """Get list of backends that are actually available in the current environment.
 
-ML_BACKENDS = [
-    BACKEND_AIMNET2,
-    BACKEND_MACE,
-    BACKEND_UMA,
-    BACKEND_SO3LR,
-    BACKEND_ORB,
-    BACKEND_TBLITE,
-    BACKEND_TORCHSIM_MACE,
-    BACKEND_TORCHSIM_UMA,
-]
+    Args:
+        include_mock: Whether to include the mock backend
+        include_torchsim: Whether to include TorchSim backends
+        verbose: Whether to print availability status for each backend
 
-TORCHSIM_BACKENDS = [BACKEND_TORCHSIM_MACE, BACKEND_TORCHSIM_UMA]
+    Returns:
+        List of available backend names
 
-REGULAR_BACKENDS = [
-    BACKEND_MOCK,
-    BACKEND_AIMNET2,
-    BACKEND_MACE,
-    BACKEND_UMA,
-    BACKEND_SO3LR,
-    BACKEND_ORB,
-    BACKEND_TBLITE,
-]
+    """
+    available = get_available_backends(include_mock=include_mock)
+
+    if not include_torchsim:
+        available = [b for b in available if b not in TORCHSIM_BACKENDS]
+
+    if verbose:
+        logger = _get_logger()
+        backends_to_check = ALL_BACKENDS if include_mock else ML_BACKENDS
+        if not include_torchsim:
+            backends_to_check = [b for b in backends_to_check if b not in TORCHSIM_BACKENDS]
+
+        for backend in backends_to_check:
+            is_available = backend in available
+            if is_available:
+                logger.info("  ✅ %s", backend)
+            else:
+                reason = get_availability_reason(backend)
+                logger.info("  ❌ %s (%s)", backend, reason)
+
+    return available
 
 
 def get_available_ml_backends(include_torchsim: bool = True, verbose: bool = False) -> list[str]:
     """Get list of ML backends that are available (excludes mock)."""
-    available = get_available_backends(include_mock=False)
-    if not include_torchsim:
-        available = [b for b in available if b not in TORCHSIM_BACKENDS]
-    return available
+    return get_available_backends_with_logging(
+        include_mock=False,
+        include_torchsim=include_torchsim,
+        verbose=verbose,
+    )
 
 
 def get_available_torchsim_backends(verbose: bool = False) -> list[str]:
     """Get list of TorchSim backends that are available."""
     available = []
+    logger = _get_logger()
+
     for backend in TORCHSIM_BACKENDS:
         if is_backend_available(backend):
             available.append(backend)
             if verbose:
-                pass
+                logger.info("  ✅ %s", backend)
         elif verbose:
-            pass
+            logger.info("  ❌ %s (dependencies missing or incompatible)", backend)
     return available
 
 
-def get_backend_pairs() -> list[tuple[str, str]]:
-    """Get pairs of (regular_backend, torchsim_backend) for comparison testing."""
-    pairs = []
+def filter_available_backends(requested_backends: list[str], verbose: bool = False) -> list[str]:
+    """Filter a list of requested backends to only include those that are available.
 
-    # Check MACE pair
-    if is_backend_available(BACKEND_MACE) and is_backend_available(BACKEND_TORCHSIM_MACE):
-        pairs.append((BACKEND_MACE, BACKEND_TORCHSIM_MACE))
+    Args:
+        requested_backends: List of backend names to check
+        verbose: Whether to print status messages
 
-    # Check UMA pair
-    if is_backend_available(BACKEND_UMA) and is_backend_available(BACKEND_TORCHSIM_UMA):
-        pairs.append((BACKEND_UMA, BACKEND_TORCHSIM_UMA))
+    Returns:
+        List of available backends from the requested list
 
-    return pairs
+    """
+    available = []
+    unavailable = []
+    logger = _get_logger()
+
+    for backend in requested_backends:
+        if is_backend_available(backend):
+            available.append(backend)
+        else:
+            unavailable.append(backend)
+
+    if verbose and unavailable:
+        logger.info("⚠️  Unavailable backends (skipped): %s", unavailable)
+
+    if verbose and available:
+        logger.info("✅ Available backends: %s", available)
+
+    return available
+
+
+def validate_backends(requested_backends: list[str]) -> tuple[list[str], list[str]]:
+    """Validate a list of requested backends.
+
+    Args:
+        requested_backends: List of backend names to validate
+
+    Returns:
+        Tuple of (available_backends, invalid_backends)
+
+    """
+    available = []
+    invalid = []
+
+    for backend in requested_backends:
+        if backend in ALL_BACKENDS:
+            if is_backend_available(backend):
+                available.append(backend)
+            # Note: valid but unavailable backends are not considered "invalid"
+        else:
+            invalid.append(backend)
+
+    return available, invalid
+
+
+def require_ml_backends(min_count: int = 1) -> list[str]:
+    """Require that at least a minimum number of ML backends are available.
+
+    Args:
+        min_count: Minimum number of ML backends required
+
+    Returns:
+        List of available ML backends
+
+    Raises:
+        SystemExit: If insufficient ML backends are available
+
+    """
+    available = get_available_ml_backends()
+    logger = _get_logger()
+
+    if len(available) < min_count:
+        logger.warning(
+            f"❌ Need at least {min_count} ML backend(s), but only {len(available)} available.",
+        )
+        logger.info("Please install additional ML backends:")
+        logger.info("  - UMA: pip install fairchem-core")
+        logger.info("  - MACE: pip install mace-torch")
+        logger.info("  - AIMNet2: pip install aimnet2")
+        logger.info("  - SO3LR: pip install so3lr")
+        logger.info("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
+        sys.exit(1)
+
+    return available
+
+
+def print_backend_summary(backends: list[str], title: str = "Backend Summary") -> None:
+    """Print a formatted summary of backend availability."""
+    logger = _get_logger()
+    logger.info("\n%s", title)
+    logger.info("=" * len(title))
+
+    if not backends:
+        logger.info("No backends available!")
+        return
+
+    # Categorize backends
+    mock_backends = [b for b in backends if b == "mock"]
+    ml_backends = [b for b in backends if b in ML_BACKENDS and b not in TORCHSIM_BACKENDS]
+    torchsim_backends = [b for b in backends if b in TORCHSIM_BACKENDS]
+
+    if mock_backends:
+        logger.info("Mock: %s", ", ".join(mock_backends))
+    if ml_backends:
+        logger.info("ML: %s", ", ".join(ml_backends))
+    if torchsim_backends:
+        logger.info("TorchSim: %s", ", ".join(torchsim_backends))
+
+    logger.info("Total: %d backend(s)", len(backends))
 
 
 def require_backend(backend: str) -> None:
-    """Decorator/function to require a specific backend for a test."""
+    """Decorator/function to require a specific backend for a test.
+
+    Usage:
+        @require_backend("mace")
+        def test_something():
+            pass
+
+    Or:
+        def test_something():
+            require_backend("mace")
+            # test code here
+    """
     try:
         import pytest
     except ImportError:
@@ -366,3 +492,47 @@ def require_backend(backend: str) -> None:
 
     if not is_backend_available(backend):
         pytest.skip(f"Backend {backend} not available in this environment")
+
+
+def require_any_backend(backends: list[str]):
+    """Require that at least one of the specified backends is available.
+
+    Usage:
+        require_any_backend(["mace", "uma"])
+    """
+    try:
+        import pytest
+    except ImportError:
+        # If pytest not available, just check availability
+        available = [b for b in backends if is_backend_available(b)]
+        if not available:
+            msg = f"None of the required backends are available: {backends}"
+            raise ImportError(msg)
+        return available
+
+    available = [b for b in backends if is_backend_available(b)]
+    if not available:
+        pytest.skip(f"None of the required backends are available: {backends}")
+
+    return available
+
+
+def get_backend_pairs() -> list[tuple[str, str]]:
+    """Get pairs of (regular_backend, torchsim_backend) for comparison testing.
+
+    Returns:
+        List of tuples like [("mace", "torchsim_mace"), ("uma", "torchsim_uma")]
+        Only includes pairs where both backends are available.
+
+    """
+    pairs = []
+
+    # Check MACE pair
+    if is_backend_available(BACKEND_MACE) and is_backend_available(BACKEND_TORCHSIM_MACE):
+        pairs.append((BACKEND_MACE, BACKEND_TORCHSIM_MACE))
+
+    # Check UMA pair
+    if is_backend_available(BACKEND_UMA) and is_backend_available(BACKEND_TORCHSIM_UMA):
+        pairs.append((BACKEND_UMA, BACKEND_TORCHSIM_UMA))
+
+    return pairs

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from ase import Atoms
 from ase.io import write
 
-from qme.calculator_setup import create_calculator
+from qme.backends.registry import create_calculator
 from qme.constraints.parser import parse_constraints
 from qme.core.registry import REGISTRY
 from qme.io.geometry import read_geometry
@@ -267,7 +267,7 @@ class Explorer:
         self.profiler = PerformanceProfiler() if profile else None
 
         # Setup QME logging with specified verbosity
-        from qme.logging_utils import setup_qme_logging
+        from qme.utils.logging import setup_qme_logging
 
         setup_qme_logging(verbosity=verbose)
 
@@ -395,7 +395,7 @@ class Explorer:
         charge_missing, spin_missing = self._check_missing_charge_spin(atoms)
 
         if (charge_missing or spin_missing) and not getattr(self, "_warned_about_defaults", False):
-            from qme.logging_utils import get_qme_logger
+            from qme.utils.logging import get_qme_logger
 
             logger = get_qme_logger(__name__)
 
@@ -425,7 +425,7 @@ class Explorer:
 
         # Show model initialization info when creating the first calculator
         if not hasattr(self, "_calculator_created"):
-            from qme.logging_utils import print_model_info
+            from qme.utils.logging import print_model_info
 
             # Get the effective model name that will actually be used
             effective_model_name = self._get_effective_model_name()

@@ -21,7 +21,7 @@ from ase.parallel import world
 from ase.thermochemistry import HarmonicThermo
 from scipy.linalg import eigh
 
-from qme.logging_utils import get_qme_logger
+from qme.utils.logging import get_qme_logger
 from qme.utils.validation import QMEError
 
 logger = get_qme_logger(__name__)

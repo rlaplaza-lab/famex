@@ -4,7 +4,7 @@ This module provides various utility functions including backend utilities,
 profiling, validation, and device management.
 """
 
-from qme.utils.backend_utils import (
+from qme.backends.availability import (
     get_available_backends,
     is_backend_available,
     require_backend,

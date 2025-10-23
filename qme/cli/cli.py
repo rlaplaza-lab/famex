@@ -19,7 +19,7 @@ from qme.cli.cli_helpers import (
     write_atoms,
 )
 from qme.core.explorer import Explorer
-from qme.logging_utils import quiet_backend_loading
+from qme.utils.ml_warnings import quiet_backend_loading
 
 # Disable matplotlib and ASE GUI before importing ASE
 # This prevents unwanted popup windows during CLI operations

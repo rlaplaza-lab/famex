@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from qme.dependencies import deps
+from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
 
 if TYPE_CHECKING:
@@ -62,7 +62,7 @@ class MACEPotential(BasePotential):
         if hasattr(self, "_calc") and self._calc is not None:
             return
 
-        from qme.logging_utils import quiet_backend_loading
+        from qme.utils.ml_warnings import quiet_backend_loading
 
         if not deps.has("torch"):
             msg = "PyTorch is required for MACE backend. Install with: pip install torch"

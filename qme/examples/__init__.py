@@ -14,8 +14,8 @@ from typing import Any  # Dict, List, Optional  # Unused for now
 
 # Import QME components
 try:
-    from qme.backend_availability import is_backend_available
-    from qme.calculator_registry import calculator_registry
+    from qme.backends.availability import is_backend_available
+    from qme.backends.registry import calculator_registry
 except ImportError:
     sys.exit(1)
 
@@ -137,7 +137,7 @@ class QMEExampleInterface:
 
     def setup_logging(self, verbose: int = 1) -> None:
         """Set up QME logging based on verbosity level."""
-        from qme.logging_utils import setup_qme_logging
+        from qme.utils.logging import setup_qme_logging
 
         setup_qme_logging(verbosity=verbose)
 
