@@ -310,11 +310,8 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
 
     interface.print_header("Testing: opt, tsopt, two-ended, GSM, NEB, CI-NEB, and IRC commands")
 
-    # Get available ML backends
-    if backends:
-        available_backends = interface.filter_available_backends(backends, verbose=1)
-    else:
-        available_backends = interface.get_available_ml_backends()
+    # Force MACE backend only
+    available_backends = ["mace"]
 
     if not available_backends:
         interface.print_error("No ML backends available for comparison.")

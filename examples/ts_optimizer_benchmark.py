@@ -339,23 +339,8 @@ def main() -> int:
     # Set up logging based on verbosity level
     interface.setup_logging(args.verbose)
 
-    # Determine which backends to test
-    if args.backends:
-        requested_backends = [b.strip() for b in args.backends.split(",")]
-        available_backends = interface.filter_available_backends(
-            requested_backends,
-            verbose=args.verbose,
-        )
-
-        if not available_backends:
-            interface.print_error("No requested backends are available!")
-            return 1
-    else:
-        available_backends = interface.get_available_ml_backends()
-
-        if not available_backends:
-            interface.print_error("No ML backends available!")
-            return 1
+    # Force MACE backend only
+    available_backends = ["mace"]
 
     # Determine which optimizers to test
     if args.optimizers:
