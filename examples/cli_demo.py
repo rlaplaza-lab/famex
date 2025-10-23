@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-QME CLI Demo - Comprehensive Backend Comparison
+"""QME CLI Demo - Comprehensive Backend Comparison.
 
 This example demonstrates QME's command-line interface capabilities by running
 various optimization tasks across all available ML backends and comparing their
@@ -36,28 +35,17 @@ os.environ["MPLBACKEND"] = "Agg"
 try:
     from qme.examples import QMEExampleInterface, create_standard_epilog
 except ImportError:
-    print("❌ Error importing common interface")
-    print("   Please ensure QME is installed and accessible")
     sys.exit(1)
 
 
-def print_backend_summary(backends: list[str], title: str = "Available Backends"):
+def print_backend_summary(backends: list[str], title: str = "Available Backends") -> None:
     """Print a formatted summary of backends."""
-    print(f"\n📋 {title}")
-    print("-" * 50)
-    for i, backend in enumerate(backends, 1):
-        print(f"  {i}. {backend}")
-    print(f"Total: {len(backends)} backends")
+    for _i, _backend in enumerate(backends, 1):
+        pass
 
 
 def run_command(cmd, desc, backend, timeout=600) -> tuple[bool, float, str, str]:
     """Run a CLI command and report results."""
-    print(f"\n{'=' * 60}")
-    print(f"Backend: {backend.upper()}")
-    print(f"Task: {desc}")
-    print(f"Command: {' '.join(cmd)}")
-    print("-" * 60)
-
     try:
         start_time = time.time()
         # Create a modified environment with GUI disabled
@@ -67,6 +55,7 @@ def run_command(cmd, desc, backend, timeout=600) -> tuple[bool, float, str, str]
 
         result = subprocess.run(
             cmd,
+            check=False,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -76,21 +65,13 @@ def run_command(cmd, desc, backend, timeout=600) -> tuple[bool, float, str, str]
         end_time = time.time()
         runtime = end_time - start_time
 
-        print(f"Runtime: {runtime:.2f} seconds")
-        print(f"Exit code: {result.returncode}")
-
         if result.returncode == 0:
-            print("Status: ✅ SUCCESS")
             return True, runtime, result.stdout, result.stderr
-        else:
-            print("Status: ❌ FAILED")
-            if result.stderr:
-                print("Error output:")
-                print(result.stderr[:500] + "..." if len(result.stderr) > 500 else result.stderr)
-            return False, runtime, result.stdout, result.stderr
+        if result.stderr:
+            pass
+        return False, runtime, result.stdout, result.stderr
 
     except subprocess.TimeoutExpired as e:
-        print(f"Status: ❌ TIMEOUT after {timeout} seconds")
         # Clean up the process if it's still running
         if hasattr(e, "subprocess") and e.subprocess:
             try:
@@ -100,7 +81,6 @@ def run_command(cmd, desc, backend, timeout=600) -> tuple[bool, float, str, str]
                 pass
         return False, timeout, "", f"Command timed out after {timeout} seconds"
     except Exception as e:
-        print(f"Status: ❌ ERROR - {e}")
         return False, 0.0, "", str(e)
 
 
@@ -112,6 +92,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
     - TS optimizations are not supported on the 'mock' backend. We skip
       'tsopt' examples when backend == 'mock' to avoid hard errors. Timeouts
       are acceptable for heavy runs, but CLI argument mistakes are not.
+
     """
     # Prefer custom TS file if present, otherwise fall back to bundled example
     ts_input = str(example_files / "A_C_A_B_A_C_ts.xyz")
@@ -322,9 +303,8 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
     return commands
 
 
-def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
+def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface = None):
     """Demonstrate QME CLI with commands using default settings."""
-
     if interface is None:
         interface = QMEExampleInterface("CLI Demo", "Comprehensive Backend Comparison")
 
@@ -338,12 +318,6 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
 
     if not available_backends:
         interface.print_error("No ML backends available for comparison.")
-        print("Please install at least one ML backend:")
-        print("  - UMA: pip install fairchem-core")
-        print("  - MACE: pip install mace-torch")
-        print("  - AIMNet2: pip install aimnet2")
-        print("  - SO3LR: pip install so3lr")
-        print("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
         return False
 
     interface.print_backend_summary(available_backends, "Testing Backends")
@@ -351,12 +325,10 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
     # Ensure we're in the right directory structure
     examples_dir = Path("examples")
     if not examples_dir.exists():
-        print("❌ Examples directory not found. Make sure to run from qme root directory.")
         return False
 
     example_files = examples_dir / "example_files"
     if not example_files.exists():
-        print("❌ Example files directory not found.")
         return False
 
     # Check required files exist
@@ -368,7 +340,6 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
 
     for filename in required_files:
         if not (example_files / filename).exists():
-            print(f"❌ Required file not found: {filename}")
             return False
 
     # Performance tracking
@@ -379,10 +350,6 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
 
     # Run examples for each backend
     for backend in available_backends:
-        print(f"\n{'=' * 80}")
-        print(f"🧪 TESTING BACKEND: {backend.upper()}")
-        print(f"{'=' * 80}")
-
         backend_results[backend] = {
             "examples": [],
             "total_time": 0.0,
@@ -394,8 +361,7 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
 
         backend_start_time = time.time()
 
-        for i, example in enumerate(examples, 1):
-            print(f"\n📋 Example {i}/{len(examples)} for {backend}")
+        for _i, example in enumerate(examples, 1):
             success, runtime, stdout, stderr = run_command(example["cmd"], example["desc"], backend)
 
             backend_results[backend]["examples"].append(
@@ -405,7 +371,7 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
                     "runtime": runtime,
                     "stdout": stdout[:200] + "..." if len(stdout) > 200 else stdout,
                     "stderr": stderr[:200] + "..." if len(stderr) > 200 else stderr,
-                }
+                },
             )
 
             if success:
@@ -419,29 +385,14 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
         backend_results[backend]["total_time"] = time.time() - backend_start_time
 
         # Backend summary
-        print(f"\n📊 {backend.upper()} SUMMARY:")
-        print(f"   ✅ Successful: {backend_results[backend]['successful']}")
-        print(f"   ❌ Failed: {backend_results[backend]['failed']}")
-        print(f"   ⏱️ Total time: {backend_results[backend]['total_time']:.2f}s")
 
-    total_time = time.time() - total_start_time
+    time.time() - total_start_time
 
     # Overall comparison summary
-    print(f"\n{'=' * 80}")
-    print("COMPREHENSIVE BACKEND COMPARISON")
-    print(f"{'=' * 80}")
-
-    print("\nBackend Performance Summary:")
-    print(f"{'Backend':<12} {'Success':<8} {'Failed':<8} {'Total Time':<12} {'Avg Time/Task':<15}")
-    print("-" * 70)
 
     for backend in available_backends:
         results = backend_results[backend]
-        avg_time = results["total_time"] / len(results["examples"]) if results["examples"] else 0
-        print(
-            f"{backend:<12} {results['successful']:<8} {results['failed']:<8} "
-            f"{results['total_time']:<12.2f} {avg_time:<15.2f}"
-        )
+        results["total_time"] / len(results["examples"]) if results["examples"] else 0
 
     # Find best performing backend
     successful_backends = [
@@ -453,20 +404,10 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
     if successful_backends:
         # Sort by success rate, then by speed
         best_backend = max(
-            successful_backends, key=lambda x: (x[1]["successful"], -x[1]["total_time"])
+            successful_backends,
+            key=lambda x: (x[1]["successful"], -x[1]["total_time"]),
         )
-        print(f"\nBest performing backend: {best_backend[0].upper()}")
-        actual_examples = best_backend[1]['successful'] + best_backend[1]['failed']
-        print(
-            f"  Success rate: "
-            f"{best_backend[1]['successful']}/{actual_examples} examples"
-        )
-        print(
-            f"  Average time per task: "
-            f"{best_backend[1]['total_time'] / actual_examples:.2f}s"
-        )
-
-    print(f"\nTotal benchmark time: {total_time:.2f} seconds")
+        best_backend[1]["successful"] + best_backend[1]["failed"]
 
     # Check if all backends had some success
     total_successful = sum(results["successful"] for results in backend_results.values())
@@ -475,15 +416,11 @@ def demo_cli(backends: list[str] = None, interface: QMEExampleInterface = None):
     success_rate = total_successful / total_tests if total_tests > 0 else 0
 
     if success_rate >= 0.8:
-        print("\n✅ Overall demo successful! CLI commands working properly.")
         return True
-    else:
-        print(f"\n⚠️  Demo completed with {success_rate:.1%} success rate.")
-        print("   Some backends may need attention or dependencies.")
-        return success_rate > 0.3  # At least 30% working
+    return success_rate > 0.3  # At least 30% working
 
 
-def main():
+def main() -> int | None:
     """Main entry point with argument parsing."""
     # Create standardized interface
     interface = QMEExampleInterface(
@@ -507,10 +444,8 @@ def main():
         success = demo_cli(backends, interface)
         return 0 if success else 1
     except KeyboardInterrupt:
-        print("\n\nDemo interrupted by user")
         return 1
-    except Exception as e:
-        print(f"\nUnexpected error: {e}")
+    except Exception:
         return 1
 
 

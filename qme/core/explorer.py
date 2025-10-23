@@ -1,26 +1,32 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
 from ase import Atoms
 from ase.io import write
 
-from qme.core.calculator_setup import create_calculator
-from qme.core.constraint_parser import parse_constraints
-from qme.core.geometry import read_geometry
-from qme.core.profiler import PerformanceProfiler
-from qme.core.strategy import REGISTRY
+from qme.calculator_setup import create_calculator
+from qme.constraints.parser import parse_constraints
+from qme.core.registry import REGISTRY
+from qme.io.geometry import read_geometry
+from qme.io.xyz_io import parse_xyz_comment, write_xyz_with_metadata
+from qme.utils.profiler import PerformanceProfiler
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
+    import numpy as np
 
 
 def _extract_charge_spin(
-    atoms: Atoms, default_charge: int = 0, default_spin: int = 1
+    atoms: Atoms,
+    default_charge: int = 0,
+    default_spin: int = 1,
 ) -> tuple[int, int]:
     """Extract charge and spin from atoms object.
 
-    Precedence: atoms.charge/atoms.mult > atoms.info['charge']/atoms.info['spin'] > defaults
+    Precedence: XYZ comment metadata > atoms.charge/atoms.mult > atoms.info['charge']/atoms.info['spin'] > defaults
 
     Parameters
     ----------
@@ -35,22 +41,39 @@ def _extract_charge_spin(
     -------
     tuple[int, int]
         (charge, spin) tuple
+
     """
     charge = None
     spin = None
 
-    # Check for attributes first (highest priority)
-    if hasattr(atoms, "charge"):
+    # Check XYZ comment line metadata first (highest priority)
+    if hasattr(atoms, "info") and atoms.info is not None:
+        comment = atoms.info.get("comment", "")
+        if comment:
+            metadata = parse_xyz_comment(comment)
+            if "charge" in metadata:
+                try:
+                    charge = int(metadata["charge"])
+                except (ValueError, TypeError):
+                    pass
+            if "spin" in metadata:
+                try:
+                    spin = int(metadata["spin"])
+                except (ValueError, TypeError):
+                    pass
+
+    # Check for attributes (high priority)
+    if hasattr(atoms, "charge") and charge is None:
         try:
             charge = int(atoms.charge)
         except (ValueError, TypeError):
-            charge = None
+            pass
 
-    if hasattr(atoms, "mult"):
+    if hasattr(atoms, "mult") and spin is None:
         try:
             spin = int(atoms.mult)
         except (ValueError, TypeError):
-            spin = None
+            pass
 
     # Check atoms.info (medium priority)
     if hasattr(atoms, "info") and atoms.info is not None:
@@ -200,6 +223,7 @@ class Explorer:
     │ path     │ irc              │ IRC path from transition state  │
     │ path     │ interpolate      │ Generate path only (no opt)     │
     └──────────┴──────────────────┴─────────────────────────────────┘
+
     """
 
     # =============================================================================
@@ -279,19 +303,18 @@ class Explorer:
         backend_lower = self.backend.lower()
         if backend_lower == "uma":
             return "uma-s-1p1"
-        elif backend_lower == "aimnet2":
+        if backend_lower == "aimnet2":
             return "aimnet2"
-        elif backend_lower in ("mace", "torchsim_mace"):
+        if backend_lower in ("mace", "torchsim_mace"):
             return "mace-omol-0"
-        elif backend_lower == "torchsim_uma":
+        if backend_lower == "torchsim_uma":
             return "uma-s-1p1"
-        elif backend_lower == "so3lr":
+        if backend_lower == "so3lr":
             # SO3LR requires a model_path, not model_name
             return self.model_path or "so3lr-model"
-        elif backend_lower == "mock":
+        if backend_lower == "mock":
             return "mock-model"
-        else:
-            return "default-model"
+        return "default-model"
 
     def _get_effective_optimizer(self) -> str:
         """Get the effective optimizer that will actually be used.
@@ -304,8 +327,8 @@ class Explorer:
         # Context-aware selection based on target
         if self.target == "ts":
             return "sella"
-        else:  # minima or path
-            return "lbfgs"
+        # minima or path
+        return "lbfgs"
 
     def _check_missing_charge_spin(self, atoms: Atoms) -> tuple[bool, bool]:
         """Check if charge and/or spin are missing from atoms.
@@ -319,6 +342,7 @@ class Explorer:
         -------
         tuple[bool, bool]
             (charge_missing, spin_missing) indicating if each is missing
+
         """
         charge_missing = True
         spin_missing = True
@@ -372,6 +396,7 @@ class Explorer:
 
         if (charge_missing or spin_missing) and not getattr(self, "_warned_about_defaults", False):
             from qme.logging_utils import get_qme_logger
+
             logger = get_qme_logger(__name__)
 
             missing_parts = []
@@ -380,7 +405,9 @@ class Explorer:
             if spin_missing:
                 missing_parts.append(f"spin={spin}")
 
-            logger.warning(f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}")
+            logger.warning(
+                f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
+            )
             self._warned_about_defaults = True
 
         # Ensure atoms.info contains values so calculators that read
@@ -472,6 +499,7 @@ class Explorer:
             - description: Strategy description (str)
             - notes: Additional notes (str)
             - error: Error message if invalid (str, optional)
+
         """
         try:
             # Determine strategy name from constructor target/strategy
@@ -521,7 +549,10 @@ class Explorer:
             }
 
     def run(
-        self, runner: Callable[..., Any] | None = None, **kwargs: Any
+        self,
+        runner: Callable[..., Any] | None = None,
+        calculate_frequencies: bool = False,
+        **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Execute a registered or user-supplied runner.
 
@@ -532,6 +563,8 @@ class Explorer:
         ----------
         runner : callable, optional
             Optional callable to execute directly, bypassing strategy selection.
+        calculate_frequencies : bool, default=False
+            Whether to perform frequency analysis after optimization.
         **kwargs
             Additional keyword arguments forwarded to the strategy runner.
 
@@ -543,6 +576,9 @@ class Explorer:
             - strategy: Strategy name used (str)
             - converged: Whether optimization converged (bool)
             - steps_taken: Number of optimization steps (int)
+            - frequency_analysis: Frequency analysis results (dict, optional)
+            - is_minimum/is_ts: Validation results (bool, optional)
+            - free_energy_correction: Free energy correction in eV (float, optional)
             - Additional strategy-specific metadata
 
         Examples
@@ -558,6 +594,7 @@ class Explorer:
         >>> # Transition state optimization
         >>> explorer = Explorer(atoms, target="ts", strategy="local")
         >>> result = explorer.run(fmax=0.01)
+
         """
         # If the caller passed an explicit runner function, use it directly
         if runner is not None:
@@ -565,13 +602,13 @@ class Explorer:
             call_kwargs.setdefault("explorer", self)
             call_kwargs.setdefault("local_optimizer_name", self._get_effective_optimizer())
             call_kwargs.setdefault("verbose", self.verbose)
+            call_kwargs.setdefault("calculate_frequencies", calculate_frequencies)
             result = runner(self.atoms_list, **call_kwargs)
             # Ensure result is properly typed
             if isinstance(result, dict):
                 return result
-            else:
-                # Convert to expected format if needed
-                return {"optimized_atoms": result, "strategy": "custom"}
+            # Convert to expected format if needed
+            return {"optimized_atoms": result, "strategy": "custom"}
 
         # Determine strategy name from constructor target/strategy
         if self.target and self.strategy:
@@ -585,8 +622,9 @@ class Explorer:
             strategy_class = REGISTRY.get(strategy_name)
         except KeyError as e:
             available = sorted(REGISTRY.list_strategies().keys())
+            msg = f"No strategy found for '{strategy_name}'. Available strategies: {available}"
             raise NotImplementedError(
-                f"No strategy found for '{strategy_name}'. " f"Available strategies: {available}"
+                msg,
             ) from e
 
         # Instantiate and run strategy
@@ -594,6 +632,7 @@ class Explorer:
         # Pass the effective optimizer name to the strategy
         kwargs.setdefault("local_optimizer_name", self._get_effective_optimizer())
         kwargs.setdefault("verbose", self.verbose)
+        kwargs.setdefault("calculate_frequencies", calculate_frequencies)
         return strategy_instance.run(self.atoms_list, **kwargs)
 
     # =============================================================================
@@ -670,6 +709,7 @@ class Explorer:
         ...     device="cuda",
         ...     default_charge=1
         ... )
+
         """
         geom = read_geometry(str(filename))
         if isinstance(geom, list):
@@ -699,6 +739,7 @@ class Explorer:
         -------
         Atoms
             Loaded geometry
+
         """
         if isinstance(filename_or_geom, (str, Path)):
             geom = read_geometry(str(filename_or_geom))
@@ -713,7 +754,10 @@ class Explorer:
         return geom
 
     def save_structure(
-        self, atoms: Atoms, output_file: str | Path, format: str | None = None
+        self,
+        atoms: Atoms,
+        output_file: str | Path,
+        format: str | None = None,
     ) -> None:
         """Save structure to file.
 
@@ -725,9 +769,20 @@ class Explorer:
             Output file path
         format : str, optional
             File format (inferred from extension if None)
+
         """
         output_file = Path(output_file)
 
+        # Use custom XYZ writer for .xyz files to preserve metadata
+        if str(output_file).lower().endswith(".xyz"):
+            try:
+                write_xyz_with_metadata(atoms, str(output_file))
+                return
+            except Exception as e:
+                msg = f"Failed to save XYZ structure to {output_file}: {e}"
+                raise RuntimeError(msg) from e
+
+        # Use ASE for other formats
         try:
             if format is not None:
                 write(output_file, atoms, format=format)
@@ -755,13 +810,19 @@ class Explorer:
                 else:
                     write(output_file, clean_atoms)
             except Exception as e2:
-                raise RuntimeError(
+                msg = (
                     f"Failed to save structure to {output_file}: {e}. "
                     f"Clean attempt also failed: {e2}"
                 )
+                raise RuntimeError(
+                    msg,
+                )
 
     def save_trajectory(
-        self, atoms_list: list[Atoms], output_file: str | Path, format: str | None = None
+        self,
+        atoms_list: list[Atoms],
+        output_file: str | Path,
+        format: str | None = None,
     ) -> None:
         """Save multiple structures (trajectory) to file.
 
@@ -783,9 +844,20 @@ class Explorer:
         >>> explorer = Explorer(atoms=[reactant, product], target="path")
         >>> result = explorer.run(npoints=7)
         >>> explorer.save_trajectory(result, "reaction_path.xyz")
+
         """
         output_file = Path(output_file)
 
+        # Use custom XYZ writer for .xyz files to preserve metadata
+        if str(output_file).lower().endswith(".xyz"):
+            try:
+                write_xyz_with_metadata(atoms_list, str(output_file))
+                return
+            except Exception as e:
+                msg = f"Failed to save XYZ trajectory to {output_file}: {e}"
+                raise RuntimeError(msg) from e
+
+        # Use ASE for other formats
         try:
             if format is not None:
                 write(output_file, atoms_list, format=format)
@@ -816,9 +888,12 @@ class Explorer:
                 else:
                     write(output_file, clean_atoms_list)
             except Exception as e2:
-                raise RuntimeError(
+                msg = (
                     f"Failed to save trajectory to {output_file}: {e}. "
                     f"Clean attempt also failed: {e2}"
+                )
+                raise RuntimeError(
+                    msg,
                 )
 
     # =============================================================================
@@ -873,12 +948,14 @@ class Explorer:
             - n_atoms: Number of atoms (int)
             - indices: Atom indices included (list[int])
             - hessian: Hessian matrix (np.ndarray, optional)
+
         """
         from qme.analysis.frequency import FrequencyAnalysis
 
         if atoms is None:
             if not self.atoms_list:
-                raise RuntimeError("No structure available for frequency calculation")
+                msg = "No structure available for frequency calculation"
+                raise RuntimeError(msg)
             atoms = self.atoms_list[0]
 
         if getattr(atoms, "calc", None) is None:
@@ -897,10 +974,13 @@ class Explorer:
             self._create_and_attach_calculator(atoms)
 
         freq_analysis = FrequencyAnalysis(
-            atoms=atoms, calculator=atoms.calc, delta=delta, indices=indices
+            atoms=atoms,
+            calculator=atoms.calc,
+            delta=delta,
+            indices=indices,
         )
         hessian = freq_analysis.calculate_hessian(method=method)
-        frequencies, normal_modes = freq_analysis.diagonalize_hessian()
+        frequencies, _normal_modes = freq_analysis.diagonalize_hessian()
         vib_frequencies = freq_analysis.get_frequencies()
         vib_normal_modes = freq_analysis.get_normal_modes()
         thermo = freq_analysis.get_thermodynamic_properties(temperature)

@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 from ase.io import read
 
-from qme.core.scipy_optimizers import TrustKrylovTS
 from qme.dependencies import deps
+from qme.optimizers.scipy_optimizers import TrustKrylovTS
 from qme.potentials.uma_potential import get_uma_calculator
 from tests.test_utils import BackendTestMixin, TestMoleculeFactory
 
@@ -39,7 +39,6 @@ def _max_force(atoms) -> float:
 
 def test_trust_krylov_ts_matches_sella_with_uma() -> None:
     """Run both TS optimizers on a toy UMA system and compare the outcomes."""
-
     BackendTestMixin.require_backend("uma")
 
     atoms_template = TestMoleculeFactory.get_ethylene_twisted_ts_guess()
@@ -111,7 +110,6 @@ def _load_bh28_ts(reaction: str):
 
 def test_trust_krylov_ts_bh28_subset_success_rate() -> None:
     """Ensure Trust-Krylov TS converges reliably on a BH28 subset with UMA."""
-
     BackendTestMixin.require_backend("uma")
     if not BH28_DATASET.exists():
         pytest.skip("BH28 dataset missing")

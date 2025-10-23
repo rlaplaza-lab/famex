@@ -1,5 +1,4 @@
-"""
-TorchSim Machine Learning Potential integration for ASE.
+"""TorchSim Machine Learning Potential integration for ASE.
 
 This module implements TorchSim calculator integration for supported ML potentials,
 providing significant speedup over traditional ASE-based implementations through
@@ -21,8 +20,7 @@ logger = get_qme_logger(__name__)
 
 
 class TorchSimPotential(BasePotential):
-    """
-    TorchSim potential calculator for supported ML models.
+    """TorchSim potential calculator for supported ML models.
 
     This calculator provides access to TorchSim's accelerated ML potential
     implementations, offering significant speedup over ASE-based approaches
@@ -45,11 +43,10 @@ class TorchSimPotential(BasePotential):
         default_spin: int = 1,
         **kwargs: Any,
     ) -> None:
-        """
-        Initialize TorchSim potential calculator.
+        """Initialize TorchSim potential calculator.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         model_name : str, optional
             Model name to use. Defaults to backend-specific default
         device : str, optional
@@ -62,16 +59,21 @@ class TorchSimPotential(BasePotential):
             Default spin multiplicity to use if not specified in atoms.info (default: 1)
         **kwargs : dict
             Additional arguments passed to BasePotential
+
         """
         if not deps.has("torch_sim"):
-            raise ImportError(
+            msg = (
                 "TorchSim is required for TorchSimPotential. "
                 "Install with: pip install torch-sim-atomistic"
             )
+            raise ImportError(
+                msg,
+            )
 
         if not deps.has("torch"):
+            msg = "PyTorch is required for TorchSimPotential. Install with: pip install torch"
             raise ImportError(
-                "PyTorch is required for TorchSimPotential. " "Install with: pip install torch"
+                msg,
             )
 
         # Set device if not provided
@@ -125,28 +127,32 @@ class TorchSimPotential(BasePotential):
                 elif self.backend.lower() in ["fairchem", "uma"]:
                     self._load_fairchem_model()
                 else:
-                    raise ValueError(f"Unsupported TorchSim backend: {self.backend}")
+                    msg = f"Unsupported TorchSim backend: {self.backend}"
+                    raise ValueError(msg)
 
         except ValueError as e:
             if "too many values to unpack" in str(e):
-                raise ImportError(
+                msg = (
                     f"TorchSim MACE compatibility issue with e3nn. "
                     f"MACE 0.3.14 requires e3nn==0.4.4, but a newer e3nn version is installed. "
                     f"This affects both regular MACE and TorchSim MACE backends. "
                     f"Error: {e}"
                 )
-            else:
                 raise ImportError(
-                    f"TorchSim not available ({e}). Install with: pip install torch-sim-atomistic"
+                    msg,
                 )
-        except Exception as e:
+            msg = f"TorchSim not available ({e}). Install with: pip install torch-sim-atomistic"
             raise ImportError(
-                f"TorchSim not available ({e}). Install with: pip install torch-sim-atomistic"
+                msg,
+            )
+        except Exception as e:
+            msg = f"TorchSim not available ({e}). Install with: pip install torch-sim-atomistic"
+            raise ImportError(
+                msg,
             )
 
     def _load_mace_model(self) -> None:
         """Load MACE model through TorchSim."""
-
         try:
             # Load MACE model through TorchSim
             from mace.calculators.foundations_models import mace_mp, mace_off, mace_omol
@@ -178,15 +184,17 @@ class TorchSimPotential(BasePotential):
                     "tensor size",
                 ]
             ):
-                raise ImportError(
+                msg = (
                     f"TorchSim MACE compatibility issue with e3nn versions. "
                     f"MACE models require e3nn==0.4.4 but e3nn 0.5+ is installed. "
                     f"This affects both regular MACE and TorchSim MACE backends. "
                     f"Use UMA backend or separate environment with e3nn==0.4.4. "
                     f"Error: {e}"
                 )
-            else:
-                raise
+                raise ImportError(
+                    msg,
+                )
+            raise
 
         # Monkey-patch both the TorchSim wrapper and the underlying MACE model
         original_macemodel_forward = self._mace_model.forward
@@ -225,7 +233,9 @@ class TorchSimPotential(BasePotential):
                 else:
                     charge_value = float(self.default_charge)
                 data["total_charge"] = torch.tensor(
-                    [charge_value], device=torch_device, dtype=dtype
+                    [charge_value],
+                    device=torch_device,
+                    dtype=dtype,
                 )
 
             # Enable gradients for positions if not already enabled
@@ -239,19 +249,22 @@ class TorchSimPotential(BasePotential):
 
     def _load_fairchem_model(self) -> None:
         """Load Fairchem model through TorchSim."""
-
         try:
             # Try to load Fairchem model through TorchSim
             # from torch_sim.models.fairchem import FairchemModel  # Unused for now
 
             # For now, we'll use the regular Fairchem approach since TorchSim Fairchem
             # has compatibility issues with the current fairchem-core version
-            raise ImportError("TorchSim Fairchem not compatible with current fairchem-core version")
+            msg = "TorchSim Fairchem not compatible with current fairchem-core version"
+            raise ImportError(msg)
 
         except ImportError as e:
-            raise ImportError(
+            msg = (
                 f"TorchSim Fairchem not available ({e}). "
                 f"Install with: pip install torch-sim-atomistic"
+            )
+            raise ImportError(
+                msg,
             )
 
     def _atoms_to_state(self, atoms: Atoms) -> Any:
@@ -308,7 +321,8 @@ class TorchSimPotential(BasePotential):
             self._load_calculator()
 
         if self._model is None:
-            raise RuntimeError("Failed to load TorchSim model")
+            msg = "Failed to load TorchSim model"
+            raise RuntimeError(msg)
 
         # Check if we're using a TorchSim model or regular calculator
         if hasattr(self._model, "forward"):
@@ -353,7 +367,9 @@ class TorchSimPotential(BasePotential):
             self.results["forces"] = forces_np
 
     def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
+        self,
+        atoms: Atoms | None = None,
+        force_consistent: bool = False,
     ) -> float:
         """Get potential energy."""
         if atoms is not None:
@@ -377,17 +393,18 @@ class TorchSimPotential(BasePotential):
         calculate properties for multiple structures simultaneously, providing
         significant speedup over individual calculations.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         atoms_list : List[Atoms]
             List of ASE Atoms objects to calculate properties for
         properties : List[str], optional
             Properties to calculate (default: ["energy", "forces"])
 
-        Returns:
-        --------
+        Returns
+        -------
         List[dict]
             List of result dictionaries, one for each structure
+
         """
         if properties is None:
             properties = ["energy", "forces"]
@@ -397,7 +414,8 @@ class TorchSimPotential(BasePotential):
             self._load_calculator()
 
         if self._model is None:
-            raise RuntimeError("Failed to load TorchSim model")
+            msg = "Failed to load TorchSim model"
+            raise RuntimeError(msg)
 
         # Convert all atoms to TorchSim states
         states = []
@@ -424,29 +442,28 @@ class TorchSimPotential(BasePotential):
 
             # Split results back to individual structures
             return self._split_batch_results(self._batch_results, len(atoms_list), properties)
-        else:
-            # Regular calculator - use individual calculations
-            batch_results = []
-            for atoms in atoms_list:
-                # Set default charge and spin if not already set
-                if "charge" not in atoms.info:
-                    atoms.info["charge"] = self.default_charge
-                if "spin" not in atoms.info:
-                    atoms.info["spin"] = self.default_spin
+        # Regular calculator - use individual calculations
+        batch_results = []
+        for atoms in atoms_list:
+            # Set default charge and spin if not already set
+            if "charge" not in atoms.info:
+                atoms.info["charge"] = self.default_charge
+            if "spin" not in atoms.info:
+                atoms.info["spin"] = self.default_spin
 
-                atoms.calc = self._model
+            atoms.calc = self._model
 
-                # Calculate properties
-                self._model.calculate(atoms, properties=properties, system_changes=all_changes)
+            # Calculate properties
+            self._model.calculate(atoms, properties=properties, system_changes=all_changes)
 
-                # Extract results
-                result = {}
-                for prop in properties:
-                    if prop in self._model.results:
-                        result[prop] = self._model.results[prop]
-                batch_results.append(result)
+            # Extract results
+            result = {}
+            for prop in properties:
+                if prop in self._model.results:
+                    result[prop] = self._model.results[prop]
+            batch_results.append(result)
 
-            return batch_results
+        return batch_results
 
     def _batch_states(self, states: list[Any]) -> Any:
         """Batch multiple TorchSim states using proper TorchSim batching."""
@@ -465,23 +482,22 @@ class TorchSimPotential(BasePotential):
                     return states[0]
 
                 # Fallback: Manual batching for TorchSim models
-                elif len(states) > 1:
+                if len(states) > 1:
                     # Create a proper batch by concatenating states
                     batch_state = self._create_manual_batch(states)
                     batch_results = self._model(batch_state)
                     self._batch_results = self._split_batch_results(batch_results, len(states))
                     return states[0]
 
-                else:
-                    # Single state - process normally
-                    result = self._model(states[0])
-                    self._batch_results = [result]
-                    return states[0]
+                # Single state - process normally
+                result = self._model(states[0])
+                self._batch_results = [result]
+                return states[0]
 
             except Exception as e:
                 # Fallback to individual processing if batching fails
                 logger.warning(
-                    "TorchSim batching failed (" f"{e}), " "falling back to individual processing"
+                    f"TorchSim batching failed ({e}), falling back to individual processing",
                 )
                 batch_results = []
                 for state in states:
@@ -529,13 +545,13 @@ class TorchSimPotential(BasePotential):
                     [
                         torch.tensor(pos, dtype=dtype, device=device),
                         torch.zeros(pad_size, 3, dtype=dtype, device=device),
-                    ]
+                    ],
                 )
                 num_padded = torch.cat(
                     [
                         torch.tensor(num, dtype=torch.long, device=device),
                         torch.zeros(pad_size, dtype=torch.long, device=device),
-                    ]
+                    ],
                 )
             else:
                 pos_padded = torch.tensor(pos, dtype=dtype, device=device)
@@ -552,14 +568,12 @@ class TorchSimPotential(BasePotential):
 
         # Create batch state (this depends on TorchSim's state format)
         # For now, we'll create a simple batch state that mimics the individual state structure
-        batch_state = type(states[0])(
+        return type(states[0])(
             positions=batch_positions,
             numbers=batch_numbers,
             charge=batch_charges,
             spin=batch_spins,
         )
-
-        return batch_state
 
     def _fallback_individual_calculations(self, states: list[Any]) -> list[dict[str, Any]]:
         """Fallback for regular calculators (CPU compatible)."""
@@ -570,7 +584,9 @@ class TorchSimPotential(BasePotential):
 
             # Calculate properties
             self._model.calculate(
-                atoms, properties=["energy", "forces"], system_changes=all_changes
+                atoms,
+                properties=["energy", "forces"],
+                system_changes=all_changes,
             )
 
             result = {
@@ -582,7 +598,10 @@ class TorchSimPotential(BasePotential):
         return batch_results
 
     def _split_batch_results(
-        self, batch_results: Any, n_structures: int, properties: list[str] | None = None
+        self,
+        batch_results: Any,
+        n_structures: int,
+        properties: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Split batch results back to individual structure results."""
         if properties is None:

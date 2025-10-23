@@ -1,5 +1,4 @@
-"""
-MACE Machine Learning Potential integration for ASE.
+"""MACE Machine Learning Potential integration for ASE.
 
 This module implements a MACE calculator integration using the MACE-OMOL-0
 foundation model for molecular systems, transition metals, and cations.
@@ -7,18 +6,19 @@ foundation model for molecular systems, transition metals, and cations.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
-
-from ase import Atoms
+from typing import TYPE_CHECKING, Any
 
 from qme.dependencies import deps
 from qme.potentials.base_potential import BasePotential
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from ase import Atoms
+
 
 class MACEPotential(BasePotential):
-    """
-    MACE potential calculator using foundation models.
+    """MACE potential calculator using foundation models.
 
     This calculator provides access to MACE foundation models, particularly
     the MACE-OMOL-0 model which is excellent for molecules, transition metals,
@@ -28,13 +28,15 @@ class MACEPotential(BasePotential):
     implemented_properties = ["energy", "forces"]
 
     def __init__(
-        self, model_name: str | None = None, device: str | None = None, **kwargs: Any
+        self,
+        model_name: str | None = None,
+        device: str | None = None,
+        **kwargs: Any,
     ) -> None:
-        """
-        Initialize MACE potential calculator.
+        """Initialize MACE potential calculator.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         model_name : str, optional
             MACE model to use. Defaults to "mace-omol-0"
             Available options:
@@ -45,6 +47,7 @@ class MACEPotential(BasePotential):
             Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
         **kwargs : dict
             Additional arguments passed to Calculator
+
         """
         if model_name is None:
             model_name = "mace-omol-0"
@@ -62,13 +65,18 @@ class MACEPotential(BasePotential):
         from qme.logging_utils import quiet_backend_loading
 
         if not deps.has("torch"):
+            msg = "PyTorch is required for MACE backend. Install with: pip install torch"
             raise ImportError(
-                "PyTorch is required for MACE backend. " "Install with: pip install torch"
+                msg,
             )
 
         # Don't show model info - let the outer context handle it
         with quiet_backend_loading(
-            "mace", self.model_name, None, self.device, show_model_info=False
+            "mace",
+            self.model_name,
+            None,
+            self.device,
+            show_model_info=False,
         ):
             try:
                 # Try to import MACE calculators
@@ -95,7 +103,8 @@ class MACEPotential(BasePotential):
                     self._calc = mace_omol(device=self.device or "cpu")
 
             except ImportError as e:
-                raise ImportError(f"MACE not available ({e}). Install with: pip install mace-torch")
+                msg = f"MACE not available ({e}). Install with: pip install mace-torch"
+                raise ImportError(msg)
             except (ValueError, AttributeError, RuntimeError) as e:
                 if any(
                     phrase in str(e)
@@ -105,7 +114,7 @@ class MACEPotential(BasePotential):
                         "tensor size",
                     ]
                 ):
-                    raise ImportError(
+                    msg = (
                         f"MACE compatibility issue with e3nn versions. "
                         f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn "
                         f"{self._get_e3nn_version()} is installed. "
@@ -116,8 +125,10 @@ class MACEPotential(BasePotential):
                         f"\n3. Wait for MACE update compatible with e3nn 0.5+"
                         f"\n\nOriginal error: {e}"
                     )
-                else:
-                    raise
+                    raise ImportError(
+                        msg,
+                    )
+                raise
 
     def _get_e3nn_version(self) -> str:
         """Get the installed e3nn version."""
@@ -148,14 +159,15 @@ class MACEPotential(BasePotential):
             self._load_calculator()
 
         if self._calc is None:
-            raise RuntimeError("Failed to load MACE calculator")
+            msg = "Failed to load MACE calculator"
+            raise RuntimeError(msg)
 
         # Delegate to the underlying MACE calculator
         try:
             self._calc.calculate(self.atoms, properties, system_changes)
         except (AttributeError, RuntimeError) as e:
             if any(phrase in str(e) for phrase in ["_compiled_main", "tensor size"]):
-                raise ImportError(
+                msg = (
                     f"MACE calculation failed due to e3nn compatibility issues. "
                     f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn "
                     f"{self._get_e3nn_version()} is installed. "
@@ -165,8 +177,10 @@ class MACEPotential(BasePotential):
                     f"\n3. Wait for MACE update compatible with e3nn 0.5+"
                     f"\n\nOriginal error: {e}"
                 )
-            else:
-                raise
+                raise ImportError(
+                    msg,
+                )
+            raise
 
         # Copy results from underlying calculator
         try:
@@ -188,7 +202,7 @@ class MACEPotential(BasePotential):
             return super().get_potential_energy(atoms, force_consistent)
         except (AttributeError, RuntimeError) as e:
             if any(phrase in str(e) for phrase in ["_compiled_main", "tensor size"]):
-                raise ImportError(
+                msg = (
                     f"MACE calculation failed due to e3nn compatibility issues. "
                     f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn "
                     f"{self._get_e3nn_version()} is installed. "
@@ -198,8 +212,10 @@ class MACEPotential(BasePotential):
                     f"\n3. Wait for MACE update compatible with e3nn 0.5+"
                     f"\n\nOriginal error: {e}"
                 )
-            else:
-                raise
+                raise ImportError(
+                    msg,
+                )
+            raise
 
     def get_forces(self, atoms=None):
         """Get forces on atoms."""
@@ -218,19 +234,19 @@ class MACEPotential(BasePotential):
 
         if hasattr(self._calc, "get_stress"):
             return self._calc.get_stress(atoms)
-        else:
-            msg = "Stress calculation not supported by this MACE model"
-            raise NotImplementedError(msg)
+        msg = "Stress calculation not supported by this MACE model"
+        raise NotImplementedError(msg)
 
 
 def get_mace_calculator(
-    model_name: str | None = None, device: str | None = None, **kwargs
+    model_name: str | None = None,
+    device: str | None = None,
+    **kwargs,
 ) -> MACEPotential:
-    """
-    Factory function to create MACE calculator.
+    """Factory function to create MACE calculator.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     model_name : str, optional
         MACE model to use. Defaults to "mace-omol-0"
     device : str, optional
@@ -238,15 +254,16 @@ def get_mace_calculator(
     **kwargs : dict
         Additional arguments passed to MACEPotential
 
-    Returns:
-    --------
+    Returns
+    -------
     MACEPotential
         Configured MACE calculator instance
 
-    Examples:
-    ---------
+    Examples
+    --------
     >>> calc = get_mace_calculator()  # Uses MACE-OMOL-0
     >>> calc = get_mace_calculator(model_name="mace-mp-medium")
     >>> calc = get_mace_calculator(model_name="mace-off-large", device="cuda")
+
     """
     return MACEPotential(model_name=model_name, device=device, **kwargs)

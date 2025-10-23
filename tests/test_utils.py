@@ -1,5 +1,4 @@
-"""
-Standardized test utilities for QME test suite.
+"""Standardized test utilities for QME test suite.
 
 This module provides common utilities, fixtures, and patterns used across
 all test modules to ensure consistency and reduce duplication.
@@ -212,11 +211,7 @@ class TestResultHandler:
     def normalize_result(result) -> dict:
         """Normalize optimization result to standard dictionary format."""
         # Handle list return format from run() method
-        if isinstance(result, list) and len(result) > 0:
-            strategy_result = result[0]
-        else:
-            strategy_result = result
-        return strategy_result
+        return result[0] if isinstance(result, list) and len(result) > 0 else result
 
     @staticmethod
     def extract_atoms(result) -> Atoms:
@@ -249,6 +244,7 @@ class TestResultHandler:
 
         Raises:
             AssertionError: If result format is unexpected or missing required keys
+
         """
         # Handle list return format from run() method
         if isinstance(result, list) and len(result) > 0:
@@ -267,9 +263,9 @@ class TestResultHandler:
             strategy_result = result
 
         # Ensure we have the expected structure
-        assert isinstance(
-            strategy_result, dict
-        ), f"Expected dict result, got {type(strategy_result)}"
+        assert isinstance(strategy_result, dict), (
+            f"Expected dict result, got {type(strategy_result)}"
+        )
         assert "optimized_atoms" in strategy_result, "Missing 'optimized_atoms' in result"
 
         return strategy_result
@@ -408,8 +404,7 @@ def backend_test_with_warnings(
     include_mock: bool = False,
     test_name_suffix: str = "",
 ) -> Callable:
-    """
-    Decorator to run a test across multiple backends with graceful failure handling.
+    """Decorator to run a test across multiple backends with graceful failure handling.
 
     When a backend fails, it logs a warning but continues testing other backends.
     The test only fails if ALL backends fail.
@@ -421,6 +416,7 @@ def backend_test_with_warnings(
 
     Returns:
         Decorated test function that handles backend failures gracefully.
+
     """
     import functools
 
@@ -450,7 +446,7 @@ def backend_test_with_warnings(
 
                 except Exception as e:
                     # Log the failure as a warning
-                    warning_msg = f"Backend '{backend}' failed: {str(e)}"
+                    warning_msg = f"Backend '{backend}' failed: {e!s}"
                     warnings.warn(warning_msg, BackendTestWarning, stacklevel=2)
                     warnings_list.append((backend, str(e)))
                     results[backend] = {"success": False, "error": str(e)}
@@ -466,10 +462,7 @@ def backend_test_with_warnings(
 
             # Some backends succeeded - log summary
             if failed_backends:
-                print(f"\nBackend test summary for {test_func.__name__}:")
-                print(f"  ✅ Successful: {', '.join(successful_backends)}")
-                print(f"  ⚠️  Failed: {', '.join(failed_backends)}")
-                print(f"  Total: {len(available_backends)} backends tested")
+                pass
 
             # Return results for potential inspection
             return results
@@ -485,8 +478,7 @@ def run_backend_test_with_warnings(
     include_mock: bool = False,
     **test_kwargs,
 ) -> dict[str, Any]:
-    """
-    Run a test function across multiple backends with warning-based error handling.
+    """Run a test function across multiple backends with warning-based error handling.
 
     This is a utility function that can be called from within existing tests
     to test multiple backends without modifying the test structure.
@@ -499,6 +491,7 @@ def run_backend_test_with_warnings(
 
     Returns:
         Dictionary mapping backend names to their test results.
+
     """
     if backends is None:
         available_backends = get_available_backends(include_mock=include_mock)
@@ -512,7 +505,7 @@ def run_backend_test_with_warnings(
             result = test_func(backend=backend, **test_kwargs)
             results[backend] = {"success": True, "result": result}
         except Exception as e:
-            warning_msg = f"Backend '{backend}' failed: {str(e)}"
+            warning_msg = f"Backend '{backend}' failed: {e!s}"
             warnings.warn(warning_msg, BackendTestWarning, stacklevel=2)
             results[backend] = {"success": False, "error": str(e)}
 
@@ -524,8 +517,7 @@ class BackendTestRunner:
 
     @staticmethod
     def run_with_warnings(test_func, backends=None, include_mock=False, **test_kwargs):
-        """
-        Run a test function across multiple backends with warning-based error handling.
+        """Run a test function across multiple backends with warning-based error handling.
 
         Args:
             test_func: The test function to run
@@ -535,30 +527,34 @@ class BackendTestRunner:
 
         Returns:
             Dictionary mapping backend names to their test results.
+
         """
         return run_backend_test_with_warnings(
-            test_func, backends=backends, include_mock=include_mock, **test_kwargs
+            test_func,
+            backends=backends,
+            include_mock=include_mock,
+            **test_kwargs,
         )
 
     @staticmethod
     def assert_backend_results(results, min_successful=1):
-        """
-        Assert that at least a minimum number of backends succeeded.
+        """Assert that at least a minimum number of backends succeeded.
 
         Args:
             results: Dictionary from run_with_warnings
             min_successful: Minimum number of backends that must succeed
+
         """
         successful = [b for b, r in results.items() if r["success"]]
         failed = [b for b, r in results.items() if not r["success"]]
 
         if len(successful) < min_successful:
             error_summary = "\n".join(
-                [f"  {b}: {r['error']}" for b, r in results.items() if not r["success"]]
+                [f"  {b}: {r['error']}" for b, r in results.items() if not r["success"]],
             )
             pytest.fail(
                 f"Not enough backends succeeded. Required: {min_successful}, "
-                f"Got: {len(successful)}\nFailed backends:\n{error_summary}"
+                f"Got: {len(successful)}\nFailed backends:\n{error_summary}",
             )
 
         # Log warnings for failed backends

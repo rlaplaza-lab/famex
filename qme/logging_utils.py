@@ -1,6 +1,4 @@
-"""
-Logging utilities for QME to manage verbose output from ML backends.
-"""
+"""Logging utilities for QME to manage verbose output from ML backends."""
 
 from __future__ import annotations
 
@@ -9,7 +7,10 @@ import logging
 import sys
 import threading
 import warnings
-from collections.abc import Generator
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # Thread-local storage to track if we're already in a quiet_backend_loading context
 _quiet_context_local = threading.local()
@@ -53,6 +54,7 @@ class VerboseFilter(logging.Filter):
         -------
         bool
             True if message should be shown, False if suppressed
+
         """
         # Check if logger is in suppressed list
         for logger_name in self.SUPPRESSED_LOGGERS:
@@ -66,8 +68,7 @@ class VerboseFilter(logging.Filter):
 
 @contextlib.contextmanager
 def suppress_ml_warnings() -> Generator[list[str], None, None]:
-    """
-    Context manager to suppress verbose warnings and info messages from ML backends.
+    """Context manager to suppress verbose warnings and info messages from ML backends.
 
     This captures and suppresses:
     - JAX backend initialization messages
@@ -136,8 +137,7 @@ def print_model_info(
     model_path: str | None = None,
     device: str | None = None,
 ) -> None:
-    """
-    Print clean model information for the user.
+    """Print clean model information for the user.
 
     Parameters
     ----------
@@ -149,6 +149,7 @@ def print_model_info(
         Path to model file (for local models)
     device : str, optional
         Device being used (cpu/cuda)
+
     """
     import click
 
@@ -183,6 +184,7 @@ def is_in_quiet_context() -> bool:
     -------
     bool
         True if we're in a quiet context, False otherwise
+
     """
     return getattr(_quiet_context_local, "in_quiet_context", False)
 
@@ -195,8 +197,7 @@ def quiet_backend_loading(
     device: str | None = None,
     show_model_info: bool = True,
 ) -> Generator[list[str], None, None]:
-    """
-    Context manager for quiet backend loading with optional model info display.
+    """Context manager for quiet backend loading with optional model info display.
 
     Parameters
     ----------
@@ -215,6 +216,7 @@ def quiet_backend_loading(
     ------
     List[str]
         List of captured messages during backend loading
+
     """
     # Check if we're already in a quiet context before setting the flag
     was_already_in_context = is_in_quiet_context()
@@ -251,6 +253,7 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
         - 2: DEBUG and above (verbose)
     force : bool
         Force reconfiguration even if already configured
+
     """
     global _qme_logging_configured, _qme_log_level
 
@@ -287,11 +290,11 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
             """Format log record with clean output for INFO level."""
             if record.levelno == logging.INFO:
                 return record.getMessage()
-            elif record.levelno == logging.DEBUG:
+            if record.levelno == logging.DEBUG:
                 return f"[DEBUG] {record.getMessage()}"
-            elif record.levelno == logging.WARNING:
+            if record.levelno == logging.WARNING:
                 return f"⚠️  {record.getMessage()}"
-            elif record.levelno >= logging.ERROR:
+            if record.levelno >= logging.ERROR:
                 return f"❌ {record.getMessage()}"
             return record.getMessage()
 
@@ -316,13 +319,11 @@ def get_qme_logger(name: str) -> logging.Logger:
     -------
     logging.Logger
         Configured logger instance
+
     """
     # Ensure name starts with 'qme.'
     if not name.startswith("qme"):
-        if name == "__main__":
-            name = "qme"
-        else:
-            name = f"qme.{name}"
+        name = "qme" if name == "__main__" else f"qme.{name}"
 
     return logging.getLogger(name)
 

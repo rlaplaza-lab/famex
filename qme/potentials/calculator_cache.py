@@ -1,5 +1,4 @@
-"""
-Calculator caching utilities for QME.
+"""Calculator caching utilities for QME.
 
 This module provides basic calculator caching to avoid recreating
 calculators with the same parameters.
@@ -18,13 +17,13 @@ class CalculatorCache:
     """Simple calculator cache using weak references."""
 
     def __init__(self, max_size: int = 10) -> None:
-        """
-        Initialize calculator cache.
+        """Initialize calculator cache.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         max_size : int
             Maximum number of calculators to cache
+
         """
         self.max_size = max_size
         self._cache: WeakValueDictionary = WeakValueDictionary()
@@ -32,7 +31,11 @@ class CalculatorCache:
         self._access_counter = 0
 
     def _generate_key(
-        self, backend: str, model_name: str | None, device: str | None, **kwargs: Any
+        self,
+        backend: str,
+        model_name: str | None,
+        device: str | None,
+        **kwargs: Any,
     ) -> str:
         """Generate a cache key for calculator parameters."""
         # Create a sorted dictionary of parameters for consistent hashing
@@ -51,13 +54,16 @@ class CalculatorCache:
         return hashlib.md5(param_str.encode()).hexdigest()[:16]
 
     def get(
-        self, backend: str, model_name: str | None, device: str | None, **kwargs: Any
+        self,
+        backend: str,
+        model_name: str | None,
+        device: str | None,
+        **kwargs: Any,
     ) -> Any | None:
-        """
-        Get cached calculator if available.
+        """Get cached calculator if available.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         backend : str
             Calculator backend
         model_name : str, optional
@@ -67,10 +73,11 @@ class CalculatorCache:
         **kwargs
             Additional calculator parameters
 
-        Returns:
-        --------
+        Returns
+        -------
         Calculator or None
             Cached calculator if available, None otherwise
+
         """
         key = self._generate_key(backend, model_name, device, **kwargs)
 
@@ -90,11 +97,10 @@ class CalculatorCache:
         device: str | None,
         **kwargs: Any,
     ) -> str:
-        """
-        Cache a calculator.
+        """Cache a calculator.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         calculator : Any
             Calculator instance to cache
         backend : str
@@ -106,10 +112,11 @@ class CalculatorCache:
         **kwargs
             Additional calculator parameters
 
-        Returns:
-        --------
+        Returns
+        -------
         str
             Cache key for the calculator
+
         """
         key = self._generate_key(backend, model_name, device, **kwargs)
 
@@ -144,7 +151,6 @@ class CalculatorCache:
         self._access_counter = 0
 
 
-
 # Global calculator cache instance
 _calculator_cache = None
 
@@ -158,13 +164,15 @@ def _get_calculator_cache() -> CalculatorCache:
 
 
 def get_cached_calculator(
-    backend: str, model_name: str | None, device: str | None, **kwargs: Any
+    backend: str,
+    model_name: str | None,
+    device: str | None,
+    **kwargs: Any,
 ) -> Any | None:
-    """
-    Get a cached calculator if available.
+    """Get a cached calculator if available.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     backend : str
         Calculator backend
     model_name : str, optional
@@ -174,10 +182,11 @@ def get_cached_calculator(
     **kwargs
         Additional calculator parameters
 
-    Returns:
-    --------
+    Returns
+    -------
     Calculator or None
         Cached calculator if available, None otherwise
+
     """
     cache = _get_calculator_cache()
     return cache.get(backend, model_name, device, **kwargs)
@@ -190,11 +199,10 @@ def cache_calculator(
     device: str | None,
     **kwargs: Any,
 ) -> str:
-    """
-    Cache a calculator.
+    """Cache a calculator.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     calculator : Any
         Calculator instance to cache
     backend : str
@@ -206,10 +214,11 @@ def cache_calculator(
     **kwargs
         Additional calculator parameters
 
-    Returns:
-    --------
+    Returns
+    -------
     str
         Cache key for the calculator
+
     """
     cache = _get_calculator_cache()
     return cache.put(calculator, backend, model_name, device, **kwargs)

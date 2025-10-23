@@ -1,6 +1,4 @@
-"""
-Cache management commands for QME CLI.
-"""
+"""Cache management commands for QME CLI."""
 
 import click
 
@@ -8,12 +6,12 @@ from qme.potentials.model_cache import get_model_cache
 
 
 @click.group(help="Manage QME model cache")
-def cache():
+def cache() -> None:
     """Manage QME model cache."""
 
 
 @cache.command(help="Show cache information")
-def info():
+def info() -> None:
     """Show information about cached models."""
     cache = get_model_cache()
     info = cache.get_cache_info()
@@ -36,28 +34,26 @@ def info():
 @cache.command(help="Clear model cache")
 @click.option("--model", help="Specific model to clear (optional)")
 @click.option("--yes", is_flag=True, help="Skip confirmation prompt")
-def clear(model, yes):
+def clear(model, yes) -> None:
     """Clear model cache."""
     cache = get_model_cache()
 
     if model:
-        if not yes:
-            if not click.confirm(f"Clear cache for model '{model}'?"):
-                click.echo("Cancelled.")
-                return
+        if not yes and not click.confirm(f"Clear cache for model '{model}'?"):
+            click.echo("Cancelled.")
+            return
         cache.clear_cache(model)
         click.echo(f"Cleared cache for model '{model}'.")
     else:
-        if not yes:
-            if not click.confirm("Clear entire model cache?"):
-                click.echo("Cancelled.")
-                return
+        if not yes and not click.confirm("Clear entire model cache?"):
+            click.echo("Cancelled.")
+            return
         cache.clear_cache()
         click.echo("Cleared entire model cache.")
 
 
 @cache.command(help="Verify cache integrity")
-def verify():
+def verify() -> None:
     """Verify integrity of cached models."""
     cache = get_model_cache()
     info = cache.get_cache_info()

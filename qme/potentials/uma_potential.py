@@ -1,18 +1,19 @@
-"""
-UMA Machine Learning Potential integration for ASE.
-"""
+"""UMA Machine Learning Potential integration for ASE."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
-from ase import Atoms
 from ase.calculators.calculator import all_changes
 
 from qme.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    import numpy as np
+    from ase import Atoms
 
 
 class UMAPotential(BasePotential):
@@ -33,6 +34,7 @@ class UMAPotential(BasePotential):
         Default spin multiplicity to use if not specified in atoms.info
     **kwargs
         Additional arguments passed to BasePotential
+
     """
 
     implemented_properties = ["energy", "forces"]
@@ -45,8 +47,7 @@ class UMAPotential(BasePotential):
         default_spin: int = 1,
         **kwargs: Any,
     ) -> None:
-        """
-        Initialize UMA potential calculator.
+        """Initialize UMA potential calculator.
 
         Parameters
         ----------
@@ -58,8 +59,8 @@ class UMAPotential(BasePotential):
             Default charge to use if not specified in atoms.info
         default_spin : int, default 1
             Default spin multiplicity to use if not specified in atoms.info
-        """
 
+        """
         # Don't check dependencies here - let _load_calculator handle it
         # This avoids early imports that might interfere with fairchem
 
@@ -86,14 +87,21 @@ class UMAPotential(BasePotential):
 
         # Don't show model info - let the outer context handle it
         with quiet_backend_loading(
-            "uma", self.model_name, None, self.device, show_model_info=False
+            "uma",
+            self.model_name,
+            None,
+            self.device,
+            show_model_info=False,
         ):
             try:
                 # Check fairchem availability without forcing PyTorch import
                 if not deps.has("fairchem"):
-                    raise ImportError(
+                    msg = (
                         "fairchem-core is required for UMA potentials. "
                         "Install with: pip install fairchem-core"
+                    )
+                    raise ImportError(
+                        msg,
                     )
 
                 # Use the dependency system to get fairchem components (lazy-loaded)
@@ -101,17 +109,15 @@ class UMAPotential(BasePotential):
                 FAIRChemCalculator = deps.get("fairchem_calculator")
 
                 if not pretrained_mlip or not FAIRChemCalculator:
+                    msg = "FairChem v2 components not available"
                     raise RuntimeError(
-                        "FairChem v2 components not available"
+                        msg,
                     )  # Load UMA model using v2 API
                 # Ensure model_name is not None
                 model_name = self.model_name or "uma-s-1p1"
 
                 # Ensure device is compatible
-                if self.device == "cuda":
-                    device_param = "cuda"
-                else:
-                    device_param = "cpu"
+                device_param = "cuda" if self.device == "cuda" else "cpu"
 
                 self.predictor = pretrained_mlip.get_predict_unit(model_name, device=device_param)
 
@@ -127,9 +133,12 @@ class UMAPotential(BasePotential):
 
             except Exception as e:
                 # If anything goes wrong while initializing the UMA model, raise a clear error
-                raise RuntimeError(
+                msg = (
                     f"Failed to load UMA model '{self.model_name}'. Error: {e}. "
                     f"Make sure fairchem-core is properly installed and the model is available."
+                )
+                raise RuntimeError(
+                    msg,
                 )
 
     def calculate(
@@ -139,11 +148,11 @@ class UMAPotential(BasePotential):
         system_changes: Any = all_changes,
     ) -> None:
         """Calculate properties using UMA potential."""
-
         super().calculate(atoms, properties, system_changes)
 
         if atoms is None:
-            raise ValueError("atoms cannot be None")
+            msg = "atoms cannot be None"
+            raise ValueError(msg)
 
         # Set default charge and spin if not already set to avoid warnings
         if "charge" not in atoms.info:
@@ -156,14 +165,15 @@ class UMAPotential(BasePotential):
             self._load_calculator()
 
         if self._calc is None:
-            raise RuntimeError("Failed to load UMA calculator")
+            msg = "Failed to load UMA calculator"
+            raise RuntimeError(msg)
 
         # Use the underlying calculator directly
         try:
             self._calc.calculate(atoms, properties, system_changes)
         except RuntimeError as e:
             if "expected scalar type Double but found Float" in str(
-                e
+                e,
             ) or "mat1 and mat2 must have the same dtype, but got Double and Float" in str(e):
                 # Try to set model to use float32 precision consistently
                 if self.predictor is not None and hasattr(self.predictor, "model"):
@@ -179,9 +189,12 @@ class UMAPotential(BasePotential):
                     # Retry calculation
                     self._calc.calculate(atoms, properties, system_changes)
                 else:
-                    raise RuntimeError(
+                    msg = (
                         f"UMA model precision mismatch. {e}. "
                         "This may be due to model expecting different tensor precision."
+                    )
+                    raise RuntimeError(
+                        msg,
                     )
             else:
                 raise
@@ -204,7 +217,9 @@ class UMAPotential(BasePotential):
         return "uma"
 
     def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
+        self,
+        atoms: Atoms | None = None,
+        force_consistent: bool = False,
     ) -> float:
         """Get potential energy (ASE-compatible)."""
         return super().get_potential_energy(atoms, force_consistent)
@@ -215,8 +230,7 @@ class UMAPotential(BasePotential):
 
 
 def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs: Any) -> UMAPotential:
-    """
-    Convenience function to get UMA calculator.
+    """Convenience function to get UMA calculator.
 
     Parameters
     ----------
@@ -237,5 +251,6 @@ def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs: Any) -> UMAPoten
 
     >>> # Get specific model
     >>> calc = get_uma_calculator("uma-s-1p1", device="cuda")
+
     """
     return UMAPotential(model_name=model_name, **kwargs)

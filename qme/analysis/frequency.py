@@ -1,5 +1,4 @@
-"""
-Vibrational frequency analysis for QME.
+"""Vibrational frequency analysis for QME.
 
 This module provides comprehensive vibrational frequency analysis capabilities including:
 - Hessian matrix calculations using finite differences or direct methods
@@ -22,20 +21,14 @@ from ase.parallel import world
 from ase.thermochemistry import HarmonicThermo
 from scipy.linalg import eigh
 
-from qme.core.validation import QMEError
 from qme.logging_utils import get_qme_logger
+from qme.utils.validation import QMEError
 
 logger = get_qme_logger(__name__)
 
 
-def _supports_batch_evaluation(calculator: Any) -> bool:
-    """Check if calculator supports batch evaluation."""
-    return hasattr(calculator, "supports_batch_evaluation") and calculator.supports_batch_evaluation
-
-
 class FrequencyAnalysis:
-    """
-    Vibrational frequency analysis with automatic Hessian method selection.
+    """Vibrational frequency analysis with automatic Hessian method selection.
 
     Supports both direct Hessian calculation (when available from calculator)
     and finite difference Hessian calculation as fallback.
@@ -50,11 +43,10 @@ class FrequencyAnalysis:
         indices: list[int] | None = None,
         verbose: int = 1,
     ) -> None:
-        """
-        Initialize frequency analysis.
+        """Initialize frequency analysis.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         atoms : Atoms
             ASE Atoms object for the structure
         calculator : Calculator
@@ -72,6 +64,7 @@ class FrequencyAnalysis:
             - 0: Quiet (minimal output)
             - 1: Normal (default, shows progress)
             - 2: Verbose (detailed information)
+
         """
         self.atoms = atoms
         self.calculator = calculator
@@ -98,12 +91,11 @@ class FrequencyAnalysis:
         """Determine number of degrees of freedom to remove (translation + rotation)."""
         if len(self.indices) == 1:
             return 3  # Only translation for single atom
-        elif len(self.indices) == 2:
+        if len(self.indices) == 2:
             return 5  # 3 translation + 2 rotation for 2-atom molecules (always linear)
-        elif self._is_linear():
+        if self._is_linear():
             return 5  # 3 translation + 2 rotation for linear molecules
-        else:
-            return 6  # 3 translation + 3 rotation for non-linear molecules
+        return 6  # 3 translation + 3 rotation for non-linear molecules
 
     def _is_linear(self) -> bool:
         """Check if molecule is linear."""
@@ -144,23 +136,26 @@ class FrequencyAnalysis:
         return eigenvalues[0] < 1e-6
 
     def calculate_hessian(self, method: str = "auto") -> np.ndarray:
-        """
-        Calculate Hessian matrix using the most appropriate method.
+        """Calculate Hessian matrix using the most appropriate method.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         method : str
             Method to use: 'auto', 'direct_frequencies', 'direct', 'batch', or 'finite_differences'
 
-        Returns:
-        --------
+        Returns
+        -------
         np.ndarray
             Hessian matrix (3N x 3N for N atoms)
+
         """
         if method == "auto":
             if self._supports_direct_frequencies():
                 method = "direct_frequencies"
-            elif _supports_batch_evaluation(self.calculator):
+            elif (
+                hasattr(self.calculator, "supports_batch_evaluation")
+                and self.calculator.supports_batch_evaluation
+            ):
                 method = "batch"
             elif self._supports_direct_hessian():
                 # Try direct method but be prepared to fall back
@@ -177,20 +172,30 @@ class FrequencyAnalysis:
             self._hessian = self._calculate_hessian_batch()
         elif method == "finite_differences":
             hessian_calc = HessianCalculator(
-                self.atoms, self.calculator, self.delta, indices=self.indices, verbose=self.verbose
+                self.atoms,
+                self.calculator,
+                self.delta,
+                indices=self.indices,
+                verbose=self.verbose,
             )
             self._hessian = hessian_calc.calculate_numerical_hessian()
         else:
-            raise ValueError(f"Unknown Hessian method: {method}")
+            msg = f"Unknown Hessian method: {method}"
+            raise ValueError(msg)
 
         if self._hessian is None:
-            raise RuntimeError("Hessian calculation failed")
+            msg = "Hessian calculation failed"
+            raise RuntimeError(msg)
         return self._hessian
 
     def _calculate_hessian_batch(self) -> np.ndarray:
         """Calculate Hessian using batch evaluation for improved performance."""
-        if not _supports_batch_evaluation(self.calculator):
-            raise RuntimeError("Calculator does not support batch evaluation")
+        if not (
+            hasattr(self.calculator, "supports_batch_evaluation")
+            and self.calculator.supports_batch_evaluation
+        ):
+            msg = "Calculator does not support batch evaluation"
+            raise RuntimeError(msg)
 
         if self.verbose >= 1:
             logger.info("Using batch evaluation for Hessian calculation...")
@@ -200,7 +205,8 @@ class FrequencyAnalysis:
 
         # Calculate energies and forces for all structures in one batch
         batch_results = self.calculator.calculate_batch(
-            displaced_structures, properties=["energy", "forces"]
+            displaced_structures,
+            properties=["energy", "forces"],
         )
 
         # Construct Hessian matrix from batch results
@@ -234,14 +240,11 @@ class FrequencyAnalysis:
         hessian = np.zeros((3 * n_atoms, 3 * n_atoms))
 
         # Get reference energy and forces
-        # ref_energy = batch_results[0]["energy"]  # Unused for now
-        # ref_forces = batch_results[0]["forces"]  # Unused for now
 
         # Calculate Hessian using finite differences
         result_idx = 1  # Start from index 1 (skip reference structure)
 
         for i in range(n_atoms):
-            # atom_idx = self.indices[i]  # Unused for now
             for j in range(3):  # x, y, z directions
                 # Positive displacement
                 pos_forces = batch_results[result_idx]["forces"]
@@ -262,8 +265,8 @@ class FrequencyAnalysis:
                             neg_forces[atom_k, coord] - pos_forces[atom_k, coord]
                         ) / (2 * self.delta)
 
-        # Convert to eV/Å²
-        hessian *= units.Hartree / units.Bohr**2
+        # Forces are already in eV/Å (ASE standard), no unit conversion needed
+        # This matches the behavior of HessianCalculator.calculate_numerical_hessian()
 
         return hessian
 
@@ -275,7 +278,8 @@ class FrequencyAnalysis:
 
         # Fallback: check for methods only if implemented_properties is not available
         return hasattr(self.calculator, "get_hessian") or hasattr(
-            self.calculator, "calculate_hessian"
+            self.calculator,
+            "calculate_hessian",
         )
 
     def _supports_direct_frequencies(self) -> bool:
@@ -287,7 +291,8 @@ class FrequencyAnalysis:
             return True
 
         return hasattr(self.calculator, "get_frequencies") or hasattr(
-            self.calculator, "calculate_frequencies"
+            self.calculator,
+            "calculate_frequencies",
         )
 
     def _calculate_direct_frequencies(self) -> np.ndarray:
@@ -300,8 +305,7 @@ class FrequencyAnalysis:
 
         if hasattr(self.calculator, "get_frequencies"):
             return self.calculator.get_frequencies(self.atoms)
-        else:
-            return self.calculator.calculate_frequencies(self.atoms)
+        return self.calculator.calculate_frequencies(self.atoms)
 
     def _calculate_direct_hessian(self) -> np.ndarray:
         """Calculate Hessian directly from calculator (when supported)."""
@@ -313,20 +317,20 @@ class FrequencyAnalysis:
 
         if hasattr(self.calculator, "get_hessian"):
             return self.calculator.get_hessian(self.atoms)
-        else:
-            return self.calculator.calculate_hessian(self.atoms)
+        return self.calculator.calculate_hessian(self.atoms)
 
     def diagonalize_hessian(self) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Diagonalize mass-weighted Hessian to get normal modes and frequencies.
+        """Diagonalize mass-weighted Hessian to get normal modes and frequencies.
 
-        Returns:
-        --------
+        Returns
+        -------
         Tuple[np.ndarray, np.ndarray]
             eigenvalues (frequencies^2) and eigenvectors (normal modes)
+
         """
         if self._hessian is None:
-            raise QMEError("Hessian not calculated. Call calculate_hessian() first.")
+            msg = "Hessian not calculated. Call calculate_hessian() first."
+            raise QMEError(msg)
 
         # Mass-weight the Hessian
         masses = self.atoms.get_masses()[self.indices]
@@ -365,18 +369,18 @@ class FrequencyAnalysis:
         return frequencies, eigenvectors
 
     def get_frequencies(self, unit: str = "cm-1") -> np.ndarray:
-        """
-        Get vibrational frequencies in specified units.
+        """Get vibrational frequencies in specified units.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         unit : str
             Unit for frequencies: 'cm-1', 'meV', 'THz'
 
-        Returns:
-        --------
+        Returns
+        -------
         np.ndarray
             Vibrational frequencies, excluding translational and rotational modes
+
         """
         # Check if we have direct frequencies from calculator
         if self._direct_frequencies is not None:
@@ -389,7 +393,8 @@ class FrequencyAnalysis:
                 self.diagonalize_hessian()
 
             if self._frequencies is None:
-                raise QMEError("Frequencies not calculated")
+                msg = "Frequencies not calculated"
+                raise QMEError(msg)
 
             frequencies = self._frequencies
 
@@ -397,39 +402,42 @@ class FrequencyAnalysis:
 
         if unit == "cm-1":
             return frequencies
-        elif unit == "meV":
+        if unit == "meV":
             # Convert cm^-1 to meV using ASE units
             return frequencies * units.invcm * 1000  # Convert to meV
-        elif unit == "THz":
+        if unit == "THz":
             # Convert cm^-1 to THz using ASE units
             return frequencies * units._c * 100 / 1e12
-        else:
-            raise ValueError(f"Unknown frequency unit: {unit}")
+        msg = f"Unknown frequency unit: {unit}"
+        raise ValueError(msg)
 
     def get_normal_modes(self) -> np.ndarray:
-        """
-        Get normal mode vectors.
+        """Get normal mode vectors.
 
-        Returns:
-        --------
+        Returns
+        -------
         np.ndarray
             Normal mode vectors (3N x 3N-6/5 for vibrational modes only)
+
         """
         if not self._is_calculated:
             self.calculate_hessian()
             self.diagonalize_hessian()
 
         if self._normal_modes is None:
-            raise QMEError("Normal modes not calculated")
+            msg = "Normal modes not calculated"
+            raise QMEError(msg)
 
         return self._normal_modes[:, self.nfree :]
 
-    def is_transition_state(self, threshold: float = 50.0) -> dict[str, bool | int | list[float] | str]:
-        """
-        Check if structure is a transition state (exactly one imaginary frequency).
+    def is_transition_state(
+        self,
+        threshold: float = 50.0,
+    ) -> dict[str, bool | int | list[float] | str]:
+        """Check if structure is a transition state (exactly one imaginary frequency).
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         threshold : float
             Minimum frequency magnitude in cm^-1 to consider significant
 
@@ -444,6 +452,7 @@ class FrequencyAnalysis:
             - all_frequencies: All frequencies (list[float])
             - threshold: Threshold used (float)
             - assessment: Assessment string (str)
+
         """
         frequencies = self.get_frequencies()
 
@@ -471,21 +480,21 @@ class FrequencyAnalysis:
         """Assess type of stationary point based on frequency analysis."""
         if n_imaginary == 0:
             return "Minimum (no imaginary frequencies)"
-        elif n_imaginary == 1:
+        if n_imaginary == 1:
             return "First-order transition state (one imaginary frequency)"
-        elif n_imaginary > 1:
+        if n_imaginary > 1:
             return f"Higher-order saddle point ({n_imaginary} imaginary frequencies)"
-        else:
-            return "Undetermined stationary point type"
+        return "Undetermined stationary point type"
 
     def is_minima(
-        self, threshold: float = 50.0, small_negative_cutoff: float = -10.0
+        self,
+        threshold: float = 50.0,
+        small_negative_cutoff: float = -10.0,
     ) -> dict[str, bool | int | list[float] | str]:
-        """
-        Check if structure is a minimum (no significant imaginary frequencies).
+        """Check if structure is a minimum (no significant imaginary frequencies).
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         threshold : float
             Minimum frequency magnitude in cm^-1 to consider significant
         small_negative_cutoff : float
@@ -506,6 +515,7 @@ class FrequencyAnalysis:
             - threshold: Threshold used (float)
             - small_negative_cutoff: Small negative cutoff used (float)
             - assessment: Assessment string (str)
+
         """
         frequencies = self.get_frequencies()
 
@@ -559,26 +569,24 @@ class FrequencyAnalysis:
                     f"Minimum (no significant imaginary frequencies, "
                     f"{n_small_negative} small negative frequencies likely numerical noise)"
                 )
-            else:
-                return "Minimum (no imaginary frequencies)"
-        elif n_significant_imaginary == 1:
+            return "Minimum (no imaginary frequencies)"
+        if n_significant_imaginary == 1:
             return "First-order transition state (one significant imaginary frequency)"
-        elif n_significant_imaginary > 1:
+        if n_significant_imaginary > 1:
             return (
                 f"Higher-order saddle point "
                 f"({n_significant_imaginary} significant imaginary frequencies)"
             )
-        else:
-            return "Undetermined stationary point type"
+        return "Undetermined stationary point type"
 
     def get_zero_point_energy(self) -> float:
-        """
-        Calculate zero-point vibrational energy.
+        """Calculate zero-point vibrational energy.
 
-        Returns:
-        --------
+        Returns
+        -------
         float
             Zero-point energy in eV
+
         """
         if self._zero_point_energy is not None:
             return self._zero_point_energy
@@ -595,12 +603,14 @@ class FrequencyAnalysis:
         self._zero_point_energy = zpe
         return zpe
 
-    def get_thermodynamic_properties(self, temperature: float = 298.15) -> dict[str, float | int | list[float]]:
-        """
-        Calculate thermodynamic properties at given temperature.
+    def get_thermodynamic_properties(
+        self,
+        temperature: float = 298.15,
+    ) -> dict[str, float | int | list[float]]:
+        """Calculate thermodynamic properties at given temperature.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         temperature : float
             Temperature in Kelvin
 
@@ -615,6 +625,7 @@ class FrequencyAnalysis:
             - entropy: Entropy in eV/K (float)
             - n_vibrational_modes: Number of vibrational modes (int)
             - frequencies_cm_1: Frequencies in cm⁻¹ (list[float])
+
         """
         frequencies = self.get_frequencies()  # in cm^-1
         # Only include real frequencies
@@ -653,11 +664,10 @@ class FrequencyAnalysis:
         amplitude: float = 1.0,
         nframes: int = 20,
     ) -> None:
-        """
-        Write trajectory showing normal mode motion.
+        """Write trajectory showing normal mode motion.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         mode_index : int
             Index of normal mode (0-based, after removing trans/rot modes)
         filename : str, optional
@@ -666,6 +676,7 @@ class FrequencyAnalysis:
             Amplitude of motion in Å
         nframes : int
             Number of frames in trajectory
+
         """
         if not self._is_calculated:
             self.calculate_hessian()
@@ -676,7 +687,8 @@ class FrequencyAnalysis:
 
         normal_modes = self.get_normal_modes()
         if mode_index >= normal_modes.shape[1]:
-            raise ValueError(f"Mode index {mode_index} out of range")
+            msg = f"Mode index {mode_index} out of range"
+            raise ValueError(msg)
 
         mode_vector = normal_modes[:, mode_index].reshape(-1, 3)
 
@@ -698,9 +710,7 @@ class FrequencyAnalysis:
 
 
 class HessianCalculator:
-    """
-    Numerical Hessian calculation using finite differences.
-    """
+    """Numerical Hessian calculation using finite differences."""
 
     def __init__(
         self,
@@ -710,12 +720,11 @@ class HessianCalculator:
         method: str = "central",
         indices: list[int] | None = None,
         verbose: int = 1,
-    ):
-        """
-        Initialize Hessian calculator.
+    ) -> None:
+        """Initialize Hessian calculator.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         atoms : Atoms
             ASE Atoms object
         calculator : Calculator
@@ -731,6 +740,7 @@ class HessianCalculator:
             - 0: Quiet (minimal output)
             - 1: Normal (default, shows progress)
             - 2: Verbose (detailed information)
+
         """
         self.atoms = atoms
         self.calculator = calculator
@@ -741,13 +751,13 @@ class HessianCalculator:
         self.indices = indices if indices is not None else list(range(len(atoms)))
 
     def calculate_numerical_hessian(self) -> np.ndarray:
-        """
-        Calculate Hessian matrix using finite differences.
+        """Calculate Hessian matrix using finite differences.
 
-        Returns:
-        --------
+        Returns
+        -------
         np.ndarray
             Hessian matrix (3N x 3N for N atoms in indices)
+
         """
         n_atoms = len(self.indices)
         n_coords = 3 * n_atoms
@@ -788,7 +798,8 @@ class HessianCalculator:
                 if world.rank == 0 and self.verbose >= 2:
                     logger.debug(f"Completed coordinate {j + 1}/{n_coords}")
         else:
-            raise ValueError(f"Unknown finite difference method: {self.method}")
+            msg = f"Unknown finite difference method: {self.method}"
+            raise ValueError(msg)
 
         # Symmetrize Hessian
         hessian = 0.5 * (hessian + hessian.T)
@@ -806,13 +817,15 @@ class HessianCalculator:
         return forces[self.indices].flatten()
 
     def _get_forces_displaced(
-        self, atom_index: int, direction: int, displacement: float
+        self,
+        atom_index: int,
+        direction: int,
+        displacement: float,
     ) -> np.ndarray:
-        """
-        Get forces for displaced geometry.
+        """Get forces for displaced geometry.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         atom_index : int
             Index of atom to displace
         direction : int
@@ -820,10 +833,11 @@ class HessianCalculator:
         displacement : float
             Displacement in Å
 
-        Returns:
-        --------
+        Returns
+        -------
         np.ndarray
             Forces on atoms in indices, flattened
+
         """
         atoms_displaced = self.atoms.copy()
         atoms_displaced.positions[atom_index, direction] += displacement
@@ -863,12 +877,11 @@ class ThermodynamicProperties:
         atoms: Atoms,
         temperature: float = 298.15,
         pressure: float = 101325,
-    ):
-        """
-        Initialize thermodynamic property calculator.
+    ) -> None:
+        """Initialize thermodynamic property calculator.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         frequencies : np.ndarray
             Vibrational frequencies in cm^-1
         atoms : Atoms
@@ -877,6 +890,7 @@ class ThermodynamicProperties:
             Temperature in Kelvin
         pressure : float
             Pressure in Pascal
+
         """
         self.frequencies = frequencies[frequencies > 0]  # Only real frequencies
         self.atoms = atoms
@@ -931,114 +945,8 @@ class ThermodynamicProperties:
         return s_vib
 
 
-class BatchFrequencyAnalysis(FrequencyAnalysis):
-    """
-    Batch-enabled frequency analysis for calculators that support batch evaluation.
-
-    This class extends FrequencyAnalysis to leverage batch evaluation capabilities
-    of calculators like TorchSim, providing significant speedup for large molecules
-    by calculating energies and forces for all displaced structures simultaneously.
-    """
-
-    def calculate_hessian(self, method="auto"):
-        """Calculate Hessian matrix using batch evaluation when available."""
-        if method == "auto":
-            method = (
-                "batch" if _supports_batch_evaluation(self.calculator) else "finite_differences"
-            )
-
-        if method == "batch":
-            return self._calculate_hessian_batch()
-        else:
-            return super().calculate_hessian(method)
-
-    def _calculate_hessian_batch(self):
-        """Calculate Hessian using batch evaluation."""
-        if not _supports_batch_evaluation(self.calculator):
-            raise RuntimeError("Calculator does not support batch evaluation")
-
-        if self.verbose >= 1:
-            logger.info("Using batch evaluation for Hessian calculation...")
-
-        # Generate all displaced structures
-        displaced_structures = self._generate_displaced_structures()
-
-        # Calculate energies and forces for all structures in one batch
-        batch_results = self.calculator.calculate_batch(
-            displaced_structures, properties=["energy", "forces"]
-        )
-
-        # Construct Hessian matrix from batch results
-        return self._construct_hessian_from_batch(batch_results)
-
-    def _generate_displaced_structures(self) -> list[Atoms]:
-        """Generate all displaced structures for finite differences."""
-        displaced_structures = []
-
-        # Add the original structure
-        displaced_structures.append(self.atoms.copy())
-
-        # Generate displaced structures
-        for i in self.indices:
-            for j in range(3):  # x, y, z directions
-                # Positive displacement
-                atoms_pos = self.atoms.copy()
-                atoms_pos.positions[i, j] += self.delta
-                displaced_structures.append(atoms_pos)
-
-                # Negative displacement
-                atoms_neg = self.atoms.copy()
-                atoms_neg.positions[i, j] -= self.delta
-                displaced_structures.append(atoms_neg)
-
-        return displaced_structures
-
-    def _construct_hessian_from_batch(self, batch_results: list[dict[str, Any]]) -> np.ndarray:
-        """Construct Hessian matrix from batch calculation results."""
-        n_atoms = len(self.indices)
-        hessian = np.zeros((3 * n_atoms, 3 * n_atoms))
-
-        # Get reference energy and forces
-        # ref_energy = batch_results[0]["energy"]  # Unused for now
-        # ref_forces = batch_results[0]["forces"]  # Unused for now
-
-        # Calculate Hessian using finite differences
-        result_idx = 1  # Start from index 1 (skip reference structure)
-
-        for i in range(n_atoms):
-            # atom_idx = self.indices[i]  # Unused for now
-            for j in range(3):  # x, y, z directions
-                # Positive displacement
-                pos_forces = batch_results[result_idx]["forces"]
-                result_idx += 1
-
-                # Negative displacement
-                neg_forces = batch_results[result_idx]["forces"]
-                result_idx += 1
-
-                # Calculate second derivative using finite differences
-                # d²E/dx² ≈ (F_neg - F_pos) / (2 * delta)
-                hessian_row = 3 * i + j
-                for k in range(n_atoms):
-                    atom_k = self.indices[k]
-                    for coord in range(3):
-                        hessian_col = 3 * k + coord
-                        hessian[hessian_row, hessian_col] = (
-                            neg_forces[atom_k, coord] - pos_forces[atom_k, coord]
-                        ) / (2 * self.delta)
-
-        # Convert to eV/Å²
-        hessian *= units.Hartree / units.Bohr**2
-
-        self._hessian = hessian
-        self._is_calculated = True
-
-        return hessian
-
-
 __all__ = [
     "FrequencyAnalysis",
-    "BatchFrequencyAnalysis",
     "HessianCalculator",
     "ThermodynamicProperties",
 ]

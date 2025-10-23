@@ -1,5 +1,4 @@
-"""
-Centralized dependency management for QME.
+"""Centralized dependency management for QME.
 
 This module handles all optional dependencies and provides consistent
 import patterns across the package with lazy loading.
@@ -24,11 +23,11 @@ class _DependencyContext:
         if len(self.deps_names) == 1:
             self.modules = self.manager.require_multiple(*self.deps_names)
             return self.modules
-        else:
-            self.modules = self.manager.require_multiple(*self.deps_names)
-            if self.modules is None:
-                raise RuntimeError("Failed to load dependencies")
-            return tuple(self.modules[name] for name in self.deps_names)
+        self.modules = self.manager.require_multiple(*self.deps_names)
+        if self.modules is None:
+            msg = "Failed to load dependencies"
+            raise RuntimeError(msg)
+        return tuple(self.modules[name] for name in self.deps_names)
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         # Nothing to clean up for now
@@ -62,6 +61,7 @@ class DependencyManager:
         -------
         bool
             True if package is available, False otherwise
+
         """
         if package_name not in self._availability_cache:
             try:
@@ -85,6 +85,7 @@ class DependencyManager:
         -------
         Any
             The loaded module or fallback value
+
         """
         if name not in self._cache:
             try:
@@ -133,7 +134,9 @@ class DependencyManager:
         return self._cache[name]
 
     def require_multiple(
-        self, *deps_names: str, purpose: str = "this functionality"
+        self,
+        *deps_names: str,
+        purpose: str = "this functionality",
     ) -> dict[str, Any] | None:
         """Require multiple dependencies, raising DependencyError if any are missing.
 
@@ -154,8 +157,9 @@ class DependencyManager:
         ------
         DependencyError
             If any required dependencies are missing
+
         """
-        from qme.core.validation import DependencyError
+        from qme.utils.validation import DependencyError
 
         if len(deps_names) == 1:
             name = deps_names[0]
@@ -163,24 +167,22 @@ class DependencyManager:
                 install_cmd = self._get_install_command(name)
                 raise DependencyError(name, purpose, install_cmd)
             return self.get(name.lower())
-        else:
-            results = {}
-            missing = []
-            for name in deps_names:
-                if not self.has(name):
-                    missing.append(name)
-                else:
-                    results[name] = self.get(name.lower())
+        results = {}
+        missing = []
+        for name in deps_names:
+            if not self.has(name):
+                missing.append(name)
+            else:
+                results[name] = self.get(name.lower())
 
-            if missing:
-                install_cmds = [self._get_install_command(name) for name in missing]
-                install_command = " ".join(install_cmds)
-                raise DependencyError(", ".join(missing), purpose, install_command)
-            return results
+        if missing:
+            install_cmds = [self._get_install_command(name) for name in missing]
+            install_command = " ".join(install_cmds)
+            raise DependencyError(", ".join(missing), purpose, install_command)
+        return results
 
     def need(self, *deps_names: str) -> _DependencyContext:
-        """
-        Context manager that ensures dependencies are available within a block.
+        """Context manager that ensures dependencies are available within a block.
 
         Usage:
         ------
@@ -222,9 +224,12 @@ class DependencyManager:
     def require(self, name: str, purpose: str = "this functionality") -> Any:
         """Require a dependency, raising ImportError if not available."""
         if not self.has(name):
-            raise ImportError(
+            msg = (
                 f"{name} is required for {purpose}. "
                 f"Install with: pip install {self._get_install_command(name)}"
+            )
+            raise ImportError(
+                msg,
             )
         return self.get(name.lower())
 
@@ -254,21 +259,21 @@ def __getattr__(name: str) -> Any:
     """Support for lazy loading of module-level attributes."""
     if name == "HAS_SELLA":
         return deps.has("sella")
-    elif name == "HAS_TORCH":
+    if name == "HAS_TORCH":
         return deps.has("torch")
-    elif name == "HAS_AIMNET2":
+    if name == "HAS_AIMNET2":
         return deps.has("aimnet2")
-    elif name == "HAS_FAIRCHEM":
+    if name == "HAS_FAIRCHEM":
         return deps.has("fairchem")
-    elif name == "HAS_SO3LR":
+    if name == "HAS_SO3LR":
         return deps.has("so3lr")
-    elif name == "HAS_MACE":
+    if name == "HAS_MACE":
         return deps.has("mace")
-    elif name == "HAS_TORCH_SIM":
+    if name == "HAS_TORCH_SIM":
         return deps.has("torch_sim")
-    elif name == "HAS_TBLITE":
+    if name == "HAS_TBLITE":
         return deps.has("tblite")
-    elif name == "torch":
+    if name == "torch":
         return deps.get("torch")
-    else:
-        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+    msg = f"module '{__name__}' has no attribute '{name}'"
+    raise AttributeError(msg)

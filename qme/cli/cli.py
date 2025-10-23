@@ -11,7 +11,13 @@ from typing import Any
 import click
 
 from qme.cli.cache_commands import cache
-from qme.cli.cli_helpers import load_atoms_from_xyz, parse_kv_pairs, write_atoms
+from qme.cli.cli_helpers import (
+    load_atoms_from_xyz,
+    parse_kv_pairs,
+    print_frequency_summary,
+    save_results_json,
+    write_atoms,
+)
 from qme.core.explorer import Explorer
 from qme.logging_utils import quiet_backend_loading
 
@@ -85,17 +91,24 @@ def _common_explorer_options(f: Any) -> Any:
             help="Validate inputs and show strategy selection without running",
         ),
         click.option(
-            "--validate-ts",
+            "--freq",
+            "--frequencies",
+            "calculate_frequencies",
             is_flag=True,
             default=False,
-            help="Validate TS structure via frequency analysis after optimization",
+            help="Perform frequency analysis after optimization (includes thermodynamic properties)",
+        ),
+        click.option(
+            "--temperature",
+            type=float,
+            default=298.15,
+            show_default=True,
+            help="Temperature in Kelvin for thermodynamic calculations",
         ),
     ]
     for opt in reversed(opts):
         f = opt(f)
     return f
-
-
 
 
 @click.group(
@@ -129,7 +142,7 @@ def _common_explorer_options(f: Any) -> Any:
         "  # Cache management\n"
         "  qme cache info  # Show cache information\n"
         "  qme cache clear # Clear model cache\n"
-    )
+    ),
 )
 @click.version_option()
 def main() -> None:
@@ -195,13 +208,14 @@ def minima(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
-    validate_ts: bool,
+    calculate_frequencies: bool,
+    temperature: float,
 ) -> None:
     """Minima optimization using various strategies."""
-
     # Validate strategy-specific requirements
     if strategy == "interpolate" and product is None:
-        raise click.BadParameter("--product is required for interpolate strategy")
+        msg = "--product is required for interpolate strategy"
+        raise click.BadParameter(msg)
 
     if strategy == "local" and product is not None:
         click.echo("Warning: --product ignored for local strategy")
@@ -256,7 +270,12 @@ def minima(
 
         # Run optimization
         if strategy == "local":
-            results = exp.run(fmax=fmax, steps=steps)
+            results = exp.run(
+                fmax=fmax,
+                steps=steps,
+                calculate_frequencies=calculate_frequencies,
+                temperature=temperature,
+            )
             result_atoms = results["optimized_atoms"]
             out_default = os.path.splitext(input)[0] + ".opt.local.xyz"
         else:  # interpolate
@@ -265,6 +284,8 @@ def minima(
                 method=interp.lower(),
                 fmax=fmax,
                 steps=steps,
+                calculate_frequencies=calculate_frequencies,
+                temperature=temperature,
             )
             out_default = os.path.splitext(input)[0] + ".opt.interpolate.xyz"
 
@@ -272,6 +293,11 @@ def minima(
     out = output or out_default
     write_atoms(result_atoms, out)
     click.echo(f"Minima optimization completed. Saved: {out}")
+
+    # Print frequency analysis summary and save JSON if requested
+    if calculate_frequencies and "frequency_analysis" in results:
+        print_frequency_summary(results["frequency_analysis"], target="minima")
+        save_results_json(results, out)
 
 
 @main.command()
@@ -357,13 +383,14 @@ def ts(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
-    validate_ts: bool,
+    calculate_frequencies: bool,
+    temperature: float,
 ) -> None:
     """Transition state optimization using various strategies."""
-
     # Validate strategy-specific requirements
     if strategy in ["interpolate", "growing_string"] and product is None:
-        raise click.BadParameter(f"--product is required for {strategy} strategy")
+        msg = f"--product is required for {strategy} strategy"
+        raise click.BadParameter(msg)
 
     if strategy == "local" and product is not None:
         click.echo("Warning: --product ignored for local strategy")
@@ -418,7 +445,12 @@ def ts(
 
         # Run optimization
         if strategy == "local":
-            results = exp.run(fmax=fmax, steps=steps)
+            results = exp.run(
+                fmax=fmax,
+                steps=steps,
+                calculate_frequencies=calculate_frequencies,
+                temperature=temperature,
+            )
             result_atoms = results["optimized_atoms"]
             out_default = os.path.splitext(input)[0] + ".ts.local.xyz"
         elif strategy == "interpolate":
@@ -427,6 +459,8 @@ def ts(
                 method=interp.lower(),
                 fmax=fmax,
                 steps=steps,
+                calculate_frequencies=calculate_frequencies,
+                temperature=temperature,
             )
             out_default = os.path.splitext(input)[0] + ".ts.interpolate.xyz"
         else:  # growing_string
@@ -437,6 +471,8 @@ def ts(
                 step_size=step_size,
                 fmax=fmax,
                 steps=steps,
+                calculate_frequencies=calculate_frequencies,
+                temperature=temperature,
             )
             out_default = os.path.splitext(input)[0] + ".ts.gsm.xyz"
 
@@ -444,6 +480,11 @@ def ts(
     out = output or out_default
     write_atoms(result_atoms, out)
     click.echo(f"Transition state optimization completed. Saved: {out}")
+
+    # Print frequency analysis summary and save JSON if requested
+    if calculate_frequencies and "frequency_analysis" in results:
+        print_frequency_summary(results["frequency_analysis"], target="ts")
+        save_results_json(results, out)
 
 
 # Add cache commands
@@ -533,7 +574,8 @@ def path(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
-    validate_ts: bool,
+    calculate_frequencies: bool,
+    temperature: float,
 ) -> None:
     """Reaction path optimization using various strategies.
 
@@ -548,7 +590,8 @@ def path(
     """
     # Validate strategy-specific requirements
     if strategy in ["interpolate", "neb", "cineb"] and product is None:
-        raise click.BadParameter(f"--product is required for {strategy} strategy")
+        msg = f"--product is required for {strategy} strategy"
+        raise click.BadParameter(msg)
 
     if strategy == "irc" and product is not None:
         click.echo("Warning: --product ignored for irc strategy")
@@ -606,6 +649,8 @@ def path(
             result = exp.run(
                 npoints=npoints,
                 method=interp.lower(),
+                calculate_frequencies=calculate_frequencies,
+                temperature=temperature,
             )
             out_default = os.path.splitext(input)[0] + ".path.interpolate.xyz"
         elif strategy == "neb":
@@ -615,6 +660,8 @@ def path(
                 fmax=fmax,
                 steps=steps,
                 spring_constant=spring_constant,
+                calculate_frequencies=calculate_frequencies,
+                temperature=temperature,
             )
             out_default = os.path.splitext(input)[0] + ".path.neb.xyz"
         elif strategy == "cineb":
@@ -625,6 +672,8 @@ def path(
                 steps=steps,
                 spring_constant=spring_constant,
                 climb=True,
+                calculate_frequencies=calculate_frequencies,
+                temperature=temperature,
             )
             out_default = os.path.splitext(input)[0] + ".path.cineb.xyz"
         elif strategy == "irc":
@@ -633,6 +682,8 @@ def path(
                 steps=steps,
                 step_size=step_size,
                 direction=direction.lower(),
+                calculate_frequencies=calculate_frequencies,
+                temperature=temperature,
             )
             out_default = os.path.splitext(input)[0] + ".path.irc.xyz"
 
@@ -647,8 +698,14 @@ def path(
     write_atoms(trajectory, out)
     click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")
 
+    # Print frequency analysis summary and save JSON if requested
+    if calculate_frequencies and "frequency_analysis" in result:
+        # For path strategies, we might have frequency analysis on the final structure
+        print_frequency_summary(result["frequency_analysis"], target="path")
+        save_results_json(result, out)
 
-__all__ = ["main", "minima", "ts", "path"]
+
+__all__ = ["main", "minima", "path", "ts"]
 
 
 if __name__ == "__main__":

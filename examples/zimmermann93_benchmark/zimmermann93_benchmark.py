@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-QME Zimmermann-93 Benchmark - Two-Ended Transition State Search
+"""QME Zimmermann-93 Benchmark - Two-Ended Transition State Search.
 
 This benchmark runs two-ended (reactant → product) transition state searches
 across available ML backends in QME using the standardized Explorer API.
@@ -33,9 +32,7 @@ from ase.io import read
 # Import QME components
 try:
     from qme import Explorer, calculator_registry
-except ImportError as e:
-    print(f"❌ Error importing QME: {e}")
-    print("   Please ensure QME is installed and accessible")
+except ImportError:
     sys.exit(1)
 
 # Import common interface
@@ -82,7 +79,7 @@ def compute_rmsd(reference: np.ndarray, target: np.ndarray) -> float:
 
     # Kabsch alignment
     C = np.dot(tar.T, ref)
-    V, S, Wt = np.linalg.svd(C)
+    V, _S, Wt = np.linalg.svd(C)
     d = np.sign(np.linalg.det(np.dot(V, Wt)))
     D = np.diag([1.0, 1.0, d])
     U = np.dot(np.dot(V, D), Wt)
@@ -95,7 +92,9 @@ def compute_rmsd(reference: np.ndarray, target: np.ndarray) -> float:
 class Zimmermann93Benchmark:
     """Benchmark suite for two-ended TS search on Zimmermann-93 dataset."""
 
-    def __init__(self, dataset_dir: str | None = None, output_dir: str = "benchmark_results"):
+    def __init__(
+        self, dataset_dir: str | None = None, output_dir: str = "benchmark_results"
+    ) -> None:
         # Use dataset in same directory by default
         if dataset_dir is None:
             dataset_dir = str(Path(__file__).parent / "zimmermann93_dataset")
@@ -105,7 +104,8 @@ class Zimmermann93Benchmark:
         self.output_dir.mkdir(exist_ok=True)
 
         if not self.dataset_dir.exists():
-            raise FileNotFoundError(f"Dataset directory not found: {self.dataset_dir}")
+            msg = f"Dataset directory not found: {self.dataset_dir}"
+            raise FileNotFoundError(msg)
 
         # Discover reactions by searching for reactant files
         self.reactions = []
@@ -123,17 +123,11 @@ class Zimmermann93Benchmark:
 
         self.results: dict[str, dict] = {}
 
-        print("=" * 80)
-        print("QME Zimmermann-93 Benchmark - Two-Ended Transition State Search")
-        print("=" * 80)
-        print(f"Dataset dir: {self.dataset_dir}")
-        print(f"Output dir: {self.output_dir}")
-        print(f"Reactions discovered: {len(self.reactions)}")
-
     def load_structure(self, filename: str) -> Atoms:
         filepath = self.dataset_dir / filename
         if not filepath.exists():
-            raise FileNotFoundError(f"Structure file not found: {filepath}")
+            msg = f"Structure file not found: {filepath}"
+            raise FileNotFoundError(msg)
         atoms = read(str(filepath))
         return atoms[0] if isinstance(atoms, list) else atoms
 
@@ -154,7 +148,9 @@ class Zimmermann93Benchmark:
         return get_available_ml_backends()
 
     def filter_available_backends(
-        self, requested_backends: list[str], verbose: bool = False
+        self,
+        requested_backends: list[str],
+        verbose: bool = False,
     ) -> list[str]:
         """Filter requested backends to only available ones."""
         available = []
@@ -162,16 +158,13 @@ class Zimmermann93Benchmark:
             if calculator_registry.is_backend_available(backend):
                 available.append(backend)
             elif verbose:
-                print(f"Warning: Backend '{backend}' not available, skipping")
+                pass
         return available
 
-    def print_backend_summary(self, backends: list[str], title: str = "Available Backends"):
+    def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
         """Print a formatted summary of backends."""
-        print(f"\n📋 {title}")
-        print("-" * 50)
-        for i, backend in enumerate(backends, 1):
-            print(f"  {i}. {backend}")
-        print(f"Total: {len(backends)} backends")
+        for _i, _backend in enumerate(backends, 1):
+            pass
 
     def run_benchmark(
         self,
@@ -185,13 +178,10 @@ class Zimmermann93Benchmark:
         results: dict[str, dict] = {}
 
         for backend in backends:
-            print(f"\nBackend: {backend.upper()}")
-            print("-" * 60)
             backend_results: dict[str, dict] = {}
 
             try:
                 for reaction in reactions:
-                    print(f"  Reaction: {reaction}")
                     reaction_data: dict = {
                         "timings": {},
                         "optimization_results": {},
@@ -245,10 +235,7 @@ class Zimmermann93Benchmark:
                             steps_taken = 0
 
                         # Calculate average time per step
-                        if steps_taken > 0:
-                            avg_time_per_step = opt_time / steps_taken
-                        else:
-                            avg_time_per_step = None
+                        avg_time_per_step = opt_time / steps_taken if steps_taken > 0 else None
 
                         # Get final energy and forces
                         if ts_opt_atoms is not None:
@@ -296,7 +283,7 @@ class Zimmermann93Benchmark:
                         else:
                             reaction_data["timings"]["frequency_analysis"] = None
                             reaction_data["frequency_results"] = {
-                                "skipped": "TS optimization failed"
+                                "skipped": "TS optimization failed",
                             }
 
                         # Compare geometry to reference TS
@@ -317,7 +304,7 @@ class Zimmermann93Benchmark:
                                 "ts_success": ts_success,
                                 "ts_rmsd_to_reference": rmsd,
                                 "success": True,
-                            }
+                            },
                         )
 
                         # Calculate total time
@@ -329,19 +316,12 @@ class Zimmermann93Benchmark:
                         # Print status
                         freq_info = reaction_data["frequency_results"]
                         if "is_transition_state" in freq_info:
-                            ts_verified = freq_info["is_transition_state"]
-                            ts_status = "✅ Verified TS" if ts_verified else "⚠️ Not verified as TS"
+                            freq_info["is_transition_state"]
                         else:
-                            ts_status = "❓ Not checked"
+                            pass
 
-                        print(f"    ✓ Optimization: {'Success' if ts_success else 'Failed'}")
-                        print(f"    ✓ Convergence: {ts_success}")
-                        print(f"    ✓ TS Character: {ts_status}")
-                        print(f"    ✓ RMSD to ref: {rmsd:.4f} Å")
-                        if verbose:
-                            print(f"    ✓ Steps: {steps_taken}, Time: {opt_time:.2f}s")
-                            if avg_time_per_step:
-                                print(f"    ✓ Avg time/step: {avg_time_per_step:.4f}s")
+                        if verbose and avg_time_per_step:
+                            pass
 
                     except Exception as e:
                         reaction_data = {
@@ -351,12 +331,10 @@ class Zimmermann93Benchmark:
                             "optimization_results": {},
                             "frequency_results": {},
                         }
-                        print(f"    ❌ Reaction failed: {e}")
 
                     backend_results[reaction] = reaction_data
 
             except Exception as e:
-                print(f"❌ Backend initialization failed: {e}")
                 backend_results = {"_backend_error": {"error": str(e)}}
 
             results[backend] = backend_results
@@ -366,15 +344,9 @@ class Zimmermann93Benchmark:
 
     def analyze_performance(self, backends: list[str]) -> dict:
         """Analyze performance metrics across backends with detailed statistics."""
-        print(f"\n{'=' * 120}")
-        print("DETAILED PERFORMANCE ANALYSIS")
-        print(f"{'=' * 120}")
-
         analysis = {}
 
         for backend in backends:
-            print(f"\nBackend: {backend.upper()}")
-            print("-" * 60)
             backend_data = self.results.get(backend, {})
 
             # Collect successful TS calculations
@@ -385,7 +357,7 @@ class Zimmermann93Benchmark:
             timing_stats = {"total": [], "optimization": [], "frequency": []}
             step_stats = []
 
-            for _reaction, data in backend_data.items():
+            for data in backend_data.values():
                 if isinstance(data, dict) and not data.get("skipped"):
                     if not data.get("success", True):
                         failed_count += 1
@@ -417,7 +389,7 @@ class Zimmermann93Benchmark:
 
             # Calculate statistics
             total_reactions = len(
-                [r for r in backend_data.values() if isinstance(r, dict) and not r.get("skipped")]
+                [r for r in backend_data.values() if isinstance(r, dict) and not r.get("skipped")],
             )
 
             if successful_ts:
@@ -443,40 +415,23 @@ class Zimmermann93Benchmark:
                     "std_rmsd": np.std(rmsds) if rmsds else 0,
                 }
 
-                print("📊 CONVERGENCE STATISTICS:")
-                print(f"  Total reactions: {ts_stats['total_reactions']}")
-                conv_rate = ts_stats["convergence_rate"]
-                print(f"  Converged: {ts_stats['converged']} ({conv_rate:.1f}%)")
-                ver_rate = ts_stats["verification_rate"]
-                print(f"  TS Verified: {ts_stats['ts_verified']} ({ver_rate:.1f}%)")
-                print(f"  Failed: {ts_stats['failed']}")
-
-                print("\n📏 GEOMETRY ACCURACY:")
-                print(f"  Mean RMSD: {ts_stats['mean_rmsd']:.4f} Å")
-                print(f"  Max RMSD:  {ts_stats['max_rmsd']:.4f} Å")
-                print(f"  Std RMSD:  {ts_stats['std_rmsd']:.4f} Å")
+                ts_stats["convergence_rate"]
+                ts_stats["verification_rate"]
 
                 # Timing statistics
                 if timing_stats["total"]:
-                    print("\n⏱️ TIMING STATISTICS:")
-                    total_mean = np.mean(timing_stats["total"])
-                    total_std = np.std(timing_stats["total"])
-                    print(f"  Total time: {total_mean:.2f} ± {total_std:.2f} s")
+                    np.mean(timing_stats["total"])
+                    np.std(timing_stats["total"])
                     if timing_stats["optimization"]:
-                        opt_mean = np.mean(timing_stats["optimization"])
-                        opt_std = np.std(timing_stats["optimization"])
-                        print(f"  Optimization: {opt_mean:.2f} ± {opt_std:.2f} s")
+                        np.mean(timing_stats["optimization"])
+                        np.std(timing_stats["optimization"])
                     if timing_stats["frequency"]:
-                        freq_mean = np.mean(timing_stats["frequency"])
-                        freq_std = np.std(timing_stats["frequency"])
-                        print(f"  Frequency analysis: {freq_mean:.2f} ± {freq_std:.2f} s")
+                        np.mean(timing_stats["frequency"])
+                        np.std(timing_stats["frequency"])
 
                 # Step statistics
                 if step_stats:
-                    print("\n🔄 OPTIMIZATION STEPS:")
-                    print(f"  Mean steps: {np.mean(step_stats):.1f} ± {np.std(step_stats):.1f}")
-                    print(f"  Min steps: {np.min(step_stats)}")
-                    print(f"  Max steps: {np.max(step_stats)}")
+                    pass
 
             else:
                 ts_stats = {
@@ -487,52 +442,22 @@ class Zimmermann93Benchmark:
                     "convergence_rate": 0,
                     "verification_rate": 0,
                 }
-                print("❌ No successful transition state calculations")
 
             analysis[backend] = {"ts_statistics": ts_stats}
 
         # Comprehensive summary table
-        print(f"\n{'=' * 120}")
-        print("COMPREHENSIVE BACKEND COMPARISON")
-        print(f"{'=' * 120}")
 
         # Print legend
-        print("📊 COLUMN DEFINITIONS:")
-        print("   Conv    = Number of converged optimizations")
-        print("   Rate    = Convergence rate (%)")
-        print("   Verified = Number vibrationally verified as TS")
-        print("   V-Rate  = TS verification rate (%)")
-        print("   Mean RMSD = Average RMSD to reference (Å)")
-        print("   Max RMSD = Maximum RMSD to reference (Å)")
-        print(f"{'-' * 120}")
 
         # Header
-        print(
-            f"{'Backend':<12} {'Total':<6} {'Conv':<6} {'Rate':<6} "
-            f"{'Verified':<9} {'V-Rate':<7} {'Mean RMSD':<10} {'Max RMSD':<10}"
-        )
-        print("=" * 120)
 
         # Results
         for backend in backends:
-            stats = analysis.get(backend, {}).get("ts_statistics", {})
-
-            print(
-                f"{backend:<12} "
-                f"{stats.get('total_reactions', 0):<6} "
-                f"{stats.get('converged', 0):<6} "
-                f"{stats.get('convergence_rate', 0):<6.1f} "
-                f"{stats.get('ts_verified', 0):<9} "
-                f"{stats.get('verification_rate', 0):<7.1f} "
-                f"{stats.get('mean_rmsd', 0):<10.4f} "
-                f"{stats.get('max_rmsd', 0):<10.4f}"
-            )
-
-        print("=" * 120)
+            analysis.get(backend, {}).get("ts_statistics", {})
 
         return analysis
 
-    def save_results(self, filename: str = "zimmermann93_benchmark_results.json"):
+    def save_results(self, filename: str = "zimmermann93_benchmark_results.json") -> None:
         out = self.output_dir / filename
 
         # Convert numpy and other non-serializable objects
@@ -590,10 +515,9 @@ class Zimmermann93Benchmark:
         serializable = convert(self.results)
         with open(out, "w") as f:
             json.dump(serializable, f, indent=2)
-        print(f"\nResults saved to: {out}")
 
 
-def main():
+def main() -> int:
     """Main entry point for the benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
@@ -665,11 +589,6 @@ def main():
         backends = interface.get_available_ml_backends()
         if not backends:
             interface.print_error("No ML backends available!")
-            print("Please install at least one ML backend:")
-            print("  - UMA: pip install fairchem-core")
-            print("  - MACE: pip install mace-torch")
-            print("  - AIMNet2: pip install aimnet2")
-            print("  - SO3LR: pip install so3lr")
             return 1
 
     interface.print_backend_summary(backends, "Benchmarking Backends")

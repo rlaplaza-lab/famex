@@ -1,5 +1,4 @@
-"""
-Orb Machine Learning Potential integration for ASE.
+"""Orb Machine Learning Potential integration for ASE.
 
 This module implements integration with Orbital Materials' Orb models,
 providing universal forcefields for molecular and materials calculations.
@@ -38,6 +37,7 @@ class OrbPotential(BasePotential):
         Spin multiplicity (2S + 1)
     **kwargs
         Additional arguments passed to BasePotential
+
     """
 
     def __init__(
@@ -62,17 +62,19 @@ class OrbPotential(BasePotential):
             Spin multiplicity (2S + 1)
         **kwargs
             Additional arguments passed to parent Calculator
-        """
 
+        """
         # Check dependencies
         if not deps.has("orb_models"):
+            msg = "orb-models is required for Orb potentials. Install with: pip install orb-models"
             raise ImportError(
-                "orb-models is required for Orb potentials. " "Install with: pip install orb-models"
+                msg,
             )
 
         if not deps.has("torch"):
+            msg = "PyTorch is required for Orb potentials. Install with: pip install torch"
             raise ImportError(
-                "PyTorch is required for Orb potentials. " "Install with: pip install torch"
+                msg,
             )
 
         # Set device if not provided
@@ -130,16 +132,16 @@ class OrbPotential(BasePotential):
                 model_loader = model_registry[self.model_name]
             else:
                 # Default to omol if unknown
-                print(
-                    f"Warning: Unknown Orb model '{self.model_name}', "
-                    f"using default 'orb-v3-conservative-omol'"
-                )
                 model_loader = pretrained.orb_v3_conservative_omol
                 self.model_name = "orb-v3-conservative-omol"
 
             # Load the pretrained forcefield
             with quiet_backend_loading(
-                "orb", self.model_name, "pretrained", self.device, show_model_info=False
+                "orb",
+                self.model_name,
+                "pretrained",
+                self.device,
+                show_model_info=False,
             ):
                 orbff = model_loader(device=self.device)
                 self._calc = ORBCalculator(orbff, device=self.device)
@@ -151,9 +153,12 @@ class OrbPotential(BasePotential):
                     torch._dynamo.config.disable = True
 
         except Exception as e:
-            raise RuntimeError(
+            msg = (
                 f"Failed to load Orb model '{self.model_name}'. "
                 f"Error: {e}. Please check the model name or installation."
+            )
+            raise RuntimeError(
+                msg,
             )
 
     def calculate(
@@ -168,7 +173,8 @@ class OrbPotential(BasePotential):
             atoms = self.atoms
 
         if atoms is None:
-            raise ValueError("No atoms provided for calculation")
+            msg = "No atoms provided for calculation"
+            raise ValueError(msg)
 
         # Set charge and spin in atoms.info for OrbMol models
         # This is required by the Orb calculator and must be done early
@@ -204,7 +210,9 @@ class OrbPotential(BasePotential):
         return "orb"
 
     def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
+        self,
+        atoms: Atoms | None = None,
+        force_consistent: bool = False,
     ) -> float:
         """Get potential energy (ASE-compatible)."""
         if atoms is not None:
@@ -238,11 +246,10 @@ def get_orb_calculator(
     spin: int = 1,
     **kwargs: Any,
 ) -> OrbPotential:
-    """
-    Convenience function to get Orb calculator.
+    """Convenience function to get Orb calculator.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     model_name : str
         Name of Orb model to use
     device : str, optional
@@ -254,9 +261,10 @@ def get_orb_calculator(
     **kwargs :
         Additional arguments passed to OrbPotential
 
-    Returns:
-    --------
+    Returns
+    -------
     OrbPotential
         Configured Orb calculator
+
     """
     return OrbPotential(model_name=model_name, device=device, charge=charge, spin=spin, **kwargs)

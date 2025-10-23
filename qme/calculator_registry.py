@@ -1,5 +1,4 @@
-"""
-Calculator factory and registry for QME.
+"""Calculator factory and registry for QME.
 
 This module provides centralized calculator creation logic to eliminate
 code duplication across the codebase.
@@ -8,14 +7,15 @@ code duplication across the codebase.
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class CalculatorRegistry:
-    """
-    Registry for calculator creation functions with lazy loading.
+    """Registry for calculator creation functions with lazy loading.
 
     This centralizes the mapping between backend names and their
     calculator creation functions, with lazy loading to avoid
@@ -34,6 +34,7 @@ class CalculatorRegistry:
                 function: attribute name (factory function or class) to look up
                 is_class: whether the attribute is a class that should be
                     instantiated (default: False)
+
             """
 
             module: str
@@ -46,10 +47,12 @@ class CalculatorRegistry:
             "aimnet2": LazyBackend(module="qme.potentials", function="get_aimnet2_calculator"),
             "mace": LazyBackend(module="qme.potentials", function="get_mace_calculator"),
             "torchsim_mace": LazyBackend(
-                module="qme.potentials", function="get_torchsim_mace_calculator"
+                module="qme.potentials",
+                function="get_torchsim_mace_calculator",
             ),
             "torchsim_uma": LazyBackend(
-                module="qme.potentials", function="get_torchsim_uma_calculator"
+                module="qme.potentials",
+                function="get_torchsim_uma_calculator",
             ),
             "orb": LazyBackend(module="qme.potentials", function="get_orb_calculator"),
             "tblite": LazyBackend(module="qme.potentials", function="get_tblite_calculator"),
@@ -95,12 +98,13 @@ class CalculatorRegistry:
     def register(self, backend_name: str, factory_func: Callable[..., Any]) -> None:
         """Register a new calculator factory function.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         backend_name : str
             Name of the backend
         factory_func : callable
             Function that creates calculator instances
+
         """
         self._registry[backend_name] = factory_func
 
@@ -120,8 +124,8 @@ class CalculatorRegistry:
     ) -> Any:
         """Create a calculator for the specified backend.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         backend : str
             Backend name (e.g., 'so3lr', 'uma', 'aimnet2', 'mock')
         model_name : str, optional
@@ -133,15 +137,16 @@ class CalculatorRegistry:
         **kwargs
             Additional arguments passed to calculator
 
-        Returns:
-        --------
+        Returns
+        -------
         Calculator
             Configured calculator instance
 
-        Raises:
-        -------
+        Raises
+        ------
         ValueError
             If backend is not registered or available
+
         """
         # Lazy load the backend
         self._load_backend(backend)
@@ -150,6 +155,7 @@ class CalculatorRegistry:
             # Get actually available backends using the centralized system
             from qme.backend_availability import get_available_backends
             from qme.core.validation import BackendError
+
             available = get_available_backends(include_mock=False)
             raise BackendError(backend, available, "calculator creation")
 
@@ -178,16 +184,17 @@ class CalculatorRegistry:
         while still catching most compatibility issues through version analysis and
         import checking.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         backend : str
             Backend name to check
 
-        Returns:
-        --------
+        Returns
+        -------
         bool
             True if backend is available and can create real calculators,
             False otherwise
+
         """
         # Use the new efficient backend availability checker
         from qme.backend_availability import is_backend_available
