@@ -196,24 +196,34 @@ class DependencyManager:
     def has(self, name: str) -> bool:
         """Check if a dependency is available without importing it."""
         # Map backend names to package names for availability checking
+        # Import constants to avoid hardcoded backend strings
+        from qme.backends.constants import (
+            BACKEND_AIMNET2,
+            BACKEND_MACE,
+            BACKEND_ORB,
+            BACKEND_SO3LR,
+            BACKEND_TBLITE,
+            BACKEND_UMA,
+        )
+        
         package_mapping = {
             "torch": "torch",
             "sella": "sella",
-            "aimnet2": "torch_cluster",  # AIMNet2 needs torch_cluster (which implies torch)
+            BACKEND_AIMNET2: "torch_cluster",  # AIMNet2 needs torch_cluster (which implies torch)
             "fairchem": "fairchem.core",
-            "uma": "fairchem.core",  # UMA uses fairchem-core
-            "so3lr": "so3lr",
-            "mace": "mace.calculators",
+            BACKEND_UMA: "fairchem.core",  # UMA uses fairchem-core
+            BACKEND_SO3LR: "so3lr",
+            BACKEND_MACE: "mace.calculators",
             "orb_models": "orb_models",
-            "orb": "orb_models",  # Orb uses orb-models package
+            BACKEND_ORB: "orb_models",  # Orb uses orb-models package
             "torch_sim": "torch_sim",
-            "tblite": "tblite",
+            BACKEND_TBLITE: "tblite",
         }
 
         package_name = package_mapping.get(name.lower(), name.lower())
 
         # Special case for aimnet2 - check torch_cluster availability
-        if name.lower() == "aimnet2":
+        if name.lower() == BACKEND_AIMNET2:
             return self._check_availability_lazy("torch_cluster")
 
         return self._check_availability_lazy(package_name)
@@ -232,17 +242,26 @@ class DependencyManager:
 
     def _get_install_command(self, name: str) -> str:
         """Get installation command for a dependency."""
+        from qme.backends.constants import (
+            BACKEND_AIMNET2,
+            BACKEND_MACE,
+            BACKEND_ORB,
+            BACKEND_SO3LR,
+            BACKEND_TBLITE,
+            BACKEND_UMA,
+        )
+        
         commands = {
             "torch": "torch",
             "sella": "sella",
-            "aimnet2": "torch torch-cluster",  # AIMNet2 needs both torch and torch-cluster
+            BACKEND_AIMNET2: "torch torch-cluster",  # AIMNet2 needs both torch and torch-cluster
             "fairchem": "fairchem-core",
-            "so3lr": "so3lr  # See installation instructions in README",
-            "mace": "mace-torch",
+            BACKEND_SO3LR: "so3lr  # See installation instructions in README",
+            BACKEND_MACE: "mace-torch",
             "orb_models": "orb-models",
-            "orb": "orb-models",  # Orb uses orb-models package
+            BACKEND_ORB: "orb-models",  # Orb uses orb-models package
             "torch_sim": "torch-sim-atomistic",
-            "tblite": "tblite",
+            BACKEND_TBLITE: "tblite",
         }
         return commands.get(name.lower(), name.lower())
 
@@ -254,22 +273,29 @@ deps = DependencyManager()
 # Function to get lazy globals - everything is now lazy
 def __getattr__(name: str) -> Any:
     """Support for lazy loading of module-level attributes."""
+    from qme.backends.constants import (
+        BACKEND_AIMNET2,
+        BACKEND_MACE,
+        BACKEND_SO3LR,
+        BACKEND_TBLITE,
+    )
+    
     if name == "HAS_SELLA":
         return deps.has("sella")
     if name == "HAS_TORCH":
         return deps.has("torch")
     if name == "HAS_AIMNET2":
-        return deps.has("aimnet2")
+        return deps.has(BACKEND_AIMNET2)
     if name == "HAS_FAIRCHEM":
         return deps.has("fairchem")
     if name == "HAS_SO3LR":
-        return deps.has("so3lr")
+        return deps.has(BACKEND_SO3LR)
     if name == "HAS_MACE":
-        return deps.has("mace")
+        return deps.has(BACKEND_MACE)
     if name == "HAS_TORCH_SIM":
         return deps.has("torch_sim")
     if name == "HAS_TBLITE":
-        return deps.has("tblite")
+        return deps.has(BACKEND_TBLITE)
     if name == "torch":
         return deps.get("torch")
     msg = f"module '{__name__}' has no attribute '{name}'"

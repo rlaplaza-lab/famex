@@ -46,22 +46,35 @@ class CalculatorRegistry:
             function: str
             is_class: bool = False
 
+        # Import backend constants for consistent naming
+        from qme.backends.constants import (
+            BACKEND_AIMNET2,
+            BACKEND_MACE,
+            BACKEND_MOCK,
+            BACKEND_ORB,
+            BACKEND_SO3LR,
+            BACKEND_TBLITE,
+            BACKEND_TORCHSIM_MACE,
+            BACKEND_TORCHSIM_UMA,
+            BACKEND_UMA,
+        )
+        
         self._lazy_registry: dict[str, LazyBackend] = {
-            "so3lr": LazyBackend(module="qme.potentials", function="get_so3lr_calculator"),
-            "uma": LazyBackend(module="qme.potentials", function="get_uma_calculator"),
-            "aimnet2": LazyBackend(module="qme.potentials", function="get_aimnet2_calculator"),
-            "mace": LazyBackend(module="qme.potentials", function="get_mace_calculator"),
-            "torchsim_mace": LazyBackend(
+            BACKEND_SO3LR: LazyBackend(module="qme.potentials", function="get_so3lr_calculator"),
+            BACKEND_UMA: LazyBackend(module="qme.potentials", function="get_uma_calculator"),
+            BACKEND_AIMNET2: LazyBackend(module="qme.potentials", function="get_aimnet2_calculator"),
+            BACKEND_MACE: LazyBackend(module="qme.potentials", function="get_mace_calculator"),
+            BACKEND_TORCHSIM_MACE: LazyBackend(
                 module="qme.potentials",
                 function="get_torchsim_mace_calculator",
             ),
-            "torchsim_uma": LazyBackend(
+            BACKEND_TORCHSIM_UMA: LazyBackend(
                 module="qme.potentials",
                 function="get_torchsim_uma_calculator",
             ),
-            "orb": LazyBackend(module="qme.potentials", function="get_orb_calculator"),
-            "tblite": LazyBackend(module="qme.potentials", function="get_tblite_calculator"),
-            "mock": LazyBackend(
+            BACKEND_ORB: LazyBackend(module="qme.potentials", function="get_orb_calculator"),
+            BACKEND_TBLITE: LazyBackend(module="qme.potentials", function="get_tblite_calculator"),
+            BACKEND_MOCK: LazyBackend(
                 module="qme.potentials.mock_potential",
                 function="MockCalculator",
                 is_class=True,
@@ -176,7 +189,9 @@ class CalculatorRegistry:
             factory_kwargs["device"] = device
 
         # Special handling for mock backend
-        if backend == "mock":
+        from qme.backends.constants import BACKEND_MOCK
+        
+        if backend == BACKEND_MOCK:
             factory_kwargs["backend"] = kwargs.get("mock_backend", "generic")
 
         return factory_func(**factory_kwargs)
