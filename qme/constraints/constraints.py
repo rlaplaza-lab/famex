@@ -22,13 +22,17 @@ if TYPE_CHECKING:
 
 class QMEConstraintManager:
     """Simple constraint manager for QME optimizations.
+
     Handles fixed atoms and harmonic constraints based on initial geometry.
     """
 
     def __init__(self, reference_atoms: Atoms) -> None:
-        """Parameters
-        - reference_atoms: Initial geometry to derive constraint values from.
+        """Initialize constraint manager.
 
+        Parameters
+        ----------
+        reference_atoms : Atoms
+            Initial geometry to derive constraint values from.
         """
         self.reference_atoms = reference_atoms.copy()
         self.constraints: list[Any] = []
@@ -105,10 +109,14 @@ class FixedAtomsConstraint:
     """Enhanced fixed atoms constraint with better integration."""
 
     def __init__(self, atom_indices: list[int], reference_atoms: Atoms) -> None:
-        """Parameters
-        - atom_indices: List of atom indices to fix
-        - reference_atoms: Reference geometry for fixed positions.
+        """Initialize fixed atoms constraint.
 
+        Parameters
+        ----------
+        atom_indices : list[int]
+            List of atom indices to fix
+        reference_atoms : Atoms
+            Reference geometry for fixed positions.
         """
         self.atom_indices = atom_indices
         self.reference_positions = reference_atoms.positions[atom_indices].copy()
@@ -131,11 +139,16 @@ class HarmonicPositionConstraint:
         reference_atoms: Atoms,
         force_constant: float = 10.0,
     ) -> None:
-        """Parameters
-        - atom_indices: List of atom indices to constrain
-        - reference_atoms: Reference geometry
-        - force_constant: Spring constant (eV/Å²).
+        """Initialize harmonic position constraint.
 
+        Parameters
+        ----------
+        atom_indices : list[int]
+            List of atom indices to constrain
+        reference_atoms : Atoms
+            Reference geometry
+        force_constant : float, optional
+            Spring constant (eV/Å²), by default 10.0
         """
         self.atom_indices = atom_indices
         self.reference_positions = reference_atoms.positions[atom_indices].copy()
@@ -163,11 +176,16 @@ class HarmonicBondConstraint:
         reference_atoms: Atoms,
         force_constant: float = 10.0,
     ) -> None:
-        """Parameters
-        - atom_indices: [atom1, atom2] for bond constraint
-        - reference_atoms: Reference geometry
-        - force_constant: Spring constant (eV/Å²).
+        """Initialize harmonic bond constraint.
 
+        Parameters
+        ----------
+        atom_indices : list[int]
+            [atom1, atom2] for bond constraint
+        reference_atoms : Atoms
+            Reference geometry
+        force_constant : float, optional
+            Spring constant (eV/Å²), by default 10.0
         """
         if len(atom_indices) != 2:
             msg = "Bond constraint requires exactly 2 atoms"
@@ -203,11 +221,16 @@ class HarmonicAngleConstraint:
         reference_atoms: Atoms,
         force_constant: float = 5.0,
     ) -> None:
-        """Parameters
-        - atom_indices: [atom1, atom2, atom3] for angle constraint (atom2 is central)
-        - reference_atoms: Reference geometry
-        - force_constant: Spring constant (eV/rad²).
+        """Initialize harmonic angle constraint.
 
+        Parameters
+        ----------
+        atom_indices : list[int]
+            [atom1, atom2, atom3] for angle constraint (atom2 is central)
+        reference_atoms : Atoms
+            Reference geometry
+        force_constant : float, optional
+            Spring constant (eV/rad²), by default 5.0
         """
         if len(atom_indices) != 3:
             msg = "Angle constraint requires exactly 3 atoms"
