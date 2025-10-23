@@ -46,15 +46,27 @@ except ImportError:  # pragma: no cover - tests expect MockCalculator
 
 
 # Backend module mapping for generic factory
+# Import constants to avoid hardcoded strings
+from qme.backends.constants import (
+    BACKEND_AIMNET2,
+    BACKEND_MACE,
+    BACKEND_ORB,
+    BACKEND_SO3LR,
+    BACKEND_TBLITE,
+    BACKEND_TORCHSIM_MACE,
+    BACKEND_TORCHSIM_UMA,
+    BACKEND_UMA,
+)
+
 _BACKEND_MODULES = {
-    "uma": ("qme.potentials.uma_potential", "UMAPotential"),
-    "so3lr": ("qme.potentials.so3lr_potential", "SO3LRPotential"),
-    "aimnet2": ("qme.potentials.aimnet2_potential", "AIMNet2Potential"),
-    "mace": ("qme.potentials.mace_potential", "MACEPotential"),
-    "orb": ("qme.potentials.orb_potential", "OrbPotential"),
-    "tblite": ("qme.potentials.tblite_potential", "TBLitePotential"),
-    "torchsim_mace": ("qme.potentials.torchsim_potential", "get_torchsim_mace_calculator"),
-    "torchsim_uma": ("qme.potentials.torchsim_potential", "get_torchsim_uma_calculator"),
+    BACKEND_UMA: ("qme.potentials.uma_potential", "UMAPotential"),
+    BACKEND_SO3LR: ("qme.potentials.so3lr_potential", "SO3LRPotential"),
+    BACKEND_AIMNET2: ("qme.potentials.aimnet2_potential", "AIMNet2Potential"),
+    BACKEND_MACE: ("qme.potentials.mace_potential", "MACEPotential"),
+    BACKEND_ORB: ("qme.potentials.orb_potential", "OrbPotential"),
+    BACKEND_TBLITE: ("qme.potentials.tblite_potential", "TBLitePotential"),
+    BACKEND_TORCHSIM_MACE: ("qme.potentials.torchsim_potential", "get_torchsim_mace_calculator"),
+    BACKEND_TORCHSIM_UMA: ("qme.potentials.torchsim_potential", "get_torchsim_uma_calculator"),
 }
 
 

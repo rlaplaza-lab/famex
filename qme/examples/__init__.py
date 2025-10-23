@@ -10,7 +10,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Any  # Dict, List, Optional  # Unused for now
+from typing import Any
 
 # Import QME components
 try:
@@ -266,7 +266,6 @@ def benchmark_optimization(
 
     # Import QME components
     try:
-        # from qme.analysis.frequency import FrequencyAnalysis  # Unused for now
         from qme.core.explorer import Explorer
     except ImportError as e:
         return {
