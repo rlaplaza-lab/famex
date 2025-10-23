@@ -139,8 +139,17 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None
 def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
     """Print a summary table focused on TS optimizer comparison."""
     # Print legend first, before the table
+    print(f"\n{'=' * 120}")
+    print("TS OPTIMIZER COMPARISON")
+    print(f"{'=' * 120}")
+    print("Legend: ✅ = Success, ❌ = Failed, ⚠️ = Warning, ⏱️ = Time")
 
     # Header
+    print(
+        f"\n{'Backend':<12} {'Optimizer':<15} {'Status':<8} {'Total Time':<12} {'Opt Steps':<10} "
+        f"{'Time/Step':<12} {'Final Energy':<15} {'Max Force':<12} {'Valid':<8}"
+    )
+    print("=" * 120)
 
     # Results
     for results in results_list:
@@ -149,18 +158,34 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
             opt_results = results.get("optimization_results", {})
             freq_results = results.get("frequency_results", {})
             steps_taken = opt_results.get("steps_taken", 0)
-            timings.get("avg_time_per_step", 0)
-            results.get("optimizer", "unknown")
-            opt_results.get("converged", False)
-            opt_results.get("final_energy", None)
-            opt_results.get("max_force", None)
-            freq_results.get("is_valid_result", False)
+            time_per_step = timings.get("avg_time_per_step", 0)
+            backend = results.get("backend", "unknown")
+            optimizer = results.get("optimizer", "unknown")
+            converged = opt_results.get("converged", False)
+            final_energy = opt_results.get("final_energy", None)
+            max_force = opt_results.get("max_force", None)
+            is_valid = freq_results.get("is_valid_result", False)
 
             # Handle None values for formatting
-            str(steps_taken) if steps_taken is not None else "N/A"
+            steps_str = str(steps_taken) if steps_taken is not None else "N/A"
+            energy_str = f"{final_energy:.6f}" if final_energy is not None else "N/A"
+            force_str = f"{max_force:.6f}" if max_force is not None else "N/A"
+            valid_str = "✅" if is_valid else "❌"
+            status = "✅" if converged else "❌"
+
+            print(
+                f"{backend:<12} {optimizer:<15} {status:<8} {timings.get('total', 0):<12.3f} {steps_str:<10} "
+                f"{time_per_step:<12.6f} {energy_str:<15} {force_str:<12} {valid_str:<8}"
+            )
 
         else:
-            results.get("optimizer", "unknown")
+            backend = results.get("backend", "unknown")
+            optimizer = results.get("optimizer", "unknown")
+            status = "❌"
+            print(
+                f"{backend:<12} {optimizer:<15} {status:<8} {'N/A':<12} {'N/A':<10} "
+                f"{'N/A':<12} {'N/A':<15} {'N/A':<12} {'N/A':<8}"
+            )
 
     # Optimizer performance analysis
     available_results = [r for r in results_list if r["available"]]

@@ -87,7 +87,7 @@ def benchmark_backend(
     verbose : bool
         Whether to print progress information
 
-    Returns
+    Returns:
     -------
     Dict[str, Any]
         Benchmark results including timings for each step
@@ -312,24 +312,51 @@ def benchmark_backend(
 def print_summary(results_list: list[dict[str, Any]]) -> None:
     """Print a summary table of all benchmark results."""
     # Print legend first, before the table
+    print(f"\n{'=' * 120}")
+    print("BENCHMARK SUMMARY")
+    print(f"{'=' * 120}")
+    print("Legend: ✅ = Success, ❌ = Failed, ⚠️ = Warning, ⏱️ = Time")
 
     # Header
+    print(
+        f"\n{'Backend':<12} {'Status':<8} {'Total Time':<12} {'Opt Steps':<10} "
+        f"{'Time/Step':<12} {'Final Energy':<15} {'Max Force':<12}"
+    )
+    print("=" * 120)
 
     # Results
     for results in results_list:
         if results["available"]:
             timings = results["timings"]
             opt_results = results.get("optimization_results", {})
-            opt_results.get("steps_taken", 0)
-            timings.get("avg_time_per_step", 0)
+            steps_taken = opt_results.get("steps_taken", 0)
+            time_per_step = timings.get("avg_time_per_step", 0)
+
+            backend = results.get("backend", "unknown")
+            total_time = timings.get("total", 0.0)
+            final_energy = opt_results.get("final_energy", 0.0)
+            max_force = opt_results.get("max_force", 0.0)
+
+            status = "✅"
+            print(
+                f"{backend:<12} {status:<8} {total_time:<12.3f} {steps_taken:<10} "
+                f"{time_per_step:<12.6f} {final_energy:<15.6f} {max_force:<12.6f}"
+            )
 
         else:
-            pass
+            backend = results.get("backend", "unknown")
+            status = "❌"
+            print(
+                f"{backend:<12} {status:<8} {'N/A':<12} {'N/A':<10} "
+                f"{'N/A':<12} {'N/A':<15} {'N/A':<12}"
+            )
 
     # Note about detailed breakdown
     available_results = [r for r in results_list if r["available"]]
     if available_results:
-        pass
+        print(
+            "\nNote: Detailed timing breakdown is now available in the Performance Profiler section below."
+        )
 
 
 def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
@@ -340,18 +367,42 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
     )
 
     if not has_performance_data:
+        print(f"\n{'=' * 120}")
+        print("PERFORMANCE PROFILER SUMMARY")
+        print(f"{'=' * 120}")
+        print("No performance profiler data available.")
         return
 
     # Section 1: Calculator Calls & Memory
+    print(f"\n{'=' * 120}")
+    print("CALCULATOR CALLS & MEMORY USAGE")
+    print(f"{'=' * 120}")
 
     # Header (no optimizer column for timing benchmark)
+    print(
+        f"{'Backend':<12} {'Energy Calls':<12} {'Force Calls':<12} "
+        f"{'Hessian Calls':<13} {'Peak Mem (MB)':<14} {'GPU Peak (MB)':<14}"
+    )
+    print("=" * 120)
 
     # Results
     for results in results_list:
         if results.get("available") and "performance" in results:
             perf = results["performance"]
-            perf.get("calculator_calls", {})
-            perf.get("memory", {})
+            calls = perf.get("calculator_calls", {})
+            memory = perf.get("memory", {})
+
+            backend = results.get("backend", "unknown")
+            energy_calls = calls.get("energy", 0)
+            force_calls = calls.get("forces", 0)
+            hessian_calls = calls.get("hessian", 0)
+            peak_mem = memory.get("peak_memory_mb", 0.0)
+            gpu_peak = memory.get("gpu_peak_memory_mb", 0.0)
+
+            print(
+                f"{backend:<12} {energy_calls:<12} {force_calls:<12} "
+                f"{hessian_calls:<13} {peak_mem:<14.1f} {gpu_peak:<14.1f}"
+            )
 
     # Section 2: Detailed Timing Breakdown
 
@@ -367,6 +418,9 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
         return
 
     # Header for detailed timing
+    print(f"\n{'=' * 120}")
+    print("DETAILED TIMING BREAKDOWN")
+    print(f"{'=' * 120}")
 
     # Show timing statistics for each section
     for section in sorted(all_sections):
@@ -380,16 +434,23 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
 
         if section_stats:
             # Calculate aggregate statistics across all results
-            sum(stat.get("total_time", 0.0) for stat in section_stats)
+            total_time = sum(stat.get("total_time", 0.0) for stat in section_stats)
             total_count = sum(stat.get("count", 0) for stat in section_stats)
-            (
+            avg_time = (
                 sum(stat.get("avg_time", 0.0) * stat.get("count", 0) for stat in section_stats)
                 / total_count
                 if total_count > 0
                 else 0.0
             )
-            min(stat.get("min_time", 0.0) for stat in section_stats)
-            max(stat.get("max_time", 0.0) for stat in section_stats)
+            min_time = min(stat.get("min_time", 0.0) for stat in section_stats)
+            max_time = max(stat.get("max_time", 0.0) for stat in section_stats)
+
+            print(f"\n{section.upper().replace('_', ' ')}:")
+            print(f"  Total Time: {total_time:.3f}s")
+            print(f"  Average Time: {avg_time:.3f}s")
+            print(f"  Min Time: {min_time:.3f}s")
+            print(f"  Max Time: {max_time:.3f}s")
+            print(f"  Total Calls: {total_count}")
 
 
 def save_results(results_list: list[dict[str, Any]], output_file: str) -> None:

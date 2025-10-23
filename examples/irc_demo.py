@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """IRC (Intrinsic Reaction Coordinate) Demo.
-=========================================
 
 This example demonstrates how to calculate an IRC path from a transition state.
 The IRC follows the gradient downhill in both forward and backward directions

@@ -87,7 +87,7 @@ def run_command(cmd, desc, backend, timeout=600) -> tuple[bool, float, str, str]
 def create_example_commands(example_files: Path, backend: str, steps: int = 500) -> list[dict]:
     """Create example commands for a specific backend using default settings.
 
-    Notes
+    Notes:
     -----
     - TS optimizations are not supported on the 'mock' backend. We skip
       'tsopt' examples when backend == 'mock' to avoid hard errors. Timeouts
