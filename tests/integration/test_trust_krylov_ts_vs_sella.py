@@ -114,6 +114,11 @@ def test_trust_krylov_ts_bh28_subset_success_rate() -> None:
     if not BH28_DATASET.exists():
         pytest.skip("BH28 dataset missing")
 
+    # Check if actual XYZ files exist
+    missing_files = [rxn for rxn in BH28_TS_SUBSET if not (BH28_DATASET / f"{rxn}_ts.xyz").exists()]
+    if missing_files:
+        pytest.skip(f"BH28 dataset files missing: {missing_files}")
+
     successes = 0
     results: dict[str, dict[str, float]] = {}
 
