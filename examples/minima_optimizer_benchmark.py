@@ -46,12 +46,13 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 def create_minima_structure() -> Atoms:
     """Create a structure for minima optimization using example files."""
     import os
+    from pathlib import Path
 
     from ase.io import read
 
     # Use the smaller A_C_A_B_A_C reactant structure as starting point for minima optimization
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    return read(os.path.join(script_dir, "example_files", "A_C_A_B_A_C_reactant.xyz"))
+    script_dir = Path(__file__).parent
+    return read(script_dir / "example_files" / "A_C_A_B_A_C_reactant.xyz")
 
 
 def benchmark_minima_optimizer(

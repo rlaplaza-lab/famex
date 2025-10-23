@@ -114,7 +114,7 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
 
     # SciPy Hessian-based optimizers
     if name in ("trust-krylov", "trustkrylov", "trust_krylov"):
-        from qme.core.scipy_optimizers import TrustKrylov
+        from qme.optimizers.scipy_optimizers import TrustKrylov
 
         return TrustKrylov
     if name in (
