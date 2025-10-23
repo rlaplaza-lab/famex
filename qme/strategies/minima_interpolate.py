@@ -51,7 +51,7 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
         **kwargs
             Additional keyword arguments
 
-        Returns
+        Returns:
         -------
         dict[str, Any]
             Results dictionary containing optimized structures and metadata

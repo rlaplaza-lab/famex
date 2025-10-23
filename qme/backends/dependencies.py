@@ -17,16 +17,12 @@ class _DependencyContext:
     def __init__(self, manager: Any, deps_names: list[str]) -> None:
         self.manager = manager
         self.deps_names = deps_names
-        self.modules = None
+        self.modules: dict[str, Any] | None = None
 
     def __enter__(self) -> Any | tuple:
-        if len(self.deps_names) == 1:
-            self.modules = self.manager.require_multiple(*self.deps_names)
-            return self.modules
         self.modules = self.manager.require_multiple(*self.deps_names)
-        if self.modules is None:
-            msg = "Failed to load dependencies"
-            raise RuntimeError(msg)
+        if len(self.deps_names) == 1:
+            return self.modules
         return tuple(self.modules[name] for name in self.deps_names)
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
@@ -43,6 +39,7 @@ class DependencyManager:
     """
 
     def __init__(self) -> None:
+        """Initialize the dependency manager with empty caches."""
         self._cache: dict[str, Any] = {}
         self._availability_cache: dict[str, bool] = {}
 
@@ -57,7 +54,7 @@ class DependencyManager:
         package_name : str
             Name of the package to check
 
-        Returns
+        Returns:
         -------
         bool
             True if package is available, False otherwise
@@ -81,7 +78,7 @@ class DependencyManager:
         fallback_value : Any, optional
             Value to return if import fails
 
-        Returns
+        Returns:
         -------
         Any
             The loaded module or fallback value
@@ -137,7 +134,7 @@ class DependencyManager:
         self,
         *deps_names: str,
         purpose: str = "this functionality",
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any] | Any:
         """Require multiple dependencies, raising DependencyError if any are missing.
 
         Parameters
@@ -147,13 +144,13 @@ class DependencyManager:
         purpose : str, default "this functionality"
             Description of what the dependencies are needed for
 
-        Returns
+        Returns:
         -------
         dict or module
             If one dependency, returns the module directly.
             If multiple, returns dict mapping name -> module.
 
-        Raises
+        Raises:
         ------
         DependencyError
             If any required dependencies are missing
@@ -190,7 +187,7 @@ class DependencyManager:
             # Use torch and fairchem_modules here
             ...
         """
-        return _DependencyContext(self, deps_names)
+        return _DependencyContext(self, list(deps_names))
 
     def get(self, name: str, default: Any = None) -> Any:
         """Get a dependency, loading it lazily if needed."""

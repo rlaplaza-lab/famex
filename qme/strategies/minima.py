@@ -52,7 +52,7 @@ class LocalMinimaStrategy(BaseStrategy):
         **kwargs : Any
             Additional keyword arguments
 
-        Returns
+        Returns:
         -------
         dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
             Standardized result dictionary containing:

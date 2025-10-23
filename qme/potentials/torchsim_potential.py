@@ -400,7 +400,7 @@ class TorchSimPotential(BasePotential):
         properties : List[str], optional
             Properties to calculate (default: ["energy", "forces"])
 
-        Returns
+        Returns:
         -------
         List[dict]
             List of result dictionaries, one for each structure

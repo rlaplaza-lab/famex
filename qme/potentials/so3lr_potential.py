@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from ase.calculators.calculator import all_changes
 
-from qme.dependencies import deps
+from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
 
 if TYPE_CHECKING:
@@ -75,7 +75,7 @@ class SO3LRPotential(BasePotential):
         if hasattr(self, "_calc") and self._calc is not None:
             return
 
-        from qme.logging_utils import quiet_backend_loading
+        from qme.utils.ml_warnings import quiet_backend_loading
 
         # Don't show model info - let the outer context handle it
         with quiet_backend_loading(
@@ -179,7 +179,7 @@ def get_so3lr_calculator(
     **kwargs :
         Additional arguments passed to SO3LRPotential
 
-    Returns
+    Returns:
     -------
     SO3LRPotential
         Configured SO3LR calculator

@@ -243,7 +243,7 @@ def benchmark_optimization(
     suitable_optimizers : List[str]
         List of optimizers suitable for this task
 
-    Returns
+    Returns:
     -------
     Dict[str, Any]
         Benchmark results including timings for each step

@@ -102,7 +102,7 @@ class MockCalculator(Calculator):
         sigma : float
             LJ size parameter
 
-        Returns
+        Returns:
         -------
         tuple
             (energy, force_magnitude)
@@ -137,7 +137,7 @@ class MockCalculator(Calculator):
         k : float
             Force constant
 
-        Returns
+        Returns:
         -------
         tuple
             (energy, force_magnitude)
@@ -168,7 +168,7 @@ class MockCalculator(Calculator):
         system_changes : list, optional
             System changes since last calculation
 
-        Notes
+        Notes:
         -----
         The calculation uses pairwise harmonic bonds based on covalent radii
         and applies harmonic potential around equilibrium bond lengths.

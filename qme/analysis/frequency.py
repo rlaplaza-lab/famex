@@ -143,7 +143,7 @@ class FrequencyAnalysis:
         method : str
             Method to use: 'auto', 'direct_frequencies', 'direct', 'batch', or 'finite_differences'
 
-        Returns
+        Returns:
         -------
         np.ndarray
             Hessian matrix (3N x 3N for N atoms)
@@ -322,7 +322,7 @@ class FrequencyAnalysis:
     def diagonalize_hessian(self) -> tuple[np.ndarray, np.ndarray]:
         """Diagonalize mass-weighted Hessian to get normal modes and frequencies.
 
-        Returns
+        Returns:
         -------
         Tuple[np.ndarray, np.ndarray]
             eigenvalues (frequencies^2) and eigenvectors (normal modes)
@@ -376,7 +376,7 @@ class FrequencyAnalysis:
         unit : str
             Unit for frequencies: 'cm-1', 'meV', 'THz'
 
-        Returns
+        Returns:
         -------
         np.ndarray
             Vibrational frequencies, excluding translational and rotational modes
@@ -414,7 +414,7 @@ class FrequencyAnalysis:
     def get_normal_modes(self) -> np.ndarray:
         """Get normal mode vectors.
 
-        Returns
+        Returns:
         -------
         np.ndarray
             Normal mode vectors (3N x 3N-6/5 for vibrational modes only)
@@ -441,7 +441,7 @@ class FrequencyAnalysis:
         threshold : float
             Minimum frequency magnitude in cm^-1 to consider significant
 
-        Returns
+        Returns:
         -------
         dict[str, Union[bool, int, list[float], str]]
             Dictionary with TS verification results containing:
@@ -501,7 +501,7 @@ class FrequencyAnalysis:
             Maximum negative frequency in cm^-1 to consider as "small negative"
             (likely numerical noise, not a true imaginary frequency)
 
-        Returns
+        Returns:
         -------
         dict[str, Union[bool, int, list[float], str]]
             Dictionary with minima verification results containing:
@@ -582,7 +582,7 @@ class FrequencyAnalysis:
     def get_zero_point_energy(self) -> float:
         """Calculate zero-point vibrational energy.
 
-        Returns
+        Returns:
         -------
         float
             Zero-point energy in eV
@@ -614,7 +614,7 @@ class FrequencyAnalysis:
         temperature : float
             Temperature in Kelvin
 
-        Returns
+        Returns:
         -------
         dict[str, Union[float, int, list[float]]]
             Dictionary with thermodynamic properties containing:
@@ -753,7 +753,7 @@ class HessianCalculator:
     def calculate_numerical_hessian(self) -> np.ndarray:
         """Calculate Hessian matrix using finite differences.
 
-        Returns
+        Returns:
         -------
         np.ndarray
             Hessian matrix (3N x 3N for N atoms in indices)
@@ -833,7 +833,7 @@ class HessianCalculator:
         displacement : float
             Displacement in Å
 
-        Returns
+        Returns:
         -------
         np.ndarray
             Forces on atoms in indices, flattened

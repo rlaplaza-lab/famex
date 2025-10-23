@@ -22,7 +22,7 @@ def validate_ts_structure(atoms, explorer, threshold: float = 50.0) -> dict[str,
     threshold : float, default=50.0
         Minimum frequency magnitude in cm^-1 to consider significant
 
-    Returns
+    Returns:
     -------
     dict[str, Any]
         Validation results dictionary from FrequencyAnalysis.is_transition_state()
@@ -69,7 +69,7 @@ def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
     optimizer_name : str
         The optimizer being used
 
-    Raises
+    Raises:
     ------
     ValueError
         If the setup is unsuitable for TS optimization

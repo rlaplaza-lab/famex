@@ -254,12 +254,12 @@ def get_mace_calculator(
     **kwargs : dict
         Additional arguments passed to MACEPotential
 
-    Returns
+    Returns:
     -------
     MACEPotential
         Configured MACE calculator instance
 
-    Examples
+    Examples:
     --------
     >>> calc = get_mace_calculator()  # Uses MACE-OMOL-0
     >>> calc = get_mace_calculator(model_name="mace-mp-medium")

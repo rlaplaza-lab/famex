@@ -29,7 +29,7 @@ __all__ = [
 try:
     from qme.potentials.base_potential import BasePotential
 except ImportError:  # pragma: no cover - very unlikely
-    BasePotential = None
+    BasePotential = type(None)  # type: ignore[assignment,misc]
 
 try:
     from qme.potentials.mock_potential import MockCalculator
@@ -38,11 +38,11 @@ except ImportError:  # pragma: no cover - tests expect MockCalculator
     class _MissingMock:
         """Placeholder class when MockCalculator implementation is missing."""
 
-        def __init__(self, *args, **kwargs) -> None:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             msg = "MockCalculator implementation is missing"
             raise ImportError(msg)
 
-    MockCalculator = _MissingMock
+    MockCalculator = _MissingMock  # type: ignore[assignment,misc]
 
 
 # Backend module mapping for generic factory
@@ -68,11 +68,11 @@ def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
     **kwargs
         Arguments passed to the calculator constructor
 
-    Returns
+    Returns:
     -------
     Calculator instance
 
-    Raises
+    Raises:
     ------
     ImportError
         If backend is not available or cannot be imported

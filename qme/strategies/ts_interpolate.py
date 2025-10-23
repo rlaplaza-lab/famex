@@ -55,7 +55,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         **kwargs
             Additional keyword arguments
 
-        Returns
+        Returns:
         -------
         dict[str, Any]
             Standardized result dictionary

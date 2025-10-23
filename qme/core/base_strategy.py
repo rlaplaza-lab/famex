@@ -18,7 +18,7 @@ from ase import Atoms
 class StrategyMetadata:
     """Metadata for strategy registration.
 
-    Attributes
+    Attributes:
     ----------
     name : str
         Full strategy name, e.g., "minima:local"
@@ -81,7 +81,7 @@ class BaseStrategy(ABC):
         **kwargs : Any
             Strategy-specific parameters
 
-        Returns
+        Returns:
         -------
         dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
             Standardized result dictionary with at least:
@@ -100,7 +100,7 @@ class BaseStrategy(ABC):
         atoms_list : list[Atoms]
             List of structures to validate
 
-        Raises
+        Raises:
         ------
         ValueError
             If inputs are invalid for this strategy
@@ -118,7 +118,7 @@ class BaseStrategy(ABC):
         result : dict[str, Any]
             Strategy result dictionary
 
-        Returns
+        Returns:
         -------
         dict[str, Any]
             Result dictionary with profiler data merged in
@@ -142,7 +142,7 @@ class BaseStrategy(ABC):
         **metadata : Any
             Additional metadata to include in result
 
-        Returns
+        Returns:
         -------
         dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
             Standardized result dictionary

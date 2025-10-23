@@ -27,7 +27,7 @@ class StrategyRegistry:
         strategy_class : type[BaseStrategy]
             Strategy class to register
 
-        Raises
+        Raises:
         ------
         ValueError
             If strategy class is missing metadata
@@ -56,12 +56,12 @@ class StrategyRegistry:
         strategy_name : str
             Strategy name (e.g., "minima:local") or alias (e.g., "neb")
 
-        Returns
+        Returns:
         -------
         type[BaseStrategy]
             Strategy class
 
-        Raises
+        Raises:
         ------
         KeyError
             If strategy not found
@@ -78,7 +78,7 @@ class StrategyRegistry:
     def list_strategies(self) -> dict[str, StrategyMetadata]:
         """List all registered strategies.
 
-        Returns
+        Returns:
         -------
         dict[str, StrategyMetadata]
             Dictionary mapping strategy names to metadata
@@ -102,12 +102,12 @@ class StrategyRegistry:
         strategy : str
             Strategy type ("local", "neb", "cineb", etc.)
 
-        Returns
+        Returns:
         -------
         type[BaseStrategy]
             Strategy class
 
-        Raises
+        Raises:
         ------
         KeyError
             If strategy not found
@@ -124,7 +124,7 @@ class StrategyRegistry:
         strategy_name : str
             Strategy name or alias
 
-        Returns
+        Returns:
         -------
         bool
             True if strategy is registered
