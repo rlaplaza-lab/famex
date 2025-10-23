@@ -44,8 +44,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--backend",
-        default="mock",
-        help="Backend to use: uma|aimnet2|mace|mock (default: mock)",
+        default="mace",
+        help="Backend to use: uma|aimnet2|mace|mock (default: mace)",
     )
     parser.add_argument(
         "--npoints",

@@ -23,7 +23,7 @@ def main() -> int | None:
 
         explorer_no_prof = Explorer(
             benzene,
-            backend="mock",
+            backend="mace",
             target="minima",
             strategy="local",
             verbose=1,
@@ -33,7 +33,7 @@ def main() -> int | None:
         try:
             explorer_prof = Explorer(
                 benzene,
-                backend="mock",
+                backend="mace",
                 target="minima",
                 strategy="local",
                 profile=True,
