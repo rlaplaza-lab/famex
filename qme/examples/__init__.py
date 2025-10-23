@@ -70,7 +70,7 @@ class QMEExampleInterface:
 
     def get_available_ml_backends(self) -> list[str]:
         """Get list of available ML backends (excluding mock)."""
-        from qme.backend_availability import get_available_ml_backends
+        from qme.backends.availability import get_available_ml_backends
 
         return get_available_ml_backends()
 
@@ -85,34 +85,45 @@ class QMEExampleInterface:
             if is_backend_available(backend):
                 available.append(backend)
             elif verbose >= 1:
-                pass
+                print(f"Warning: Backend '{backend}' not available, skipping")
 
         return available
 
     def print_header(self, subtitle: str = "") -> None:
         """Print standardized header."""
+        print("=" * 80)
+        print(f"QME {self.name}")
         if subtitle:
-            pass
+            print(f"{subtitle}")
+        print("=" * 80)
 
     def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
         """Print standardized backend summary."""
-        for _i, _backend in enumerate(backends, 1):
-            pass
+        print(f"\n📋 {title}")
+        print("-" * 50)
+        for i, backend in enumerate(backends, 1):
+            print(f"  {i}. {backend}")
+        print(f"Total: {len(backends)} backends")
 
     def print_configuration(self, config: dict[str, Any]) -> None:
         """Print standardized configuration summary."""
-        for _key, _value in config.items():
-            pass
+        print("\nConfiguration:")
+        for key, value in config.items():
+            print(f"  {key}: {value}")
 
     def print_success(self, message: str = "Completed successfully!") -> None:
         """Print standardized success message."""
-        time.time() - self.start_time
+        elapsed = time.time() - self.start_time
+        print(f"\n✅ {message}")
+        print(f"⏱️  Total time: {elapsed:.1f} seconds")
 
     def print_error(self, message: str) -> None:
         """Print standardized error message."""
+        print(f"\n❌ {message}")
 
     def print_warning(self, message: str) -> None:
         """Print standardized warning message."""
+        print(f"\n⚠️  {message}")
 
     def save_results(self, results: dict[str, Any], output_file: str | None = None) -> None:
         """Save results to JSON file."""
