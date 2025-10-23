@@ -828,13 +828,16 @@ class HessianCalculator:
         atoms_displaced = self.atoms.copy()
         atoms_displaced.positions[atom_index, direction] += displacement
 
-        # Create fresh calculator instance to avoid caching issues with MockCalculator
+        # Reuse the same calculator instance for efficiency
+        # Only create a new MockCalculator if absolutely necessary (for state isolation)
         try:
             from qme.potentials.mock_potential import MockCalculator
         except ImportError:
             MockCalculator = None
 
         if MockCalculator is not None and isinstance(self.calculator, MockCalculator):
+            # For MockCalculator, we need a fresh instance to avoid state contamination
+            # but we can reuse the same parameters
             calc = MockCalculator(
                 backend=self.calculator.backend,
                 force_constant=getattr(self.calculator, "force_constant", 1.0),
@@ -842,6 +845,8 @@ class HessianCalculator:
                 mult=getattr(self.calculator, "mult", 1),
             )
         else:
+            # For real calculators (UMA, AIMNet2, etc.), reuse the same instance
+            # This is much more efficient and avoids repeated model loading
             calc = self.calculator
 
         atoms_displaced.calc = calc
