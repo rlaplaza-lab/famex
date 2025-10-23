@@ -135,7 +135,9 @@ class SciPyHessianOptimizer(Optimizer):
 
         # Don't use restart for SciPy optimizers
         restart = None
-        Optimizer.__init__(self, atoms, restart, logfile, trajectory, **kwargs)
+        # Filter out profiler argument as ASE Optimizer doesn't accept it
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k != "profiler"}
+        Optimizer.__init__(self, atoms, restart, logfile, trajectory, **filtered_kwargs)
 
         self.method = method
         freq = hessian_update_freq

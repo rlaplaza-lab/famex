@@ -45,14 +45,14 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 def create_ts_structure() -> Atoms:
     """Create a transition state structure for TS optimization using example files."""
-    import os
+    from pathlib import Path
 
     from ase.io import read
 
     # Use the actual TS structure from example files
     # Get the directory where this script is located
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    return read(os.path.join(script_dir, "example_files", "A_C_A_B_A_C_ts.xyz"))
+    script_dir = Path(__file__).parent
+    return read(script_dir / "example_files" / "A_C_A_B_A_C_ts.xyz")
 
 
 def benchmark_ts_optimizer(
