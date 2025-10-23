@@ -9,7 +9,7 @@ convenience functions for logging and user-friendly interfaces.
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from qme.backends.constants import (
     ALL_BACKENDS,
@@ -28,14 +28,17 @@ from qme.backends.dependencies import deps
 if TYPE_CHECKING:
     pass
 
+
 # Import logger only when needed to avoid circular imports
-def _get_logger():
+def _get_logger() -> Any:
     try:
         from qme.utils.logging import get_qme_logger
+
         return get_qme_logger(__name__)
     except ImportError:
         # Fallback for when logging isn't available yet
         import logging
+
         return logging.getLogger(__name__)
 
 
@@ -102,6 +105,7 @@ class BackendAvailabilityChecker:
     """Fast, dependency-based backend availability checker."""
 
     def __init__(self) -> None:
+        """Initialize the availability checker with empty caches."""
         self._cache: dict[str, bool] = {}
         self._conflict_cache: dict[str, str | None] = {}
 
@@ -494,7 +498,7 @@ def require_backend(backend: str) -> None:
         pytest.skip(f"Backend {backend} not available in this environment")
 
 
-def require_any_backend(backends: list[str]):
+def require_any_backend(backends: list[str]) -> list[str] | None:
     """Require that at least one of the specified backends is available.
 
     Usage:

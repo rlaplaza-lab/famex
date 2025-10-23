@@ -134,6 +134,7 @@ select = [
     "C4", # flake8-comprehensions
     "PIE", # flake8-pie
     "SIM", # flake8-simplify
+    "D",  # pydocstyle
 ]
 ignore = [
     "E501",  # line too long (handled by black)
@@ -144,7 +145,17 @@ ignore = [
     "SIM102",  # nested ifs are sometimes clearer than combined conditions
     "SIM105",  # contextlib.suppress is not always clearer than try-except-pass
     "SIM108",  # ternary operators are not always clearer than if-else blocks
+    "D100",  # Missing docstring in public module
+    "D101",  # Missing docstring in public class
+    "D102",  # Missing docstring in public method
+    "D103",  # Missing docstring in public function
+    "D104",  # Missing docstring in public package
+    "D105",  # Missing docstring in magic method
+    "D107",  # Missing docstring in __init__
 ]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"  # Standardize on Google-style docstrings
 
 [tool.mypy]
 python_version = "3.10"

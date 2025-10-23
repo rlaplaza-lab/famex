@@ -239,12 +239,12 @@ def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs: Any) -> UMAPoten
     **kwargs : Any
         Additional arguments passed to UMAPotential
 
-    Returns
+    Returns:
     -------
     UMAPotential
         Configured UMA calculator
 
-    Examples
+    Examples:
     --------
     >>> # Get default UMA calculator
     >>> calc = get_uma_calculator()

@@ -34,12 +34,12 @@ def parse_constraints(
     verbose : bool, default False
         Print constraint information
 
-    Returns
+    Returns:
     -------
     List[FixConstraint]
         List of ASE-compatible constraint objects
 
-    Notes
+    Notes:
     -----
     Supported string formats:
     - "fix 0,1,2,3": Fix atoms at indices 0,1,2,3

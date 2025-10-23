@@ -133,7 +133,7 @@ class PathManager:
         explorer : Explorer, optional
             Explorer instance for calculator attachment
 
-        Returns
+        Returns:
         -------
         List[Geometry]
             List of interpolated geometries
@@ -268,7 +268,7 @@ class PathManager:
         path : List[Atoms]
             List of structures along the path
 
-        Returns
+        Returns:
         -------
         tuple[Atoms, int]
             (ts_structure, index)
@@ -300,7 +300,7 @@ class PathManager:
         path : List[Atoms]
             List of structures along the path
 
-        Returns
+        Returns:
         -------
         list[int]
             Indices of local minima
@@ -347,7 +347,7 @@ class PathManager:
         path : List[Atoms]
             List of structures along the path
 
-        Returns
+        Returns:
         -------
         list[int]
             Indices of local maxima
@@ -398,7 +398,7 @@ class PathManager:
         atoms1, atoms2 : Atoms
             The two structures to compare
 
-        Returns
+        Returns:
         -------
         float
             RMSD in Angstroms
@@ -433,7 +433,7 @@ class PathManager:
         energy_threshold : float
             Energy threshold for similarity (eV)
 
-        Returns
+        Returns:
         -------
         tuple[bool, float, float]
             (is_similar, rmsd, energy_diff)
@@ -473,7 +473,7 @@ class PathManager:
         strategy_name : str
             Name of the strategy for warning messages
 
-        Returns
+        Returns:
         -------
         tuple[List[Atoms], List[int], List[str]]
             (filtered_structures, removed_indices, warning_messages)
@@ -562,7 +562,7 @@ class PathManager:
         structures : List[Atoms] or Atoms
             Structure(s) to attach calculators to
 
-        Returns
+        Returns:
         -------
         Calculator
             The calculator instance that was attached
@@ -599,7 +599,7 @@ class PathManager:
         path : List[Geometry] or List[Atoms]
             Geometries along the path
 
-        Returns
+        Returns:
         -------
         list[float]
             List of energies
@@ -626,7 +626,7 @@ class PathManager:
         path_geometries : List[Geometry] or List[Atoms]
             Geometries along the path
 
-        Returns
+        Returns:
         -------
         tuple
             (rmsd_from_reactant, rmsd_from_product)
@@ -659,7 +659,7 @@ class PathManager:
         path_geometries : List[Geometry] or List[Atoms]
             Geometries along the path
 
-        Returns
+        Returns:
         -------
         str
             XYZ trajectory as string
@@ -697,7 +697,7 @@ class PathManager:
         path : List[Atoms]
             List of structures along the path
 
-        Returns
+        Returns:
         -------
         dict
             Dictionary with path statistics including:

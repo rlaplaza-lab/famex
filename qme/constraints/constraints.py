@@ -254,7 +254,7 @@ def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> QMEC
     - constraint_str: Constraint specification string
     - reference_atoms: Reference geometry for constraint values
 
-    Returns
+    Returns:
     -------
         Configured QMEConstraintManager
 
@@ -304,11 +304,11 @@ def validate_atom_indices(atom_indices: list[int], atoms: Atoms) -> bool:
     - atom_indices: List of atom indices to validate
     - atoms: Atoms object to validate against
 
-    Returns
+    Returns:
     -------
         True if all indices are valid
 
-    Raises
+    Raises:
     ------
         ValueError if any index is invalid
 
@@ -332,7 +332,7 @@ def get_constraint_summary(atoms: Atoms) -> dict[str, Any]:
     ----------
     - atoms: Atoms object with constraints
 
-    Returns
+    Returns:
     -------
         Dictionary summarizing constraints
 

@@ -9,7 +9,7 @@ from typing import Any
 
 from ase import Atoms
 
-from qme.dependencies import deps
+from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
 
 
@@ -102,7 +102,7 @@ class TBLitePotential(BasePotential):
         if hasattr(self, "_calc") and self._calc is not None:
             return
 
-        from qme.logging_utils import quiet_backend_loading
+        from qme.utils.ml_warnings import quiet_backend_loading
 
         # Don't show model info - let the outer context handle it
         with quiet_backend_loading("tblite", self.method, None, None, show_model_info=False):
@@ -263,12 +263,12 @@ def get_tblite_calculator(
     **kwargs
         Additional arguments passed to TBLitePotential
 
-    Returns
+    Returns:
     -------
     TBLitePotential
         Configured TBLite calculator instance
 
-    Examples
+    Examples:
     --------
     >>> calc = get_tblite_calculator()  # Uses GFN2-xTB
     >>> calc = get_tblite_calculator(method="GFN1-xTB")

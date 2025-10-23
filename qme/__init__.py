@@ -29,6 +29,7 @@ Examples:
 """
 
 import contextlib
+from typing import Any
 
 __version__ = "0.1.0"
 __author__ = "QME Development Team"
@@ -47,7 +48,7 @@ except Exception:
     pass
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     import importlib
 
     _LAZY_IMPORTS = {

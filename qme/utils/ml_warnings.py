@@ -46,7 +46,7 @@ class VerboseFilter(logging.Filter):
         record : logging.LogRecord
             Log record to filter
 
-        Returns
+        Returns:
         -------
         bool
             True if message should be shown, False if suppressed
@@ -146,7 +146,7 @@ def quiet_backend_loading(
     show_model_info : bool, default True
         Whether to show model information
 
-    Yields
+    Yields:
     ------
     List[str]
         List of captured messages during backend loading
@@ -159,6 +159,7 @@ def quiet_backend_loading(
 
     # Set the quiet context flag
     import threading
+
     _quiet_context_local = threading.local()
     _quiet_context_local.in_quiet_context = True
 

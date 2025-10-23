@@ -42,7 +42,7 @@ class InterpolationStrategy(ABC):
         npoints : int
             Number of interpolation points (including endpoints)
 
-        Returns
+        Returns:
         -------
         list[np.ndarray]
             List of interpolated coordinate arrays
@@ -371,12 +371,12 @@ def get_interpolation_strategy(method: str) -> InterpolationStrategy:
     method : str
         Name of the interpolation method
 
-    Returns
+    Returns:
     -------
     InterpolationStrategy
         Interpolation strategy instance
 
-    Raises
+    Raises:
     ------
     ValueError
         If method is not recognized
@@ -398,7 +398,7 @@ def get_interpolation_strategy(method: str) -> InterpolationStrategy:
 def list_interpolation_methods() -> dict[str, str]:
     """List available interpolation methods and their descriptions.
 
-    Returns
+    Returns:
     -------
     dict[str, str]
         Dictionary mapping method names to descriptions

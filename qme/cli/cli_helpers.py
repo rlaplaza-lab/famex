@@ -24,13 +24,13 @@ def parse_kv_pairs(pairs: list[str]) -> dict[str, object]:
     pairs : List[str]
         List of key=value strings from CLI arguments
 
-    Returns
+    Returns:
     -------
     Dict[str, object]
         Dictionary with parsed key-value pairs. Values are automatically
         converted to appropriate types (bool, int, float, or str).
 
-    Examples
+    Examples:
     --------
     >>> parse_kv_pairs(["k=5.0", "steps=100", "verbose=true"])
     {'k': 5.0, 'steps': 100, 'verbose': True}
@@ -63,13 +63,13 @@ def load_atoms_from_xyz(path: str) -> Atoms:
     path : str
         Path to the XYZ file
 
-    Returns
+    Returns:
     -------
     Atoms
         ASE Atoms object. If the file contains multiple frames,
         returns the last frame.
 
-    Raises
+    Raises:
     ------
     FileNotFoundError
         If the file doesn't exist
@@ -111,12 +111,12 @@ def _coerce_to_atoms(obj: Any) -> Atoms:
         - Dictionary with 'optimized_atoms' key
         - List/tuple of Atoms objects (first one returned)
 
-    Returns
+    Returns:
     -------
     Atoms
         ASE Atoms object
 
-    Raises
+    Raises:
     ------
     ValueError
         If obj cannot be converted to Atoms
@@ -153,12 +153,12 @@ def write_atoms(
     out_path : Optional[str]
         Output file path. If None, no file is written.
 
-    Returns
+    Returns:
     -------
     Optional[str]
         Output path if file was written, None otherwise
 
-    Raises
+    Raises:
     ------
     ValueError
         If atoms cannot be converted to valid structure

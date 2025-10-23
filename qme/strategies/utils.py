@@ -46,7 +46,7 @@ class StrategyUtils:
         optimizer : Any
             The optimizer instance
 
-        Returns
+        Returns:
         -------
         int or None
             Number of steps taken, or None if not available
@@ -74,7 +74,7 @@ class StrategyUtils:
         atoms : Atoms
             ASE Atoms object
 
-        Returns
+        Returns:
         -------
         bool
             True if converged, False otherwise
@@ -103,7 +103,7 @@ class StrategyUtils:
         calculator : Any
             Calculator to check
 
-        Returns
+        Returns:
         -------
         bool
             True if calculator supports batch evaluation
@@ -133,7 +133,7 @@ class StrategyUtils:
         supports_batch : bool
             Whether calculator supports batch evaluation
 
-        Returns
+        Returns:
         -------
         tuple[list[float], list[np.ndarray]]
             Energies and forces for all structures
@@ -185,7 +185,7 @@ class StrategyUtils:
         step : int
             Current step number
 
-        Returns
+        Returns:
         -------
         bool
             True if converged
@@ -224,7 +224,7 @@ class StrategyUtils:
         explorer : Any, optional
             Explorer instance for calculator management
 
-        Returns
+        Returns:
         -------
         Atoms or None
             New node, or None if growth failed

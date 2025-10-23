@@ -16,11 +16,13 @@ class QMEError(Exception):
     """Base exception for QME errors."""
 
     def __init__(self, message: str, suggestion: str | None = None) -> None:
+        """Initialize QME error with message and optional suggestion."""
         super().__init__(message)
         self.message = message
         self.suggestion = suggestion
 
     def __str__(self) -> str:
+        """Return formatted error message with optional suggestion."""
         if self.suggestion:
             return f"{self.message}\n\n💡 Suggestion: {self.suggestion}"
         return self.message
@@ -30,6 +32,7 @@ class BackendError(Exception):
     """Raised when backend is unavailable or incompatible."""
 
     def __init__(self, backend: str, available: list[str], operation: str) -> None:
+        """Initialize backend error with backend name and available alternatives."""
         message = (
             f"Backend '{backend}' is not available for {operation}. "
             f"Available backends: {', '.join(available)}"
@@ -44,6 +47,7 @@ class DependencyError(Exception):
     """Raised when required dependencies are missing."""
 
     def __init__(self, dependency: str, purpose: str, install_command: str) -> None:
+        """Initialize dependency error with dependency name and install command."""
         message = (
             f"Missing dependency '{dependency}' required for {purpose}. "
             f"Install with: {install_command}"
@@ -64,7 +68,7 @@ def validate_atoms_compatibility(atoms1: Atoms, atoms2: Atoms, context: str = "o
     context : str
         Context for error messages
 
-    Raises
+    Raises:
     ------
     ValueError
         If atoms are incompatible

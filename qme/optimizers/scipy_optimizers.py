@@ -85,7 +85,7 @@ class SciPyHessianOptimizer(Optimizer):
     **kwargs
         Additional arguments passed to Optimizer base class.
 
-    Attributes
+    Attributes:
     ----------
     freq_analysis : FrequencyAnalysis
         FrequencyAnalysis instance for Hessian computation.
@@ -230,7 +230,7 @@ class SciPyHessianOptimizer(Optimizer):
         x : np.ndarray
             Flattened position array.
 
-        Returns
+        Returns:
         -------
         float
             Potential energy scaled by alpha.
@@ -249,7 +249,7 @@ class SciPyHessianOptimizer(Optimizer):
         x : np.ndarray
             Flattened position array.
 
-        Returns
+        Returns:
         -------
         np.ndarray
             Gradient (negative forces), flattened and scaled.
@@ -286,7 +286,7 @@ class SciPyHessianOptimizer(Optimizer):
         x : np.ndarray
             Flattened position array.
 
-        Returns
+        Returns:
         -------
         np.ndarray
             Hessian matrix (3N x 3N), scaled by alpha.
@@ -457,7 +457,7 @@ class SciPyHessianOptimizer(Optimizer):
         steps : int
             Maximum number of optimization steps.
 
-        Returns
+        Returns:
         -------
         bool
             True if converged, False otherwise.
@@ -576,7 +576,7 @@ class TrustKrylov(SciPyHessianOptimizer):
     **kwargs
         Additional arguments passed to Optimizer base class.
 
-    Example
+    Example:
     -------
     >>> from ase.build import molecule
     >>> from qme.core.scipy_optimizers import TrustKrylov
@@ -628,7 +628,7 @@ class TrustKrylovTS(TrustKrylov):
     Hessian eigenvector is tracked and reflected so that the optimization
     converges to an index-1 saddle point.
 
-    Notes
+    Notes:
     -----
     The implementation reflects both the gradient and the Hessian along the
     tracked mode. In practice this means the SciPy trust region solver sees a

@@ -64,15 +64,12 @@ class BasePotential:
 
         # Default implemented properties; subclasses may override
         # Preserve class-level implemented_properties if it exists
-        if hasattr(self, "implemented_properties"):
-            # Class already defines implemented_properties, use it unless explicitly overridden
-            self.implemented_properties = kwargs.get(
-                "implemented_properties",
-                self.implemented_properties,
-            )
-        else:
+        if not hasattr(self, "implemented_properties"):
             # No class-level definition, use from kwargs or default to empty list
             self.implemented_properties: list[str] = kwargs.get("implemented_properties", [])
+        elif "implemented_properties" in kwargs:
+            # Class already defines implemented_properties, but override with kwargs
+            self.implemented_properties = kwargs["implemented_properties"]
 
         # Batch evaluation support
         self._supports_batch_evaluation: bool = kwargs.get("supports_batch_evaluation", False)
@@ -106,7 +103,7 @@ class BasePotential:
             An optional ASE Atoms object. If provided, it will be set
             as `self.atoms`.
 
-        Returns
+        Returns:
         -------
         Any or None
             The loaded backend calculator object, or None if loading failed.
@@ -201,7 +198,7 @@ class BasePotential:
         properties : List[str], optional
             Properties to calculate (default: ["energy", "forces"])
 
-        Returns
+        Returns:
         -------
         List[dict]
             List of result dictionaries, one for each structure

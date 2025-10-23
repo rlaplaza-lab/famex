@@ -78,7 +78,7 @@ class CalculatorCache:
         **kwargs
             Additional calculator parameters
 
-        Returns
+        Returns:
         -------
         Calculator or None
             Cached calculator if available, None otherwise
@@ -117,7 +117,7 @@ class CalculatorCache:
         **kwargs
             Additional calculator parameters
 
-        Returns
+        Returns:
         -------
         str
             Cache key for the calculator
@@ -183,7 +183,10 @@ class ModelCache:
         if self.metadata_file.exists():
             try:
                 with open(self.metadata_file) as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data
+                    return {}
             except (OSError, json.JSONDecodeError):
                 return {}
         return {}
@@ -212,7 +215,7 @@ class ModelCache:
         model_url : str
             URL where the model can be downloaded
 
-        Returns
+        Returns:
         -------
         Path or None
             Path to cached model file, or None if not cached/valid
@@ -224,7 +227,7 @@ class ModelCache:
             return None
 
         cache_entry = self.metadata[model_hash]
-        cached_path = self.cache_dir / cache_entry["filename"]
+        cached_path: Path = self.cache_dir / cache_entry["filename"]
 
         # Check if file exists and is valid
         if not cached_path.exists():
@@ -257,7 +260,7 @@ class ModelCache:
         model_data : bytes
             Model data to cache
 
-        Returns
+        Returns:
         -------
         Path
             Path to cached model file
@@ -352,6 +355,7 @@ class UnifiedCache:
     """Unified cache manager for both calculators and models."""
 
     def __init__(self) -> None:
+        """Initialize the unified cache manager."""
         self.calculator_cache = CalculatorCache()
         self.model_cache = ModelCache()
 
@@ -421,7 +425,7 @@ def get_cached_calculator(
     **kwargs
         Additional calculator parameters
 
-    Returns
+    Returns:
     -------
     Calculator or None
         Cached calculator if available, None otherwise
@@ -453,7 +457,7 @@ def cache_calculator(
     **kwargs
         Additional calculator parameters
 
-    Returns
+    Returns:
     -------
     str
         Cache key for the calculator
@@ -479,7 +483,7 @@ def download_and_cache_model(model_name: str, model_url: str) -> Path:
     model_url : str
         URL to download the model from
 
-    Returns
+    Returns:
     -------
     Path
         Path to the model file (cached or newly downloaded)

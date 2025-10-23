@@ -1,3 +1,10 @@
+"""Core Explorer class for QME molecular geometry optimization.
+
+This module provides the main Explorer class that serves as the primary
+interface for molecular geometry optimization using ASE and SELLA optimizers
+combined with machine learning potentials.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -37,7 +44,7 @@ def _extract_charge_spin(
     default_spin : int
         Default spin if not found
 
-    Returns
+    Returns:
     -------
     tuple[int, int]
         (charge, spin) tuple
@@ -170,7 +177,7 @@ class Explorer:
     verbose : int, default 1
         Verbosity level (0=quiet, 1=normal, 2=verbose).
 
-    Notes
+    Notes:
     -----
     - If a provided structure exposes ``charge``/``mult`` attributes or
       ``atoms.info`` includes ``charge``/``spin``, those values override the
@@ -179,7 +186,7 @@ class Explorer:
       descriptions.
     - The Explorer automatically handles calculator creation and caching.
 
-    Examples
+    Examples:
     --------
     >>> # Minima optimization (local is default)
     >>> explorer = Explorer(atoms, target="minima")
@@ -250,6 +257,45 @@ class Explorer:
         verbose: int = 1,
         profile: bool = False,
     ) -> None:
+        """Initialize the Explorer with molecular structure and configuration.
+
+        Parameters
+        ----------
+        atoms : Atoms | Sequence[Atoms]
+            Molecular structure(s) to optimize
+        backend : str, default "uma"
+            ML potential backend to use
+        model_name : str | None, default None
+            Specific model name for the backend
+        model_path : str | None, default None
+            Path to model file
+        device : str | None, default None
+            Device for calculations (cpu, cuda, etc.)
+        default_charge : int, default 0
+            Default molecular charge
+        default_spin : int, default 1
+            Default spin multiplicity
+        local_optimizer : str, default "default"
+            Local optimizer to use
+        optimizer_kwargs : dict[str, Any] | None, default None
+            Additional optimizer parameters
+        strategy : str | None, default "local"
+            Optimization strategy
+        target : str | None, default "minima"
+            Optimization target
+        ts_kwargs : dict[str, Any] | None, default None
+            Transition state specific parameters
+        constraints : str | list | dict | None, default None
+            Geometric constraints
+        initial_hessian : np.ndarray | None, default None
+            Initial Hessian matrix
+        auto_register : bool, default True
+            Whether to auto-register strategies
+        verbose : int, default 1
+            Verbosity level
+        profile : bool, default False
+            Whether to enable profiling
+        """
         if isinstance(atoms, Atoms):
             self.atoms_list: list[Atoms] = [atoms]
         else:
@@ -338,7 +384,7 @@ class Explorer:
         atoms : Atoms
             The atoms object to check
 
-        Returns
+        Returns:
         -------
         tuple[bool, bool]
             (charge_missing, spin_missing) indicating if each is missing
@@ -486,7 +532,7 @@ class Explorer:
     def explain_run(self) -> dict[str, str | bool | int | None]:
         """Explain what strategy would be selected without running.
 
-        Returns
+        Returns:
         -------
         dict[str, Union[str, bool, int, None]]
             Dictionary with strategy selection details containing:
@@ -568,7 +614,7 @@ class Explorer:
         **kwargs
             Additional keyword arguments forwarded to the strategy runner.
 
-        Returns
+        Returns:
         -------
         dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
             Standardized result dictionary containing:
@@ -581,7 +627,7 @@ class Explorer:
             - free_energy_correction: Free energy correction in eV (float, optional)
             - Additional strategy-specific metadata
 
-        Examples
+        Examples:
         --------
         >>> # Minima optimization
         >>> explorer = Explorer(atoms, target="minima", strategy="local")
@@ -684,19 +730,19 @@ class Explorer:
         **kwargs : Any
             Additional arguments passed to Explorer constructor.
 
-        Returns
+        Returns:
         -------
         Explorer
             New Explorer instance with loaded geometry ready for optimization.
 
-        Raises
+        Raises:
         ------
         FileNotFoundError
             If the specified file does not exist.
         ValueError
             If the file format is not supported or file is corrupted.
 
-        Examples
+        Examples:
         --------
         >>> # Load from XYZ file
         >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2")
@@ -735,7 +781,7 @@ class Explorer:
         filename_or_geom : str, Path, or Atoms
             File path or geometry object to load
 
-        Returns
+        Returns:
         -------
         Atoms
             Loaded geometry
@@ -839,7 +885,7 @@ class Explorer:
         format : str, optional
             File format (inferred from extension if None)
 
-        Examples
+        Examples:
         --------
         >>> explorer = Explorer(atoms=[reactant, product], target="path")
         >>> result = explorer.run(npoints=7)
@@ -929,7 +975,7 @@ class Explorer:
         **kwargs
             Additional arguments passed to FrequencyAnalysis
 
-        Returns
+        Returns:
         -------
         dict[str, Union[list[float], float, dict[str, Any], str, int, np.ndarray]]
             Dictionary containing:
