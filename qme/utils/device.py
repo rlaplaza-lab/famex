@@ -1,5 +1,4 @@
-"""
-Device utilities for QME.
+"""Device utilities for QME.
 
 This module provides centralized device detection and management for CUDA vs CPU,
 ensuring consistent device handling across the entire QME codebase.
@@ -11,8 +10,7 @@ logger = get_qme_logger(__name__)
 
 
 def get_optimal_device(device: str | None = None) -> str:
-    """
-    Get the optimal device for computation.
+    """Get the optimal device for computation.
 
     Parameters
     ----------
@@ -23,6 +21,7 @@ def get_optimal_device(device: str | None = None) -> str:
     -------
     str
         Device to use ('cpu' or 'cuda')
+
     """
     if device is not None:
         return device.lower()
@@ -43,13 +42,13 @@ def get_optimal_device(device: str | None = None) -> str:
 
 
 def print_device_info(device: str) -> None:
-    """
-    Print device information for user feedback.
+    """Print device information for user feedback.
 
     Parameters
     ----------
     device : str
         Device being used
+
     """
     if device == "cuda":
         try:
@@ -71,8 +70,7 @@ def print_device_info(device: str) -> None:
 
 
 def validate_device(device: str | None) -> str:
-    """
-    Validate and normalize device parameter.
+    """Validate and normalize device parameter.
 
     This function consolidates device validation logic from across the codebase.
 
@@ -90,6 +88,7 @@ def validate_device(device: str | None) -> str:
     ------
     ValueError
         If device parameter is invalid
+
     """
     if device is None:
         return get_optimal_device()
@@ -98,10 +97,13 @@ def validate_device(device: str | None) -> str:
     valid_devices = ["cpu", "cuda", "gpu"]
 
     if device not in valid_devices:
-        raise ValueError(
+        msg = (
             f"Invalid device '{device}'. "
             f"Supported devices: {', '.join(valid_devices)} or None for auto-detection. "
             f"Example: device='cpu' or device='cuda'"
+        )
+        raise ValueError(
+            msg,
         )
 
     # Normalize 'gpu' to 'cuda'
@@ -114,32 +116,40 @@ def validate_device(device: str | None) -> str:
             from qme.dependencies import deps
 
             if not deps.has("torch"):
-                raise ValueError(
+                msg = (
                     "PyTorch not available to check CUDA availability. "
                     "Please install PyTorch or use device='cpu'. "
                     "Try: pip install torch"
                 )
+                raise ValueError(
+                    msg,
+                )
 
             torch = deps.get("torch")
             if not torch.cuda.is_available():
-                raise ValueError(
+                msg = (
                     "CUDA device requested but CUDA is not available on this system. "
                     "Please use device='cpu' or install CUDA-enabled PyTorch. "
                     "Try: pip install torch --index-url https://download.pytorch.org/whl/cu118"
                 )
+                raise ValueError(
+                    msg,
+                )
         except ImportError:
-            raise ValueError(
+            msg = (
                 "PyTorch not available to check CUDA availability. "
                 "Please install PyTorch or use device='cpu'. "
                 "Try: pip install torch"
+            )
+            raise ValueError(
+                msg,
             )
 
     return device
 
 
 def get_device_info(device: str) -> dict:
-    """
-    Get detailed device information.
+    """Get detailed device information.
 
     Parameters
     ----------
@@ -150,6 +160,7 @@ def get_device_info(device: str) -> dict:
     -------
     dict
         Dictionary containing device information
+
     """
     info = {"device": device, "cuda_available": False, "gpu_name": None, "gpu_memory": None}
 

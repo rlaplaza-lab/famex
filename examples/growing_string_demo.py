@@ -6,6 +6,7 @@ transition states between a reactant and product configuration.
 """
 
 import argparse
+import sys
 from pathlib import Path
 
 from ase import Atoms
@@ -28,10 +29,10 @@ def create_h2_reaction():
     return reactant, product
 
 
-def main():
+def main() -> int:
     """Run growing string method demo."""
     parser = argparse.ArgumentParser(
-        description="Growing String Method (DE-GSM) demo for TS search"
+        description="Growing String Method (DE-GSM) demo for TS search",
     )
     parser.add_argument(
         "--reactant",
@@ -90,21 +91,14 @@ def main():
 
     # Load or create structures
     if args.reactant and args.product:
-        print(f"Loading reactant from: {args.reactant}")
-        print(f"Loading product from: {args.product}")
         from ase.io import read
 
         reactant = read(args.reactant)
         product = read(args.product)
     else:
-        print("No input files provided, using H2 dissociation demo...")
         reactant, product = create_h2_reaction()
 
-    print(f"\nReactant: {reactant.get_chemical_formula()}")
-    print(f"Product: {product.get_chemical_formula()}")
-
     # Setup Explorer
-    print(f"\nSetting up Growing String Method with backend: {args.backend}")
     explorer = qme.Explorer(
         atoms=[reactant, product],
         backend=args.backend,
@@ -113,13 +107,6 @@ def main():
     )
 
     # Run growing string method
-    print("\nRunning Growing String Method...")
-    print(f"  Max images: {args.npoints}")
-    print(f"  Max iterations: {args.steps}")
-    print(f"  Step size: {args.step_size} Å")
-    print(f"  Force threshold: {args.fmax} eV/Å")
-    print(f"  Optimize endpoints: {args.optimize_endpoints}")
-    print(f"  Refine TS: {args.refine_ts}")
 
     result = explorer.run(
         npoints=args.npoints,
@@ -131,18 +118,6 @@ def main():
     )
 
     # Display results
-    print(f"\n{'=' * 60}")
-    print("Growing String Method Results")
-    print(f"{'=' * 60}")
-
-    print("\nConvergence:")
-    print(f"  Strings met: {result.get('strings_met', False)}")
-    print(f"  TS converged: {result.get('converged', False)}")
-
-    print("\nString statistics:")
-    print(f"  Forward string images: {len(result['forward_string'])}")
-    print(f"  Backward string images: {len(result['backward_string'])}")
-    print(f"  Total trajectory images: {len(result['trajectory'])}")
 
     # Calculate energies along path
     trajectory = result["trajectory"]
@@ -156,33 +131,22 @@ def main():
 
     if any(e is not None for e in energies):
         valid_energies = [e for e in energies if e is not None]
-        print("\nEnergy profile:")
-        print(f"  Min energy: {min(valid_energies):.6f} eV")
-        print(f"  Max energy: {max(valid_energies):.6f} eV")
-        print(f"  Energy range: {max(valid_energies) - min(valid_energies):.6f} eV")
 
         # Find TS index
         if energies:
             max_e = max(valid_energies)
-            ts_idx = energies.index(max_e)
-            print(f"  TS at image {ts_idx}")
+            energies.index(max_e)
 
     # Save trajectory
     output_path = Path(args.output)
-    print(f"\nSaving trajectory to: {output_path}")
     write(str(output_path), trajectory)
 
     # Save TS structure separately
     ts_path = output_path.parent / f"{output_path.stem}_ts.xyz"
-    print(f"Saving TS structure to: {ts_path}")
     write(str(ts_path), result["optimized_atoms"])
-
-    print(f"\n{'=' * 60}")
-    print("✓ Growing String Method completed successfully!")
-    print(f"{'=' * 60}\n")
 
     return 0
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

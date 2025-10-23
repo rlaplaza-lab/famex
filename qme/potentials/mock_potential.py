@@ -43,6 +43,7 @@ class MockCalculator(Calculator):
         Spin multiplicity (2S + 1)
     **kwargs
         Additional arguments passed to ASE Calculator
+
     """
 
     implemented_properties = ["energy", "forces"]
@@ -63,6 +64,7 @@ class MockCalculator(Calculator):
             Force constant for harmonic potential calculations
         **kwargs
             Additional arguments passed to ASE Calculator
+
         """
         super().__init__(**kwargs)
         self.backend = backend
@@ -82,7 +84,10 @@ class MockCalculator(Calculator):
         self.use_nonbonded = kwargs.get("use_nonbonded", True)
 
     def _lennard_jones_energy_force(
-        self, dist: float, epsilon: float, sigma: float
+        self,
+        dist: float,
+        epsilon: float,
+        sigma: float,
     ) -> tuple[float, float]:
         """Calculate Lennard-Jones energy and force for a given distance.
 
@@ -101,6 +106,7 @@ class MockCalculator(Calculator):
         -------
         tuple
             (energy, force_magnitude)
+
         """
         if dist > self.lj_cutoff:
             return 0.0, 0.0
@@ -135,6 +141,7 @@ class MockCalculator(Calculator):
         -------
         tuple
             (energy, force_magnitude)
+
         """
         dr = dist - r0
         energy = 0.5 * k * dr * dr
@@ -165,6 +172,7 @@ class MockCalculator(Calculator):
         -----
         The calculation uses pairwise harmonic bonds based on covalent radii
         and applies harmonic potential around equilibrium bond lengths.
+
         """
         if atoms is None:
             return
@@ -220,7 +228,9 @@ class MockCalculator(Calculator):
                         if dist <= self.lj_cutoff:
                             # Use Lennard-Jones potential for non-bonded interactions
                             lj_energy, lj_force_mag = self._lennard_jones_energy_force(
-                                float(dist), self.epsilon, self.sigma
+                                float(dist),
+                                self.epsilon,
+                                self.sigma,
                             )
                             energy += lj_energy
 
@@ -245,7 +255,11 @@ class MockCalculator(Calculator):
                     dist = np.linalg.norm(rij)
 
                 # Use new modular harmonic bond function
-                bond_energy, bond_force_mag = self._harmonic_bond_energy_force(float(dist), float(r0), k)
+                bond_energy, bond_force_mag = self._harmonic_bond_energy_force(
+                    float(dist),
+                    float(r0),
+                    k,
+                )
                 energy += bond_energy
 
                 # force along bond direction
@@ -320,7 +334,9 @@ class MockCalculator(Calculator):
                         if dist <= self.lj_cutoff:
                             # Use Lennard-Jones potential for non-bonded interactions
                             lj_energy, lj_force_mag = self._lennard_jones_energy_force(
-                                float(dist), self.epsilon, self.sigma
+                                float(dist),
+                                self.epsilon,
+                                self.sigma,
                             )
                             energy += lj_energy
 
@@ -333,7 +349,7 @@ class MockCalculator(Calculator):
         forces = forces - np.mean(forces, axis=0)
 
         self.results = {"energy": float(energy), "forces": forces}
-        return None
+        return
 
 
 __all__ = ["MockCalculator"]

@@ -1,5 +1,4 @@
-"""
-SO3LR Neural Network Potential integration for ASE.
+"""SO3LR Neural Network Potential integration for ASE.
 
 SO3LR is an open source neural network potential with SO(3) invariant architecture.
 This module provides ASE Calculator interface for SO3LR models.
@@ -7,20 +6,22 @@ This module provides ASE Calculator interface for SO3LR models.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from ase import Atoms
 from ase.calculators.calculator import all_changes
 
 from qme.dependencies import deps
 from qme.potentials.base_potential import BasePotential
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from ase import Atoms
+
 
 class SO3LRPotential(BasePotential):
-    """
-    ASE Calculator interface for SO3LR neural network potential.
+    """ASE Calculator interface for SO3LR neural network potential.
 
     This is a wrapper around the native SO3LR ASE calculator to provide
     compatibility with the QME interface.
@@ -35,11 +36,10 @@ class SO3LRPotential(BasePotential):
         device: str | None = None,
         **kwargs: Any,
     ) -> None:
-        """
-        Initialize SO3LR potential calculator.
+        """Initialize SO3LR potential calculator.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         model_path : str, optional
             Path to trained SO3LR model file (currently not used by SO3LR)
         model_name : str
@@ -48,13 +48,15 @@ class SO3LRPotential(BasePotential):
             Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
 
         """
-
         if not deps.has("so3lr"):
-            raise ImportError(
+            msg = (
                 "SO3LR is required for SO3LR potentials. "
                 "Install SO3LR with: git clone "
                 "https://github.com/general-molecular-simulations/so3lr.git && "
                 "cd so3lr && pip install ."
+            )
+            raise ImportError(
+                msg,
             )
 
         # Store additional SO3LR-specific parameters
@@ -77,19 +79,26 @@ class SO3LRPotential(BasePotential):
 
         # Don't show model info - let the outer context handle it
         with quiet_backend_loading(
-            "so3lr", self.model_name, self.model_path, self.device, show_model_info=False
+            "so3lr",
+            self.model_name,
+            self.model_path,
+            self.device,
+            show_model_info=False,
         ):
             # Get SO3LR module
             so3lr = deps.get("so3lr")
             if so3lr is None:
-                raise RuntimeError("SO3LR module not available")
+                msg = "SO3LR module not available"
+                raise RuntimeError(msg)
 
         # Create SO3LR calculator with appropriate parameters
         # Use high cutoff for gas-phase systems as recommended
         lr_cutoff = 1000.0
 
         self._calc = so3lr.So3lrCalculator(
-            calculate_stress=False, lr_cutoff=lr_cutoff, dtype=np.float32
+            calculate_stress=False,
+            lr_cutoff=lr_cutoff,
+            dtype=np.float32,
         )
 
     def calculate(
@@ -129,7 +138,9 @@ class SO3LRPotential(BasePotential):
                 self.results["forces"] = self.results.get("forces")
 
     def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
+        self,
+        atoms: Atoms | None = None,
+        force_consistent: bool = False,
     ) -> float:
         """Get potential energy (ASE-compatible)."""
         if atoms is not None:
@@ -155,11 +166,10 @@ def get_so3lr_calculator(
     device: str | None = None,
     **kwargs: Any,
 ) -> SO3LRPotential:
-    """
-    Convenience function to get SO3LR calculator.
+    """Convenience function to get SO3LR calculator.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     model_path : str, optional
         Path to trained SO3LR model file (currently not used by SO3LR)
     model_name : str
@@ -169,9 +179,10 @@ def get_so3lr_calculator(
     **kwargs :
         Additional arguments passed to SO3LRPotential
 
-    Returns:
-    --------
+    Returns
+    -------
     SO3LRPotential
         Configured SO3LR calculator
+
     """
     return SO3LRPotential(model_path=model_path, model_name=model_name, device=device, **kwargs)

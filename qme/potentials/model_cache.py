@@ -1,5 +1,4 @@
-"""
-Model caching utilities for QME backends.
+"""Model caching utilities for QME backends.
 
 This module provides persistent model caching to avoid re-downloading
 and re-loading models on every run.
@@ -22,13 +21,13 @@ class ModelCache:
     """Persistent model cache with version checking and integrity validation."""
 
     def __init__(self, cache_dir: str | None = None) -> None:
-        """
-        Initialize model cache.
+        """Initialize model cache.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         cache_dir : str, optional
             Cache directory. Defaults to ~/.qme/cache/models
+
         """
         if cache_dir is None:
             cache_dir = str(Path.home() / ".qme" / "cache" / "models")
@@ -50,7 +49,7 @@ class ModelCache:
                 return {}
         return {}
 
-    def _save_metadata(self):
+    def _save_metadata(self) -> None:
         """Save cache metadata to file."""
         try:
             with open(self.metadata_file, "w") as f:
@@ -64,20 +63,20 @@ class ModelCache:
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
     def get_cached_model(self, model_name: str, model_url: str) -> Path | None:
-        """
-        Get cached model if available and valid.
+        """Get cached model if available and valid.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         model_name : str
             Name of the model
         model_url : str
             URL where the model can be downloaded
 
-        Returns:
-        --------
+        Returns
+        -------
         Path or None
             Path to cached model file, or None if not cached/valid
+
         """
         model_hash = self._get_model_hash(model_name, model_url)
 
@@ -107,11 +106,10 @@ class ModelCache:
         return cached_path
 
     def cache_model(self, model_name: str, model_url: str, model_data: bytes) -> Path:
-        """
-        Cache a downloaded model.
+        """Cache a downloaded model.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         model_name : str
             Name of the model
         model_url : str
@@ -119,10 +117,11 @@ class ModelCache:
         model_data : bytes
             Model data to cache
 
-        Returns:
-        --------
+        Returns
+        -------
         Path
             Path to cached model file
+
         """
         model_hash = self._get_model_hash(model_name, model_url)
 
@@ -160,14 +159,14 @@ class ModelCache:
         except OSError:
             return False
 
-    def clear_cache(self, model_name: str | None = None):
-        """
-        Clear cache, optionally for a specific model.
+    def clear_cache(self, model_name: str | None = None) -> None:
+        """Clear cache, optionally for a specific model.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         model_name : str, optional
             Specific model to clear. If None, clears entire cache.
+
         """
         if model_name is None:
             # Clear entire cache
@@ -222,20 +221,20 @@ def get_model_cache() -> ModelCache:
 
 
 def download_and_cache_model(model_name: str, model_url: str) -> Path:
-    """
-    Download and cache a model, using cache if available.
+    """Download and cache a model, using cache if available.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     model_name : str
         Name of the model
         model_url : str
         URL to download the model from
 
-    Returns:
-    --------
+    Returns
+    -------
     Path
         Path to the model file (cached or newly downloaded)
+
     """
     cache = get_model_cache()
 
@@ -251,7 +250,8 @@ def download_and_cache_model(model_name: str, model_url: str) -> Path:
         response.raise_for_status()
         model_data = response.content
     except requests.RequestException as e:
-        raise RuntimeError(f"Failed to download model {model_name}: {e}")
+        msg = f"Failed to download model {model_name}: {e}"
+        raise RuntimeError(msg)
 
     # Cache the downloaded model
     return cache.cache_model(model_name, model_url, model_data)

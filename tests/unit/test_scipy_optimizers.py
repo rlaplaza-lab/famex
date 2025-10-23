@@ -1,5 +1,4 @@
-"""
-Test SciPy Hessian-based optimizers.
+"""Test SciPy Hessian-based optimizers.
 
 This module tests the SciPy optimizer wrappers (TrustKrylov, TrustNCG,
 TrustExact, NewtonCG) including Hessian computation, BFGS updates,
@@ -11,20 +10,20 @@ import pytest
 from ase.build import molecule
 
 import qme
-from qme.core.scipy_optimizers import NewtonCG, TrustExact, TrustKrylov, TrustNCG
+from qme.optimizers.scipy_optimizers import NewtonCG, TrustExact, TrustKrylov, TrustNCG
 
 
 class TestTrustKrylovBasics:
     """Test basic TrustKrylov optimizer functionality."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test molecule with mock calculator."""
         self.h2o = molecule("H2O")
         # Perturb slightly from equilibrium
         self.h2o.positions += np.random.RandomState(42).normal(0, 0.05, self.h2o.positions.shape)
         self.h2o.calc = qme.MockCalculator(backend="mock")
 
-    def test_optimizer_initialization(self):
+    def test_optimizer_initialization(self) -> None:
         """Test that TrustKrylov optimizer can be initialized."""
         opt = TrustKrylov(self.h2o, logfile=None)
         assert opt.method == "trust-krylov"
@@ -32,12 +31,12 @@ class TestTrustKrylovBasics:
         assert opt.use_bfgs_update is True  # Default: BFGS enabled
         assert opt.adaptive_hessian is False  # Default: no adaptive triggers
 
-    def test_optimizer_with_periodic_updates(self):
+    def test_optimizer_with_periodic_updates(self) -> None:
         """Test optimizer with periodic Hessian updates."""
         opt = TrustKrylov(self.h2o, logfile=None, hessian_update_freq=5)
         assert opt.hessian_update_freq == 5
 
-    def test_optimizer_with_adaptive_mode(self):
+    def test_optimizer_with_adaptive_mode(self) -> None:
         """Test optimizer with adaptive Hessian updates."""
         opt = TrustKrylov(
             self.h2o,
@@ -49,7 +48,7 @@ class TestTrustKrylovBasics:
         assert opt.adaptive_hessian is True
         assert opt.force_threshold_ratio == 2.5
 
-    def test_positions_conversion(self):
+    def test_positions_conversion(self) -> None:
         """Test position array conversion methods."""
         opt = TrustKrylov(self.h2o, logfile=None)
         x = opt._positions_to_x()
@@ -60,7 +59,7 @@ class TestTrustKrylovBasics:
         assert positions_back.shape == (3, 3)
         assert np.allclose(positions_back, self.h2o.positions)
 
-    def test_objective_function(self):
+    def test_objective_function(self) -> None:
         """Test objective function returns energy."""
         opt = TrustKrylov(self.h2o, logfile=None)
         x = opt._positions_to_x()
@@ -69,7 +68,7 @@ class TestTrustKrylovBasics:
         # With alpha=1.0, should equal potential energy
         assert np.isclose(energy, self.h2o.get_potential_energy())
 
-    def test_gradient_function(self):
+    def test_gradient_function(self) -> None:
         """Test gradient function returns negative forces."""
         opt = TrustKrylov(self.h2o, logfile=None)
         x = opt._positions_to_x()
@@ -80,7 +79,7 @@ class TestTrustKrylovBasics:
         expected_grad = -forces.ravel()
         assert np.allclose(grad, expected_grad)
 
-    def test_hessian_computation(self):
+    def test_hessian_computation(self) -> None:
         """Test Hessian computation."""
         opt = TrustKrylov(self.h2o, logfile=None)
         x = opt._positions_to_x()
@@ -93,7 +92,7 @@ class TestTrustKrylovBasics:
         # Should be symmetric
         assert np.allclose(hessian, hessian.T, atol=1e-10)
 
-    def test_hessian_caching(self):
+    def test_hessian_caching(self) -> None:
         """Test that Hessian is cached when update_freq is None."""
         opt = TrustKrylov(self.h2o, logfile=None, hessian_update_freq=None)
         x = opt._positions_to_x()
@@ -111,7 +110,7 @@ class TestTrustKrylovBasics:
         opt.hessian_func(x)
         assert opt.hessian_calls == 1  # Still only 1 full Hessian
 
-    def test_convergence(self):
+    def test_convergence(self) -> None:
         """Test basic convergence check."""
         opt = TrustKrylov(self.h2o, logfile=None)
 
@@ -129,7 +128,7 @@ class TestAllSciPyOptimizers:
     """Test all SciPy optimizer variants."""
 
     @pytest.mark.parametrize(
-        "optimizer_class,method",
+        ("optimizer_class", "method"),
         [
             (TrustKrylov, "trust-krylov"),
             (TrustNCG, "trust-ncg"),
@@ -137,7 +136,7 @@ class TestAllSciPyOptimizers:
             (NewtonCG, "Newton-CG"),
         ],
     )
-    def test_optimizer_initialization(self, optimizer_class, method):
+    def test_optimizer_initialization(self, optimizer_class, method) -> None:
         """Test initialization of all optimizer types."""
         h2o = molecule("H2O")
         h2o.calc = qme.MockCalculator(backend="mock")
@@ -146,7 +145,7 @@ class TestAllSciPyOptimizers:
         assert opt.method == method
 
     @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
-    def test_optimizer_accepts_all_parameters(self, optimizer_class):
+    def test_optimizer_accepts_all_parameters(self, optimizer_class) -> None:
         """Test that all optimizers accept standard parameters."""
         h2o = molecule("H2O")
         h2o.calc = qme.MockCalculator(backend="mock")
@@ -170,13 +169,13 @@ class TestAllSciPyOptimizers:
 class TestHessianUpdateStrategies:
     """Test different Hessian update strategies."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test molecule."""
         self.h2o = molecule("H2O")
         self.h2o.positions += np.random.RandomState(42).normal(0, 0.05, self.h2o.positions.shape)
         self.h2o.calc = qme.MockCalculator(backend="mock")
 
-    def test_single_hessian_mode(self):
+    def test_single_hessian_mode(self) -> None:
         """Test default mode: compute Hessian once."""
         opt = TrustKrylov(self.h2o, logfile=None, hessian_update_freq=None)
         x = opt._positions_to_x()
@@ -193,7 +192,7 @@ class TestHessianUpdateStrategies:
         # Should still be only 1 full Hessian (BFGS handles updates)
         assert opt.hessian_calls == 1
 
-    def test_periodic_update_mode(self):
+    def test_periodic_update_mode(self) -> None:
         """Test periodic Hessian updates."""
         opt = TrustKrylov(
             self.h2o,
@@ -220,7 +219,7 @@ class TestHessianUpdateStrategies:
         opt.hessian_func(x)
         assert opt.hessian_calls == 2
 
-    def test_bfgs_update_tracking(self):
+    def test_bfgs_update_tracking(self) -> None:
         """Test that BFGS updates are tracked."""
         opt = TrustKrylov(
             self.h2o,
@@ -252,7 +251,7 @@ class TestHessianUpdateStrategies:
 class TestOptimizerWithoutCalculator:
     """Test error handling when calculator is missing."""
 
-    def test_requires_calculator(self):
+    def test_requires_calculator(self) -> None:
         """Test that optimizer raises error without calculator."""
         h2o = molecule("H2O")
 
@@ -263,7 +262,7 @@ class TestOptimizerWithoutCalculator:
 class TestOptimizerRun:
     """Test running full optimizations (lightweight with mock calculator)."""
 
-    def test_basic_optimization_run(self):
+    def test_basic_optimization_run(self) -> None:
         """Test that optimizer can run without errors."""
         h2o = molecule("H2O")
         # Small perturbation
@@ -279,7 +278,7 @@ class TestOptimizerRun:
         assert isinstance(converged, bool)
         assert opt.nsteps > 0
 
-    def test_step_counting(self):
+    def test_step_counting(self) -> None:
         """Test that step counter increments correctly."""
         h2o = molecule("H2O")
         h2o.positions += np.random.RandomState(42).normal(0, 0.02, h2o.positions.shape)
@@ -297,17 +296,17 @@ class TestOptimizerRun:
 class TestInvalidConfiguration:
     """Test invalid optimizer configurations."""
 
-    def test_invalid_method(self):
+    def test_invalid_method(self) -> None:
         """Test that invalid method raises error."""
         h2o = molecule("H2O")
         h2o.calc = qme.MockCalculator(backend="mock")
 
         with pytest.raises(ValueError, match="Invalid method"):
-            from qme.core.scipy_optimizers import SciPyHessianOptimizer
+            from qme.optimizers.scipy_optimizers import SciPyHessianOptimizer
 
             SciPyHessianOptimizer(h2o, method="invalid-method", logfile=None)
 
-    def test_negative_update_frequency(self):
+    def test_negative_update_frequency(self) -> None:
         """Test that negative update frequency is handled."""
         h2o = molecule("H2O")
         h2o.calc = qme.MockCalculator(backend="mock")
@@ -316,7 +315,7 @@ class TestInvalidConfiguration:
         opt = TrustKrylov(h2o, logfile=None, hessian_update_freq=-1)
         assert opt.hessian_update_freq is None
 
-    def test_zero_update_frequency(self):
+    def test_zero_update_frequency(self) -> None:
         """Test that zero update frequency is handled."""
         h2o = molecule("H2O")
         h2o.calc = qme.MockCalculator(backend="mock")
@@ -330,7 +329,7 @@ class TestOptimizerStringentComparison:
     """Stringent tests for optimizer comparison that catch subtle bugs."""
 
     @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
-    def test_optimizer_actually_optimizes_energy(self, optimizer_class):
+    def test_optimizer_actually_optimizes_energy(self, optimizer_class) -> None:
         """Test that optimizers actually change the energy, not just report steps."""
         from ase import Atoms
 
@@ -353,12 +352,12 @@ class TestOptimizerStringentComparison:
         position_change = np.max(np.abs(final_positions - initial_positions))
 
         assert energy_change > 1e-6, f"{optimizer_class.__name__} should actually change energy"
-        assert (
-            position_change > 1e-6
-        ), f"{optimizer_class.__name__} should actually change positions"
+        assert position_change > 1e-6, (
+            f"{optimizer_class.__name__} should actually change positions"
+        )
 
     @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
-    def test_optimizer_step_count_consistency(self, optimizer_class):
+    def test_optimizer_step_count_consistency(self, optimizer_class) -> None:
         """Test that step counts are consistent with actual optimization."""
         from ase import Atoms
 
@@ -373,7 +372,7 @@ class TestOptimizerStringentComparison:
         assert steps > 0, f"{optimizer_class.__name__} should report positive step count"
 
     @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
-    def test_optimizer_convergence_consistency(self, optimizer_class):
+    def test_optimizer_convergence_consistency(self, optimizer_class) -> None:
         """Test that convergence status is consistent with actual optimization."""
         from ase import Atoms
 
@@ -393,7 +392,7 @@ class TestOptimizerStringentComparison:
             assert isinstance(converged, (bool, np.bool_))
 
     @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
-    def test_optimizer_force_convergence_consistency(self, optimizer_class):
+    def test_optimizer_force_convergence_consistency(self, optimizer_class) -> None:
         """Test that optimizers actually achieve the claimed force convergence."""
         from ase import Atoms
 
@@ -410,12 +409,12 @@ class TestOptimizerStringentComparison:
         if hasattr(opt, "converged"):
             converged = opt.converged(forces.flatten())
             if converged:
-                assert (
-                    max_force < 0.05
-                ), f"{optimizer_class.__name__} claims convergence but max force is {max_force:.6f} eV/Å"
+                assert max_force < 0.05, (
+                    f"{optimizer_class.__name__} claims convergence but max force is {max_force:.6f} eV/Å"
+                )
 
     @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
-    def test_optimizer_energy_consistency(self, optimizer_class):
+    def test_optimizer_energy_consistency(self, optimizer_class) -> None:
         """Test that different optimizers find similar final energies for the same system."""
         from ase import Atoms
 
@@ -432,7 +431,7 @@ class TestOptimizerStringentComparison:
         assert not np.isnan(final_energy)
         assert not np.isinf(final_energy)
 
-    def test_transition_state_optimizer_consistency(self):
+    def test_transition_state_optimizer_consistency(self) -> None:
         """Test that TS optimizers actually attempt TS optimization."""
         from qme.dependencies import deps
 

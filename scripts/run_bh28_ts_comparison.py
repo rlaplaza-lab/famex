@@ -10,8 +10,8 @@ from typing import Any
 import numpy as np
 from ase.io import read
 
-from qme.core.scipy_optimizers import TrustKrylovTS
 from qme.dependencies import deps
+from qme.optimizers.scipy_optimizers import TrustKrylovTS
 from qme.potentials.uma_potential import get_uma_calculator
 
 DATASET_DIR = Path(__file__).resolve().parents[1] / "examples" / "bh28_benchmark" / "bh28_dataset"
@@ -91,9 +91,11 @@ def _prepare_report_dir() -> None:
 
 def main() -> int:
     if not DATASET_DIR.exists():
-        raise SystemExit(f"BH28 dataset not found at {DATASET_DIR}")
+        msg = f"BH28 dataset not found at {DATASET_DIR}"
+        raise SystemExit(msg)
     if not deps.has("sella"):
-        raise SystemExit("Sella dependency is required for this comparison")
+        msg = "Sella dependency is required for this comparison"
+        raise SystemExit(msg)
 
     with REFERENCE_FILE.open() as handle:
         reference_data = json.load(handle)
@@ -168,11 +170,6 @@ def main() -> int:
             },
             "position_rmsd": None if position_rmsd is None else round(position_rmsd, 6),
         }
-        print(
-            f"{reaction:8s} | Sella fmax {sella_result['max_force']:.3f} | "
-            f"Trust fmax {trust_result['max_force']:.3f} | "
-            f"RMSD {position_rmsd if position_rmsd is not None else float('nan'):.3f}"
-        )
 
     if energy_diffs:
         summary["energy_diff_stats"] = {
@@ -196,22 +193,10 @@ def main() -> int:
     with REPORT_PATH.open("w") as handle:
         json.dump(summary, handle, indent=2)
 
-    print("\nSummary saved to", REPORT_PATH)
-    print("Success counts:", summary["success_counts"])
     if summary["energy_diff_stats"]:
-        stats = summary["energy_diff_stats"]
-        print(
-            f"Energy Δ (trust - sella) | mean {stats['mean_abs_difference']:.4f} eV | "
-            f"median {stats['median_abs_difference']:.4f} eV | "
-            f"max {stats['max_abs_difference']:.4f} eV"
-        )
+        summary["energy_diff_stats"]
     if summary["position_rmsd_stats"]:
-        stats = summary["position_rmsd_stats"]
-        print(
-            f"Position RMSD | mean {stats['mean']:.4f} Å | "
-            f"median {stats['median']:.4f} Å | "
-            f"max {stats['max']:.4f} Å"
-        )
+        summary["position_rmsd_stats"]
 
     return 0
 

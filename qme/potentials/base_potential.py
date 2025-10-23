@@ -9,10 +9,12 @@ setup work.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from ase import Atoms
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from ase import Atoms
 
 
 class BasePotential:
@@ -37,6 +39,7 @@ class BasePotential:
         Whether this calculator supports batch evaluation
     **kwargs
         Additional arguments for specific backends
+
     """
 
     def __init__(self, **kwargs: Any) -> None:
@@ -46,6 +49,7 @@ class BasePotential:
         ----------
         **kwargs
             Keyword arguments for configuration
+
         """
         # Generic backend label (e.g., 'uma', 'mace', 'aimnet2', 'mock')
         self.backend: str = kwargs.get("backend", "generic")
@@ -60,9 +64,12 @@ class BasePotential:
 
         # Default implemented properties; subclasses may override
         # Preserve class-level implemented_properties if it exists
-        if hasattr(self, 'implemented_properties'):
+        if hasattr(self, "implemented_properties"):
             # Class already defines implemented_properties, use it unless explicitly overridden
-            self.implemented_properties = kwargs.get("implemented_properties", self.implemented_properties)
+            self.implemented_properties = kwargs.get(
+                "implemented_properties",
+                self.implemented_properties,
+            )
         else:
             # No class-level definition, use from kwargs or default to empty list
             self.implemented_properties: list[str] = kwargs.get("implemented_properties", [])
@@ -89,7 +96,6 @@ class BasePotential:
 
         # No explicit computation at base level; subclasses will populate
         # ``self.results`` when appropriate.
-        return
 
     def _prepare_calculation(self, atoms: Atoms | None = None) -> Any | None:
         """Prepare for a calculation by setting atoms and ensuring backend is loaded.
@@ -104,6 +110,7 @@ class BasePotential:
         -------
         Any or None
             The loaded backend calculator object, or None if loading failed.
+
         """
         if atoms is not None:
             self.atoms = atoms
@@ -133,7 +140,9 @@ class BasePotential:
         return self._backend_obj()
 
     def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
+        self,
+        atoms: Atoms | None = None,
+        force_consistent: bool = False,
     ) -> float:
         """Generic get_potential_energy that delegates to underlying backend.
 
@@ -179,7 +188,9 @@ class BasePotential:
         return self._supports_batch_evaluation
 
     def calculate_batch(
-        self, atoms_list: list[Atoms], properties: list[str] | None = None
+        self,
+        atoms_list: list[Atoms],
+        properties: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Calculate properties for a batch of structures.
 
@@ -194,11 +205,15 @@ class BasePotential:
         -------
         List[dict]
             List of result dictionaries, one for each structure
+
         """
         if not self.supports_batch_evaluation:
-            raise NotImplementedError(
+            msg = (
                 f"Batch evaluation not supported by {self.__class__.__name__}. "
                 "Use individual calculations instead."
+            )
+            raise NotImplementedError(
+                msg,
             )
 
         # Default implementation: calculate individually

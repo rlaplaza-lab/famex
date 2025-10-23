@@ -1,5 +1,4 @@
-"""
-Pytest configuration and shared fixtures for QME tests.
+"""Pytest configuration and shared fixtures for QME tests.
 
 This file provides:
 - Common test fixtures

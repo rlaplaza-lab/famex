@@ -1,5 +1,4 @@
-"""
-Test PathManager functionality.
+"""Test PathManager functionality.
 
 This module tests the PathManager path interpolation and analysis
 capabilities of QME.
@@ -16,7 +15,7 @@ from tests.test_utils import StandardTestAssertions
 class TestPathManager:
     """Test PathManager path interpolation and analysis."""
 
-    def test_linear_interpolation_and_lengths(self):
+    def test_linear_interpolation_and_lengths(self) -> None:
         """Test linear interpolation between reactant and product."""
         # Use H2O -> H2O (slightly different geometry) for meaningful testing
         reactant = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
@@ -35,7 +34,7 @@ class TestPathManager:
             # Check that structure is reasonable
             StandardTestAssertions.assert_reasonable_geometry(structure, "mock")
 
-    def test_reaction_energy_calculation(self):
+    def test_reaction_energy_calculation(self) -> None:
         """Test energy calculation along reaction pathway."""
         reactant = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         product = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
@@ -64,7 +63,7 @@ class TestPathManager:
             StandardTestAssertions.assert_energy_reasonable(product_energy, "mock")
             assert isinstance(product_energy, (int, float))
 
-    def test_multi_segment_interpolation(self):
+    def test_multi_segment_interpolation(self) -> None:
         """Test multi-segment interpolation with intermediate structures."""
         struct1 = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
         struct2 = Atoms("H2", positions=[[0, 0, 0], [1.0, 0, 0]])
@@ -80,7 +79,7 @@ class TestPathManager:
         for structure in path:
             assert len(structure) == 2
 
-    def test_calculate_rmsd(self):
+    def test_calculate_rmsd(self) -> None:
         """Test RMSD calculation between two structures."""
         atoms1 = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         atoms2 = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
@@ -91,7 +90,7 @@ class TestPathManager:
         assert rmsd >= 0
         assert rmsd < 1.0  # Should be small for similar structures
 
-    def test_find_ts_guess(self):
+    def test_find_ts_guess(self) -> None:
         """Test finding TS guess from path."""
         # Create a simple path with known energies
         path = []
@@ -107,7 +106,7 @@ class TestPathManager:
         assert 0 <= ts_index < len(path)
         assert ts_structure == path[ts_index]
 
-    def test_find_local_minima(self):
+    def test_find_local_minima(self) -> None:
         """Test finding local minima along path."""
         path = []
         for i in range(7):
@@ -122,7 +121,7 @@ class TestPathManager:
         assert len(minima_indices) > 0
         assert all(0 <= idx < len(path) for idx in minima_indices)
 
-    def test_filter_redundant_structures(self):
+    def test_filter_redundant_structures(self) -> None:
         """Test filtering redundant structures."""
         # Create some structures, some redundant
         struct1 = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
@@ -144,7 +143,7 @@ class TestPathManager:
         assert isinstance(warnings, list)
         assert len(filtered) <= 3
 
-    def test_path_statistics(self):
+    def test_path_statistics(self) -> None:
         """Test getting path statistics."""
         reactant = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
         product = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
@@ -171,7 +170,7 @@ class TestIRCPathCalculation:
     """Test IRC (Intrinsic Reaction Coordinate) path calculation functionality."""
 
     @pytest.mark.parametrize("direction", ["both", "forward", "backward"])
-    def test_irc_basic_functionality(self, direction):
+    def test_irc_basic_functionality(self, direction) -> None:
         """Test basic IRC path calculation."""
         # Create a simple TS-like structure (H2O with stretched bond)
         ts_structure = Atoms("H2O", positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]])
@@ -205,7 +204,7 @@ class TestIRCPathCalculation:
         elif direction == "backward":
             assert "backward_path" in result
 
-    def test_irc_requires_single_structure(self):
+    def test_irc_requires_single_structure(self) -> None:
         """Test that IRC requires a single structure (TS)."""
         # Create two structures
         structure1 = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
@@ -228,7 +227,7 @@ class TestIRCPathCalculation:
             # Expected error for multiple structures
             assert "single structure" in str(e).lower() or "transition state" in str(e).lower()
 
-    def test_irc_structure_validity(self):
+    def test_irc_structure_validity(self) -> None:
         """Test that IRC produces valid structures."""
         ts_structure = Atoms("H2O", positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]])
 

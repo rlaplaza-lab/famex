@@ -1,11 +1,9 @@
-"""
-Tests for QME validation functions.
-"""
+"""Tests for QME validation functions."""
 
 import pytest
 from ase import Atoms
 
-from qme.core.validation import (
+from qme.utils.validation import (
     BackendError,
     DependencyError,
     QMEError,
@@ -16,14 +14,14 @@ from qme.core.validation import (
 class TestQMEError:
     """Test QME error classes."""
 
-    def test_qme_error_basic(self):
+    def test_qme_error_basic(self) -> None:
         """Test basic QMEError functionality."""
         error = QMEError("Test error")
         assert str(error) == "Test error"
         assert error.message == "Test error"
         assert error.suggestion is None
 
-    def test_qme_error_with_suggestion(self):
+    def test_qme_error_with_suggestion(self) -> None:
         """Test QMEError with suggestion."""
         error = QMEError("Test error", "Try this instead")
         expected = "Test error\n\n💡 Suggestion: Try this instead"
@@ -31,7 +29,7 @@ class TestQMEError:
         assert error.message == "Test error"
         assert error.suggestion == "Try this instead"
 
-    def test_dependency_error(self):
+    def test_dependency_error(self) -> None:
         """Test DependencyError."""
         error = DependencyError("torch", "calculations", "pip install torch")
         assert "torch" in str(error)
@@ -41,7 +39,7 @@ class TestQMEError:
         assert error.purpose == "calculations"
         assert error.install_command == "pip install torch"
 
-    def test_backend_error(self):
+    def test_backend_error(self) -> None:
         """Test BackendError."""
         available = ["uma", "aimnet2", "mace"]
         error = BackendError("so3lr", available, "optimization")
@@ -58,7 +56,7 @@ class TestQMEError:
 class TestValidateAtomsCompatibility:
     """Test validate_atoms_compatibility function."""
 
-    def test_compatible_atoms(self):
+    def test_compatible_atoms(self) -> None:
         """Test validation with compatible atoms."""
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
         atoms2 = Atoms("H2", positions=[[0, 0, 0], [1.1, 0, 0]])
@@ -66,7 +64,7 @@ class TestValidateAtomsCompatibility:
         # Should not raise any exception
         validate_atoms_compatibility(atoms1, atoms2)
 
-    def test_different_number_of_atoms(self):
+    def test_different_number_of_atoms(self) -> None:
         """Test validation with different number of atoms."""
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
         atoms2 = Atoms("H2S", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])
@@ -77,11 +75,12 @@ class TestValidateAtomsCompatibility:
         assert "different number of atoms" in str(exc_info.value)
         assert "2 vs 3" in str(exc_info.value)
 
-    def test_different_atomic_symbols(self):
+    def test_different_atomic_symbols(self) -> None:
         """Test validation with different atomic symbols."""
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
         atoms2 = Atoms(
-            "He2", positions=[[0, 0, 0], [1, 0, 0]]
+            "He2",
+            positions=[[0, 0, 0], [1, 0, 0]],
         )  # Same number of atoms, different symbols
 
         with pytest.raises(ValueError) as exc_info:
@@ -89,7 +88,7 @@ class TestValidateAtomsCompatibility:
 
         assert "different atomic symbols" in str(exc_info.value)
 
-    def test_custom_context(self):
+    def test_custom_context(self) -> None:
         """Test validation with custom context."""
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
         atoms2 = Atoms("H2S", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0]])

@@ -25,7 +25,10 @@ Examples:
     >>> explorer = Explorer(atoms=[reactant, product], target="path")
     >>> path = explorer.run(npoints=7)
     >>> explorer.save_trajectory(path, "reaction_path.xyz")
+
 """
+
+import contextlib
 
 __version__ = "0.1.0"
 __author__ = "QME Development Team"
@@ -50,14 +53,14 @@ def __getattr__(name):
     _LAZY_IMPORTS = {
         # core
         "Explorer": (f"{__name__}.core.explorer", "Explorer"),
-        "PerformanceProfiler": (f"{__name__}.core.profiler", "PerformanceProfiler"),
+        "PerformanceProfiler": (f"{__name__}.utils.profiler", "PerformanceProfiler"),
         # dependencies
         "deps": (f"{__name__}.dependencies", "deps"),
         # core types / IO
-        "Geometry": (f"{__name__}.core.geometry", "Geometry"),
-        "read_geometry": (f"{__name__}.core.geometry", "read_geometry"),
-        "write_geometry": (f"{__name__}.core.geometry", "write_geometry"),
-        "PathManager": (f"{__name__}.core.path_manager", "PathManager"),
+        "Geometry": (f"{__name__}.io.geometry", "Geometry"),
+        "read_geometry": (f"{__name__}.io.geometry", "read_geometry"),
+        "write_geometry": (f"{__name__}.io.geometry", "write_geometry"),
+        "PathManager": (f"{__name__}.io.path_manager", "PathManager"),
         # frequency analysis
         "FrequencyAnalysis": (f"{__name__}.analysis.frequency", "FrequencyAnalysis"),
         "HessianCalculator": (f"{__name__}.analysis.frequency", "HessianCalculator"),
@@ -82,9 +85,9 @@ def __getattr__(name):
             "calculator_registry",
         ),
         # errors
-        "QMEError": (f"{__name__}.core.validation", "QMEError"),
-        "DependencyError": (f"{__name__}.core.validation", "DependencyError"),
-        "BackendError": (f"{__name__}.core.validation", "BackendError"),
+        "QMEError": (f"{__name__}.utils.validation", "QMEError"),
+        "DependencyError": (f"{__name__}.utils.validation", "DependencyError"),
+        "BackendError": (f"{__name__}.utils.validation", "BackendError"),
         # expose the cli package as a module object
         "cli": (f"{__name__}.cli", None),
     }
@@ -92,45 +95,46 @@ def __getattr__(name):
     try:
         mod_name, attr = _LAZY_IMPORTS[name]
     except KeyError:
-        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+        msg = f"module '{__name__}' has no attribute '{name}'"
+        raise AttributeError(msg)
 
     module = importlib.import_module(mod_name)
     return module if attr is None else getattr(module, attr)
 
 
 __all__ = [
-    # Core classes
-    "Explorer",
-    "Geometry",
-    "PerformanceProfiler",
-    # Frequency analysis
-    "FrequencyAnalysis",
-    "HessianCalculator",
-    "ThermodynamicProperties",
+    "AIMNet2Potential",
+    "BackendError",
     # Base classes and registry
     "BasePotential",
+    "DependencyError",
+    # Core classes
+    "Explorer",
+    # Frequency analysis
+    "FrequencyAnalysis",
+    "Geometry",
+    "HessianCalculator",
+    "MACEPotential",
+    # Mock calculators
+    "MockCalculator",
+    "PerformanceProfiler",
+    # Error classes
+    "QMEError",
+    "SO3LRPotential",
+    "ThermodynamicProperties",
+    # ML Potentials
+    "UMAPotential",
     "calculator_registry",
+    "cli",
     # Dependencies
     "deps",
+    "get_aimnet2_calculator",
+    "get_mace_calculator",
+    "get_so3lr_calculator",
+    "get_uma_calculator",
     # I/O functions
     "read_geometry",
     "write_geometry",
-    # ML Potentials
-    "UMAPotential",
-    "get_uma_calculator",
-    "SO3LRPotential",
-    "get_so3lr_calculator",
-    "AIMNet2Potential",
-    "get_aimnet2_calculator",
-    "MACEPotential",
-    "get_mace_calculator",
-    # Mock calculators
-    "MockCalculator",
-    # Error classes
-    "QMEError",
-    "DependencyError",
-    "BackendError",
-    "cli",
 ]
 
 
@@ -144,7 +148,5 @@ except Exception:
     pass
 
 
-try:
+with contextlib.suppress(Exception):
     from qme.dependencies import deps as deps
-except Exception:
-    pass

@@ -27,13 +27,13 @@ def _torchsim_ready() -> bool:
 
 
 @pytest.mark.parametrize("backend", ["torchsim_mace", "torchsim_uma"])
-def test_torchsim_backend_availability_queries_are_safe(backend):
+def test_torchsim_backend_availability_queries_are_safe(backend) -> None:
     """Availability checks should never raise even if backend is missing."""
     available = calculator_registry.is_backend_available(backend)
     assert isinstance(available, bool)
 
 
-def test_torchsim_calculator_creation_or_clear_error():
+def test_torchsim_calculator_creation_or_clear_error() -> None:
     """Creating a TorchSim calculator either works or raises a clear error."""
     if calculator_registry.is_backend_available("torchsim_mace"):
         calc = calculator_registry.create_calculator(
@@ -48,14 +48,17 @@ def test_torchsim_calculator_creation_or_clear_error():
     else:
         with pytest.raises(ImportError, match="Backend 'torchsim_mace' is not available"):
             calculator_registry.create_calculator(
-                backend="torchsim_mace", model_name="mace-omol-0", device="cpu"
+                backend="torchsim_mace",
+                model_name="mace-omol-0",
+                device="cpu",
             )
 
 
 @pytest.mark.skipif(
-    not _torchsim_ready(), reason="TorchSim or compatible dependencies not available"
+    not _torchsim_ready(),
+    reason="TorchSim or compatible dependencies not available",
 )
-def test_torchsim_minima_smoke():
+def test_torchsim_minima_smoke() -> None:
     """Run a lightweight minima optimization using the TorchSim MACE backend."""
     BackendTestMixin.require_backend("torchsim_mace")
 
@@ -74,5 +77,6 @@ def test_torchsim_minima_smoke():
 
     StandardTestAssertions.assert_optimization_result(processed)
     StandardTestAssertions.assert_reasonable_geometry(
-        processed["optimized_atoms"], backend="torchsim_mace"
+        processed["optimized_atoms"],
+        backend="torchsim_mace",
     )

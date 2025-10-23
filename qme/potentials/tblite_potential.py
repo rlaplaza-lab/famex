@@ -1,5 +1,4 @@
-"""
-TBLite Semi-empirical Quantum Chemistry integration for ASE.
+"""TBLite Semi-empirical Quantum Chemistry integration for ASE.
 
 This module implements a TBLite calculator integration using the TBLite library
 for semi-empirical quantum chemistry calculations with xTB methods.
@@ -15,8 +14,7 @@ from qme.potentials.base_potential import BasePotential
 
 
 class TBLitePotential(BasePotential):
-    """
-    TBLite semi-empirical quantum chemistry calculator.
+    """TBLite semi-empirical quantum chemistry calculator.
 
     This calculator provides access to TBLite's xTB methods (GFN1-xTB, GFN2-xTB)
     for fast semi-empirical quantum chemistry calculations. TBLite is particularly
@@ -42,8 +40,7 @@ class TBLitePotential(BasePotential):
         verbosity: int = 1,
         **kwargs: Any,
     ) -> None:
-        """
-        Initialize TBLite potential calculator.
+        """Initialize TBLite potential calculator.
 
         Parameters
         ----------
@@ -77,6 +74,7 @@ class TBLitePotential(BasePotential):
             Set verbosity of printout
         **kwargs
             Additional arguments passed to BasePotential
+
         """
         # Store TBLite-specific parameters
         self.method = method
@@ -107,15 +105,13 @@ class TBLitePotential(BasePotential):
         from qme.logging_utils import quiet_backend_loading
 
         # Don't show model info - let the outer context handle it
-        with quiet_backend_loading(
-            "tblite", self.method, None, None, show_model_info=False
-        ):
+        with quiet_backend_loading("tblite", self.method, None, None, show_model_info=False):
             try:
                 # Check TBLite availability
                 if not deps.has("tblite"):
+                    msg = "TBLite is required for TBLite backend. Install with: pip install tblite"
                     raise ImportError(
-                        "TBLite is required for TBLite backend. "
-                        "Install with: pip install tblite"
+                        msg,
                     )
 
                 # Import TBLite ASE calculator
@@ -148,9 +144,11 @@ class TBLitePotential(BasePotential):
                 self._calc = TBLite(**calc_kwargs)
 
             except ImportError as e:
-                raise ImportError(f"TBLite not available ({e}). Install with: pip install tblite")
+                msg = f"TBLite not available ({e}). Install with: pip install tblite"
+                raise ImportError(msg)
             except (ValueError, AttributeError, RuntimeError) as e:
-                raise RuntimeError(f"Failed to initialize TBLite calculator: {e}")
+                msg = f"Failed to initialize TBLite calculator: {e}"
+                raise RuntimeError(msg)
 
     def _get_backend_name(self) -> str:
         """Get the backend name for this calculator."""
@@ -171,13 +169,15 @@ class TBLitePotential(BasePotential):
             self._load_calculator()
 
         if self._calc is None:
-            raise RuntimeError("Failed to load TBLite calculator")
+            msg = "Failed to load TBLite calculator"
+            raise RuntimeError(msg)
 
         # Delegate to the underlying TBLite calculator
         try:
             self._calc.calculate(self.atoms, properties, system_changes)
         except (AttributeError, RuntimeError) as e:
-            raise RuntimeError(f"TBLite calculation failed: {e}")
+            msg = f"TBLite calculation failed: {e}"
+            raise RuntimeError(msg)
 
         # Copy results from underlying calculator
         try:
@@ -214,9 +214,8 @@ class TBLitePotential(BasePotential):
 
         if self._calc is not None and hasattr(self._calc, "get_charges"):
             return self._calc.get_charges(atoms)
-        else:
-            msg = "Charge calculation not supported by this TBLite method"
-            raise NotImplementedError(msg)
+        msg = "Charge calculation not supported by this TBLite method"
+        raise NotImplementedError(msg)
 
     def get_dipole_moment(self, atoms=None):
         """Get dipole moment (if supported)."""
@@ -228,9 +227,8 @@ class TBLitePotential(BasePotential):
 
         if self._calc is not None and hasattr(self._calc, "get_dipole_moment"):
             return self._calc.get_dipole_moment(atoms)
-        else:
-            msg = "Dipole moment calculation not supported by this TBLite method"
-            raise NotImplementedError(msg)
+        msg = "Dipole moment calculation not supported by this TBLite method"
+        raise NotImplementedError(msg)
 
     def get_stress(self, atoms=None):
         """Get stress tensor (if supported)."""
@@ -242,9 +240,8 @@ class TBLitePotential(BasePotential):
 
         if self._calc is not None and hasattr(self._calc, "get_stress"):
             return self._calc.get_stress(atoms)
-        else:
-            msg = "Stress calculation not supported by this TBLite method"
-            raise NotImplementedError(msg)
+        msg = "Stress calculation not supported by this TBLite method"
+        raise NotImplementedError(msg)
 
 
 def get_tblite_calculator(
@@ -253,8 +250,7 @@ def get_tblite_calculator(
     multiplicity: int | None = None,
     **kwargs: Any,
 ) -> TBLitePotential:
-    """
-    Factory function to create TBLite calculator.
+    """Factory function to create TBLite calculator.
 
     Parameters
     ----------
@@ -277,6 +273,7 @@ def get_tblite_calculator(
     >>> calc = get_tblite_calculator()  # Uses GFN2-xTB
     >>> calc = get_tblite_calculator(method="GFN1-xTB")
     >>> calc = get_tblite_calculator(charge=-1, multiplicity=2)
+
     """
     return TBLitePotential(
         method=method,

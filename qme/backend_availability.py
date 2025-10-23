@@ -1,5 +1,4 @@
-"""
-Efficient backend availability checking for QME.
+"""Efficient backend availability checking for QME.
 
 This module provides fast, dependency-based backend availability checking
 that avoids expensive calculator instantiation while still catching most
@@ -25,16 +24,12 @@ BACKEND_TORCHSIM_MACE = "torchsim_mace"
 BACKEND_TORCHSIM_UMA = "torchsim_uma"
 
 
-
-
-
-
 def _check_e3nn_conflict() -> str | None:
-    """
-    Check for e3nn version conflicts between MACE and FairChem.
+    """Check for e3nn version conflicts between MACE and FairChem.
 
     Returns:
         Error message if conflict detected, None otherwise
+
     """
     if not (deps.has(BACKEND_MACE) and deps.has("fairchem")):
         return None
@@ -57,11 +52,11 @@ def _check_e3nn_conflict() -> str | None:
 
 
 def _check_torchsim_fairchem_conflict() -> str | None:
-    """
-    Check for TorchSim-FairChem API compatibility.
+    """Check for TorchSim-FairChem API compatibility.
 
     Returns:
         Error message if conflict detected, None otherwise
+
     """
     if not (deps.has("torch_sim") and deps.has("fairchem")):
         return None
@@ -142,7 +137,7 @@ class BackendAvailabilityChecker:
                 import mace.calculators  # noqa: F401
 
                 return None
-            elif backend in [BACKEND_TORCHSIM_MACE, BACKEND_TORCHSIM_UMA]:
+            if backend in [BACKEND_TORCHSIM_MACE, BACKEND_TORCHSIM_UMA]:
                 # Check TorchSim imports
                 import torch_sim  # noqa: F401
 
@@ -167,8 +162,7 @@ class BackendAvailabilityChecker:
         return conflict
 
     def is_backend_available(self, backend: str) -> bool:
-        """
-        Check if a backend is available using fast dependency and import checks.
+        """Check if a backend is available using fast dependency and import checks.
 
         This avoids expensive calculator instantiation while catching most
         compatibility issues through dependency analysis.
@@ -266,6 +260,7 @@ def get_backend_error_message(backend: str) -> str:
 
     Returns:
         str: Human-readable error message with installation instructions
+
     """
     reason = get_availability_reason(backend)
 
@@ -282,7 +277,7 @@ def get_backend_error_message(backend: str) -> str:
 
     cmd = install_commands.get(backend, f"pip install qme-ml[{backend}]")
 
-    return f"Backend '{backend}' is not available.\n" f"Reason: {reason}\n" f"Install with: {cmd}"
+    return f"Backend '{backend}' is not available.\nReason: {reason}\nInstall with: {cmd}"
 
 
 # Backend categorization constants
@@ -337,9 +332,9 @@ def get_available_torchsim_backends(verbose: bool = False) -> list[str]:
         if is_backend_available(backend):
             available.append(backend)
             if verbose:
-                print(f"  ✅ {backend}")
+                pass
         elif verbose:
-            print(f"  ❌ {backend} (dependencies missing or incompatible)")
+            pass
     return available
 
 
@@ -365,10 +360,9 @@ def require_backend(backend: str) -> None:
     except ImportError:
         # If pytest not available, just check availability
         if not is_backend_available(backend):
-            raise ImportError(f"Backend {backend} not available in this environment")
+            msg = f"Backend {backend} not available in this environment"
+            raise ImportError(msg)
         return
 
     if not is_backend_available(backend):
         pytest.skip(f"Backend {backend} not available in this environment")
-
-

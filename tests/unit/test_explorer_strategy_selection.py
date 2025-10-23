@@ -4,13 +4,13 @@ import pytest
 from ase import Atoms
 
 from qme.core.explorer import Explorer
-from qme.core.strategy import REGISTRY
+from qme.core.registry import REGISTRY
 
 
 class TestExplorerStrategySelection:
     """Test strategy selection and explain_run functionality."""
 
-    def test_strategy_registry(self):
+    def test_strategy_registry(self) -> None:
         """Test that strategies are properly registered."""
         # Ensure strategy modules are imported to trigger registration
 
@@ -27,7 +27,7 @@ class TestExplorerStrategySelection:
         assert "minima:local" in strategies
         assert "path:neb" in strategies
 
-    def test_strategy_metadata(self):
+    def test_strategy_metadata(self) -> None:
         """Test strategy metadata is correct."""
         # Ensure strategy modules are imported to trigger registration
 
@@ -41,14 +41,14 @@ class TestExplorerStrategySelection:
         assert not metadata.requires_multiple_structures
 
     @pytest.mark.parametrize(
-        "target,strategy,expected_key,expected_runner",
+        ("target", "strategy", "expected_key", "expected_runner"),
         [
             ("minima", "local", "minima:local", "LocalMinimaStrategy"),
             ("path", "neb", "path:neb", "MultiStructureNEBStrategy"),
             ("ts", "local", "ts:local", "LocalTSStrategy"),
         ],
     )
-    def test_explain_run_strategies(self, target, strategy, expected_key, expected_runner):
+    def test_explain_run_strategies(self, target, strategy, expected_key, expected_runner) -> None:
         """Test explain_run for different strategy combinations."""
         atoms = Atoms("H2")
         exp = Explorer(atoms, target=target, strategy=strategy, backend="mock")
@@ -60,7 +60,7 @@ class TestExplorerStrategySelection:
         assert explanation["valid"] is True
         assert expected_runner in explanation["runner"]
 
-    def test_explain_run_with_target_strategy(self):
+    def test_explain_run_with_target_strategy(self) -> None:
         """Test explain_run with target and strategy parameters."""
         atoms = Atoms("H2")
         exp = Explorer(atoms, backend="mock", target="minima", strategy="local")
@@ -72,7 +72,7 @@ class TestExplorerStrategySelection:
         assert explanation["strategy_key"] == "minima:local"
         assert explanation["valid"] is True
 
-    def test_explain_run_invalid_strategy(self):
+    def test_explain_run_invalid_strategy(self) -> None:
         """Test explain_run for invalid strategy."""
         atoms = Atoms("H2")
         exp = Explorer(atoms, backend="mock", target="invalid", strategy="nonexistent")
@@ -81,7 +81,7 @@ class TestExplorerStrategySelection:
         assert explanation["valid"] is False
         assert "error" in explanation
 
-    def test_validation_minima_run(self):
+    def test_validation_minima_run(self) -> None:
         """Test validation for minima optimization."""
         atoms = Atoms("H2")
         exp = Explorer(atoms, target="minima", strategy="local", backend="mock")
@@ -90,7 +90,7 @@ class TestExplorerStrategySelection:
         explanation = exp.explain_run()
         assert explanation["valid"] is True
 
-    def test_validation_ts_run(self):
+    def test_validation_ts_run(self) -> None:
         """Test validation for TS optimization."""
         atoms = Atoms("H2")
         exp = Explorer(atoms, target="ts", strategy="local", backend="uma")
@@ -99,7 +99,7 @@ class TestExplorerStrategySelection:
         explanation = exp.explain_run()
         assert explanation["valid"] is True
 
-    def test_validation_path_run(self):
+    def test_validation_path_run(self) -> None:
         """Test validation for path optimization."""
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
         atoms2 = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1.0]])
@@ -109,7 +109,7 @@ class TestExplorerStrategySelection:
         explanation = exp.explain_run()
         assert explanation["valid"] is True
 
-    def test_run_method_simplified(self):
+    def test_run_method_simplified(self) -> None:
         """Test that the simplified run method works."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
         exp = Explorer(atoms, target="minima", strategy="local", backend="mock")
@@ -125,7 +125,7 @@ class TestExplorerStrategySelection:
             assert "minima:local" in str(e) or "optimization" in str(e).lower()
 
     @pytest.mark.parametrize(
-        "alias,expected_target,expected_strategy",
+        ("alias", "expected_target", "expected_strategy"),
         [
             ("neb", "path", "neb"),
             ("cineb", "path", "cineb"),
@@ -134,7 +134,7 @@ class TestExplorerStrategySelection:
             ("gsm", "ts", "growing_string"),
         ],
     )
-    def test_strategy_aliases(self, alias, expected_target, expected_strategy):
+    def test_strategy_aliases(self, alias, expected_target, expected_strategy) -> None:
         """Test that strategy aliases work correctly."""
         atoms = Atoms("H2")
         # Create Explorer with the expected target and strategy
@@ -145,7 +145,7 @@ class TestExplorerStrategySelection:
         assert explanation["target"] == expected_target
         assert explanation["strategy"] == expected_strategy
 
-    def test_strategy_requires_multiple_structures(self):
+    def test_strategy_requires_multiple_structures(self) -> None:
         """Test that strategies correctly validate multiple structure requirements."""
         atoms = Atoms("H2")
         exp = Explorer(atoms, backend="mock", target="path", strategy="neb")
@@ -158,7 +158,7 @@ class TestExplorerStrategySelection:
         with pytest.raises(ValueError, match="at least 2 structures"):
             exp.run()
 
-    def test_strategy_error_handling(self):
+    def test_strategy_error_handling(self) -> None:
         """Test error handling for invalid strategies."""
         atoms = Atoms("H2")
 

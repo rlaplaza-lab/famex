@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-QME Minima Optimizer Benchmark - Minima Optimization Comparison
+"""QME Minima Optimizer Benchmark - Minima Optimization Comparison.
 
 This benchmark compares the performance of different minima optimizers
 (lbfgs, bfgs, fire) across various QME ML backends. It focuses specifically
@@ -26,15 +25,12 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 from ase import Atoms
 
 # Import QME components
 try:
     pass  # QME components imported via benchmark_optimization function
-except ImportError as e:
-    print(f"❌ Error importing QME: {e}")
-    print("   Please ensure QME is installed and accessible")
+except ImportError:
     sys.exit(1)
 
 # Backend availability helpers
@@ -55,8 +51,7 @@ def create_minima_structure() -> Atoms:
 
     # Use the smaller A_C_A_B_A_C reactant structure as starting point for minima optimization
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    structure = read(os.path.join(script_dir, "example_files", "A_C_A_B_A_C_reactant.xyz"))
-    return structure
+    return read(os.path.join(script_dir, "example_files", "A_C_A_B_A_C_reactant.xyz"))
 
 
 def benchmark_minima_optimizer(
@@ -66,8 +61,7 @@ def benchmark_minima_optimizer(
     model_name: str | None = None,
     verbose: int = 1,
 ) -> dict[str, Any]:
-    """
-    Benchmark a single backend with a specific optimizer for minima optimization.
+    """Benchmark a single backend with a specific optimizer for minima optimization.
 
     Only suitable optimizers: LBFGS, BFGS, FIRE, Trust-Krylov
     """
@@ -83,24 +77,11 @@ def benchmark_minima_optimizer(
     )
 
 
-def print_frequency_analysis_summary(results_list: list[dict[str, Any]]):
+def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None:
     """Print a detailed frequency analysis summary for minima optimization."""
-    print(f"\n{'=' * 120}")
-    print("FREQUENCY ANALYSIS SUMMARY - MINIMA OPTIMIZATION")
-    print(f"{'=' * 120}")
-
     # Print legend
-    print("📊 FREQUENCY VALIDATION:")
-    print("   • Minima should have 0 imaginary frequencies (all positive)")
-    print("   • Invalid results suggest optimization found a saddle point or TS")
-    print(f"{'-' * 120}")
 
     # Header
-    print(
-        f"{'Backend':<12} {'Optimizer':<12} {'Type':<4} {'Imag Freq':<10} "
-        f"{'Valid':<8} {'ZPE (eV)':<12} {'First 3 Freq (cm⁻¹)':<25} {'Status':<15}"
-    )
-    print("=" * 120)
 
     # Results
     for results in results_list:
@@ -108,56 +89,33 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]):
             freq_results = results["frequency_results"]
             n_imag = freq_results.get("n_imaginary_frequencies", 0)
             is_valid = freq_results.get("is_valid_result", False)
-            zpe = freq_results.get("zero_point_energy", 0)
+            freq_results.get("zero_point_energy", 0)
             frequencies = freq_results.get("frequencies", [])
 
             # Format first 3 frequencies
             if len(frequencies) >= 3:
-                freq_str = f"[{frequencies[0]:.1f}, {frequencies[1]:.1f}, {frequencies[2]:.1f}]"
+                f"[{frequencies[0]:.1f}, {frequencies[1]:.1f}, {frequencies[2]:.1f}]"
             else:
-                freq_str = "N/A"
+                pass
 
             # Status indicator
-            if is_valid:
-                status = "✅ Valid"
+            if is_valid or n_imag > 0:
+                pass
             else:
-                if n_imag > 0:
-                    status = f"❌ {n_imag} Imag Freq"
-                else:
-                    status = "⚠️  Unknown"
+                pass
 
-            print(
-                f"{results['backend']:<12} {results.get('optimizer', 'unknown'):<12} "
-                f"{'M':<4} "
-                f"{n_imag if n_imag is not None else 'N/A':<10} "
-                f"{'Yes' if is_valid else 'No' if is_valid is not None else 'N/A':<8} "
-                f"{zpe:<12.4f} {freq_str:<25} {status:<15}"
-            )
         else:
-            print(
-                f"{results['backend']:<12} {results.get('optimizer', 'unknown'):<12} "
-                f"{'M':<4} "
-                f"{'N/A':<10} {'N/A':<8} {'N/A':<12} {'N/A':<25} {'N/A':<15}"
-            )
-
-    print("=" * 120)
+            pass
 
     # Summary statistics
     available_results = [r for r in results_list if r["available"] and "frequency_results" in r]
     if available_results:
-        print("\n🔍 FREQUENCY VALIDATION STATISTICS")
-        print(f"{'=' * 60}")
-
         # Overall validation rate
         valid_count = sum(
             1 for r in available_results if r["frequency_results"].get("is_valid_result", False)
         )
         total_count = len(available_results)
-        overall_success_rate = (valid_count / total_count * 100) if total_count > 0 else 0
-        print(
-            f"Overall Validation Success Rate: {overall_success_rate:.1f}% "
-            f"({valid_count}/{total_count})"
-        )
+        (valid_count / total_count * 100) if total_count > 0 else 0
 
         # Minima-specific issues
         minima_with_imag = sum(
@@ -166,36 +124,14 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]):
             if r["frequency_results"].get("n_imaginary_frequencies", 0) > 0
         )
         if minima_with_imag > 0:
-            print(f"  ⚠️  {minima_with_imag} minima optimizations found imaginary frequencies")
+            pass
 
 
-def print_optimizer_summary(results_list: list[dict[str, Any]]):
+def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
     """Print a summary table focused on minima optimizer comparison."""
-    print(f"\n{'=' * 140}")
-    print("MINIMA OPTIMIZER COMPARISON SUMMARY")
-    print(f"{'=' * 140}")
-
     # Print legend first, before the table
-    print("📊 COLUMN DEFINITIONS:")
-    print("   Backend  = ML backend used")
-    print("   Optimizer = Optimization algorithm")
-    print("   Type     = Minima (M)")
-    print("   Converged = Whether optimization converged")
-    print("   Steps    = Number of optimization steps")
-    print("   Time/Step = Average time per optimization step")
-    print("   Total    = Total optimization time")
-    print("   Final E  = Final energy (eV)")
-    print("   Max F    = Maximum force (eV/Å)")
-    print("   Valid Result = Whether result matches expected type (0 imag freq for minima)")
-    print(f"{'-' * 150}")
 
     # Header
-    print(
-        f"{'Backend':<12} {'Optimizer':<12} {'Type':<4} {'Converged':<10} {'Steps':<8} "
-        f"{'Time/Step (s)':<14} {'Total (s)':<10} {'Final E (eV)':<12} "
-        f"{'Max F (eV/Å)':<12} {'Valid':<10}"
-    )
-    print("=" * 150)
 
     # Results
     for results in results_list:
@@ -204,45 +140,22 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]):
             opt_results = results.get("optimization_results", {})
             freq_results = results.get("frequency_results", {})
             steps_taken = opt_results.get("steps_taken", 0)
-            avg_time_per_step = timings.get("avg_time_per_step", 0)
-            optimizer = results.get("optimizer", "unknown")
-            converged = opt_results.get("converged", False)
-            final_energy = opt_results.get("final_energy", None)
-            max_force = opt_results.get("max_force", None)
-            is_valid_result = freq_results.get("is_valid_result", False)
+            timings.get("avg_time_per_step", 0)
+            results.get("optimizer", "unknown")
+            opt_results.get("converged", False)
+            opt_results.get("final_energy", None)
+            opt_results.get("max_force", None)
+            freq_results.get("is_valid_result", False)
 
             # Handle None values for formatting
-            steps_str = str(steps_taken) if steps_taken is not None else "N/A"
-            avg_time_str = f"{avg_time_per_step:.4f}" if avg_time_per_step is not None else "N/A"
-            final_energy_str = f"{final_energy:.3f}" if final_energy is not None else "N/A"
-            max_force_str = f"{max_force:.6f}" if max_force is not None else "N/A"
-            valid_result_str = "Yes" if is_valid_result else "No"
+            str(steps_taken) if steps_taken is not None else "N/A"
 
-            print(
-                f"{results['backend']:<12} {optimizer:<12} {'M':<4} "
-                f"{'Yes' if converged else 'No':<10} {steps_str:<8} "
-                f"{avg_time_str:<14} "
-                f"{timings.get('optimization', 0):<10.3f} "
-                f"{final_energy_str:<12} "
-                f"{max_force_str:<12} "
-                f"{valid_result_str:<10}"
-            )
         else:
-            optimizer = results.get("optimizer", "unknown")
-            print(
-                f"{results['backend']:<12} {optimizer:<12} {'M':<4} "
-                f"{'N/A':<10} {'N/A':<8} {'N/A':<14} {'N/A':<10} "
-                f"{'N/A':<12} {'N/A':<12} {'N/A':<10}"
-            )
-
-    print("=" * 150)
+            results.get("optimizer", "unknown")
 
     # Optimizer performance analysis
     available_results = [r for r in results_list if r["available"]]
     if available_results:
-        print("\n🔍 MINIMA OPTIMIZER PERFORMANCE ANALYSIS")
-        print(f"{'=' * 80}")
-
         # Group by optimizer
         optimizer_groups = {}
         for result in available_results:
@@ -252,9 +165,6 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]):
             optimizer_groups[opt_name].append(result)
 
         for opt_name, opt_results in optimizer_groups.items():
-            print(f"\n📈 {opt_name.upper()} OPTIMIZER PERFORMANCE")
-            print(f"{'-' * 50}")
-
             # Calculate statistics - filter out None values
             steps_list = [
                 r["optimization_results"].get("steps_taken", 0)
@@ -276,39 +186,16 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]):
             ]
 
             if steps_list:
-                print(
-                    "  {:<30}: {:.1f} ± {:.1f}".format(
-                        "Average Steps", np.mean(steps_list), np.std(steps_list)
-                    )
-                )
-                print(f"  {'Min Steps':<30}: {min(steps_list):>8}")
-                print(f"  {'Max Steps':<30}: {max(steps_list):>8}")
+                pass
 
             if time_per_step_list:
-                print(
-                    "  {:<30}: {:.4f}s ± {:.4f}s".format(
-                        "Avg Time/Step",
-                        np.mean(time_per_step_list),
-                        np.std(time_per_step_list),
-                    )
-                )
-                print(f"  {'Min Time/Step':<30}: {min(time_per_step_list):>8.4f}s")
-                print(f"  {'Max Time/Step':<30}: {max(time_per_step_list):>8.4f}s")
+                pass
 
             if total_time_list:
-                print(
-                    "  {:<30}: {:.3f}s ± {:.3f}s".format(
-                        "Avg Total Time",
-                        np.mean(total_time_list),
-                        np.std(total_time_list),
-                    )
-                )
-                print(f"  {'Min Total Time':<30}: {min(total_time_list):>8.3f}s")
-                print(f"  {'Max Total Time':<30}: {max(total_time_list):>8.3f}s")
+                pass
 
             if converged_list:
-                convergence_rate = sum(converged_list) / len(converged_list) * 100
-                print(f"  {'Convergence Rate':<30}: {convergence_rate:>8.1f}%")
+                sum(converged_list) / len(converged_list) * 100
 
             # Quality analysis for minima optimization
             valid_result_list = [
@@ -317,55 +204,31 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]):
                 if "frequency_results" in r
             ]
             if valid_result_list:
-                minima_success_rate = sum(valid_result_list) / len(valid_result_list) * 100
-                print(f"  {'Minima Success Rate':<30}: {minima_success_rate:>8.1f}%")
-
-            print(f"  {'Total Tests':<30}: {len(opt_results):>8}")
+                sum(valid_result_list) / len(valid_result_list) * 100
 
 
-def print_performance_summary(results_list: list[dict[str, Any]]):
+def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
     """Print comprehensive performance profiler data."""
     # Check for performance data
     has_performance_data = any(
-        results.get("available") and "performance" in results
-        for results in results_list
+        results.get("available") and "performance" in results for results in results_list
     )
 
     if not has_performance_data:
-        print(f"\n{'=' * 120}")
-        print("PERFORMANCE PROFILER SUMMARY")
-        print(f"{'=' * 120}")
-        print("No performance profiler data available.")
         return
 
     # Section 1: Calculator Calls & Memory
-    print(f"\n{'=' * 120}")
-    print("CALCULATOR CALLS & MEMORY USAGE")
-    print(f"{'=' * 120}")
 
     # Header
-    print(f"{'Backend':<12} {'Optimizer':<12} {'Energy Calls':<12} "
-          f"{'Force Calls':<12} {'Hessian Calls':<13} {'Peak Mem (MB)':<14} {'GPU Peak (MB)':<14}")
-    print("=" * 120)
 
     # Results
     for results in results_list:
         if results.get("available") and "performance" in results:
             perf = results["performance"]
-            calls = perf.get("calculator_calls", {})
-            mem = perf.get("memory", {})
-
-            print(f"{results['backend']:<12} {results.get('optimizer', 'N/A'):<12} "
-                  f"{calls.get('energy', 0):<12} {calls.get('forces', 0):<12} "
-                  f"{calls.get('hessian', 0):<13} "
-                  f"{mem.get('peak_mb', 0.0):<14.1f} {mem.get('gpu_peak_mb', 0.0):<14.1f}")
-
-    print("=" * 120)
+            perf.get("calculator_calls", {})
+            perf.get("memory", {})
 
     # Section 2: Detailed Timing Breakdown
-    print(f"\n{'=' * 120}")
-    print("DETAILED TIMING BREAKDOWN")
-    print(f"{'=' * 120}")
 
     # Collect all unique timing sections from all results
     all_sections = set()
@@ -376,12 +239,9 @@ def print_performance_summary(results_list: list[dict[str, Any]]):
             all_sections.update(timings.keys())
 
     if not all_sections:
-        print("No timing data available.")
         return
 
     # Header for detailed timing
-    print(f"{'Section':<18} {'Total (s)':<12} {'Count':<8} {'Avg (s)':<12} {'Min (s)':<12} {'Max (s)':<12}")
-    print("=" * 120)
 
     # Show timing statistics for each section
     for section in sorted(all_sections):
@@ -395,18 +255,19 @@ def print_performance_summary(results_list: list[dict[str, Any]]):
 
         if section_stats:
             # Calculate aggregate statistics across all results
-            total_time = sum(stat.get("total_time", 0.0) for stat in section_stats)
+            sum(stat.get("total_time", 0.0) for stat in section_stats)
             total_count = sum(stat.get("count", 0) for stat in section_stats)
-            avg_time = sum(stat.get("avg_time", 0.0) * stat.get("count", 0) for stat in section_stats) / total_count if total_count > 0 else 0.0
-            min_time = min(stat.get("min_time", 0.0) for stat in section_stats)
-            max_time = max(stat.get("max_time", 0.0) for stat in section_stats)
+            (
+                sum(stat.get("avg_time", 0.0) * stat.get("count", 0) for stat in section_stats)
+                / total_count
+                if total_count > 0
+                else 0.0
+            )
+            min(stat.get("min_time", 0.0) for stat in section_stats)
+            max(stat.get("max_time", 0.0) for stat in section_stats)
 
-            print(f"{section:<18} {total_time:<12.3f} {total_count:<8} {avg_time:<12.3f} {min_time:<12.3f} {max_time:<12.3f}")
 
-    print("=" * 120)
-
-
-def save_results(results_list: list[dict[str, Any]], output_file: str):
+def save_results(results_list: list[dict[str, Any]], output_file: str) -> None:
     """Save benchmark results to JSON file."""
     # If output_file is just a filename, save it in the examples directory
     if not Path(output_file).is_absolute() and "/" not in output_file:
@@ -418,10 +279,8 @@ def save_results(results_list: list[dict[str, Any]], output_file: str):
     with open(output_path, "w") as f:
         json.dump(results_list, f, indent=2, default=str)
 
-    print(f"\nResults saved to: {output_path}")
 
-
-def main():
+def main() -> int:
     """Main function to run the minima optimizer comparison benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
@@ -450,24 +309,18 @@ def main():
     if args.backends:
         requested_backends = [b.strip() for b in args.backends.split(",")]
         available_backends = interface.filter_available_backends(
-            requested_backends, verbose=args.verbose
+            requested_backends,
+            verbose=args.verbose,
         )
 
         if not available_backends:
             interface.print_error("No requested backends are available!")
-            print("   Please install required dependencies.")
             return 1
     else:
         available_backends = interface.get_available_ml_backends()
 
         if not available_backends:
             interface.print_error("No ML backends available!")
-            print("   Please install at least one ML backend:")
-            print("   - UMA: pip install fairchem-core")
-            print("   - MACE: pip install mace-torch")
-            print("   - AIMNet2: pip install aimnet2")
-            print("   - SO3LR: pip install so3lr")
-            print("   - TorchSim: pip install torch-sim-atomistic")
             return 1
 
     # Determine which optimizers to test
@@ -477,20 +330,15 @@ def main():
         valid_optimizers = ["lbfgs", "bfgs", "fire", "trust-krylov"]
         minima_optimizers = [opt for opt in requested_optimizers if opt in valid_optimizers]
         if len(minima_optimizers) != len(requested_optimizers):
-            invalid_opts = [opt for opt in requested_optimizers if opt not in valid_optimizers]
-            print(f"Warning: Invalid optimizers ignored: {', '.join(invalid_opts)}")
-            print(f"Valid minima optimizers: {', '.join(valid_optimizers)}")
+            [opt for opt in requested_optimizers if opt not in valid_optimizers]
     else:
         minima_optimizers = ["lbfgs", "bfgs", "fire", "trust-krylov"]
 
     if not minima_optimizers:
         interface.print_error("No valid minima optimizers specified!")
-        print("Valid options: lbfgs, bfgs, fire, trust-krylov")
         return 1
 
     interface.print_backend_summary(available_backends, "Benchmarking Backends")
-    print(f"\nMinima Optimizers: {', '.join(minima_optimizers)}")
-    print("Test Type: Minima Optimization")
 
     # Get device info
     device = interface.get_device_info(args.device)
@@ -503,18 +351,10 @@ def main():
     }
     interface.print_configuration(config)
 
-    total_tests = len(available_backends) * len(minima_optimizers)
-    print(
-        f"\nRunning benchmarks for {len(available_backends)} backend(s) × "
-        f"{len(minima_optimizers)} minima optimizer(s) = {total_tests} tests..."
-    )
+    len(available_backends) * len(minima_optimizers)
 
     # Run benchmarks
     results_list = []
-
-    print(f"\n{'=' * 80}")
-    print("MINIMA OPTIMIZATION BENCHMARKS")
-    print(f"{'=' * 80}")
 
     for backend in available_backends:
         for optimizer in minima_optimizers:
@@ -527,10 +367,8 @@ def main():
                 )
                 results_list.append(results)
             except KeyboardInterrupt:
-                print("\nBenchmark interrupted by user.")
                 break
             except Exception as e:
-                print(f"\nUnexpected error with {backend}+{optimizer}: {e}")
                 results_list.append(
                     {
                         "backend": backend,
@@ -542,7 +380,7 @@ def main():
                         "timings": {},
                         "optimization_results": {},
                         "frequency_results": {},
-                    }
+                    },
                 )
 
     # Print summaries

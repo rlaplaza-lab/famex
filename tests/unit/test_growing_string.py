@@ -11,14 +11,19 @@ from qme.core.explorer import Explorer
 class TestGrowingStringMethod:
     """Test suite for growing string method."""
 
-    def test_growing_string_basic(self):
+    def test_growing_string_basic(self) -> None:
         """Test basic growing string functionality with mock backend."""
         # Create simple reactant and product structures (H2 molecule)
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
         # Create explorer with mock backend
-        explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="growing_string")
+        explorer = Explorer(
+            [reactant, product],
+            backend="mock",
+            target="ts",
+            strategy="growing_string",
+        )
 
         # Run growing string method
         result = explorer.run(
@@ -55,7 +60,7 @@ class TestGrowingStringMethod:
         # Verify optimized_atoms is an Atoms object
         assert isinstance(result["optimized_atoms"], Atoms)
 
-    def test_growing_string_requires_two_atoms(self):
+    def test_growing_string_requires_two_atoms(self) -> None:
         """Test that growing string requires exactly two Atoms objects."""
         single_atoms = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         explorer = Explorer(single_atoms, backend="mock", target="ts", strategy="growing_string")
@@ -69,23 +74,33 @@ class TestGrowingStringMethod:
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
         intermediate = Atoms("H2", positions=[(0, 0, 0), (1.0, 0, 0)])
 
-        explorer_multi = Explorer([reactant, intermediate, product], backend="mock", target="ts", strategy="growing_string")
+        explorer_multi = Explorer(
+            [reactant, intermediate, product],
+            backend="mock",
+            target="ts",
+            strategy="growing_string",
+        )
         with pytest.raises(ValueError, match="exactly 2 Atoms objects"):
             explorer_multi.run()
 
     @pytest.mark.parametrize(
-        "optimize_endpoints,refine_ts",
+        ("optimize_endpoints", "refine_ts"),
         [
             (True, False),
             (False, False),
         ],
     )
-    def test_growing_string_optimization_options(self, optimize_endpoints, refine_ts):
+    def test_growing_string_optimization_options(self, optimize_endpoints, refine_ts) -> None:
         """Test growing string with different optimization options."""
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
-        explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="growing_string")
+        explorer = Explorer(
+            [reactant, product],
+            backend="mock",
+            target="ts",
+            strategy="growing_string",
+        )
 
         if refine_ts:
             # Mock backend doesn't support TS optimization, so this should fail
@@ -109,12 +124,17 @@ class TestGrowingStringMethod:
             assert result["strategy"] == "ts:growing_string"
             assert len(result["trajectory"]) >= 2
 
-    def test_growing_string_with_ts_refinement_fails(self):
+    def test_growing_string_with_ts_refinement_fails(self) -> None:
         """Test growing string with TS refinement fails with mock backend."""
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
-        explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="growing_string")
+        explorer = Explorer(
+            [reactant, product],
+            backend="mock",
+            target="ts",
+            strategy="growing_string",
+        )
 
         # Mock backend doesn't support TS optimization, so this should fail
         with pytest.raises(ValueError, match="not suitable for transition state"):
@@ -126,7 +146,7 @@ class TestGrowingStringMethod:
                 refine_ts=True,  # This will fail with mock backend
             )
 
-    def test_growing_string_strategy_registered(self):
+    def test_growing_string_strategy_registered(self) -> None:
         """Test that growing string strategy is properly registered."""
         atoms = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         explorer = Explorer(atoms, backend="mock")
@@ -140,7 +160,7 @@ class TestGrowingStringMethod:
         # Verify strategy type
         assert strategies["ts:growing_string"]["type"] == "multi-structure"
 
-    def test_growing_string_via_explorer_run(self):
+    def test_growing_string_via_explorer_run(self) -> None:
         """Test growing string method registration and basic interface."""
         # Create reactant and product
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
@@ -159,13 +179,18 @@ class TestGrowingStringMethod:
         assert all_strategies["ts:growing_string"]["type"] == "multi-structure"
         assert "growing string" in all_strategies["ts:growing_string"]["description"].lower()
 
-    @pytest.mark.parametrize("npoints,steps", [(5, 100), (10, 50), (3, 20)])
-    def test_growing_string_max_images_limit(self, npoints, steps):
+    @pytest.mark.parametrize(("npoints", "steps"), [(5, 100), (10, 50), (3, 20)])
+    def test_growing_string_max_images_limit(self, npoints, steps) -> None:
         """Test that growing string respects maximum images limit."""
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
-        explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="growing_string")
+        explorer = Explorer(
+            [reactant, product],
+            backend="mock",
+            target="ts",
+            strategy="growing_string",
+        )
         result = explorer.run(
             npoints=npoints,
             fmax=0.5,
@@ -179,12 +204,17 @@ class TestGrowingStringMethod:
         assert total_images <= npoints
 
     @pytest.mark.parametrize("distance_threshold", [0.5, 1.0, 2.0])
-    def test_growing_string_distance_threshold(self, distance_threshold):
+    def test_growing_string_distance_threshold(self, distance_threshold) -> None:
         """Test that growing string uses distance threshold for convergence."""
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (0.8, 0, 0)])  # Very close
 
-        explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="growing_string")
+        explorer = Explorer(
+            [reactant, product],
+            backend="mock",
+            target="ts",
+            strategy="growing_string",
+        )
         result = explorer.run(
             npoints=20,
             fmax=0.5,

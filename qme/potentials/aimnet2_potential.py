@@ -1,5 +1,4 @@
-"""
-AIMNET2 Machine Learning Potential integration for ASE.
+"""AIMNET2 Machine Learning Potential integration for ASE.
 
 This module implements a native AIMNet2 calculator without external dependencies,
 based on the AIMNet2 repository implementation.
@@ -70,6 +69,7 @@ def get_model_path(model_name: str) -> str:
     -----
     If model_name is a file path, returns it directly. Otherwise, looks up
     the model in the registry and downloads it if necessary.
+
     """
     from qme.potentials.model_cache import download_and_cache_model
 
@@ -122,12 +122,12 @@ def get_model_path(model_name: str) -> str:
             return local_path
 
         except Exception as e:
-            raise RuntimeError(f"Failed to download model {model_name}: {e}")
+            msg = f"Failed to download model {model_name}: {e}"
+            raise RuntimeError(msg)
 
 
 def sparse_nb_to_dense_half(idx, natom, max_nb):
-    """Convert sparse neighbor list to dense format (from aimnet2calc)"""
-
+    """Convert sparse neighbor list to dense format (from aimnet2calc)."""
     dense_nb = np.full((natom + 1, max_nb), natom, dtype=np.int32)
     last_idx = np.zeros((natom,), dtype=np.int32)
     for k in range(idx.shape[0]):
@@ -141,8 +141,7 @@ def sparse_nb_to_dense_half(idx, natom, max_nb):
 
 
 def nblist_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256):
-    """Generate neighbor list using torch_cluster (from aimnet2calc)"""
-
+    """Generate neighbor list using torch_cluster (from aimnet2calc)."""
     device = coord.device
     assert coord.ndim == 2, f"Expected 2D tensor for coord, got {coord.ndim}D"
     assert coord.shape[0] < 2147483646, "Too many atoms, max supported is 2147483646"
@@ -150,7 +149,7 @@ def nblist_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256):
     max_num_neighbors = max_nb
     while True:
         sparse_nb = radius_graph(coord, batch=mol_idx, r=cutoff, max_num_neighbors=max_nb).to(
-            torch.int32
+            torch.int32,
         )
         nnb = torch.unique(sparse_nb[0], return_counts=True)[1]
         if nnb.numel() == 0:
@@ -163,32 +162,32 @@ def nblist_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256):
     # Convert to dense format
     sparse_nb_half = sparse_nb[:, sparse_nb[0] > sparse_nb[1]]
     dense_nb = sparse_nb_to_dense_half(
-        sparse_nb_half.mT.cpu().numpy(), coord.shape[0], max_num_neighbors
+        sparse_nb_half.mT.cpu().numpy(),
+        coord.shape[0],
+        max_num_neighbors,
     )
-    dense_nb = torch.as_tensor(dense_nb, device=device)
-    return dense_nb
+    return torch.as_tensor(dense_nb, device=device)
 
 
 def maybe_pad_dim0(a, n, value=0.0):
-    """Pad tensor in dimension 0 if needed (from aimnet2calc)"""
+    """Pad tensor in dimension 0 if needed (from aimnet2calc)."""
     _shape_diff = n - a.shape[0]
-    assert _shape_diff == 0 or _shape_diff == 1, "Invalid shape"
+    assert _shape_diff in {0, 1}, "Invalid shape"
     if _shape_diff == 1:
         a = pad_dim0(a, value=value)
     return a
 
 
 def pad_dim0(a, value=0.0):
-    """Pad tensor in dimension 0 (from aimnet2calc)"""
+    """Pad tensor in dimension 0 (from aimnet2calc)."""
     shapes = [0] * ((a.ndim - 1) * 2) + [0, 1]
-    a = torch.nn.functional.pad(a, shapes, mode="constant", value=value)
-    return a
+    return torch.nn.functional.pad(a, shapes, mode="constant", value=value)
 
 
 def maybe_unpad_dim0(a, n):
-    """Unpad tensor in dimension 0 if needed (from aimnet2calc)"""
+    """Unpad tensor in dimension 0 if needed (from aimnet2calc)."""
     _shape_diff = a.shape[0] - n
-    assert _shape_diff == 0 or _shape_diff == 1, "Invalid shape"
+    assert _shape_diff in {0, 1}, "Invalid shape"
     if _shape_diff == 1:
         a = a[:-1]
     return a
@@ -196,14 +195,13 @@ def maybe_unpad_dim0(a, n):
 
 def generate_neighbor_list_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256):
     """Generate neighbor list using torch_cluster radius_graph."""
-
     device = coord.device
     max_num_neighbors = 0
 
     # Generate sparse neighbor list using torch_cluster
     while True:
         sparse_nb = radius_graph(coord, batch=mol_idx, r=cutoff, max_num_neighbors=max_nb).to(
-            torch.int32
+            torch.int32,
         )
         nnb = torch.unique(sparse_nb[0], return_counts=True)[1]
         if nnb.numel() == 0:
@@ -217,17 +215,15 @@ def generate_neighbor_list_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256
     # Convert to dense format using the half neighbor list
     sparse_nb_half = sparse_nb[:, sparse_nb[0] > sparse_nb[1]]
     dense_nb = sparse_nb_to_dense_half(
-        sparse_nb_half.mT.cpu().numpy(), coord.shape[0], max_num_neighbors
+        sparse_nb_half.mT.cpu().numpy(),
+        coord.shape[0],
+        max_num_neighbors,
     )
-    dense_nb = torch.as_tensor(dense_nb, device=device)
-
-    return dense_nb
+    return torch.as_tensor(dense_nb, device=device)
 
 
 def generate_neighbor_list_numpy(positions: np.ndarray, cutoff: float, max_neighbors: int = 128):
-    """
-    Fallback neighbor list generation using numpy.
-    """
+    """Fallback neighbor list generation using numpy."""
     n_atoms = len(positions)
 
     # Calculate pairwise distances
@@ -254,13 +250,12 @@ def generate_neighbor_list_numpy(positions: np.ndarray, cutoff: float, max_neigh
 
 
 class NativeAIMNet2Calculator:
-    """
-    Native AIMNet2 calculator implementation.
-    """
+    """Native AIMNet2 calculator implementation."""
 
-    def __init__(self, model_path: str, device: str = "cpu"):
+    def __init__(self, model_path: str, device: str = "cpu") -> None:
         if not deps.has("torch"):
-            raise ImportError("PyTorch is required for AIMNet2 calculations")
+            msg = "PyTorch is required for AIMNet2 calculations"
+            raise ImportError(msg)
 
         # torch is now available globally as a lazy import
 
@@ -298,14 +293,17 @@ class NativeAIMNet2Calculator:
         # Required keys
         for k in self.keys_in:
             if k not in data:
-                raise ValueError(f"Missing required key '{k}' in input data")
+                msg = f"Missing required key '{k}' in input data"
+                raise ValueError(msg)
             ret[k] = torch.as_tensor(data[k], device=self.device, dtype=self.keys_in[k]).detach()
 
         # Optional keys
         for k in self.keys_in_optional:
             if k in data and data[k] is not None:
                 ret[k] = torch.as_tensor(
-                    data[k], device=self.device, dtype=self.keys_in_optional[k]
+                    data[k],
+                    device=self.device,
+                    dtype=self.keys_in_optional[k],
                 ).detach()
 
         # Ensure scalar tensors have shape (1,)
@@ -320,14 +318,20 @@ class NativeAIMNet2Calculator:
         # No PBC support in our implementation, so always use torch_cluster
         if "nbmat" not in data:
             data["nbmat"] = generate_neighbor_list_torch_cluster(
-                data["coord"], self.cutoff, data.get("mol_idx"), max_nb=128
+                data["coord"],
+                self.cutoff,
+                data.get("mol_idx"),
+                max_nb=128,
             )
 
             # Generate long-range neighbor list if model has long-range capabilities
             if self.lr:
                 if "nbmat_lr" not in data:
                     data["nbmat_lr"] = generate_neighbor_list_torch_cluster(
-                        data["coord"], self.cutoff_lr, data.get("mol_idx"), max_nb=1024
+                        data["coord"],
+                        self.cutoff_lr,
+                        data.get("mol_idx"),
+                        max_nb=1024,
                     )
                 data["cutoff_lr"] = torch.tensor(self.cutoff_lr, device=self.device)
 
@@ -378,20 +382,20 @@ class NativeAIMNet2Calculator:
         return data
 
     def __call__(self, data: dict[str, Any], forces: bool = False) -> dict[str, Any]:
-        """
-        Calculate energy and optionally forces.
+        """Calculate energy and optionally forces.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         data : dict
             Input data with keys 'coord', 'numbers', 'charge', optionally 'mult'
         forces : bool
             Whether to calculate forces
 
-        Returns:
-        --------
+        Returns
+        -------
         dict
             Results with 'energy' and optionally 'forces'
+
         """
         # Store original number of atoms for unpadding later
         original_n_atoms = len(data["coord"]) if "coord" in data else 0
@@ -451,6 +455,7 @@ class AIMNet2Potential(BasePotential):
         Spin multiplicity (2S + 1)
     **kwargs
         Additional arguments passed to BasePotential
+
     """
 
     def __init__(
@@ -460,7 +465,7 @@ class AIMNet2Potential(BasePotential):
         charge: int = 0,
         mult: int = 1,
         **kwargs,
-    ):
+    ) -> None:
         """Initialize AIMNET2 potential calculator.
 
         Parameters
@@ -475,12 +480,13 @@ class AIMNet2Potential(BasePotential):
             Spin multiplicity
         **kwargs
             Additional arguments passed to parent Calculator
-        """
 
+        """
         # Check dependencies
         if not deps.has("torch"):
+            msg = "PyTorch is required for AIMNET2 potentials. Install with: pip install torch"
             raise ImportError(
-                "PyTorch is required for AIMNET2 potentials. " "Install with: pip install torch"
+                msg,
             )
 
         # Set device if not provided
@@ -502,7 +508,7 @@ class AIMNet2Potential(BasePotential):
     # ASE-compatible properties (class attribute like other potentials)
     implemented_properties = ["energy", "forces"]
 
-    def _load_calculator(self):
+    def _load_calculator(self) -> None:
         """Load the AIMNET2 model directly."""
         from qme.logging_utils import quiet_backend_loading
 
@@ -519,14 +525,21 @@ class AIMNet2Potential(BasePotential):
 
             # Don't show model info - let the outer context handle it
             with quiet_backend_loading(
-                "aimnet2", self.model_name, model_path, self.device, show_model_info=False
+                "aimnet2",
+                self.model_name,
+                model_path,
+                self.device,
+                show_model_info=False,
             ):
                 self._calc = NativeAIMNet2Calculator(model_path, device=self.device)
 
         except Exception as e:
-            raise RuntimeError(
+            msg = (
                 f"Failed to load AIMNET2 model '{self.model_name}'. "
                 f"Error: {e}. Please check the model name or installation."
+            )
+            raise RuntimeError(
+                msg,
             )
 
     def calculate(
@@ -534,7 +547,7 @@ class AIMNet2Potential(BasePotential):
         atoms=None,
         properties=None,
         system_changes=all_changes,
-    ):
+    ) -> None:
         """Calculate properties using AIMNET2 potential."""
         if properties is None:
             properties = ["energy", "forces"]
@@ -545,7 +558,8 @@ class AIMNet2Potential(BasePotential):
             atoms = self.atoms
 
         if atoms is None:
-            raise ValueError("No atoms provided for calculation")
+            msg = "No atoms provided for calculation"
+            raise ValueError(msg)
 
         # Prepare input data
         data = {
@@ -574,11 +588,11 @@ class AIMNet2Potential(BasePotential):
             forces = results["forces"].detach().cpu().numpy()
             self.results["forces"] = forces
 
-    def set_charge(self, charge: int):
+    def set_charge(self, charge: int) -> None:
         """Set molecular charge."""
         self.charge = charge
 
-    def set_mult(self, mult: int):
+    def set_mult(self, mult: int) -> None:
         """Set spin multiplicity."""
         self.mult = mult
 
@@ -609,11 +623,10 @@ def get_aimnet2_calculator(
     mult: int = 1,
     **kwargs,
 ) -> AIMNet2Potential:
-    """
-    Convenience function to get AIMNET2 calculator.
+    """Convenience function to get AIMNET2 calculator.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     model_name : str
         Name/path of AIMNET2 model to use
     device : str, optional
@@ -625,11 +638,16 @@ def get_aimnet2_calculator(
     **kwargs :
         Additional arguments passed to AIMNet2Potential
 
-    Returns:
-    --------
+    Returns
+    -------
     AIMNet2Potential
         Configured AIMNET2 calculator
+
     """
     return AIMNet2Potential(
-        model_name=model_name, device=device, charge=charge, mult=mult, **kwargs
+        model_name=model_name,
+        device=device,
+        charge=charge,
+        mult=mult,
+        **kwargs,
     )
