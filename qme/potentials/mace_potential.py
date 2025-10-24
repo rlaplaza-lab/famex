@@ -23,9 +23,11 @@ class MACEPotential(BasePotential):
     This calculator provides access to MACE foundation models, particularly
     the MACE-OMOL-0 model which is excellent for molecules, transition metals,
     and cations with charge/spin embedding capabilities.
+    
+    Supports analytical Hessian calculations for efficient frequency analysis.
     """
 
-    implemented_properties = ["energy", "forces"]
+    implemented_properties = ["energy", "forces", "hessian"]
 
     def __init__(
         self,
@@ -236,6 +238,95 @@ class MACEPotential(BasePotential):
             return self._calc.get_stress(atoms)
         msg = "Stress calculation not supported by this MACE model"
         raise NotImplementedError(msg)
+
+    def get_hessian(self, atoms=None):
+        """Get analytical Hessian matrix.
+        
+        Returns the Hessian matrix (3N x 3N) from MACE's analytical implementation.
+        This is much faster and more accurate than finite differences.
+        
+        Parameters
+        ----------
+        atoms : Atoms, optional
+            Atoms object to calculate Hessian for
+            
+        Returns
+        -------
+        np.ndarray
+            Hessian matrix of shape (3N, 3N) where N is the number of atoms
+        """
+        if atoms is not None:
+            self.atoms = atoms
+        
+        # Ensure calculator is loaded
+        if self._calc is None:
+            self._load_calculator()
+        
+        if self._calc is None:
+            msg = "Failed to load MACE calculator"
+            raise RuntimeError(msg)
+        
+        if not hasattr(self._calc, "get_hessian"):
+            msg = (
+                f"MACE calculator does not support analytical Hessians. "
+                f"This might be due to an older version of mace-torch. "
+                f"Please update to the latest version."
+            )
+            raise NotImplementedError(msg)
+        
+        try:
+            hessian = self._calc.get_hessian(atoms=self.atoms)
+            # MACE returns Hessian in shape (3N, N, 3), reshape to (3N, 3N)
+            if hasattr(hessian, 'shape') and len(hessian.shape) == 3:
+                n_atoms = len(self.atoms)
+                if hessian.shape == (3*n_atoms, n_atoms, 3):
+                    return hessian.reshape(3*n_atoms, 3*n_atoms)
+            return hessian
+        except (AttributeError, RuntimeError) as e:
+            # Handle e3nn compatibility issues similar to other methods
+            if any(phrase in str(e) for phrase in ["_compiled_main", "tensor size"]):
+                msg = (
+                    f"MACE Hessian calculation failed due to e3nn compatibility issues. "
+                    f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn "
+                    f"{self._get_e3nn_version()} is installed. "
+                    f"\n\nWorkaround options:"
+                    f"\n1. Use a separate environment with e3nn==0.4.4 for MACE"
+                    f"\n2. Use finite difference Hessians (automatic fallback)"
+                    f"\n3. Wait for MACE update compatible with e3nn 0.5+"
+                    f"\n\nOriginal error: {e}"
+                )
+                raise ImportError(msg)
+            raise
+
+    def get_property(self, prop, atoms=None):
+        """Get a specific property from the calculator.
+        
+        This method is used by ASE's property system and frequency analysis.
+        
+        Parameters
+        ----------
+        prop : str
+            Property name ('energy', 'forces', 'hessian', etc.)
+        atoms : Atoms, optional
+            Atoms object to calculate property for
+            
+        Returns
+        -------
+        Any
+            The requested property
+        """
+        if atoms is not None:
+            self.atoms = atoms
+            
+        if prop == "energy":
+            return self.get_potential_energy(atoms)
+        elif prop == "forces":
+            return self.get_forces(atoms)
+        elif prop == "hessian":
+            return self.get_hessian(atoms)
+        else:
+            msg = f"Property '{prop}' not supported by MACEPotential"
+            raise KeyError(msg)
 
 
 def get_mace_calculator(

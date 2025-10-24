@@ -38,7 +38,7 @@ except ImportError:
     sys.exit(1)
 
 # Import common interface
-from qme.examples import QMEExampleInterface, create_standard_epilog
+from qme.example_utils import QMEExampleInterface, create_standard_epilog
 from qme.utils.device import get_optimal_device, print_device_info
 
 # Suppress warnings for cleaner output

@@ -36,7 +36,7 @@ except ImportError:
 # Backend availability helpers
 
 # Common interface and device utils
-from qme.examples import QMEExampleInterface, benchmark_optimization, create_standard_epilog
+from qme.example_utils import QMEExampleInterface, benchmark_optimization, create_standard_epilog
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
