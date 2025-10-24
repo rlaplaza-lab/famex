@@ -33,7 +33,7 @@ os.environ["MPLBACKEND"] = "Agg"
 
 # Import common interface
 try:
-    from qme.examples import QMEExampleInterface, create_standard_epilog
+    from qme.example_utils import QMEExampleInterface, create_standard_epilog
 except ImportError:
     sys.exit(1)
 

@@ -36,7 +36,7 @@ except ImportError:
     sys.exit(1)
 
 # Import common interface
-from qme.examples import QMEExampleInterface, create_standard_epilog
+from qme.example_utils import QMEExampleInterface, create_standard_epilog
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
