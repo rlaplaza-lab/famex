@@ -30,7 +30,7 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
         fmax: float = 0.05,
         steps: int = 1000,
         calculate_frequencies: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """Run multi-structure minima optimization via interpolation.
 

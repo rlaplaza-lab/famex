@@ -58,11 +58,13 @@ class CalculatorRegistry:
             BACKEND_TORCHSIM_UMA,
             BACKEND_UMA,
         )
-        
+
         self._lazy_registry: dict[str, LazyBackend] = {
             BACKEND_SO3LR: LazyBackend(module="qme.potentials", function="get_so3lr_calculator"),
             BACKEND_UMA: LazyBackend(module="qme.potentials", function="get_uma_calculator"),
-            BACKEND_AIMNET2: LazyBackend(module="qme.potentials", function="get_aimnet2_calculator"),
+            BACKEND_AIMNET2: LazyBackend(
+                module="qme.potentials", function="get_aimnet2_calculator"
+            ),
             BACKEND_MACE: LazyBackend(module="qme.potentials", function="get_mace_calculator"),
             BACKEND_TORCHSIM_MACE: LazyBackend(
                 module="qme.potentials",
@@ -190,7 +192,7 @@ class CalculatorRegistry:
 
         # Special handling for mock backend
         from qme.backends.constants import BACKEND_MOCK
-        
+
         if backend == BACKEND_MOCK:
             factory_kwargs["backend"] = kwargs.get("mock_backend", "generic")
 

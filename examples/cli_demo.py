@@ -315,6 +315,7 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
         available_backends = backends
     else:
         from qme.backends.availability import get_available_backends
+
         available_backends = get_available_backends()
 
     if not available_backends:
@@ -346,7 +347,10 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
 
     for filename in required_files:
         if not (example_files / filename).exists():
-            print(f"ERROR: Required file not found: {(example_files / filename).absolute()}", flush=True)
+            print(
+                f"ERROR: Required file not found: {(example_files / filename).absolute()}",
+                flush=True,
+            )
             return False
     print("✓ All required files found", flush=True)
 
@@ -360,9 +364,9 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
 
     # Run examples for each backend
     for backend in available_backends:
-        print(f"\n{'='*80}", flush=True)
+        print(f"\n{'=' * 80}", flush=True)
         print(f"Testing backend: {backend}", flush=True)
-        print(f"{'='*80}", flush=True)
+        print(f"{'=' * 80}", flush=True)
         backend_results[backend] = {
             "examples": [],
             "total_time": 0.0,
@@ -473,6 +477,7 @@ def main() -> int | None:
     except Exception as e:
         print(f"\nERROR: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

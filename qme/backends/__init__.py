@@ -46,11 +46,7 @@ from qme.backends.constants import (
     TORCHSIM_BACKENDS,
 )
 from qme.backends.dependencies import deps
-from qme.backends.registry import (
-    CalculatorRegistry,
-    calculator_registry,
-    create_calculator,
-)
+from qme.backends.registry import CalculatorRegistry, calculator_registry, create_calculator
 
 __all__ = [
     # Backend availability

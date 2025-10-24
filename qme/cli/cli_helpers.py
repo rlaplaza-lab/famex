@@ -80,6 +80,9 @@ def load_atoms_from_xyz(path: str) -> Atoms:
     # Use custom XYZ reader for .xyz files to preserve metadata
     if path.lower().endswith(".xyz"):
         geom = read_xyz_with_metadata(path, frame="last")
+        # Handle case where read_xyz_with_metadata returns a list
+        if isinstance(geom, list):
+            geom = geom[-1]  # Take the last frame
         # Convert Geometry to Atoms for CLI compatibility
         atoms = Atoms(
             symbols=geom.get_chemical_symbols(),
@@ -93,10 +96,12 @@ def load_atoms_from_xyz(path: str) -> Atoms:
         return atoms
 
     # Use ASE for non-XYZ files
-    atoms = ase_read(path)
-    if isinstance(atoms, list):
+    atoms_result = ase_read(path)
+    if isinstance(atoms_result, list):
         # If multiple frames in XYZ, take the last one by default
-        atoms = atoms[-1]
+        atoms = atoms_result[-1]
+    else:
+        atoms = atoms_result
     return atoms
 
 
@@ -126,7 +131,7 @@ def _coerce_to_atoms(obj: Any) -> Atoms:
         return obj
     # Strategy dict result
     if isinstance(obj, dict) and "optimized_atoms" in obj:
-        return obj["optimized_atoms"]
+        return obj["optimized_atoms"]  # type: ignore[no-any-return]
     # List/tuple of Atoms (take first)
     if isinstance(obj, (list, tuple)) and obj and isinstance(obj[0], Atoms):
         return obj[0]

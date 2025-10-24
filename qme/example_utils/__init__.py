@@ -9,6 +9,7 @@ import argparse
 import json
 import sys
 import time
+from collections.abc import Callable, Sequence, Sized
 from pathlib import Path
 from typing import Any
 
@@ -228,7 +229,7 @@ def benchmark_optimization(
     model_name: str | None = None,
     verbose: int = 1,
     test_ts: bool = False,
-    create_structure_func=None,
+    create_structure_func: Callable[[], Any] | None = None,
     suitable_optimizers: list[str] | None = None,
 ) -> dict[str, Any]:
     """Common benchmark function for optimization and frequency analysis.
@@ -284,7 +285,7 @@ def benchmark_optimization(
     if verbose:
         print_device_info(device)
 
-    results = {
+    results: dict[str, Any] = {
         "backend": backend,
         "optimizer": optimizer,
         "device": device,
@@ -323,6 +324,9 @@ def benchmark_optimization(
         # Create appropriate structure
         if verbose:
             pass
+        if create_structure_func is None:
+            results["error"] = "create_structure_func is required"
+            return results
         structure = create_structure_func()
 
         # Initialize QME optimizer
@@ -433,25 +437,23 @@ def benchmark_optimization(
 
         # Handle results from Explorer's run method
         # The run() method returns a dictionary with standardized results
-        if isinstance(run_results, dict):
-            steps_taken = run_results.get("steps_taken", 0)
-            converged_raw = run_results.get("converged", False)
-            # Ensure converged is always a boolean
-            if isinstance(converged_raw, str):
-                converged = converged_raw.lower() in ("true", "1", "yes")
-            else:
-                converged = bool(converged_raw)
-            optimized_atoms = run_results.get("optimized_atoms", explorer.atoms_list[0])
+        # Note: run_results should always be a dict from Explorer.run()
+        steps_taken = run_results.get("steps_taken", 0)
+        converged_raw = run_results.get("converged", False)
+        # Ensure converged is always a boolean
+        if isinstance(converged_raw, str):
+            converged = converged_raw.lower() in ("true", "1", "yes")
         else:
-            # Fallback for unexpected format
-            steps_taken = 0
-            converged = True
-            optimized_atoms = run_results
+            converged = bool(converged_raw)
+        optimized_atoms = run_results.get("optimized_atoms", explorer.atoms_list[0])
 
         # Get optimization results
         if optimized_atoms is not None and hasattr(optimized_atoms, "get_potential_energy"):
             final_energy = float(optimized_atoms.get_potential_energy())
-            max_force = float(np.max(np.abs(optimized_atoms.get_forces())))
+            if hasattr(optimized_atoms, "get_forces"):
+                max_force = float(np.max(np.abs(optimized_atoms.get_forces())))
+            else:
+                max_force = float("inf")
         else:
             final_energy = 0.0
             max_force = float("inf")
@@ -465,7 +467,7 @@ def benchmark_optimization(
             avg_time_per_step = None
 
         # Get final forces for verification
-        if optimized_atoms is not None:
+        if optimized_atoms is not None and hasattr(optimized_atoms, "get_forces"):
             final_forces = optimized_atoms.get_forces()
             final_max_force = float(np.max(np.abs(final_forces)))
         else:
@@ -502,8 +504,14 @@ def benchmark_optimization(
 
         # Use the explorer's calculate_frequencies method directly
         # This method handles the calculator attachment automatically
+        # Ensure optimized_atoms is the right type for calculate_frequencies
+        atoms_for_freq = (
+            optimized_atoms
+            if isinstance(optimized_atoms, (type(None), type(explorer.atoms_list[0])))
+            else None
+        )
         freq_results = explorer.calculate_frequencies(
-            atoms=optimized_atoms,  # Use optimized atoms if available
+            atoms=atoms_for_freq,  # Use optimized atoms if available
             delta=0.01,
             method="auto",
             temperature=298.15,
@@ -514,13 +522,19 @@ def benchmark_optimization(
         results["timings"]["frequency_analysis"] = freq_time
 
         # Enhanced validation based on task type using proper frequency analysis
-        frequencies = freq_results["frequencies"]
+        frequencies = freq_results.get("frequencies", [])
+        if not isinstance(frequencies, (list, np.ndarray)):
+            frequencies = []
 
         if test_ts:
             # TS optimization validation
-            is_ts = freq_results["is_ts"]
+            is_ts = freq_results.get("is_ts", False)
             ts_analysis = freq_results.get("ts_analysis", {})
-            n_imaginary = ts_analysis.get("n_imaginary_frequencies", 0)
+            n_imaginary = (
+                ts_analysis.get("n_imaginary_frequencies", 0)
+                if isinstance(ts_analysis, dict)
+                else 0
+            )
             is_valid_result = is_ts and (n_imaginary == 1)
             result_type = "TS"
 
@@ -529,13 +543,13 @@ def benchmark_optimization(
                     pass
 
             results["frequency_results"] = {
-                "n_frequencies": len(frequencies),
-                "frequencies": frequencies[:10],  # First 10 frequencies
-                "zero_point_energy": freq_results["zero_point_energy"],
+                "n_frequencies": len(frequencies) if isinstance(frequencies, Sized) else 0,
+                "frequencies": frequencies[:10] if isinstance(frequencies, Sequence) else [],
+                "zero_point_energy": freq_results.get("zero_point_energy", 0.0),
                 "is_transition_state": is_ts,
                 "is_valid_result": is_valid_result,
                 "n_imaginary_frequencies": n_imaginary,
-                "method_used": freq_results["method_used"],
+                "method_used": freq_results.get("method_used", "unknown"),
                 "result_type": result_type,
                 "ts_analysis": ts_analysis,
             }
@@ -544,10 +558,18 @@ def benchmark_optimization(
                 pass
         else:
             # Minima optimization validation
-            is_minimum = freq_results["is_minimum"]
+            is_minimum = freq_results.get("is_minimum", False)
             minima_analysis = freq_results.get("minima_analysis", {})
-            n_significant_imaginary = minima_analysis.get("n_significant_imaginary_frequencies", 0)
-            n_small_negative = minima_analysis.get("n_small_negative_frequencies", 0)
+            n_significant_imaginary = (
+                minima_analysis.get("n_significant_imaginary_frequencies", 0)
+                if isinstance(minima_analysis, dict)
+                else 0
+            )
+            n_small_negative = (
+                minima_analysis.get("n_small_negative_frequencies", 0)
+                if isinstance(minima_analysis, dict)
+                else 0
+            )
             is_valid_result = is_minimum
             result_type = "minima"
 
@@ -558,14 +580,14 @@ def benchmark_optimization(
                     pass
 
             results["frequency_results"] = {
-                "n_frequencies": len(frequencies),
-                "frequencies": frequencies[:10],  # First 10 frequencies
-                "zero_point_energy": freq_results["zero_point_energy"],
+                "n_frequencies": len(frequencies) if isinstance(frequencies, Sized) else 0,
+                "frequencies": frequencies[:10] if isinstance(frequencies, Sequence) else [],
+                "zero_point_energy": freq_results.get("zero_point_energy", 0.0),
                 "is_minimum": is_minimum,
                 "is_valid_result": is_valid_result,
                 "n_significant_imaginary_frequencies": n_significant_imaginary,
                 "n_small_negative_frequencies": n_small_negative,
-                "method_used": freq_results["method_used"],
+                "method_used": freq_results.get("method_used", "unknown"),
                 "result_type": result_type,
                 "minima_analysis": minima_analysis,
             }
@@ -574,8 +596,10 @@ def benchmark_optimization(
                 pass
 
         # Calculate total time (excluding None values)
-        total_time = sum(v for v in results["timings"].values() if v is not None)
-        results["timings"]["total"] = total_time
+        timings = results.get("timings", {})
+        if isinstance(timings, dict):
+            total_time = sum(v for v in timings.values() if v is not None)
+            results["timings"]["total"] = total_time
 
         if verbose:
             pass

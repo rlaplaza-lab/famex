@@ -71,7 +71,9 @@ def get_model_path(model_name: str) -> str:
     the model in the registry and downloads it if necessary.
 
     """
-    from qme.potentials.model_cache import download_and_cache_model
+    from qme.potentials.model_cache import (
+        download_and_cache_model,  # type: ignore[import-not-found]
+    )
 
     # Direct file path
     if os.path.isfile(model_name):
@@ -126,7 +128,7 @@ def get_model_path(model_name: str) -> str:
             raise RuntimeError(msg)
 
 
-def sparse_nb_to_dense_half(idx, natom, max_nb):
+def sparse_nb_to_dense_half(idx: np.ndarray, natom: int, max_nb: int) -> np.ndarray:
     """Convert sparse neighbor list to dense format (from aimnet2calc)."""
     dense_nb = np.full((natom + 1, max_nb), natom, dtype=np.int32)
     last_idx = np.zeros((natom,), dtype=np.int32)
@@ -140,7 +142,7 @@ def sparse_nb_to_dense_half(idx, natom, max_nb):
     return dense_nb
 
 
-def nblist_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256):
+def nblist_torch_cluster(coord: Any, cutoff: float, mol_idx: Any = None, max_nb: int = 256) -> Any:
     """Generate neighbor list using torch_cluster (from aimnet2calc)."""
     device = coord.device
     assert coord.ndim == 2, f"Expected 2D tensor for coord, got {coord.ndim}D"
@@ -169,7 +171,7 @@ def nblist_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256):
     return torch.as_tensor(dense_nb, device=device)
 
 
-def maybe_pad_dim0(a, n, value=0.0):
+def maybe_pad_dim0(a: Any, n: int, value: float = 0.0) -> Any:
     """Pad tensor in dimension 0 if needed (from aimnet2calc)."""
     _shape_diff = n - a.shape[0]
     assert _shape_diff in {0, 1}, "Invalid shape"
@@ -178,13 +180,13 @@ def maybe_pad_dim0(a, n, value=0.0):
     return a
 
 
-def pad_dim0(a, value=0.0):
+def pad_dim0(a: Any, value: float = 0.0) -> Any:
     """Pad tensor in dimension 0 (from aimnet2calc)."""
     shapes = [0] * ((a.ndim - 1) * 2) + [0, 1]
     return torch.nn.functional.pad(a, shapes, mode="constant", value=value)
 
 
-def maybe_unpad_dim0(a, n):
+def maybe_unpad_dim0(a: Any, n: int) -> Any:
     """Unpad tensor in dimension 0 if needed (from aimnet2calc)."""
     _shape_diff = a.shape[0] - n
     assert _shape_diff in {0, 1}, "Invalid shape"
@@ -193,7 +195,9 @@ def maybe_unpad_dim0(a, n):
     return a
 
 
-def generate_neighbor_list_torch_cluster(coord, cutoff, mol_idx=None, max_nb=256):
+def generate_neighbor_list_torch_cluster(
+    coord: Any, cutoff: float, mol_idx: Any = None, max_nb: int = 256
+) -> Any:
     """Generate neighbor list using torch_cluster radius_graph."""
     device = coord.device
     max_num_neighbors = 0
@@ -284,7 +288,7 @@ class NativeAIMNet2Calculator:
 
         # State variables
         self._batch = None
-        self._saved_for_grad = None
+        self._saved_for_grad: dict[str, Any] | None = None
 
     def to_input_tensors(self, data: dict[str, Any]) -> dict[str, Any]:
         """Convert input data to PyTorch tensors."""
@@ -544,9 +548,9 @@ class AIMNet2Potential(BasePotential):
 
     def calculate(
         self,
-        atoms=None,
-        properties=None,
-        system_changes=all_changes,
+        atoms: Any = None,
+        properties: list[str] | None = None,
+        system_changes: Any = all_changes,
     ) -> None:
         """Calculate properties using AIMNET2 potential."""
         if properties is None:
@@ -600,7 +604,7 @@ class AIMNet2Potential(BasePotential):
         """Get the backend name for AIMNet2."""
         return "aimnet2"
 
-    def get_potential_energy(self, atoms=None, force_consistent: bool = False):
+    def get_potential_energy(self, atoms: Any = None, force_consistent: bool = False) -> float:
         """Get potential energy (ASE-compatible)."""
         if atoms is not None:
             self.atoms = atoms
@@ -608,7 +612,7 @@ class AIMNet2Potential(BasePotential):
         # Ensure calculator is loaded
         return super().get_potential_energy(atoms, force_consistent)
 
-    def get_forces(self, atoms=None):
+    def get_forces(self, atoms: Any = None) -> np.ndarray:
         """Get forces (ASE-compatible)."""
         if atoms is not None:
             self.atoms = atoms
@@ -621,7 +625,7 @@ def get_aimnet2_calculator(
     device: str | None = None,
     charge: int = 0,
     mult: int = 1,
-    **kwargs,
+    **kwargs: Any,
 ) -> AIMNet2Potential:
     """Convenience function to get AIMNET2 calculator.
 

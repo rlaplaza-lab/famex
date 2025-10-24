@@ -1,8 +1,18 @@
-# Basic Optimization Tutorial
+# QME Tutorials
 
-This tutorial covers the fundamentals of molecular geometry optimization using QME's new target/strategy interface.
+Hands-on tutorials for molecular geometry optimization and transition state searches using QME.
 
-## Learning Objectives
+## Table of Contents
+
+1. [Basic Optimization Tutorial](#basic-optimization-tutorial)
+2. [Transition State Search Tutorial](#transition-state-search-tutorial)
+3. [Quick Reference](#quick-reference)
+
+## Basic Optimization Tutorial
+
+This tutorial covers the fundamentals of molecular geometry optimization using QME's target/strategy interface.
+
+### Learning Objectives
 
 By the end of this tutorial, you will:
 - Understand QME's target/strategy system
@@ -11,13 +21,13 @@ By the end of this tutorial, you will:
 - Control convergence criteria and optimization settings
 - Save and analyze optimization results
 
-## Prerequisites
+### Prerequisites
 
 - QME installed with at least one backend
 - Basic understanding of molecular structures
 - Familiarity with command line or Python
 
-## Step 1: Understanding Targets and Strategies
+### Step 1: Understanding Targets and Strategies
 
 QME uses a semantic interface where you specify:
 - **Target**: What you want to achieve (`minima`, `ts`, `path`)
@@ -27,7 +37,7 @@ For basic optimization, we use:
 - Target: `minima` (find energy minimum)
 - Strategy: `local` (direct local optimization)
 
-## Step 2: Prepare Your Structure
+### Step 2: Prepare Your Structure
 
 Let's create a simple test structure - a water molecule:
 
@@ -42,9 +52,9 @@ H    0.000000   -0.758602   -0.469132
 EOF
 ```
 
-## Step 3: Basic Local Optimization
+### Step 3: Basic Local Optimization
 
-### Command Line Interface
+#### Command Line Interface
 
 ```bash
 # Basic optimization (uses default settings)
@@ -57,7 +67,7 @@ qme minima --strategy local water.xyz --backend aimnet2
 qme minima --strategy local water.xyz --fmax 0.01 --steps 1000
 ```
 
-### Python API
+#### Python API
 
 ```python
 import qme
@@ -77,11 +87,11 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 print(f"Steps taken: {result['steps_taken']}")
 ```
 
-## Step 4: Comparing Optimizers
+### Step 4: Comparing Optimizers
 
 QME supports multiple optimization algorithms. Let's compare them:
 
-### BFGS (Broyden-Fletcher-Goldfarb-Shanno)
+#### BFGS (Broyden-Fletcher-Goldfarb-Shanno)
 
 ```bash
 # Command line
@@ -97,7 +107,7 @@ result = explorer.run(fmax=0.05, steps=1000)
 - Uses gradient and Hessian approximation
 - Memory intensive for large systems
 
-### LBFGS (Limited-memory BFGS)
+#### LBFGS (Limited-memory BFGS)
 
 ```bash
 # Command line
@@ -113,7 +123,7 @@ result = explorer.run(fmax=0.05, steps=1000)
 - Good for large systems
 - Default optimizer for minima optimization
 
-### FIRE (Fast Inertial Relaxation Engine)
+#### FIRE (Fast Inertial Relaxation Engine)
 
 ```bash
 # Command line
@@ -129,7 +139,7 @@ result = explorer.run(fmax=0.05, steps=1000)
 - Good for removing bad contacts
 - May not find true minimum
 
-### Sella (Transition State Optimizer)
+#### Sella (Transition State Optimizer)
 
 ```bash
 # Command line
@@ -145,9 +155,9 @@ result = explorer.run(fmax=0.05, steps=1000)
 - Uses second-order information
 - More robust but slower
 
-## Step 5: Controlling Convergence
+### Step 5: Controlling Convergence
 
-### Force Convergence (`fmax`)
+#### Force Convergence (`fmax`)
 
 Controls how small forces must be for convergence:
 
@@ -162,7 +172,7 @@ qme minima --strategy local water.xyz --fmax 0.05
 qme minima --strategy local water.xyz --fmax 0.01
 ```
 
-### Maximum Steps
+#### Maximum Steps
 
 ```bash
 # Allow more steps for difficult optimizations
@@ -172,7 +182,7 @@ qme minima --strategy local water.xyz --steps 2000
 qme minima --strategy local water.xyz --steps 100
 ```
 
-### Python API with Custom Settings
+#### Python API with Custom Settings
 
 ```python
 # Create Explorer with custom settings
@@ -188,7 +198,7 @@ explorer = qme.Explorer.from_file(
 result = explorer.run(fmax=0.01, steps=1000)
 ```
 
-## Step 6: Two-Ended Minima Optimization
+### Step 6: Two-Ended Minima Optimization
 
 For finding minima along a reaction path between two structures:
 
@@ -201,15 +211,15 @@ explorer = qme.Explorer([reactant, product], backend="aimnet2", target="minima",
 result = explorer.run(npoints=11, method="geodesic")
 ```
 
-## Step 7: Analyzing Results
+### Step 7: Analyzing Results
 
-### Understanding Output Files
+#### Understanding Output Files
 
 QME creates descriptive output files:
 - `water.opt.local.xyz` - Local optimization result
 - `water.opt.interpolate.xyz` - For two-ended optimizations
 
-### Result Dictionary Structure
+#### Result Dictionary Structure
 
 ```python
 result = {
@@ -223,7 +233,7 @@ result = {
 }
 ```
 
-### Saving and Loading Results
+#### Saving and Loading Results
 
 ```python
 # Save optimized structure
@@ -236,9 +246,9 @@ explorer.save_structure(result['optimized_atoms'], "optimized.cif", format="cif"
 new_explorer = qme.Explorer.from_file("optimized.xyz")
 ```
 
-## Step 8: Practical Examples
+### Step 8: Practical Examples
 
-### Example 1: Small Molecule Optimization
+#### Example 1: Small Molecule Optimization
 
 ```python
 import qme
@@ -250,7 +260,7 @@ result = explorer.run(fmax=0.01)
 print(f"Methane optimized energy: {result['final_energy']:.6f} eV")
 ```
 
-### Example 2: Batch Optimization
+#### Example 2: Batch Optimization
 
 ```python
 import qme
@@ -270,7 +280,7 @@ for xyz_file in xyz_files:
     print(f"{xyz_file.name} -> {output_name} (E = {result['final_energy']:.6f} eV)")
 ```
 
-### Example 3: Optimization with Constraints
+#### Example 3: Optimization with Constraints
 
 ```bash
 # Fix specific atoms during optimization
@@ -286,9 +296,9 @@ explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2", target="min
 result = explorer.run(fmax=0.05, steps=1000)
 ```
 
-## Troubleshooting
+### Troubleshooting Basic Optimization
 
-### Optimization Not Converging
+#### Optimization Not Converging
 
 **Symptoms:**
 - `converged: False` in results
@@ -301,7 +311,7 @@ result = explorer.run(fmax=0.05, steps=1000)
 3. Try different optimizer: `--optimizer sella`
 4. Check input structure quality
 
-### Unrealistic Energies
+#### Unrealistic Energies
 
 **Symptoms:**
 - Very high or very low energies
@@ -313,7 +323,7 @@ result = explorer.run(fmax=0.05, steps=1000)
 3. Try different backend
 4. Verify input structure
 
-### Memory Issues
+#### Memory Issues
 
 **Symptoms:**
 - Out of memory errors
@@ -325,7 +335,7 @@ result = explorer.run(fmax=0.05, steps=1000)
 3. Reduce system size
 4. Use mock backend for testing: `--backend mock`
 
-## Best Practices
+### Best Practices
 
 1. **Start with loose convergence** (`fmax=0.1`) for initial exploration
 2. **Use LBFGS** for large systems to save memory
@@ -334,17 +344,198 @@ result = explorer.run(fmax=0.05, steps=1000)
 5. **Save intermediate results** for long optimizations
 6. **Monitor convergence** and adjust settings as needed
 
-## Next Steps
+## Transition State Search Tutorial
 
-Now that you understand basic optimization, explore:
+This tutorial covers transition state (TS) optimization using QME's interface. You'll learn the main TS search strategies and how to validate your results.
 
-1. **[Transition States Tutorial](transition_states.md)** - Learn TS search techniques
-2. **[Backend Guide](../user_guide/backends.md)** - Explore different ML backends
-3. **[CLI Reference](../user_guide/cli_reference.md)** - Complete command reference
+### Learning Objectives
+
+By the end of this tutorial, you will:
+- Understand different TS search strategies
+- Perform local TS optimization
+- Generate TS guesses via interpolation
+- Validate TS structures with frequency analysis
+
+### Prerequisites
+
+- Completed [Basic Optimization Tutorial](#basic-optimization-tutorial)
+- QME installed with at least one backend
+
+### Step 1: Understanding TS Search Strategies
+
+QME provides two main approaches for finding transition states:
+
+| Strategy | Use Case | Description |
+|----------|----------|-------------|
+| `local` | TS guess available | Direct local TS optimization |
+| `interpolate` | Reactant + product | TS guess from interpolation |
+
+### Step 2: Local TS Optimization
+
+When you have a good guess for the transition state structure:
+
+#### Command Line Interface
+
+```bash
+# Basic local TS optimization
+qme ts --strategy local ts_guess.xyz
+
+# With specific backend and optimizer
+qme ts --strategy local ts_guess.xyz --backend aimnet2 --optimizer sella
+
+# With validation
+qme ts --strategy local ts_guess.xyz --validate-ts
+```
+
+#### Python API
+
+```python
+import qme
+
+# Create Explorer for TS optimization
+explorer = qme.Explorer.from_file("ts_guess.xyz", backend="aimnet2")
+
+# Run local TS optimization
+result = explorer.run(target="ts", strategy="local")
+
+# Save TS structure
+explorer.save_structure(result['optimized_atoms'], "ts_optimized.xyz")
+
+print(f"TS optimization converged: {result['converged']}")
+print(f"TS energy: {result['final_energy']:.6f} eV")
+```
+
+#### TS Optimizers
+
+##### Sella (Default)
+- Modern saddle point optimizer
+- Uses second-order information
+- Good for most TS searches
+
+##### Trust-Krylov TS
+- Trust-region method with min-mode following
+- Efficient Hessian computation
+- Alternative to Sella when Hessians are cheap
+
+### Step 3: TS from Interpolation
+
+When you have reactant and product structures but no TS guess:
+
+#### Command Line Interface
+
+```bash
+# TS via interpolation
+qme ts --strategy interpolate reactant.xyz --product product.xyz
+
+# With specific number of points
+qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15
+
+# With validation
+qme ts --strategy interpolate reactant.xyz --product product.xyz --validate-ts
+```
+
+#### Python API
+
+```python
+import qme
+
+# Create Explorer with reactant and product
+explorer = qme.Explorer([reactant, product], target="ts", strategy="interpolate")
+
+# Run TS optimization
+result = explorer.run(npoints=15)
+
+# Save TS structure
+explorer.save_structure(result['optimized_atoms'], "ts_from_interpolation.xyz")
+
+print(f"TS optimization converged: {result['converged']}")
+print(f"TS energy: {result['final_energy']:.6f} eV")
+```
+
+### Step 4: Validating Transition States
+
+Always validate your TS structures:
+
+#### Frequency Analysis
+
+```python
+# Calculate frequencies for the TS
+freq_result = explorer.calculate_frequencies(result['optimized_atoms'])
+
+print(f"Frequencies: {freq_result['frequencies']}")
+print(f"Imaginary frequencies: {freq_result['imaginary_frequencies']}")
+
+# A TS should have exactly one imaginary frequency
+if len(freq_result['imaginary_frequencies']) == 1:
+    print("✓ Valid transition state (one imaginary frequency)")
+else:
+    print("✗ Invalid transition state (wrong number of imaginary frequencies)")
+```
+
+#### Command Line Validation
+
+```bash
+# Automatic validation
+qme ts --strategy local ts_guess.xyz --validate-ts
+
+# Manual frequency calculation
+qme minima --strategy local ts_structure.xyz --frequencies
+```
+
+### Step 5: Complete Example
+
+Here's a complete workflow for finding a transition state:
+
+```python
+import qme
+
+# Step 1: Load reactant and product
+explorer = qme.Explorer([reactant, product], target="ts", strategy="interpolate")
+
+# Step 2: Find TS via interpolation
+result = explorer.run(npoints=15)
+
+# Step 3: Validate TS
+freq_result = explorer.calculate_frequencies(result['optimized_atoms'])
+
+# Step 4: Check results
+if result['converged'] and len(freq_result['imaginary_frequencies']) == 1:
+    print("✓ Successfully found and validated transition state")
+    explorer.save_structure(result['optimized_atoms'], "validated_ts.xyz")
+else:
+    print("✗ TS optimization failed or invalid TS structure")
+```
+
+### Troubleshooting TS Search
+
+#### Common Issues
+
+1. **TS optimization doesn't converge:**
+   - Try different optimizer: `--optimizer trust-krylov-ts`
+   - Increase steps: `--steps 2000`
+   - Check initial TS guess quality
+
+2. **Multiple imaginary frequencies:**
+   - TS guess might be too far from saddle point
+   - Try local optimization with better initial guess
+   - Consider using interpolation method
+
+3. **No imaginary frequencies:**
+   - Structure might be a minimum, not a TS
+   - Check if you're optimizing the right structure
+   - Verify your TS guess
+
+#### Best Practices
+
+1. **Start with interpolation** when you have reactant and product
+2. **Validate all TS structures** with frequency analysis
+3. **Use appropriate backends** for your system type
+4. **Check convergence** before analyzing results
 
 ## Quick Reference
 
 ### Common Commands
+
 ```bash
 # Basic optimization
 qme minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.01
@@ -352,15 +543,61 @@ qme minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.01
 # Two-ended optimization
 qme minima --strategy interpolate reactant.xyz --product product.xyz --npoints 11
 
+# Transition state search
+qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15
+
+# NEB path optimization
+qme path --strategy neb reactant.xyz --product product.xyz --npoints 11
+
 # With constraints
 qme minima --strategy local molecule.xyz --constraints "fix 0,1,2"
 ```
 
 ### Python Quick Start
+
 ```python
+# Basic optimization
 explorer = qme.Explorer.from_file("molecule.xyz", backend="aimnet2", target="minima", strategy="local")
 result = explorer.run(fmax=0.01)
 explorer.save_structure(result['optimized_atoms'], "optimized.xyz")
+
+# Transition state search
+explorer = qme.Explorer([reactant, product], backend="aimnet2", target="ts", strategy="interpolate")
+result = explorer.run(npoints=15)
+
+# NEB path
+explorer = qme.Explorer([reactant, product], backend="aimnet2", target="path", strategy="neb")
+result = explorer.run(npoints=11, fmax=0.05)
+explorer.save_trajectory(result["trajectory"], "neb_path.xyz")
+```
+
+### Convergence Guidelines
+
+```bash
+# Quick testing
+qme minima --strategy local molecule.xyz --fmax 0.1 --steps 100
+
+# Standard use (default)
+qme minima --strategy local molecule.xyz --fmax 0.05 --steps 1000
+
+# High precision
+qme minima --strategy local molecule.xyz --fmax 0.01 --steps 2000
+```
+
+### Backend Selection
+
+```bash
+# For beginners (no conflicts)
+pip install qme-ml[aimnet2]
+
+# For production (materials)
+pip install qme-ml[uma]
+
+# For production (molecules)
+pip install qme-ml[mace]
+
+# For maximum performance
+pip install qme-ml[torchsim]
 ```
 
 ---

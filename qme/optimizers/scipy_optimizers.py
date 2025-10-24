@@ -102,7 +102,7 @@ class SciPyHessianOptimizer(Optimizer):
         self,
         atoms: Atoms,
         method: str = "trust-krylov",
-        logfile: IO | str = "-",
+        logfile: IO | str | None = "-",
         trajectory: str | None = None,
         hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
@@ -113,7 +113,7 @@ class SciPyHessianOptimizer(Optimizer):
         adaptive_hessian: bool = False,
         force_threshold_ratio: float = 2.0,
         verbose: int = 1,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize SciPy Hessian-based optimizer."""
         # Store verbosity level
@@ -215,10 +215,10 @@ class SciPyHessianOptimizer(Optimizer):
         """Convert atoms positions to 1D array for SciPy."""
         if atoms is None:
             atoms = self.atoms
-        if atoms is None:
+        if atoms is None:  # type: ignore[unreachable]
             msg = "Atoms object is not initialized"
             raise RuntimeError(msg)
-        return atoms.get_positions().ravel()
+        return atoms.get_positions().ravel()  # type: ignore[no-any-return]
 
     def _x_to_positions(self, x: np.ndarray) -> np.ndarray:
         """Convert 1D array to positions array."""
@@ -241,7 +241,7 @@ class SciPyHessianOptimizer(Optimizer):
         self.atoms.set_positions(self._x_to_positions(x))
         energy = self.atoms.get_potential_energy()
         # Scale by alpha (Hessian scaling factor)
-        return energy / self.alpha
+        return energy / self.alpha  # type: ignore[no-any-return]
 
     def gradient(self, x: np.ndarray) -> np.ndarray:
         """Gradient of objective function (negative forces).
@@ -272,7 +272,7 @@ class SciPyHessianOptimizer(Optimizer):
                 self._last_positions = x.copy()
 
         # Scale by alpha
-        return gradient / self.alpha
+        return gradient / self.alpha  # type: ignore[no-any-return]
 
     def hessian_func(self, x: np.ndarray) -> np.ndarray:
         """Compute Hessian matrix with adaptive updates and BFGS approximation.
@@ -310,7 +310,7 @@ class SciPyHessianOptimizer(Optimizer):
             current_fmax = self._get_current_fmax()
 
             # Force-based criterion: large forces suggest need for update
-            if current_fmax is not None and self._previous_fmax is not None:
+            if current_fmax is not None and self._previous_fmax is not None:  # type: ignore[unreachable]
                 if current_fmax > self._previous_fmax * self.force_threshold_ratio:
                     need_full_update = True
                     reason = f"force increase ({current_fmax:.4f} > {self._previous_fmax:.4f} × {self.force_threshold_ratio})"
@@ -359,7 +359,7 @@ class SciPyHessianOptimizer(Optimizer):
             self._last_gradient = None
             self.bfgs_updates = 0
 
-        elif (
+        elif (  # type: ignore[unreachable]
             self.use_bfgs_update
             and self._last_positions is not None
             and self._last_gradient is not None
@@ -414,11 +414,11 @@ class SciPyHessianOptimizer(Optimizer):
         """Get current maximum force magnitude."""
         try:
             forces = self.atoms.get_forces()
-            return np.max(np.abs(forces))
+            return np.max(np.abs(forces))  # type: ignore[no-any-return]
         except Exception:
             return None
 
-    def callback(self, x: np.ndarray, **kwargs) -> None:
+    def callback(self, x: np.ndarray, **kwargs: Any) -> None:
         """Callback function called by SciPy after each iteration.
 
         Parameters
@@ -492,7 +492,7 @@ class SciPyHessianOptimizer(Optimizer):
             }
 
             # Run SciPy optimization
-            self._scipy_result = minimize(
+            self._scipy_result = minimize(  # type: ignore[call-overload]
                 fun=self.objective,
                 x0=x0,
                 method=self.method,
@@ -503,7 +503,8 @@ class SciPyHessianOptimizer(Optimizer):
             )
 
             # Update final positions
-            self.atoms.set_positions(self._x_to_positions(self._scipy_result.x))
+            if self._scipy_result is not None:
+                self.atoms.set_positions(self._x_to_positions(self._scipy_result.x))
         except ConvergedError:
             if self.verbose >= 1:
                 logger.info("Optimization converged!")
@@ -527,7 +528,7 @@ class SciPyHessianOptimizer(Optimizer):
         """Get the number of optimization steps taken."""
         return self.nsteps
 
-    def dump(self, data) -> None:
+    def dump(self, data: Any) -> None:
         """Dump optimizer state (not implemented for SciPy optimizers)."""
 
     def load(self) -> None:
@@ -592,7 +593,7 @@ class TrustKrylov(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str = "-",
+        logfile: IO | str | None = "-",
         trajectory: str | None = None,
         hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
@@ -601,7 +602,7 @@ class TrustKrylov(SciPyHessianOptimizer):
         use_bfgs_update: bool = True,
         adaptive_hessian: bool = False,
         verbose: int = 1,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize Trust-Krylov optimizer."""
         super().__init__(
@@ -644,7 +645,7 @@ class TrustKrylovTS(TrustKrylov):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str = "-",
+        logfile: IO | str | None = "-",
         trajectory: str | None = None,
         hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
@@ -657,7 +658,7 @@ class TrustKrylovTS(TrustKrylov):
         min_positive_eigenvalue: float = 4e-3,
         negative_mode_boost: float = 8e-3,
         verbose: int = 1,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialise the transition-state Trust-Krylov optimizer."""
         super().__init__(
@@ -864,7 +865,7 @@ class TrustNCG(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str = "-",
+        logfile: IO | str | None = "-",
         trajectory: str | None = None,
         hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
@@ -873,7 +874,7 @@ class TrustNCG(SciPyHessianOptimizer):
         use_bfgs_update: bool = True,
         adaptive_hessian: bool = False,
         verbose: int = 1,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize Trust-NCG optimizer."""
         super().__init__(
@@ -908,7 +909,7 @@ class TrustExact(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str = "-",
+        logfile: IO | str | None = "-",
         trajectory: str | None = None,
         hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
@@ -917,7 +918,7 @@ class TrustExact(SciPyHessianOptimizer):
         use_bfgs_update: bool = True,
         adaptive_hessian: bool = False,
         verbose: int = 1,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize Trust-Exact optimizer."""
         super().__init__(
@@ -951,7 +952,7 @@ class NewtonCG(SciPyHessianOptimizer):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str = "-",
+        logfile: IO | str | None = "-",
         trajectory: str | None = None,
         hessian_update_freq: int | None = None,
         hessian_method: str = "auto",
@@ -960,7 +961,7 @@ class NewtonCG(SciPyHessianOptimizer):
         use_bfgs_update: bool = True,
         adaptive_hessian: bool = False,
         verbose: int = 1,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize Newton-CG optimizer."""
         super().__init__(
