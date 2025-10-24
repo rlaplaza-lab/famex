@@ -21,7 +21,7 @@ class UMAPotential(BasePotential):
 
     This calculator provides an interface to use UMA machine learning potentials
     for molecular property prediction and geometry optimization.
-    
+
     Supports analytical Hessian calculations via double back-propagation through
     the neural network for efficient frequency analysis.
 
@@ -237,35 +237,35 @@ class UMAPotential(BasePotential):
 
     def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get analytical Hessian matrix.
-        
-        Returns the Hessian matrix (3N x 3N) computed using PyTorch's automatic 
+
+        Returns the Hessian matrix (3N x 3N) computed using PyTorch's automatic
         differentiation via double back-propagation through the UMA neural network.
         This is much faster and more accurate than finite differences.
-        
-        The Hessian is automatically converted from atomic units (Hartree/Bohr²) 
+
+        The Hessian is automatically converted from atomic units (Hartree/Bohr²)
         to ASE units (eV/Å²) using the conversion factor of ~97.173.
-        
+
         Parameters
         ----------
         atoms : Atoms, optional
             Atoms object to calculate Hessian for
-            
-        Returns
+
+        Returns:
         -------
         np.ndarray
             Hessian matrix of shape (3N, 3N) in eV/Å² units where N is the number of atoms
         """
         if atoms is not None:
             self.atoms = atoms
-        
+
         # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
-        
+
         if self._calc is None:
             msg = "Failed to load UMA calculator"
             raise RuntimeError(msg)
-        
+
         # Set default charge and spin if not already set (ensure Python integers)
         if self.atoms is not None:
             if "charge" not in self.atoms.info:
@@ -276,26 +276,25 @@ class UMAPotential(BasePotential):
                 self.atoms.info["spin"] = int(self.default_spin)
             elif not isinstance(self.atoms.info["spin"], int):
                 self.atoms.info["spin"] = int(self.atoms.info["spin"])
-        
+
         try:
-            import torch
-            from torch.autograd.functional import hessian
-            from fairchem.core.datasets.atomic_data import AtomicData
             from fairchem.core.datasets import data_list_collater
-            
+            from fairchem.core.datasets.atomic_data import AtomicData
+            from torch.autograd.functional import hessian
+
             # Ensure we have the predictor loaded
             if self.predictor is None:
                 msg = "UMA predictor not loaded. Cannot calculate analytical Hessian."
                 raise RuntimeError(msg)
-            
+
             # Get device from predictor
             device = next(self.predictor.model.parameters()).device
-            
+
             # Create AtomicData from current atoms
             atoms_copy = self.atoms.copy()
             atoms_copy.info["charge"] = int(self.atoms.info.get("charge", self.default_charge))
             atoms_copy.info["spin"] = int(self.atoms.info.get("spin", self.default_spin))
-            
+
             # Convert to AtomicData format
             data = AtomicData.from_ase(
                 atoms_copy,
@@ -303,54 +302,54 @@ class UMAPotential(BasePotential):
                 r_edges=False,
                 r_data_keys=["spin", "charge"],
             ).to(device)
-            
+
             # Create batch
             batch = data_list_collater([data], otf_graph=True).to(device)
-            
+
             # Enable gradients on positions - this is the key step from uma_pysis
             batch.pos = batch.pos.detach().clone().requires_grad_(True)
-            
+
             # Set model to training mode for Hessian calculation (like uma_pysis does)
             self.predictor.model.train()
-            
+
             # Disable dropout layers (like uma_pysis does)
             for module in self.predictor.model.modules():
-                if hasattr(module, 'p') and hasattr(module, 'training'):
+                if hasattr(module, "p") and hasattr(module, "training"):
                     module.p = 0.0
-            
+
             # Define energy function that follows uma_pysis exactly
             def energy_fn(flat_pos):
                 """Energy function that takes flattened positions and returns energy."""
                 # Reshape to (N, 3) format and update batch positions
                 batch.pos = flat_pos.view(-1, 3)
-                
+
                 # Get prediction from UMA model
                 result = self.predictor.predict(batch)
                 energy = result["energy"].double().squeeze()
-                
+
                 return energy
-            
+
             # Compute analytical Hessian using PyTorch's automatic differentiation
             # This follows the same approach as uma_pysis exactly
             # Use the same input tensor as uma_pysis
             input_tensor = batch.pos.view(-1)
             hessian_tensor = hessian(energy_fn, input_tensor)
-            
+
             # Set model back to eval mode
             self.predictor.model.eval()
-            
+
             # Convert to numpy array
             hessian_np = hessian_tensor.detach().cpu().numpy()
-            
+
             # Check what units UMA actually outputs by comparing with uma_pysis
             # From uma_pysis code, it seems UMA outputs in eV/Å² already
             # Let's test without conversion first
             # hessian_np = hessian_np  # No conversion for now
-            
+
             # Ensure correct shape (3N, 3N)
             n_atoms = len(self.atoms)
             expected_shape = (3 * n_atoms, 3 * n_atoms)
-            
+
             if hessian_np.shape != expected_shape:
                 # Try to reshape if possible
                 if hessian_np.size == expected_shape[0] * expected_shape[1]:
@@ -361,17 +360,14 @@ class UMAPotential(BasePotential):
                         f"expected {expected_shape}"
                     )
                     raise ValueError(msg)
-            
+
             # Symmetrize the Hessian (should already be symmetric, but ensure numerical stability)
             hessian_np = 0.5 * (hessian_np + hessian_np.T)
-            
+
             return hessian_np
-            
+
         except ImportError as e:
-            msg = (
-                "PyTorch is required for analytical Hessian calculation. "
-                f"Install PyTorch: {e}"
-            )
+            msg = f"PyTorch is required for analytical Hessian calculation. Install PyTorch: {e}"
             raise ImportError(msg) from e
         except Exception as e:
             msg = f"Failed to calculate UMA analytical Hessian: {e}"
@@ -379,24 +375,24 @@ class UMAPotential(BasePotential):
 
     def get_property(self, prop: str, atoms: Atoms | None = None) -> Any:
         """Get a specific property from the calculator.
-        
+
         This method is used by ASE's property system and frequency analysis.
-        
+
         Parameters
         ----------
         prop : str
             Property name ('energy', 'forces', 'hessian', etc.)
         atoms : Atoms, optional
             Atoms object to calculate property for
-            
-        Returns
+
+        Returns:
         -------
         Any
             The requested property
         """
         if atoms is not None:
             self.atoms = atoms
-            
+
         if prop == "energy":
             return self.get_potential_energy(atoms)
         elif prop == "forces":

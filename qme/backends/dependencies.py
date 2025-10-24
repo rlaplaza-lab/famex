@@ -205,7 +205,7 @@ class DependencyManager:
             BACKEND_TBLITE,
             BACKEND_UMA,
         )
-        
+
         package_mapping = {
             "torch": "torch",
             "sella": "sella",
@@ -248,9 +248,8 @@ class DependencyManager:
             BACKEND_ORB,
             BACKEND_SO3LR,
             BACKEND_TBLITE,
-            BACKEND_UMA,
         )
-        
+
         commands = {
             "torch": "torch",
             "sella": "sella",
@@ -273,13 +272,8 @@ deps = DependencyManager()
 # Function to get lazy globals - everything is now lazy
 def __getattr__(name: str) -> Any:
     """Support for lazy loading of module-level attributes."""
-    from qme.backends.constants import (
-        BACKEND_AIMNET2,
-        BACKEND_MACE,
-        BACKEND_SO3LR,
-        BACKEND_TBLITE,
-    )
-    
+    from qme.backends.constants import BACKEND_AIMNET2, BACKEND_MACE, BACKEND_SO3LR, BACKEND_TBLITE
+
     if name == "HAS_SELLA":
         return deps.has("sella")
     if name == "HAS_TORCH":

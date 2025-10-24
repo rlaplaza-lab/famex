@@ -144,11 +144,14 @@ cython_debug/
 # VS Code
 .vscode/
 
-# Example output files
+# Example output files (but keep example_files/ directory)
 *.xyz
+!examples/example_files/*.xyz
+!examples/*/dataset/*.xyz
 *.png
 *.pdf
 *.log
+
 # Benchmark results - should not be tracked
 *benchmark_results*.json
 *_benchmark_results.json
@@ -157,6 +160,10 @@ minima_optimizer_benchmark_results.json
 ts_optimizer_benchmark_results.json
 bh28_benchmark_results.json
 zimmermann93_benchmark_results.json
+
+# Test output files
+test_*.xyz
+test_*.json
 
 # Temporary files
 tmp/
@@ -178,3 +185,29 @@ temp/
 *.ts.*
 # Virtual environment should be excluded from version control
 py312_env/
+
+# Additional development artifacts
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Pre-commit cache
+.pre-commit-cache/
+
+# Ruff cache
+.ruff_cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Local configuration files
+.env.local
+.env.*.local

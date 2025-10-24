@@ -50,7 +50,7 @@ class BaseStrategy(ABC):
     The metadata attribute defines the strategy's registration information.
     """
 
-    metadata: type[StrategyMetadata]
+    metadata: StrategyMetadata
 
     def __init__(self, explorer: Any, profiler: Any | None = None) -> None:
         """Initialize strategy with explorer instance.

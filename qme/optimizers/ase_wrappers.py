@@ -43,7 +43,12 @@ class ProfilerCalculatorWrapper(Calculator):
             ["energy", "forces"],
         ).copy()
 
-    def calculate(self, atoms=None, properties=None, system_changes=None):
+    def calculate(
+        self,
+        atoms: Atoms | None = None,
+        properties: list[str] | None = None,
+        system_changes: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Calculate properties and track calls in profiler."""
         if properties is None:
             properties = ["energy"]
@@ -60,21 +65,23 @@ class ProfilerCalculatorWrapper(Calculator):
             self.profiler.increment_call("hessian")
 
         # Delegate to wrapped calculator
-        return self.calculator.calculate(atoms, properties, system_changes)
+        return self.calculator.calculate(atoms, properties, system_changes)  # type: ignore[no-any-return]
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Get calculator name."""
         return self._name
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """Delegate attribute access to wrapped calculator."""
         if name in ("calculator", "profiler", "_name"):
             # Prevent recursion when accessing our own attributes
             return object.__getattribute__(self, name)
         return getattr(self.calculator, name)
 
-    def get_property(self, name, atoms, allow_calculation=True):
+    def get_property(
+        self, name: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
         """Get a property from the calculator and track calls in profiler."""
         # Track the call in profiler
         if name == "energy":
@@ -86,34 +93,36 @@ class ProfilerCalculatorWrapper(Calculator):
 
         return self.calculator.get_property(name, atoms, allow_calculation)
 
-    def get_potential_energy(self, atoms, force_consistent=False):
+    def get_potential_energy(
+        self, atoms: Atoms | None = None, force_consistent: bool = False
+    ) -> float:
         """Get potential energy and track call in profiler."""
         self.profiler.increment_call("energy")
-        return self.calculator.get_potential_energy(atoms, force_consistent)
+        return self.calculator.get_potential_energy(atoms, force_consistent)  # type: ignore[no-any-return]
 
-    def get_forces(self, atoms):
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get forces and track call in profiler."""
         self.profiler.increment_call("forces")
-        return self.calculator.get_forces(atoms)
+        return self.calculator.get_forces(atoms)  # type: ignore[no-any-return]
 
-    def get_stress(self, atoms):
+    def get_stress(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get stress and track call in profiler."""
         # Note: stress calls are not tracked separately, but could be added if needed
-        return self.calculator.get_stress(atoms)
+        return self.calculator.get_stress(atoms)  # type: ignore[no-any-return]
 
-    def get_hessian(self, atoms):
+    def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get Hessian and track call in profiler."""
         self.profiler.increment_call("hessian")
         if hasattr(self.calculator, "get_hessian"):
-            return self.calculator.get_hessian(atoms)
+            return self.calculator.get_hessian(atoms)  # type: ignore[no-any-return]
         msg = f"Calculator {type(self.calculator).__name__} does not support Hessian calculation"
         raise AttributeError(
             msg,
         )
 
-    def check_state(self, atoms, tol=1e-15):
+    def check_state(self, atoms: Atoms, tol: float = 1e-15) -> bool:
         """Check calculator state (delegate to wrapped calculator)."""
-        return self.calculator.check_state(atoms, tol)
+        return self.calculator.check_state(atoms, tol)  # type: ignore[no-any-return]
 
 
 class VerboseOptimizerWrapper(Optimizer):
@@ -128,7 +137,7 @@ class VerboseOptimizerWrapper(Optimizer):
         self,
         atoms: Atoms,
         wrapped_optimizer_class: type[Optimizer],
-        logfile: IO | str = "-",
+        logfile: IO | str | None = "-",
         trajectory: str | None = None,
         verbose: int = 1,
         profiler: Any = None,
@@ -210,7 +219,7 @@ class VerboseOptimizerWrapper(Optimizer):
             optimizer_name = wrapped_optimizer_class.__name__
             logger.info(f"Initialized {optimizer_name} optimizer with verbosity control")
 
-    def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:
+    def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:  # type: ignore[override]
         """Run the optimization with verbosity control."""
         if self.verbose >= 2:
             optimizer_name = self.wrapped_optimizer.__class__.__name__
@@ -229,31 +238,31 @@ class VerboseOptimizerWrapper(Optimizer):
                 forces = self.atoms.get_forces()
                 logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
 
-        return result
+        return result  # type: ignore[no-any-return]
 
     def get_number_of_steps(self) -> int:
         """Get the number of optimization steps taken."""
-        return self.wrapped_optimizer.get_number_of_steps()
+        return self.wrapped_optimizer.get_number_of_steps()  # type: ignore[no-any-return]
 
     def converged(self, forces: np.ndarray) -> bool:
         """Check if optimization has converged."""
-        return self.wrapped_optimizer.converged(forces)
+        return self.wrapped_optimizer.converged(forces)  # type: ignore[no-any-return]
 
     def log(self, forces: np.ndarray) -> None:
         """Log optimization step."""
-        return self.wrapped_optimizer.log(forces)
+        return self.wrapped_optimizer.log(forces)  # type: ignore[no-any-return]
 
     def call_observers(self) -> None:
         """Call observers."""
-        return self.wrapped_optimizer.call_observers()
+        return self.wrapped_optimizer.call_observers()  # type: ignore[no-any-return]
 
     def dump(self, data: Any) -> None:
         """Dump optimizer state."""
-        return self.wrapped_optimizer.dump(data)
+        return self.wrapped_optimizer.dump(data)  # type: ignore[no-any-return]
 
     def load(self) -> None:
         """Load optimizer state."""
-        return self.wrapped_optimizer.load()
+        return self.wrapped_optimizer.load()  # type: ignore[no-any-return]
 
 
 class VerboseLBFGS(VerboseOptimizerWrapper):
@@ -262,7 +271,7 @@ class VerboseLBFGS(VerboseOptimizerWrapper):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str = "-",
+        logfile: IO | str | None = "-",
         trajectory: str | None = None,
         verbose: int = 1,
         **kwargs: Any,
@@ -285,7 +294,7 @@ class VerboseBFGS(VerboseOptimizerWrapper):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str = "-",
+        logfile: IO | str | None = "-",
         trajectory: str | None = None,
         verbose: int = 1,
         **kwargs: Any,
@@ -308,7 +317,7 @@ class VerboseFIRE(VerboseOptimizerWrapper):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str = "-",
+        logfile: IO | str | None = "-",
         trajectory: str | None = None,
         verbose: int = 1,
         **kwargs: Any,
@@ -331,7 +340,7 @@ class VerboseSella(VerboseOptimizerWrapper):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str = "-",
+        logfile: IO | str | None = "-",
         trajectory: str | None = None,
         verbose: int = 1,
         **kwargs: Any,

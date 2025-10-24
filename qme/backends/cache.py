@@ -20,13 +20,13 @@ import requests
 
 class CalculatorCache:
     """Simple calculator cache using weak references.
-    
+
     Important: This cache uses WeakValueDictionary, which means:
     - Calculators are stored with weak references
     - If no other references exist, calculators may be garbage collected
     - Cache entries will automatically disappear when calculators are GC'd
     - This prevents memory leaks but means cache may miss even if "cached"
-    
+
     This design choice prioritizes memory safety over cache persistence.
     For guaranteed persistence, maintain a strong reference to your calculator.
     """

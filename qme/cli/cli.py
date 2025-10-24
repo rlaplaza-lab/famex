@@ -225,6 +225,8 @@ def minima(
     atoms_list = [atoms]
 
     if strategy == "interpolate":
+        if product is None:
+            raise ValueError("Product file is required for interpolate strategy")
         atoms_product = load_atoms_from_xyz(product)
         atoms_list = [atoms, atoms_product]
 
@@ -238,7 +240,7 @@ def minima(
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-        ctx = nullcontext()
+        ctx = nullcontext()  # type: ignore[assignment]
 
     with ctx:
         exp = Explorer(
@@ -279,7 +281,7 @@ def minima(
             result_atoms = results["optimized_atoms"]
             out_default = os.path.splitext(input)[0] + ".opt.local.xyz"
         else:  # interpolate
-            result_atoms = exp.run(
+            results = exp.run(
                 npoints=npoints,
                 method=interp.lower(),
                 fmax=fmax,
@@ -287,16 +289,17 @@ def minima(
                 calculate_frequencies=calculate_frequencies,
                 temperature=temperature,
             )
+            result_atoms = results["optimized_atoms"]
             out_default = os.path.splitext(input)[0] + ".opt.interpolate.xyz"
 
     # Save results
     out = output or out_default
-    write_atoms(result_atoms, out)
+    write_atoms(result_atoms, out)  # type: ignore[arg-type]
     click.echo(f"Minima optimization completed. Saved: {out}")
 
     # Print frequency analysis summary and save JSON if requested
     if calculate_frequencies and "frequency_analysis" in results:
-        print_frequency_summary(results["frequency_analysis"], target="minima")
+        print_frequency_summary(results["frequency_analysis"], target="minima")  # type: ignore[arg-type]
         save_results_json(results, out)
 
 
@@ -400,6 +403,8 @@ def ts(
     atoms_list = [atoms]
 
     if strategy in ["interpolate", "growing_string"]:
+        if product is None:
+            raise ValueError("Product file is required for interpolate/growing_string strategy")
         atoms_product = load_atoms_from_xyz(product)
         atoms_list = [atoms, atoms_product]
 
@@ -413,7 +418,7 @@ def ts(
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-        ctx = nullcontext()
+        ctx = nullcontext()  # type: ignore[assignment]
 
     with ctx:
         exp = Explorer(
@@ -454,7 +459,7 @@ def ts(
             result_atoms = results["optimized_atoms"]
             out_default = os.path.splitext(input)[0] + ".ts.local.xyz"
         elif strategy == "interpolate":
-            result_atoms = exp.run(
+            results = exp.run(
                 npoints=npoints,
                 method=interp.lower(),
                 fmax=fmax,
@@ -462,9 +467,10 @@ def ts(
                 calculate_frequencies=calculate_frequencies,
                 temperature=temperature,
             )
+            result_atoms = results["optimized_atoms"]
             out_default = os.path.splitext(input)[0] + ".ts.interpolate.xyz"
         else:  # growing_string
-            result_atoms = exp.run(
+            results = exp.run(
                 npoints=npoints,
                 max_images=max_images,
                 distance_threshold=distance_threshold,
@@ -474,16 +480,17 @@ def ts(
                 calculate_frequencies=calculate_frequencies,
                 temperature=temperature,
             )
+            result_atoms = results["optimized_atoms"]
             out_default = os.path.splitext(input)[0] + ".ts.gsm.xyz"
 
     # Save results
     out = output or out_default
-    write_atoms(result_atoms, out)
+    write_atoms(result_atoms, out)  # type: ignore[arg-type]
     click.echo(f"Transition state optimization completed. Saved: {out}")
 
     # Print frequency analysis summary and save JSON if requested
     if calculate_frequencies and "frequency_analysis" in results:
-        print_frequency_summary(results["frequency_analysis"], target="ts")
+        print_frequency_summary(results["frequency_analysis"], target="ts")  # type: ignore[arg-type]
         save_results_json(results, out)
 
 
@@ -601,6 +608,8 @@ def path(
     atoms_list = [atoms]
 
     if strategy in ["interpolate", "neb", "cineb"]:
+        if product is None:
+            raise ValueError("Product file is required for interpolate/neb/cineb strategy")
         atoms_product = load_atoms_from_xyz(product)
         atoms_list = [atoms, atoms_product]
 
@@ -614,7 +623,7 @@ def path(
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-        ctx = nullcontext()
+        ctx = nullcontext()  # type: ignore[assignment]
 
     with ctx:
         exp = Explorer(
@@ -691,17 +700,18 @@ def path(
         if isinstance(result, dict) and "trajectory" in result:
             trajectory = result["trajectory"]
         else:
-            trajectory = result
+            # For path strategies, the result should contain trajectory
+            trajectory = result.get("optimized_atoms", [])
 
     # Save results
     out = output or out_default
-    write_atoms(trajectory, out)
-    click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")
+    write_atoms(trajectory, out)  # type: ignore[arg-type]
+    click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")  # type: ignore[arg-type]
 
     # Print frequency analysis summary and save JSON if requested
     if calculate_frequencies and "frequency_analysis" in result:
         # For path strategies, we might have frequency analysis on the final structure
-        print_frequency_summary(result["frequency_analysis"], target="path")
+        print_frequency_summary(result["frequency_analysis"], target="path")  # type: ignore[arg-type]
         save_results_json(result, out)
 
 

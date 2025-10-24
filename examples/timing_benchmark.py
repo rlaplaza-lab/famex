@@ -484,6 +484,7 @@ def main() -> int:
         available_backends = [b.strip() for b in args.backends.split(",")]
     else:
         from qme.backends.availability import get_available_backends
+
         available_backends = get_available_backends()
 
     interface.print_backend_summary(available_backends, "Benchmarking Backends")

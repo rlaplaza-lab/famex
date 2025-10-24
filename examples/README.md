@@ -254,5 +254,5 @@ Warning: CUDA not available, falling back to CPU
 ## See Also
 
 - [Main QME Documentation](../docs/)
-- [Troubleshooting Guide](../docs/reference/troubleshooting.md)
-- [Developer Guide](../docs/developer_guide/)
+- [FAQ and Troubleshooting](../docs/FAQ.md)
+- [User Guide](../docs/USER_GUIDE.md)
