@@ -33,8 +33,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--backend",
-        default="mace",
-        help="Backend to use: uma|aimnet2|mace|mock (default: mace)",
+        default="uma",
+        help="Backend to use: uma|aimnet2|mace|mock (default: uma)",
     )
     parser.add_argument(
         "--steps",

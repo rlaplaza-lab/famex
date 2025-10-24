@@ -3,6 +3,14 @@
 
 This example demonstrates the growing string method (DE-GSM) for finding
 transition states between a reactant and product configuration.
+
+Usage:
+    python growing_string_demo.py [--backend BACKEND] [--reactant REACTANT.xyz] [--product PRODUCT.xyz]
+
+Examples:
+    python growing_string_demo.py --backend uma
+    python growing_string_demo.py --backend uma --reactant reactant.xyz --product product.xyz
+    python growing_string_demo.py --backend uma --npoints 20 --steps 100
 """
 
 import argparse
@@ -44,8 +52,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--backend",
-        default="mace",
-        help="Backend to use: uma|aimnet2|mace|mock (default: mace)",
+        default="uma",
+        help="Backend to use: uma|aimnet2|mace|mock (default: uma)",
     )
     parser.add_argument(
         "--npoints",
