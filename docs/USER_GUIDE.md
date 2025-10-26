@@ -91,7 +91,7 @@ All commands support these common options:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--backend` | `uma` | Backend: uma\|aimnet2\|mace\|orb\|so3lr\|torchsim\|torchsim_mace\|torchsim_fairchem\|mock |
+| `--backend` | `uma` | Backend: uma\|aimnet2\|mace\|orb\|so3lr\|tblite\|torchsim_mace\|torchsim_uma\|mock |
 | `--model-name` | `None` | Model name for backend |
 | `--model-path` | `None` | Path to model file (if applicable) |
 | `--device` | `None` | Device: cpu\|cuda |
@@ -102,8 +102,9 @@ All commands support these common options:
 | `--ts-kw` | `None` | TS optimizer kwargs as key=value, repeatable |
 | `--constraints` | `None` | Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0' |
 | `--verbose`, `-v` | `1` | Verbosity level: -v=quiet, -vv=normal, -vvv=debug |
+| `--temperature` | `298.15` | Temperature in Kelvin for thermodynamic calculations |
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
-| `--validate-ts` | `False` | Validate TS structure via frequency analysis after optimization |
+| `--freq`, `--frequencies` | `False` | Perform frequency analysis after optimization (includes thermodynamic properties) |
 
 ### qme minima - Minima Optimization
 
@@ -194,8 +195,8 @@ qme ts --strategy {local,interpolate,growing_string} INPUT [OPTIONS]
 # Basic local TS optimization
 qme ts --strategy local ts_guess.xyz
 
-# With validation
-qme ts --strategy local ts_guess.xyz --validate-ts
+# With frequency analysis
+qme ts --strategy local ts_guess.xyz --freq
 
 # With custom optimizer
 qme ts --strategy local ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02
@@ -209,8 +210,8 @@ qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 --
 # Growing string method
 qme ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
 
-# With validation
-qme ts --strategy interpolate reactant.xyz --product product.xyz --validate-ts
+# With frequency analysis
+qme ts --strategy interpolate reactant.xyz --product product.xyz --freq
 ```
 
 #### Output Files
@@ -268,10 +269,10 @@ qme path --strategy irc ts.xyz --direction both
 
 #### Output Files
 
-- Interpolation: `{input}.interpolate.xyz`
-- NEB: `{input}.neb.xyz`
-- CI-NEB: `{input}.cineb.xyz`
-- IRC: `{input}.irc.xyz`
+- Interpolation: `{input}.path.interpolate.xyz`
+- NEB: `{input}.path.neb.xyz`
+- CI-NEB: `{input}.path.cineb.xyz`
+- IRC: `{input}.path.irc.xyz`
 
 ### qme cache - Cache Management
 
@@ -414,7 +415,9 @@ explanation = explorer.explain_run()          # Explain strategy selection
 | `mace` | Foundation models for chemistry | `pip install qme-ml[mace]` | High accuracy, diverse systems |
 | `orb` | Orbital Materials universal forcefield | `pip install qme-ml[orb]` | Universal, molecules and materials |
 | `so3lr` | SO(3) invariant neural networks | `pip install qme-ml[so3lr]` | Research, custom models |
-| `torchsim_*` | TorchSim accelerated backends | `pip install qme-ml[torchsim]` | High performance, GPU |
+| `tblite` | TBLite semi-empirical | `pip install qme-ml[tblite]` | Fast semi-empirical calculations |
+| `torchsim_mace` | TorchSim-accelerated MACE | `pip install qme-ml[torchsim]` | High performance MACE |
+| `torchsim_uma` | TorchSim-accelerated UMA | `pip install qme-ml[torchsim]` | High performance UMA |
 | `mock` | Harmonic oscillator for testing | Built-in | Testing, development |
 
 ### Backend Selection Guide

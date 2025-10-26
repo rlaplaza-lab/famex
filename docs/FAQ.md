@@ -154,14 +154,14 @@ qme minima --strategy local molecule.xyz --constraints "fix 0,1; harmonic_bond 2
 
 ### Q: How do I validate a transition state?
 
-**A:** Use the `--validate-ts` flag or calculate frequencies manually:
+**A:** Use the `--freq` flag or calculate frequencies manually:
 
 ```bash
-# Automatic validation
-qme ts --strategy local ts_guess.xyz --validate-ts
+# Automatic frequency analysis
+qme ts --strategy local ts_guess.xyz --freq
 
 # Manual frequency calculation
-qme minima --strategy local ts_structure.xyz --frequencies
+qme minima --strategy local ts_structure.xyz --freq
 ```
 
 A valid transition state should have exactly one imaginary frequency.

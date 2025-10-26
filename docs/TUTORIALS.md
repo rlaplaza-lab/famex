@@ -383,8 +383,8 @@ qme ts --strategy local ts_guess.xyz
 # With specific backend and optimizer
 qme ts --strategy local ts_guess.xyz --backend aimnet2 --optimizer sella
 
-# With validation
-qme ts --strategy local ts_guess.xyz --validate-ts
+# With frequency analysis
+qme ts --strategy local ts_guess.xyz --freq
 ```
 
 #### Python API
@@ -430,8 +430,8 @@ qme ts --strategy interpolate reactant.xyz --product product.xyz
 # With specific number of points
 qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15
 
-# With validation
-qme ts --strategy interpolate reactant.xyz --product product.xyz --validate-ts
+# With frequency analysis
+qme ts --strategy interpolate reactant.xyz --product product.xyz --freq
 ```
 
 #### Python API
@@ -475,8 +475,8 @@ else:
 #### Command Line Validation
 
 ```bash
-# Automatic validation
-qme ts --strategy local ts_guess.xyz --validate-ts
+# Automatic frequency analysis
+qme ts --strategy local ts_guess.xyz --freq
 
 # Manual frequency calculation
 qme minima --strategy local ts_structure.xyz --frequencies
