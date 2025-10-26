@@ -274,12 +274,12 @@ class StrategyUtils:
                 OptClass = _get_local_optimizer_class("lbfgs")
                 opt = OptClass(new_node)
                 opt.run(fmax=fmax, steps=5)  # Limited optimization
-            except Exception as e:
+            except (RuntimeError, ValueError, AttributeError) as e:
                 logger.warning(f"Growing String: Perpendicular optimization failed: {e}")
                 # Continue anyway with unoptimized node
 
             return new_node
 
-        except Exception as e:
+        except (RuntimeError, ValueError, AttributeError) as e:
             logger.warning(f"Growing String: Failed to grow node: {e}")
             return None

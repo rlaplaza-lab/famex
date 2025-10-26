@@ -156,7 +156,6 @@ class MACEPotential(BasePotential):
         super().calculate(atoms, properties, system_changes)
 
         # Ensure calculator is loaded
-        # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
 

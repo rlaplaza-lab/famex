@@ -80,6 +80,21 @@ class UMAPotential(BasePotential):
         # Initialize base class (this will call _load_calculator)
         super().__init__(model_name=model_name, device=device, **kwargs)
 
+    def _set_model_precision(self, precision: str = "float32") -> None:
+        """Set model precision to avoid dtype mismatches.
+
+        Parameters
+        ----------
+        precision : str
+            Precision to set ('float32' or 'double')
+        """
+        if self.predictor is not None and hasattr(self.predictor, "model"):
+            model = self.predictor.model
+            if precision == "float32" and hasattr(model, "float"):
+                model.float()
+            elif precision == "double" and hasattr(model, "double"):
+                model.double()
+
     def _load_calculator(self) -> None:
         """Load the UMA model from fairchem v2 API."""
         # Skip if already loaded
@@ -125,10 +140,7 @@ class UMAPotential(BasePotential):
                 self.predictor = pretrained_mlip.get_predict_unit(model_name, device=device_param)
 
                 # Try to force consistent precision to avoid dtype mismatches
-                if hasattr(self.predictor, "model") and self.predictor.model is not None:
-                    # Force model to float32 precision to avoid mixed precision issues
-                    if hasattr(self.predictor.model, "float"):
-                        self.predictor.model.float()
+                self._set_model_precision("float32")
 
                 # Create fairchem calculator for internal use
                 # Default to 'omol' task for molecular systems
@@ -160,11 +172,11 @@ class UMAPotential(BasePotential):
         # Set default charge and spin if not already set to avoid warnings (ensure Python integers)
         if "charge" not in atoms.info:
             atoms.info["charge"] = int(self.default_charge)
-        elif not isinstance(atoms.info["charge"], int):
+        else:
             atoms.info["charge"] = int(atoms.info["charge"])
         if "spin" not in atoms.info:
             atoms.info["spin"] = int(self.default_spin)
-        elif not isinstance(atoms.info["spin"], int):
+        else:
             atoms.info["spin"] = int(atoms.info["spin"])
 
         # Ensure calculator is loaded
@@ -182,42 +194,23 @@ class UMAPotential(BasePotential):
             if "expected scalar type Double but found Float" in str(
                 e,
             ) or "mat1 and mat2 must have the same dtype, but got Double and Float" in str(e):
-                # Try to set model to use float32 precision consistently
-                if self.predictor is not None and hasattr(self.predictor, "model"):
-                    # Force model to float32
-                    if hasattr(self.predictor.model, "float"):
-                        self.predictor.model.float()
-
-                    # Also try to set the model to double precision if that's what it needs
-                    if "expected scalar type Double but found Float" in str(e):
-                        if hasattr(self.predictor.model, "double"):
-                            self.predictor.model.double()
-
-                    # Retry calculation
-                    self._calc.calculate(atoms, properties, system_changes)
+                # Try to set model to use consistent precision
+                if "expected scalar type Double but found Float" in str(e):
+                    self._set_model_precision("double")
                 else:
-                    msg = (
-                        f"UMA model precision mismatch. {e}. "
-                        "This may be due to model expecting different tensor precision."
-                    )
-                    raise RuntimeError(
-                        msg,
-                    )
+                    self._set_model_precision("float32")
+
+                # Retry calculation
+                self._calc.calculate(atoms, properties, system_changes)
             else:
                 raise
 
         # Extract results from the underlying calculator
         if "energy" in properties:
-            try:
-                self.results["energy"] = self._calc.results["energy"]
-            except Exception:
-                self.results["energy"] = self.results.get("energy")
+            self.results["energy"] = self._calc.results["energy"]
 
         if "forces" in properties:
-            try:
-                self.results["forces"] = self._calc.results["forces"]
-            except Exception:
-                self.results["forces"] = self.results.get("forces")
+            self.results["forces"] = self._calc.results["forces"]
 
     def _get_backend_name(self) -> str:
         """Get the backend name for UMA."""
@@ -241,9 +234,6 @@ class UMAPotential(BasePotential):
         Returns the Hessian matrix (3N x 3N) computed using PyTorch's automatic
         differentiation via double back-propagation through the UMA neural network.
         This is much faster and more accurate than finite differences.
-
-        The Hessian is automatically converted from atomic units (Hartree/Bohr²)
-        to ASE units (eV/Å²) using the conversion factor of ~97.173.
 
         Parameters
         ----------
@@ -270,11 +260,11 @@ class UMAPotential(BasePotential):
         if self.atoms is not None:
             if "charge" not in self.atoms.info:
                 self.atoms.info["charge"] = int(self.default_charge)
-            elif not isinstance(self.atoms.info["charge"], int):
+            else:
                 self.atoms.info["charge"] = int(self.atoms.info["charge"])
             if "spin" not in self.atoms.info:
                 self.atoms.info["spin"] = int(self.default_spin)
-            elif not isinstance(self.atoms.info["spin"], int):
+            else:
                 self.atoms.info["spin"] = int(self.atoms.info["spin"])
 
         try:
@@ -306,18 +296,18 @@ class UMAPotential(BasePotential):
             # Create batch
             batch = data_list_collater([data], otf_graph=True).to(device)
 
-            # Enable gradients on positions - this is the key step from uma_pysis
+            # Enable gradients on positions - this is the key step
             batch.pos = batch.pos.detach().clone().requires_grad_(True)
 
-            # Set model to training mode for Hessian calculation (like uma_pysis does)
+            # Set model to training mode for Hessian calculation
             self.predictor.model.train()
 
-            # Disable dropout layers (like uma_pysis does)
+            # Disable dropout layers
             for module in self.predictor.model.modules():
                 if hasattr(module, "p") and hasattr(module, "training"):
                     module.p = 0.0
 
-            # Define energy function that follows uma_pysis exactly
+            # Define energy function
             def energy_fn(flat_pos):
                 """Energy function that takes flattened positions and returns energy."""
                 # Reshape to (N, 3) format and update batch positions
@@ -330,8 +320,6 @@ class UMAPotential(BasePotential):
                 return energy
 
             # Compute analytical Hessian using PyTorch's automatic differentiation
-            # This follows the same approach as uma_pysis exactly
-            # Use the same input tensor as uma_pysis
             input_tensor = batch.pos.view(-1)
             hessian_tensor = hessian(energy_fn, input_tensor)
 
@@ -340,11 +328,6 @@ class UMAPotential(BasePotential):
 
             # Convert to numpy array
             hessian_np = hessian_tensor.detach().cpu().numpy()
-
-            # Check what units UMA actually outputs by comparing with uma_pysis
-            # From uma_pysis code, it seems UMA outputs in eV/Å² already
-            # Let's test without conversion first
-            # hessian_np = hessian_np  # No conversion for now
 
             # Ensure correct shape (3N, 3N)
             n_atoms = len(self.atoms)
@@ -362,7 +345,7 @@ class UMAPotential(BasePotential):
                     raise ValueError(msg)
 
             # Symmetrize the Hessian (should already be symmetric, but ensure numerical stability)
-            hessian_np = 0.5 * (hessian_np + hessian_np.T)
+            # hessian_np = 0.5 * (hessian_np + hessian_np.T)
 
             return hessian_np
 

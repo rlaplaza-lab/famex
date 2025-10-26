@@ -136,6 +136,28 @@ class BasePotential:
 
         return self._backend_obj()
 
+    def _ensure_calculator_loaded(self) -> Any | None:
+        """Ensure calculator is loaded and return it, raising RuntimeError if failed.
+
+        This is a convenience method that combines ensure_loaded() with error handling.
+        Use this in methods that require a loaded calculator.
+
+        Returns:
+        -------
+        Any
+            The loaded backend calculator object
+
+        Raises:
+        ------
+        RuntimeError
+            If calculator loading fails
+        """
+        backend = self.ensure_loaded()
+        if backend is None:
+            msg = f"Failed to load {self.__class__.__name__} calculator"
+            raise RuntimeError(msg)
+        return backend
+
     def get_potential_energy(
         self,
         atoms: Atoms | None = None,
