@@ -68,7 +68,9 @@ class FrequencyAnalysis:
         """
         self.atoms = atoms
         self.calculator = calculator
-        self.atoms.calc = calculator
+        # Only set calculator if atoms doesn't have one or it's different
+        if self.atoms.calc is None or self.atoms.calc is not calculator:
+            self.atoms.calc = calculator
         self.delta = delta
         self.indices = indices if indices is not None else list(range(len(atoms)))
         self.verbose = verbose
@@ -744,7 +746,9 @@ class HessianCalculator:
         """
         self.atoms = atoms
         self.calculator = calculator
-        self.atoms.calc = calculator
+        # Only set calculator if atoms doesn't have one or it's different
+        if self.atoms.calc is None or self.atoms.calc is not calculator:
+            self.atoms.calc = calculator
         self.delta = delta
         self.method = method
         self.verbose = verbose

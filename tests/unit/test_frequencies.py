@@ -77,6 +77,36 @@ class TestFrequencyBasics:
         assert isinstance(zpe, float)
         assert zpe >= 0, "Zero-point energy should be non-negative"
 
+    def test_atoms_not_modified_in_place(self) -> None:
+        """Test that input atoms object is not modified in-place."""
+        atoms = self.h2o.copy()
+        atoms.calc = qme.MockCalculator(backend="mock")  # Ensure calculator is attached
+        original_positions = atoms.positions.copy()
+        original_calc_id = id(atoms.calc)
+
+        # Run frequency analysis
+        fa = FrequencyAnalysis(atoms, atoms.calc)
+        fa.calculate_hessian()
+        fa.diagonalize_hessian()
+
+        # Verify positions unchanged
+        assert np.allclose(atoms.positions, original_positions), "Atoms positions were modified!"
+
+        # Verify calculator unchanged (same object)
+        assert id(atoms.calc) == original_calc_id, "Atoms calculator was replaced!"
+
+        # Test with different calculator
+        different_calc = qme.MockCalculator(backend="mock")
+        FrequencyAnalysis(atoms, different_calc)
+
+        # Calculator should be updated to different one
+        assert id(atoms.calc) == id(different_calc), "Different calculator not applied!"
+
+        # But positions should still be unchanged
+        assert np.allclose(atoms.positions, original_positions), (
+            "Positions modified with different calc!"
+        )
+
 
 class TestHessianCalculator:
     """Test Hessian calculator functionality."""
