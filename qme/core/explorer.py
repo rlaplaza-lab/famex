@@ -396,14 +396,16 @@ class Explorer:
         # Check for attributes first (highest priority)
         if hasattr(atoms, "charge"):
             try:
-                if int(atoms.charge) is not None:
+                if atoms.charge is not None:
+                    int(atoms.charge)  # Test conversion
                     charge_missing = False
             except (ValueError, TypeError):
                 pass
 
         if hasattr(atoms, "mult"):
             try:
-                if int(atoms.mult) is not None:
+                if atoms.mult is not None:
+                    int(atoms.mult)  # Test conversion
                     spin_missing = False
             except (ValueError, TypeError):
                 pass
@@ -462,11 +464,11 @@ class Explorer:
             # Coerce to built-in int types to satisfy backends that enforce strict typing
             try:
                 atoms.info["charge"] = int(atoms.info.get("charge", charge))
-            except Exception:
+            except (ValueError, TypeError):
                 atoms.info["charge"] = int(charge)
             try:
                 atoms.info["spin"] = int(atoms.info.get("spin", spin))
-            except Exception:
+            except (ValueError, TypeError):
                 atoms.info["spin"] = int(spin)
 
         # Show model initialization info when creating the first calculator

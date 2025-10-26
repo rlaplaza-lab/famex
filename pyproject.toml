@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "ase>=3.22.0",
-    "numpy>=1.20.0",
+    "numpy>=2.0.0",
     "click>=8.0.0",
     "requests>=2.25.0",
     "sella>=2.0.0",
@@ -45,7 +45,7 @@ mace = [
     # Note: mace-torch requires e3nn==0.4.4, conflicts with fairchem-core
 ]
 so3lr = [
-    "jax>=0.4.20",
+    "jax>=0.8.0",
     # Note: so3lr must be installed separately from source
 ]
 # Orb universal forcefield (large package, may have compatibility issues)
@@ -67,7 +67,7 @@ ml = [
     "fairchem-core>=1.0.0",
     "torch-cluster>=0.6.0",
     "mace-torch>=0.1.0",
-    "jax>=0.4.20",
+    "jax>=0.8.0",
 ]
 # Development dependencies
 dev = [

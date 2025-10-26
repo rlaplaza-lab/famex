@@ -441,7 +441,7 @@ class TorchSimPotential(BasePotential):
             batch_results = self._model(batch_state)
 
             # Split results back to individual structures
-            return self._split_batch_results(self._batch_results, len(atoms_list), properties)
+            return self._split_batch_results(batch_results, len(atoms_list), properties)
         # Regular calculator - use individual calculations
         batch_results = []
         for atoms in atoms_list:
