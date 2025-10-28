@@ -255,7 +255,7 @@ class DependencyManager:
             "sella": "sella",
             BACKEND_AIMNET2: "torch torch-cluster",  # AIMNet2 needs both torch and torch-cluster
             "fairchem": "fairchem-core",
-            BACKEND_SO3LR: "so3lr  # See installation instructions in README",
+            BACKEND_SO3LR: "so3lr",
             BACKEND_MACE: "mace-torch",
             "orb_models": "orb-models",
             BACKEND_ORB: "orb-models",  # Orb uses orb-models package

@@ -588,16 +588,16 @@ qme minima --strategy local molecule.xyz --fmax 0.01 --steps 2000
 
 ```bash
 # For beginners (no conflicts)
-pip install qme-ml[aimnet2]
+pip install torch torch-cluster
 
 # For production (materials)
-pip install qme-ml[uma]
+pip install fairchem-core
 
 # For production (molecules)
-pip install qme-ml[mace]
+pip install mace-torch
 
 # For maximum performance
-pip install qme-ml[torchsim]
+pip install torch-sim-atomistic
 ```
 
 ---
