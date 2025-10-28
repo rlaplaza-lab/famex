@@ -44,7 +44,7 @@ pip install qme-ml mace-torch
 pip install backend_package_name
 ```
 
-Available backends: `uma` (fairchem-core), `aimnet2` (torch torch-cluster), `mace` (mace-torch), `orb` (orb-models), `so3lr` (so3lr), `torchsim` (torch-sim-atomistic)
+Available backends: `uma` (fairchem-core), `aimnet2` (torch torch-cluster), `mace` (mace-torch), `orb` (orb-models), `so3lr` (so3lr), `torchsim_mace` (torch-sim-atomistic), `torchsim_uma` (torch-sim-atomistic)
 
 ### Q: What Python version do I need?
 

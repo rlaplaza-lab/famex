@@ -146,7 +146,7 @@ result = explorer.run(fmax=0.05, steps=1000)
 qme minima --strategy local water.xyz --optimizer sella
 
 # Python
-explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2", target="minima", strategy="local", local_optimizer="sella")
+explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2", target="minima", strategy="local", local_optimizer="default")
 result = explorer.run(fmax=0.05, steps=1000)
 ```
 
@@ -460,7 +460,7 @@ Always validate your TS structures:
 
 ```python
 # Calculate frequencies for the TS
-freq_result = explorer.calculate_frequencies(result['optimized_atoms'])
+freq_result = explorer.calculate_frequencies(result['optimized_atoms'], temperature=298.15)
 
 print(f"Frequencies: {freq_result['frequencies']}")
 print(f"Imaginary frequencies: {freq_result['imaginary_frequencies']}")
@@ -496,7 +496,7 @@ explorer = qme.Explorer([reactant, product], target="ts", strategy="interpolate"
 result = explorer.run(npoints=15)
 
 # Step 3: Validate TS
-freq_result = explorer.calculate_frequencies(result['optimized_atoms'])
+freq_result = explorer.calculate_frequencies(result['optimized_atoms'], temperature=298.15)
 
 # Step 4: Check results
 if result['converged'] and len(freq_result['imaginary_frequencies']) == 1:
