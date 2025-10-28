@@ -35,7 +35,8 @@ pip install tblite                # TBLite
 | `aimnet2` | `pip install torch torch-cluster` | Built-in, no conflicts |
 | `uma` | `pip install fairchem-core` | Materials science |
 | `mace` | `pip install mace-torch` | Conflicts with UMA |
-| `torchsim` | `pip install torch-sim-atomistic` | Requires Python 3.11+ |
+| `torchsim_mace` | `pip install torch-sim-atomistic` | Requires Python 3.11+ |
+| `torchsim_uma` | `pip install torch-sim-atomistic` | Requires Python 3.11+ |
 
 > **Note**: MACE and UMA have dependency conflicts. Use separate environments.
 
@@ -69,7 +70,7 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 
 ## Key Features
 
-- 🧪 **Multiple ML Backends**: UMA, AIMNet2, MACE, SO3LR, TorchSim
+- 🧪 **Multiple ML Backends**: UMA, AIMNet2, MACE, SO3LR, TorchSim (MACE/UMA)
 - ⚡ **GPU Acceleration**: CUDA support for compatible backends
 - 🎯 **Semantic Interface**: Target/strategy system (minima, ts, path)
 - 🔄 **Advanced Methods**: NEB, CI-NEB, IRC, growing string method
@@ -103,7 +104,8 @@ qme path --strategy irc ts.xyz --direction both
 | `aimnet2` | Beginners, no conflicts | `pip install torch torch-cluster` |
 | `uma` | Materials science | `pip install fairchem-core` |
 | `mace` | High accuracy molecules | `pip install mace-torch` |
-| `torchsim` | Maximum performance | `pip install torch-sim-atomistic` |
+| `torchsim_mace` | Maximum performance MACE | `pip install torch-sim-atomistic` |
+| `torchsim_uma` | Maximum performance UMA | `pip install torch-sim-atomistic` |
 
 > **Note**: Some backends have dependency conflicts. Use separate environments or choose one backend per environment.
 

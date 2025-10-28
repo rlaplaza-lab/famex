@@ -71,7 +71,8 @@ QME supports multiple machine learning backends. Choose one based on your needs:
 | `mace` | High accuracy | `pip install mace-torch` |
 | `uma` | Materials science | `pip install fairchem-core` |
 | `orb` | Universal forcefield | `pip install orb-models` |
-| `torchsim` | Maximum performance | `pip install torch-sim-atomistic` |
+| `torchsim_mace` | Maximum performance MACE | `pip install torch-sim-atomistic` |
+| `torchsim_uma` | Maximum performance UMA | `pip install torch-sim-atomistic` |
 
 > **Important**: Some backends have dependency conflicts (e.g., UMA vs MACE). Use separate environments or choose one backend per environment.
 
@@ -108,7 +109,7 @@ All commands support these common options:
 | `--device` | `None` | Device: cpu\|cuda |
 | `--default-charge` | `0` | Default molecular charge |
 | `--default-spin` | `1` | Default spin multiplicity |
-| `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-krylov-ts\|trust-ncg\|trust-exact\|newton-cg |
+| `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-krylov-ts\|trust-ncg\|trust-exact\|newton-cg (default=auto-select based on target) |
 | `--optimizer-kw` | `None` | Optimizer kwargs as key=value, repeatable |
 | `--ts-kw` | `None` | TS optimizer kwargs as key=value, repeatable |
 | `--constraints` | `None` | Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0' |
@@ -330,7 +331,7 @@ explorer = Explorer(
     device=None,              # Device: cpu|cuda (auto-detected if None)
     default_charge=0,         # Default molecular charge
     default_spin=1,           # Default spin multiplicity
-    local_optimizer="default", # Optimizer name
+    local_optimizer="default", # Optimizer name (auto-selects based on target)
     optimizer_kwargs=None,    # Dict of optimizer kwargs
     strategy="local",         # Strategy: local|neb|cineb|interpolate|growing_string|irc
     target="minima",          # Target: minima|ts|path
@@ -376,6 +377,7 @@ explorer = Explorer(
 **Available Optimizers:**
 - First-order (gradient-based): `lbfgs`, `bfgs`, `fire`
 - Second-order (Hessian-based): `sella`, `trust-krylov`, `trust-krylov-ts`, `trust-ncg`, `trust-exact`, `newton-cg`
+- `default`: Auto-selects based on target (LBFGS for minima, Sella for TS)
 
 ### Key Methods
 
@@ -453,7 +455,7 @@ pip install orb-models
 ```
 
 #### For Maximum Performance
-Use **TorchSim** backends with GPU acceleration:
+Use **TorchSim** backends (torchsim_mace, torchsim_uma) with GPU acceleration:
 ```bash
 pip install torch-sim-atomistic
 qme minima --strategy local molecule.xyz --backend torchsim_mace --device cuda
