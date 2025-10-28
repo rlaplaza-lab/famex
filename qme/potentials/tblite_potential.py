@@ -176,7 +176,12 @@ class TBLitePotential(BasePotential):
         try:
             self._calc.calculate(self.atoms, properties, system_changes)
         except (AttributeError, RuntimeError) as e:
-            msg = f"TBLite calculation failed: {e}"
+            msg = (
+                f"TBLite calculation failed: {e}. "
+                f"Method: {self.method}, Charge: {self.charge}, "
+                f"Multiplicity: {self.multiplicity}, "
+                f"Atoms: {len(self.atoms) if self.atoms else 'None'}"
+            )
             raise RuntimeError(msg)
 
         # Copy results from underlying calculator
@@ -202,7 +207,20 @@ class TBLitePotential(BasePotential):
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
-        return super().get_forces(atoms)
+        forces = super().get_forces(atoms)
+
+        # Check if forces calculation failed and returned None
+        if forces is None:
+            msg = (
+                "TBLite forces calculation failed and returned None. "
+                "This may be due to convergence issues, invalid geometry, "
+                "or unsupported system configuration. "
+                f"Method: {self.method}, Charge: {self.charge}, "
+                f"Multiplicity: {self.multiplicity}"
+            )
+            raise RuntimeError(msg)
+
+        return forces
 
     def get_charges(self, atoms=None):
         """Get Mulliken charges (if supported)."""
