@@ -10,8 +10,13 @@
 ### Installation
 
 ```bash
-# Install QME
-pip install qme-ml
+# Install QME from source
+git clone https://github.com/rlaplaza-lab/qme.git
+cd qme
+pip install -e .
+
+# Or install directly from GitHub
+pip install git+https://github.com/rlaplaza-lab/qme.git
 
 # Install a backend separately
 pip install torch torch-cluster  # AIMNet2 (recommended)
