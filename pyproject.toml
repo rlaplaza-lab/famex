@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "Quick mechanistic exploration using machine learning potentials with Sella optimizer"
 readme = "README.md"
 requires-python = ">=3.10"
+# Note: Python version requirements depend on chosen backend:
+# - Python 3.10+ for most backends (AIMNet2, UMA, MACE, Orb, TBLite)
+# - Python 3.11+ for TorchSim backends
 license = "MIT"
 authors = [
     {name = "rlaplaza-lab", email = "example@example.com"}
@@ -30,46 +33,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Individual backend installations to avoid dependency conflicts
-uma = [
-    "torch>=2.0.0",
-    "fairchem-core>=1.0.0",
-    "torch-cluster>=0.6.0",
-]
-aimnet2 = [
-    "torch>=2.0.0",
-]
-mace = [
-    "torch>=2.0.0",
-    "mace-torch>=0.1.0",
-    # Note: mace-torch requires e3nn==0.4.4, conflicts with fairchem-core
-]
-so3lr = [
-    "jax>=0.8.0",
-    # Note: so3lr must be installed separately from source
-]
-# Orb universal forcefield (large package, may have compatibility issues)
-orb = [
-    "torch>=2.0.0",
-    "orb-models>=0.5.0",
-]
-# TorchSim acceleration (requires Python 3.11+)
-torchsim = [
-    "torch-sim-atomistic>=0.3.0; python_version>='3.11'",
-]
-# TBLite semi-empirical quantum chemistry
-tblite = [
-    "tblite>=0.3.0",
-]
-# Legacy combined installation (may have conflicts)
-ml = [
-    "torch>=2.0.0",
-    "fairchem-core>=1.0.0",
-    "torch-cluster>=0.6.0",
-    "mace-torch>=0.1.0",
-    "jax>=0.8.0",
-]
-# Development dependencies
+# Development dependencies only
+# ML backends must be installed separately - see README for details
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

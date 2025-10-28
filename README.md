@@ -10,14 +10,29 @@
 ### Installation
 
 ```bash
-# Install QME with a backend (recommended for beginners)
-pip install qme-ml[aimnet2]
+# Install QME
+pip install qme-ml
 
-# Or try other backends
-pip install qme-ml[uma]     # Materials science
-pip install qme-ml[mace]    # High accuracy
-pip install qme-ml[torchsim] # Maximum performance (requires Python 3.11+)
+# Install a backend separately
+pip install torch torch-cluster  # AIMNet2 (recommended)
+pip install fairchem-core         # UMA
+pip install mace-torch            # MACE
+pip install orb-models            # Orb
+pip install tblite                # TBLite
 ```
+
+> **Note**: Python version depends on backend choice. TorchSim requires Python 3.11+, others work with Python 3.10+.
+
+### Backend Selection
+
+| Backend | Installation | Notes |
+|---------|--------------|-------|
+| `aimnet2` | `pip install torch torch-cluster` | Built-in, no conflicts |
+| `uma` | `pip install fairchem-core` | Materials science |
+| `mace` | `pip install mace-torch` | Conflicts with UMA |
+| `torchsim` | `pip install torch-sim-atomistic` | Requires Python 3.11+ |
+
+> **Note**: MACE and UMA have dependency conflicts. Use separate environments.
 
 ### Your First Optimization
 
@@ -80,10 +95,10 @@ qme path --strategy irc ts.xyz --direction both
 
 | Backend | Best For | Installation |
 |---------|----------|--------------|
-| `aimnet2` | Beginners, no conflicts | `pip install qme-ml[aimnet2]` |
-| `uma` | Materials science | `pip install qme-ml[uma]` |
-| `mace` | High accuracy molecules | `pip install qme-ml[mace]` |
-| `torchsim` | Maximum performance | `pip install qme-ml[torchsim]` |
+| `aimnet2` | Beginners, no conflicts | `pip install torch torch-cluster` |
+| `uma` | Materials science | `pip install fairchem-core` |
+| `mace` | High accuracy molecules | `pip install mace-torch` |
+| `torchsim` | Maximum performance | `pip install torch-sim-atomistic` |
 
 > **Note**: Some backends have dependency conflicts. Use separate environments or choose one backend per environment.
 

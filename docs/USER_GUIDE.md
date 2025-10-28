@@ -36,7 +36,9 @@ QME uses a semantic interface with two key concepts:
 
 ### Prerequisites
 
-- Python 3.10 or higher (Python 3.11+ required for TorchSim backends)
+- Python version depends on your chosen backend:
+  - Python 3.10+ for most backends (AIMNet2, UMA, MACE, Orb, TBLite)
+  - Python 3.11+ for TorchSim backends
 - pip package manager
 
 ### Quick Installation
@@ -46,9 +48,18 @@ QME uses a semantic interface with two key concepts:
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install QME with a backend
-pip install qme-ml[aimnet2]  # Recommended for beginners
+# Install QME
+pip install qme-ml
+
+# Install a backend separately (choose one based on your needs)
+pip install torch torch-cluster  # For AIMNet2 (recommended for beginners)
+pip install fairchem-core         # For UMA
+pip install mace-torch            # For MACE
+pip install orb-models            # For Orb
+pip install tblite                # For TBLite
 ```
+
+> **Note**: Python version requirements depend on your chosen backend. TorchSim requires Python 3.11+, while other backends work with Python 3.10+. Choose your Python version based on the backends you need.
 
 ### Backend Selection
 
@@ -56,11 +67,11 @@ QME supports multiple machine learning backends. Choose one based on your needs:
 
 | Backend | Best For | Installation |
 |---------|----------|--------------|
-| `aimnet2` | General use, no conflicts | `pip install qme-ml[aimnet2]` |
-| `mace` | High accuracy | `pip install qme-ml[mace]` |
-| `uma` | Materials science | `pip install qme-ml[uma]` |
-| `orb` | Universal forcefield | `pip install qme-ml[orb]` |
-| `torchsim` | Maximum performance | `pip install qme-ml[torchsim]` |
+| `aimnet2` | General use, no conflicts | `pip install torch torch-cluster` |
+| `mace` | High accuracy | `pip install mace-torch` |
+| `uma` | Materials science | `pip install fairchem-core` |
+| `orb` | Universal forcefield | `pip install orb-models` |
+| `torchsim` | Maximum performance | `pip install torch-sim-atomistic` |
 
 > **Important**: Some backends have dependency conflicts (e.g., UMA vs MACE). Use separate environments or choose one backend per environment.
 
@@ -70,7 +81,7 @@ QME supports multiple machine learning backends. Choose one based on your needs:
 # Development installation
 git clone https://github.com/rlaplaza-lab/qme.git
 cd qme
-pip install -e .[dev,aimnet2]
+pip install -e .[dev]
 
 # Minimal installation (mock backend only)
 pip install qme-ml
@@ -410,14 +421,14 @@ explanation = explorer.explain_run()          # Explain strategy selection
 
 | Backend | Description | Installation | Best For |
 |---------|-------------|--------------|----------|
-| `uma` | Universal Materials Accelerator (Meta AI) | `pip install qme-ml[uma]` | General purpose, materials |
-| `aimnet2` | Native PyTorch implementation | `pip install qme-ml[aimnet2]` | Molecules, fast inference |
-| `mace` | Foundation models for chemistry | `pip install qme-ml[mace]` | High accuracy, diverse systems |
-| `orb` | Orbital Materials universal forcefield | `pip install qme-ml[orb]` | Universal, molecules and materials |
-| `so3lr` | SO(3) invariant neural networks | `pip install qme-ml[so3lr]` | Research, custom models |
-| `tblite` | TBLite semi-empirical | `pip install qme-ml[tblite]` | Fast semi-empirical calculations |
-| `torchsim_mace` | TorchSim-accelerated MACE | `pip install qme-ml[torchsim]` | High performance MACE |
-| `torchsim_uma` | TorchSim-accelerated UMA | `pip install qme-ml[torchsim]` | High performance UMA |
+| `uma` | Universal Materials Accelerator (Meta AI) | `pip install fairchem-core` | General purpose, materials |
+| `aimnet2` | Native PyTorch implementation | `pip install torch torch-cluster` | Molecules, fast inference |
+| `mace` | Foundation models for chemistry | `pip install mace-torch` | High accuracy, diverse systems |
+| `orb` | Orbital Materials universal forcefield | `pip install orb-models` | Universal, molecules and materials |
+| `so3lr` | SO(3) invariant neural networks | `pip install so3lr` | Research, custom models |
+| `tblite` | TBLite semi-empirical | `pip install tblite` | Fast semi-empirical calculations |
+| `torchsim_mace` | TorchSim-accelerated MACE | `pip install torch-sim-atomistic` | High performance MACE |
+| `torchsim_uma` | TorchSim-accelerated UMA | `pip install torch-sim-atomistic` | High performance UMA |
 | `mock` | Harmonic oscillator for testing | Built-in | Testing, development |
 
 ### Backend Selection Guide
@@ -425,26 +436,26 @@ explanation = explorer.explain_run()          # Explain strategy selection
 #### For Beginners
 Start with **AIMNet2** - no conflicts, fast, reliable:
 ```bash
-pip install qme-ml[aimnet2]
+pip install torch torch-cluster
 ```
 
 #### For Production Use
 Use **UMA** for materials, **MACE** for molecules, or **Orb** for universal coverage:
 ```bash
 # Materials and general purpose
-pip install qme-ml[uma]
+pip install fairchem-core
 
 # High accuracy molecules
-pip install qme-ml[mace]
+pip install mace-torch
 
 # Universal forcefield (molecules and materials)
-pip install qme-ml[orb]
+pip install orb-models
 ```
 
 #### For Maximum Performance
 Use **TorchSim** backends with GPU acceleration:
 ```bash
-pip install qme-ml[torchsim]
+pip install torch-sim-atomistic
 qme minima --strategy local molecule.xyz --backend torchsim_mace --device cuda
 ```
 
@@ -467,12 +478,12 @@ qme minima --strategy local molecule.xyz --backend mock
 # Environment 1: UMA only
 conda create -n qme-uma python=3.12
 conda activate qme-uma
-pip install qme-ml[uma]
+pip install qme-ml fairchem-core
 
 # Environment 2: MACE only
 conda create -n qme-mace python=3.12
 conda activate qme-mace
-pip install qme-ml[mace]
+pip install qme-ml mace-torch
 ```
 
 ### Interpolation Methods

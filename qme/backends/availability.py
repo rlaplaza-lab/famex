@@ -284,17 +284,17 @@ def get_backend_error_message(backend: str) -> str:
     reason = get_availability_reason(backend)
 
     install_commands = {
-        BACKEND_AIMNET2: "pip install qme-ml[aimnet2]",
-        BACKEND_UMA: "pip install qme-ml[uma]",
-        BACKEND_MACE: "pip install qme-ml[mace]",
-        BACKEND_SO3LR: "pip install qme-ml[so3lr]",
-        "orb": "pip install qme-ml[orb]",
-        "tblite": "pip install qme-ml[tblite]",
-        BACKEND_TORCHSIM_MACE: "pip install qme-ml[torchsim]",
-        BACKEND_TORCHSIM_UMA: "pip install qme-ml[torchsim,uma]",
+        BACKEND_AIMNET2: "pip install torch torch-cluster",
+        BACKEND_UMA: "pip install fairchem-core",
+        BACKEND_MACE: "pip install mace-torch",
+        BACKEND_SO3LR: "pip install so3lr",
+        "orb": "pip install orb-models",
+        "tblite": "pip install tblite",
+        BACKEND_TORCHSIM_MACE: "pip install torch-sim-atomistic",
+        BACKEND_TORCHSIM_UMA: "pip install torch-sim-atomistic",
     }
 
-    cmd = install_commands.get(backend, f"pip install qme-ml[{backend}]")
+    cmd = install_commands.get(backend, f"pip install {backend}")
 
     return f"Backend '{backend}' is not available.\nReason: {reason}\nInstall with: {cmd}"
 

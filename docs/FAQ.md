@@ -17,7 +17,7 @@ Common questions about QME usage, installation, and troubleshooting.
 **A:** Start with **AIMNet2** - it's fast, reliable, and has no dependency conflicts:
 
 ```bash
-pip install qme-ml[aimnet2]
+pip install torch torch-cluster
 ```
 
 ### Q: Can I install multiple backends in the same environment?
@@ -28,12 +28,12 @@ pip install qme-ml[aimnet2]
 # Environment 1: UMA
 conda create -n qme-uma python=3.12
 conda activate qme-uma
-pip install qme-ml[uma]
+pip install qme-ml fairchem-core
 
 # Environment 2: MACE
 conda create -n qme-mace python=3.12
 conda activate qme-mace
-pip install qme-ml[mace]
+pip install qme-ml mace-torch
 ```
 
 ### Q: Why am I getting "Backend 'xyz' not available" errors?
@@ -41,14 +41,18 @@ pip install qme-ml[mace]
 **A:** Install the backend dependencies:
 
 ```bash
-pip install qme-ml[backend_name]
+pip install backend_package_name
 ```
 
-Available backends: `uma`, `aimnet2`, `mace`, `orb`, `so3lr`, `torchsim`
+Available backends: `uma` (fairchem-core), `aimnet2` (torch torch-cluster), `mace` (mace-torch), `orb` (orb-models), `so3lr` (so3lr), `torchsim` (torch-sim-atomistic)
 
-### Q: Do I need Python 3.11+ for TorchSim?
+### Q: What Python version do I need?
 
-**A:** Yes, TorchSim requires Python 3.11 or higher. For other backends, Python 3.10+ is sufficient.
+**A:** The Python version requirement depends on your chosen backend:
+- **Python 3.10+**: For most backends (AIMNet2, UMA, MACE, Orb, TBLite)
+- **Python 3.11+**: For TorchSim backends only
+
+Choose your Python version based on the backends you plan to use.
 
 ### Q: What are the dependency conflicts between backends?
 
@@ -66,7 +70,7 @@ Available backends: `uma`, `aimnet2`, `mace`, `orb`, `so3lr`, `torchsim`
 ```bash
 git clone https://github.com/rlaplaza-lab/qme.git
 cd qme
-pip install -e .[dev,aimnet2]
+pip install -e .[dev]
 ```
 
 ## Using QME
@@ -251,7 +255,7 @@ A valid transition state should have exactly one imaginary frequency.
 qme --help
 
 # Reinstall backend
-pip install qme-ml[backend_name]
+pip install backend_package_name
 
 # Check for conflicts
 pip list | grep -E "(torch|e3nn|fairchem)"
@@ -266,7 +270,7 @@ pip list | grep -E "(torch|e3nn|fairchem)"
 # Use separate environments
 conda create -n qme-uma python=3.12
 conda activate qme-uma
-pip install qme-ml[uma]
+pip install qme-ml fairchem-core
 ```
 
 **TorchSim requires Python 3.11+:**
@@ -277,7 +281,7 @@ python --version
 # Use appropriate Python version
 conda create -n qme-torchsim python=3.11
 conda activate qme-torchsim
-pip install qme-ml[torchsim]
+pip install qme-ml torch-sim-atomistic
 ```
 
 ### Q: Optimization is very slow
@@ -353,7 +357,7 @@ pip install qme-ml[torchsim]
 
 4. **Use TorchSim for maximum performance:**
    ```bash
-   pip install qme-ml[torchsim]
+   pip install torch-sim-atomistic
    qme minima --strategy local molecule.xyz --backend torchsim_mace --device cuda
    ```
 
