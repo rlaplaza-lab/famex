@@ -44,7 +44,7 @@ class TBLitePotential(BasePotential):
     useful for large systems and rapid screening calculations.
     """
 
-    implemented_properties = ["energy", "forces", "charges", "dipole", "stress"]
+    implemented_properties = ["energy", "energies", "forces", "charges", "dipole", "stress"]
 
     def __init__(
         self,
@@ -171,10 +171,7 @@ class TBLitePotential(BasePotential):
                     calc_kwargs["solvation"] = self.solvation
 
                 self._calc = TBLite(**calc_kwargs)
-
-                # Set verbosity to 0 after creation to ensure it's quiet
-                # This uses the helper method that tries multiple ways to access the calculator
-                self._set_tblite_verbosity(0)
+                # Verbosity is already set to 0 in calc_kwargs, no need to set it again
 
             except ImportError as e:
                 msg = f"TBLite not available ({e}). Install with: pip install tblite"
