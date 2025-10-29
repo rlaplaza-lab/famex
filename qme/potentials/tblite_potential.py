@@ -190,9 +190,6 @@ class TBLitePotential(BasePotential):
     def _set_tblite_verbosity(self, verbosity: int) -> None:
         """Set verbosity on the underlying tblite calculator.
 
-        This method tries multiple ways to set verbosity on the tblite calculator,
-        as the ASE wrapper may store the underlying calculator in different locations.
-
         Parameters
         ----------
         verbosity : int
@@ -201,28 +198,24 @@ class TBLitePotential(BasePotential):
         if self._calc is None:
             return
 
-        # Try multiple ways to access the underlying calculator and set verbosity
-        # The tblite.interface.Calculator has a set() method per the documentation
-        calculators_to_try = []
-
-        # Direct set method on ASE calculator
+        # Try to set verbosity using the tblite Calculator.set() API
         if hasattr(self._calc, "set"):
-            calculators_to_try.append(self._calc)
+            try:
+                self._calc.set("verbosity", verbosity)
+                return
+            except (AttributeError, ValueError, RuntimeError):
+                pass
 
-        # Check for underlying calculator objects
-        for attr_name in ["_calc", "calculator", "_calculator"]:
+        # Fallback: try accessing underlying calculator if available
+        for attr_name in ["_calc", "calculator"]:
             if hasattr(self._calc, attr_name):
                 calc_obj = getattr(self._calc, attr_name)
                 if hasattr(calc_obj, "set"):
-                    calculators_to_try.append(calc_obj)
-
-        # Try to set verbosity on each calculator we found
-        for calc in calculators_to_try:
-            try:
-                calc.set("verbosity", verbosity)
-                return  # Success, stop trying
-            except (AttributeError, ValueError, RuntimeError):
-                continue  # Try next calculator
+                    try:
+                        calc_obj.set("verbosity", verbosity)
+                        return
+                    except (AttributeError, ValueError, RuntimeError):
+                        pass
 
     def calculate(
         self,
@@ -243,29 +236,24 @@ class TBLitePotential(BasePotential):
             raise RuntimeError(msg)
 
         # Delegate to the underlying TBLite calculator
-        # Suppress verbose output unless QME verbosity is 3 or higher
-        # (Currently verbosity 3+ isn't supported, so always suppress)
-        try:
-            # Set verbosity to 0 before each calculation to ensure it's quiet
-            # This handles cases where verbosity might have been changed or not set properly
-            self._set_tblite_verbosity(0)
+        # Set verbosity to 0 before each calculation to ensure it's quiet
+        self._set_tblite_verbosity(0)
 
-            with suppress_tblite_output():
-                self._calc.calculate(self.atoms, properties, system_changes)
-        except (AttributeError, RuntimeError) as e:
-            msg = f"TBLite calculation failed: {e}"
-            raise RuntimeError(msg)
+        # Suppress verbose output unless QME verbosity is 3 or higher
+        with suppress_tblite_output():
+            self._calc.calculate(self.atoms, properties, system_changes)
 
         # Copy results from underlying calculator
+        if properties is None:
+            properties = self.implemented_properties
+
         try:
             self.results = self._calc.results.copy()
         except Exception:
-            # If underlying calculator does not use .results dict, attempt to
-            # extract common properties
-            if properties is None:
-                properties = self.implemented_properties
-            if "energy" in properties and hasattr(self._calc, "results"):
-                self.results["energy"] = getattr(self._calc.results, "energy", None)
+            # If results.copy() fails, extract properties directly
+            for prop in properties:
+                if prop in self.implemented_properties:
+                    self.results[prop] = self._calc.results.get(prop, None)
 
     def get_potential_energy(self, atoms=None, force_consistent=False):
         """Get potential energy."""
