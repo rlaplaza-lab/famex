@@ -10,6 +10,7 @@ import sys
 from collections.abc import Sequence
 from typing import Any
 
+import numpy as np
 from ase import Atoms
 
 from qme.backends.dependencies import deps
@@ -65,7 +66,15 @@ class TBLitePotential(BasePotential):
     useful for large systems and rapid screening calculations.
     """
 
-    implemented_properties = ["energy", "energies", "forces", "charges", "dipole", "stress"]
+    implemented_properties = [
+        "energy",
+        "energies",
+        "forces",
+        "charges",
+        "dipole",
+        "stress",
+        "hessian",
+    ]
 
     def __init__(
         self,
@@ -327,6 +336,49 @@ class TBLitePotential(BasePotential):
             return self._calc.get_stress(atoms)
         msg = "Stress calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
+
+    def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
+        """Get numerical Hessian matrix using finite differences.
+
+        TBLite does not provide analytical Hessians, so we compute them
+        numerically using QME's HessianCalculator. We use a smaller step size
+        (0.005 Å) compared to ML potentials since semi-empirical methods can
+        have more numerical noise in force calculations.
+
+        Parameters
+        ----------
+        atoms : Atoms, optional
+            Atoms object to calculate Hessian for
+
+        Returns:
+        -------
+        np.ndarray
+            Hessian matrix of shape (3N, 3N) in eV/Å² units
+        """
+        from qme.analysis.frequency import HessianCalculator
+
+        if atoms is not None:
+            self.atoms = atoms
+
+        # Ensure calculator is loaded
+        if self._calc is None:
+            self._load_calculator()
+
+        if self.atoms is None:
+            msg = "No atoms object available for Hessian calculation"
+            raise RuntimeError(msg)
+
+        # Use QME's existing numerical Hessian calculator
+        # Use smaller step size for semi-empirical methods (0.005 vs 0.01)
+        hessian_calc = HessianCalculator(
+            self.atoms,
+            self,
+            delta=0.005,  # Smaller step for semi-empirical methods
+            method="central",  # Central differences for better accuracy
+            verbose=0,  # Quiet mode
+        )
+
+        return hessian_calc.calculate_numerical_hessian()
 
 
 def get_tblite_calculator(

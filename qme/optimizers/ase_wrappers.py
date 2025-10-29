@@ -343,9 +343,14 @@ class VerboseSella(VerboseOptimizerWrapper):
         logfile: IO | str | None = "-",
         trajectory: str | None = None,
         verbose: int = 1,
+        profiler: Any = None,
         **kwargs: Any,
     ) -> None:
         from sella import Sella
+
+        # Add numerical stability parameters for Sella to prevent SVD failures
+        # Only set if not already provided by user
+        kwargs.setdefault("eta", 1e-4)  # Hessian regularization (prevents singular matrices)
 
         super().__init__(
             atoms=atoms,
@@ -353,5 +358,6 @@ class VerboseSella(VerboseOptimizerWrapper):
             logfile=logfile,
             trajectory=trajectory,
             verbose=verbose,
+            profiler=profiler,
             **kwargs,
         )
