@@ -144,9 +144,8 @@ class TBLitePotential(BasePotential):
                 # Always suppress tblite verbosity unless explicitly set very high
                 # TBLite output should only appear at verbosity 3+, which isn't
                 # currently supported in QME, so we always set it to 0
-                effective_verbosity = 0
-
                 # Create TBLite calculator with all parameters
+                # According to docs: TBLite(atoms: Atoms | None = None, **kwargs)
                 calc_kwargs = {
                     "method": self.method,
                     "accuracy": self.accuracy,
@@ -155,7 +154,7 @@ class TBLitePotential(BasePotential):
                     "initial_guess": self.initial_guess,
                     "mixer_damping": self.mixer_damping,
                     "cache_api": self.cache_api,
-                    "verbosity": effective_verbosity,
+                    "verbosity": 0,  # Set to 0 for quiet operation
                 }
 
                 # Add optional parameters if provided
@@ -171,15 +170,6 @@ class TBLitePotential(BasePotential):
                     calc_kwargs["solvation"] = self.solvation
 
                 self._calc = TBLite(**calc_kwargs)
-
-                # Explicitly set verbosity to 0 using .set() method to ensure it's applied
-                # This ensures quiet operation even if verbosity wasn't properly set during init
-                try:
-                    if hasattr(self._calc, "set"):
-                        self._calc.set(verbosity=0)
-                except Exception:
-                    # If .set() fails, verbosity should still be 0 from calc_kwargs
-                    pass
 
             except ImportError as e:
                 msg = f"TBLite not available ({e}). Install with: pip install tblite"
