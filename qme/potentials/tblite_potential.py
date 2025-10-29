@@ -171,7 +171,15 @@ class TBLitePotential(BasePotential):
                     calc_kwargs["solvation"] = self.solvation
 
                 self._calc = TBLite(**calc_kwargs)
-                # Verbosity is already set to 0 in calc_kwargs, no need to set it again
+
+                # Explicitly set verbosity to 0 using .set() method to ensure it's applied
+                # This ensures quiet operation even if verbosity wasn't properly set during init
+                try:
+                    if hasattr(self._calc, "set"):
+                        self._calc.set(verbosity=0)
+                except Exception:
+                    # If .set() fails, verbosity should still be 0 from calc_kwargs
+                    pass
 
             except ImportError as e:
                 msg = f"TBLite not available ({e}). Install with: pip install tblite"
