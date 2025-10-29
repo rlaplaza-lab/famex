@@ -6,6 +6,7 @@ for semi-empirical quantum chemistry calculations with xTB methods.
 
 import contextlib
 import os
+import sys
 from collections.abc import Sequence
 from typing import Any
 
@@ -19,8 +20,10 @@ from qme.potentials.base_potential import BasePotential
 def suppress_tblite_output():
     """Context manager to suppress TBLite verbose output when QME verbosity < 3.
 
-    This redirects stdout and stderr to /dev/null to silence TBLite's verbose
-    SCF cycle tables, timings, and dictionary dumps.
+    This redirects stdout and stderr at the file descriptor level using os.dup2()
+    to catch output from TBLite's Fortran/C backend that bypasses Python's
+    stdout/stderr redirection. This silences verbose SCF cycle tables, timings,
+    and dictionary dumps.
 
     TBLite output is suppressed at verbosity levels 0, 1, and 2, and only
     appears at verbosity 3 or higher (if supported in the future).
@@ -28,12 +31,30 @@ def suppress_tblite_output():
     # Always suppress TBLite output since verbosity 3+ is not currently
     # supported in QME's logging system. This ensures TBLite remains quiet
     # even at verbosity 2 (DEBUG level).
-    with (
-        open(os.devnull, "w") as devnull,
-        contextlib.redirect_stdout(devnull),
-        contextlib.redirect_stderr(devnull),
-    ):
+    # Use os.dup2() for file descriptor-level redirection to catch C/Fortran output
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    try:
+        # Get file descriptor numbers for stdout and stderr
+        stdout_fd = sys.stdout.fileno()
+        stderr_fd = sys.stderr.fileno()
+
+        # Save copies of original file descriptors before redirecting
+        saved_stdout_fd = os.dup(stdout_fd)
+        saved_stderr_fd = os.dup(stderr_fd)
+
+        # Redirect at file descriptor level (catches C/Fortran output)
+        os.dup2(devnull_fd, stdout_fd)
+        os.dup2(devnull_fd, stderr_fd)
         yield
+    finally:
+        # Restore original file descriptors
+        if "saved_stdout_fd" in locals():
+            os.dup2(saved_stdout_fd, stdout_fd)
+            os.close(saved_stdout_fd)
+        if "saved_stderr_fd" in locals():
+            os.dup2(saved_stderr_fd, stderr_fd)
+            os.close(saved_stderr_fd)
+        os.close(devnull_fd)
 
 
 class TBLitePotential(BasePotential):
