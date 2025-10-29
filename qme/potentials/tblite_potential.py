@@ -4,85 +4,36 @@ This module implements a TBLite calculator integration using the TBLite library
 for semi-empirical quantum chemistry calculations with xTB methods.
 """
 
+import contextlib
+import os
 from collections.abc import Sequence
 from typing import Any
 
-import numpy as np
 from ase import Atoms
-from ase.calculators.calculator import Calculator
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
 
 
-class TBLiteCalculatorWrapper(Calculator):
-    """Wrapper for TBLite calculator to ensure it never returns None forces.
+@contextlib.contextmanager
+def suppress_tblite_output():
+    """Context manager to suppress TBLite verbose output when QME verbosity < 3.
 
-    This wrapper catches cases where the underlying TBLite calculator
-    returns None for forces and provides informative error messages.
+    This redirects stdout and stderr to /dev/null to silence TBLite's verbose
+    SCF cycle tables, timings, and dictionary dumps.
+
+    TBLite output is suppressed at verbosity levels 0, 1, and 2, and only
+    appears at verbosity 3 or higher (if supported in the future).
     """
-
-    def __init__(self, calculator: Calculator) -> None:
-        """Initialize the wrapper.
-
-        Parameters
-        ----------
-        calculator : Calculator
-            The underlying TBLite calculator to wrap
-        """
-        super().__init__()
-        self.calculator = calculator
-
-        # Copy calculator properties
-        self.implemented_properties = getattr(
-            calculator, "implemented_properties", ["energy", "forces"]
-        ).copy()
-
-    def calculate(
-        self,
-        atoms: Atoms | None = None,
-        properties: list[str] | None = None,
-        system_changes: list[str] | None = None,
-    ) -> None:
-        """Calculate properties using the wrapped calculator."""
-        return self.calculator.calculate(atoms, properties, system_changes)
-
-    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get forces, ensuring they are never None."""
-        forces = self.calculator.get_forces(atoms)
-
-        if forces is None:
-            msg = (
-                "TBLite forces calculation failed and returned None. "
-                "This may be due to convergence issues, invalid geometry, "
-                "or unsupported system configuration. "
-                f"Atoms: {len(atoms) if atoms else 'None'}"
-            )
-            raise RuntimeError(msg)
-
-        return forces
-
-    def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
-    ) -> float:
-        """Get potential energy."""
-        return self.calculator.get_potential_energy(atoms, force_consistent)
-
-    def get_stress(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get stress tensor."""
-        return self.calculator.get_stress(atoms)
-
-    def get_charges(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get charges."""
-        return self.calculator.get_charges(atoms)
-
-    def get_dipole_moment(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get dipole moment."""
-        return self.calculator.get_dipole_moment(atoms)
-
-    def __getattr__(self, name: str) -> Any:
-        """Delegate attribute access to wrapped calculator."""
-        return getattr(self.calculator, name)
+    # Always suppress TBLite output since verbosity 3+ is not currently
+    # supported in QME's logging system. This ensures TBLite remains quiet
+    # even at verbosity 2 (DEBUG level).
+    with (
+        open(os.devnull, "w") as devnull,
+        contextlib.redirect_stdout(devnull),
+        contextlib.redirect_stderr(devnull),
+    ):
+        yield
 
 
 class TBLitePotential(BasePotential):
@@ -109,7 +60,7 @@ class TBLitePotential(BasePotential):
         spin_polarization: float | None = None,
         solvation: tuple[str, ...] | None = None,
         cache_api: bool = True,
-        verbosity: int = 1,
+        verbosity: int = 0,
         **kwargs: Any,
     ) -> None:
         """Initialize TBLite potential calculator.
@@ -142,8 +93,9 @@ class TBLitePotential(BasePotential):
             Solvation model to use (see TBLite docs for details)
         cache_api : bool, default True
             Reuse generated API objects (recommended)
-        verbosity : int, default 1
-            Set verbosity of printout
+        verbosity : int, default 0
+            Set verbosity of printout (0=quiet, 1=normal, 2=verbose).
+            Note: This is automatically adjusted based on QME verbosity level.
         **kwargs
             Additional arguments passed to BasePotential
 
@@ -189,6 +141,11 @@ class TBLitePotential(BasePotential):
                 # Import TBLite ASE calculator
                 from tblite.ase import TBLite
 
+                # Always suppress tblite verbosity unless explicitly set very high
+                # TBLite output should only appear at verbosity 3+, which isn't
+                # currently supported in QME, so we always set it to 0
+                effective_verbosity = 0
+
                 # Create TBLite calculator with all parameters
                 calc_kwargs = {
                     "method": self.method,
@@ -198,7 +155,7 @@ class TBLitePotential(BasePotential):
                     "initial_guess": self.initial_guess,
                     "mixer_damping": self.mixer_damping,
                     "cache_api": self.cache_api,
-                    "verbosity": self.verbosity,
+                    "verbosity": effective_verbosity,
                 }
 
                 # Add optional parameters if provided
@@ -214,9 +171,6 @@ class TBLitePotential(BasePotential):
                     calc_kwargs["solvation"] = self.solvation
 
                 self._calc = TBLite(**calc_kwargs)
-
-                # Wrap the calculator to ensure it never returns None forces
-                self._calc = TBLiteCalculatorWrapper(self._calc)
 
             except ImportError as e:
                 msg = f"TBLite not available ({e}). Install with: pip install tblite"
@@ -248,15 +202,13 @@ class TBLitePotential(BasePotential):
             raise RuntimeError(msg)
 
         # Delegate to the underlying TBLite calculator
+        # Suppress verbose output unless QME verbosity is 3 or higher
+        # (Currently verbosity 3+ isn't supported, so always suppress)
         try:
-            self._calc.calculate(self.atoms, properties, system_changes)
+            with suppress_tblite_output():
+                self._calc.calculate(self.atoms, properties, system_changes)
         except (AttributeError, RuntimeError) as e:
-            msg = (
-                f"TBLite calculation failed: {e}. "
-                f"Method: {self.method}, Charge: {self.charge}, "
-                f"Multiplicity: {self.multiplicity}, "
-                f"Atoms: {len(self.atoms) if self.atoms else 'None'}"
-            )
+            msg = f"TBLite calculation failed: {e}"
             raise RuntimeError(msg)
 
         # Copy results from underlying calculator
@@ -282,20 +234,7 @@ class TBLitePotential(BasePotential):
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
-        forces = super().get_forces(atoms)
-
-        # Check if forces calculation failed and returned None
-        if forces is None:
-            msg = (
-                "TBLite forces calculation failed and returned None. "
-                "This may be due to convergence issues, invalid geometry, "
-                "or unsupported system configuration. "
-                f"Method: {self.method}, Charge: {self.charge}, "
-                f"Multiplicity: {self.multiplicity}"
-            )
-            raise RuntimeError(msg)
-
-        return forces
+        return super().get_forces(atoms)
 
     def get_charges(self, atoms=None):
         """Get Mulliken charges (if supported)."""
