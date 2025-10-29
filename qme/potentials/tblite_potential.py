@@ -236,23 +236,27 @@ class TBLitePotential(BasePotential):
             raise RuntimeError(msg)
 
         # Delegate to the underlying TBLite calculator
-        # Set verbosity to 0 before each calculation to ensure it's quiet
-        self._set_tblite_verbosity(0)
-
         # Suppress verbose output unless QME verbosity is 3 or higher
-        with suppress_tblite_output():
-            self._calc.calculate(self.atoms, properties, system_changes)
+        # Note: verbosity is set once during calculator initialization, not here
+        try:
+            with suppress_tblite_output():
+                self._calc.calculate(self.atoms, properties, system_changes)
+        except (AttributeError, RuntimeError) as e:
+            msg = f"TBLite calculation failed: {e}"
+            raise RuntimeError(msg)
 
-        # Copy results from underlying calculator
+        # Extract results from underlying calculator
+        # Match UMA pattern: directly access results for requested properties
         if properties is None:
             properties = self.implemented_properties
 
-        try:
-            self.results = self._calc.results.copy()
-        except Exception:
-            # If results.copy() fails, extract properties directly
-            for prop in properties:
-                if prop in self.implemented_properties:
+        # Extract all requested properties explicitly to ensure they're populated
+        for prop in properties:
+            if prop in self.implemented_properties and hasattr(self._calc, "results"):
+                try:
+                    self.results[prop] = self._calc.results[prop]
+                except (KeyError, AttributeError):
+                    # Try .get() as fallback, but this shouldn't happen for valid calculations
                     self.results[prop] = self._calc.results.get(prop, None)
 
     def get_potential_energy(self, atoms=None, force_consistent=False):
