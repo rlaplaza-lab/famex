@@ -172,6 +172,10 @@ class TBLitePotential(BasePotential):
 
                 self._calc = TBLite(**calc_kwargs)
 
+                # Set verbosity to 0 after creation to ensure it's quiet
+                # This uses the helper method that tries multiple ways to access the calculator
+                self._set_tblite_verbosity(0)
+
             except ImportError as e:
                 msg = f"TBLite not available ({e}). Install with: pip install tblite"
                 raise ImportError(msg)
@@ -182,6 +186,43 @@ class TBLitePotential(BasePotential):
     def _get_backend_name(self) -> str:
         """Get the backend name for this calculator."""
         return "tblite"
+
+    def _set_tblite_verbosity(self, verbosity: int) -> None:
+        """Set verbosity on the underlying tblite calculator.
+
+        This method tries multiple ways to set verbosity on the tblite calculator,
+        as the ASE wrapper may store the underlying calculator in different locations.
+
+        Parameters
+        ----------
+        verbosity : int
+            Verbosity level (0=quiet, 1=normal, 2=verbose)
+        """
+        if self._calc is None:
+            return
+
+        # Try multiple ways to access the underlying calculator and set verbosity
+        # The tblite.interface.Calculator has a set() method per the documentation
+        calculators_to_try = []
+
+        # Direct set method on ASE calculator
+        if hasattr(self._calc, "set"):
+            calculators_to_try.append(self._calc)
+
+        # Check for underlying calculator objects
+        for attr_name in ["_calc", "calculator", "_calculator"]:
+            if hasattr(self._calc, attr_name):
+                calc_obj = getattr(self._calc, attr_name)
+                if hasattr(calc_obj, "set"):
+                    calculators_to_try.append(calc_obj)
+
+        # Try to set verbosity on each calculator we found
+        for calc in calculators_to_try:
+            try:
+                calc.set("verbosity", verbosity)
+                return  # Success, stop trying
+            except (AttributeError, ValueError, RuntimeError):
+                continue  # Try next calculator
 
     def calculate(
         self,
@@ -205,6 +246,10 @@ class TBLitePotential(BasePotential):
         # Suppress verbose output unless QME verbosity is 3 or higher
         # (Currently verbosity 3+ isn't supported, so always suppress)
         try:
+            # Set verbosity to 0 before each calculation to ensure it's quiet
+            # This handles cases where verbosity might have been changed or not set properly
+            self._set_tblite_verbosity(0)
+
             with suppress_tblite_output():
                 self._calc.calculate(self.atoms, properties, system_changes)
         except (AttributeError, RuntimeError) as e:
