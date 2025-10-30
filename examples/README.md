@@ -25,7 +25,7 @@ Demonstrates QME's command-line interface capabilities by running various optimi
 
 Demonstrates IRC (Intrinsic Reaction Coordinate) calculations that follow the gradient
 downhill from a transition state to generate the minimum energy path connecting
-reactants and products.
+reactants and products. Now uses standardized interface for consistent behavior.
 
 **Features:**
 - Calculates IRC path from a single transition state structure
@@ -33,11 +33,12 @@ reactants and products.
 - Generates complete reaction pathway through the TS
 - Energy profile analysis along the IRC path
 - Saves trajectory for visualization
+- Standardized interface with consistent output formatting
 
 **Usage:**
 ```bash
-python irc_demo.py example_files/A_C_A_B_A_C_ts.xyz --backend uma --steps 50
-python irc_demo.py ts.xyz --backend aimnet2 --direction both --step-size 0.1
+python irc_demo.py example_files/A_C_A_B_A_C_ts.xyz --backends uma --steps 50
+python irc_demo.py ts.xyz --backends aimnet2 --direction both --step-size 0.1 --device cuda
 ```
 
 ### 3. Growing String Demo (`growing_string_demo.py`)
@@ -45,7 +46,8 @@ python irc_demo.py ts.xyz --backend aimnet2 --direction both --step-size 0.1
 
 Demonstrates the Growing String Method (DE-GSM) for finding transition states between
 reactant and product configurations. This method dynamically grows a string of images
-between the endpoints to locate the transition state.
+between the endpoints to locate the transition state. Now uses standardized interface
+for consistent behavior.
 
 **Features:**
 - Growing string method (DE-GSM) for TS search
@@ -54,11 +56,12 @@ between the endpoints to locate the transition state.
 - Optional TS refinement after finding
 - Configurable step size and convergence criteria
 - Saves complete reaction pathway
+- Standardized interface with consistent output formatting
 
 **Usage:**
 ```bash
-python growing_string_demo.py --reactant r.xyz --product p.xyz --backend uma
-python growing_string_demo.py --backend mock --npoints 20 --steps 100
+python growing_string_demo.py --reactant r.xyz --product p.xyz --backends uma
+python growing_string_demo.py --backends mock --npoints 20 --steps 100 --device cuda
 ```
 
 ### 4. Timing Benchmark (`timing_benchmark.py`)
@@ -119,6 +122,26 @@ Two-ended transition state search benchmark using the Zimmermann-93 dataset.
 - Evaluates NEB and CI-NEB path optimization capabilities
 - Saves complete reaction pathways as trajectory files
 
+### 9. Thermochemistry Demo (`thermochemistry_demo.py`)
+**Enhanced Thermochemistry Capabilities**
+
+Standalone feature demonstration showing QME's enhanced thermochemistry capabilities
+including quasi-harmonic corrections, complete statistical thermodynamics, solvation
+corrections, and symmetry handling. This is a feature-specific demo rather than a
+benchmark or comprehensive comparison.
+
+**Features:**
+- Quasi-harmonic corrections (Grimme and Truhlar methods)
+- Complete statistical thermodynamics (translational, rotational, electronic)
+- Solvation corrections
+- Symmetry handling
+- GoodVibes-inspired implementation
+
+**Usage:**
+```bash
+python thermochemistry_demo.py
+```
+
 ## Standardized Interface
 
 All examples follow a consistent command-line interface:
@@ -156,10 +179,10 @@ python [example_name].py --device cuda
 python cli_demo.py
 
 # IRC Demo - IRC path calculation
-python irc_demo.py example_files/A_C_A_B_A_C_ts.xyz --backend uma
+python irc_demo.py example_files/A_C_A_B_A_C_ts.xyz --backends uma
 
 # Growing String Demo - TS search with growing string method
-python growing_string_demo.py --backend mock --npoints 15
+python growing_string_demo.py --backends uma --npoints 15
 
 # Timing Benchmark - Performance analysis
 python timing_benchmark.py --device cuda --verbose
@@ -195,9 +218,11 @@ python zimmermann93_benchmark/zimmermann93_benchmark.py --quicker
 
 ## Supporting Files
 
-- **`common_interface.py`**: Standardized interface utilities
+- **`example_utils/`**: Standardized interface utilities (`QMEExampleInterface`)
 - **`minima_optimizer_benchmark.py`**: Focused minima optimizer comparison
 - **`ts_optimizer_benchmark.py`**: Focused TS optimizer comparison
+- **`uma_hessian_method_comparison.py`**: UMA Hessian computation method comparison
+- **`thermochemistry_demo.py`**: Feature-specific thermochemistry demonstration
 - **`example_files/`**: Sample molecular structure files (XYZ format)
 
 ## Understanding Results
