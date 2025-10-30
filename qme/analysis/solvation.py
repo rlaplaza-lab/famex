@@ -6,10 +6,12 @@ based on the accessible free space in solution.
 
 from __future__ import annotations
 
+from ase import units
+
 __all__ = ["SolvationHandler", "get_free_space", "SUPPORTED_SOLVENTS"]
 
-# Physical constants
-AVOGADRO_CONSTANT = 6.0221415e23  # 1/mol
+# Physical constants from ASE units
+AVOGADRO_CONSTANT = units._Nav  # 1/mol
 
 # Supported solvents and their properties
 # Based on Shakhnovich & Whitesides, J. Org. Chem. 1998, 63, 3821-3830
@@ -67,12 +69,10 @@ def get_free_space(solvent: str) -> float:
         return 1000.0  # Gas phase
 
     # Calculate free space following Shakhnovich-Whitesides approach
-    # Based on accessible volume to a solute in bulk solvent
-    # v_free = 8 * ((V_molvent / (N_solvent * N_A))^(1/3) - a^(1/3))^3
-    # where a is characteristic length (molecular volume^(1/3))
-    solvent_vol_per_mol = 1e27 / (molarity * AVOGADRO_CONSTANT)  # Angstrom^3/mol
+    # GoodVibes formula: v_free = 8 * ((1E27 / (solv_molarity * N_A))^0.333333 - solv_volume^0.333333)^3
+    # where volume is in Angstrom^3
     v_free = (
-        8 * ((solvent_vol_per_mol / AVOGADRO_CONSTANT) ** (1 / 3) - molecular_vol ** (1 / 3)) ** 3
+        8 * ((1e27 / (molarity * AVOGADRO_CONSTANT)) ** 0.333333 - molecular_vol**0.333333) ** 3
     )
     free_space_ml_per_l = v_free * molarity * AVOGADRO_CONSTANT * 1e-24
 
