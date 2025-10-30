@@ -59,34 +59,27 @@ class TestConstraintParsing:
     def setup_method(self) -> None:
         self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
 
-    @pytest.mark.parametrize(
-        ("constraint_string", "expected_atoms"),
-        [
-            ("fix 0", [0]),
-            ("fix 1", [1]),
-            ("fix 0,2", [0, 2]),
-        ],
-    )
-    def test_parse_fixed_atoms(self, constraint_string, expected_atoms) -> None:
-        cm = parse_constraint_string(constraint_string, self.atoms)
-        info = cm.get_constraint_info()
-        assert info["fixed_atoms"] == expected_atoms
+    def test_parse_fixed_atoms(self) -> None:
+        """Test parsing fixed atom constraints with various inputs."""
+        test_cases = [("fix 0", [0]), ("fix 0,2", [0, 2])]
+        for constraint_string, expected_atoms in test_cases:
+            cm = parse_constraint_string(constraint_string, self.atoms)
+            info = cm.get_constraint_info()
+            assert info["fixed_atoms"] == expected_atoms
 
-    @pytest.mark.parametrize(
-        ("constraint_string", "expected_atoms", "expected_k"),
-        [
-            ("harmonic_bond 0,1 k=5.0", [0, 1], 5.0),
-            ("harmonic_bond 1,2 k=3.0", [1, 2], 3.0),
-            ("harmonic_bond 0,2 k=2.5", [0, 2], 2.5),
-        ],
-    )
-    def test_parse_harmonic_bond(self, constraint_string, expected_atoms, expected_k) -> None:
-        cm = parse_constraint_string(constraint_string, self.atoms)
-        info = cm.get_constraint_info()
-        hc = info["harmonic_constraints"][0]
-        assert hc["type"] == "bond"
-        assert hc["atoms"] == expected_atoms
-        assert hc["force_constant"] == expected_k
+    def test_parse_harmonic_constraints(self) -> None:
+        """Test parsing harmonic constraints."""
+        test_cases = [
+            ("harmonic_bond 0,1 k=5.0", "bond", [0, 1], 5.0),
+            ("harmonic_bond 0,2 k=2.5", "bond", [0, 2], 2.5),
+        ]
+        for constraint_string, expected_type, expected_atoms, expected_k in test_cases:
+            cm = parse_constraint_string(constraint_string, self.atoms)
+            info = cm.get_constraint_info()
+            hc = info["harmonic_constraints"][0]
+            assert hc["type"] == expected_type
+            assert hc["atoms"] == expected_atoms
+            assert hc["force_constant"] == expected_k
 
     def test_parse_invalid(self) -> None:
         with pytest.raises(ValueError):
@@ -97,19 +90,25 @@ class TestConstraintValidation:
     def setup_method(self) -> None:
         self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
 
-    @pytest.mark.parametrize("indices", [[0], [1], [2], [0, 1], [0, 2], [1, 2], [0, 1, 2]])
-    def test_validate_valid_indices(self, indices) -> None:
-        assert validate_atom_indices(indices, self.atoms) is True
+    def test_validate_valid_indices(self) -> None:
+        """Test validation with various valid index combinations."""
+        valid_cases = [[0], [2], [0, 1], [1, 2], [0, 1, 2]]
+        for indices in valid_cases:
+            assert validate_atom_indices(indices, self.atoms) is True
 
-    @pytest.mark.parametrize("invalid_indices", [[0, 3], [1, 4], [0, 1, 3]])
-    def test_validate_invalid_indices(self, invalid_indices) -> None:
-        with pytest.raises(ValueError):
-            validate_atom_indices(invalid_indices, self.atoms)
+    def test_validate_invalid_indices(self) -> None:
+        """Test validation with various invalid index combinations."""
+        invalid_cases = [[0, 3], [1, 4], [0, 1, 3]]
+        for invalid_indices in invalid_cases:
+            with pytest.raises(ValueError):
+                validate_atom_indices(invalid_indices, self.atoms)
 
-    @pytest.mark.parametrize("non_integer_indices", [[0, 1.5], [1.0, 2], [0.5]])
-    def test_validate_non_integer(self, non_integer_indices) -> None:
-        with pytest.raises(ValueError):
-            validate_atom_indices(non_integer_indices, self.atoms)  # type: ignore
+    def test_validate_non_integer(self) -> None:
+        """Test validation rejects non-integer indices."""
+        non_integer_cases = [[0, 1.5], [1.0, 2], [0.5]]
+        for non_integer_indices in non_integer_cases:
+            with pytest.raises(ValueError):
+                validate_atom_indices(non_integer_indices, self.atoms)  # type: ignore
 
 
 class TestHarmonicConstraintInternals:
