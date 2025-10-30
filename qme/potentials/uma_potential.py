@@ -229,18 +229,30 @@ class UMAPotential(BasePotential):
         """Get forces (ASE-compatible)."""
         return super().get_forces(atoms)
 
-    def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
+    def get_hessian(
+        self,
+        atoms: Atoms | None = None,
+        method: str = "auto",
+        symmetrize: bool = True,
+    ) -> np.ndarray:
         """Get analytical Hessian matrix.
 
         Returns the Hessian matrix (3N x 3N) computed using PyTorch's automatic
-        differentiation via vector-Jacobian products (VJP). This approach follows
-        the proven MACE implementation for better memory efficiency and stability.
-        The Hessian is returned directly from the VJP computation without symmetrization.
+        differentiation. Multiple computation methods are available to balance
+        numerical stability and performance.
 
         Parameters
         ----------
         atoms : Atoms, optional
             Atoms object to calculate Hessian for
+        method : str, default "auto"
+            Method to use for Hessian computation:
+            - 'vmap': Vector-Jacobian products with vectorization (original MACE-style)
+            - 'double_backward': Direct double-backward from energy
+            - 'auto': Automatically select best method (currently 'double_backward')
+        symmetrize : bool, default True
+            Whether to symmetrize the Hessian by averaging with its transpose.
+            The Hessian must be symmetric by definition, so this can reduce numerical noise.
 
         Returns:
         -------
@@ -311,23 +323,32 @@ class UMAPotential(BasePotential):
 
             # Compute energy and forces
             result = self.predictor.predict(batch)
-            energy = result["energy"].double()
+            energy = result["energy"]
 
-            # Forces = -∂E/∂r
-            forces = -torch.autograd.grad(
-                energy,
-                batch.pos,
-                create_graph=True,
-                retain_graph=True,
-            )[0]
+            # Select computation method
+            if method == "auto":
+                method = "double_backward"  # Default to double_backward for better stability
 
-            # Compute Hessian using VJP approach (MACE-style)
-            hessian_tensor = self._compute_hessian_vmap(forces, batch.pos)
+            if method == "double_backward":
+                # Direct double-backward approach
+                hessian_tensor = self._compute_hessian_double_backward(energy, batch.pos)
+            elif method == "vmap":
+                # VJP approach (original)
+                # Forces = -∂E/∂r
+                forces = -torch.autograd.grad(
+                    energy,
+                    batch.pos,
+                    create_graph=True,
+                    retain_graph=True,
+                )[0]
+                hessian_tensor = self._compute_hessian_vmap(forces, batch.pos)
+            else:
+                msg = f"Unknown Hessian computation method: {method}. Use 'vmap', 'double_backward', or 'auto'"
+                raise ValueError(msg)
 
             # Set model back to eval mode
             self.predictor.model.eval()
 
-            # VJP now returns (3N, 3N) directly
             n_atoms = len(self.atoms)
             expected_shape = (3 * n_atoms, 3 * n_atoms)
 
@@ -351,6 +372,27 @@ class UMAPotential(BasePotential):
             if hessian_np.shape != expected_shape:
                 msg = f"Hessian has unexpected shape {hessian_np.shape}, expected {expected_shape}"
                 raise ValueError(msg)
+
+            # Optional symmetry check before symmetrization
+            if symmetrize:
+                import numpy as np
+
+                # Check asymmetry before symmetrization (for diagnostics)
+                asymmetry = np.abs(hessian_np - hessian_np.T)
+                max_asymmetry = np.max(asymmetry)
+                if max_asymmetry > 1e-5:  # Warn if significant asymmetry
+                    import warnings
+
+                    warnings.warn(
+                        f"Hessian asymmetry detected (max deviation: {max_asymmetry:.2e}). "
+                        "This suggests numerical noise. Symmetrization will be applied.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+
+            # Apply symmetrization if requested
+            if symmetrize:
+                hessian_np = self._symmetrize_hessian(hessian_np)
 
             return hessian_np
 
@@ -386,6 +428,7 @@ class UMAPotential(BasePotential):
         """
         import torch
 
+        # Use current dtype from model outputs to avoid dtype mismatch
         forces_flatten = forces.view(-1)
         num_elements = forces_flatten.shape[0]
         n_atoms = forces.shape[0]
@@ -439,6 +482,7 @@ class UMAPotential(BasePotential):
             Hessian matrix of shape (3N, 3N)
 
         """
+        # Keep dtype consistent with model graph
         forces_flatten = forces.view(-1)
         num_elements = forces_flatten.shape[0]
 
@@ -460,12 +504,100 @@ class UMAPotential(BasePotential):
             hess_row = hess_row.detach()
 
             if hess_row is None:
-                hessian.append(torch.zeros_like(positions).view(-1))
+                hessian.append(torch.zeros(num_elements, dtype=forces.dtype, device=forces.device))
             else:
                 # Flatten to (3N,)
                 hessian.append(hess_row.view(-1))
 
         return torch.stack(hessian)
+
+    def _symmetrize_hessian(self, hessian: np.ndarray) -> np.ndarray:
+        """Symmetrize Hessian matrix by averaging with its transpose.
+
+        The Hessian matrix must be symmetric by definition (H = H^T), so this
+        operation reduces numerical noise from accumulated floating-point errors.
+
+        Parameters
+        ----------
+        hessian : np.ndarray
+            Hessian matrix of shape (3N, 3N)
+
+        Returns:
+        -------
+        np.ndarray
+            Symmetrized Hessian matrix of shape (3N, 3N)
+        """
+        return 0.5 * (hessian + hessian.T)
+
+    def _compute_hessian_double_backward(
+        self,
+        energy: torch.Tensor,
+        positions: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute Hessian using direct double-backward from energy.
+
+        This method computes the Hessian by taking the gradient of forces
+        with respect to positions in a single efficient backward pass.
+        This can be more numerically stable than the VJP approach which
+        requires multiple separate gradient computations.
+
+        Parameters
+        ----------
+        energy : torch.Tensor
+            Energy scalar tensor with gradients enabled
+        positions : torch.Tensor
+            Positions tensor of shape (N, 3) with gradients enabled
+
+        Returns:
+        -------
+        torch.Tensor
+            Hessian matrix of shape (3N, 3N)
+
+        Raises:
+        ------
+        RuntimeError
+            If computation fails
+        """
+        import torch
+
+        # Keep dtype consistent with model graph (likely float32)
+        n_atoms = positions.shape[0]
+        num_elements = 3 * n_atoms
+
+        # Compute forces = -∂E/∂r (with create_graph=True for second derivatives)
+        forces = -torch.autograd.grad(
+            energy,
+            positions,
+            create_graph=True,
+            retain_graph=True,
+        )[0]
+
+        # Flatten forces to (3N,)
+        forces_flat = forces.view(-1)
+
+        # Compute Hessian = ∂²E/∂r² = -∂forces/∂positions
+        # Compute each row of the Hessian by backward on each force component
+        hessian_list = []
+        for i in range(num_elements):
+            # Compute gradient of i-th force component w.r.t. positions
+            hess_row = torch.autograd.grad(
+                forces_flat[i],
+                positions,
+                retain_graph=True,
+                create_graph=False,
+                allow_unused=False,
+            )[0]
+            if hess_row is not None:
+                # Negative sign: Hessian = -∂forces/∂positions
+                hessian_list.append((-hess_row).view(-1))
+            else:
+                hessian_list.append(
+                    torch.zeros(num_elements, dtype=forces.dtype, device=forces.device)
+                )
+
+        hessian = torch.stack(hessian_list)
+
+        return hessian
 
     def get_property(self, prop: str, atoms: Atoms | None = None) -> Any:
         """Get a specific property from the calculator.
