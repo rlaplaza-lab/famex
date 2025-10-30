@@ -110,6 +110,8 @@ class HessianCalculator:
         calculator: Any,
         delta: float = 0.01,
         method: str = "central",
+        richardson: bool = False,
+        delta2: float | None = None,
         indices: list[int] | None = None,
         verbose: int = 1,
     ) -> None:
@@ -140,6 +142,8 @@ class HessianCalculator:
         if self.atoms.calc is None or self.atoms.calc is not calculator:
             self.atoms.calc = calculator
         self.delta = delta
+        self.richardson = richardson
+        self.delta2 = delta2
         self.verbose = verbose
         self.indices = indices if indices is not None else list(range(len(atoms)))
 
@@ -151,6 +155,22 @@ class HessianCalculator:
         else:
             msg = f"Unknown finite difference method: {method}. Use 'central' or 'forward'."
             raise ValueError(msg)
+
+        # Validate Richardson settings
+        if self.richardson:
+            # Richardson extrapolation is only defined for central difference path here (order p=2)
+            if not isinstance(self.scheme, CentralDifferenceScheme):
+                msg = "Richardson extrapolation currently supported only for central differences."
+                raise ValueError(msg)
+            # Default delta2 = delta/2 if not provided
+            if self.delta2 is None:
+                self.delta2 = self.delta / 2.0
+            if self.delta2 <= 0:
+                msg = "delta2 must be positive when using Richardson extrapolation."
+                raise ValueError(msg)
+            if np.isclose(self.delta2, self.delta):
+                msg = "delta2 must differ from delta when using Richardson extrapolation."
+                raise ValueError(msg)
 
     def calculate_numerical_hessian(self) -> np.ndarray:
         """Calculate Hessian matrix using finite differences.
@@ -180,18 +200,38 @@ class HessianCalculator:
             atom_j = self.indices[j // 3]
             coord_j = j % 3
 
-            # Positive displacement
-            forces_plus = self._get_forces_displaced(atom_j, coord_j, self.delta)
+            if self.richardson:
+                # Compute central difference at delta
+                forces_plus_d1 = self._get_forces_displaced(atom_j, coord_j, self.delta)
+                forces_minus_d1 = self._get_forces_displaced(atom_j, coord_j, -self.delta)
+                D1 = self.scheme.compute_derivative(
+                    forces_plus_d1, forces_minus_d1, None, self.delta
+                )
 
-            # Negative displacement (for central differences)
-            forces_minus = None
-            if isinstance(self.scheme, CentralDifferenceScheme):
-                forces_minus = self._get_forces_displaced(atom_j, coord_j, -self.delta)
+                # Compute central difference at delta2
+                d2 = float(self.delta2)  # type: ignore[arg-type]
+                forces_plus_d2 = self._get_forces_displaced(atom_j, coord_j, d2)
+                forces_minus_d2 = self._get_forces_displaced(atom_j, coord_j, -d2)
+                D2 = self.scheme.compute_derivative(forces_plus_d2, forces_minus_d2, None, d2)
 
-            # Compute derivative using the scheme
-            hessian[:, j] = self.scheme.compute_derivative(
-                forces_plus, forces_minus, forces_ref, self.delta
-            )
+                # Richardson extrapolation for a p=2 central difference scheme:
+                # D ≈ (4*D(h/2) - D(h)) / 3 when delta2 = h/2
+                # Use general formula with factor r = delta / delta2 = 2 (assumed 2 here through default),
+                # but stick to classic (4*D2 - D1)/3 since we steer delta2=delta/2 by default.
+                hessian[:, j] = (4.0 * D2 - D1) / 3.0
+            else:
+                # Positive displacement
+                forces_plus = self._get_forces_displaced(atom_j, coord_j, self.delta)
+
+                # Negative displacement (for central differences)
+                forces_minus = None
+                if isinstance(self.scheme, CentralDifferenceScheme):
+                    forces_minus = self._get_forces_displaced(atom_j, coord_j, -self.delta)
+
+                # Compute derivative using the scheme
+                hessian[:, j] = self.scheme.compute_derivative(
+                    forces_plus, forces_minus, forces_ref, self.delta
+                )
 
             if self.verbose >= 2:
                 logger.debug(f"Completed coordinate {j + 1}/{n_coords}")

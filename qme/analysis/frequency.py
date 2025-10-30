@@ -16,7 +16,6 @@ from typing import Any
 
 import numpy as np
 from ase import Atoms, units
-from ase.thermochemistry import HarmonicThermo
 
 from qme.analysis.hessian import HessianCalculator
 from qme.analysis.molecular_properties import determine_degrees_of_freedom
@@ -41,6 +40,8 @@ class FrequencyAnalysis:
         atoms: Atoms,
         calculator: Any,
         delta: float = 0.01,
+        richardson: bool = False,
+        delta2: float | None = None,
         nfree: int | None = None,
         indices: list[int] | None = None,
         verbose: int = 1,
@@ -74,6 +75,8 @@ class FrequencyAnalysis:
         if self.atoms.calc is None or self.atoms.calc is not calculator:
             self.atoms.calc = calculator
         self.delta = delta
+        self.richardson = richardson
+        self.delta2 = delta2
         self.indices = indices if indices is not None else list(range(len(atoms)))
         self.verbose = verbose
 
@@ -133,6 +136,8 @@ class FrequencyAnalysis:
                 self.calculator,
                 self.delta,
                 method="central",
+                richardson=self.richardson,
+                delta2=self.delta2,
                 indices=self.indices,
                 verbose=self.verbose,
             )
@@ -542,6 +547,23 @@ class FrequencyAnalysis:
     def get_thermodynamic_properties(
         self,
         temperature: float = 298.15,
+        *,
+        # Quasi-harmonic parameters
+        method: str = "rrho",
+        freq_cutoff: float = 100.0,
+        freq_scale_factor: float = 1.0,
+        # Statistical thermodynamics parameters
+        rotational_temperatures: np.ndarray | None = None,
+        rotational_constants: np.ndarray | None = None,
+        symmetry_number: int = 1,
+        point_group: str | None = None,
+        linear: bool | None = None,
+        multiplicity: int = 1,
+        # Solvation parameters
+        solvent: str = "none",
+        concentration: float = 1.0,
+        # Full thermodynamics option
+        complete: bool = False,
     ) -> dict[str, float | int | list[float]]:
         """Calculate thermodynamic properties at given temperature.
 
@@ -549,49 +571,95 @@ class FrequencyAnalysis:
         ----------
         temperature : float
             Temperature in Kelvin
+        method : str
+            Method for vibrational corrections: 'rrho', 'grimme', or 'truhlar'
+        freq_cutoff : float
+            Cutoff frequency in cm^-1 for quasi-harmonic corrections
+        freq_scale_factor : float
+            Frequency scaling factor (default: 1.0)
+        rotational_temperatures : array-like, optional
+            Rotational temperatures in Kelvin
+        rotational_constants : array-like, optional
+            Rotational constants in GHz
+        symmetry_number : int
+            Symmetry number (default: 1 for C1)
+        point_group : str, optional
+            Point group symbol for automatic symmetry determination
+        linear : bool, optional
+            Whether molecule is linear (auto-detected if None)
+        multiplicity : int
+            Spin multiplicity 2S+1 (default: 1)
+        solvent : str
+            Solvent name (default: 'none' for gas phase)
+        concentration : float
+            Concentration in mol/L
+        complete : bool
+            If True, calculate complete thermodynamics with all contributions.
+            If False, return vibrational-only properties (backward compatible).
 
         Returns:
         -------
         dict[str, Union[float, int, list[float]]]
-            Dictionary with thermodynamic properties containing:
-            - temperature: Temperature in Kelvin (float)
-            - zero_point_energy: Zero-point energy in eV (float)
-            - internal_energy: Internal energy in eV (float)
-            - heat_capacity: Heat capacity in eV/K (float)
-            - entropy: Entropy in eV/K (float)
-            - n_vibrational_modes: Number of vibrational modes (int)
-            - frequencies_cm_1: Frequencies in cm⁻¹ (list[float])
+            Dictionary with thermodynamic properties.
+            If complete=True, includes all contributions (trans, rot, vib, elec).
+            If complete=False, returns vibrational-only (backward compatible).
 
         """
         frequencies = self.get_frequencies()  # in cm^-1
         # Only include real frequencies
         real_frequencies = frequencies[frequencies > 0]
 
-        # Convert frequencies from cm^-1 to eV for HarmonicThermo
-        # HarmonicThermo expects frequencies in eV
-        freq_eV = real_frequencies * units.invcm  # Convert cm^-1 to eV
+        # Initialize comprehensive thermodynamics calculator
+        thermo_props = ThermodynamicProperties(
+            real_frequencies,
+            self.atoms,
+            temperature=temperature,
+            method=method,
+            freq_cutoff=freq_cutoff,
+            freq_scale_factor=freq_scale_factor,
+            rotational_temperatures=rotational_temperatures,
+            rotational_constants=rotational_constants,
+            symmetry_number=symmetry_number,
+            point_group=point_group,
+            linear=linear,
+            multiplicity=multiplicity,
+            solvent=solvent,
+            concentration=concentration,
+        )
 
-        # Use ASE's HarmonicThermo for consistency
-        thermo = HarmonicThermo(freq_eV)
+        if complete:
+            # Return complete thermodynamics with all contributions
+            complete_thermo = thermo_props.calculate_complete_thermodynamics()
 
-        # Get thermodynamic contributions
-        zpe = self.get_zero_point_energy()
-        entropy = thermo.get_entropy(temperature, verbose=False)
-        internal_energy = thermo.get_internal_energy(temperature, verbose=False)
+            # Merge with vibrational-only data for compatibility
+            vibrational_only = {
+                "temperature": temperature,
+                "zero_point_energy": thermo_props.calculate_zero_point_energy(),
+                "internal_energy": thermo_props.internal_energy_vibrational(),
+                "heat_capacity": thermo_props.heat_capacity_vibrational(),
+                "entropy": thermo_props.entropy_vibrational(),
+                "n_vibrational_modes": len(real_frequencies),
+                "frequencies_cm_1": real_frequencies.tolist(),
+            }
 
-        # Calculate heat capacity manually since ASE doesn't provide it
-        thermo_props = ThermodynamicProperties(real_frequencies, self.atoms, temperature)
-        heat_capacity = thermo_props.heat_capacity_vibrational()
+            # Combine both dictionaries
+            return {**vibrational_only, **complete_thermo}
+        else:
+            # Backward compatible: return vibrational-only properties
+            zpe = thermo_props.calculate_zero_point_energy()
+            entropy = thermo_props.entropy_vibrational()
+            internal_energy = thermo_props.internal_energy_vibrational()
+            heat_capacity = thermo_props.heat_capacity_vibrational()
 
-        return {
-            "temperature": temperature,
-            "zero_point_energy": zpe,
-            "internal_energy": internal_energy,
-            "heat_capacity": heat_capacity,
-            "entropy": entropy,
-            "n_vibrational_modes": len(real_frequencies),
-            "frequencies_cm_1": real_frequencies.tolist(),
-        }
+            return {
+                "temperature": temperature,
+                "zero_point_energy": zpe,
+                "internal_energy": internal_energy,
+                "heat_capacity": heat_capacity,
+                "entropy": entropy,
+                "n_vibrational_modes": len(real_frequencies),
+                "frequencies_cm_1": real_frequencies.tolist(),
+            }
 
     def write_mode_trajectory(
         self,
