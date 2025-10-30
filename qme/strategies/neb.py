@@ -95,11 +95,13 @@ class MultiStructureNEBStrategy(BaseStrategy):
             msg = "NEB requires at least 3 images (npoints >= 3)"
             raise ValueError(msg)
 
-        # Attach calculators to all images
+        # Attach calculators to all images using centralized helper and validate
         if self.explorer is not None:
-            for atoms in path:
-                self.explorer._create_and_attach_calculator(atoms)
-                self.explorer._apply_constraints(atoms)
+            PathManager.attach_calculators(self.explorer, path)
+            if any(getattr(img, "calc", None) is None for img in path):
+                raise RuntimeError(
+                    "Failed to attach calculators to NEB images. Check backend/model availability.",
+                )
 
         # Use unified NEB optimizer
         neb_opt = NEBOptimizer(

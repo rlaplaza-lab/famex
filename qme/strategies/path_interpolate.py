@@ -1,6 +1,5 @@
 """Generate interpolated path only (no optimization)."""
 
-import contextlib
 from typing import Any
 
 from ase import Atoms
@@ -45,10 +44,7 @@ class PathInterpolateStrategy(BaseStrategy):
             **interpolate_kwargs,
         )
 
-        # Attach calculators to images if explorer is provided (for downstream usage)
-        if self.explorer is not None:
-            with contextlib.suppress(Exception):
-                PathManager.attach_calculators(self.explorer, path)
+        # No calculator needed for pure interpolation; do not attach by default.
 
         return self.prepare_result(
             optimized_atoms=path,

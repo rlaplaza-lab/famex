@@ -9,6 +9,8 @@ find the best reference, then compares all methods against it.
 """
 
 import time
+from io import StringIO
+from urllib.request import urlopen
 
 import numpy as np
 from ase import Atoms
@@ -49,38 +51,33 @@ def compute_frequencies_from_hessian(
     hessian: np.ndarray,
     masses: np.ndarray,
 ) -> np.ndarray:
-    """Compute vibrational frequencies from Hessian matrix.
+    """Compute vibrational frequencies (cm^-1) from Hessian using ASE's convention.
 
-    Parameters
-    ----------
-    hessian : np.ndarray
-        Hessian matrix (3N x 3N)
-    masses : np.ndarray
-        Atomic masses (N,)
-
-    Returns:
-    -------
-    np.ndarray
-        Frequencies in cm^-1 (3N,)
+    Follows ASE Vibrations:
+    - H_mw = M^{-1/2} H M^{-1/2}
+    - omega^2 = eig(H_mw)
+    - hnu [eV] = s * sqrt(omega^2), s = units._hbar * 1e10 / sqrt(units._e * units._amu)
+    - frequencies [cm^-1] = hnu / units.invcm
+    Reference: ASE Vibrations source code.
     """
+    import ase.units as units
+
     # Mass-weighted Hessian
     mass_matrix = np.kron(np.diag(1.0 / np.sqrt(masses)), np.eye(3))
-    mass_weighted_hessian = mass_matrix @ hessian @ mass_matrix
+    Hmw = mass_matrix @ hessian @ mass_matrix
 
-    # Compute eigenvalues
-    eigenvalues, _ = np.linalg.eigh(mass_weighted_hessian)
+    # Eigenvalues of mass-weighted Hessian (omega^2)
+    omega2, _ = np.linalg.eigh(Hmw)
 
-    # Convert to frequencies (cm^-1)
-    # Conversion factor: sqrt(eV/(amu*Å²)) to cm^-1
-    hartree_to_cm = 219474.63  # 1 Hartree = 219474.63 cm^-1
-    ev_to_hartree = 0.0367493  # 1 eV = 0.0367493 Hartree
-    amu_to_kg = 1.66053906660e-27  # kg
-    ang_to_m = 1e-10  # m
-    conv = np.sqrt(ev_to_hartree * hartree_to_cm**2 / (amu_to_kg * ang_to_m**2))
+    # h * nu in eV
+    s = units._hbar * 1e10 / np.sqrt(units._e * units._amu)
+    hnu_eV = s * np.sqrt(np.clip(omega2, 0.0, None))
 
-    frequencies = np.sign(eigenvalues) * np.sqrt(np.abs(eigenvalues)) * conv
+    # Carry sign for imaginary modes
+    sign = np.sign(omega2)
+    frequencies_cm = (sign * hnu_eV) / units.invcm
 
-    return frequencies
+    return frequencies_cm
 
 
 def compute_metrics(
@@ -200,10 +197,19 @@ def compare_methods(
         print(f"Comparing Hessian methods for {len(atoms)} atoms")
         print("=" * 80)
 
+    # Ensure omol task invariants are set to avoid backend defaults/warnings
+    if "charge" not in atoms.info:
+        atoms.info["charge"] = 0
+    if "spin" not in atoms.info:
+        atoms.info["spin"] = 1
+
     # Test finite difference convergence first
     if verbose:
         print("\nStep 1: Testing finite difference convergence...")
+    # Use lighter FD for larger systems
     step_sizes = [0.01, 0.005, 0.001]
+    if len(atoms) > 20:
+        step_sizes = [0.01]  # keep short for big molecules
     fd_results = {}
     for delta in step_sizes:
         if verbose:
@@ -217,7 +223,7 @@ def compare_methods(
 
     # Find best FD reference (smallest step that converged)
     # Use smallest step as reference
-    reference_delta = 0.001
+    reference_delta = step_sizes[-1]
     reference_hessian = fd_results[reference_delta]["hessian"]
 
     if verbose:
@@ -225,14 +231,14 @@ def compare_methods(
         print(
             f"  Reference symmetry error: {np.max(np.abs(reference_hessian - reference_hessian.T)):.6e}"
         )
+        # Diagnostics: norms and extrema for small systems
+        if len(atoms) <= 6:
+            ref_norm = np.linalg.norm(reference_hessian)
+            ref_max = np.max(np.abs(reference_hessian))
+            print(f"  Reference Hessian ||H||_F: {ref_norm:.6e}, max|H|: {ref_max:.6e} eV/Å²")
 
-    # Test all analytical methods
-    methods_to_test = [
-        ("vmap", True),
-        ("vmap", False),
-        ("double_backward", True),
-        ("double_backward", False),
-    ]
+    # Test only the preferred analytical method
+    methods_to_test = [("double_backward", True)]
 
     results = {}
     masses = atoms.get_masses()
@@ -266,6 +272,11 @@ def compare_methods(
             print(
                 f"    Frequency range: {freq_stats['min_frequency']:.2f} to {freq_stats['max_frequency']:.2f} cm^-1"
             )
+        # Diagnostics: norms and extrema for analytical Hessian
+        if verbose and len(atoms) <= 6:
+            an_norm = np.linalg.norm(analytical_hessian)
+            an_max = np.max(np.abs(analytical_hessian))
+            print(f"\n  Analytical Hessian ||H||_F: {an_norm:.6e}, max|H|: {an_max:.6e} eV/Å²")
 
         results[method_name] = {
             "metrics": metrics,
@@ -364,6 +375,45 @@ def main():
     print("=" * 80)
     methane.calc = calc
     methane_results = compare_methods(methane, verbose=True)
+
+    # Additional molecules from external XYZ sources
+    def load_xyz_from_url(url: str) -> Atoms:
+        with urlopen(url) as resp:
+            text = resp.read().decode("utf-8")
+        # ASE can read from file-like objects
+        from ase.io import read as ase_read
+
+        fh = StringIO(text)
+        atoms = ase_read(fh, format="xyz")
+        return atoms
+
+    external_urls = [
+        # 1,3-butadiene
+        "https://github.com/lvpp/sigma/raw/cf6ef53a5a9ffef0459b7d2dfe495ebd8d6244c8/geometry/bp86-d2svp/1%2C3-BUTADIENE.xyz",
+        # 1-heptanol
+        "https://github.com/lvpp/sigma/raw/cf6ef53a5a9ffef0459b7d2dfe495ebd8d6244c8/geometry/bp86-d2svp/1-HEPTANOL.xyz",
+        # beta-carotene (large)
+        "https://github.com/lvpp/sigma/raw/cf6ef53a5a9ffef0459b7d2dfe495ebd8d6244c8/geometry/bp86-d2svp/BETACAROTENE.xyz",
+    ]
+
+    for url in external_urls:
+        name = url.split("/")[-1]
+        print("\n" + "=" * 80)
+        print(f"EXTERNAL: {name}")
+        print("=" * 80)
+        try:
+            ext_atoms = load_xyz_from_url(url)
+        except Exception as e:
+            print(f"Failed to load {name}: {e}")
+            continue
+
+        ext_atoms.calc = calc
+        # Ensure charge/spin
+        ext_atoms.info.setdefault("charge", 0)
+        ext_atoms.info.setdefault("spin", 1)
+
+        # For large systems, skip FD convergence and only do analytical + one FD if feasible
+        compare_methods(ext_atoms, verbose=True)
 
     # Overall recommendation
     print("\n" + "=" * 80)
