@@ -380,6 +380,49 @@ class TBLitePotential(BasePotential):
 
         return hessian_calc.calculate_numerical_hessian()
 
+    def get_property(
+        self, name: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
+        """Get a property from the calculator.
+
+        Parameters
+        ----------
+        name : str
+            Property name ('energy', 'forces', 'hessian', etc.)
+        atoms : Atoms, optional
+            Atoms object
+        allow_calculation : bool, default True
+            Whether to allow calculation if property not cached
+
+        Returns:
+        -------
+        Any
+            The requested property
+        """
+        if atoms is not None:
+            self.atoms = atoms
+
+        # Handle special cases that need their own methods
+        if name == "hessian":
+            return self.get_hessian(atoms)
+        elif name == "charges":
+            return self.get_charges(atoms)
+        elif name == "dipole":
+            return self.get_dipole_moment(atoms)
+        elif name == "stress":
+            return self.get_stress(atoms)
+
+        # For standard properties, check if calculator has it
+        if self._calc is not None and hasattr(self._calc, "get_property"):
+            return self._calc.get_property(name, atoms, allow_calculation)
+
+        # Fallback: check results
+        if hasattr(self, "results") and name in self.results:
+            return self.results[name]
+
+        msg = f"Property '{name}' not available from TBLite calculator"
+        raise ValueError(msg)
+
 
 def get_tblite_calculator(
     method: str = "GFN2-xTB",
