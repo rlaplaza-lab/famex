@@ -17,7 +17,7 @@ logger = get_qme_logger(__name__)
 def parse_constraints(
     constraint_specs: str | list[str] | list[FixConstraint] | dict[str, Any],
     atoms: Atoms,
-    verbose: bool = False,
+    verbose: int = 0,
 ) -> list[FixConstraint]:
     """Parse constraint specifications and return ASE-compatible constraints.
 
@@ -31,8 +31,8 @@ def parse_constraints(
         Constraint specifications in various formats
     atoms : ase.Atoms
         Atoms object (used as reference geometry)
-    verbose : bool, default False
-        Print constraint information
+    verbose : int, default 0
+        Verbosity level (0=quiet, 1=normal, 2=verbose)
 
     Returns:
     -------
@@ -80,7 +80,7 @@ def parse_constraints(
     # Apply constraints to atoms and get ASE constraint list
     constraint_manager.apply_constraints(atoms)
 
-    if verbose:
+    if verbose >= 1:
         info = constraint_manager.get_constraint_info()
         logger.info("Applied constraints:")
         if info["fixed_atoms"]:
