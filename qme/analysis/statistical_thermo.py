@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from ase import Atoms
+from ase import Atoms, units
 
 __all__ = [
     "StatisticalThermodynamics",
@@ -20,12 +20,12 @@ __all__ = [
     "calculate_electronic_entropy",
 ]
 
-# Physical constants
-GAS_CONSTANT = 8.3144621  # J/(mol·K)
-PLANCK_CONSTANT = 6.62606957e-34  # J·s
-BOLTZMANN_CONSTANT = 1.3806488e-23  # J/K
-AVOGADRO_CONSTANT = 6.0221415e23  # 1/mol
-AMU_to_KG = 1.66053886e-27  # kg/amu
+# Physical constants from ASE units where available
+GAS_CONSTANT = units.kB * units._Nav / units.J  # J/(mol·K) = R (gas constant)
+PLANCK_CONSTANT = 6.62606957e-34  # J·s (not in ASE, keep manual)
+BOLTZMANN_CONSTANT = units.kB / units.J  # J/K = kB in SI units
+AVOGADRO_CONSTANT = units._Nav  # 1/mol
+AMU_to_KG = 1.66053886e-27  # kg/amu (not in ASE, keep manual)
 
 
 def calculate_translational_energy(temperature: float) -> float:
