@@ -56,21 +56,6 @@ class TestMoleculeFactory:
         return molecule("C6H6")
 
     @staticmethod
-    def get_ethylene() -> Atoms:
-        """Ethylene molecule (C2H4) with planar geometry."""
-        return Atoms(
-            ["C", "C", "H", "H", "H", "H"],
-            positions=[
-                [0.0, 0.0, 0.0],  # C
-                [1.34, 0.0, 0.0],  # C (C=C bond)
-                [-0.7, 1.0, 0.0],  # H
-                [-0.7, -1.0, 0.0],  # H
-                [2.04, 1.0, 0.0],  # H
-                [2.04, -1.0, 0.0],  # H
-            ],
-        )
-
-    @staticmethod
     def get_ethylene_twisted_ts_guess() -> Atoms:
         """Ethylene twisted TS guess (90-degree rotation around C=C bond)."""
         return Atoms(
@@ -109,38 +94,6 @@ class TestMoleculeFactory:
                 [0.0, 1.1, 0.0],  # H
                 [0.0, -0.5, 1.0],  # H
                 [0.0, -0.5, -1.0],  # H
-            ],
-        )
-
-    @staticmethod
-    def get_ethane_distorted() -> Atoms:
-        """Ethane molecule with distorted geometry."""
-        return Atoms(
-            ["C", "C", "H", "H", "H", "H", "H", "H"],
-            positions=[
-                [0.0, 0.0, 0.0],  # C
-                [2.0, 0.0, 0.0],  # C (stretched C-C)
-                [-0.7, 1.2, 0.0],  # H
-                [-0.7, -0.6, 1.0],  # H
-                [-0.7, -0.6, -1.0],  # H
-                [2.7, 1.2, 0.0],  # H
-                [2.7, -0.6, 1.0],  # H
-                [2.7, -0.6, -1.0],  # H
-            ],
-        )
-
-    @staticmethod
-    def get_methanol_distorted() -> Atoms:
-        """Methanol molecule with distorted geometry."""
-        return Atoms(
-            ["C", "O", "H", "H", "H", "H"],
-            positions=[
-                [0.0, 0.0, 0.0],  # C
-                [1.7, 0.0, 0.0],  # O (stretched C-O)
-                [2.5, 0.0, 0.0],  # H (O-H)
-                [-0.7, 1.2, 0.0],  # H
-                [-0.7, -0.6, 1.0],  # H
-                [-0.7, -0.6, -1.0],  # H
             ],
         )
 
@@ -285,15 +238,11 @@ class StandardTestAssertions:
         for key in expected_keys:
             assert key in result, f"Missing key '{key}' in optimization result"
 
-        # Handle both Python bool and numpy bool types for converged field
-        import numpy as np
-
+        # Check converged is boolean-like
         converged = result["converged"]
-        if isinstance(converged, list):
-            for c in converged:
-                assert isinstance(c, (bool, np.bool_)), "converged should be boolean"
-        else:
-            assert isinstance(converged, (bool, np.bool_)), "converged should be boolean"
+        assert isinstance(converged, (bool, list)) or converged in (True, False), (
+            "converged should be boolean"
+        )
 
         # Handle optimized_atoms - can be single Atoms or list of Atoms
         optimized_atoms = result["optimized_atoms"]

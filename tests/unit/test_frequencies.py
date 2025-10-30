@@ -132,3 +132,57 @@ class TestHessianCalculator:
 
         # Check that Hessian is symmetric
         assert np.allclose(h, h.T), "Hessian should be symmetric"
+
+    def test_richardson_improves_accuracy_over_central(self) -> None:
+        """Test that Richardson extrapolation improves accuracy over central differences."""
+        from ase import Atoms
+
+        # Simple H2 molecule aligned on x-axis
+        atoms = Atoms("H2", positions=[[0.0, 0.0, 0.0], [0.74, 0.0, 0.0]])
+        atoms.calc = qme.MockCalculator(backend="mock")
+
+        # Reference with very small step
+        hess_ref = HessianCalculator(
+            atoms,
+            atoms.calc,
+            delta=1e-4,
+            method="central",
+            richardson=False,
+            indices=None,
+            verbose=0,
+        ).calculate_numerical_hessian()
+
+        # Baseline central with practical step
+        hess_central = HessianCalculator(
+            atoms,
+            atoms.calc,
+            delta=0.02,
+            method="central",
+            richardson=False,
+            indices=None,
+            verbose=0,
+        ).calculate_numerical_hessian()
+
+        # Richardson with two deltas (delta2 defaults to delta/2)
+        hess_rich = HessianCalculator(
+            atoms,
+            atoms.calc,
+            delta=0.02,
+            method="central",
+            richardson=True,
+            delta2=None,
+            indices=None,
+            verbose=0,
+        ).calculate_numerical_hessian()
+
+        # Compare errors to reference
+        err_central = np.linalg.norm(hess_central - hess_ref)
+        err_rich = np.linalg.norm(hess_rich - hess_ref)
+
+        # Richardson should be strictly better
+        assert err_rich < err_central * 0.8  # expect noticeable improvement
+
+        # Also check elementwise max error improves
+        max_err_central = np.max(np.abs(hess_central - hess_ref))
+        max_err_rich = np.max(np.abs(hess_rich - hess_ref))
+        assert max_err_rich < max_err_central
