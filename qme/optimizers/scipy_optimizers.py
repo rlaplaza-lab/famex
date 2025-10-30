@@ -27,7 +27,7 @@ from ase.optimize.optimize import Optimizer
 from scipy.optimize import minimize
 
 # FrequencyAnalysis imported locally to avoid circular imports
-from qme.utils.logging import get_qme_logger, setup_qme_logging
+from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
 
@@ -118,9 +118,6 @@ class SciPyHessianOptimizer(Optimizer):
         """Initialize SciPy Hessian-based optimizer."""
         # Store verbosity level
         self.verbose = verbose
-
-        # Set up QME logging if not already configured
-        setup_qme_logging(verbosity=verbose, force=True)
 
         # Set up logging based on verbosity
         if verbose == 0:

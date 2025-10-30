@@ -11,7 +11,7 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 from ase.optimize.optimize import Optimizer
 
-from qme.utils.logging import get_qme_logger, setup_qme_logging
+from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
 
@@ -167,9 +167,6 @@ class VerboseOptimizerWrapper(Optimizer):
         # Store verbosity level and profiler
         self.verbose = verbose
         self.profiler = profiler
-
-        # Set up QME logging if not already configured
-        setup_qme_logging(verbosity=verbose, force=True)
 
         # Set up logging based on verbosity
         if verbose == 0:

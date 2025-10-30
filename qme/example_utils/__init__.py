@@ -302,8 +302,6 @@ def benchmark_optimization(
         # Check if backend is available
         if not calculator_registry.is_backend_available(backend):
             results["error"] = f"Backend {backend} not available (dependencies missing)"
-            if verbose:
-                pass
             return results
 
         # Check if optimizer is suitable for this task
@@ -313,25 +311,17 @@ def benchmark_optimization(
                 f"Optimizer {optimizer} not suitable for {task} optimization. "
                 f"Suitable: {', '.join(suitable_optimizers)}"
             )
-            if verbose:
-                pass
             return results
 
         results["available"] = True
-        if verbose:
-            pass
 
         # Create appropriate structure
-        if verbose:
-            pass
         if create_structure_func is None:
             results["error"] = "create_structure_func is required"
             return results
         structure = create_structure_func()
 
         # Initialize QME optimizer
-        if verbose:
-            pass
         init_start = time.perf_counter()
 
         explorer = Explorer(
@@ -350,12 +340,7 @@ def benchmark_optimization(
         init_time = time.perf_counter() - init_start
         results["timings"]["initialization"] = init_time
 
-        if verbose:
-            pass
-
         # Attach calculator to atoms object
-        if verbose:
-            pass
         load_start = time.perf_counter()
 
         # Attach calculator using Explorer's method
@@ -364,12 +349,7 @@ def benchmark_optimization(
         load_time = time.perf_counter() - load_start
         results["timings"]["structure_loading"] = load_time
 
-        if verbose:
-            pass
-
         # Test single energy calculation (first call - includes calculator initialization)
-        if verbose:
-            pass
         energy_first_start = time.perf_counter()
 
         explorer.atoms_list[0].get_potential_energy()
@@ -377,12 +357,7 @@ def benchmark_optimization(
         energy_first_time = time.perf_counter() - energy_first_start
         results["timings"]["single_energy_first"] = energy_first_time
 
-        if verbose:
-            pass
-
         # Test single energy calculation (second call - pure evaluation)
-        if verbose:
-            pass
         energy_second_start = time.perf_counter()
 
         explorer.atoms_list[0].get_potential_energy()
@@ -390,15 +365,10 @@ def benchmark_optimization(
         energy_second_time = time.perf_counter() - energy_second_start
         results["timings"]["single_energy_second"] = energy_second_time
 
-        if verbose:
-            pass
-
         # Store the pure evaluation time as the main single_energy metric
         results["timings"]["single_energy"] = energy_second_time
 
         # Test single force calculation
-        if verbose:
-            pass
         force_start = time.perf_counter()
 
         forces = explorer.atoms_list[0].get_forces()
@@ -407,12 +377,7 @@ def benchmark_optimization(
         force_time = time.perf_counter() - force_start
         results["timings"]["single_forces"] = force_time
 
-        if verbose:
-            pass
-
         # Optimization using Explorer strategies
-        if verbose:
-            pass
         opt_start = time.perf_counter()
 
         # Use Explorer's run method with appropriate strategy
@@ -430,8 +395,6 @@ def benchmark_optimization(
         except ValueError as e:
             if "not suitable for transition state optimization" in str(e):
                 results["error"] = str(e)
-                if verbose:
-                    pass
                 return results
             raise
 
@@ -498,8 +461,6 @@ def benchmark_optimization(
             pass
 
         # Frequency analysis (mandatory)
-        if verbose:
-            pass
         freq_start = time.perf_counter()
 
         # Use the explorer's calculate_frequencies method directly
@@ -553,9 +514,6 @@ def benchmark_optimization(
                 "result_type": result_type,
                 "ts_analysis": ts_analysis,
             }
-
-            if verbose:
-                pass
         else:
             # Minima optimization validation
             is_minimum = freq_results.get("is_minimum", False)
@@ -601,12 +559,7 @@ def benchmark_optimization(
             total_time = sum(v for v in timings.values() if v is not None)
             results["timings"]["total"] = total_time
 
-        if verbose:
-            pass
-
     except Exception as e:
         results["error"] = str(e)
-        if verbose:
-            pass
 
     return results
