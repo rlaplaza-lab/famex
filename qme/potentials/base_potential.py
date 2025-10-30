@@ -193,24 +193,13 @@ class BasePotential:
         backend = self._prepare_calculation(atoms)
         if backend is None:
             self.calculate(self.atoms, properties=["forces"], system_changes=None)
-            forces = self.results.get("forces")
-        elif hasattr(backend, "get_forces"):
-            forces = backend.get_forces(self.atoms)
-        else:
-            self.calculate(self.atoms, properties=["forces"], system_changes=None)
-            forces = self.results.get("forces")
+            return self.results.get("forces")
 
-        # Check if forces calculation failed and returned None
-        if forces is None:
-            backend_name = getattr(self, "backend", "unknown")
-            msg = (
-                f"Forces calculation failed and returned None for {backend_name} backend. "
-                "This may be due to convergence issues, invalid geometry, "
-                "or unsupported system configuration."
-            )
-            raise RuntimeError(msg)
+        if hasattr(backend, "get_forces"):
+            return backend.get_forces(self.atoms)
 
-        return forces
+        self.calculate(self.atoms, properties=["forces"], system_changes=None)
+        return self.results.get("forces")
 
     @property
     def supports_batch_evaluation(self) -> bool:
