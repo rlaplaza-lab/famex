@@ -90,6 +90,7 @@ class FrequencyAnalysis:
         self._zero_point_energy: float | None = None
         self._is_calculated = False
         self._direct_frequencies: np.ndarray | None = None  # For direct frequency calculation
+        self._keep_indices: np.ndarray | None = None  # indices kept after removing trans/rot
 
     def calculate_hessian(self, method: str = "auto") -> np.ndarray:
         """Calculate Hessian matrix using the most appropriate method.
@@ -229,8 +230,8 @@ class FrequencyAnalysis:
                             neg_forces[atom_k, coord] - pos_forces[atom_k, coord]
                         ) / (2 * self.delta)
 
-        # Forces are already in eV/Å (ASE standard), no unit conversion needed
-        # This matches the behavior of HessianCalculator.calculate_numerical_hessian()
+        # Symmetrize for numerical stability
+        hessian = 0.5 * (hessian + hessian.T)
 
         return hessian
 
@@ -320,11 +321,9 @@ class FrequencyAnalysis:
             Vibrational frequencies, excluding translational and rotational modes
 
         """
-        # Check if we have direct frequencies from calculator
+        # Gather all frequencies
         if self._direct_frequencies is not None:
-            frequencies = self._direct_frequencies
-            # Remove translational and rotational modes
-            frequencies = frequencies[self.nfree :]
+            freq_all = self._direct_frequencies
         else:
             if not self._is_calculated:
                 self.calculate_hessian()
@@ -334,9 +333,14 @@ class FrequencyAnalysis:
                 msg = "Frequencies not calculated"
                 raise QMEError(msg)
 
-            frequencies = self._frequencies
+            freq_all = self._frequencies
 
-        # Convert units if needed
+        # Remove translational and rotational modes: drop nfree frequencies closest to zero by |freq|
+        idx_sorted = np.argsort(np.abs(freq_all))
+        keep_idx = idx_sorted[self.nfree :]
+        self._keep_indices = keep_idx
+        frequencies = freq_all[keep_idx]
+
         return convert_frequency_unit(frequencies, unit)
 
     def get_normal_modes(self) -> np.ndarray:
@@ -356,7 +360,11 @@ class FrequencyAnalysis:
             msg = "Normal modes not calculated"
             raise QMEError(msg)
 
-        return self._normal_modes[:, self.nfree :]
+        # Ensure keep indices exist (computed in get_frequencies)
+        if self._keep_indices is None:
+            _ = self.get_frequencies()  # sets _keep_indices
+
+        return self._normal_modes[:, self._keep_indices]
 
     def is_transition_state(
         self,

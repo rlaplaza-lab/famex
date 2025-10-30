@@ -99,16 +99,13 @@ class MultiStructureCINEBStrategy(BaseStrategy):
             msg = "CI-NEB requires at least 3 images (npoints >= 3)"
             raise ValueError(msg)
 
-        # Attach calculators to all images
+        # Attach calculators to all images using centralized helper and validate
         if self.explorer is not None:
-            for i, atoms in enumerate(path):
-                try:
-                    # Only create and attach calculator if atoms doesn't already have one
-                    if getattr(atoms, "calc", None) is None:
-                        self.explorer._create_and_attach_calculator(atoms)
-                    self.explorer._apply_constraints(atoms)
-                except Exception as e:
-                    warnings.warn(f"Failed to attach calculator to image {i}: {e}", stacklevel=2)
+            PathManager.attach_calculators(self.explorer, path)
+            if any(getattr(img, "calc", None) is None for img in path):
+                raise RuntimeError(
+                    "Failed to attach calculators to CI-NEB images. Check backend/model availability.",
+                )
 
         # Use unified NEB optimizer with climbing enabled
         neb_opt = NEBOptimizer(

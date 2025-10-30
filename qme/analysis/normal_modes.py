@@ -37,35 +37,37 @@ def diagonalize_mass_weighted_hessian(
     """
     # Mass-weight the Hessian
     masses = atoms.get_masses()[indices]
-    mass_weights = np.repeat(masses, 3) ** -0.5
-    mass_weighted_hessian = hessian * np.outer(mass_weights, mass_weights)
+    if np.any(masses == 0):
+        raise ValueError(
+            "Zero mass encountered. Use Atoms.set_masses() to set all masses to non-zero values."
+        )
 
-    # Diagonalize
-    eigenvalues, eigenvectors = eigh(mass_weighted_hessian)
+    mass_sqrt = np.repeat(np.sqrt(masses), 3)
+    mass_inv_sqrt = mass_sqrt**-1
+    mass_weighted_hessian = hessian * np.outer(mass_inv_sqrt, mass_inv_sqrt)
 
-    # Convert eigenvalues to frequencies (in cm^-1)
-    # Following ASE's implementation:
-    # 1. Convert eigenvalues to energies in eV using ASE's unit conversion
-    # 2. Convert energies to frequencies using units.invcm
-    unit_conversion = units._hbar * units.m / np.sqrt(units._e * units._amu)
-    energies = unit_conversion * np.sqrt(np.abs(eigenvalues))
-    frequencies = energies / units.invcm
+    # Diagonalize mass-weighted Hessian
+    omega2, mw_modes = eigh(mass_weighted_hessian)
 
-    # Handle imaginary frequencies
-    imaginary_mask = eigenvalues < 0
-    frequencies[imaginary_mask] *= -1  # Make imaginary frequencies negative
+    # ASE conversion factor: h*nu (eV) from omega^2 (in mass-weighted units)
+    # s = ħ * 1e10 / sqrt(e * amu)
+    s = units._hbar * 1e10 / np.sqrt(units._e * units._amu)
+    hnu = s * np.sqrt(omega2.astype(complex))  # eV
+    frequencies = (hnu / units.invcm).real  # cm^-1
 
-    # Sort by frequency (most negative first)
-    sort_indices = np.argsort(frequencies)
-    frequencies = frequencies[sort_indices]
-    eigenvectors = eigenvectors[:, sort_indices]
+    # Keep sign for imaginary modes
+    frequencies[omega2 < 0] *= -1
 
-    # Normalize eigenvectors in mass-weighted coordinates
-    # The eigenvectors are already in mass-weighted coordinates from diagonalization
-    for i in range(len(eigenvectors[0])):
-        eigenvectors[:, i] /= np.linalg.norm(eigenvectors[:, i])
+    # Convert eigenvectors back to Cartesian coordinates
+    cart_modes = mw_modes / mass_sqrt[:, None]
 
-    return frequencies, eigenvectors
+    # Normalize Cartesian mode vectors column-wise
+    for i in range(cart_modes.shape[1]):
+        norm = np.linalg.norm(cart_modes[:, i])
+        if norm > 0:
+            cart_modes[:, i] /= norm
+
+    return frequencies, cart_modes
 
 
 def convert_frequency_unit(frequencies: np.ndarray, unit: str) -> np.ndarray:

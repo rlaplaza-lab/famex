@@ -45,7 +45,13 @@ class NEBOptimizer:
             Additional arguments
 
         """
-        self.images = [atoms.copy() for atoms in images]
+        # Copy images but preserve attached calculators (ASE copy() drops calc)
+        self.images = []
+        for atoms in images:
+            copied = atoms.copy()
+            if getattr(atoms, "calc", None) is not None:
+                copied.calc = atoms.calc
+            self.images.append(copied)
         self.spring_constant = spring_constant
         self.climb = climb
         self.fmax = fmax
