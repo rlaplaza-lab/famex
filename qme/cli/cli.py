@@ -111,37 +111,7 @@ def _common_explorer_options(f: Any) -> Any:
 
 
 @click.group(
-    help=(
-        "QME CLI: Quick mechanistic exploration with ML potentials.\n\n"
-        "Commands:\n"
-        "  qme minima : Minima optimization (outputs single structure)\n"
-        "  qme ts     : Transition state optimization (outputs single TS)\n"
-        "  qme path   : Reaction path optimization (outputs trajectories)\n"
-        "  qme cache  : Manage model cache\n\n"
-        "Examples:\n"
-        "  # Minima optimization (outputs single structure)\n"
-        "  qme minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n"
-        "  qme minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n"
-        "  \n"
-        "  # Transition state optimization (outputs single TS)\n"
-        "  qme ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n"
-        "  qme ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n"
-        "  qme ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n"
-        "  qme ts --strategy local ts_guess.xyz --local-optimizer trust-krylov-ts --fmax 0.02\n"
-        "  \n"
-        "  # Reaction path optimization (outputs trajectories)\n"
-        "  qme path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n"
-        "  qme path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n"
-        "  qme path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n"
-        "  qme path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n"
-        "  \n"
-        "  # Advanced backends\n"
-        "  qme minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n"
-        "  \n"
-        "  # Cache management\n"
-        "  qme cache info  # Show cache information\n"
-        "  qme cache clear # Clear model cache\n"
-    ),
+    help="QME CLI: Quick mechanistic exploration with ML potentials.\n\n\b\nCommands:\n  qme minima : Minima optimization (outputs single structure)\n  qme ts     : Transition state optimization (outputs single TS)\n  qme path   : Reaction path optimization (outputs trajectories)\n  qme cache  : Manage model cache\n\n\b\nExamples:\n  # Minima optimization (outputs single structure)\n  qme minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  qme minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  qme ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  qme ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  qme ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  qme ts --strategy local ts_guess.xyz --local-optimizer trust-krylov-ts --fmax 0.02\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  qme path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  qme path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  qme path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  qme path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  qme minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  qme cache info  # Show cache information\n  qme cache clear # Clear model cache",
 )
 @click.version_option()
 def main() -> None:
