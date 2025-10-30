@@ -403,6 +403,8 @@ explorer = Explorer.from_file(
 freq_result = explorer.calculate_frequencies(
     atoms=None,              # Uses atoms_list[0] if None
     delta=0.01,              # Finite difference step size
+    # Optional: enable Richardson extrapolation for numerical Hessians
+    # richardson=True, delta2=None (defaults to delta/2)
     method="auto",           # Method: auto|numerical
     temperature=298.15,      # Temperature (K)
     save_hessian=True        # Include Hessian in results
