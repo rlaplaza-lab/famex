@@ -282,9 +282,7 @@ class HessianCalculator:
 
                 # Compute derivative at delta
                 if isinstance(self.scheme, FivePointCentralDifferenceScheme):
-                    D1 = self._compute_five_point_derivative(
-                        atom_j, coord_j, self.delta, forces_ref
-                    )
+                    D1 = self._compute_five_point_derivative(atom_j, coord_j, self.delta)
                 else:
                     forces_plus_d1 = self._get_forces_displaced(atom_j, coord_j, self.delta)
                     forces_minus_d1 = self._get_forces_displaced(atom_j, coord_j, -self.delta)
@@ -295,7 +293,7 @@ class HessianCalculator:
                 # Compute derivative at delta2
                 d2 = float(self.delta2)  # type: ignore[arg-type]
                 if isinstance(self.scheme, FivePointCentralDifferenceScheme):
-                    D2 = self._compute_five_point_derivative(atom_j, coord_j, d2, forces_ref)
+                    D2 = self._compute_five_point_derivative(atom_j, coord_j, d2)
                 else:
                     forces_plus_d2 = self._get_forces_displaced(atom_j, coord_j, d2)
                     forces_minus_d2 = self._get_forces_displaced(atom_j, coord_j, -d2)
@@ -309,9 +307,7 @@ class HessianCalculator:
             else:
                 # No Richardson extrapolation
                 if isinstance(self.scheme, FivePointCentralDifferenceScheme):
-                    hessian[:, j] = self._compute_five_point_derivative(
-                        atom_j, coord_j, self.delta, forces_ref
-                    )
+                    hessian[:, j] = self._compute_five_point_derivative(atom_j, coord_j, self.delta)
                 else:
                     # Positive displacement
                     forces_plus = self._get_forces_displaced(atom_j, coord_j, self.delta)
