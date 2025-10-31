@@ -93,9 +93,10 @@ class TestExplorerStrategySelection:
     def test_validation_ts_run(self) -> None:
         """Test validation for TS optimization."""
         atoms = Atoms("H2")
-        exp = Explorer(atoms, target="ts", strategy="local", backend="uma")
+        # Use mock backend which is always available
+        exp = Explorer(atoms, target="ts", strategy="local", backend="mock")
 
-        # This should work with a real backend
+        # This should work with mock backend
         explanation = exp.explain_run()
         assert explanation["valid"] is True
 
