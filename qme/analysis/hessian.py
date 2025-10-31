@@ -2,6 +2,13 @@
 
 This module provides the HessianCalculator class for numerical Hessian
 calculation and an extensible interface for finite difference schemes.
+
+Available finite difference schemes:
+- Forward (2-point): 1st order accuracy, fast but less accurate
+- Central (3-point): 2nd order accuracy, standard choice
+- 5-point: 4th order accuracy, high accuracy option
+- Richardson extrapolation: Can be combined with 3-point or 5-point schemes
+  for additional accuracy improvements
 """
 
 from __future__ import annotations
@@ -20,7 +27,7 @@ class FiniteDifferenceScheme(Protocol):
     """Protocol for finite difference schemes.
 
     This protocol allows for extensible finite difference implementations.
-    Future schemes could include 4-point, 5-point, or Richardson extrapolation.
+    Implemented schemes include 2-point (forward), 3-point (central), and 5-point.
     """
 
     def compute_derivative(
