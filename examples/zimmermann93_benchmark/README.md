@@ -47,10 +47,7 @@ The benchmark uses a subset of the Zimmermann-93 dataset containing diverse orga
 - **Product structures** (`*_product.xyz`)
 - **Reference transition states** (`*_ts.xyz`)
 
-Each reaction tests the ability to find transition states connecting known reactant and product structures, which is a common scenario in computational chemistry.
-
-## Methodology
-
+Each reaction tests the ability to find transition states connecting known reactant and product structures.
 
 ## Output
 
