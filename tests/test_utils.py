@@ -8,7 +8,6 @@ import os
 import tempfile
 import warnings
 from collections.abc import Callable
-from typing import Any
 
 import pytest
 from ase import Atoms
@@ -96,6 +95,34 @@ class TestMoleculeFactory:
                 [0.0, -0.5, -1.0],  # H
             ],
         )
+
+    @staticmethod
+    def get_h2_equilibrium() -> Atoms:
+        """H2 molecule at equilibrium geometry (bond length ~0.74 Å)."""
+        return Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+
+    @staticmethod
+    def get_h2o_equilibrium() -> Atoms:
+        """Water molecule at equilibrium geometry (from ase.build)."""
+        from ase.build import molecule
+
+        return molecule("H2O")
+
+    @staticmethod
+    def get_perturbed_molecule(base: Atoms, seed: int = 42, magnitude: float = 0.05) -> Atoms:
+        """Create a perturbed version of a molecule for optimization tests.
+
+        Args:
+            base: Base molecule to perturb
+            seed: Random seed for reproducibility
+            magnitude: Magnitude of perturbation in Å
+        """
+        import numpy as np
+
+        atoms = base.copy()
+        rng = np.random.RandomState(seed)
+        atoms.positions += rng.normal(0, magnitude, atoms.positions.shape)
+        return atoms
 
 
 class TestFileManager:
@@ -316,6 +343,77 @@ class StandardTestAssertions:
             max_force = abs(forces).max()
             assert max_force < 100, f"Maximum force too large: {max_force:.3f} eV/Å"
 
+    @staticmethod
+    def assert_hessian_valid(hessian, expected_shape: tuple[int, ...] | None = None) -> None:
+        """Assert that Hessian matrix is valid.
+
+        Args:
+            hessian: Hessian matrix to validate
+            expected_shape: Expected shape (rows, cols), or None to skip shape check
+        """
+        import numpy as np
+
+        # Check it's a 2D array
+        assert len(hessian.shape) == 2, f"Hessian should be 2D, got shape {hessian.shape}"
+
+        # Check square
+        assert hessian.shape[0] == hessian.shape[1], "Hessian should be square"
+
+        # Check expected shape if provided
+        if expected_shape is not None:
+            assert hessian.shape == expected_shape, (
+                f"Expected shape {expected_shape}, got {hessian.shape}"
+            )
+
+        # Check symmetry (allowing small numerical noise)
+        assert np.allclose(hessian, hessian.T, rtol=1e-6, atol=1e-6), "Hessian should be symmetric"
+
+        # Check no NaN or inf
+        assert not np.any(np.isnan(hessian)), "Hessian should not contain NaN"
+        assert not np.any(np.isinf(hessian)), "Hessian should not contain infinity"
+
+    @staticmethod
+    def assert_frequencies_valid(frequencies, expected_count: int | None = None) -> None:
+        """Assert that frequency array is valid.
+
+        Args:
+            frequencies: Frequency array to validate
+            expected_count: Expected number of frequencies, or None to skip
+        """
+        import numpy as np
+
+        frequencies = np.asarray(frequencies)
+
+        # Check expected count if provided
+        if expected_count is not None:
+            assert len(frequencies) == expected_count, (
+                f"Expected {expected_count} frequencies, got {len(frequencies)}"
+            )
+
+        # Check no NaN or inf
+        assert not np.any(np.isnan(frequencies)), "Frequencies should not contain NaN"
+        assert not np.any(np.isinf(frequencies)), "Frequencies should not contain infinity"
+
+    @staticmethod
+    def assert_convergence_quality(atoms, fmax: float = 0.05) -> None:
+        """Assert that optimization converged with reasonable quality.
+
+        Args:
+            atoms: Optimized atoms object
+            fmax: Maximum force threshold for convergence
+        """
+        from ase import Atoms
+
+        assert isinstance(atoms, Atoms), "Input should be Atoms object"
+
+        forces = atoms.get_forces()
+        max_force = abs(forces).max()
+
+        # Check that forces are below threshold
+        assert max_force <= fmax * 1.1, (
+            f"Max force {max_force:.6f} exceeds threshold {fmax:.6f} eV/Å"
+        )
+
 
 # Pytest fixtures for common test patterns
 @pytest.fixture
@@ -421,46 +519,6 @@ def backend_test_with_warnings(
     return decorator
 
 
-def run_backend_test_with_warnings(
-    test_func: Callable,
-    backends: list[str] | None = None,
-    include_mock: bool = False,
-    **test_kwargs,
-) -> dict[str, Any]:
-    """Run a test function across multiple backends with warning-based error handling.
-
-    This is a utility function that can be called from within existing tests
-    to test multiple backends without modifying the test structure.
-
-    Args:
-        test_func: The test function to run
-        backends: List of backends to test. If None, uses all available backends.
-        include_mock: Whether to include the mock backend in testing.
-        **test_kwargs: Additional keyword arguments to pass to the test function.
-
-    Returns:
-        Dictionary mapping backend names to their test results.
-
-    """
-    if backends is None:
-        available_backends = get_available_backends(include_mock=include_mock)
-    else:
-        available_backends = backends
-
-    results = {}
-
-    for backend in available_backends:
-        try:
-            result = test_func(backend=backend, **test_kwargs)
-            results[backend] = {"success": True, "result": result}
-        except Exception as e:
-            warning_msg = f"Backend '{backend}' failed: {e!s}"
-            warnings.warn(warning_msg, BackendTestWarning, stacklevel=2)
-            results[backend] = {"success": False, "error": str(e)}
-
-    return results
-
-
 class BackendTestRunner:
     """Utility class for running tests across multiple backends with graceful failure handling."""
 
@@ -476,14 +534,24 @@ class BackendTestRunner:
 
         Returns:
             Dictionary mapping backend names to their test results.
-
         """
-        return run_backend_test_with_warnings(
-            test_func,
-            backends=backends,
-            include_mock=include_mock,
-            **test_kwargs,
-        )
+        if backends is None:
+            available_backends = get_available_backends(include_mock=include_mock)
+        else:
+            available_backends = backends
+
+        results = {}
+
+        for backend in available_backends:
+            try:
+                result = test_func(backend=backend, **test_kwargs)
+                results[backend] = {"success": True, "result": result}
+            except Exception as e:
+                warning_msg = f"Backend '{backend}' failed: {e!s}"
+                warnings.warn(warning_msg, BackendTestWarning, stacklevel=2)
+                results[backend] = {"success": False, "error": str(e)}
+
+        return results
 
     @staticmethod
     def assert_backend_results(results, min_successful=1):

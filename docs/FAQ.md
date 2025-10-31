@@ -12,430 +12,103 @@ Common questions about QME usage, installation, and troubleshooting.
 
 ## Installation and Setup
 
-### Q: Which backend should I choose for beginners?
+### Q: Which backend should I choose?
 
-**A:** Start with **AIMNet2** - it's fast, reliable, and has no dependency conflicts:
+**A:** See [README](../README.md) for backend recommendations. Start with AIMNet2 for beginners (`pip install torch torch-cluster`).
 
-```bash
-pip install torch torch-cluster
-```
+### Q: Can I install multiple backends?
 
-### Q: Can I install multiple backends in the same environment?
-
-**A:** Some backends conflict with each other. Use separate environments for conflicting backends:
+**A:** Some backends conflict (UMA vs MACE). Use separate environments:
 
 ```bash
-# Environment 1: UMA
-conda create -n qme-uma python=3.12
-conda activate qme-uma
-pip install qme-ml fairchem-core
-
-# Environment 2: MACE
-conda create -n qme-mace python=3.12
-conda activate qme-mace
-pip install qme-ml mace-torch
+conda create -n qme-uma python=3.12 && conda activate qme-uma && pip install qme-ml fairchem-core
+conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install qme-ml mace-torch
 ```
-
-### Q: Why am I getting "Backend 'xyz' not available" errors?
-
-**A:** Install the backend dependencies:
-
-```bash
-pip install backend_package_name
-```
-
-Available backends: `uma` (fairchem-core), `aimnet2` (torch torch-cluster), `mace` (mace-torch), `orb` (orb-models), `so3lr` (so3lr), `torchsim_mace` (torch-sim-atomistic), `torchsim_uma` (torch-sim-atomistic)
 
 ### Q: What Python version do I need?
 
-**A:** The Python version requirement depends on your chosen backend:
-- **Python 3.10+**: For most backends (AIMNet2, UMA, MACE, Orb, TBLite)
-- **Python 3.11+**: For TorchSim backends only
+**A:** Python 3.10+ for most backends, 3.11+ for TorchSim.
 
-Choose your Python version based on the backends you plan to use.
+### Q: Backend not available after installation?
 
-### Q: What are the dependency conflicts between backends?
-
-**A:** The main conflict is between UMA and MACE due to incompatible `e3nn` versions:
-
-- **UMA** (fairchem-core) requires `e3nn>=0.5`
-- **MACE** requires `e3nn==0.4.4`
-
-**Solution**: Use separate environments or choose one backend per environment.
-
-### Q: How do I install QME for development?
-
-**A:** Clone the repository and install in development mode:
-
-```bash
-git clone https://github.com/rlaplaza-lab/qme.git
-cd qme
-pip install -e .[dev]
-```
+**A:** Install backend dependencies. See [README](../README.md) for installation commands.
 
 ## Using QME
 
 ### Q: What's the difference between target and strategy?
 
-**A:** QME uses a semantic interface:
-- **Target**: What you want (`minima`, `ts`, `path`)
-- **Strategy**: How to get there (`local`, `interpolate`, `neb`, `cineb`, `irc`)
-
-```python
-# Find a minimum using local optimization
-explorer.run(target="minima", strategy="local")
-
-# Find a transition state using interpolation
-explorer.run(target="ts", strategy="interpolate")
-```
-
-### Q: When should I use which strategy?
-
-**A:** Quick guide:
-
-**Minima optimization:**
-- `local`: Direct optimization of a single structure
-- `interpolate`: Find minima from an interpolated path
-
-**Transition state search:**
-- `local`: You have a good TS guess
-- `interpolate`: You have reactant and product structures
-
-**Reaction paths:**
-- `neb`: Standard NEB for reaction paths
-- `cineb`: Climbing image NEB for better TS location
-- `irc`: Intrinsic reaction coordinate from a TS
+**A:** See [Core Concepts](USER_GUIDE.md#core-concepts) in the User Guide. Target (`minima`, `ts`, `path`) is what you want, strategy (`local`, `interpolate`, `neb`, etc.) is how to get there.
 
 ### Q: How do I choose convergence criteria?
 
-**A:** Use these guidelines:
-
-```bash
-# Quick testing
-qme minima --strategy local molecule.xyz --fmax 0.1 --steps 100
-
-# Standard use (default)
-qme minima --strategy local molecule.xyz --fmax 0.05 --steps 1000
-
-# High precision
-qme minima --strategy local molecule.xyz --fmax 0.01 --steps 2000
-```
+**A:**
+- Quick testing: `--fmax 0.1 --steps 100`
+- Standard: `--fmax 0.05 --steps 1000` (default)
+- High precision: `--fmax 0.01 --steps 2000`
 
 ### Q: What file formats are supported?
 
-**A:** QME supports all ASE-compatible formats:
-- **XYZ**: Most common for molecular systems
-- **CIF**: Crystallographic information files
-- **PDB**: Protein data bank format
-- **VASP**: POSCAR/CONTCAR files
+**A:** All ASE-compatible formats (XYZ, CIF, PDB, VASP).
 
-### Q: How do I specify charge and spin multiplicity?
+### Q: How do I specify charge and spin?
 
-**A:** Use the global options:
+**A:** Use `--default-charge` and `--default-spin` options or Python API parameters.
 
-```bash
-# Command line
-qme minima --strategy local molecule.xyz --default-charge 1 --default-spin 2
+### Q: How do I use constraints?
 
-# Python API
-explorer = qme.Explorer.from_file("molecule.xyz", default_charge=1, default_spin=2)
-```
-
-### Q: How do I use constraints during optimization?
-
-**A:** Use the `--constraints` option with constraint specifications:
-
-```bash
-# Fix specific atoms
-qme minima --strategy local molecule.xyz --constraints "fix 0,1,2"
-
-# Harmonic bond constraint
-qme minima --strategy local molecule.xyz --constraints "harmonic_bond 0,1 k=5.0"
-
-# Multiple constraints
-qme minima --strategy local molecule.xyz --constraints "fix 0,1; harmonic_bond 2,3 k=5.0"
-```
-
-### Q: How do I validate a transition state?
-
-**A:** Use the `--freq` flag or calculate frequencies manually:
-
-```bash
-# Automatic frequency analysis
-qme ts --strategy local ts_guess.xyz --freq
-
-# Manual frequency calculation
-qme minima --strategy local ts_structure.xyz --freq
-```
-
-A valid transition state should have exactly one imaginary frequency.
+**A:** Use `--constraints` option: `qme minima --strategy local molecule.xyz --constraints "fix 0,1,2"`
 
 ## Troubleshooting
 
-### Q: Optimization doesn't converge - what should I do?
+### Q: Optimization doesn't converge?
 
-**A:** Try these solutions:
+**A:** Try:
+- Increase steps: `--steps 2000`
+- Loosen convergence: `--fmax 0.1`
+- Change optimizer: `--optimizer bfgs`
+- Check input structure quality
 
-1. **Increase steps:**
-   ```bash
-   qme minima --strategy local molecule.xyz --steps 2000
-   ```
-
-2. **Loosen convergence:**
-   ```bash
-   qme minima --strategy local molecule.xyz --fmax 0.1
-   ```
-
-3. **Change optimizer:**
-   ```bash
-   qme minima --strategy local molecule.xyz --optimizer bfgs
-   ```
-
-4. **Check input structure quality**
-
-### Q: Forces are too large - what's wrong?
-
-**A:** Usually indicates:
-- Poor initial geometry (atoms too close)
-- Wrong backend for system
-- System too large for backend
-- Unrealistic input structure
-
-### Q: I'm getting unrealistic energies - what's happening?
+### Q: Forces too large or unrealistic energies?
 
 **A:** Check:
 - Backend compatibility with your elements
+- Input structure quality (atoms too close?)
+- Charge/spin settings
 - System size limits
-- Input structure quality
-- Charge and spin settings
 
-### Q: How do I debug optimization failures?
+### Q: CUDA out of memory?
 
-**A:** Use these approaches:
+**A:** Use CPU (`--device cpu`), reduce system size, or use LBFGS optimizer (`--optimizer lbfgs`).
 
-1. **Enable verbose output:**
-   ```bash
-   qme minima --strategy local molecule.xyz --verbose
-   ```
+### Q: Transition state validation issues?
 
-2. **Use mock backend for testing:**
-   ```bash
-   qme minima --strategy local molecule.xyz --backend mock
-   ```
-
-3. **Use dry run to check strategy selection:**
-   ```bash
-   qme minima --strategy local molecule.xyz --dry-run
-   ```
-
-### Q: CUDA out of memory errors
-
-**A:** Try these solutions:
-
-1. **Use CPU instead:**
-   ```bash
-   qme minima --strategy local molecule.xyz --device cpu
-   ```
-
-2. **Reduce system size**
-
-3. **Use smaller model**
-
-4. **Use LBFGS optimizer (less memory):**
-   ```bash
-   qme minima --strategy local molecule.xyz --optimizer lbfgs
-   ```
-
-### Q: Backend not available after installation
-
-**A:** Check installation and dependencies:
-
-```bash
-# Check what's installed
-qme --help
-
-# Reinstall backend
-pip install backend_package_name
-
-# Check for conflicts
-pip list | grep -E "(torch|e3nn|fairchem)"
-```
-
-### Q: Import errors with specific backends
-
-**A:** Common issues and solutions:
-
-**UMA/MACE conflicts:**
-```bash
-# Use separate environments
-conda create -n qme-uma python=3.12
-conda activate qme-uma
-pip install qme-ml fairchem-core
-```
-
-**TorchSim requires Python 3.11+:**
-```bash
-# Check Python version
-python --version
-
-# Use appropriate Python version
-conda create -n qme-torchsim python=3.11
-conda activate qme-torchsim
-pip install qme-ml torch-sim-atomistic
-```
-
-### Q: Optimization is very slow
-
-**A:** Try these optimizations:
-
-1. **Use GPU acceleration:**
-   ```bash
-   qme minima --strategy local molecule.xyz --device cuda
-   ```
-
-2. **Use TorchSim backends:**
-   ```bash
-   qme minima --strategy local molecule.xyz --backend torchsim_mace --device cuda
-   ```
-
-3. **Reduce convergence criteria for testing:**
-   ```bash
-   qme minima --strategy local molecule.xyz --fmax 0.1 --steps 100
-   ```
-
-4. **Use appropriate optimizer:**
-   ```bash
-   qme minima --strategy local molecule.xyz --optimizer lbfgs  # For large systems
-   ```
-
-### Q: Transition state has multiple imaginary frequencies
-
-**A:** This indicates the TS guess is poor:
-
-1. **Try interpolation method:**
-   ```bash
-   qme ts --strategy interpolate reactant.xyz --product product.xyz
-   ```
-
-2. **Improve initial TS guess**
-
-3. **Use different optimizer:**
-   ```bash
-   qme ts --strategy local ts_guess.xyz --optimizer trust-krylov-ts
-   ```
-
-### Q: Transition state has no imaginary frequencies
-
-**A:** The structure might be a minimum, not a TS:
-
-1. **Check if you're optimizing the right structure**
-
-2. **Verify your TS guess**
-
-3. **Try interpolation method to find better TS guess**
+**A:**
+- Multiple imaginary frequencies: Poor TS guess - try interpolation or different optimizer
+- No imaginary frequencies: Structure might be a minimum - verify TS guess
 
 ## Performance
 
 ### Q: How do I speed up calculations?
 
-**A:** Try these strategies:
-
-1. **Use GPU backends:**
-   ```bash
-   qme minima --strategy local molecule.xyz --backend torchsim_mace --device cuda
-   ```
-
-2. **Reduce convergence criteria for testing:**
-   ```bash
-   qme minima --strategy local molecule.xyz --fmax 0.1 --steps 100
-   ```
-
-3. **Use appropriate optimizer for system size:**
-   ```bash
-   qme minima --strategy local molecule.xyz --optimizer lbfgs  # For large systems
-   ```
-
-4. **Use TorchSim for maximum performance:**
-   ```bash
-   pip install torch-sim-atomistic
-   qme minima --strategy local molecule.xyz --backend torchsim_mace --device cuda
-   ```
+**A:** Use GPU (`--device cuda`), TorchSim backends, or reduce convergence criteria for testing.
 
 ### Q: Which backend is fastest?
 
-**A:** Performance ranking (approximate):
-
-1. **TorchSim backends** (with GPU): 5-20x speedup
-2. **AIMNet2**: Fast inference, good for molecules
-3. **UMA**: Good balance of speed and accuracy
-4. **MACE**: High accuracy but slower
-5. **Mock**: Fastest but not chemically meaningful
-
-### Q: How do I optimize memory usage?
-
-**A:** Use these strategies:
-
-1. **Use LBFGS instead of BFGS:**
-   ```bash
-   qme minima --strategy local molecule.xyz --optimizer lbfgs
-   ```
-
-2. **Use CPU instead of GPU for large systems**
-
-3. **Reduce system size when possible**
-
-4. **Use mock backend for testing**
+**A:** TorchSim backends (GPU) > AIMNet2 > UMA > MACE > Mock (testing only)
 
 ## Getting Help
 
-### Q: Where can I get help with QME?
+### Q: Where can I get help?
 
-**A:** Several resources are available:
-
-1. **Documentation**: Check the [User Guide](USER_GUIDE.md) and [Tutorials](TUTORIALS.md)
-2. **GitHub Issues**: Report bugs and request features
-3. **Examples**: Check the `examples/` directory for working code
+**A:** Check [User Guide](USER_GUIDE.md), [Tutorials](TUTORIALS.md), or GitHub Issues.
 
 ### Q: How do I report a bug?
 
-**A:** When reporting bugs, include:
-
-- QME version: `qme --version`
-- Python version: `python --version`
-- Operating system
-- Backend used
-- Complete error message
-- Minimal example that reproduces the issue
-
-### Q: How do I request a new feature?
-
-**A:** Create a GitHub issue with:
-
-- Clear description of the feature
-- Use case and motivation
-- Proposed implementation (if you have ideas)
-- Any relevant examples
+**A:** Include QME version (`qme --version`), Python version, OS, backend, error message, and minimal reproducing example.
 
 ### Q: Where can I find examples?
 
-**A:** Check the `examples/` directory:
-
-```bash
-# Run examples
-cd examples/
-python cli_demo.py
-python growing_string_demo.py
-python irc_demo.py
-```
-
-### Q: How do I contribute to QME?
-
-**A:** See the [Contributing Guidelines](https://github.com/rlaplaza-lab/qme/blob/main/CONTRIBUTING.md) for:
-
-- Development setup
-- Code style guidelines
-- Testing requirements
-- Pull request process
+**A:** See the `examples/` directory. Run: `python examples/cli_demo.py`
 
 ---
 
