@@ -5,7 +5,12 @@ This script compares different analytical Hessian computation methods
 difference calculations to identify the best-performing approach.
 
 The script tests multiple finite difference step sizes and converges to
-find the best reference, then compares all methods against it.
+find the best reference, then compares all methods against it. It also
+includes Richardson extrapolation analysis and comprehensive FD step
+size comparison to validate the analytical Hessian implementations.
+
+This is a diagnostic/research script for validating Hessian computation
+methods, not a standard usage example.
 """
 
 import time
@@ -207,9 +212,9 @@ def compare_methods(
     if verbose:
         print("\nStep 1: Testing finite difference convergence...")
     # Use lighter FD for larger systems
-    step_sizes = [0.01, 0.005, 0.001]
+    step_sizes = [0.05, 0.01, 0.005, 0.001]
     if len(atoms) > 20:
-        step_sizes = [0.01]  # keep short for big molecules
+        step_sizes = [0.05, 0.01]  # keep short for big molecules
     fd_results = {}
     for delta in step_sizes:
         if verbose:
@@ -220,6 +225,28 @@ def compare_methods(
         fd_results[delta] = {"hessian": fd_hessian, "time": fd_time}
         if verbose:
             print(f"    Time: {fd_time:.3f} s")
+
+    # Test Richardson extrapolation
+    if verbose and 0.01 in step_sizes and 0.005 in step_sizes:
+        print("\n  Computing Richardson extrapolation (delta=0.01, delta2=0.005)...")
+        start = time.time()
+        H_richardson = HessianCalculator(
+            atoms, atoms.calc, delta=0.01, method="central", richardson=True, verbose=0
+        ).calculate_numerical_hessian()
+        richardson_time = time.time() - start
+        # Manual Richardson for validation
+        H_richardson_manual = (
+            4.0 * fd_results[0.005]["hessian"] - fd_results[0.01]["hessian"]
+        ) / 3.0
+        fd_results["richardson"] = {"hessian": H_richardson, "time": richardson_time}
+        if verbose:
+            print(f"    Time: {richardson_time:.3f} s")
+            print(
+                f"    Implementation matches manual: {np.allclose(H_richardson, H_richardson_manual, atol=1e-6)}"
+            )
+            print(
+                f"    Max diff (manual vs implementation): {np.max(np.abs(H_richardson - H_richardson_manual)):.6e}"
+            )
 
     # Find best FD reference (smallest step that converged)
     # Use smallest step as reference
@@ -260,8 +287,18 @@ def compare_methods(
             results[method_name] = {"error": str(e)}
             continue
 
-        # Compute metrics
+        # Compute metrics against best FD reference
         metrics = compute_metrics(analytical_hessian, reference_hessian, verbose=verbose)
+
+        # Also compute metrics against Richardson if available
+        richardson_metrics = None
+        if "richardson" in fd_results:
+            richardson_metrics = compute_metrics(
+                analytical_hessian, fd_results["richardson"]["hessian"], verbose=False
+            )
+            if verbose:
+                print("\n  vs Richardson extrapolation:")
+                print(f"    RMS error: {richardson_metrics['rms_error']:.6f} eV/Å²")
 
         # Analyze frequencies
         freq_stats = analyze_frequencies(analytical_hessian, masses, method_name)
@@ -280,6 +317,7 @@ def compare_methods(
 
         results[method_name] = {
             "metrics": metrics,
+            "richardson_metrics": richardson_metrics,
             "freq_stats": freq_stats,
             "time": analytical_time,
             "speedup_vs_fd": fd_results[reference_delta]["time"] / analytical_time,
@@ -414,6 +452,80 @@ def main():
 
         # For large systems, skip FD convergence and only do analytical + one FD if feasible
         compare_methods(ext_atoms, verbose=True)
+
+        # Special detailed FD step analysis for beta-carotene
+        if "BETACAROTENE" in name:
+            print("\n" + "=" * 80)
+            print("BETA-CAROTENE: Comprehensive FD Step Size Analysis")
+            print("=" * 80)
+            masses = ext_atoms.get_masses()
+
+            # Compute analytical Hessian
+            t0 = time.time()
+            H_analytical = ext_atoms.calc.get_hessian(
+                ext_atoms, method="double_backward", symmetrize=True
+            )
+            t_analytical = time.time() - t0
+
+            print("\nAnalytical Hessian:")
+            print(f"  Shape: {H_analytical.shape}")
+            print(f"  ||H||_F: {np.linalg.norm(H_analytical):.6e}")
+            print(f"  Time: {t_analytical:.1f}s")
+
+            # Test all FD step sizes
+            fd_steps = [0.05, 0.01, 0.005, 0.001]
+            fd_results = {}
+            for delta in fd_steps:
+                print(f"\nFD (delta={delta} Å):")
+                t0 = time.time()
+                H_fd = compute_finite_difference_hessian(ext_atoms, delta=delta)
+                t_fd = time.time() - t0
+                fd_results[delta] = H_fd
+                print(f"  ||H||_F: {np.linalg.norm(H_fd):.6e}, time: {t_fd:.1f}s")
+
+                # Compare in Hessian space
+                diff = H_analytical - H_fd
+                rms_diff = np.sqrt(np.mean(diff**2))
+                max_diff = np.max(np.abs(diff))
+                print(
+                    f"  Errors vs analytical: RMS={rms_diff:.6e} eV/Å², max|Δ|={max_diff:.6e} eV/Å²"
+                )
+
+                # Compare in frequency space
+                f_analytical = compute_frequencies_from_hessian(H_analytical, masses)
+                f_fd = compute_frequencies_from_hessian(H_fd, masses)
+                f_diff = f_analytical - f_fd
+                rms_freq = np.sqrt(np.mean(f_diff**2))
+                max_freq = np.max(np.abs(f_diff))
+                print(f"  Frequency errors: RMS={rms_freq:.3f} cm^-1, max|Δ|={max_freq:.3f} cm^-1")
+
+            # Richardson extrapolation
+            print("\nRichardson Extrapolation (delta=0.01, delta2=0.005):")
+            t0 = time.time()
+            H_richardson = HessianCalculator(
+                ext_atoms, ext_atoms.calc, delta=0.01, method="central", richardson=True, verbose=0
+            ).calculate_numerical_hessian()
+            t_rich = time.time() - t0
+            print(f"  ||H||_F: {np.linalg.norm(H_richardson):.6e}, time: {t_rich:.1f}s")
+
+            # Compare Richardson in Hessian space
+            diff_rich = H_analytical - H_richardson
+            rms_rich = np.sqrt(np.mean(diff_rich**2))
+            max_rich = np.max(np.abs(diff_rich))
+            print(f"  Errors vs analytical: RMS={rms_rich:.6e} eV/Å², max|Δ|={max_rich:.6e} eV/Å²")
+
+            # Compare Richardson in frequency space
+            f_richardson = compute_frequencies_from_hessian(H_richardson, masses)
+            f_diff_rich = f_analytical - f_richardson
+            rms_freq_rich = np.sqrt(np.mean(f_diff_rich**2))
+            max_freq_rich = np.max(np.abs(f_diff_rich))
+            print(
+                f"  Frequency errors: RMS={rms_freq_rich:.3f} cm^-1, max|Δ|={max_freq_rich:.3f} cm^-1"
+            )
+
+            print(
+                "\nNote: Runtime grows steeply with system size; FD cost is ~O(N) Hessian evaluations."
+            )
 
     # Overall recommendation
     print("\n" + "=" * 80)
