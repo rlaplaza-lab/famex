@@ -5,8 +5,6 @@ from ase import Atoms
 
 from qme.core.explorer import Explorer
 
-# Function runner removed - use Explorer class instead
-
 
 class TestGrowingStringMethod:
     """Test suite for growing string method."""

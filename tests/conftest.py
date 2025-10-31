@@ -20,7 +20,6 @@ from tests.test_utils import (  # noqa: E402
     StandardTestAssertions,
     TestMoleculeFactory,
     backend_test_with_warnings,
-    run_backend_test_with_warnings,
 )
 
 # Re-export for easy access in tests
@@ -30,5 +29,4 @@ __all__ = [
     "StandardTestAssertions",
     "TestMoleculeFactory",
     "backend_test_with_warnings",
-    "run_backend_test_with_warnings",
 ]

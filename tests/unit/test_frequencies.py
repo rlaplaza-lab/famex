@@ -6,70 +6,74 @@ including Hessian calculation and vibrational mode analysis.
 
 import numpy as np
 import pytest
-from ase.build import molecule
 
 import qme
 from qme.analysis.frequency import FrequencyAnalysis, HessianCalculator
+from tests.test_utils import StandardTestAssertions, TestMoleculeFactory
 
 
-class TestFrequencyBasics:
-    """Test basic frequency analysis functionality."""
+@pytest.fixture
+def h2_molecule():
+    """H2 molecule for testing."""
+    atoms = TestMoleculeFactory.get_h2_equilibrium()
+    atoms.calc = qme.MockCalculator(backend="mock")
+    return atoms
 
-    def setup_method(self) -> None:
-        """Set up test molecules with mock calculator."""
-        self.h2 = molecule("H2")
-        self.h2.calc = qme.MockCalculator(backend="mock")
 
-        self.h2o = molecule("H2O")
-        self.h2o.calc = qme.MockCalculator(backend="mock")
+@pytest.fixture
+def h2o_molecule():
+    """Water molecule for testing."""
+    atoms = TestMoleculeFactory.get_h2o_equilibrium()
+    atoms.calc = qme.MockCalculator(backend="mock")
+    return atoms
+
+
+class TestFrequencyAnalysis:
+    """Test frequency analysis functionality."""
 
     @pytest.mark.parametrize(
-        ("molecule_name", "expected_dof"),
+        ("expected_dof", "fixture_name"),
         [
-            ("H2", 5),  # Linear molecule: 3N-5
-            ("H2O", 6),  # Non-linear molecule: 3N-6
+            (5, "h2_molecule"),  # Linear molecule: 3N-5
+            (6, "h2o_molecule"),  # Non-linear molecule: 3N-6
         ],
     )
-    def test_molecule_degrees_of_freedom(self, molecule_name, expected_dof) -> None:
+    def test_molecule_degrees_of_freedom(self, expected_dof, fixture_name, request):
         """Test degrees of freedom calculation for different molecules."""
-        atoms = self.h2 if molecule_name == "H2" else self.h2o
-
+        atoms = request.getfixturevalue(fixture_name)
         fa = FrequencyAnalysis(atoms, atoms.calc, delta=0.01)
         assert fa.nfree == expected_dof
 
-    @pytest.mark.parametrize("molecule_name", ["H2O"])
-    def test_hessian_and_modes(self, molecule_name) -> None:
+    def test_hessian_and_modes(self, h2o_molecule):
         """Test Hessian calculation and mode diagonalization."""
-        atoms = self.h2o
-        fa = FrequencyAnalysis(atoms, atoms.calc, delta=0.01)
+        fa = FrequencyAnalysis(h2o_molecule, h2o_molecule.calc, delta=0.01)
         hessian = fa.calculate_hessian(method="finite_differences")
         freqs, modes = fa.diagonalize_hessian()
 
         # Check dimensions
-        expected_size = len(atoms) * 3
+        expected_size = len(h2o_molecule) * 3
         assert hessian.shape == (expected_size, expected_size)
         assert len(freqs) == expected_size
         assert modes.shape == (expected_size, expected_size)
 
         # Check that frequencies are reasonable
-        assert not np.any(np.isnan(freqs)), "Frequencies should not contain NaN"
-        assert not np.any(np.isinf(freqs)), "Frequencies should not contain infinity"
+        StandardTestAssertions.assert_frequencies_valid(freqs)
 
     @pytest.mark.parametrize("unit", ["cm-1", "meV", "THz"])
-    def test_frequency_units(self, unit) -> None:
+    def test_frequency_units(self, unit, h2o_molecule):
         """Test frequency unit conversion."""
-        fa = FrequencyAnalysis(self.h2o, self.h2o.calc)
+        fa = FrequencyAnalysis(h2o_molecule, h2o_molecule.calc)
         fa.calculate_hessian()
         fa.diagonalize_hessian()
 
         frequencies = fa.get_frequencies(unit)
         assert isinstance(frequencies, (list, np.ndarray))
         assert len(frequencies) > 0
-        assert not np.any(np.isnan(frequencies)), f"Frequencies in {unit} should not contain NaN"
+        StandardTestAssertions.assert_frequencies_valid(frequencies)
 
-    def test_zero_point_energy(self) -> None:
+    def test_zero_point_energy(self, h2o_molecule):
         """Test zero-point energy calculation."""
-        fa = FrequencyAnalysis(self.h2o, self.h2o.calc)
+        fa = FrequencyAnalysis(h2o_molecule, h2o_molecule.calc)
         fa.calculate_hessian()
         fa.diagonalize_hessian()
 
@@ -77,10 +81,10 @@ class TestFrequencyBasics:
         assert isinstance(zpe, float)
         assert zpe >= 0, "Zero-point energy should be non-negative"
 
-    def test_atoms_not_modified_in_place(self) -> None:
+    def test_atoms_not_modified_in_place(self, h2o_molecule):
         """Test that input atoms object is not modified in-place."""
-        atoms = self.h2o.copy()
-        atoms.calc = qme.MockCalculator(backend="mock")  # Ensure calculator is attached
+        atoms = h2o_molecule.copy()
+        atoms.calc = qme.MockCalculator(backend="mock")
         original_positions = atoms.positions.copy()
         original_calc_id = id(atoms.calc)
 
@@ -107,15 +111,6 @@ class TestFrequencyBasics:
             "Positions modified with different calc!"
         )
 
-
-class TestHessianCalculator:
-    """Test Hessian calculator functionality."""
-
-    def setup_method(self) -> None:
-        """Set up test molecule with mock calculator."""
-        self.h2o = molecule("H2O")
-        self.h2o.calc = qme.MockCalculator(backend="mock")
-
     @pytest.mark.parametrize(
         ("indices", "expected_shape"),
         [
@@ -124,21 +119,16 @@ class TestHessianCalculator:
             ([0, 1], (6, 6)),  # Two atoms
         ],
     )
-    def test_hessian_dimensions(self, indices, expected_shape) -> None:
+    def test_hessian_dimensions(self, indices, expected_shape, h2o_molecule):
         """Test Hessian matrix dimensions for different atom subsets."""
-        hc = HessianCalculator(self.h2o, self.h2o.calc, indices=indices)
-        h = hc.calculate_numerical_hessian()
-        assert h.shape == expected_shape
+        hc = HessianCalculator(h2o_molecule, h2o_molecule.calc, indices=indices)
+        hessian = hc.calculate_numerical_hessian()
+        StandardTestAssertions.assert_hessian_valid(hessian, expected_shape)
 
-        # Check that Hessian is symmetric
-        assert np.allclose(h, h.T), "Hessian should be symmetric"
-
-    def test_richardson_improves_accuracy_over_central(self) -> None:
+    def test_richardson_improves_accuracy_over_central(self):
         """Test that Richardson extrapolation improves accuracy over central differences."""
-        from ase import Atoms
-
         # Simple H2 molecule aligned on x-axis
-        atoms = Atoms("H2", positions=[[0.0, 0.0, 0.0], [0.74, 0.0, 0.0]])
+        atoms = TestMoleculeFactory.get_h2_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
         # Reference with very small step

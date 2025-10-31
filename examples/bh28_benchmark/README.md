@@ -4,15 +4,13 @@ Comprehensive evaluation of QME backends on the BH28 database of chemical reacti
 
 ## Overview
 
-The **BH28 Benchmark** (`bh28_benchmark.py`) provides a unified evaluation of all QME backends on the BH28 database of chemical reaction barrier heights. This benchmark tests the accuracy of machine learning potentials for predicting reaction barriers across diverse chemical reactions.
+Evaluates QME backends on the BH28 database (28 chemical reactions) to test ML potential accuracy for predicting reaction barrier heights.
 
-## What the Benchmark Does
-
-1. **Optimizes reactant minima** using various QME ML backends
-2. **Optimizes transition states** using SELLA optimizer
-3. **Calculates barrier heights** from optimized structures
-4. **Compares accuracy** against reference values from high-level quantum chemistry
-5. **Provides performance analysis** and backend recommendations
+**Methodology:**
+1. Optimizes reactant minima
+2. Optimizes transition states (SELLA)
+3. Calculates barrier heights
+4. Compares against reference values (CCSDT(Q)/CBS)
 
 ## Usage
 
@@ -96,10 +94,10 @@ bh28_benchmark/
 
 ## Requirements
 
-- **QME package**: Base QME installation
-- **ML backends**: At least one of: UMA (`fairchem-core`), SO3LR, AIMNet2, MACE
-- **Transition states**: SELLA optimizer (`pip install sella`) - recommended for proper TS optimization
-- **Python environment**: Python 3.10+ recommended
+- QME package installed
+- At least one ML backend (see [README](../../README.md))
+- SELLA optimizer recommended (`pip install sella`)
+- Python 3.10+
 
 ## Understanding Results
 
@@ -118,12 +116,10 @@ bh28_benchmark/
 
 ## Citation
 
-The BH28 dataset is from:
 A. Karton, "Highly Accurate CCSDT(Q)/CBS Reaction Barrier Heights for a Diverse Set of Transition Structures", J. Phys. Chem. A 2019, 123, 6720-6729.
 
 ## Notes
 
-- The benchmark automatically detects available backends
+- Automatically detects available backends
 - Failed optimizations are reported but don't stop the benchmark
-- Results can be analyzed separately using the `--analyze` flag
-- For reproducibility, use the same conda environment across runs
+- Use `--analyze` flag to analyze existing results

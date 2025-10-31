@@ -10,35 +10,24 @@
 ### Installation
 
 ```bash
-# Install QME from source
-git clone https://github.com/rlaplaza-lab/qme.git
-cd qme
-pip install -e .
-
-# Or install directly from GitHub
-pip install git+https://github.com/rlaplaza-lab/qme.git
-
-# Install a backend separately
-pip install torch torch-cluster  # AIMNet2 (recommended)
-pip install fairchem-core         # UMA
-pip install mace-torch            # MACE
-pip install orb-models            # Orb
-pip install tblite                # TBLite
+pip install qme-ml
+# Or from source:
+git clone https://github.com/rlaplaza-lab/qme.git && cd qme && pip install -e .
 ```
 
-> **Note**: Python version depends on backend choice. TorchSim requires Python 3.11+, others work with Python 3.10+.
-
-### Backend Selection
+Install a backend separately:
 
 | Backend | Installation | Notes |
 |---------|--------------|-------|
-| `aimnet2` | `pip install torch torch-cluster` | Built-in, no conflicts |
+| `aimnet2` | `pip install torch torch-cluster` | Recommended for beginners, no conflicts |
 | `uma` | `pip install fairchem-core` | Materials science |
-| `mace` | `pip install mace-torch` | Conflicts with UMA |
-| `torchsim_mace` | `pip install torch-sim-atomistic` | Requires Python 3.11+ |
-| `torchsim_uma` | `pip install torch-sim-atomistic` | Requires Python 3.11+ |
+| `mace` | `pip install mace-torch` | High accuracy, conflicts with UMA |
+| `torchsim_mace` | `pip install torch-sim-atomistic` | Maximum performance, requires Python 3.11+ |
+| `torchsim_uma` | `pip install torch-sim-atomistic` | Maximum performance, requires Python 3.11+ |
+| `orb` | `pip install orb-models` | Universal forcefield |
+| `tblite` | `pip install tblite` | Fast semi-empirical |
 
-> **Note**: MACE and UMA have dependency conflicts. Use separate environments.
+> **Note**: Python 3.10+ for most backends, 3.11+ for TorchSim. MACE and UMA conflict - use separate environments.
 
 ### Your First Optimization
 
@@ -70,13 +59,13 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 
 ## Key Features
 
-- 🧪 **Multiple ML Backends**: UMA, AIMNet2, MACE, SO3LR, TorchSim (MACE/UMA)
-- ⚡ **GPU Acceleration**: CUDA support for compatible backends
-- 🎯 **Semantic Interface**: Target/strategy system (minima, ts, path)
-- 🔄 **Advanced Methods**: NEB, CI-NEB, IRC, growing string method
-- 📊 **Frequency Analysis**: Vibrational frequencies and thermodynamics
-- 🖥️ **Dual Interface**: Both command-line and Python API
-- 📁 **Format Support**: XYZ, CIF, PDB, and more via ASE
+- Multiple ML backends (UMA, AIMNet2, MACE, SO3LR, TorchSim, Orb, TBLite)
+- GPU acceleration with CUDA support
+- Semantic target/strategy interface (minima, ts, path)
+- Advanced methods (NEB, CI-NEB, IRC, growing string)
+- Frequency analysis and thermodynamics
+- Command-line and Python API
+- Supports XYZ, CIF, PDB via ASE
 
 ## Documentation
 
@@ -96,18 +85,6 @@ qme path --strategy neb reactant.xyz --product product.xyz --npoints 11
 # IRC from transition state
 qme path --strategy irc ts.xyz --direction both
 ```
-
-## Backend Selection
-
-| Backend | Best For | Installation |
-|---------|----------|--------------|
-| `aimnet2` | Beginners, no conflicts | `pip install torch torch-cluster` |
-| `uma` | Materials science | `pip install fairchem-core` |
-| `mace` | High accuracy molecules | `pip install mace-torch` |
-| `torchsim_mace` | Maximum performance MACE | `pip install torch-sim-atomistic` |
-| `torchsim_uma` | Maximum performance UMA | `pip install torch-sim-atomistic` |
-
-> **Note**: Some backends have dependency conflicts. Use separate environments or choose one backend per environment.
 
 ## Community and Support
 

@@ -4,17 +4,14 @@ Comprehensive evaluation of QME backends for two-ended transition state searches
 
 ## Overview
 
-The **Zimmermann-93 Benchmark** (`zimmermann93_benchmark.py`) tests QME backends on two-ended (reactant→product) transition state searches. This benchmark evaluates how well machine learning potentials can locate transition states when given both reactant and product structures.
+Tests QME backends on two-ended (reactant→product) transition state searches, evaluating how well ML potentials locate TS when given both reactant and product structures.
 
-## What the Benchmark Does
-
-1. **Interpolates reaction paths** between reactant and product structures (geodesic interpolation)
-2. **Optimizes paths** with simplified NEB-like routines (when available)
-3. **Identifies TS candidates** by selecting highest-energy interpolated images
-4. **Optimizes transition states** using QME's Explorer with transition state optimization
-5. **Compares geometries** by computing RMSD between located and reference TS structures
-6. **Analyzes success rates** and geometric accuracy across backends
-7. **Saves complete reaction pathways** as trajectory files for visualization and analysis
+**Methodology:**
+1. Interpolates reaction paths (geodesic)
+2. Identifies TS candidates (highest-energy images)
+3. Optimizes transition states
+4. Compares geometries (RMSD vs reference)
+5. Analyzes success rates and accuracy
 
 ## Usage
 
@@ -54,23 +51,6 @@ Each reaction tests the ability to find transition states connecting known react
 
 ## Methodology
 
-### Path Interpolation
-1. **Geodesic interpolation** between reactant and product geometries
-2. **Multiple images** generated along the reaction coordinate
-3. **Energy evaluation** at each interpolated point
-4. **Trajectory saving** for complete reaction pathways using QME's new `target="path"` functionality
-
-### TS Optimization
-1. **Highest-energy image** selected as initial TS guess
-2. **QME transition state optimization** using available methods:
-   - **SELLA optimizer** (recommended, requires `pip install sella`)
-   - **Fallback methods** for basic TS optimization
-3. **Convergence criteria** applied for reliable TS location
-
-### Analysis
-1. **RMSD calculation** between located and reference TS geometries
-2. **Success rate** tracking for optimization convergence
-3. **Performance comparison** across different backends
 
 ## Output
 
@@ -109,10 +89,10 @@ zimmermann93_benchmark/
 
 ## Requirements
 
-- **QME package**: Base QME installation
-- **ML backends**: At least one of: UMA (`fairchem-core`), SO3LR, AIMNet2, MACE
-- **Transition states**: SELLA optimizer (`pip install sella`) - highly recommended for reliable TS optimization
-- **Python environment**: Python 3.10+ recommended
+- QME package installed
+- At least one ML backend (see [README](../../README.md))
+- SELLA optimizer recommended (`pip install sella`)
+- Python 3.10+
 
 ## Understanding Results
 
@@ -137,16 +117,6 @@ This benchmark complements the BH28 benchmark by focusing on:
 
 ## Notes
 
-- This benchmark mirrors the behavior of `bh28_benchmark.py` but focuses on geometry comparison
-- The benchmark will fail early if no ML backends are available
-- SELLA optimizer is strongly recommended for reliable transition state optimization
-- Results may vary depending on interpolation quality and initial TS guesses
-- For reproducibility, use the same conda environment and backend versions across runs
-
-## Relationship to Other Benchmarks
-
-- **BH28 Benchmark**: Tests energetic accuracy of barrier heights
-- **Zimmermann-93 Benchmark**: Tests geometric accuracy of TS structures
-- **Timing Benchmark**: Tests computational performance and optimization efficiency
-
-Together, these benchmarks provide comprehensive evaluation of QME backend capabilities.
+- Focuses on geometric accuracy (RMSD) vs BH28's energetic accuracy
+- SELLA optimizer strongly recommended for reliable TS optimization
+- Results may vary with interpolation quality and initial TS guesses

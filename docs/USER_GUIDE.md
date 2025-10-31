@@ -5,11 +5,9 @@ Complete guide to using QME for molecular geometry optimization and transition s
 ## Table of Contents
 
 1. [Core Concepts](#core-concepts)
-2. [Installation](#installation)
-3. [Command Line Interface](#command-line-interface)
-4. [Python API](#python-api)
-5. [Backend Guide](#backend-guide)
-6. [Examples](#examples)
+2. [Command Line Interface](#command-line-interface)
+3. [Python API](#python-api)
+4. [Backend Guide](#backend-guide)
 
 ## Core Concepts
 
@@ -34,59 +32,9 @@ QME uses a semantic interface with two key concepts:
 
 ## Installation
 
-### Prerequisites
+See [README.md](../README.md) for installation instructions.
 
-- Python version depends on your chosen backend:
-  - Python 3.10+ for most backends (AIMNet2, UMA, MACE, Orb, TBLite)
-  - Python 3.11+ for TorchSim backends
-- pip package manager
-
-### Quick Installation
-
-```bash
-# Create a virtual environment (recommended)
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install QME
-pip install qme-ml
-
-# Install a backend separately (choose one based on your needs)
-pip install torch torch-cluster  # For AIMNet2 (recommended for beginners)
-pip install fairchem-core         # For UMA
-pip install mace-torch            # For MACE
-pip install orb-models            # For Orb
-pip install tblite                # For TBLite
-```
-
-> **Note**: Python version requirements depend on your chosen backend. TorchSim requires Python 3.11+, while other backends work with Python 3.10+. Choose your Python version based on the backends you need.
-
-### Backend Selection
-
-QME supports multiple machine learning backends. Choose one based on your needs:
-
-| Backend | Best For | Installation |
-|---------|----------|--------------|
-| `aimnet2` | General use, no conflicts | `pip install torch torch-cluster` |
-| `mace` | High accuracy | `pip install mace-torch` |
-| `uma` | Materials science | `pip install fairchem-core` |
-| `orb` | Universal forcefield | `pip install orb-models` |
-| `torchsim_mace` | Maximum performance MACE | `pip install torch-sim-atomistic` |
-| `torchsim_uma` | Maximum performance UMA | `pip install torch-sim-atomistic` |
-
-> **Important**: Some backends have dependency conflicts (e.g., UMA vs MACE). Use separate environments or choose one backend per environment.
-
-### Alternative Installations
-
-```bash
-# Development installation
-git clone https://github.com/rlaplaza-lab/qme.git
-cd qme
-pip install -e .[dev]
-
-# Minimal installation (mock backend only)
-pip install qme-ml
-```
+> **Note**: Python 3.10+ required for most backends, 3.11+ for TorchSim. Some backends conflict (e.g., UMA vs MACE) - use separate environments.
 
 ## Command Line Interface
 
@@ -288,37 +236,14 @@ qme path --strategy irc ts.xyz --direction both
 
 ### qme cache - Cache Management
 
-Manage QME's model cache.
-
-#### Usage
-
 ```bash
-qme cache {info,clear} [OPTIONS]
-```
-
-#### Subcommands
-
-##### info - Cache Information
-
-Display cache information.
-
-```bash
-qme cache info
-```
-
-##### clear - Clear Cache
-
-Clear the model cache.
-
-```bash
-qme cache clear
+qme cache info   # Display cache information
+qme cache clear  # Clear the model cache
 ```
 
 ## Python API
 
 ### Explorer Class
-
-The `Explorer` class is the main entry point for the Python API.
 
 ```python
 from qme import Explorer
@@ -326,250 +251,76 @@ from qme import Explorer
 explorer = Explorer(
     atoms,                    # Atoms or Sequence[Atoms]
     backend="uma",            # Backend name
-    model_name=None,          # Model name (optional)
-    model_path=None,          # Path to model file (optional)
-    device=None,              # Device: cpu|cuda (auto-detected if None)
-    default_charge=0,         # Default molecular charge
-    default_spin=1,           # Default spin multiplicity
-    local_optimizer="default", # Optimizer name (auto-selects based on target)
-    optimizer_kwargs=None,    # Dict of optimizer kwargs
-    strategy="local",         # Strategy: local|neb|cineb|interpolate|growing_string|irc
     target="minima",          # Target: minima|ts|path
-    ts_kwargs=None,           # Dict of TS optimizer kwargs
-    constraints=None,         # Constraint specification
-    initial_hessian=None,     # Initial Hessian matrix (optional)
-    auto_register=True,       # Auto-register strategies
-    verbose=1,                # Verbosity level: 0=quiet, 1=normal, 2=verbose
-    profile=False             # Enable profiling
+    strategy="local",         # Strategy: local|neb|cineb|interpolate|growing_string|irc
+    device=None,              # Device: cpu|cuda (auto-detected if None)
+    local_optimizer="default", # Optimizer (auto-selects based on target)
+    # ... see Python API documentation for full parameter list
 )
 ```
 
-**Available Backends:**
-- `uma` - Universal Materials Accelerator
-- `aimnet2` - AIMNet2 neural network potential
-- `mace` - MACE foundation models
-- `so3lr` - SO3LR equivariant neural network
-- `orb` - Orb universal forcefield
-- `torchsim_mace` - TorchSim-accelerated MACE
-- `torchsim_uma` - TorchSim-accelerated UMA
-- `tblite` - TBLite semi-empirical
-- `mock` - Mock calculator for testing
+**Targets:** `minima`, `ts`, `path`
 
-**Available Targets:**
-- `minima` - Find local minimum
-- `ts` - Find transition state
-- `path` - Find reaction pathway
+**Strategies:** `local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string` (see [Target/Strategy Matrix](#targetstrategy-matrix))
 
-**Available Strategies by Target:**
-
-| Target  | Strategy         | Description                           |
-|---------|-----------------|---------------------------------------|
-| minima  | local           | Direct local optimization             |
-| minima  | interpolate     | Minima from interpolated path         |
-| ts      | local           | Local TS search                       |
-| ts      | interpolate     | TS guess from interpolation           |
-| ts      | growing_string  | Growing string method (DE-GSM)        |
-| path    | neb             | NEB path optimization                 |
-| path    | cineb           | CI-NEB path optimization              |
-| path    | irc             | IRC path from transition state        |
-| path    | interpolate     | Generate path only (no optimization)  |
-
-**Available Optimizers:**
-- First-order (gradient-based): `lbfgs`, `bfgs`, `fire`
-- Second-order (Hessian-based): `sella`, `trust-krylov`, `trust-krylov-ts`, `trust-ncg`, `trust-exact`, `newton-cg`
-- `default`: Auto-selects based on target (LBFGS for minima, Sella for TS)
+**Optimizers:** First-order (`lbfgs`, `bfgs`, `fire`), second-order (`sella`, `trust-krylov`, etc.), or `default` (auto-selects)
 
 ### Key Methods
 
 ```python
 # Run optimization
-result = explorer.run(
-    fmax=0.05,                    # Convergence threshold
-    steps=1000,                   # Max steps
-    calculate_frequencies=False,  # Perform frequency analysis
-    temperature=298.15,           # Temperature for thermodynamics
-    **kwargs                      # Strategy-specific kwargs
-)
+result = explorer.run(fmax=0.05, steps=1000, calculate_frequencies=False)
 
 # Load from file
-explorer = Explorer.from_file(
-    "molecule.xyz",
-    backend="aimnet2",
-    target="minima",
-    strategy="local"
-)
+explorer = Explorer.from_file("molecule.xyz", backend="aimnet2", target="minima")
 
 # Calculate frequencies
-freq_result = explorer.calculate_frequencies(
-    atoms=None,              # Uses atoms_list[0] if None
-    delta=0.01,              # Finite difference step size
-    # Optional: enable Richardson extrapolation for numerical Hessians
-    # richardson=True, delta2=None (defaults to delta/2)
-    method="auto",           # Method: auto|numerical
-    temperature=298.15,      # Temperature (K)
-    save_hessian=True        # Include Hessian in results
-)
+freq_result = explorer.calculate_frequencies(atoms=None, delta=0.01, method="auto")
 
 # Save results
 explorer.save_structure(result["optimized_atoms"], "output.xyz")
 explorer.save_trajectory(trajectory_list, "path.xyz")
-
-# Introspection
-strategies = explorer.list_strategies()       # List all strategies
-explanation = explorer.explain_run()          # Explain strategy selection
 ```
 
 ## Backend Guide
 
-### Backend Overview
-
-| Backend | Description | Installation | Best For |
-|---------|-------------|--------------|----------|
-| `uma` | Universal Materials Accelerator (Meta AI) | `pip install fairchem-core` | General purpose, materials |
-| `aimnet2` | Native PyTorch implementation | `pip install torch torch-cluster` | Molecules, fast inference |
-| `mace` | Foundation models for chemistry | `pip install mace-torch` | High accuracy, diverse systems |
-| `orb` | Orbital Materials universal forcefield | `pip install orb-models` | Universal, molecules and materials |
-| `so3lr` | SO(3) invariant neural networks | `pip install so3lr` | Research, custom models |
-| `tblite` | TBLite semi-empirical | `pip install tblite` | Fast semi-empirical calculations |
-| `torchsim_mace` | TorchSim-accelerated MACE | `pip install torch-sim-atomistic` | High performance MACE |
-| `torchsim_uma` | TorchSim-accelerated UMA | `pip install torch-sim-atomistic` | High performance UMA |
-| `mock` | Harmonic oscillator for testing | Built-in | Testing, development |
-
-### Backend Selection Guide
-
-#### For Beginners
-Start with **AIMNet2** - no conflicts, fast, reliable:
-```bash
-pip install torch torch-cluster
-```
-
-#### For Production Use
-Use **UMA** for materials, **MACE** for molecules, or **Orb** for universal coverage:
-```bash
-# Materials and general purpose
-pip install fairchem-core
-
-# High accuracy molecules
-pip install mace-torch
-
-# Universal forcefield (molecules and materials)
-pip install orb-models
-```
-
-#### For Maximum Performance
-Use **TorchSim** backends (torchsim_mace, torchsim_uma) with GPU acceleration:
-```bash
-pip install torch-sim-atomistic
-qme minima --strategy local molecule.xyz --backend torchsim_mace --device cuda
-```
-
-#### For Development/Testing
-Use **Mock** backend:
-```bash
-qme minima --strategy local molecule.xyz --backend mock
-```
+| Backend | Installation | Best For | Notes |
+|---------|--------------|----------|-------|
+| `aimnet2` | `pip install torch torch-cluster` | Beginners, molecules | No conflicts, fast |
+| `uma` | `pip install fairchem-core` | Materials science | Conflicts with MACE |
+| `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA |
+| `orb` | `pip install orb-models` | Universal coverage | Molecules and materials |
+| `torchsim_mace` | `pip install torch-sim-atomistic` | Maximum performance | Requires Python 3.11+ |
+| `torchsim_uma` | `pip install torch-sim-atomistic` | Maximum performance | Requires Python 3.11+ |
+| `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations |
+| `so3lr` | `pip install so3lr` | Research | Custom models |
+| `mock` | Built-in | Testing | Development only |
 
 ### Dependency Conflicts
 
-#### Known Conflicts
+UMA and MACE conflict due to incompatible `e3nn` versions. Use separate environments:
 
-**UMA vs MACE**: Both depend on `e3nn` but require incompatible versions:
-- UMA (fairchem-core) requires `e3nn>=0.5`
-- MACE requires `e3nn==0.4.4`
-
-**Solution**: Use separate environments:
 ```bash
-# Environment 1: UMA only
+# UMA environment
 conda create -n qme-uma python=3.12
-conda activate qme-uma
-pip install qme-ml fairchem-core
+conda activate qme-uma && pip install qme-ml fairchem-core
 
-# Environment 2: MACE only
+# MACE environment
 conda create -n qme-mace python=3.12
-conda activate qme-mace
-pip install qme-ml mace-torch
+conda activate qme-mace && pip install qme-ml mace-torch
 ```
 
 ### Interpolation Methods
 
-QME supports multiple interpolation strategies for generating reaction pathways between molecular structures.
-
 | Method | Description | Best For |
 |--------|-------------|----------|
-| `linear` | Simple linear interpolation between coordinates | Quick initial guesses, simple systems |
-| `geodesic` | Distance-preserving interpolation with bond length refinement | Chemically reasonable intermediates (default) |
-| `idpp` | Image-Dependent Pair Potential interpolation | Large geometry changes, robust pathways |
-| `quadratic` | Quadratic curve fitting through start, midpoint, and end | When approximate transition region is known |
-| `spline` | Cubic spline interpolation for smooth pathways | Smooth, continuous reaction coordinates |
+| `geodesic` | Distance-preserving with bond refinement | Default, chemically reasonable |
+| `idpp` | Image-Dependent Pair Potential | Large geometry changes |
+| `linear` | Simple linear interpolation | Quick initial guesses |
+| `quadratic` | Quadratic curve fitting | Known transition region |
+| `spline` | Cubic spline interpolation | Smooth pathways |
 
-#### Usage
-
-```bash
-# Command line - specify interpolation method
-qme minima --strategy interpolate reactant.xyz --product product.xyz --interp idpp
-qme path --strategy neb reactant.xyz --product product.xyz --interp spline
-qme ts --strategy interpolate reactant.xyz --product product.xyz --interp quadratic
-
-# Python API
-explorer = qme.Explorer(atoms=[reactant, product], target="path", strategy="interpolate")
-result = explorer.run(method="idpp", npoints=15)
-```
-
-## Examples
-
-### Basic Workflows
-
-```bash
-# 1. Local minima optimization
-qme minima --strategy local molecule.xyz --backend aimnet2
-
-# 2. Transition state search
-qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15
-
-# 3. Reaction path optimization
-qme path --strategy neb reactant.xyz --product product.xyz --npoints 11
-
-# 4. IRC from transition state
-qme path --strategy irc ts.xyz --direction both
-```
-
-### Python API Examples
-
-```python
-from qme import Explorer
-
-# Minima optimization
-explorer = Explorer.from_file("molecule.xyz", backend="aimnet2", target="minima")
-result = explorer.run(fmax=0.05, steps=1000)
-explorer.save_structure(result["optimized_atoms"], "optimized.xyz")
-
-# Transition state search
-explorer = Explorer.from_file("ts_guess.xyz", backend="mace", target="ts", strategy="local")
-result = explorer.run(fmax=0.01)
-
-# NEB path with two structures
-from ase.io import read
-reactant = read("reactant.xyz")
-product = read("product.xyz")
-
-explorer = Explorer(
-    atoms=[reactant, product],
-    backend="uma",
-    target="path",
-    strategy="neb"
-)
-result = explorer.run(npoints=11, fmax=0.05, spring_constant=5.0)
-explorer.save_trajectory(result["trajectory"], "neb_path.xyz")
-
-# With frequency analysis
-result = explorer.run(
-    fmax=0.05,
-    calculate_frequencies=True,
-    temperature=298.15
-)
-print(f"Frequencies: {result['frequency_analysis']['frequencies']}")
-print(f"ZPE: {result['frequency_analysis']['zero_point_energy']} eV")
-```
+Usage: `qme path --strategy neb reactant.xyz --product product.xyz --interp idpp`
 
 ---
 
