@@ -9,7 +9,7 @@ convenience functions for logging and user-friendly interfaces.
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from qme.backends.constants import (
     ALL_BACKENDS,
@@ -24,9 +24,6 @@ from qme.backends.constants import (
     TORCHSIM_BACKENDS,
 )
 from qme.backends.dependencies import deps
-
-if TYPE_CHECKING:
-    pass
 
 
 # Import logger only when needed to avoid circular imports

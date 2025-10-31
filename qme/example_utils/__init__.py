@@ -7,18 +7,14 @@ functionality across all QME examples to ensure consistency.
 
 import argparse
 import json
-import sys
 import time
 from collections.abc import Callable, Sequence, Sized
 from pathlib import Path
 from typing import Any
 
 # Import QME components
-try:
-    from qme.backends.availability import is_backend_available
-    from qme.backends.registry import calculator_registry
-except ImportError:
-    sys.exit(1)
+from qme.backends.availability import is_backend_available
+from qme.backends.registry import calculator_registry
 
 # Import device utilities
 from qme.utils.device import get_optimal_device, print_device_info

@@ -198,8 +198,6 @@ class MockCalculator(Calculator):
                 dist = np.linalg.norm(rij)
                 if dist <= cutoff:
                     # Treat as bonded pair
-                    # key = (int(numbers[i]), int(numbers[j]))  # Unused for now
-                    # key_rev = (int(numbers[j]), int(numbers[i]))  # Unused for now
                     r_eq = r0 if r0 > 0 else dist
                     pairs.append((i, j, r_eq))
 

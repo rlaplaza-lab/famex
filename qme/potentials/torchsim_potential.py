@@ -112,7 +112,6 @@ class TorchSimPotential(BasePotential):
 
         try:
             self._torch_sim = deps.get("torch_sim")
-            # torch = deps.get("torch")  # Unused for now
 
             # Don't show model info - let the outer context handle it
             with quiet_backend_loading(
@@ -250,9 +249,6 @@ class TorchSimPotential(BasePotential):
     def _load_fairchem_model(self) -> None:
         """Load Fairchem model through TorchSim."""
         try:
-            # Try to load Fairchem model through TorchSim
-            # from torch_sim.models.fairchem import FairchemModel  # Unused for now
-
             # For now, we'll use the regular Fairchem approach since TorchSim Fairchem
             # has compatibility issues with the current fairchem-core version
             msg = "TorchSim Fairchem not compatible with current fairchem-core version"
@@ -331,7 +327,6 @@ class TorchSimPotential(BasePotential):
             self._current_atoms = self.atoms
 
             # Calculate properties using TorchSim model
-            # torch = deps.get("torch")  # Unused for now
             # Enable gradients for force calculations
             results = self._model(state)
         else:
@@ -436,7 +431,6 @@ class TorchSimPotential(BasePotential):
             self._current_atoms = atoms_list[0]  # Use first atoms for spin/charge info
 
             # Calculate properties for the entire batch
-            # torch = deps.get("torch")  # Unused for now
             # Don't use no_grad() as MACE needs gradients for force calculations
             batch_results = self._model(batch_state)
 

@@ -5,10 +5,6 @@ from __future__ import annotations
 import logging
 import sys
 import threading
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
 
 # Thread-local storage to track if we're already in a quiet_backend_loading context
 _quiet_context_local = threading.local()
