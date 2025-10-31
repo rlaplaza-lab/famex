@@ -267,7 +267,7 @@ class StandardTestAssertions:
 
         # Check converged is boolean-like
         converged = result["converged"]
-        assert isinstance(converged, (bool, list)) or converged in (True, False), (
+        assert isinstance(converged, bool | list) or converged in (True, False), (
             "converged should be boolean"
         )
 
@@ -581,3 +581,107 @@ class BackendTestRunner:
                 warnings.warn(warning_msg, UserWarning, stacklevel=2)
 
         return successful, failed
+
+
+def parametrize_backends(
+    backends: list[str] | None = None,
+    include_mock: bool = False,
+    ids: list[str] | None = None,
+) -> pytest.mark.parametrize:
+    """Create a pytest parametrize marker for backend testing.
+
+    This helper reduces redundancy in backend testing by providing a standardized
+    way to parametrize tests across multiple backends.
+
+    Args:
+        backends: List of specific backends to test. If None, uses all available.
+        include_mock: Whether to include mock backend.
+        ids: Custom test IDs. If None, uses backend names.
+
+    Returns:
+        pytest.mark.parametrize marker
+
+    Example:
+        @parametrize_backends(include_mock=True)
+        def test_something(backend):
+            # Test code here
+            pass
+    """
+    if backends is None:
+        backends = get_available_backends(include_mock=include_mock)
+
+    if ids is None:
+        ids = backends
+
+    return pytest.mark.parametrize("backend", backends, ids=ids)
+
+
+@pytest.fixture
+def backend_test_fixture():
+    """Fixture providing backend testing utilities and common patterns.
+
+    This fixture provides a namespace with:
+    - get_backends(): Get available backends
+    - require_backend(backend): Skip if backend unavailable
+    - run_with_all_backends(func): Run function with all backends
+
+    Example:
+        def test_something(backend_test_fixture):
+            backends = backend_test_fixture.get_backends()
+            for backend in backends:
+                # test code
+    """
+
+    class BackendTestFixture:
+        def __init__(self):
+            self._available_backends = get_available_backends(include_mock=False)
+
+        def get_backends(self, include_mock: bool = False) -> list[str]:
+            """Get list of available backends."""
+            return get_available_backends(include_mock=include_mock)
+
+        def require_backend(self, backend: str) -> None:
+            """Skip test if backend is not available."""
+            if not check_backend_availability(backend):
+                pytest.skip(f"Backend {backend} not available")
+
+        def run_with_all_backends(self, test_func, include_mock: bool = False, **kwargs):
+            """Run test function with all available backends."""
+            return BackendTestRunner.run_with_warnings(
+                test_func, backends=None, include_mock=include_mock, **kwargs
+            )
+
+    return BackendTestFixture()
+
+
+def create_backend_test_atoms(backend: str):
+    """Create appropriate test atoms for a given backend.
+
+    Some backends have limitations on supported elements or system sizes.
+    This helper selects appropriate test molecules.
+
+    Args:
+        backend: Backend name
+
+    Returns:
+        Atoms object suitable for testing with the backend
+    """
+    # Most backends support small molecules
+    return TestMoleculeFactory.get_water_distorted()
+
+
+def assert_backend_calculator(calculator, backend: str = "mock") -> None:
+    """Assert that a calculator has the expected interface.
+
+    Args:
+        calculator: Calculator instance to check
+        backend: Backend name for context
+    """
+    assert calculator is not None, f"Calculator should not be None for backend {backend}"
+
+    # Check that calculator has basic methods
+    # Note: We don't enforce these strictly as different backends may have different APIs
+    if hasattr(calculator, "calculate"):
+        assert callable(calculator.calculate)
+    elif hasattr(calculator, "get_potential_energy"):
+        assert callable(calculator.get_potential_energy)

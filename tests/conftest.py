@@ -19,7 +19,10 @@ from tests.test_utils import (  # noqa: E402
     BackendTestWarning,
     StandardTestAssertions,
     TestMoleculeFactory,
+    assert_backend_calculator,
     backend_test_with_warnings,
+    create_backend_test_atoms,
+    parametrize_backends,
 )
 
 # Re-export for easy access in tests
@@ -28,5 +31,8 @@ __all__ = [
     "BackendTestWarning",
     "StandardTestAssertions",
     "TestMoleculeFactory",
+    "assert_backend_calculator",
     "backend_test_with_warnings",
+    "create_backend_test_atoms",
+    "parametrize_backends",
 ]
