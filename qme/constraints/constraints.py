@@ -159,11 +159,10 @@ class HarmonicPositionConstraint:
     def to_ase_constraints(self) -> list:
         """Convert to ASE constraint format.
 
-        Note: ASE doesn't have built-in positional springs.
-        This returns an empty list for now - would need custom implementation.
+        Note: ASE doesn't have built-in positional springs, so this returns
+        an empty list. A custom constraint implementation would be needed
+        for true positional spring constraints.
         """
-        # Custom positional spring constraints not yet implemented
-        # For now, return empty list (constraint will be noted but not applied)
         return []
 
 

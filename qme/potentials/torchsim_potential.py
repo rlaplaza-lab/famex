@@ -247,21 +247,17 @@ class TorchSimPotential(BasePotential):
         self._model = self._mace_model
 
     def _load_fairchem_model(self) -> None:
-        """Load Fairchem model through TorchSim."""
-        try:
-            # For now, we'll use the regular Fairchem approach since TorchSim Fairchem
-            # has compatibility issues with the current fairchem-core version
-            msg = "TorchSim Fairchem not compatible with current fairchem-core version"
-            raise ImportError(msg)
+        """Load Fairchem model through TorchSim.
 
-        except ImportError as e:
-            msg = (
-                f"TorchSim Fairchem not available ({e}). "
-                f"Install with: pip install torch-sim-atomistic"
-            )
-            raise ImportError(
-                msg,
-            )
+        Note: TorchSim Fairchem has compatibility issues with the current
+        fairchem-core version. This method raises ImportError to indicate
+        that this backend is not currently supported.
+        """
+        msg = (
+            "TorchSim Fairchem not compatible with current fairchem-core version. "
+            "Install with: pip install torch-sim-atomistic"
+        )
+        raise ImportError(msg)
 
     def _atoms_to_state(self, atoms: Atoms) -> Any:
         """Convert ASE Atoms to TorchSim state."""
