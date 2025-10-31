@@ -241,9 +241,8 @@ class PathManager:
         """Optimize path using simplified NEB-like forces.
 
         This is a basic implementation inspired by NEB methods.
+        Future improvements could include full NEB force calculations.
         """
-        # For now, just return the path as-is
-        # A full NEB implementation would require more sophisticated force calculations
         logger.info("Note: Using simplified NEB-like algorithm for path optimization")
 
         # Set calculators and calculate energies

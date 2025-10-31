@@ -124,8 +124,8 @@ class FivePointCentralDifferenceScheme:
             Forces at +delta displacement
         forces_minus : np.ndarray
             Forces at -delta displacement
-        forces_ref : np.ndarray
-            Forces at reference geometry (required for 5-point scheme)
+        forces_ref : np.ndarray, optional
+            Forces at reference geometry (not used, for protocol compatibility)
         delta : float
             Displacement step size
         **kwargs : Any
@@ -142,9 +142,6 @@ class FivePointCentralDifferenceScheme:
         if forces_minus is None:
             msg = "5-point central difference requires forces_minus"
             raise ValueError(msg)
-        if forces_ref is None:
-            msg = "5-point central difference requires forces_ref"
-            raise ValueError(msg)
         if "forces_plus2" not in kwargs or "forces_minus2" not in kwargs:
             msg = "5-point central difference requires forces_plus2 and forces_minus2"
             raise ValueError(msg)
@@ -152,14 +149,23 @@ class FivePointCentralDifferenceScheme:
         forces_plus2 = kwargs["forces_plus2"]
         forces_minus2 = kwargs["forces_minus2"]
 
-        # 5-point stencil coefficients: [-1, 16, -30, 16, -1] / (12h²)
-        # For second derivative of energy: H = ∂²E/∂x² = -∂F/∂x
-        hessian_col = (
-            -forces_minus2 + 16 * forces_minus - 30 * forces_ref + 16 * forces_plus - forces_plus2
-        ) / (12 * delta**2)
+        # 5-point stencil for first derivative of a function f:
+        # ∂f/∂x ≈ [-f(x+2h) + 8f(x+h) - 8f(x-h) + f(x-2h)] / (12h)
+        #
+        # For Hessian calculation from forces F = -∇E:
+        # - H = ∂²E/∂x² (Hessian of energy)
+        # - dF/dx = ∂(-∇E)/∂x = -∂²E/∂x² = -H
+        # - Therefore: H = -dF/dx
+        #
+        # The 3-point scheme computes: -(F_plus - F_minus)/(2*delta) = (F_minus - F_plus)/(2*delta)
+        # This is dF/dx (first derivative of forces), and we return it directly as H = -dF/dx.
+        #
+        # For 5-point, we use the first derivative stencil instead of second derivative
+        hessian_col = (-forces_plus2 + 8 * forces_plus - 8 * forces_minus + forces_minus2) / (
+            12 * delta
+        )
 
-        # Note: No negative sign needed here because the stencil already computes ∂²E/∂x²
-        # and we want H = -∂F/∂x = -∂(-∇E)/∂x = ∂²E/∂x²
+        # This gives dF/dx, so we need to negate to get H = -dF/dx
         return -hessian_col
 
 
@@ -260,9 +266,9 @@ class HessianCalculator:
                 f"Calculating Hessian for {n_atoms} atoms using {type(self.scheme).__name__}"
             )
 
-        # Get reference forces for schemes that need them (forward and 5-point)
+        # Get reference forces for schemes that need them (only forward)
         forces_ref = None
-        if isinstance(self.scheme, ForwardDifferenceScheme | FivePointCentralDifferenceScheme):
+        if isinstance(self.scheme, ForwardDifferenceScheme):
             forces_ref = self._get_reference_forces()
 
         # Compute Hessian column by column
@@ -401,7 +407,7 @@ class HessianCalculator:
         atom_index: int,
         direction: int,
         delta: float,
-        forces_ref: np.ndarray,
+        forces_ref: np.ndarray | None = None,
     ) -> np.ndarray:
         """Compute 5-point finite difference derivative.
 
@@ -413,8 +419,8 @@ class HessianCalculator:
             Coordinate direction (0=x, 1=y, 2=z)
         delta : float
             Displacement step size
-        forces_ref : np.ndarray
-            Forces at reference geometry
+        forces_ref : np.ndarray, optional
+            Forces at reference geometry (not used, for API compatibility)
 
         Returns:
         -------
@@ -422,7 +428,7 @@ class HessianCalculator:
             Hessian column using 5-point stencil
 
         """
-        # Compute forces at all 5 points: -2δ, -δ, 0, +δ, +2δ
+        # Compute forces at all 4 points: -2δ, -δ, +δ, +2δ
         forces_minus2 = self._get_forces_displaced(atom_index, direction, -2 * delta)
         forces_minus = self._get_forces_displaced(atom_index, direction, -delta)
         forces_plus = self._get_forces_displaced(atom_index, direction, delta)
@@ -432,7 +438,7 @@ class HessianCalculator:
         return self.scheme.compute_derivative(
             forces_plus,
             forces_minus,
-            forces_ref,
+            None,  # forces_ref not used for 5-point
             delta,
             forces_plus2=forces_plus2,
             forces_minus2=forces_minus2,
