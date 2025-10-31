@@ -68,7 +68,40 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --cov=qme --cov-report=term-missing --cov-report=html --cov-report=xml"
+
+[tool.coverage.run]
+source = ["qme"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/build/*",
+    "*/dist/*",
+    "*/.*egg-info/*",
+    "*/examples/*",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "@property",
+    "@.*\\.setter",
+    "if False:",
+    "if .*TYPE_CHECKING.*:",
+]
+precision = 2
+show_missing = true
+skip_covered = false
+skip_empty = false
+fail_under = 75
 
 [tool.ruff]
 line-length = 100
