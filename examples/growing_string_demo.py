@@ -98,13 +98,12 @@ def main() -> int:
         action="store_true",
         help="Refine TS with local optimization after finding it (default: False)",
     )
-    parser.add_argument(
-        "--output",
-        default="growing_string_result.xyz",
-        help="Output trajectory file (default: growing_string_result.xyz)",
-    )
 
     args = parser.parse_args()
+
+    # Set default output if not provided
+    if args.output is None:
+        args.output = "growing_string_result.xyz"
 
     interface.print_header()
     interface.setup_logging(args.verbose)

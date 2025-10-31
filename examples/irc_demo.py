@@ -70,12 +70,12 @@ def main() -> int:
         default="both",
         help="Direction to follow from TS (default: both)",
     )
-    parser.add_argument(
-        "--output",
-        help="Output trajectory file (default: based on input filename)",
-    )
 
     args = parser.parse_args()
+
+    # Set default output if not provided
+    if args.output is None:
+        args.output = None  # Will be set later based on input filename
 
     interface.print_header()
     interface.setup_logging(args.verbose)
