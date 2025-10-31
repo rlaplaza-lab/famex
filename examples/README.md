@@ -142,6 +142,29 @@ benchmark or comprehensive comparison.
 python thermochemistry_demo.py
 ```
 
+### 10. UMA Hessian Method Comparison (`uma_hessian_method_comparison.py`)
+**UMA Hessian Computation Validation** *(Diagnostic/Research Script)*
+
+Comprehensive validation of UMA analytical Hessian computation methods against
+finite difference calculations. This diagnostic script helps identify the most
+accurate and reliable Hessian computation approach.
+
+**Features:**
+- Comparison of analytical methods (`double_backward`, with/without symmetrization)
+- Multiple FD step sizes (0.05, 0.01, 0.005, 0.001 Å)
+- Richardson extrapolation validation
+- Both small molecules (water, methane) and large systems (beta-carotene)
+- Error metrics in Hessian-space and frequency-space
+- Comprehensive FD step size convergence analysis
+
+**Note:** This is a diagnostic/research script for validating Hessian computation
+methods, not a standard usage example.
+
+**Usage:**
+```bash
+python uma_hessian_method_comparison.py
+```
+
 ## Standardized Interface
 
 All examples follow a consistent command-line interface:
@@ -219,11 +242,15 @@ python zimmermann93_benchmark/zimmermann93_benchmark.py --quicker
 ## Supporting Files
 
 - **`example_utils/`**: Standardized interface utilities (`QMEExampleInterface`)
+- **`example_files/`**: Sample molecular structure files (XYZ format)
+
+**Benchmark Scripts:**
 - **`minima_optimizer_benchmark.py`**: Focused minima optimizer comparison
 - **`ts_optimizer_benchmark.py`**: Focused TS optimizer comparison
-- **`uma_hessian_method_comparison.py`**: UMA Hessian computation method comparison
-- **`thermochemistry_demo.py`**: Feature-specific thermochemistry demonstration
-- **`example_files/`**: Sample molecular structure files (XYZ format)
+- **`uma_hessian_method_comparison.py`**: UMA Hessian computation validation (diagnostic)
+
+**Feature Demos:**
+- **`thermochemistry_demo.py`**: Enhanced thermochemistry capabilities demonstration
 
 ## Understanding Results
 
