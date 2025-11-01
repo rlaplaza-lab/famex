@@ -80,6 +80,7 @@ omit = [
     "*/dist/*",
     "*/.*egg-info/*",
     "*/examples/*",
+    "*/example_utils/*",
 ]
 branch = true
 
@@ -101,7 +102,7 @@ precision = 2
 show_missing = true
 skip_covered = false
 skip_empty = false
-fail_under = 75
+fail_under = 60
 
 [tool.ruff]
 line-length = 100

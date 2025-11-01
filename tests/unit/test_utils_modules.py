@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import qme
 from qme.utils.logging import (
     get_qme_log_level,
     get_qme_logger,
@@ -475,3 +476,36 @@ class TestMLWarnings:
         assert mock_suppress.called
         # Should NOT call print_model_info if already in quiet context
         assert not mock_print_info.called
+
+
+class TestQMEInitModule:
+    """Test qme.__init__ module lazy imports."""
+
+    def test_explorer_lazy_import(self):
+        """Test lazy import of Explorer."""
+        from qme import Explorer
+
+        assert Explorer is not None
+
+    def test_profiler_lazy_import(self):
+        """Test lazy import of PerformanceProfiler."""
+        from qme import PerformanceProfiler
+
+        assert PerformanceProfiler is not None
+
+    def test_deps_lazy_import(self):
+        """Test lazy import of deps."""
+        from qme import deps
+
+        assert deps is not None
+
+    def test_geometry_lazy_import(self):
+        """Test lazy import of Geometry."""
+        from qme import Geometry
+
+        assert Geometry is not None
+
+    def test_invalid_attribute_error(self):
+        """Test that invalid attribute raises AttributeError."""
+        with pytest.raises(AttributeError, match="has no attribute 'invalid_attr_xyz'"):
+            _ = qme.invalid_attr_xyz  # noqa: F841
