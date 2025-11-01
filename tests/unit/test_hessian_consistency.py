@@ -84,9 +84,11 @@ class TestHessianConsistency:
         hc = HessianCalculator(atoms, atoms.calc, delta=0.01, verbose=0)
         hessian_fd = hc.calculate_numerical_hessian()
 
-        # Compare
+        # Compare with tighter tolerances
+        # For water (3 atoms), expect better accuracy than the loose original tolerance
         assert hessian_analytical.shape == hessian_fd.shape
-        np.testing.assert_allclose(hessian_analytical, hessian_fd, rtol=0.1, atol=3.0)
+        # Tighter tolerance: 1% relative or 0.5 eV/Å² absolute (down from 10% and 3.0)
+        np.testing.assert_allclose(hessian_analytical, hessian_fd, rtol=0.01, atol=0.5)
 
     @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
     def test_uma_hessian_consistency(self, water_molecule: Atoms) -> None:
@@ -104,9 +106,11 @@ class TestHessianConsistency:
         hc = HessianCalculator(atoms, atoms.calc, delta=0.01, verbose=0)
         hessian_fd = hc.calculate_numerical_hessian()
 
-        # Compare
+        # Compare with tighter tolerances
+        # For water (3 atoms), expect better accuracy than the loose original tolerance
         assert hessian_analytical.shape == hessian_fd.shape
-        np.testing.assert_allclose(hessian_analytical, hessian_fd, rtol=0.1, atol=3.0)
+        # Tighter tolerance: 1% relative or 0.5 eV/Å² absolute (down from 10% and 3.0)
+        np.testing.assert_allclose(hessian_analytical, hessian_fd, rtol=0.01, atol=0.5)
 
     @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
     def test_uma_hessian_methane(self, methane_molecule: Atoms) -> None:
@@ -122,9 +126,11 @@ class TestHessianConsistency:
         hc = HessianCalculator(atoms, atoms.calc, delta=0.01, verbose=0)
         hessian_fd = hc.calculate_numerical_hessian()
 
-        # Compare
+        # Compare with tighter tolerances
+        # For water (3 atoms), expect better accuracy than the loose original tolerance
         assert hessian_analytical.shape == hessian_fd.shape
-        np.testing.assert_allclose(hessian_analytical, hessian_fd, rtol=0.1, atol=3.0)
+        # Tighter tolerance: 1% relative or 0.5 eV/Å² absolute (down from 10% and 3.0)
+        np.testing.assert_allclose(hessian_analytical, hessian_fd, rtol=0.01, atol=0.5)
 
     @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
     def test_uma_frequency_comparison(self, water_molecule: Atoms) -> None:
@@ -268,4 +274,5 @@ class TestHessianConsistency:
         hessian_5point = hc_5point.calculate_numerical_hessian()
 
         # Should match within reasonable tolerance
-        np.testing.assert_allclose(hessian_5point, hessian_analytical, rtol=0.05, atol=5.0)
+        # For water, expect better accuracy (1% relative, 1.0 eV/Å² absolute)
+        np.testing.assert_allclose(hessian_5point, hessian_analytical, rtol=0.01, atol=1.0)

@@ -303,3 +303,94 @@ class TestCacheCommands:
 
         assert result.exit_code == 0
         assert "Cancelled" in result.output or result.exit_code == 0
+
+
+class TestLoadAtomsFromXYZExtended:
+    """Extended tests for loading atoms."""
+
+    def test_load_xyz_with_multiple_frames(self) -> None:
+        """Test loading XYZ with multiple frames (edge case coverage)."""
+        import tempfile
+        from pathlib import Path
+
+        # Create multi-frame XYZ
+        xyz_content = """3
+frame 1
+H  0.0  0.0  0.0
+H  0.0  0.0  0.7
+H  0.0  0.0  1.4
+3
+frame 2
+H  0.0  0.0  0.0
+H  0.0  0.0  0.8
+H  0.0  0.0  1.6
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
+            temp_file = f.name
+            f.write(xyz_content)
+
+        try:
+            loaded = load_atoms_from_xyz(temp_file)
+            # Should return last frame
+            assert len(loaded) == 3
+        finally:
+            Path(temp_file).unlink(missing_ok=True)
+
+
+class TestCoerceToAtoms:
+    """Test _coerce_to_atoms helper function."""
+
+    def test_coerce_atoms_tuple(self) -> None:
+        from qme.cli.cli_helpers import _coerce_to_atoms
+
+        atoms1 = Atoms("H2")
+        atoms2 = Atoms("O")
+
+        result = _coerce_to_atoms((atoms1, atoms2))
+        assert result == atoms1  # First one
+
+    def test_coerce_atoms_dict(self) -> None:
+        from qme.cli.cli_helpers import _coerce_to_atoms
+
+        atoms = Atoms("H2O")
+        result = _coerce_to_atoms({"optimized_atoms": atoms})
+        assert result == atoms
+
+    def test_coerce_atoms_path(self) -> None:
+        from qme.cli.cli_helpers import _coerce_to_atoms
+
+        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
+            temp_file = f.name
+            atoms.write(temp_file)
+
+        try:
+            result = _coerce_to_atoms(temp_file)
+            assert len(result) == 2
+        finally:
+            Path(temp_file).unlink(missing_ok=True)
+
+    def test_coerce_atoms_invalid(self) -> None:
+        from qme.cli.cli_helpers import _coerce_to_atoms
+
+        with pytest.raises(TypeError):
+            _coerce_to_atoms(123)
+
+
+class TestLoadNonXYZFile:
+    """Test loading non-XYZ formats."""
+
+    def test_load_non_xyz_file(self) -> None:
+        """Test loading non-XYZ file."""
+        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".cif", delete=False) as f:
+            temp_file = f.name
+            atoms.write(temp_file)
+
+        try:
+            loaded = load_atoms_from_xyz(temp_file)
+            assert len(loaded) == 2
+        finally:
+            Path(temp_file).unlink(missing_ok=True)
