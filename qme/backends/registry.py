@@ -108,12 +108,30 @@ class CalculatorRegistry:
 
         except ImportError:
             # Backend not available, this is expected for optional dependencies
+            # ImportError is silent here - the backend simply isn't loaded
             pass
-        except Exception as e:
-            # Other errors should be logged but not break the system
+        except AttributeError as e:
+            # AttributeError means the function/class doesn't exist in the module
+            # This indicates a broken backend implementation, not just missing dependency
             import warnings
 
-            warnings.warn(f"Failed to load backend {backend_name}: {e}", stacklevel=2)
+            warnings.warn(
+                f"Failed to load backend '{backend_name}': function/class '{function_name}' "
+                f"not found in module '{module_name}'. Error: {e}. "
+                f"This may indicate a broken backend installation.",
+                stacklevel=2,
+            )
+        except (RuntimeError, ValueError, TypeError) as e:
+            # Runtime errors during import/initialization should be logged
+            # These could indicate configuration issues, version conflicts, etc.
+            import warnings
+
+            warnings.warn(
+                f"Failed to load backend '{backend_name}' from module '{module_name}': {e}. "
+                f"This may indicate a configuration issue or version conflict. "
+                f"Check backend installation and compatibility.",
+                stacklevel=2,
+            )
 
     def register(self, backend_name: str, factory_func: Callable[..., Any]) -> None:
         """Register a new calculator factory function.

@@ -10,8 +10,14 @@ This example shows the new thermochemistry features including:
 Based on GoodVibes-inspired thermochemistry implementation.
 """
 
+import os
+
 import numpy as np
 from ase import Atoms
+
+# Disable ASE GUI to prevent popup windows
+os.environ["DISPLAY"] = ""
+os.environ["MPLBACKEND"] = "Agg"
 
 from qme.analysis import (
     QuasiHarmonicHandler,

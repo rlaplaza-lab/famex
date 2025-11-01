@@ -6,53 +6,42 @@ import pytest
 class TestPotentialsInitBasic:
     """Basic tests for potentials module."""
 
-    def test_base_potential_import(self):
-        """Test BasePotential can be imported."""
-        from qme.potentials import BasePotential
+    @pytest.mark.parametrize(
+        "class_name",
+        ["BasePotential", "MockCalculator"],
+    )
+    def test_basic_imports(self, class_name):
+        """Test basic classes can be imported."""
+        module = __import__("qme.potentials", fromlist=[class_name])
+        cls = getattr(module, class_name)
+        assert cls is not None
 
-        assert BasePotential is not None
+    @pytest.mark.parametrize(
+        "factory_name",
+        [
+            "get_uma_calculator",
+            "get_so3lr_calculator",
+            "get_aimnet2_calculator",
+            "get_mace_calculator",
+            "get_orb_calculator",
+            "get_tblite_calculator",
+            "get_torchsim_mace_calculator",
+            "get_torchsim_uma_calculator",
+        ],
+    )
+    def test_calculator_factory_functions_exist(self, factory_name):
+        """Test calculator factory functions exist and are callable."""
+        module = __import__("qme.potentials", fromlist=[factory_name])
+        factory_func = getattr(module, factory_name)
+        assert callable(factory_func)
 
-    def test_mock_calculator_import(self):
-        """Test MockCalculator can be imported."""
-        from qme.potentials import MockCalculator
-
-        assert MockCalculator is not None
-
-    def test_calculator_factory_functions_exist(self):
-        """Test calculator factory functions exist."""
-        from qme.potentials import (
-            get_aimnet2_calculator,
-            get_mace_calculator,
-            get_orb_calculator,
-            get_so3lr_calculator,
-            get_tblite_calculator,
-            get_torchsim_mace_calculator,
-            get_torchsim_uma_calculator,
-            get_uma_calculator,
-        )
-
-        assert callable(get_uma_calculator)
-        assert callable(get_so3lr_calculator)
-        assert callable(get_aimnet2_calculator)
-        assert callable(get_mace_calculator)
-        assert callable(get_orb_calculator)
-        assert callable(get_tblite_calculator)
-        assert callable(get_torchsim_mace_calculator)
-        assert callable(get_torchsim_uma_calculator)
-
-    def test_get_calculator_generic_with_unavailable_backend(self):
-        """Test _get_calculator_generic with unavailable backend."""
+    @pytest.mark.parametrize(
+        "backend",
+        ["definitely_unavailable_backend_xyz", "unknown_backend_not_in_mapping"],
+    )
+    def test_get_calculator_generic_with_invalid_backend(self, backend):
+        """Test _get_calculator_generic raises ImportError for invalid backends."""
         from qme.potentials import _get_calculator_generic
 
         with pytest.raises(ImportError):
-            _get_calculator_generic("definitely_unavailable_backend_xyz")
-
-    def test_get_calculator_generic_with_unknown_backend(self):
-        """Test _get_calculator_generic with unknown backend."""
-        from qme.potentials import _get_calculator_generic
-
-        # Find a backend that's available but not in _BACKEND_MODULES
-        # Actually, all known backends are in the mapping
-        # So we test with definitely unknown one
-        with pytest.raises(ImportError):
-            _get_calculator_generic("unknown_backend_not_in_mapping")
+            _get_calculator_generic(backend)

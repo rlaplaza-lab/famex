@@ -129,7 +129,15 @@ class TorchSimPotential(BasePotential):
                     msg = f"Unsupported TorchSim backend: {self.backend}"
                     raise ValueError(msg)
 
+        except ImportError as e:
+            # Missing TorchSim package or dependencies
+            msg = (
+                f"TorchSim not available: missing required package. "
+                f"Error: {e}. Install with: pip install torch-sim-atomistic"
+            )
+            raise ImportError(msg) from e
         except ValueError as e:
+            # Check for specific e3nn compatibility issues first
             if "too many values to unpack" in str(e):
                 msg = (
                     f"TorchSim MACE compatibility issue with e3nn. "
@@ -137,18 +145,21 @@ class TorchSimPotential(BasePotential):
                     f"This affects both regular MACE and TorchSim MACE backends. "
                     f"Error: {e}"
                 )
-                raise ImportError(
-                    msg,
-                )
-            msg = f"TorchSim not available ({e}). Install with: pip install torch-sim-atomistic"
-            raise ImportError(
-                msg,
+                raise ImportError(msg) from e
+            # Other ValueErrors from unsupported backends or configuration issues
+            msg = (
+                f"TorchSim configuration error: {e}. "
+                f"Check that the backend is supported and properly configured."
             )
-        except Exception as e:
-            msg = f"TorchSim not available ({e}). Install with: pip install torch-sim-atomistic"
-            raise ImportError(
-                msg,
+            raise ValueError(msg) from e
+        except (AttributeError, RuntimeError) as e:
+            # TorchSim import succeeded but module is broken or incompatible
+            msg = (
+                f"TorchSim not available: package installation issue. "
+                f"Error: {e}. This may indicate a version incompatibility. "
+                f"Try reinstalling: pip install --upgrade torch-sim-atomistic"
             )
+            raise ImportError(msg) from e
 
     def _load_mace_model(self) -> None:
         """Load MACE model through TorchSim."""
@@ -333,13 +344,21 @@ class TorchSimPotential(BasePotential):
             if "energy" in properties:
                 try:
                     self.results["energy"] = self._model.results["energy"]
-                except Exception:
+                except (AttributeError, KeyError, TypeError):
+                    # Fallback: calculator doesn't have .results or key doesn't exist
+                    # AttributeError: .results doesn't exist
+                    # KeyError: key doesn't exist in results
+                    # TypeError: .results exists but isn't dict-like
                     self.results["energy"] = self.results.get("energy")
 
             if "forces" in properties:
                 try:
                     self.results["forces"] = self._model.results["forces"]
-                except Exception:
+                except (AttributeError, KeyError, TypeError):
+                    # Fallback: calculator doesn't have .results or key doesn't exist
+                    # AttributeError: .results doesn't exist
+                    # KeyError: key doesn't exist in results
+                    # TypeError: .results exists but isn't dict-like
                     self.results["forces"] = self.results.get("forces")
             return
 
@@ -484,8 +503,9 @@ class TorchSimPotential(BasePotential):
                 self._batch_results = [result]
                 return states[0]
 
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError) as e:
                 # Fallback to individual processing if batching fails
+                # These are expected errors during batching (shape mismatches, device issues, etc.)
                 logger.warning(
                     f"TorchSim batching failed ({e}), falling back to individual processing",
                 )

@@ -33,10 +33,15 @@ class BackendError(Exception):
 
     def __init__(self, backend: str, available: list[str], operation: str) -> None:
         """Initialize backend error with backend name and available alternatives."""
-        message = (
-            f"Backend '{backend}' is not available for {operation}. "
-            f"Available backends: {', '.join(available)}"
-        )
+        if available:
+            available_str = ", ".join(available)
+            suggestion = f"Available backends: {available_str}"
+        else:
+            suggestion = (
+                "No backends are currently available. "
+                "Install at least one backend (e.g., pip install torch torch-cluster for aimnet2)."
+            )
+        message = f"Backend '{backend}' is not available for {operation}. {suggestion}"
         super().__init__(message)
         self.backend = backend
         self.available_backends = available
@@ -77,17 +82,15 @@ def validate_atoms_compatibility(atoms1: Atoms, atoms2: Atoms, context: str = "o
     if len(atoms1) != len(atoms2):
         msg = (
             f"Incompatible atoms for {context}: different number of atoms "
-            f"({len(atoms1)} vs {len(atoms2)})"
+            f"({len(atoms1)} vs {len(atoms2)}). "
+            f"Both structures must have the same number of atoms for this operation."
         )
-        raise ValueError(
-            msg,
-        )
+        raise ValueError(msg)
 
     if list(atoms1.symbols) != list(atoms2.symbols):
         msg = (
             f"Incompatible atoms for {context}: different atomic symbols "
-            f"({list(atoms1.symbols)} vs {list(atoms2.symbols)})"
+            f"({list(atoms1.symbols)} vs {list(atoms2.symbols)}). "
+            f"Both structures must have the same atomic composition for this operation."
         )
-        raise ValueError(
-            msg,
-        )
+        raise ValueError(msg)

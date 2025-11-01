@@ -147,15 +147,34 @@ class UMAPotential(BasePotential):
                 # Default to 'omol' task for molecular systems
                 self._calc = FAIRChemCalculator(self.predictor, task_name="omol")
 
-            except Exception as e:
-                # If anything goes wrong while initializing the UMA model, raise a clear error
+            except ImportError as e:
+                # Missing dependencies
                 msg = (
-                    f"Failed to load UMA model '{self.model_name}'. Error: {e}. "
-                    f"Make sure fairchem-core is properly installed and the model is available."
+                    f"Failed to load UMA model '{self.model_name}': missing required dependencies. "
+                    f"Error: {e}. Install fairchem-core and ensure all dependencies are available."
                 )
-                raise RuntimeError(
-                    msg,
+                raise ImportError(msg) from e
+            except (ValueError, TypeError, KeyError) as e:
+                # Configuration or model format errors
+                msg = (
+                    f"Failed to load UMA model '{self.model_name}': invalid model configuration. "
+                    f"Error: {e}. Check that the model name is correct and the model format is valid."
                 )
+                raise ValueError(msg) from e
+            except OSError as e:
+                # File system errors
+                msg = (
+                    f"Failed to load UMA model '{self.model_name}': file access error. "
+                    f"Error: {e}. Check file permissions and ensure model files are accessible."
+                )
+                raise RuntimeError(msg) from e
+            except RuntimeError as e:
+                # Runtime errors from PyTorch/backend
+                msg = (
+                    f"Failed to load UMA model '{self.model_name}': runtime error. "
+                    f"Error: {e}. This may indicate a device/GPU issue or model incompatibility."
+                )
+                raise RuntimeError(msg) from e
 
     def calculate(
         self,
@@ -399,9 +418,20 @@ class UMAPotential(BasePotential):
         except ImportError as e:
             msg = f"PyTorch is required for analytical Hessian calculation. Install PyTorch: {e}"
             raise ImportError(msg) from e
-        except Exception as e:
-            msg = f"Failed to calculate UMA analytical Hessian: {e}"
+        except (ValueError, RuntimeError) as e:
+            # Computation errors (invalid shapes, device mismatches, etc.)
+            msg = (
+                f"Failed to calculate UMA analytical Hessian: {e}. "
+                f"This may indicate a device mismatch, invalid structure data, or computational error."
+            )
             raise RuntimeError(msg) from e
+        except TypeError as e:
+            # Type errors (wrong tensor types, etc.)
+            msg = (
+                f"Failed to calculate UMA analytical Hessian: {e}. "
+                f"This may indicate a type mismatch in tensor operations."
+            )
+            raise TypeError(msg) from e
 
     def _compute_hessian_vmap(self, forces: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
         """Compute Hessian using vector-Jacobian products (VJP) with vectorization.

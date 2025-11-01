@@ -22,7 +22,7 @@ def h2_molecule():
 
 @pytest.fixture
 def h2o_molecule():
-    """Water molecule for testing."""
+    """H2O molecule for testing."""
     atoms = TestMoleculeFactory.get_h2o_equilibrium()
     atoms.calc = qme.MockCalculator(backend="mock")
     return atoms
@@ -32,15 +32,15 @@ class TestFrequencyAnalysis:
     """Test frequency analysis functionality."""
 
     @pytest.mark.parametrize(
-        ("expected_dof", "fixture_name"),
+        ("expected_dof", "molecule_fixture"),
         [
             (5, "h2_molecule"),  # Linear molecule: 3N-5
             (6, "h2o_molecule"),  # Non-linear molecule: 3N-6
         ],
     )
-    def test_molecule_degrees_of_freedom(self, expected_dof, fixture_name, request):
+    def test_molecule_degrees_of_freedom(self, request, expected_dof, molecule_fixture):
         """Test degrees of freedom calculation for different molecules."""
-        atoms = request.getfixturevalue(fixture_name)
+        atoms = request.getfixturevalue(molecule_fixture)
         fa = FrequencyAnalysis(atoms, atoms.calc, delta=0.01)
         assert fa.nfree == expected_dof
 
@@ -60,14 +60,14 @@ class TestFrequencyAnalysis:
         StandardTestAssertions.assert_frequencies_valid(freqs)
 
     @pytest.mark.parametrize("unit", ["cm-1", "meV", "THz"])
-    def test_frequency_units(self, unit, h2o_molecule):
+    def test_frequency_units(self, h2o_molecule, unit):
         """Test frequency unit conversion."""
         fa = FrequencyAnalysis(h2o_molecule, h2o_molecule.calc)
         fa.calculate_hessian()
         fa.diagonalize_hessian()
 
         frequencies = fa.get_frequencies(unit)
-        assert isinstance(frequencies, (list, np.ndarray))
+        assert isinstance(frequencies, list | np.ndarray)
         assert len(frequencies) > 0
         StandardTestAssertions.assert_frequencies_valid(frequencies)
 
@@ -119,7 +119,7 @@ class TestFrequencyAnalysis:
             ([0, 1], (6, 6)),  # Two atoms
         ],
     )
-    def test_hessian_dimensions(self, indices, expected_shape, h2o_molecule):
+    def test_hessian_dimensions(self, h2o_molecule, indices, expected_shape):
         """Test Hessian matrix dimensions for different atom subsets."""
         hc = HessianCalculator(h2o_molecule, h2o_molecule.calc, indices=indices)
         hessian = hc.calculate_numerical_hessian()

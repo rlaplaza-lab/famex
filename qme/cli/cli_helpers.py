@@ -6,6 +6,7 @@ including file I/O operations, argument parsing, and data formatting.
 
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 import click
@@ -133,7 +134,7 @@ def _coerce_to_atoms(obj: Any) -> Atoms:
     if isinstance(obj, dict) and "optimized_atoms" in obj:
         return obj["optimized_atoms"]  # type: ignore[no-any-return]
     # List/tuple of Atoms (take first)
-    if isinstance(obj, (list, tuple)) and obj and isinstance(obj[0], Atoms):
+    if isinstance(obj, list | tuple) and obj and isinstance(obj[0], Atoms):
         return obj[0]
     # Path string to an XYZ; try to read
     if isinstance(obj, str) and os.path.exists(obj):
@@ -166,15 +167,23 @@ def write_atoms(
     Raises:
     ------
     ValueError
-        If atoms cannot be converted to valid structure
+        If atoms cannot be converted to valid structure or path is unsafe
     OSError
         If file cannot be written
 
     """
     if not out_path:
         return None
+
+    # SECURITY: Validate path doesn't contain traversal patterns
+    # Allow absolute paths but reject suspicious patterns
+    if ".." in out_path or "\x00" in out_path:
+        raise ValueError(f"Unsafe output path detected: {out_path}")
+
     # Ensure output directory exists
-    os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
+    parent_dir = Path(out_path).parent
+    if str(parent_dir) != ".":
+        parent_dir.mkdir(parents=True, exist_ok=True)
 
     # Use custom XYZ writer for .xyz files to preserve metadata
     if out_path.lower().endswith(".xyz"):

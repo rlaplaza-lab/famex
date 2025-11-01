@@ -10,6 +10,7 @@ This module provides comprehensive path management including:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -24,6 +25,25 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 logger = get_qme_logger(__name__)
+
+
+@dataclass
+class StructureSimilarity:
+    """Result of structure similarity comparison.
+
+    Attributes:
+    ----------
+    is_similar : bool
+        Whether structures are considered similar
+    rmsd : float
+        RMSD value in Angstroms
+    energy_diff : float | None
+        Energy difference in eV, or None if energy unavailable
+    """
+
+    is_similar: bool
+    rmsd: float
+    energy_diff: float | None
 
 
 class PathManager:
@@ -389,13 +409,23 @@ class PathManager:
     # =========================================================================
 
     @staticmethod
-    def calculate_rmsd(atoms1: Atoms, atoms2: Atoms) -> float:
+    def calculate_rmsd(
+        atoms1: Atoms,
+        atoms2: Atoms,
+        align: bool = True,
+    ) -> float:
         """Calculate RMSD between two Atoms objects.
+
+        Uses Kabsch algorithm for rotation-invariant RMSD calculation by default.
+        This provides accurate molecular structure comparison regardless of orientation.
 
         Parameters
         ----------
         atoms1, atoms2 : Atoms
             The two structures to compare
+        align : bool, default True
+            If True, use Kabsch alignment for rotation-invariant RMSD.
+            If False, calculate simple positional RMSD (faster but not rotation-invariant).
 
         Returns:
         -------
@@ -410,9 +440,39 @@ class PathManager:
         pos1 = atoms1.get_positions()
         pos2 = atoms2.get_positions()
 
-        # Calculate RMSD
-        diff = pos1 - pos2
-        return np.sqrt(np.mean(np.sum(diff**2, axis=1)))
+        if not align:
+            # Simple RMSD without alignment (for backwards compatibility or fast checks)
+            diff = pos1 - pos2
+            return np.sqrt(np.mean(np.sum(diff**2, axis=1)))
+
+        # Kabsch alignment for rotation-invariant RMSD
+        # Center both structures
+        ref_cent = pos1.mean(axis=0)
+        tar_cent = pos2.mean(axis=0)
+        ref = pos1 - ref_cent
+        tar = pos2 - tar_cent
+
+        # Handle edge case: single atom (no rotation needed)
+        if len(pos1) == 1:
+            diff = ref - tar
+            return np.sqrt(np.mean(np.sum(diff**2, axis=1)))
+
+        # Kabsch algorithm: find optimal rotation matrix
+        C = np.dot(tar.T, ref)
+        try:
+            V, _S, Wt = np.linalg.svd(C)
+            d = np.sign(np.linalg.det(np.dot(V, Wt)))
+            D = np.diag([1.0, 1.0, d])
+            U = np.dot(np.dot(V, D), Wt)
+
+            # Apply rotation and calculate RMSD
+            aligned = np.dot(tar, U.T)
+            rmsd = np.sqrt(np.mean(np.sum((aligned - ref) ** 2, axis=1)))
+            return float(rmsd)
+        except np.linalg.LinAlgError:
+            # Fallback to unaligned RMSD if SVD fails
+            diff = ref - tar
+            return np.sqrt(np.mean(np.sum(diff**2, axis=1)))
 
     @staticmethod
     def calculate_structure_similarity(
@@ -420,7 +480,10 @@ class PathManager:
         atoms2: Atoms,
         rmsd_threshold: float,
         energy_threshold: float,
-    ) -> tuple[bool, float, float]:
+        energy1: float | None = None,
+        energy2: float | None = None,
+        align: bool = True,
+    ) -> StructureSimilarity:
         """Calculate similarity between two structures based on RMSD and energy.
 
         Parameters
@@ -431,23 +494,59 @@ class PathManager:
             RMSD threshold for similarity (Angstroms)
         energy_threshold : float
             Energy threshold for similarity (eV)
+        energy1 : float | None, optional
+            Pre-computed energy for atoms1. If None, will attempt to calculate.
+        energy2 : float | None, optional
+            Pre-computed energy for atoms2. If None, will attempt to calculate.
+        align : bool, default True
+            Whether to use rotation-invariant RMSD (Kabsch alignment)
 
         Returns:
         -------
-        tuple[bool, float, float]
-            (is_similar, rmsd, energy_diff)
+        StructureSimilarity
+            Similarity result with is_similar, rmsd, and energy_diff
 
         """
-        rmsd = PathManager.calculate_rmsd(atoms1, atoms2)
-        try:
-            energy1 = atoms1.get_potential_energy()
-            energy2 = atoms2.get_potential_energy()
-            energy_diff = abs(energy1 - energy2)
-        except (RuntimeError, ValueError, AttributeError):
-            energy_diff = float("inf")
+        rmsd = PathManager.calculate_rmsd(atoms1, atoms2, align=align)
 
-        is_similar = rmsd < rmsd_threshold and energy_diff < energy_threshold
-        return is_similar, rmsd, energy_diff
+        # Get energies if not provided
+        if energy1 is None:
+            try:
+                energy1 = atoms1.get_potential_energy()
+            except (RuntimeError, ValueError, AttributeError):
+                energy1 = None
+
+        if energy2 is None:
+            try:
+                energy2 = atoms2.get_potential_energy()
+            except (RuntimeError, ValueError, AttributeError):
+                energy2 = None
+
+        # Calculate energy difference
+        if energy1 is not None and energy2 is not None:
+            energy_diff = abs(energy1 - energy2)
+        else:
+            energy_diff = None
+
+        # Similarity criteria:
+        # - Must have low RMSD
+        # - If both energies available: must also have similar energy
+        # - If energy unavailable: rely on RMSD only (but log warning)
+        is_similar = rmsd < rmsd_threshold
+        if energy_diff is not None:
+            is_similar = is_similar and energy_diff < energy_threshold
+        elif is_similar:
+            # Log when energy unavailable but RMSD suggests similarity
+            logger.debug(
+                f"Structure similarity check: RMSD={rmsd:.3f} Å < threshold, "
+                "but energy unavailable for comparison",
+            )
+
+        return StructureSimilarity(
+            is_similar=is_similar,
+            rmsd=rmsd,
+            energy_diff=energy_diff,
+        )
 
     @staticmethod
     def filter_redundant_structures(
@@ -456,8 +555,15 @@ class PathManager:
         rmsd_threshold: float = 0.1,
         energy_threshold: float = 0.001,
         strategy_name: str = "strategy",
+        preserve_path_continuity: bool = False,
+        min_spacing: int = 1,
+        align_rmsd: bool = True,
     ) -> tuple[list[Atoms], list[int], list[str]]:
         """Filter redundant structures based on RMSD and energy similarity.
+
+        This method uses rotation-invariant RMSD (Kabsch algorithm) by default
+        for accurate molecular structure comparison. It optimizes performance
+        by caching RMSD calculations and reusing pre-computed energies.
 
         Parameters
         ----------
@@ -471,6 +577,15 @@ class PathManager:
             Energy threshold below which structures are considered redundant (eV)
         strategy_name : str
             Name of the strategy for warning messages
+        preserve_path_continuity : bool, default False
+            If True, preserves minimum spacing between filtered structures
+            to maintain reaction path continuity
+        min_spacing : int, default 1
+            Minimum number of structures to keep between any two kept structures
+            when preserve_path_continuity is True
+        align_rmsd : bool, default True
+            Whether to use rotation-invariant RMSD (Kabsch alignment).
+            Set to False for faster but less accurate comparison.
 
         Returns:
         -------
@@ -485,26 +600,41 @@ class PathManager:
         removed_indices = []
         warning_messages = []
 
-        # Calculate energies for all structures
-        energies = []
-        for _i, atoms in enumerate(structures):
+        # Pre-compute all energies once
+        energies: list[float | None] = []
+        for i, atoms in enumerate(structures):
             try:
                 energy = atoms.get_potential_energy()
                 energies.append(energy)
             except (RuntimeError, ValueError, AttributeError):
-                energies.append(float("inf"))
+                energies.append(None)
+                logger.debug(f"Energy unavailable for structure {i + 1}")
 
-        # Check if we only have input structures
-        if input_structures is not None:
+        # Check if we only have input structures (optimized: check first/last points first)
+        if input_structures is not None and input_structures:
             input_only = True
-            for struct in structures:
+            # Check first and last structures first (most common case)
+            key_indices = [0, len(structures) - 1] if len(structures) > 1 else [0]
+            for struct_idx in key_indices:
+                struct = structures[struct_idx]
                 for input_struct in input_structures:
-                    rmsd = PathManager.calculate_rmsd(struct, input_struct)
+                    rmsd = PathManager.calculate_rmsd(struct, input_struct, align=align_rmsd)
                     if rmsd > rmsd_threshold:
                         input_only = False
                         break
                 if not input_only:
                     break
+
+            # If first/last check didn't find differences, check all structures
+            if input_only:
+                for struct in structures:
+                    for input_struct in input_structures:
+                        rmsd = PathManager.calculate_rmsd(struct, input_struct, align=align_rmsd)
+                        if rmsd > rmsd_threshold:
+                            input_only = False
+                            break
+                    if not input_only:
+                        break
 
             if input_only:
                 warning_messages.append(
@@ -512,29 +642,88 @@ class PathManager:
                     f"No new optimized structures were discovered.",
                 )
 
-        # Filter structures
+        # Cache for RMSD calculations to avoid recomputation
+        rmsd_cache: dict[tuple[int, int], float] = {}
+
+        def get_cached_rmsd(idx1: int, idx2: int) -> float:
+            """Get RMSD from cache or calculate and cache it."""
+            # Use sorted indices for cache key to avoid duplicate calculations
+            key = (min(idx1, idx2), max(idx1, idx2))
+            if key not in rmsd_cache:
+                rmsd_cache[key] = PathManager.calculate_rmsd(
+                    structures[idx1],
+                    structures[idx2],
+                    align=align_rmsd,
+                )
+            return rmsd_cache[key]
+
+        # Filter structures with optimization: early termination and caching
+        kept_indices: list[int] = []  # Track kept indices for path continuity
+
         for i, atoms in enumerate(structures):
             is_redundant = False
+            best_match_idx: int | None = None
+            best_rmsd: float = float("inf")
+            best_energy_diff: float | None = None
 
-            # Check against already filtered structures
-            for _j, filtered_atoms in enumerate(filtered_structures):
-                is_similar, rmsd, energy_diff = PathManager.calculate_structure_similarity(
+            # Check against already filtered structures with early termination
+            for _j, filtered_idx in enumerate(kept_indices):
+                # Early termination: if RMSD already exceeds threshold, skip energy check
+                rmsd = get_cached_rmsd(i, filtered_idx)
+                if rmsd >= rmsd_threshold:
+                    continue
+
+                # Get energies for comparison
+                energy_i = energies[i]
+                energy_j = energies[filtered_idx]
+
+                # Check similarity with pre-computed energies
+                similarity = PathManager.calculate_structure_similarity(
                     atoms,
-                    filtered_atoms,
+                    structures[filtered_idx],
                     rmsd_threshold,
                     energy_threshold,
+                    energy1=energy_i,
+                    energy2=energy_j,
+                    align=align_rmsd,
                 )
-                if is_similar:
+
+                if similarity.is_similar:
+                    is_redundant = True
+                    best_match_idx = filtered_idx
+                    best_rmsd = similarity.rmsd
+                    best_energy_diff = similarity.energy_diff
+                    break  # Early termination when match found
+
+            # Path continuity preservation: check minimum spacing
+            if preserve_path_continuity and not is_redundant and kept_indices:
+                last_kept = kept_indices[-1]
+                spacing = i - last_kept
+                if spacing < min_spacing:
+                    # Too close to last kept structure, skip this one
                     is_redundant = True
                     removed_indices.append(i)
                     warning_messages.append(
-                        f"Warning: Removed redundant structure {i + 1} "
-                        f"(RMSD: {rmsd:.3f} Å, ΔE: {energy_diff:.3f} eV)",
+                        f"Warning: Removed structure {i + 1} to maintain path continuity "
+                        f"(spacing: {spacing}, minimum: {min_spacing})",
                     )
-                    break
+                    # Skip the rest of the redundant marking logic for path continuity
+                    continue
 
-            if not is_redundant:
+            if is_redundant and best_match_idx is not None:
+                removed_indices.append(i)
+                energy_str = (
+                    f"ΔE: {best_energy_diff:.3f} eV"
+                    if best_energy_diff is not None
+                    else "energy unavailable"
+                )
+                warning_messages.append(
+                    f"Warning: Removed redundant structure {i + 1} "
+                    f"(RMSD: {best_rmsd:.3f} Å, {energy_str})",
+                )
+            elif not is_redundant:
                 filtered_structures.append(atoms)
+                kept_indices.append(i)
 
         # Add general redundancy warnings
         if removed_indices:

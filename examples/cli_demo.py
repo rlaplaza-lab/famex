@@ -77,11 +77,18 @@ def run_command(cmd, desc, backend, timeout=600) -> tuple[bool, float, str, str]
             try:
                 e.subprocess.kill()
                 e.subprocess.wait(timeout=5)
-            except Exception:
+            except (subprocess.TimeoutExpired, ProcessLookupError):
+                # Process already terminated or couldn't be killed
+                # This is expected in some edge cases, so we silently continue
                 pass
         return False, timeout, "", f"Command timed out after {timeout} seconds"
+    except (subprocess.SubprocessError, OSError) as e:
+        # Subprocess errors (failed to start, communication errors, etc.)
+        # OSError covers file not found, permission errors, etc.
+        return False, 0.0, "", f"Subprocess error: {e}"
     except Exception as e:
-        return False, 0.0, "", str(e)
+        # Catch-all for unexpected errors with context
+        return False, 0.0, "", f"Unexpected error running command: {e}"
 
 
 def create_example_commands(example_files: Path, backend: str, steps: int = 500) -> list[dict]:

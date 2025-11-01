@@ -789,7 +789,7 @@ class Explorer:
             Loaded geometry
 
         """
-        if isinstance(filename_or_geom, (str, Path)):
+        if isinstance(filename_or_geom, str | Path):
             geom = read_geometry(str(filename_or_geom))
         else:
             geom = filename_or_geom  # type: ignore[assignment]
@@ -821,13 +821,30 @@ class Explorer:
         """
         output_file = Path(output_file)
 
+        # SECURITY: Validate path doesn't contain traversal patterns
+        if ".." in str(output_file) or "\x00" in str(output_file):
+            msg = f"Unsafe output path detected: {output_file}"
+            raise ValueError(msg)
+
         # Use custom XYZ writer for .xyz files to preserve metadata
         if str(output_file).lower().endswith(".xyz"):
             try:
                 write_xyz_with_metadata(atoms, str(output_file))
                 return
-            except Exception as e:
-                msg = f"Failed to save XYZ structure to {output_file}: {e}"
+            except OSError as e:
+                # File system errors (permissions, disk full, etc.)
+                msg = (
+                    f"Failed to save XYZ structure to {output_file}: {e}. "
+                    f"This may be due to file system permissions, insufficient disk space, "
+                    f"or an invalid file path."
+                )
+                raise RuntimeError(msg) from e
+            except (ValueError, TypeError) as e:
+                # Data format errors (invalid structure data)
+                msg = (
+                    f"Failed to save XYZ structure to {output_file}: {e}. "
+                    f"This may indicate invalid or corrupted structure data."
+                )
                 raise RuntimeError(msg) from e
 
         # Use ASE for other formats
@@ -836,11 +853,11 @@ class Explorer:
                 write(output_file, atoms, format=format)
             else:
                 write(output_file, atoms)
-        except Exception as e:
-            # If writing fails, try with a cleaned atoms object to avoid
-            # issues with contaminated global state from test isolation
+        except OSError as e:
+            # File system errors - try with cleaned atoms object
             try:
-                # Create a clean atoms object with only essential data
+                # Create a clean atoms object with only essential data to avoid
+                # issues with contaminated global state from test isolation
                 clean_atoms = Atoms(
                     symbols=atoms.symbols,
                     positions=atoms.positions,
@@ -857,14 +874,30 @@ class Explorer:
                     write(output_file, clean_atoms, format=format)
                 else:
                     write(output_file, clean_atoms)
-            except Exception as e2:
+            except OSError as e2:
                 msg = (
                     f"Failed to save structure to {output_file}: {e}. "
-                    f"Clean attempt also failed: {e2}"
+                    f"Clean attempt also failed: {e2}. "
+                    f"This may be due to file system permissions, insufficient disk space, "
+                    f"or an invalid file path."
                 )
-                raise RuntimeError(
-                    msg,
+                raise RuntimeError(msg) from e2
+            except (ValueError, TypeError, KeyError) as e2:
+                # Data or format errors even with cleaned atoms
+                msg = (
+                    f"Failed to save structure to {output_file}: {e}. "
+                    f"Clean attempt also failed: {e2}. "
+                    f"This may indicate an unsupported format or corrupted structure data."
                 )
+                raise RuntimeError(msg) from e2
+        except (ValueError, TypeError, KeyError) as e:
+            # Data format errors (invalid structure data or unsupported format)
+            msg = (
+                f"Failed to save structure to {output_file}: {e}. "
+                f"This may indicate an unsupported format, invalid structure data, "
+                f"or missing format-specific requirements."
+            )
+            raise RuntimeError(msg) from e
 
     def save_trajectory(
         self,
@@ -896,13 +929,30 @@ class Explorer:
         """
         output_file = Path(output_file)
 
+        # SECURITY: Validate path doesn't contain traversal patterns
+        if ".." in str(output_file) or "\x00" in str(output_file):
+            msg = f"Unsafe output path detected: {output_file}"
+            raise ValueError(msg)
+
         # Use custom XYZ writer for .xyz files to preserve metadata
         if str(output_file).lower().endswith(".xyz"):
             try:
                 write_xyz_with_metadata(atoms_list, str(output_file))
                 return
-            except Exception as e:
-                msg = f"Failed to save XYZ trajectory to {output_file}: {e}"
+            except OSError as e:
+                # File system errors (permissions, disk full, etc.)
+                msg = (
+                    f"Failed to save XYZ trajectory to {output_file}: {e}. "
+                    f"This may be due to file system permissions, insufficient disk space, "
+                    f"or an invalid file path."
+                )
+                raise RuntimeError(msg) from e
+            except (ValueError, TypeError) as e:
+                # Data format errors (invalid structure data)
+                msg = (
+                    f"Failed to save XYZ trajectory to {output_file}: {e}. "
+                    f"This may indicate invalid or corrupted structure data in the trajectory."
+                )
                 raise RuntimeError(msg) from e
 
         # Use ASE for other formats
@@ -911,11 +961,11 @@ class Explorer:
                 write(output_file, atoms_list, format=format)
             else:
                 write(output_file, atoms_list)
-        except Exception as e:
-            # If writing fails, try with cleaned atoms objects to avoid
-            # issues with contaminated global state from test isolation
+        except OSError as e:
+            # File system errors - try with cleaned atoms objects
             try:
-                # Create clean atoms objects with only essential data
+                # Create clean atoms objects with only essential data to avoid
+                # issues with contaminated global state from test isolation
                 clean_atoms_list = []
                 for atoms in atoms_list:
                     clean_atoms = Atoms(
@@ -935,14 +985,30 @@ class Explorer:
                     write(output_file, clean_atoms_list, format=format)
                 else:
                     write(output_file, clean_atoms_list)
-            except Exception as e2:
+            except OSError as e2:
                 msg = (
                     f"Failed to save trajectory to {output_file}: {e}. "
-                    f"Clean attempt also failed: {e2}"
+                    f"Clean attempt also failed: {e2}. "
+                    f"This may be due to file system permissions, insufficient disk space, "
+                    f"or an invalid file path."
                 )
-                raise RuntimeError(
-                    msg,
+                raise RuntimeError(msg) from e2
+            except (ValueError, TypeError, KeyError) as e2:
+                # Data or format errors even with cleaned atoms
+                msg = (
+                    f"Failed to save trajectory to {output_file}: {e}. "
+                    f"Clean attempt also failed: {e2}. "
+                    f"This may indicate an unsupported format or corrupted structure data."
                 )
+                raise RuntimeError(msg) from e2
+        except (ValueError, TypeError, KeyError) as e:
+            # Data format errors (invalid structure data or unsupported format)
+            msg = (
+                f"Failed to save trajectory to {output_file}: {e}. "
+                f"This may indicate an unsupported format, invalid structure data, "
+                f"or missing format-specific requirements."
+            )
+            raise RuntimeError(msg) from e
 
     # =============================================================================
     # Analysis Methods

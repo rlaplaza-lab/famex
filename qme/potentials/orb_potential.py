@@ -152,14 +152,34 @@ class OrbPotential(BasePotential):
                 if hasattr(torch._dynamo, "config"):
                     torch._dynamo.config.disable = True
 
-        except Exception as e:
+        except ImportError as e:
+            # Missing dependencies
             msg = (
-                f"Failed to load Orb model '{self.model_name}'. "
-                f"Error: {e}. Please check the model name or installation."
+                f"Failed to load Orb model '{self.model_name}': missing required dependencies. "
+                f"Error: {e}. Install orb-models and ensure all dependencies are available."
             )
-            raise RuntimeError(
-                msg,
+            raise ImportError(msg) from e
+        except (ValueError, TypeError, KeyError) as e:
+            # Configuration or model format errors
+            msg = (
+                f"Failed to load Orb model '{self.model_name}': invalid model configuration. "
+                f"Error: {e}. Check that the model name is correct and the model format is valid."
             )
+            raise ValueError(msg) from e
+        except OSError as e:
+            # File system errors
+            msg = (
+                f"Failed to load Orb model '{self.model_name}': file access error. "
+                f"Error: {e}. Check file permissions and ensure model files are accessible."
+            )
+            raise RuntimeError(msg) from e
+        except RuntimeError as e:
+            # Runtime errors from backend
+            msg = (
+                f"Failed to load Orb model '{self.model_name}': runtime error. "
+                f"Error: {e}. This may indicate a device/GPU issue or model incompatibility."
+            )
+            raise RuntimeError(msg) from e
 
     def calculate(
         self,
