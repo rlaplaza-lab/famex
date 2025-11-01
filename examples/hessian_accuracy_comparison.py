@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Compare Hessian accuracy for different finite difference schemes.
 
 This script demonstrates the accuracy improvements achieved by using higher-order
@@ -12,8 +13,14 @@ The comparison uses a harmonic potential where the analytical Hessian is known
 exactly, allowing precise error analysis.
 """
 
+import os
+
 import numpy as np
 from ase import Atoms
+
+# Disable ASE GUI to prevent popup windows
+os.environ["DISPLAY"] = ""
+os.environ["MPLBACKEND"] = "Agg"
 
 from qme.analysis.frequency import HessianCalculator
 

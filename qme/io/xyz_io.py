@@ -353,8 +353,21 @@ def write_xyz_with_metadata(
             ase_write(str(filename), prepared_atoms[0], **kwargs)
         else:
             ase_write(str(filename), prepared_atoms, **kwargs)
-    except Exception as e:
-        raise OSError(f"Failed to write XYZ file {filename}: {e}") from e
+    except OSError as e:
+        # File system errors (permissions, disk full, etc.)
+        msg = (
+            f"Failed to write XYZ file {filename}: {e}. "
+            f"This may be due to file system permissions, insufficient disk space, "
+            f"or an invalid file path."
+        )
+        raise OSError(msg) from e
+    except (ValueError, TypeError, KeyError) as e:
+        # Data format errors (invalid structure data or unsupported format)
+        msg = (
+            f"Failed to write XYZ file {filename}: {e}. "
+            f"This may indicate invalid or corrupted structure data."
+        )
+        raise OSError(msg) from e
 
 
 __all__ = [

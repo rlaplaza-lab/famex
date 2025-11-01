@@ -17,6 +17,8 @@ from weakref import WeakValueDictionary
 
 import requests
 
+from qme.utils.path_security import PathSecurityError, sanitize_filename, validate_safe_path
+
 
 class CalculatorCache:
     """Simple calculator cache using weak references.
@@ -264,7 +266,7 @@ class ModelCache:
         Parameters
         ----------
         model_name : str
-            Name of the model
+            Name of the model (UNTRUSTED - will be sanitized for security)
         model_url : str
             URL where the model was downloaded from
         model_data : bytes
@@ -275,15 +277,35 @@ class ModelCache:
         Path
             Path to cached model file
 
+        Raises:
+        ------
+        ValueError
+            If model_name contains unsafe characters or path traversal attempts
+
         """
         model_hash = self._get_model_hash(model_name, model_url)
 
-        # Generate filename from model name
-        safe_name = model_name.replace("/", "_").replace(":", "_")
-        filename = f"{safe_name}_{model_hash}.jpt"
-        cached_path = self.cache_dir / filename
+        # SECURITY: Sanitize model_name to prevent path traversal
+        # This removes ALL directory components and unsafe characters
+        try:
+            safe_name = sanitize_filename(model_name, allow_path_sep=False)
+        except PathSecurityError as e:
+            raise ValueError(f"Invalid model name: {e}") from e
 
-        # Save model data
+        filename = f"{safe_name}_{model_hash}.jpt"
+
+        # SECURITY: Validate final path is within cache directory
+        try:
+            cached_path = validate_safe_path(
+                self.cache_dir / filename,
+                base_dir=self.cache_dir,
+                must_exist=False,
+                allow_absolute=False,
+            )
+        except PathSecurityError as e:
+            raise ValueError(f"Cannot create safe cache path: {e}") from e
+
+        # Save model data (now guaranteed safe)
         with open(cached_path, "wb") as f:
             f.write(model_data)
 
@@ -292,7 +314,7 @@ class ModelCache:
 
         # Update metadata
         self.metadata[model_hash] = {
-            "model_name": model_name,
+            "model_name": model_name,  # Store original for reference
             "model_url": model_url,
             "filename": filename,
             "checksum": checksum,

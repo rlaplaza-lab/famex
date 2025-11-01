@@ -1,9 +1,10 @@
-"""Comprehensive tests for SciPy optimizers covering edge cases and uncovered paths."""
+"""Comprehensive tests for SciPy optimizers covering basic functionality and edge cases."""
 
 from unittest.mock import patch
 
 import numpy as np
 import pytest
+from ase import Atoms
 
 import qme
 from qme.optimizers.scipy_optimizers import (
@@ -14,36 +15,319 @@ from qme.optimizers.scipy_optimizers import (
     TrustKrylovTS,
     TrustNCG,
 )
-from tests.test_utils import TestMoleculeFactory
+from tests.test_utils import StandardTestAssertions, TestMoleculeFactory
+
+
+class TestSciPyOptimizersBasic:
+    """Basic tests for all SciPy optimizer variants."""
+
+    @pytest.mark.parametrize(
+        ("optimizer_class", "method"),
+        [
+            (TrustKrylov, "trust-krylov"),
+            (TrustNCG, "trust-ncg"),
+            (TrustExact, "trust-exact"),
+            (NewtonCG, "Newton-CG"),
+        ],
+    )
+    def test_optimizer_initialization_and_parameters(self, optimizer_class, method):
+        """Test initialization and parameter acceptance for all optimizer types."""
+        atoms = TestMoleculeFactory.get_perturbed_molecule(
+            TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
+        )
+        atoms.calc = qme.MockCalculator(backend="mock")
+
+        # Test basic initialization
+        opt = optimizer_class(atoms, logfile=None)
+        assert opt.method == method
+
+        # Test that optimizer accepts all standard parameters
+        opt_with_params = optimizer_class(
+            atoms,
+            logfile=None,
+            hessian_update_freq=5,
+            hessian_method="finite_differences",
+            hessian_delta=0.02,
+            use_bfgs_update=True,
+            adaptive_hessian=True,
+        )
+
+        assert opt_with_params.hessian_update_freq == 5
+        assert opt_with_params.hessian_method == "finite_differences"
+        assert opt_with_params.use_bfgs_update is True
+        assert opt_with_params.adaptive_hessian is True
+
+    @pytest.mark.parametrize(
+        ("update_freq", "adaptive", "expected_freq"),
+        [(5, False, 5), (10, True, 10), (None, False, None)],
+    )
+    def test_optimizer_hessian_update_settings(self, update_freq, adaptive, expected_freq):
+        """Test optimizer with periodic and adaptive Hessian updates."""
+        atoms = TestMoleculeFactory.get_perturbed_molecule(
+            TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
+        )
+        atoms.calc = qme.MockCalculator(backend="mock")
+        opt = TrustKrylov(
+            atoms,
+            logfile=None,
+            hessian_update_freq=update_freq,
+            adaptive_hessian=adaptive,
+            force_threshold_ratio=2.5 if adaptive else None,
+        )
+        assert opt.hessian_update_freq == expected_freq
+        if adaptive:
+            assert opt.adaptive_hessian is True
+            assert opt.force_threshold_ratio == 2.5
+
+    def test_positions_conversion(self):
+        """Test position array conversion methods."""
+        atoms = TestMoleculeFactory.get_perturbed_molecule(
+            TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
+        )
+        atoms.calc = qme.MockCalculator(backend="mock")
+        opt = TrustKrylov(atoms, logfile=None)
+        x = opt._positions_to_x()
+        assert x.shape == (9,)  # 3 atoms × 3 coordinates
+
+        # Round trip conversion
+        positions_back = opt._x_to_positions(x)
+        assert positions_back.shape == (3, 3)
+        assert np.allclose(positions_back, atoms.positions)
+
+    def test_objective_function(self):
+        """Test objective function returns energy."""
+        atoms = TestMoleculeFactory.get_perturbed_molecule(
+            TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
+        )
+        atoms.calc = qme.MockCalculator(backend="mock")
+        opt = TrustKrylov(atoms, logfile=None)
+        x = opt._positions_to_x()
+        energy = opt.objective(x)
+        assert isinstance(energy, float)
+        assert np.isclose(energy, atoms.get_potential_energy())
+
+    def test_gradient_function(self):
+        """Test gradient function returns negative forces."""
+        atoms = TestMoleculeFactory.get_perturbed_molecule(
+            TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
+        )
+        atoms.calc = qme.MockCalculator(backend="mock")
+        opt = TrustKrylov(atoms, logfile=None)
+        x = opt._positions_to_x()
+        grad = opt.gradient(x)
+
+        assert grad.shape == (9,)
+        forces = atoms.get_forces()
+        expected_grad = -forces.ravel()
+        assert np.allclose(grad, expected_grad)
+
+    def test_hessian_computation(self):
+        """Test Hessian computation and symmetry."""
+        atoms = TestMoleculeFactory.get_perturbed_molecule(
+            TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
+        )
+        atoms.calc = qme.MockCalculator(backend="mock")
+        opt = TrustKrylov(atoms, logfile=None)
+        x = opt._positions_to_x()
+
+        # First call should compute Hessian
+        hessian = opt.hessian_func(x)
+        StandardTestAssertions.assert_hessian_valid(hessian, expected_shape=(9, 9))
+        assert opt.hessian_calls == 1
+
+    def test_hessian_caching(self):
+        """Test that Hessian is cached when update_freq is None."""
+        atoms = TestMoleculeFactory.get_perturbed_molecule(
+            TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
+        )
+        atoms.calc = qme.MockCalculator(backend="mock")
+        opt = TrustKrylov(atoms, logfile=None, hessian_update_freq=None)
+        x = opt._positions_to_x()
+
+        # First call computes
+        opt.hessian_func(x)
+        assert opt.hessian_calls == 1
+
+        # Increment step counter
+        opt.nsteps = 1
+        opt._last_hessian_step = 0
+        opt._last_full_hessian_step = 0
+
+        # Second call should use BFGS or cache (no new full Hessian)
+        opt.hessian_func(x)
+        assert opt.hessian_calls == 1  # Still only 1 full Hessian
+
+    def test_convergence(self):
+        """Test basic convergence check."""
+        atoms = TestMoleculeFactory.get_perturbed_molecule(
+            TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
+        )
+        atoms.calc = qme.MockCalculator(backend="mock")
+        opt = TrustKrylov(atoms, logfile=None)
+
+        # Small forces should converge
+        opt.fmax = 0.05
+        assert opt.converged(np.array([0.001, 0.001, 0.001]))
+
+        # Large forces should not converge
+        assert not opt.converged(np.array([0.1, 0.1, 0.1]))
+
+    @pytest.mark.parametrize(
+        ("update_freq", "expected_total_calls"),
+        [(None, 1), (3, 2)],
+    )
+    def test_hessian_update_frequency(self, update_freq, expected_total_calls):
+        """Test Hessian update frequency modes."""
+        atoms = TestMoleculeFactory.get_perturbed_molecule(
+            TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
+        )
+        atoms.calc = qme.MockCalculator(backend="mock")
+        opt = TrustKrylov(atoms, logfile=None, hessian_update_freq=update_freq)
+        x = opt._positions_to_x()
+
+        # Initial call
+        opt.hessian_func(x)
+        assert opt.hessian_calls == 1
+
+        # Simulate steps
+        num_steps = 5 if update_freq is None else 3
+        for step in range(1, num_steps + 1):
+            opt.nsteps = step
+            if update_freq:
+                opt._last_full_hessian_step = 0
+            opt.hessian_func(x)
+
+        # Check expected number of full hessian calls
+        assert opt.hessian_calls == expected_total_calls
+
+    def test_basic_optimization_run(self):
+        """Test that optimizer can run without errors."""
+        atoms = TestMoleculeFactory.get_perturbed_molecule(
+            TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
+        )
+        atoms.calc = qme.MockCalculator(backend="mock")
+        opt = TrustKrylov(atoms, logfile=None)
+
+        # Run with relaxed convergence for speed
+        converged = opt.run(fmax=0.5, steps=5)
+
+        # Should complete without errors (may or may not converge in 5 steps)
+        assert isinstance(converged, bool)
+        assert opt.nsteps > 0
+
+    def test_step_counting(self):
+        """Test that step counter increments correctly."""
+        atoms = TestMoleculeFactory.get_perturbed_molecule(
+            TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
+        )
+        atoms.calc = qme.MockCalculator(backend="mock")
+        opt = TrustKrylov(atoms, logfile=None)
+        initial_steps = opt.nsteps
+
+        opt.run(fmax=0.5, steps=3)
+
+        assert opt.nsteps > initial_steps
+        assert opt.get_number_of_steps() == opt.nsteps
+
+    @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
+    def test_optimizer_optimization_quality(self, optimizer_class):
+        """Test that optimizers actually optimize and achieve reasonable convergence."""
+        atoms = Atoms("H2O", positions=[[0, 0, 0], [0.8, 0.6, 0], [-0.8, 0.6, 0]])
+        atoms.calc = qme.MockCalculator(backend="mock")
+
+        initial_energy = atoms.get_potential_energy()
+        initial_positions = atoms.get_positions().copy()
+
+        # Test optimizer with tighter convergence
+        opt = optimizer_class(atoms, logfile=None)
+        opt.run(fmax=0.05, steps=200)
+
+        final_energy = atoms.get_potential_energy()
+        final_positions = atoms.get_positions()
+        forces = atoms.get_forces()
+
+        # Optimizer should actually optimize
+        assert abs(final_energy - initial_energy) > 1e-6, (
+            f"{optimizer_class.__name__} should change energy"
+        )
+        assert np.max(np.abs(final_positions - initial_positions)) > 1e-6, (
+            f"{optimizer_class.__name__} should change positions"
+        )
+
+        # Check step counting
+        assert opt.get_number_of_steps() > 0, f"{optimizer_class.__name__} should report steps"
+
+        # Check convergence quality
+        StandardTestAssertions.assert_energy_reasonable(final_energy, backend="mock")
+        StandardTestAssertions.assert_forces_reasonable(forces, backend="mock")
+
+        # Check convergence consistency
+        if hasattr(opt, "converged"):
+            forces_flat = forces.flatten()
+            assert isinstance(opt.converged(forces_flat), bool | np.bool_)
+            # If optimizer claims convergence, forces should be low
+            max_force = np.max(np.abs(forces))
+            converged = opt.converged(forces_flat)
+            if converged:
+                assert max_force < 0.05, (
+                    f"{optimizer_class.__name__} claims convergence but max force is {max_force:.6f} eV/Å"
+                )
+
+
+class TestOptimizerErrors:
+    """Test error handling and invalid configurations."""
+
+    def test_requires_calculator(self):
+        """Test that optimizer raises error without calculator."""
+        atoms = TestMoleculeFactory.get_h2o_equilibrium()
+        with pytest.raises(ValueError, match="calculator"):
+            TrustKrylov(atoms, logfile=None)
+
+    def test_invalid_method(self):
+        """Test that invalid method raises error."""
+        atoms = TestMoleculeFactory.get_h2o_equilibrium()
+        atoms.calc = qme.MockCalculator(backend="mock")
+
+        with pytest.raises(ValueError, match="Invalid method"):
+            from qme.optimizers.scipy_optimizers import SciPyHessianOptimizer
+
+            SciPyHessianOptimizer(atoms, method="invalid-method", logfile=None)
+
+    @pytest.mark.parametrize("update_freq", [-1, 0])
+    def test_invalid_update_frequency(self, update_freq):
+        """Test that invalid update frequencies are handled correctly."""
+        atoms = TestMoleculeFactory.get_h2o_equilibrium()
+        atoms.calc = qme.MockCalculator(backend="mock")
+
+        # Should be converted to None (disable periodic updates)
+        opt = TrustKrylov(atoms, logfile=None, hessian_update_freq=update_freq)
+        assert opt.hessian_update_freq is None
 
 
 class TestSciPyOptimizerVerboseMode:
     """Test verbose mode and logging paths."""
 
-    def test_verbose_mode_0_quiet(self):
-        """Test verbose=0 suppresses logfile."""
-        atoms = TestMoleculeFactory.get_h2o_equilibrium()
-        atoms.calc = qme.MockCalculator(backend="mock")
-
-        opt = TrustKrylov(atoms, logfile="-", verbose=0)
-
-        # Should have logfile set to None in quiet mode
-        assert opt.logfile is None or opt.verbose == 0
-
-    def test_verbose_mode_2_verbose_logging(self):
-        """Test verbose=2 enables detailed logging."""
+    @pytest.mark.parametrize(
+        ("verbose", "logfile", "expected_verbose"),
+        [(0, "-", 0), (2, None, 2)],
+    )
+    def test_verbose_mode_settings(self, verbose, logfile, expected_verbose):
+        """Test different verbose mode settings."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
         opt = TrustKrylov(
             atoms,
-            logfile=None,
-            verbose=2,
-            hessian_update_freq=5,
-            adaptive_hessian=True,
+            logfile=logfile,
+            verbose=verbose,
+            hessian_update_freq=5 if verbose == 2 else None,
+            adaptive_hessian=verbose == 2,
         )
 
-        assert opt.verbose == 2
+        assert opt.verbose == expected_verbose
+        if verbose == 0:
+            # Should have logfile set to None in quiet mode
+            assert opt.logfile is None or opt.verbose == 0
 
     @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
     def test_verbose_logging_in_optimization(self, optimizer_class):
@@ -316,34 +600,27 @@ class TestInitialHessian:
 class TestAlphaScaling:
     """Test alpha scaling factor."""
 
-    def test_alpha_scaling_in_objective(self):
-        """Test alpha scaling in objective function."""
+    @pytest.mark.parametrize(
+        ("function_name", "expected_factor"),
+        [("objective", 1.0 / 2.0), ("gradient", -1.0 / 2.0)],
+    )
+    def test_alpha_scaling(self, function_name, expected_factor):
+        """Test alpha scaling in objective and gradient functions."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
         opt = TrustKrylov(atoms, logfile=None, alpha=2.0)
 
         x = opt._positions_to_x()
-        energy = opt.objective(x)
+        result = getattr(opt, function_name)(x)
 
-        # Energy should be scaled by alpha
-        expected = atoms.get_potential_energy() / 2.0
-        assert np.isclose(energy, expected)
-
-    def test_alpha_scaling_in_gradient(self):
-        """Test alpha scaling in gradient function."""
-        atoms = TestMoleculeFactory.get_h2o_equilibrium()
-        atoms.calc = qme.MockCalculator(backend="mock")
-
-        opt = TrustKrylov(atoms, logfile=None, alpha=2.0)
-
-        x = opt._positions_to_x()
-        gradient = opt.gradient(x)
-
-        # Gradient should be scaled by alpha
-        forces = atoms.get_forces()
-        expected = -forces.ravel() / 2.0
-        assert np.allclose(gradient, expected)
+        if function_name == "objective":
+            expected = atoms.get_potential_energy() * expected_factor
+            assert np.isclose(result, expected)
+        else:  # gradient
+            forces = atoms.get_forces()
+            expected = forces.ravel() * expected_factor
+            assert np.allclose(result, expected)
 
 
 class TestGetCurrentFmax:
@@ -573,25 +850,3 @@ class TestRunMethodEdgeCases:
         # Result can be bool or numpy.bool_, just check it's a boolean-like value
         assert bool(result) in (True, False)
         # Likely won't converge in 2 steps
-
-
-class TestInvalidHessianUpdateFreq:
-    """Test invalid hessian_update_freq handling."""
-
-    def test_negative_hessian_update_freq(self):
-        """Test negative hessian_update_freq is converted to None."""
-        atoms = TestMoleculeFactory.get_h2o_equilibrium()
-        atoms.calc = qme.MockCalculator(backend="mock")
-
-        opt = TrustKrylov(atoms, logfile=None, hessian_update_freq=-1)
-
-        assert opt.hessian_update_freq is None
-
-    def test_zero_hessian_update_freq(self):
-        """Test zero hessian_update_freq is converted to None."""
-        atoms = TestMoleculeFactory.get_h2o_equilibrium()
-        atoms.calc = qme.MockCalculator(backend="mock")
-
-        opt = TrustKrylov(atoms, logfile=None, hessian_update_freq=0)
-
-        assert opt.hessian_update_freq is None

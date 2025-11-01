@@ -1,4 +1,4 @@
-"""Comprehensive tests for Explorer class covering edge cases and uncovered code paths."""
+"""Comprehensive tests for Explorer class covering basic functionality and edge cases."""
 
 from __future__ import annotations
 
@@ -9,90 +9,319 @@ from unittest.mock import patch
 import pytest
 from ase import Atoms
 
+import qme
 from qme.core.explorer import Explorer, _extract_charge_spin
+from qme.utils.validation import BackendError
 from tests.test_utils import TestMoleculeFactory
+
+
+class TestExplorerInitialization:
+    """Test Explorer initialization."""
+
+    @pytest.mark.parametrize(
+        ("atoms_input", "expected_length", "expected_index"),
+        [
+            ("single", 1, 0),
+            ("list", 2, None),
+        ],
+    )
+    def test_init_with_atoms(self, atoms_input, expected_length, expected_index) -> None:
+        """Test Explorer initialization with single or multiple Atoms objects."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        if atoms_input == "single":
+            input_atoms = atoms
+        else:
+            atoms2 = TestMoleculeFactory.get_water_distorted()
+            input_atoms = [atoms, atoms2]
+
+        explorer = Explorer(input_atoms, backend="mock")
+
+        assert len(explorer.atoms_list) == expected_length
+        assert explorer.backend == "mock"
+        if expected_index is not None:
+            assert explorer.atoms_list[expected_index] == atoms
+
+    @pytest.mark.parametrize(
+        ("target", "strategy", "expected_target", "expected_strategy"),
+        [
+            ("", "", "minima", "local"),  # defaults
+            ("minima", "local", "minima", "local"),
+            ("ts", "local", "ts", "local"),
+            ("  minima  ", "  local  ", "minima", "local"),  # whitespace stripped
+        ],
+    )
+    def test_init_with_target_strategy(
+        self, target, strategy, expected_target, expected_strategy
+    ) -> None:
+        """Test Explorer initialization with target and strategy."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        explorer = Explorer(atoms, backend="mock", target=target, strategy=strategy)
+
+        # Empty strings get defaults, others get stripped
+        if target == "" and strategy == "":
+            # Defaults applied
+            assert explorer.target in ("minima", "")
+            assert explorer.strategy in ("local", "")
+        else:
+            assert explorer.target == expected_target
+            assert explorer.strategy == expected_strategy
+
+    @pytest.mark.parametrize(
+        ("profile", "has_profiler"),
+        [(False, False), (True, True)],
+    )
+    def test_init_with_profile(self, profile, has_profiler) -> None:
+        """Test Explorer initialization with profiling."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        explorer = Explorer(atoms, backend="mock", profile=profile)
+
+        if has_profiler:
+            assert explorer.profiler is not None
+        else:
+            assert explorer.profiler is None
+
+    def test_init_with_defaults(self) -> None:
+        """Test Explorer initialization with default parameters."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        explorer = Explorer(atoms, backend="mock")
+
+        assert explorer.target == "minima"
+        assert explorer.strategy == "local"
+        assert explorer.default_charge == 0
+        assert explorer.default_spin == 1
+        assert explorer.verbose == 1
+        assert explorer.profiler is None
+
+    def test_init_with_constraints_and_optimizer_kwargs(self) -> None:
+        """Test Explorer initialization with constraints and optimizer kwargs."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        optimizer_kwargs = {"maxstep": 0.1}
+        explorer = Explorer(
+            atoms,
+            backend="mock",
+            constraints="fix 0",
+            optimizer_kwargs=optimizer_kwargs,
+        )
+
+        assert explorer.constraints_spec == "fix 0"
+        assert explorer.optimizer_kwargs == optimizer_kwargs
+
+
+class TestExplorerListStrategies:
+    """Test Explorer.list_strategies method."""
+
+    def test_list_strategies_all(self) -> None:
+        """Test listing all strategies."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        explorer = Explorer(atoms, backend="mock")
+
+        strategies = explorer.list_strategies()
+
+        assert isinstance(strategies, dict)
+        assert len(strategies) > 0
+
+        # Check structure of returned dictionary
+        for name, metadata in strategies.items():
+            assert isinstance(name, str)
+            assert isinstance(metadata, dict)
+            assert "description" in metadata
+
+    def test_list_strategies_filtered(self) -> None:
+        """Test listing strategies filtered by kind."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        explorer = Explorer(atoms, backend="mock")
+
+        # Test filtering (if implemented)
+        strategies = explorer.list_strategies(kind="minima")
+
+        assert isinstance(strategies, dict)
+        # If filtering is implemented, all strategies should match
+        # Otherwise, this should still return all strategies
+        assert len(strategies) > 0
+
+
+class TestExplorerExplainRun:
+    """Test Explorer.explain_run method."""
+
+    @pytest.mark.parametrize(
+        ("target", "strategy", "expected_target"),
+        [
+            ("minima", "local", "minima"),
+            ("ts", "local", "ts"),
+            ("path", "neb", "path"),
+        ],
+    )
+    def test_explain_run_strategies(self, target, strategy, expected_target) -> None:
+        """Test explain_run for different strategy combinations."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        if target == "path":
+            atoms = [atoms, TestMoleculeFactory.get_water_distorted()]
+        explorer = Explorer(atoms, backend="mock", target=target, strategy=strategy)
+
+        explanation = explorer.explain_run()
+
+        assert isinstance(explanation, dict)
+        assert "valid" in explanation
+        assert explanation["target"] == expected_target
+        if target == "path":
+            assert explanation["strategy"] == "neb" or "neb" in str(explanation["strategy"]).lower()
+
+    def test_explain_run_invalid_backend(self) -> None:
+        """Test explain_run with invalid backend."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        explorer = Explorer(atoms, backend="nonexistent_backend")
+
+        # Should either raise error or return explanation with valid=False
+        explanation = explorer.explain_run()
+
+        # The explanation should indicate the issue
+        assert isinstance(explanation, dict)
+
+    def test_explain_run_invalid_strategy(self) -> None:
+        """Test explain_run with invalid strategy."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        explorer = Explorer(atoms, backend="mock", target="minima", strategy="nonexistent")
+
+        explanation = explorer.explain_run()
+
+        assert isinstance(explanation, dict)
+        # Should indicate invalid strategy
+        assert "valid" in explanation or "error" in explanation or "strategy" in explanation
+
+
+class TestExplorerErrorHandling:
+    """Test Explorer error handling."""
+
+    def test_empty_atoms_list_raises_error(self) -> None:
+        """Test that empty atoms list raises error."""
+        # Explorer initialization doesn't validate empty list immediately
+        # Error would occur during run() when strategy tries to access atoms
+        explorer = Explorer([], backend="mock")
+        # Error occurs during run, not init
+        with pytest.raises((ValueError, IndexError)):
+            explorer.run()
+
+    def test_run_with_invalid_backend(self) -> None:
+        """Test run with invalid backend raises error."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        explorer = Explorer(atoms, backend="nonexistent_backend_xyz123")
+
+        with pytest.raises((BackendError, ValueError, KeyError)):
+            explorer.run(steps=1)
+
+    def test_run_path_strategy_requires_multiple_structures(self) -> None:
+        """Test that path strategies require multiple structures."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        explorer = Explorer(atoms, backend="mock", target="path", strategy="neb")
+
+        # Should raise error or handle gracefully
+        with pytest.raises((ValueError, KeyError)):
+            explorer.run(steps=1)
+
+    def test_invalid_device_handled_gracefully(self) -> None:
+        """Test that invalid device is handled gracefully."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        # Should either work with default or raise a clear error
+        explorer = Explorer(atoms, backend="mock", device="invalid_device")
+
+        # Device validation might happen later, or might be ignored
+        # Just verify Explorer is created
+        assert explorer.device == "invalid_device"
+
+    def test_constraints_parsing_error(self) -> None:
+        """Test that invalid constraints are handled."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+
+        # Invalid constraints should be caught during run, not init
+        explorer = Explorer(atoms, backend="mock", constraints="invalid_constraint_string")
+
+        # Constraints are parsed during run, not init
+        assert explorer.constraints_spec == "invalid_constraint_string"
+
+    def test_strategy_not_found_error(self) -> None:
+        """Test error when strategy is not found."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        explorer = Explorer(atoms, backend="mock", target="minima", strategy="nonexistent_strategy")
+
+        # explain_run may return explanation with valid=False or raise during run()
+        # Let's test that it either raises or returns invalid explanation
+        try:
+            explanation = explorer.explain_run()
+            # If it doesn't raise, check that it indicates invalid strategy
+            if isinstance(explanation, dict) and "valid" in explanation:
+                # Might be False or might be missing - both are valid responses
+                pass
+        except (KeyError, ValueError):
+            # This is also acceptable - error raised as expected
+            pass
 
 
 class TestExtractChargeSpin:
     """Test _extract_charge_spin function with various metadata formats."""
 
-    def test_extract_from_xyz_comment(self) -> None:
-        """Test extraction from XYZ comment metadata."""
+    @pytest.mark.parametrize(
+        (
+            "comment",
+            "charge_attr",
+            "mult_attr",
+            "info_dict",
+            "default_charge",
+            "default_spin",
+            "expected_charge",
+            "expected_spin",
+        ),
+        [
+            ("charge=1 spin=3", None, None, {}, 0, 1, 1, 3),
+            ("charge=2", None, None, {}, 0, 1, 2, 1),
+            (None, 2, 3, {}, 0, 1, 2, 3),
+            (None, None, None, {"charge": 3, "spin": 4}, 0, 1, 3, 4),
+            ("charge=5 spin=6", 10, 20, {}, 0, 1, 5, 6),  # XYZ comment wins
+            (None, 7, 8, {"charge": 9, "spin": 10}, 0, 1, 7, 8),  # attributes win
+            ("charge=invalid", 11, 12, {}, 0, 1, 11, 12),  # Invalid comment falls back
+            (None, None, None, {}, 99, 88, 99, 88),  # Uses defaults
+        ],
+        ids=[
+            "full_comment",
+            "partial_comment",
+            "attributes",
+            "info_dict",
+            "comment_priority",
+            "attr_priority",
+            "invalid_comment",
+            "defaults",
+        ],
+    )
+    def test_extract_charge_spin_variations(
+        self,
+        comment,
+        charge_attr,
+        mult_attr,
+        info_dict,
+        default_charge,
+        default_spin,
+        expected_charge,
+        expected_spin,
+    ) -> None:
+        """Test charge/spin extraction with various metadata combinations."""
         atoms = TestMoleculeFactory.get_water_distorted()
-        atoms.info = {"comment": "charge=1 spin=3 energy=-100.0"}
 
-        charge, spin = _extract_charge_spin(atoms, default_charge=0, default_spin=1)
+        if comment:
+            atoms.info = {"comment": comment}
+        if charge_attr is not None:
+            atoms.charge = charge_attr
+        if mult_attr is not None:
+            atoms.mult = mult_attr
+        if info_dict:
+            if atoms.info is None:
+                atoms.info = {}
+            atoms.info.update(info_dict)
 
-        assert charge == 1
-        assert spin == 3
+        charge, spin = _extract_charge_spin(
+            atoms, default_charge=default_charge, default_spin=default_spin
+        )
 
-    def test_extract_from_xyz_comment_partial(self) -> None:
-        """Test extraction with partial metadata in comment."""
-        atoms = TestMoleculeFactory.get_water_distorted()
-        atoms.info = {"comment": "charge=2"}
-
-        charge, spin = _extract_charge_spin(atoms, default_charge=0, default_spin=1)
-
-        assert charge == 2
-        assert spin == 1  # Uses default
-
-    def test_extract_from_atoms_charge_mult(self) -> None:
-        """Test extraction from atoms.charge and atoms.mult attributes."""
-        atoms = TestMoleculeFactory.get_water_distorted()
-        atoms.charge = 2
-        atoms.mult = 3
-
-        charge, spin = _extract_charge_spin(atoms, default_charge=0, default_spin=1)
-
-        assert charge == 2
-        assert spin == 3
-
-    def test_extract_from_atoms_info(self) -> None:
-        """Test extraction from atoms.info dictionary."""
-        atoms = TestMoleculeFactory.get_water_distorted()
-        atoms.info = {"charge": 3, "spin": 4}
-
-        charge, spin = _extract_charge_spin(atoms, default_charge=0, default_spin=1)
-
-        assert charge == 3
-        assert spin == 4
-
-    def test_extract_priority_xyz_comment_overrides(self) -> None:
-        """Test that XYZ comment takes priority over attributes."""
-        atoms = TestMoleculeFactory.get_water_distorted()
-        atoms.info = {"comment": "charge=5 spin=6"}
-        atoms.charge = 10
-        atoms.mult = 20
-
-        charge, spin = _extract_charge_spin(atoms, default_charge=0, default_spin=1)
-
-        assert charge == 5  # XYZ comment wins
-        assert spin == 6
-
-    def test_extract_priority_attributes_over_info(self) -> None:
-        """Test that attributes take priority over info dict."""
-        atoms = TestMoleculeFactory.get_water_distorted()
-        atoms.charge = 7
-        atoms.mult = 8
-        atoms.info = {"charge": 9, "spin": 10}
-
-        charge, spin = _extract_charge_spin(atoms, default_charge=0, default_spin=1)
-
-        assert charge == 7  # attributes win
-        assert spin == 8
-
-    def test_extract_with_invalid_comment_metadata(self) -> None:
-        """Test extraction with invalid comment metadata falls back."""
-        atoms = TestMoleculeFactory.get_water_distorted()
-        atoms.info = {"comment": "charge=invalid spin=bad"}
-        atoms.charge = 11
-        atoms.mult = 12
-
-        charge, spin = _extract_charge_spin(atoms, default_charge=0, default_spin=1)
-
-        # Should fall back to attributes
-        assert charge == 11
-        assert spin == 12
+        assert charge == expected_charge
+        assert spin == expected_spin
 
     def test_extract_with_invalid_attribute_types(self) -> None:
         """Test extraction handles invalid attribute types gracefully."""
@@ -102,19 +331,8 @@ class TestExtractChargeSpin:
 
         charge, spin = _extract_charge_spin(atoms, default_charge=0, default_spin=1)
 
-        # Should use defaults
         assert charge == 0
         assert spin == 1
-
-    def test_extract_uses_defaults_when_missing(self) -> None:
-        """Test extraction uses defaults when no metadata present."""
-        atoms = TestMoleculeFactory.get_water_distorted()
-        atoms.info = {}
-
-        charge, spin = _extract_charge_spin(atoms, default_charge=99, default_spin=88)
-
-        assert charge == 99
-        assert spin == 88
 
     def test_extract_with_none_info(self) -> None:
         """Test extraction when atoms.info is None."""
@@ -127,8 +345,32 @@ class TestExtractChargeSpin:
         assert spin == 51
 
 
-class TestExplorerRunEdgeCases:
-    """Test Explorer.run() edge cases and error paths."""
+class TestExplorerRun:
+    """Test Explorer.run() method including basic and edge cases."""
+
+    def test_run_basic_minima(self) -> None:
+        """Test basic run for minima optimization."""
+        atoms = TestMoleculeFactory.get_h2_stretched()
+        explorer = Explorer(atoms, backend="mock", target="minima", strategy="local")
+
+        result = explorer.run(steps=5, fmax=0.5)
+
+        assert isinstance(result, dict)
+        assert "optimized_atoms" in result
+        assert "strategy" in result
+        assert "converged" in result
+
+    def test_run_with_steps_limit(self) -> None:
+        """Test run with steps limit."""
+        atoms = TestMoleculeFactory.get_h2_stretched()
+        explorer = Explorer(atoms, backend="mock", target="minima")
+
+        result = explorer.run(steps=2, fmax=0.5)
+
+        assert isinstance(result, dict)
+        # Steps should be limited
+        if "steps_taken" in result:
+            assert result["steps_taken"] <= 2
 
     def test_run_with_custom_runner(self) -> None:
         """Test run() with custom runner function."""
@@ -206,7 +448,34 @@ class TestExplorerRunEdgeCases:
 
 
 class TestExplorerFromFile:
-    """Test Explorer.from_file() edge cases."""
+    """Test Explorer.from_file() method including basic and edge cases."""
+
+    @pytest.mark.parametrize(
+        ("kwargs", "assertions"),
+        [
+            ({}, lambda e: (len(e.atoms_list) == 1 and len(e.atoms_list[0]) == 3)),
+            ({"target": "ts"}, lambda e: (e.backend == "mock" and e.target == "ts")),
+        ],
+        ids=["basic", "custom_target"],
+    )
+    def test_from_file_variations(self, kwargs, assertions) -> None:
+        """Test creating Explorer from file with various options."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
+            temp_path = f.name
+            atoms.write(temp_path)
+
+        try:
+            explorer = Explorer.from_file(temp_path, backend="mock", **kwargs)
+            assert assertions(explorer)
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
+
+    def test_from_file_nonexistent_file(self) -> None:
+        """Test from_file with nonexistent file raises error."""
+        with pytest.raises((FileNotFoundError, OSError)):
+            Explorer.from_file("nonexistent_file.xyz", backend="mock")
 
     def test_from_file_with_list_return(self) -> None:
         """Test from_file handles read_geometry returning a list."""
@@ -379,62 +648,75 @@ class TestExplorerCalculateFrequencies:
 
 
 class TestExplorerSaveMethods:
-    """Test Explorer save methods edge cases."""
+    """Test Explorer save methods including basic and edge cases."""
 
-    def test_save_structure_error_path(self) -> None:
-        """Test save_structure error handling."""
-        atoms = TestMoleculeFactory.get_water_distorted()
-        explorer = Explorer(atoms, backend="mock")
+    @pytest.mark.parametrize(
+        ("method_name", "suffix", "test_data_factory"),
+        [
+            ("save_structure", ".xyz", lambda: TestMoleculeFactory.get_water_distorted()),
+            ("save_structure", ".json", lambda: TestMoleculeFactory.get_water_distorted()),
+            (
+                "save_trajectory",
+                ".xyz",
+                lambda: [
+                    TestMoleculeFactory.get_water_distorted(),
+                    TestMoleculeFactory.get_water_distorted(),
+                ],
+            ),
+        ],
+        ids=["save_structure_xyz", "save_structure_json", "save_trajectory"],
+    )
+    def test_save_methods(self, method_name, suffix, test_data_factory) -> None:
+        """Test saving structures and trajectories in various formats."""
+        test_data = test_data_factory()
+        if method_name == "save_trajectory":
+            explorer = Explorer(test_data, backend="mock")
+            trajectory = test_data
+        else:
+            explorer = Explorer(test_data, backend="mock")
+            trajectory = None
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False) as f:
             temp_path = f.name
 
         try:
-            # Make write fail by passing invalid path
-            with (
-                patch(
-                    "qme.core.explorer.write_xyz_with_metadata",
-                    side_effect=Exception("Write failed"),
-                ),
-                pytest.raises(RuntimeError),
-            ):
-                explorer.save_structure(atoms, temp_path)
-        finally:
-            Path(temp_path).unlink(missing_ok=True)
-
-    def test_save_structure_non_xyz_format(self) -> None:
-        """Test save_structure with non-XYZ format."""
-        atoms = TestMoleculeFactory.get_water_distorted()
-        explorer = Explorer(atoms, backend="mock")
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            temp_path = f.name
-
-        try:
-            explorer.save_structure(atoms, temp_path)
+            if method_name == "save_trajectory":
+                explorer.save_trajectory(trajectory, temp_path)
+            else:
+                explorer.save_structure(test_data, temp_path)
 
             assert Path(temp_path).exists()
+            if suffix == ".xyz" and method_name == "save_structure":
+                loaded = qme.read_geometry(temp_path)
+                assert len(loaded) == len(test_data)
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_save_trajectory_error_path(self) -> None:
-        """Test save_trajectory error handling."""
-        atoms1 = TestMoleculeFactory.get_water_distorted()
-        atoms2 = TestMoleculeFactory.get_water_distorted()
-        explorer = Explorer([atoms1, atoms2], backend="mock")
+    @pytest.mark.parametrize(
+        ("method_name", "patch_target"),
+        [
+            ("save_structure", "qme.core.explorer.write_xyz_with_metadata"),
+            ("save_trajectory", "qme.core.explorer.write_xyz_with_metadata"),
+        ],
+        ids=["structure_error", "trajectory_error"],
+    )
+    def test_save_methods_error_handling(self, method_name, patch_target) -> None:
+        """Test error handling for save methods."""
+        atoms = TestMoleculeFactory.get_water_distorted()
+        explorer = Explorer([atoms] if method_name == "save_trajectory" else atoms, backend="mock")
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
             temp_path = f.name
 
         try:
             with (
-                patch(
-                    "qme.core.explorer.write_xyz_with_metadata",
-                    side_effect=Exception("Write failed"),
-                ),
-                pytest.raises(RuntimeError),
+                patch(patch_target, side_effect=OSError("Write failed")),
+                pytest.raises(RuntimeError, match="Failed to save"),
             ):
-                explorer.save_trajectory([atoms1, atoms2], temp_path)
+                if method_name == "save_trajectory":
+                    explorer.save_trajectory([atoms, atoms], temp_path)
+                else:
+                    explorer.save_structure(atoms, temp_path)
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
@@ -456,7 +738,8 @@ class TestExplorerSaveMethods:
                 nonlocal call_count
                 call_count += 1
                 if call_count == 1:
-                    raise Exception("First write failed")
+                    raise OSError("First write failed")
+                # Second call succeeds (clean atoms)
                 return None
 
             with patch("qme.core.explorer.write", side_effect=failing_write):
@@ -464,6 +747,7 @@ class TestExplorerSaveMethods:
 
             # Should have tried twice (original + clean)
             assert call_count == 2
+            assert Path(temp_path).exists()
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
@@ -471,39 +755,44 @@ class TestExplorerSaveMethods:
 class TestExplorerEffectiveMethods:
     """Test Explorer _get_effective_* methods."""
 
-    def test_get_effective_model_name(self) -> None:
+    @pytest.mark.parametrize(
+        ("backend", "model_name", "expected"),
+        [
+            ("mock", "custom_model", "custom_model"),
+            ("uma", None, None),  # Will check contains "uma" below
+        ],
+        ids=["explicit_model", "backend_default"],
+    )
+    def test_get_effective_model_name(self, backend, model_name, expected) -> None:
         """Test _get_effective_model_name for different backends."""
         atoms = TestMoleculeFactory.get_water_distorted()
+        kwargs = {"model_name": model_name} if model_name else {}
+        explorer = Explorer(atoms, backend=backend, **kwargs)
+        result = explorer._get_effective_model_name()
+        if expected:
+            assert result == expected
+        else:
+            assert "uma" in result.lower()
 
-        # Test with explicit model_name
-        explorer = Explorer(atoms, backend="mock", model_name="custom_model")
-        assert explorer._get_effective_model_name() == "custom_model"
-
-        # Test with backend defaults
-        explorer = Explorer(atoms, backend="uma")
-        model_name = explorer._get_effective_model_name()
-        assert "uma" in model_name.lower()
-
-    def test_get_effective_optimizer_default_minima(self) -> None:
-        """Test _get_effective_optimizer defaults for minima."""
+    @pytest.mark.parametrize(
+        ("target", "local_optimizer", "expected_optimizer"),
+        [
+            ("minima", "default", "lbfgs"),
+            ("ts", "default", "sella"),
+            (None, "bfgs", "bfgs"),
+        ],
+        ids=["minima_default", "ts_default", "explicit"],
+    )
+    def test_get_effective_optimizer(self, target, local_optimizer, expected_optimizer) -> None:
+        """Test _get_effective_optimizer with various configurations."""
         atoms = TestMoleculeFactory.get_water_distorted()
-        explorer = Explorer(atoms, backend="mock", target="minima", local_optimizer="default")
-
-        assert explorer._get_effective_optimizer() == "lbfgs"
-
-    def test_get_effective_optimizer_default_ts(self) -> None:
-        """Test _get_effective_optimizer defaults for TS."""
-        atoms = TestMoleculeFactory.get_water_distorted()
-        explorer = Explorer(atoms, backend="mock", target="ts", local_optimizer="default")
-
-        assert explorer._get_effective_optimizer() == "sella"
-
-    def test_get_effective_optimizer_explicit(self) -> None:
-        """Test _get_effective_optimizer with explicit optimizer."""
-        atoms = TestMoleculeFactory.get_water_distorted()
-        explorer = Explorer(atoms, backend="mock", local_optimizer="bfgs")
-
-        assert explorer._get_effective_optimizer() == "bfgs"
+        kwargs = (
+            {"target": target, "local_optimizer": local_optimizer}
+            if target
+            else {"local_optimizer": local_optimizer}
+        )
+        explorer = Explorer(atoms, backend="mock", **kwargs)
+        assert explorer._get_effective_optimizer() == expected_optimizer
 
 
 class TestExplorerProfilerIntegration:

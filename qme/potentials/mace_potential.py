@@ -186,9 +186,12 @@ class MACEPotential(BasePotential):
         # Copy results from underlying calculator
         try:
             self.results = self._calc.results.copy()
-        except Exception:
-            # If underlying calculator does not use .results dict, attempt to
-            # extract common properties
+        except (AttributeError, KeyError, TypeError):
+            # If underlying calculator does not use .results dict or has different structure,
+            # attempt to extract common properties as fallback
+            # AttributeError: .results doesn't exist
+            # KeyError: .results exists but copy() fails
+            # TypeError: .results exists but isn't dict-like
             if properties is None:
                 properties = self.implemented_properties
             if "energy" in properties and hasattr(self._calc, "results"):

@@ -7,6 +7,7 @@ based on the AIMNet2 repository implementation.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -17,6 +18,7 @@ from torch_cluster import radius_graph
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
 from qme.utils.logging import get_qme_logger
+from qme.utils.path_security import validate_safe_path
 
 logger = get_qme_logger(__name__)
 
@@ -92,21 +94,36 @@ def get_model_path(model_name: str) -> str:
         model_url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
         cached_path = download_and_cache_model(model_name, model_url)
         return str(cached_path)
-    except Exception as e:
-        # Fallback to old behavior if caching fails
-        logger.debug(f"Model caching failed, using fallback: {e}")
+    except OSError as e:
+        # File system errors during caching - fallback to old behavior
+        logger.debug(f"Model caching failed due to file system error, using fallback: {e}")
+    except (ValueError, TypeError) as e:
+        # Cache key or configuration errors - fallback to old behavior
+        logger.debug(f"Model caching failed due to configuration error, using fallback: {e}")
 
         # Create local assets directory
         assets_dir = os.path.join(os.path.dirname(__file__), "assets")
-        model_dir = os.path.dirname(model_path)
-        if model_dir:
-            os.makedirs(os.path.join(assets_dir, model_dir), exist_ok=True)
+        assets_dir_path = Path(assets_dir)
 
-        local_path = os.path.join(assets_dir, model_path)
+        # SECURITY: Validate model_path doesn't escape assets directory
+        # Resolve relative to assets_dir to prevent path traversal
+        try:
+            local_path = validate_safe_path(
+                assets_dir_path / model_path,
+                base_dir=assets_dir_path,
+                must_exist=False,
+                allow_absolute=False,
+            )
+        except Exception as e:
+            msg = f"Invalid model path {model_path}: {e}"
+            raise RuntimeError(msg) from e
 
-        if os.path.isfile(local_path):
+        # Create parent directory if needed
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if local_path.is_file():
             logger.info(f"Found model file: {local_path}")
-            return local_path
+            return str(local_path)
 
         # Download from model zoo
         url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
@@ -116,16 +133,33 @@ def get_model_path(model_name: str) -> str:
             response = requests.get(url)
             response.raise_for_status()
 
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
             with open(local_path, "wb") as f:
                 f.write(response.content)
 
             logger.info(f"Saved to {local_path}")
-            return local_path
+            return str(local_path)
 
-        except Exception as e:
-            msg = f"Failed to download model {model_name}: {e}"
-            raise RuntimeError(msg)
+        except requests.RequestException as e:
+            # Network errors (connection, timeout, HTTP errors)
+            msg = (
+                f"Failed to download model {model_name}: network error. "
+                f"Error: {e}. Check your internet connection and the model URL."
+            )
+            raise RuntimeError(msg) from e
+        except OSError as e:
+            # File system errors (permissions, disk space, etc.)
+            msg = (
+                f"Failed to download model {model_name}: file system error. "
+                f"Error: {e}. Check file permissions and available disk space."
+            )
+            raise RuntimeError(msg) from e
+        except (ValueError, TypeError) as e:
+            # Data format or configuration errors
+            msg = (
+                f"Failed to download model {model_name}: invalid data format. "
+                f"Error: {e}. The downloaded model may be corrupted."
+            )
+            raise RuntimeError(msg) from e
 
 
 def sparse_nb_to_dense_half(idx: np.ndarray, natom: int, max_nb: int) -> np.ndarray:
@@ -537,14 +571,34 @@ class AIMNet2Potential(BasePotential):
             ):
                 self._calc = NativeAIMNet2Calculator(model_path, device=self.device)
 
-        except Exception as e:
+        except ImportError as e:
+            # Missing dependencies
             msg = (
-                f"Failed to load AIMNET2 model '{self.model_name}'. "
-                f"Error: {e}. Please check the model name or installation."
+                f"Failed to load AIMNET2 model '{self.model_name}': missing required dependencies. "
+                f"Error: {e}. Install torch and torch-cluster, and ensure all dependencies are available."
             )
-            raise RuntimeError(
-                msg,
+            raise ImportError(msg) from e
+        except (ValueError, TypeError, KeyError) as e:
+            # Configuration or model format errors
+            msg = (
+                f"Failed to load AIMNET2 model '{self.model_name}': invalid model configuration. "
+                f"Error: {e}. Check that the model name is correct and the model format is valid."
             )
+            raise ValueError(msg) from e
+        except OSError as e:
+            # File system errors
+            msg = (
+                f"Failed to load AIMNET2 model '{self.model_name}': file access error. "
+                f"Error: {e}. Check file permissions and ensure model files are accessible."
+            )
+            raise RuntimeError(msg) from e
+        except RuntimeError as e:
+            # Runtime errors from PyTorch/backend
+            msg = (
+                f"Failed to load AIMNET2 model '{self.model_name}': runtime error. "
+                f"Error: {e}. This may indicate a device/GPU issue or model incompatibility."
+            )
+            raise RuntimeError(msg) from e
 
     def calculate(
         self,

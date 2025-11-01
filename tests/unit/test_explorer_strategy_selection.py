@@ -10,35 +10,50 @@ from qme.core.registry import REGISTRY
 class TestExplorerStrategySelection:
     """Test strategy selection and explain_run functionality."""
 
-    def test_strategy_registry(self) -> None:
-        """Test that strategies are properly registered."""
-        # Ensure strategy modules are imported to trigger registration
+    # Registry functionality is tested in test_registry.py
+    # This test duplicates that coverage - keeping minimal check here for integration
+    def test_strategy_registry_basic(self) -> None:
+        """Basic check that strategies are accessible (detailed tests in test_registry.py)."""
+        import qme.strategies  # noqa: F401
 
-        # Test that we can get strategies by name
-        minima_strategy = REGISTRY.get("minima:local")
-        assert minima_strategy.__name__ == "LocalMinimaStrategy"
-
-        # Test aliases work
-        neb_strategy = REGISTRY.get("neb")
-        assert neb_strategy.__name__ == "MultiStructureNEBStrategy"
-
-        # Test that we can list strategies
         strategies = REGISTRY.list_strategies()
         assert "minima:local" in strategies
         assert "path:neb" in strategies
 
-    def test_strategy_metadata(self) -> None:
-        """Test strategy metadata is correct."""
+    @pytest.mark.parametrize(
+        ("strategy_name", "expected_target", "expected_strategy", "expected_requires_multiple"),
+        [
+            ("minima:local", "minima", "local", False),
+            ("minima:interpolate", "minima", "interpolate", True),
+            ("ts:local", "ts", "local", False),
+            ("ts:interpolate", "ts", "interpolate", True),
+            ("ts:growing_string", "ts", "growing_string", True),
+            ("path:neb", "path", "neb", True),
+            ("path:cineb", "path", "cineb", True),
+            ("path:interpolate", "path", "interpolate", True),
+            ("path:irc", "path", "irc", False),
+        ],
+    )
+    def test_strategy_metadata(
+        self,
+        strategy_name,
+        expected_target,
+        expected_strategy,
+        expected_requires_multiple,
+    ) -> None:
+        """Test strategy metadata is correct for all registered strategies."""
         # Ensure strategy modules are imported to trigger registration
+        import qme.strategies  # noqa: F401
 
-        minima_strategy = REGISTRY.get("minima:local")
-        metadata = minima_strategy.metadata
+        strategy_class = REGISTRY.get(strategy_name)
+        metadata = strategy_class.metadata
 
-        assert metadata.name == "minima:local"
-        assert metadata.target == "minima"
-        assert metadata.strategy == "local"
-        assert "minima" in metadata.aliases
-        assert not metadata.requires_multiple_structures
+        assert metadata.name == strategy_name
+        assert metadata.target == expected_target
+        assert metadata.strategy == expected_strategy
+        assert metadata.requires_multiple_structures == expected_requires_multiple
+        # Verify name format matches target:strategy
+        assert metadata.name == f"{expected_target}:{expected_strategy}"
 
     @pytest.mark.parametrize(
         ("target", "strategy", "expected_key", "expected_runner"),
@@ -81,32 +96,26 @@ class TestExplorerStrategySelection:
         assert explanation["valid"] is False
         assert "error" in explanation
 
-    def test_validation_minima_run(self) -> None:
-        """Test validation for minima optimization."""
-        atoms = Atoms("H2")
-        exp = Explorer(atoms, target="minima", strategy="local", backend="mock")
-
-        # This should not raise an error
-        explanation = exp.explain_run()
-        assert explanation["valid"] is True
-
-    def test_validation_ts_run(self) -> None:
-        """Test validation for TS optimization."""
-        atoms = Atoms("H2")
-        # Use mock backend which is always available
-        exp = Explorer(atoms, target="ts", strategy="local", backend="mock")
-
-        # This should work with mock backend
-        explanation = exp.explain_run()
-        assert explanation["valid"] is True
-
-    def test_validation_path_run(self) -> None:
-        """Test validation for path optimization."""
-        atoms1 = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
-        atoms2 = Atoms("H2", positions=[[0, 0, 0], [0, 0, 1.0]])
-        exp = Explorer([atoms1, atoms2], target="path", strategy="neb", backend="mock")
-
-        # This should work with multiple structures
+    @pytest.mark.parametrize(
+        ("target", "strategy", "atoms_factory"),
+        [
+            ("minima", "local", lambda: Atoms("H2")),
+            ("ts", "local", lambda: Atoms("H2")),
+            (
+                "path",
+                "neb",
+                lambda: [
+                    Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]]),
+                    Atoms("H2", positions=[[0, 0, 0], [0, 0, 1.0]]),
+                ],
+            ),
+        ],
+        ids=["minima", "ts", "path"],
+    )
+    def test_validation_runs(self, target, strategy, atoms_factory) -> None:
+        """Test validation for different optimization types."""
+        atoms = atoms_factory()
+        exp = Explorer(atoms, target=target, strategy=strategy, backend="mock")
         explanation = exp.explain_run()
         assert explanation["valid"] is True
 

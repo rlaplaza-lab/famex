@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Compare UMA Hessian computation methods against finite differences.
 
 This script compares different analytical Hessian computation methods
@@ -13,12 +14,17 @@ This is a diagnostic/research script for validating Hessian computation
 methods, not a standard usage example.
 """
 
+import os
 import time
 from io import StringIO
 from urllib.request import urlopen
 
 import numpy as np
 from ase import Atoms
+
+# Disable ASE GUI to prevent popup windows
+os.environ["DISPLAY"] = ""
+os.environ["MPLBACKEND"] = "Agg"
 
 import qme
 from qme.analysis.frequency import HessianCalculator

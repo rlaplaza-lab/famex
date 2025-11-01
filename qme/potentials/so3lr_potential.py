@@ -128,13 +128,21 @@ class SO3LRPotential(BasePotential):
         if properties is not None and "energy" in properties:
             try:
                 self.results["energy"] = self._calc.results["energy"]
-            except Exception:
+            except (AttributeError, KeyError, TypeError):
+                # Fallback: calculator doesn't have .results or key doesn't exist
+                # AttributeError: .results doesn't exist
+                # KeyError: key doesn't exist in results
+                # TypeError: .results exists but isn't dict-like
                 self.results["energy"] = self.results.get("energy")
 
         if properties is not None and "forces" in properties:
             try:
                 self.results["forces"] = self._calc.results["forces"]
-            except Exception:
+            except (AttributeError, KeyError, TypeError):
+                # Fallback: calculator doesn't have .results or key doesn't exist
+                # AttributeError: .results doesn't exist
+                # KeyError: key doesn't exist in results
+                # TypeError: .results exists but isn't dict-like
                 self.results["forces"] = self.results.get("forces")
 
     def get_potential_energy(
