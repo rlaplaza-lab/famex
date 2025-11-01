@@ -276,3 +276,246 @@ class TestHessianConsistency:
         # Should match within reasonable tolerance
         # For water, expect better accuracy (1% relative, 1.0 eV/Å² absolute)
         np.testing.assert_allclose(hessian_5point, hessian_analytical, rtol=0.01, atol=1.0)
+
+    @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
+    @pytest.mark.parametrize("method", ["forward", "central", "5point"])
+    def test_uma_all_fd_methods(self, water_molecule: Atoms, method: str) -> None:
+        """Test all finite difference methods against UMA analytical Hessian."""
+        atoms = water_molecule.copy()
+        atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+        atoms.calc.ensure_loaded()
+
+        # Analytical Hessian
+        hessian_analytical = atoms.calc.get_hessian(atoms)
+
+        # Finite difference Hessian
+        hc = HessianCalculator(atoms, atoms.calc, delta=0.01, method=method, verbose=0)
+        hessian_fd = hc.calculate_numerical_hessian()
+
+        # Forward differences are less accurate, so use looser tolerance
+        if method == "forward":
+            rtol, atol = 0.05, 2.0
+        elif method == "central":
+            rtol, atol = 0.02, 1.0
+        else:  # 5point
+            rtol, atol = 0.01, 1.0
+
+        assert hessian_analytical.shape == hessian_fd.shape
+        np.testing.assert_allclose(hessian_analytical, hessian_fd, rtol=rtol, atol=atol)
+
+    @pytest.mark.skipif(not is_backend_available("mace"), reason="MACE backend not available")
+    @pytest.mark.parametrize("method", ["central", "5point"])
+    def test_mace_fd_methods(self, water_molecule: Atoms, method: str) -> None:
+        """Test finite difference methods against MACE analytical Hessian."""
+        atoms = water_molecule.copy()
+        atoms.calc = qme.get_mace_calculator(model_name="mace-omol-0")
+        atoms.calc.ensure_loaded()
+
+        # Analytical Hessian
+        hessian_analytical = atoms.calc.get_hessian(atoms)
+
+        # Finite difference Hessian
+        hc = HessianCalculator(atoms, atoms.calc, delta=0.01, method=method, verbose=0)
+        hessian_fd = hc.calculate_numerical_hessian()
+
+        # Central differences are less accurate than 5point
+        rtol = 0.02 if method == "central" else 0.01
+        atol = 1.0 if method == "central" else 0.5
+
+        assert hessian_analytical.shape == hessian_fd.shape
+        np.testing.assert_allclose(hessian_analytical, hessian_fd, rtol=rtol, atol=atol)
+
+    @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
+    def test_richardson_central_uma(self, water_molecule: Atoms) -> None:
+        """Test Richardson extrapolation with central differences against UMA analytical."""
+        atoms = water_molecule.copy()
+        atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+        atoms.calc.ensure_loaded()
+
+        # Analytical Hessian
+        hessian_analytical = atoms.calc.get_hessian(atoms)
+
+        # Central differences with Richardson
+        hc_rich = HessianCalculator(
+            atoms,
+            atoms.calc,
+            delta=0.02,
+            method="central",
+            richardson=True,
+            delta2=0.01,
+            verbose=0,
+        )
+        hessian_rich = hc_rich.calculate_numerical_hessian()
+
+        # Central differences without Richardson
+        hc_no_rich = HessianCalculator(atoms, atoms.calc, delta=0.01, method="central", verbose=0)
+        hessian_no_rich = hc_no_rich.calculate_numerical_hessian()
+
+        # Richardson should improve accuracy
+        error_rich = np.max(np.abs(hessian_rich - hessian_analytical))
+        error_no_rich = np.max(np.abs(hessian_no_rich - hessian_analytical))
+
+        # Richardson should be at least as good, usually better
+        assert error_rich <= error_no_rich * 1.1, "Richardson should improve or maintain accuracy"
+        # Both should be reasonably accurate
+        np.testing.assert_allclose(hessian_rich, hessian_analytical, rtol=0.015, atol=1.0)
+
+    @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
+    def test_frequency_analysis_methods(self, water_molecule: Atoms) -> None:
+        """Test all FrequencyAnalysis hessian calculation methods."""
+        atoms = water_molecule.copy()
+        atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+        atoms.calc.ensure_loaded()
+
+        # Direct method (analytical)
+        freq_direct = FrequencyAnalysis(atoms, atoms.calc, delta=0.01, verbose=0)
+        hessian_direct = freq_direct.calculate_hessian(method="direct")
+
+        # Finite differences method
+        freq_fd = FrequencyAnalysis(atoms, atoms.calc, delta=0.01, verbose=0)
+        hessian_fd = freq_fd.calculate_hessian(method="finite_differences")
+
+        # Auto method should select direct for UMA
+        freq_auto = FrequencyAnalysis(atoms, atoms.calc, delta=0.01, verbose=0)
+        hessian_auto = freq_auto.calculate_hessian(method="auto")
+
+        # Direct and auto should be very close (may have minor numerical differences due to symmetrization)
+        np.testing.assert_allclose(hessian_direct, hessian_auto, rtol=1e-4, atol=1e-4)
+
+        # Finite differences should match direct within reasonable tolerance
+        np.testing.assert_allclose(hessian_direct, hessian_fd, rtol=0.01, atol=0.5)
+
+    @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
+    def test_hessian_with_indices(self, water_molecule: Atoms) -> None:
+        """Test Hessian calculation with subset of atoms using indices."""
+        atoms = water_molecule.copy()
+        atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+        atoms.calc.ensure_loaded()
+
+        # Full Hessian
+        hc_full = HessianCalculator(atoms, atoms.calc, delta=0.01, verbose=0)
+        hessian_full = hc_full.calculate_numerical_hessian()
+
+        # Partial Hessian (only first two atoms: O and one H)
+        indices = [0, 1]  # First two atoms
+        hc_partial = HessianCalculator(atoms, atoms.calc, delta=0.01, indices=indices, verbose=0)
+        hessian_partial = hc_partial.calculate_numerical_hessian()
+
+        # Partial Hessian should be 6x6 (2 atoms * 3 coords)
+        assert hessian_partial.shape == (6, 6)
+        # Full Hessian should be 9x9 (3 atoms * 3 coords)
+        assert hessian_full.shape == (9, 9)
+
+        # Extract corresponding block from full Hessian
+        hessian_full_block = hessian_full[:6, :6]
+
+        # Should match within tolerance
+        np.testing.assert_allclose(hessian_partial, hessian_full_block, rtol=0.01, atol=0.5)
+
+    @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
+    def test_delta_values(self, water_molecule: Atoms) -> None:
+        """Test that different delta values give consistent results."""
+        atoms = water_molecule.copy()
+        atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+        atoms.calc.ensure_loaded()
+
+        # Analytical Hessian (reference)
+        hessian_analytical = atoms.calc.get_hessian(atoms)
+
+        # Test different delta values
+        deltas = [0.005, 0.01, 0.02]
+        hessians = []
+
+        for delta in deltas:
+            hc = HessianCalculator(atoms, atoms.calc, delta=delta, method="central", verbose=0)
+            hessian = hc.calculate_numerical_hessian()
+            hessians.append(hessian)
+
+        # All should match analytical within reasonable tolerance
+        for _i, (hessian, delta) in enumerate(zip(hessians, deltas, strict=False)):
+            # Larger delta may have slightly larger errors
+            rtol = 0.02 if delta >= 0.02 else 0.015
+            atol = 2.0 if delta >= 0.02 else 1.0
+            np.testing.assert_allclose(hessian, hessian_analytical, rtol=rtol, atol=atol)
+
+        # Results with different deltas should be similar to each other
+        # (though not identical due to finite difference errors)
+        np.testing.assert_allclose(hessians[0], hessians[1], rtol=0.02, atol=0.5)
+        np.testing.assert_allclose(hessians[1], hessians[2], rtol=0.03, atol=0.8)
+
+    def test_richardson_central_harmonic(self, harmonic_atoms: Atoms) -> None:
+        """Test Richardson extrapolation with central differences on harmonic system."""
+        calc = HarmonicCalculator(k=1.0)
+
+        # Central + Richardson
+        hc_rich = HessianCalculator(
+            harmonic_atoms,
+            calc,
+            delta=0.02,
+            method="central",
+            richardson=True,
+            delta2=0.01,
+            verbose=0,
+        )
+        hessian_rich = hc_rich.calculate_numerical_hessian()
+
+        # Central without Richardson
+        hc_no_rich = HessianCalculator(
+            harmonic_atoms, calc, delta=0.01, method="central", verbose=0
+        )
+        hessian_no_rich = hc_no_rich.calculate_numerical_hessian()
+
+        # Analytical
+        hessian_analytical = calc.get_hessian(harmonic_atoms)
+
+        # All should be very accurate for harmonic system
+        np.testing.assert_allclose(hessian_rich, hessian_analytical, rtol=1e-8, atol=1e-8)
+        np.testing.assert_allclose(hessian_no_rich, hessian_analytical, rtol=1e-6, atol=1e-6)
+        # Richardson should be more accurate
+        error_rich = np.max(np.abs(hessian_rich - hessian_analytical))
+        error_no_rich = np.max(np.abs(hessian_no_rich - hessian_analytical))
+        assert error_rich < error_no_rich or np.isclose(error_rich, error_no_rich, rtol=1e-4)
+
+    @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
+    def test_frequency_analysis_batch_method(self, water_molecule: Atoms) -> None:
+        """Test batch method for hessian calculation if supported."""
+        atoms = water_molecule.copy()
+        atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+        atoms.calc.ensure_loaded()
+
+        # Check if batch evaluation is supported
+        supports_batch = getattr(atoms.calc, "supports_batch_evaluation", False)
+
+        if supports_batch:
+            # Batch method
+            freq_batch = FrequencyAnalysis(atoms, atoms.calc, delta=0.01, verbose=0)
+            hessian_batch = freq_batch.calculate_hessian(method="batch")
+
+            # Direct method (analytical)
+            freq_direct = FrequencyAnalysis(atoms, atoms.calc, delta=0.01, verbose=0)
+            hessian_direct = freq_direct.calculate_hessian(method="direct")
+
+            # Batch should match direct within reasonable tolerance
+            # Note: batch uses finite differences, so it won't be identical
+            np.testing.assert_allclose(hessian_batch, hessian_direct, rtol=0.01, atol=0.5)
+        else:
+            pytest.skip("Calculator does not support batch evaluation")
+
+    @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
+    def test_auto_method_selection(self, water_molecule: Atoms) -> None:
+        """Test that auto method selection works correctly."""
+        atoms = water_molecule.copy()
+        atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+        atoms.calc.ensure_loaded()
+
+        # Auto should select direct for UMA (has analytical hessian)
+        freq_auto = FrequencyAnalysis(atoms, atoms.calc, delta=0.01, verbose=0)
+        hessian_auto = freq_auto.calculate_hessian(method="auto")
+
+        # Should match direct method
+        freq_direct = FrequencyAnalysis(atoms, atoms.calc, delta=0.01, verbose=0)
+        hessian_direct = freq_direct.calculate_hessian(method="direct")
+
+        # Auto should select direct for UMA, so they should be very close
+        # (may have minor numerical differences due to symmetrization or internal calculations)
+        np.testing.assert_allclose(hessian_auto, hessian_direct, rtol=1e-4, atol=1e-4)
