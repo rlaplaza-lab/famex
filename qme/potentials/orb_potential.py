@@ -13,6 +13,9 @@ from ase.calculators.calculator import all_changes
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 class OrbPotential(BasePotential):
@@ -154,6 +157,11 @@ class OrbPotential(BasePotential):
 
         except ImportError as e:
             # Missing dependencies
+            logger.error(
+                "Failed to load Orb model '%s': missing required dependencies. Error: %s",
+                self.model_name,
+                e,
+            )
             msg = (
                 f"Failed to load Orb model '{self.model_name}': missing required dependencies. "
                 f"Error: {e}. Install orb-models and ensure all dependencies are available."
@@ -161,6 +169,11 @@ class OrbPotential(BasePotential):
             raise ImportError(msg) from e
         except (ValueError, TypeError, KeyError) as e:
             # Configuration or model format errors
+            logger.error(
+                "Failed to load Orb model '%s': invalid model configuration. Error: %s",
+                self.model_name,
+                e,
+            )
             msg = (
                 f"Failed to load Orb model '{self.model_name}': invalid model configuration. "
                 f"Error: {e}. Check that the model name is correct and the model format is valid."
@@ -168,6 +181,11 @@ class OrbPotential(BasePotential):
             raise ValueError(msg) from e
         except OSError as e:
             # File system errors
+            logger.error(
+                "Failed to load Orb model '%s': file access error. Error: %s",
+                self.model_name,
+                e,
+            )
             msg = (
                 f"Failed to load Orb model '{self.model_name}': file access error. "
                 f"Error: {e}. Check file permissions and ensure model files are accessible."
@@ -175,6 +193,11 @@ class OrbPotential(BasePotential):
             raise RuntimeError(msg) from e
         except RuntimeError as e:
             # Runtime errors from backend
+            logger.error(
+                "Failed to load Orb model '%s': runtime error. Error: %s",
+                self.model_name,
+                e,
+            )
             msg = (
                 f"Failed to load Orb model '{self.model_name}': runtime error. "
                 f"Error: {e}. This may indicate a device/GPU issue or model incompatibility."

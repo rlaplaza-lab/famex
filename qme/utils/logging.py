@@ -1,4 +1,17 @@
-"""Core logging configuration for QME."""
+"""Core logging configuration for QME.
+
+Logging is initialized automatically when an Explorer instance is created,
+or can be manually initialized by calling setup_qme_logging().
+
+Initialization order:
+1. Explorer.__init__() calls setup_qme_logging() with verbosity parameter
+2. setup_qme_logging() configures the root 'qme' logger
+3. Individual modules use get_qme_logger(__name__) to get module-specific loggers
+4. All child loggers inherit configuration from the root 'qme' logger
+
+This ensures logging is available throughout the codebase before any modules
+attempt to use it.
+"""
 
 from __future__ import annotations
 

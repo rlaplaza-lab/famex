@@ -10,11 +10,14 @@ from typing import TYPE_CHECKING, Any
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+from qme.utils.logging import get_qme_logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from ase import Atoms
+
+logger = get_qme_logger(__name__)
 
 
 class MACEPotential(BasePotential):
@@ -105,6 +108,7 @@ class MACEPotential(BasePotential):
                     self._calc = mace_omol(device=self.device or "cpu")
 
             except ImportError as e:
+                logger.error("MACE not available: %s. Install with: pip install mace-torch", e)
                 msg = f"MACE not available ({e}). Install with: pip install mace-torch"
                 raise ImportError(msg)
             except (ValueError, AttributeError, RuntimeError) as e:
@@ -127,9 +131,12 @@ class MACEPotential(BasePotential):
                         f"\n3. Wait for MACE update compatible with e3nn 0.5+"
                         f"\n\nOriginal error: {e}"
                     )
+                    logger.error("MACE compatibility issue: e3nn version mismatch")
+                    logger.debug("Compatibility error details: %s", e)
                     raise ImportError(
                         msg,
                     )
+                logger.exception("Unexpected error loading MACE calculator")
                 raise
 
     def _get_e3nn_version(self) -> str:
@@ -160,6 +167,7 @@ class MACEPotential(BasePotential):
             self._load_calculator()
 
         if self._calc is None:
+            logger.error("Failed to load MACE calculator")
             msg = "Failed to load MACE calculator"
             raise RuntimeError(msg)
 
@@ -178,9 +186,12 @@ class MACEPotential(BasePotential):
                     f"\n3. Wait for MACE update compatible with e3nn 0.5+"
                     f"\n\nOriginal error: {e}"
                 )
+                logger.error("MACE calculation failed due to e3nn compatibility issues")
+                logger.debug("Calculation error details: %s", e)
                 raise ImportError(
                     msg,
                 )
+            logger.exception("Unexpected error during MACE calculation")
             raise
 
         # Copy results from underlying calculator
@@ -216,9 +227,12 @@ class MACEPotential(BasePotential):
                     f"\n3. Wait for MACE update compatible with e3nn 0.5+"
                     f"\n\nOriginal error: {e}"
                 )
+                logger.error("MACE energy calculation failed due to e3nn compatibility issues")
+                logger.debug("Energy calculation error details: %s", e)
                 raise ImportError(
                     msg,
                 )
+            logger.exception("Unexpected error during MACE energy calculation")
             raise
 
     def get_forces(self, atoms=None):
@@ -265,6 +279,7 @@ class MACEPotential(BasePotential):
             self._load_calculator()
 
         if self._calc is None:
+            logger.error("Failed to load MACE calculator for Hessian calculation")
             msg = "Failed to load MACE calculator"
             raise RuntimeError(msg)
 
@@ -274,6 +289,7 @@ class MACEPotential(BasePotential):
                 "This might be due to an older version of mace-torch. "
                 "Please update to the latest version."
             )
+            logger.warning("MACE calculator does not support analytical Hessians")
             raise NotImplementedError(msg)
 
         try:
@@ -297,6 +313,8 @@ class MACEPotential(BasePotential):
                     f"\n3. Wait for MACE update compatible with e3nn 0.5+"
                     f"\n\nOriginal error: {e}"
                 )
+                logger.error("MACE Hessian calculation failed due to e3nn compatibility issues")
+                logger.debug("Hessian calculation error details: %s", e)
                 raise ImportError(msg)
             raise
 

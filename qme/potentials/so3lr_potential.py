@@ -13,11 +13,14 @@ from ase.calculators.calculator import all_changes
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+from qme.utils.logging import get_qme_logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from ase import Atoms
+
+logger = get_qme_logger(__name__)
 
 
 class SO3LRPotential(BasePotential):
@@ -88,6 +91,7 @@ class SO3LRPotential(BasePotential):
             # Get SO3LR module
             so3lr = deps.get("so3lr")
             if so3lr is None:
+                logger.error("SO3LR module not available")
                 msg = "SO3LR module not available"
                 raise RuntimeError(msg)
 
