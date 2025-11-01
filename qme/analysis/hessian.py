@@ -115,6 +115,10 @@ class HessianCalculator:
         delta2: float | None = None,
         indices: list[int] | None = None,
         verbose: int = 1,
+        adaptive_delta: bool = False,
+        delta_range: tuple[float, float] = (0.001, 0.05),
+        target_noise: float = 1e-5,
+        max_iterations: int = 5,
     ) -> None:
         """Initialize Hessian calculator.
 
@@ -142,6 +146,15 @@ class HessianCalculator:
             - 0: Quiet (minimal output)
             - 1: Normal (default, shows progress)
             - 2: Verbose (detailed information)
+        adaptive_delta : bool, default False
+            Whether to automatically select optimal delta based on noise estimation.
+            Uses Richardson extrapolation error to find best delta.
+        delta_range : tuple[float, float], default (0.001, 0.05)
+            (min_delta, max_delta) search range for adaptive delta selection.
+        target_noise : float, default 1e-5
+            Target noise level in eV/Å² for adaptive delta selection.
+        max_iterations : int, default 5
+            Maximum iterations for adaptive delta selection.
 
         Raises:
         ------
@@ -162,6 +175,11 @@ class HessianCalculator:
         ...     atoms, calc, delta=0.02, richardson=True, delta2=0.01
         ... )
         >>> hessian = hessian_calc_rich.calculate_numerical_hessian()
+        >>> # Adaptive delta selection for optimal accuracy
+        >>> hessian_calc_adaptive = HessianCalculator(
+        ...     atoms, calc, delta=0.01, adaptive_delta=True, max_iterations=5
+        ... )
+        >>> hessian = hessian_calc_adaptive.calculate_numerical_hessian()
 
         """
         # Validate atoms
@@ -214,6 +232,10 @@ class HessianCalculator:
         self.richardson = richardson
         self.delta2 = delta2
         self.verbose = verbose
+        self.adaptive_delta = adaptive_delta
+        self.delta_range = delta_range
+        self.target_noise = target_noise
+        self.max_iterations = max_iterations
 
         if len(self.indices) > 0:
             positions = atoms.positions[self.indices]
@@ -283,6 +305,9 @@ class HessianCalculator:
         coordinate and computing the derivative of forces with respect to that
         displacement. The computation is done column by column for efficiency.
 
+        Supports adaptive delta selection when enabled via the `adaptive_delta`
+        parameter.
+
         Returns:
         -------
         np.ndarray
@@ -302,6 +327,7 @@ class HessianCalculator:
         - For Richardson extrapolation: doubles the number of calculations
         - The final Hessian is symmetrized to ensure H = H^T (required by theory)
         - Progress information is logged if verbose >= 2
+        - With adaptive_delta=True, performs additional calculations to optimize delta
 
         Examples:
         --------
@@ -317,52 +343,10 @@ class HessianCalculator:
         >>> print(f"Symmetry error: {symmetry_error:.2e}")  # Should be ~0
 
         """
-        n_atoms = len(self.indices)
-        n_coords = 3 * n_atoms
-        hessian = np.zeros((n_coords, n_coords))
+        if self.adaptive_delta:
+            return self._calculate_hessian_adaptive()
 
-        if self.verbose >= 2:
-            logger.info(
-                f"Calculating Hessian for {n_atoms} atoms using {type(self.scheme).__name__}"
-            )
-
-        forces_ref = None
-        if isinstance(self.scheme, ForwardDifferenceScheme):
-            forces_ref = self._get_reference_forces()
-
-        for j in range(n_coords):
-            atom_j = self.indices[j // 3]
-            coord_j = j % 3
-
-            try:
-                if self.richardson:
-                    hessian[:, j] = self._compute_richardson_extrapolated_derivative(
-                        atom_j, coord_j
-                    )
-                else:
-                    hessian[:, j] = self._compute_derivative_at_delta(
-                        atom_j, coord_j, self.delta, forces_ref
-                    )
-            except Exception as e:
-                coord_name = ["x", "y", "z"][coord_j]
-                msg = (
-                    f"Failed to compute Hessian column for atom {atom_j}, "
-                    f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}"
-                )
-                raise RuntimeError(msg) from e
-
-            if self.verbose >= 2:
-                logger.debug(f"Completed coordinate {j + 1}/{n_coords}")
-
-        # Symmetrize Hessian: H_sym = (H + H^T) / 2
-        # This ensures exact symmetry (required by theory) and removes small
-        # numerical asymmetries that can arise from finite precision arithmetic
-        HESSIAN_SYMMETRIZATION_FACTOR = 0.5
-        hessian = HESSIAN_SYMMETRIZATION_FACTOR * (hessian + hessian.T)
-
-        if self.verbose >= 2:
-            logger.info("Hessian calculation completed")
-        return cast(NDArray[np.float64], hessian)
+        return self._calculate_hessian_fixed()
 
     def _compute_derivative_at_delta(
         self,
@@ -588,6 +572,174 @@ class HessianCalculator:
             forces_plus2=forces_plus2,
             forces_minus2=forces_minus2,
         )
+
+    def _calculate_hessian_adaptive(self) -> np.ndarray:
+        """Calculate Hessian with adaptive delta selection.
+
+        Uses iterative refinement to find optimal delta that balances truncation
+        and roundoff errors based on Richardson extrapolation error.
+
+        Returns:
+        -------
+        np.ndarray
+            Hessian matrix optimized for low noise
+
+        """
+        from qme.analysis.noise_estimation import estimate_richardson_noise
+
+        min_delta, max_delta = self.delta_range
+        current_delta = self.delta
+
+        # Track best result
+        best_hessian: np.ndarray | None = None
+        best_noise = float("inf")
+        best_delta = current_delta
+
+        for iteration in range(self.max_iterations):
+            if self.verbose >= 1:
+                logger.info(
+                    f"Adaptive delta iteration {iteration + 1}: trying δ={current_delta:.4f} Å"
+                )
+
+            # Compute Hessian at current delta
+            try:
+                hessian_current = self._calculate_hessian_at_delta(current_delta)
+            except Exception as e:
+                if self.verbose >= 1:
+                    logger.warning(f"  Failed at delta={current_delta:.4f}: {e}")
+                # Try smaller delta
+                current_delta = current_delta / 2.0
+                if current_delta < min_delta:
+                    break
+                continue
+
+            # Also compute at half-delta for noise estimation
+            half_delta = current_delta / 2.0
+            try:
+                hessian_half = self._calculate_hessian_at_delta(half_delta)
+            except Exception as e:
+                if self.verbose >= 1:
+                    logger.warning(f"  Failed at half-delta={half_delta:.4f}: {e}")
+                # Use current result
+                return hessian_current
+
+            # Estimate noise level
+            noise_estimate = estimate_richardson_noise(hessian_current, hessian_half)
+
+            if self.verbose >= 1:
+                logger.info(f"  Noise estimate: {noise_estimate:.2e} eV/Å²")
+
+            # Track best result
+            if noise_estimate < best_noise:
+                best_hessian = hessian_current
+                best_noise = noise_estimate
+                best_delta = current_delta
+
+            # Check convergence
+            if noise_estimate < self.target_noise:
+                if self.verbose >= 1:
+                    logger.info(f"  Converged! Noise below threshold {self.target_noise:.2e}")
+                return hessian_current
+
+            if noise_estimate > self.target_noise * 100:  # Way too noisy
+                # Try smaller delta
+                current_delta = half_delta
+                if current_delta < min_delta:
+                    if self.verbose >= 1:
+                        logger.warning(
+                            f"  Delta {current_delta:.4f} below minimum, using best result."
+                        )
+                    break
+            else:
+                # Acceptable noise level
+                break
+
+        if self.verbose >= 1:
+            logger.info(f"Final delta: {best_delta:.4f} Å, noise: {best_noise:.2e} eV/Å²")
+
+        if best_hessian is None:
+            msg = "Adaptive delta selection failed to produce any valid Hessian"
+            raise RuntimeError(msg)
+
+        return best_hessian
+
+    def _calculate_hessian_at_delta(self, delta: float) -> np.ndarray:
+        """Calculate Hessian using specified delta (temporarily override).
+
+        Parameters
+        ----------
+        delta : float
+            Step size to use
+
+        Returns:
+        -------
+        np.ndarray
+            Hessian matrix computed at specified delta
+        """
+        # Save original delta
+        original_delta = self.delta
+        try:
+            self.delta = delta
+            # Use the original non-adaptive calculation
+            return self._calculate_hessian_fixed()
+        finally:
+            self.delta = original_delta
+
+    def _calculate_hessian_fixed(self) -> np.ndarray:
+        """Original fixed-delta Hessian calculation (non-adaptive path).
+
+        This is the core Hessian computation logic extracted from
+        calculate_numerical_hessian to support adaptive delta selection.
+
+        Returns:
+        -------
+        np.ndarray
+            Hessian matrix
+        """
+        n_atoms = len(self.indices)
+        n_coords = 3 * n_atoms
+        hessian = np.zeros((n_coords, n_coords))
+
+        if self.verbose >= 2:
+            logger.info(
+                f"Calculating Hessian for {n_atoms} atoms using {type(self.scheme).__name__}"
+            )
+
+        forces_ref = None
+        if isinstance(self.scheme, ForwardDifferenceScheme):
+            forces_ref = self._get_reference_forces()
+
+        for j in range(n_coords):
+            atom_j = self.indices[j // 3]
+            coord_j = j % 3
+
+            try:
+                if self.richardson:
+                    hessian[:, j] = self._compute_richardson_extrapolated_derivative(
+                        atom_j, coord_j
+                    )
+                else:
+                    hessian[:, j] = self._compute_derivative_at_delta(
+                        atom_j, coord_j, self.delta, forces_ref
+                    )
+            except Exception as e:
+                coord_name = ["x", "y", "z"][coord_j]
+                msg = (
+                    f"Failed to compute Hessian column for atom {atom_j}, "
+                    f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}"
+                )
+                raise RuntimeError(msg) from e
+
+            if self.verbose >= 2:
+                logger.debug(f"Completed coordinate {j + 1}/{n_coords}")
+
+        # Symmetrize Hessian: H_sym = (H + H^T) / 2
+        HESSIAN_SYMMETRIZATION_FACTOR = 0.5
+        hessian = HESSIAN_SYMMETRIZATION_FACTOR * (hessian + hessian.T)
+
+        if self.verbose >= 2:
+            logger.info("Hessian calculation completed")
+        return cast(NDArray[np.float64], hessian)
 
 
 __all__ = [
