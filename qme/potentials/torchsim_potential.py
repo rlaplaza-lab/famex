@@ -182,7 +182,9 @@ class TorchSimPotential(BasePotential):
 
             # Create TorchSim MACE model
             torch_device = deps.get("torch").device(self.device)
-            mace_model = mace_model.to(torch_device)
+            # mace_model from return_raw_model=True is a PyTorch module, not MACECalculator
+            if hasattr(mace_model, "to"):
+                mace_model = mace_model.to(torch_device)  # type: ignore[attr-defined]
             self._mace_model = MaceModel(model=mace_model, device=torch_device)
 
         except (ValueError, AttributeError, RuntimeError) as e:
@@ -286,6 +288,10 @@ class TorchSimPotential(BasePotential):
             # Center the molecule with vacuum
             atoms_copy.center(vacuum=10.0)
 
+        if self._torch_sim is None:
+            msg = "TorchSim not initialized. Call _load_calculator() first."
+            raise RuntimeError(msg)
+
         if self._state is None:
             self._state = self._torch_sim.io.atoms_to_state(atoms_copy, device=device, dtype=dtype)
         else:
@@ -300,7 +306,14 @@ class TorchSimPotential(BasePotential):
 
     def _state_to_atoms(self, state: Any) -> Atoms:
         """Convert TorchSim state back to ASE Atoms."""
-        return self._torch_sim.io.state_to_atoms(state)
+        from typing import cast
+
+        if self._torch_sim is None:
+            msg = "TorchSim not initialized. Call _load_calculator() first."
+            raise RuntimeError(msg)
+
+        result = self._torch_sim.io.state_to_atoms(state)
+        return cast(Atoms, result)
 
     def calculate(
         self,
@@ -396,7 +409,11 @@ class TorchSimPotential(BasePotential):
         """Get the backend name for this calculator."""
         return f"torchsim_{self.backend}"
 
-    def calculate_batch(self, atoms_list, properties=None):
+    def calculate_batch(
+        self,
+        atoms_list: list[Atoms],
+        properties: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         """Calculate properties for a batch of structures using TorchSim.
 
         This method leverages TorchSim's automatic batching capabilities to
@@ -483,7 +500,7 @@ class TorchSimPotential(BasePotential):
         if hasattr(self._model, "forward"):
             try:
                 # Try TorchSim's native batching (works on both CPU and GPU)
-                if hasattr(self._torch_sim, "batch_states"):
+                if self._torch_sim is not None and hasattr(self._torch_sim, "batch_states"):
                     # Use TorchSim's built-in batching
                     batch_state = self._torch_sim.batch_states(states)
                     batch_results = self._model(batch_state)
@@ -587,6 +604,10 @@ class TorchSimPotential(BasePotential):
 
     def _fallback_individual_calculations(self, states: list[Any]) -> list[dict[str, Any]]:
         """Fallback for regular calculators (CPU compatible)."""
+        if self._model is None:
+            msg = "Model not loaded. Call _load_calculator() first."
+            raise RuntimeError(msg)
+
         batch_results = []
         for state in states:
             atoms = self._state_to_atoms(state)

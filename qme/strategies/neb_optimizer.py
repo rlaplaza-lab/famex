@@ -1,5 +1,6 @@
 """Unified NEB optimizer for both regular NEB and CI-NEB."""
 
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -20,7 +21,7 @@ class NEBOptimizer:
 
     def __init__(
         self,
-        images: list[Atoms],
+        images: Sequence[Atoms],
         spring_constant: float = 5.0,
         climb: bool = False,
         fmax: float = 0.05,

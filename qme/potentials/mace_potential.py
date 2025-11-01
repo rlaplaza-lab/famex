@@ -57,14 +57,14 @@ class MACEPotential(BasePotential):
         if model_name is None:
             model_name = "mace-omol-0"
         # Placeholder for the underlying calculator implementation (standardized)
-        self._calc = None
+        self._calc: Any | None = None
 
         super().__init__(model_name=model_name, device=device, **kwargs)
 
     def _load_calculator(self) -> None:
         """Load the MACE calculator implementation."""
         # Skip if already loaded
-        if hasattr(self, "_calc") and self._calc is not None:
+        if self._calc is not None:
             return
 
         from qme.utils.ml_warnings import quiet_backend_loading
@@ -141,10 +141,13 @@ class MACEPotential(BasePotential):
 
     def _get_e3nn_version(self) -> str:
         """Get the installed e3nn version."""
+        from typing import cast
+
         try:
             import e3nn
 
-            return e3nn.__version__
+            version = e3nn.__version__
+            return cast(str, version)
         except (ImportError, AttributeError):
             return "unknown"
 
@@ -354,7 +357,7 @@ class MACEPotential(BasePotential):
 def get_mace_calculator(
     model_name: str | None = None,
     device: str | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> MACEPotential:
     """Factory function to create MACE calculator.
 
