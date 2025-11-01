@@ -12,6 +12,10 @@ import math
 import numpy as np
 from ase import units
 
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
+
 __all__ = [
     "QuasiHarmonicHandler",
     "calculate_damping_function",
@@ -301,6 +305,7 @@ class QuasiHarmonicHandler:
         """
         if method not in ["rrho", "grimme", "truhlar"]:
             msg = f"Unknown method: {method}. Must be 'rrho', 'grimme', or 'truhlar'"
+            logger.error(msg)
             raise ValueError(msg)
 
         self.method = method
@@ -362,6 +367,7 @@ class QuasiHarmonicHandler:
             )
         else:
             msg = f"Unknown method: {self.method}"
+            logger.error(msg)
             raise RuntimeError(msg)
 
         total_entropy = float(np.sum(per_mode_entropy))

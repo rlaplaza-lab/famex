@@ -17,6 +17,20 @@ if TYPE_CHECKING:
     from ase import Atoms
 
 
+# Lazy logger import to avoid circular dependencies
+def _get_logger():
+    """Get logger for this module, with lazy import to avoid circular dependencies."""
+    try:
+        from qme.utils.logging import get_qme_logger
+
+        return get_qme_logger(__name__)
+    except ImportError:
+        # Fallback for when logging isn't available yet
+        import logging
+
+        return logging.getLogger(__name__)
+
+
 class BasePotential:
     """Abstract base class for ML potential calculators.
 
@@ -152,9 +166,11 @@ class BasePotential:
         RuntimeError
             If calculator loading fails
         """
+        logger = _get_logger()
         backend = self.ensure_loaded()
         if backend is None:
             msg = f"Failed to load {self.__class__.__name__} calculator"
+            logger.error("%s (backend: %s, model_name: %s)", msg, self.backend, self.model_name)
             raise RuntimeError(msg)
         return backend
 

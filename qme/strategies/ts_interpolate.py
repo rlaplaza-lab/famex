@@ -9,6 +9,9 @@ from qme.core.registry import REGISTRY
 from qme.io.path_manager import PathManager
 from qme.strategies.helpers import validate_ts_structure
 from qme.strategies.ts import LocalTSStrategy
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 class MultiStructureTSGuessStrategy(BaseStrategy):

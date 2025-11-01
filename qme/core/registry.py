@@ -7,6 +7,9 @@ and their registration.
 from __future__ import annotations
 
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 class StrategyRegistry:
@@ -35,9 +38,11 @@ class StrategyRegistry:
         """
         if not hasattr(strategy_class, "metadata"):
             msg = f"Strategy class {strategy_class.__name__} missing metadata"
+            logger.error(msg)
             raise ValueError(msg)
 
         meta = strategy_class.metadata
+        logger.debug("Registering strategy: %s (aliases: %s)", meta.name, meta.aliases)
         self._strategies[meta.name] = strategy_class
 
         # Auto-register aliases
@@ -45,6 +50,7 @@ class StrategyRegistry:
             if alias in self._strategies:
                 # Fail hard on duplicate aliases
                 msg = f"Alias '{alias}' already registered"
+                logger.error("%s - Existing strategy: %s", msg, self._strategies[alias].__name__)
                 raise ValueError(msg)
             self._strategies[alias] = strategy_class
 
@@ -70,9 +76,13 @@ class StrategyRegistry:
         if strategy_name not in self._strategies:
             available = sorted(self._strategies.keys())
             msg = f"No strategy found for '{strategy_name}'. Available strategies: {available}"
+            logger.error(msg)
             raise KeyError(
                 msg,
             )
+        logger.debug(
+            "Retrieved strategy '%s': %s", strategy_name, self._strategies[strategy_name].__name__
+        )
         return self._strategies[strategy_name]
 
     def list_strategies(self) -> dict[str, StrategyMetadata]:
