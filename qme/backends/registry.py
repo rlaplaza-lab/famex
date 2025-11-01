@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 # Lazy logger import to avoid circular dependencies
-def _get_logger():
+def _get_logger() -> Any:
     """Get logger for this module, with lazy import to avoid circular dependencies."""
     try:
         from qme.utils.logging import get_qme_logger

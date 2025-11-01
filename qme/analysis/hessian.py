@@ -10,10 +10,11 @@ for additional accuracy improvements.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, cast
 
 import numpy as np
 from ase import Atoms
+from numpy.typing import NDArray
 
 from qme.analysis.finite_differences import (
     CentralDifferenceScheme,
@@ -361,7 +362,7 @@ class HessianCalculator:
 
         if self.verbose >= 2:
             logger.info("Hessian calculation completed")
-        return hessian
+        return cast(NDArray[np.float64], hessian)
 
     def _compute_derivative_at_delta(
         self,
@@ -445,7 +446,7 @@ class HessianCalculator:
             extrapolation_factor * derivative_at_delta2 - derivative_at_delta
         ) / (extrapolation_factor - 1.0)
 
-        return extrapolated_derivative
+        return cast(NDArray[np.float64], extrapolated_derivative)
 
     def _get_reference_forces(self) -> np.ndarray:
         """Get forces at reference geometry.
@@ -459,7 +460,7 @@ class HessianCalculator:
         if not hasattr(self.atoms, "calc") or self.atoms.calc is None:
             self.atoms.calc = self.calculator
         forces = self.atoms.get_forces()
-        return forces[self.indices].flatten()
+        return cast(NDArray[np.float64], forces[self.indices].flatten())
 
     def _get_forces_displaced(
         self,

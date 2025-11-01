@@ -132,7 +132,7 @@ class PathManager:
         npoints: int = 10,
         method: str = "linear",
         optimize_path: bool = False,
-        calculator=None,
+        calculator: Any | None = None,
         explorer: Any | None = None,
     ) -> list[Geometry]:
         """Generate reaction pathway by interpolation.
@@ -217,7 +217,7 @@ class PathManager:
         npoints: int,
         method: str,
         optimize_path: bool,
-        calculator,
+        calculator: Any | None,
     ) -> list[Geometry]:
         """Interpolate a single segment between start and end structures."""
         # Get coordinates
@@ -257,7 +257,9 @@ class PathManager:
 
         return path_geometries
 
-    def _optimize_path(self, path_geometries: list[Geometry], calculator) -> list[Geometry]:
+    def _optimize_path(
+        self, path_geometries: list[Geometry], calculator: Any | None
+    ) -> list[Geometry]:
         """Optimize path using simplified NEB-like forces.
 
         This is a basic implementation inspired by NEB methods.
@@ -443,7 +445,7 @@ class PathManager:
         if not align:
             # Simple RMSD without alignment (for backwards compatibility or fast checks)
             diff = pos1 - pos2
-            return np.sqrt(np.mean(np.sum(diff**2, axis=1)))
+            return float(np.sqrt(np.mean(np.sum(diff**2, axis=1))))
 
         # Kabsch alignment for rotation-invariant RMSD
         # Center both structures
@@ -455,7 +457,7 @@ class PathManager:
         # Handle edge case: single atom (no rotation needed)
         if len(pos1) == 1:
             diff = ref - tar
-            return np.sqrt(np.mean(np.sum(diff**2, axis=1)))
+            return float(np.sqrt(np.mean(np.sum(diff**2, axis=1))))
 
         # Kabsch algorithm: find optimal rotation matrix
         C = np.dot(tar.T, ref)
@@ -472,7 +474,7 @@ class PathManager:
         except np.linalg.LinAlgError:
             # Fallback to unaligned RMSD if SVD fails
             diff = ref - tar
-            return np.sqrt(np.mean(np.sum(diff**2, axis=1)))
+            return float(np.sqrt(np.mean(np.sum(diff**2, axis=1))))
 
     @staticmethod
     def calculate_structure_similarity(
@@ -740,7 +742,7 @@ class PathManager:
     # =========================================================================
 
     @staticmethod
-    def attach_calculators(explorer: Any, structures: list[Atoms] | Atoms):
+    def attach_calculators(explorer: Any, structures: list[Atoms] | Atoms) -> Any | None:
         """Attach calculators from explorer to structures.
 
         Parameters

@@ -208,7 +208,9 @@ class MACEPotential(BasePotential):
             if "energy" in properties and hasattr(self._calc, "results"):
                 self.results["energy"] = getattr(self._calc.results, "energy", None)
 
-    def get_potential_energy(self, atoms=None, force_consistent=False):
+    def get_potential_energy(
+        self, atoms: Atoms | None = None, force_consistent: bool = False
+    ) -> float:
         """Get potential energy."""
         if atoms is not None:
             self.atoms = atoms
@@ -235,14 +237,14 @@ class MACEPotential(BasePotential):
             logger.exception("Unexpected error during MACE energy calculation")
             raise
 
-    def get_forces(self, atoms=None):
+    def get_forces(self, atoms: Atoms | None = None) -> Any | None:
         """Get forces on atoms."""
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
         return super().get_forces(atoms)
 
-    def get_stress(self, atoms=None):
+    def get_stress(self, atoms: Atoms | None = None) -> Any:
         """Get stress tensor (if supported)."""
         if atoms is not None:
             self.atoms = atoms
@@ -255,7 +257,7 @@ class MACEPotential(BasePotential):
         msg = "Stress calculation not supported by this MACE model"
         raise NotImplementedError(msg)
 
-    def get_hessian(self, atoms=None):
+    def get_hessian(self, atoms: Atoms | None = None) -> Any:
         """Get analytical Hessian matrix.
 
         Returns the Hessian matrix (3N x 3N) from MACE's analytical implementation.
@@ -318,7 +320,7 @@ class MACEPotential(BasePotential):
                 raise ImportError(msg)
             raise
 
-    def get_property(self, prop, atoms=None):
+    def get_property(self, prop: str, atoms: Atoms | None = None) -> Any:
         """Get a specific property from the calculator.
 
         This method is used by ASE's property system and frequency analysis.

@@ -8,9 +8,11 @@ behave more like free rotors at typical reaction temperatures.
 from __future__ import annotations
 
 import math
+from typing import cast
 
 import numpy as np
 from ase import units
+from numpy.typing import NDArray
 
 from qme.utils.logging import get_qme_logger
 
@@ -184,7 +186,7 @@ def calculate_free_rotor_entropy(
     factor = 8 * math.pi**3 * mu_primed * BOLTZMANN_CONSTANT * temperature / PLANCK_CONSTANT**2
     entropy = (0.5 + np.log(np.sqrt(factor))) * GAS_CONSTANT
 
-    return entropy
+    return cast(NDArray[np.float64], entropy)
 
 
 def calculate_qRRHO_entropy(  # noqa: N802

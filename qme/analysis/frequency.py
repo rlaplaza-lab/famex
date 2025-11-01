@@ -12,10 +12,11 @@ method selection and enhanced calculator integration.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from ase import Atoms, units
+from numpy.typing import NDArray
 
 from qme.analysis.hessian import HessianCalculator
 from qme.analysis.molecular_properties import determine_degrees_of_freedom
@@ -238,7 +239,7 @@ class FrequencyAnalysis:
         # Symmetrize for numerical stability
         hessian = 0.5 * (hessian + hessian.T)
 
-        return hessian
+        return cast(NDArray[np.float64], hessian)
 
     def _supports_direct_hessian(self) -> bool:
         """Check if calculator supports direct Hessian calculation."""
@@ -271,11 +272,13 @@ class FrequencyAnalysis:
             hasattr(self.calculator, "implemented_properties")
             and "frequencies" in self.calculator.implemented_properties
         ):
-            return self.calculator.get_property("frequencies", self.atoms)
+            return cast(
+                NDArray[np.float64], self.calculator.get_property("frequencies", self.atoms)
+            )
 
         if hasattr(self.calculator, "get_frequencies"):
-            return self.calculator.get_frequencies(self.atoms)
-        return self.calculator.calculate_frequencies(self.atoms)
+            return cast(NDArray[np.float64], self.calculator.get_frequencies(self.atoms))
+        return cast(NDArray[np.float64], self.calculator.calculate_frequencies(self.atoms))
 
     def _calculate_direct_hessian(self) -> np.ndarray:
         """Calculate Hessian directly from calculator (when supported)."""
@@ -283,11 +286,11 @@ class FrequencyAnalysis:
             hasattr(self.calculator, "implemented_properties")
             and "hessian" in self.calculator.implemented_properties
         ):
-            return self.calculator.get_property("hessian", self.atoms)
+            return cast(NDArray[np.float64], self.calculator.get_property("hessian", self.atoms))
 
         if hasattr(self.calculator, "get_hessian"):
-            return self.calculator.get_hessian(self.atoms)
-        return self.calculator.calculate_hessian(self.atoms)
+            return cast(NDArray[np.float64], self.calculator.get_hessian(self.atoms))
+        return cast(NDArray[np.float64], self.calculator.calculate_hessian(self.atoms))
 
     def diagonalize_hessian(self) -> tuple[np.ndarray, np.ndarray]:
         """Diagonalize mass-weighted Hessian to get normal modes and frequencies.

@@ -5,12 +5,14 @@ This module contains utility functions used by local optimization strategies.
 
 from typing import Any
 
+from ase import Atoms
+
 from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
 
 
-def validate_ts_structure(atoms, explorer, threshold: float = 50.0) -> dict[str, Any]:
+def validate_ts_structure(atoms: Atoms, explorer: Any, threshold: float = 50.0) -> dict[str, Any]:
     """Validate that structure is a transition state via frequency analysis.
 
     Parameters
