@@ -281,7 +281,7 @@ class PathManager:
     # =========================================================================
 
     @staticmethod
-    def find_ts_guess(path: list[Atoms]) -> tuple[Atoms, int]:
+    def find_ts_guess(path: Sequence[Atoms]) -> tuple[Atoms, int]:
         """Find highest energy structure in path as TS guess.
 
         Parameters
@@ -313,7 +313,7 @@ class PathManager:
         return path[ts_index], ts_index
 
     @staticmethod
-    def find_local_minima(path: list[Atoms]) -> list[int]:
+    def find_local_minima(path: Sequence[Atoms]) -> list[int]:
         """Find indices of local minima along path.
 
         Parameters
@@ -360,7 +360,7 @@ class PathManager:
         return minima_idxs
 
     @staticmethod
-    def find_local_maxima(path: list[Atoms]) -> list[int]:
+    def find_local_maxima(path: Sequence[Atoms]) -> list[int]:
         """Find indices of local maxima (potential TS) along path.
 
         Parameters
@@ -742,7 +742,7 @@ class PathManager:
     # =========================================================================
 
     @staticmethod
-    def attach_calculators(explorer: Any, structures: list[Atoms] | Atoms) -> Any | None:
+    def attach_calculators(explorer: Any, structures: Sequence[Atoms] | Atoms) -> Any | None:
         """Attach calculators from explorer to structures.
 
         Parameters

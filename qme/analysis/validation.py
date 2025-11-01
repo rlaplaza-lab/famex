@@ -20,7 +20,7 @@ def validate_hessian(
     tolerance_symmetry: float = 1e-6,
     max_condition_number: float = 1e12,
     warn_on_issues: bool = True,
-) -> dict[str, bool | float]:
+) -> dict[str, bool | float | tuple[int, int]]:
     """Validate Hessian matrix and warn about potential issues.
 
     Parameters
@@ -67,7 +67,7 @@ def validate_hessian(
         return results
 
     # Check for NaN values
-    has_nan = np.any(np.isnan(hessian))
+    has_nan = bool(np.any(np.isnan(hessian)))
     results["has_nan"] = has_nan
     if has_nan:
         if warn_on_issues:
@@ -75,7 +75,7 @@ def validate_hessian(
         results["is_valid"] = False
 
     # Check for Inf values
-    has_inf = np.any(np.isinf(hessian))
+    has_inf = bool(np.any(np.isinf(hessian)))
     results["has_inf"] = has_inf
     if has_inf:
         if warn_on_issues:

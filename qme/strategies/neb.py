@@ -87,12 +87,21 @@ class MultiStructureNEBStrategy(BaseStrategy):
             **interpolate_kwargs,
         )
 
-        # Flatten nested segments if needed
-        if path and isinstance(path[0], list):
-            flat = []
-            for seg in path:
-                flat.extend(seg)
-            path = flat
+        # Flatten nested segments if needed (defensive check)
+        # Note: path should already be flat, but handle edge cases
+        if path and hasattr(path[0], "__iter__") and not isinstance(path[0], Atoms):
+            # If first element is iterable but not Atoms, might be nested
+            try:
+                flat = []
+                for seg in path:
+                    if isinstance(seg, (list, tuple)):  # noqa: UP038
+                        flat.extend(seg)
+                    else:
+                        flat.append(seg)
+                path = flat
+            except (TypeError, AttributeError):
+                # If flattening fails, keep original path
+                pass
 
         if len(path) < 3:
             logger.error("NEB requires at least 3 images (npoints >= 3), got %d", len(path))

@@ -96,7 +96,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         # Remove local_optimizer_name from kwargs to avoid duplicate argument
         ts_kwargs = {k: v for k, v in kwargs.items() if k != "local_optimizer_name"}
         ts_result = ts_strategy.run(
-            ts_guess,
+            [ts_guess],  # LocalTSStrategy expects list[Atoms]
             fmax=fmax,
             steps=steps,
             local_optimizer_name=local_optimizer_name,

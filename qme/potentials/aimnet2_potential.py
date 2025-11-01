@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import requests
@@ -19,6 +19,9 @@ from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
 from qme.utils.logging import get_qme_logger
 from qme.utils.path_security import validate_safe_path
+
+if TYPE_CHECKING:
+    from ase import Atoms
 
 logger = get_qme_logger(__name__)
 
@@ -73,9 +76,12 @@ def get_model_path(model_name: str) -> str:
     the model in the registry and downloads it if necessary.
 
     """
-    from qme.potentials.model_cache import (
-        download_and_cache_model,  # type: ignore[import-not-found]
-    )
+    try:
+        from qme.potentials.model_cache import (
+            download_and_cache_model,  # type: ignore[import-not-found]
+        )
+    except ImportError:
+        download_and_cache_model = None
 
     # Direct file path
     if os.path.isfile(model_name):
@@ -90,76 +96,74 @@ def get_model_path(model_name: str) -> str:
         model_path = model_path + ".jpt"
 
     # Try to use cached model first
+    if download_and_cache_model is not None:
+        try:
+            model_url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
+            cached_path = download_and_cache_model(model_name, model_url)
+            return str(cached_path)
+        except (OSError, ValueError, TypeError) as e:
+            # File system/cache errors during caching - fallback to old behavior
+            logger.debug(f"Model caching failed, using fallback: {e}")
+
+    # Create local assets directory (fallback behavior)
+    assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+    assets_dir_path = Path(assets_dir)
+
+    # SECURITY: Validate model_path doesn't escape assets directory
+    # Resolve relative to assets_dir to prevent path traversal
     try:
-        model_url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
-        cached_path = download_and_cache_model(model_name, model_url)
-        return str(cached_path)
+        local_path = validate_safe_path(
+            assets_dir_path / model_path,
+            base_dir=assets_dir_path,
+            must_exist=False,
+            allow_absolute=False,
+        )
+    except Exception as e:
+        msg = f"Invalid model path {model_path}: {e}"
+        raise RuntimeError(msg) from e
+
+    # Create parent directory if needed
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if local_path.is_file():
+        logger.info(f"Found model file: {local_path}")
+        return str(local_path)
+
+    # Download from model zoo
+    url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
+    logger.info(f"Downloading model from {url}")
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+
+        with open(local_path, "wb") as f:
+            f.write(response.content)
+
+        logger.info(f"Saved to {local_path}")
+        return str(local_path)
+
+    except requests.RequestException as e:
+        # Network errors (connection, timeout, HTTP errors)
+        msg = (
+            f"Failed to download model {model_name}: network error. "
+            f"Error: {e}. Check your internet connection and the model URL."
+        )
+        raise RuntimeError(msg) from e
     except OSError as e:
-        # File system errors during caching - fallback to old behavior
-        logger.debug(f"Model caching failed due to file system error, using fallback: {e}")
+        # File system errors (permissions, disk space, etc.)
+        msg = (
+            f"Failed to download model {model_name}: file system error. "
+            f"Error: {e}. Check file permissions and available disk space."
+        )
+        raise RuntimeError(msg) from e
     except (ValueError, TypeError) as e:
-        # Cache key or configuration errors - fallback to old behavior
-        logger.debug(f"Model caching failed due to configuration error, using fallback: {e}")
-
-        # Create local assets directory
-        assets_dir = os.path.join(os.path.dirname(__file__), "assets")
-        assets_dir_path = Path(assets_dir)
-
-        # SECURITY: Validate model_path doesn't escape assets directory
-        # Resolve relative to assets_dir to prevent path traversal
-        try:
-            local_path = validate_safe_path(
-                assets_dir_path / model_path,
-                base_dir=assets_dir_path,
-                must_exist=False,
-                allow_absolute=False,
-            )
-        except Exception as e:
-            msg = f"Invalid model path {model_path}: {e}"
-            raise RuntimeError(msg) from e
-
-        # Create parent directory if needed
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-
-        if local_path.is_file():
-            logger.info(f"Found model file: {local_path}")
-            return str(local_path)
-
-        # Download from model zoo
-        url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
-        logger.info(f"Downloading model from {url}")
-
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-
-            with open(local_path, "wb") as f:
-                f.write(response.content)
-
-            logger.info(f"Saved to {local_path}")
-            return str(local_path)
-
-        except requests.RequestException as e:
-            # Network errors (connection, timeout, HTTP errors)
-            msg = (
-                f"Failed to download model {model_name}: network error. "
-                f"Error: {e}. Check your internet connection and the model URL."
-            )
-            raise RuntimeError(msg) from e
-        except OSError as e:
-            # File system errors (permissions, disk space, etc.)
-            msg = (
-                f"Failed to download model {model_name}: file system error. "
-                f"Error: {e}. Check file permissions and available disk space."
-            )
-            raise RuntimeError(msg) from e
-        except (ValueError, TypeError) as e:
-            # Data format or configuration errors
-            msg = (
-                f"Failed to download model {model_name}: invalid data format. "
-                f"Error: {e}. The downloaded model may be corrupted."
-            )
-            raise RuntimeError(msg) from e
+        # Data format or configuration errors
+        msg = (
+            f"Failed to download model {model_name}: invalid data format. "
+            f"Error: {e}. The downloaded model may be corrupted."
+        )
+        raise RuntimeError(msg) from e
 
 
 def sparse_nb_to_dense_half(idx: np.ndarray, natom: int, max_nb: int) -> np.ndarray:
@@ -504,7 +508,7 @@ class AIMNet2Potential(BasePotential):
         device: str | None = None,
         charge: int = 0,
         mult: int = 1,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize AIMNET2 potential calculator.
 
@@ -668,12 +672,20 @@ class AIMNet2Potential(BasePotential):
         # Ensure calculator is loaded
         return super().get_potential_energy(atoms, force_consistent)
 
-    def get_forces(self, atoms: Any = None) -> np.ndarray:
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get forces (ASE-compatible)."""
+        from typing import cast
+
+        import numpy as np
+
         if atoms is not None:
             self.atoms = atoms
 
-        return super().get_forces(atoms)
+        forces = super().get_forces(atoms)
+        if forces is None:
+            msg = "Forces calculation returned None"
+            raise RuntimeError(msg)
+        return cast(np.ndarray, forces)
 
 
 def get_aimnet2_calculator(

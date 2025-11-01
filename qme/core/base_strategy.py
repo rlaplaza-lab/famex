@@ -9,9 +9,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ase import Atoms
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 @dataclass
@@ -71,7 +74,7 @@ class BaseStrategy(ABC):
         self,
         atoms_list: list[Atoms],
         **kwargs: Any,
-    ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
+    ) -> dict[str, Any]:
         """Execute strategy. Returns standardized result dict.
 
         Parameters
@@ -130,9 +133,9 @@ class BaseStrategy(ABC):
 
     def prepare_result(
         self,
-        optimized_atoms: Atoms | list[Atoms],
+        optimized_atoms: Atoms | Sequence[Atoms],
         **metadata: Any,
-    ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
+    ) -> dict[str, Any]:
         """Standardize result format.
 
         Parameters
@@ -148,13 +151,13 @@ class BaseStrategy(ABC):
             Standardized result dictionary
 
         """
-        result: dict[str, Atoms | list[Atoms] | bool | int | float | str] = {
+        result: dict[str, Any] = {
             "optimized_atoms": optimized_atoms,
             "strategy": self.metadata.name,
         }
         # Convert metadata values to the expected types
         for key, value in metadata.items():
-            if isinstance(value, (Atoms, list, bool, int, float, str)):
+            if isinstance(value, (Atoms, list, bool, int, float, str)):  # noqa: UP038
                 result[key] = value
             else:
                 # Convert other types to string for compatibility

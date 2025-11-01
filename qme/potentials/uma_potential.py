@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 from ase.calculators.calculator import all_changes
 
 from qme.backends.dependencies import deps
@@ -13,7 +14,6 @@ from qme.utils.logging import get_qme_logger
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    import numpy as np
     import torch
     from ase import Atoms
 
@@ -490,7 +490,7 @@ class UMAPotential(BasePotential):
         num_elements = forces_flatten.shape[0]
         n_atoms = forces.shape[0]
 
-        def get_vjp(v):
+        def get_vjp(v: torch.Tensor) -> torch.Tensor:
             """Compute vector-Jacobian product for a single unit vector."""
             grad_output = torch.autograd.grad(
                 -1 * forces_flatten,
@@ -521,7 +521,12 @@ class UMAPotential(BasePotential):
                 device=forces.device,
             )
 
-        return hessian
+        # mypy doesn't understand that torch.vmap returns the same type as the function
+        # Since get_vjp returns torch.Tensor and _compute_hessian_loop returns torch.Tensor,
+        # hessian is guaranteed to be torch.Tensor here
+        from typing import cast
+
+        return cast(torch.Tensor, hessian)
 
     def _compute_hessian_loop(self, forces: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
         """Compute Hessian using loop-based VJP (fallback for large systems).
@@ -584,7 +589,9 @@ class UMAPotential(BasePotential):
         np.ndarray
             Symmetrized Hessian matrix of shape (3N, 3N)
         """
-        return 0.5 * (hessian + hessian.T)
+        from typing import cast
+
+        return cast(np.ndarray, 0.5 * (hessian + hessian.T))
 
     def _compute_hessian_double_backward(
         self,
