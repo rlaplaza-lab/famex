@@ -12,6 +12,10 @@ size comparison to validate the analytical Hessian implementations.
 
 This is a diagnostic/research script for validating Hessian computation
 methods, not a standard usage example.
+
+NOTE: For practical usage, consider using FrequencyAnalysis with
+method='autoselect' which automatically chooses the best Hessian approach
+based on noise characteristics (see examples/adaptive_hessian_demo.py).
 """
 
 import os
