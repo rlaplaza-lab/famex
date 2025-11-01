@@ -102,7 +102,7 @@ class FrequencyAnalysis:
         Parameters
         ----------
         method : str
-            Method to use: 'auto', 'direct_frequencies', 'direct', 'batch', or 'finite_differences'
+            Method to use: 'auto', 'autoselect', 'direct_frequencies', 'direct', 'batch', or 'finite_differences'
 
         Returns:
         -------
@@ -110,6 +110,9 @@ class FrequencyAnalysis:
             Hessian matrix (3N x 3N for N atoms)
 
         """
+        if method == "autoselect":
+            return self._calculate_hessian_autoselect()
+
         if method == "auto":
             if self._supports_direct_frequencies():
                 method = "direct_frequencies"
@@ -291,6 +294,123 @@ class FrequencyAnalysis:
         if hasattr(self.calculator, "get_hessian"):
             return cast(NDArray[np.float64], self.calculator.get_hessian(self.atoms))
         return cast(NDArray[np.float64], self.calculator.calculate_hessian(self.atoms))
+
+    def _calculate_hessian_autoselect(self) -> np.ndarray:
+        """Intelligent Hessian method selection based on capabilities and noise.
+
+        This method implements adaptive selection of the best Hessian computation
+        approach for maximum quality. The selection order is:
+        1. Try analytical Hessian (if available)
+        2. If force noise is high, try energy-based FD
+        3. Fall back to adaptive force-based FD
+
+        Returns:
+        -------
+        np.ndarray
+            Hessian matrix (3N x 3N)
+
+        """
+        if self.verbose >= 1:
+            logger.info("Hessian autoselect: choosing optimal method...")
+
+        # Step 1: Check for analytical Hessian
+        if self._supports_direct_hessian():
+            if self.verbose >= 1:
+                logger.info("  Trying analytical Hessian...")
+            try:
+                analytical_hessian = self._calculate_direct_hessian()
+                # Validate analytical Hessian
+                if not np.any(np.isnan(analytical_hessian)) and not np.any(
+                    np.isinf(analytical_hessian)
+                ):
+                    # Check symmetry
+                    asymmetry = np.max(np.abs(analytical_hessian - analytical_hessian.T))
+                    if asymmetry < 1e-4:
+                        if self.verbose >= 1:
+                            logger.info("  ✓ Using analytical Hessian")
+                        self._hessian = analytical_hessian
+                        return analytical_hessian
+                    else:
+                        if self.verbose >= 1:
+                            logger.warning(
+                                f"  Analytical Hessian has high asymmetry ({asymmetry:.2e}), "
+                                "falling back to finite differences"
+                            )
+                else:
+                    if self.verbose >= 1:
+                        logger.warning(
+                            "  Analytical Hessian contains NaN/Inf, "
+                            "falling back to finite differences"
+                        )
+            except Exception as e:
+                if self.verbose >= 1:
+                    logger.warning(f"  Analytical Hessian failed: {e}, falling back to FD")
+
+        # Step 2: Estimate force noise
+        if self.verbose >= 1:
+            logger.info("  Estimating force noise...")
+        try:
+            from qme.analysis.noise_estimation import estimate_force_noise
+
+            force_noise = estimate_force_noise(
+                self.atoms, self.calculator, n_samples=5, indices=self.indices
+            )
+            if self.verbose >= 1:
+                logger.info(f"  Force noise: {force_noise:.2e} eV/Å")
+        except Exception as e:
+            if self.verbose >= 1:
+                logger.warning(f"  Force noise estimation failed: {e}, assuming moderate noise")
+            force_noise = 1e-5  # Default moderate noise
+
+        # Step 3: Try energy-based FD if force noise is very high
+        if force_noise > 1e-4:
+            if self.verbose >= 1:
+                logger.info("  High force noise detected, trying energy-based FD...")
+            try:
+                from qme.analysis.hessian_energy import EnergyBasedHessianCalculator
+
+                energy_calc = EnergyBasedHessianCalculator(
+                    self.atoms,
+                    self.calculator,
+                    delta=self.delta,
+                    indices=self.indices,
+                    verbose=0 if self.verbose < 2 else self.verbose,
+                )
+                energy_hessian = energy_calc.calculate_energy_hessian()
+                if not np.any(np.isnan(energy_hessian)) and not np.any(np.isinf(energy_hessian)):
+                    if self.verbose >= 1:
+                        logger.info("  ✓ Using energy-based FD Hessian")
+                    self._hessian = energy_hessian
+                    return energy_hessian
+            except Exception as e:
+                if self.verbose >= 1:
+                    logger.warning(f"  Energy-based FD failed: {e}, falling back to force-based FD")
+        else:
+            if self.verbose >= 1:
+                logger.info("  Force noise acceptable, using force-based FD")
+
+        # Step 4: Fall back to adaptive force-based FD
+        if self.verbose >= 1:
+            logger.info("  Using adaptive force-based FD...")
+        hessian_calc = HessianCalculator(
+            self.atoms,
+            self.calculator,
+            self.delta,
+            method="5point",  # Higher order for better accuracy
+            richardson=True,
+            delta2=self.delta / 2.0 if self.delta2 is None else self.delta2,
+            indices=self.indices,
+            verbose=self.verbose,
+            adaptive_delta=True,
+            delta_range=(0.001, 0.05),
+            target_noise=1e-5,
+            max_iterations=5,
+        )
+        self._hessian = hessian_calc.calculate_numerical_hessian()
+
+        if self.verbose >= 1:
+            logger.info("  ✓ Adaptive force-based FD Hessian computed")
+        return self._hessian
 
     def diagonalize_hessian(self) -> tuple[np.ndarray, np.ndarray]:
         """Diagonalize mass-weighted Hessian to get normal modes and frequencies.

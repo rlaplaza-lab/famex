@@ -20,6 +20,8 @@ def validate_hessian(
     tolerance_symmetry: float = 1e-6,
     max_condition_number: float = 1e12,
     warn_on_issues: bool = True,
+    estimated_noise: float | None = None,
+    force_noise_estimate: float | None = None,
 ) -> dict[str, bool | float | tuple[int, int]]:
     """Validate Hessian matrix and warn about potential issues.
 
@@ -33,6 +35,10 @@ def validate_hessian(
         Maximum acceptable condition number before warning (default: 1e12)
     warn_on_issues : bool
         If True, log warnings when issues are detected (default: True)
+    estimated_noise : float, optional
+        Estimated noise level from Richardson extrapolation (eV/Å²)
+    force_noise_estimate : float, optional
+        Estimated noise in force calculations (eV/Å)
 
     Returns:
     -------
@@ -45,6 +51,8 @@ def validate_hessian(
         - condition_number: Condition number of the matrix (float)
         - max_asymmetry: Maximum asymmetry (float)
         - shape: Shape of the matrix (tuple)
+        - estimated_noise: Estimated noise level from Richardson (float, optional)
+        - force_noise_estimate: Estimated force noise (float, optional)
 
     """
     results: dict[str, bool | float | tuple[int, int]] = {
@@ -56,6 +64,12 @@ def validate_hessian(
         "max_asymmetry": 0.0,
         "shape": hessian.shape,
     }
+
+    # Add noise metrics if provided
+    if estimated_noise is not None:
+        results["estimated_noise"] = estimated_noise
+    if force_noise_estimate is not None:
+        results["force_noise_estimate"] = force_noise_estimate
 
     # Check shape
     if hessian.shape[0] != hessian.shape[1]:
@@ -123,6 +137,27 @@ def validate_hessian(
     except Exception as e:
         if warn_on_issues:
             logger.warning(f"Could not compute condition number: {e}")
+
+    # Check noise levels if provided
+    if estimated_noise is not None:
+        HIGH_NOISE_THRESHOLD = 0.01  # eV/Å²
+        if estimated_noise > HIGH_NOISE_THRESHOLD:
+            if warn_on_issues:
+                logger.warning(
+                    f"Hessian has high estimated noise: {estimated_noise:.2e} eV/Å². "
+                    f"Threshold: {HIGH_NOISE_THRESHOLD:.2e}. "
+                    "This may indicate numerical errors or PES instability."
+                )
+
+    if force_noise_estimate is not None:
+        HIGH_FORCE_NOISE_THRESHOLD = 1e-3  # eV/Å
+        if force_noise_estimate > HIGH_FORCE_NOISE_THRESHOLD:
+            if warn_on_issues:
+                logger.warning(
+                    f"High force noise detected: {force_noise_estimate:.2e} eV/Å. "
+                    f"Threshold: {HIGH_FORCE_NOISE_THRESHOLD:.2e}. "
+                    "This may contaminate finite difference Hessians."
+                )
 
     # Overall validity
     if not is_symmetric or has_nan or has_inf:
