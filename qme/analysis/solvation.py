@@ -76,7 +76,7 @@ def get_free_space(solvent: str) -> float:
     )
     free_space_ml_per_l = v_free * molarity * AVOGADRO_CONSTANT * 1e-24
 
-    return free_space_ml_per_l
+    return float(free_space_ml_per_l)
 
 
 class SolvationHandler:

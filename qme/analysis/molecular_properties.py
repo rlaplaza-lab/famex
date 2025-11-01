@@ -78,7 +78,7 @@ def _check_linearity_inertia(atoms: Atoms, indices: list[int]) -> bool:
     eigenvalues = np.sort(eigenvalues)
 
     # Linear if smallest eigenvalue is essentially zero
-    return eigenvalues[0] < 1e-6
+    return bool(eigenvalues[0] < 1e-6)
 
 
 def determine_degrees_of_freedom(atoms: Atoms, indices: list[int]) -> int:

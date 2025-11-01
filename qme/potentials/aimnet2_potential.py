@@ -260,7 +260,9 @@ def generate_neighbor_list_torch_cluster(
     return torch.as_tensor(dense_nb, device=device)
 
 
-def generate_neighbor_list_numpy(positions: np.ndarray, cutoff: float, max_neighbors: int = 128):
+def generate_neighbor_list_numpy(
+    positions: np.ndarray, cutoff: float, max_neighbors: int = 128
+) -> np.ndarray:
     """Fallback neighbor list generation using numpy."""
     n_atoms = len(positions)
 

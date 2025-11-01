@@ -11,9 +11,10 @@ Available schemes:
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 
 class FiniteDifferenceScheme(Protocol):
@@ -123,7 +124,7 @@ class CentralDifferenceScheme:
         if forces_minus is None:
             msg = "Central difference requires forces_minus"
             raise ValueError(msg)
-        return -(forces_plus - forces_minus) / (2 * delta)
+        return cast(NDArray[np.float64], -(forces_plus - forces_minus) / (2 * delta))
 
 
 class ForwardDifferenceScheme:
@@ -175,7 +176,7 @@ class ForwardDifferenceScheme:
         if forces_ref is None:
             msg = "Forward difference requires forces_ref"
             raise ValueError(msg)
-        return -(forces_plus - forces_ref) / delta
+        return cast(NDArray[np.float64], -(forces_plus - forces_ref) / delta)
 
 
 class FivePointCentralDifferenceScheme:
@@ -277,7 +278,7 @@ class FivePointCentralDifferenceScheme:
         )
 
         # This gives dF/dx, so we need to negate to get H = -dF/dx
-        return -hessian_col
+        return cast(NDArray[np.float64], -hessian_col)
 
 
 __all__ = [

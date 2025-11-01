@@ -34,7 +34,7 @@ def info() -> None:
 @cache.command(help="Clear model cache")
 @click.option("--model", help="Specific model to clear (optional)")
 @click.option("--yes", is_flag=True, help="Skip confirmation prompt")
-def clear(model, yes) -> None:
+def clear(model: str | None, yes: bool) -> None:
     """Clear model cache."""
     cache = get_model_cache()
 

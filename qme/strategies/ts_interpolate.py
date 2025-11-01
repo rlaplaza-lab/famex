@@ -35,7 +35,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         steps: int = 1000,
         validate_ts: bool = False,
         calculate_frequencies: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """Run multi-structure TS guess via interpolation.
 

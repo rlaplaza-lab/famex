@@ -29,7 +29,7 @@ class PathInterpolateStrategy(BaseStrategy):
         atoms_list: list[Atoms],
         npoints: int = 11,
         method: str = "geodesic",
-        **kwargs,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """Generate interpolated path using PathManager without optimization."""
         self.validate_inputs(atoms_list)

@@ -45,7 +45,7 @@ def parse_xyz_comment(comment: str) -> dict[str, Any]:
     dict[str, Any]
         Parsed metadata with type conversion
     """
-    metadata = {}
+    metadata: dict[str, Any] = {}
     if not comment or not comment.strip():
         return metadata
 

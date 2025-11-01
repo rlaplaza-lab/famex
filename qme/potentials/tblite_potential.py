@@ -21,7 +21,7 @@ logger = get_qme_logger(__name__)
 
 
 @contextlib.contextmanager
-def suppress_tblite_output():
+def suppress_tblite_output() -> Any:
     """Context manager to suppress TBLite verbose output when QME verbosity < 3.
 
     This redirects stdout and stderr at the file descriptor level using os.dup2()
@@ -291,21 +291,23 @@ class TBLitePotential(BasePotential):
                     # Try .get() as fallback, but this shouldn't happen for valid calculations
                     self.results[prop] = self._calc.results.get(prop, None)
 
-    def get_potential_energy(self, atoms=None, force_consistent=False):
+    def get_potential_energy(
+        self, atoms: Atoms | None = None, force_consistent: bool = False
+    ) -> float:
         """Get potential energy."""
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
         return super().get_potential_energy(atoms, force_consistent)
 
-    def get_forces(self, atoms=None):
+    def get_forces(self, atoms: Atoms | None = None) -> Any | None:
         """Get forces on atoms."""
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
         return super().get_forces(atoms)
 
-    def get_charges(self, atoms=None):
+    def get_charges(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get Mulliken charges (if supported)."""
         if atoms is not None:
             self.atoms = atoms
@@ -318,7 +320,7 @@ class TBLitePotential(BasePotential):
         msg = "Charge calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
 
-    def get_dipole_moment(self, atoms=None):
+    def get_dipole_moment(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get dipole moment (if supported)."""
         if atoms is not None:
             self.atoms = atoms
@@ -331,7 +333,7 @@ class TBLitePotential(BasePotential):
         msg = "Dipole moment calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
 
-    def get_stress(self, atoms=None):
+    def get_stress(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get stress tensor (if supported)."""
         if atoms is not None:
             self.atoms = atoms

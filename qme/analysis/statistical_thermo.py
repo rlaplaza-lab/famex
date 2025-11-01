@@ -274,7 +274,7 @@ class StatisticalThermodynamics:
         eigenvalues = np.sort(eigenvalues)
 
         # Linear if smallest eigenvalue is essentially zero
-        return eigenvalues[0] < 1e-6
+        return bool(eigenvalues[0] < 1e-6)
 
     def _process_rotational_data(
         self,
