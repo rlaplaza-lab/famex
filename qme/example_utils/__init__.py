@@ -18,6 +18,9 @@ from qme.backends.registry import calculator_registry
 
 # Import device utilities
 from qme.utils.device import get_optimal_device, print_device_info
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 class QMEExampleInterface:
@@ -82,45 +85,45 @@ class QMEExampleInterface:
             if is_backend_available(backend):
                 available.append(backend)
             elif verbose >= 1:
-                print(f"Warning: Backend '{backend}' not available, skipping")
+                logger.warning("Backend '%s' not available, skipping", backend)
 
         return available
 
     def print_header(self, subtitle: str = "") -> None:
         """Print standardized header."""
-        print("=" * 80)
-        print(f"QME {self.name}")
+        logger.info("=" * 80)
+        logger.info("QME %s", self.name)
         if subtitle:
-            print(f"{subtitle}")
-        print("=" * 80)
+            logger.info("%s", subtitle)
+        logger.info("=" * 80)
 
     def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
         """Print standardized backend summary."""
-        print(f"\n📋 {title}")
-        print("-" * 50)
+        logger.info("\n📋 %s", title)
+        logger.info("-" * 50)
         for i, backend in enumerate(backends, 1):
-            print(f"  {i}. {backend}")
-        print(f"Total: {len(backends)} backends")
+            logger.info("  %d. %s", i, backend)
+        logger.info("Total: %d backends", len(backends))
 
     def print_configuration(self, config: dict[str, Any]) -> None:
         """Print standardized configuration summary."""
-        print("\nConfiguration:")
+        logger.info("\nConfiguration:")
         for key, value in config.items():
-            print(f"  {key}: {value}")
+            logger.info("  %s: %s", key, value)
 
     def print_success(self, message: str = "Completed successfully!") -> None:
         """Print standardized success message."""
         elapsed = time.time() - self.start_time
-        print(f"\n✅ {message}")
-        print(f"⏱️  Total time: {elapsed:.1f} seconds")
+        logger.info("\n✅ %s", message)
+        logger.info("⏱️  Total time: %.1f seconds", elapsed)
 
     def print_error(self, message: str) -> None:
         """Print standardized error message."""
-        print(f"\n❌ {message}")
+        logger.error("\n❌ %s", message)
 
     def print_warning(self, message: str) -> None:
         """Print standardized warning message."""
-        print(f"\n⚠️  {message}")
+        logger.warning("\n⚠️  %s", message)
 
     def save_results(self, results: dict[str, Any], output_file: str | None = None) -> None:
         """Save results to JSON file."""
@@ -420,7 +423,7 @@ def benchmark_optimization(
         opt_time = time.perf_counter() - opt_start
 
         # Calculate average time per optimization step
-        if isinstance(steps_taken, (int, float)) and steps_taken > 0:
+        if isinstance(steps_taken, int | float) and steps_taken > 0:
             avg_time_per_step = opt_time / steps_taken
         else:
             avg_time_per_step = None
@@ -464,7 +467,7 @@ def benchmark_optimization(
         # Ensure optimized_atoms is the right type for calculate_frequencies
         atoms_for_freq = (
             optimized_atoms
-            if isinstance(optimized_atoms, (type(None), type(explorer.atoms_list[0])))
+            if isinstance(optimized_atoms, type(None) | type(explorer.atoms_list[0]))
             else None
         )
         freq_results = explorer.calculate_frequencies(
@@ -480,7 +483,7 @@ def benchmark_optimization(
 
         # Enhanced validation based on task type using proper frequency analysis
         frequencies = freq_results.get("frequencies", [])
-        if not isinstance(frequencies, (list, np.ndarray)):
+        if not isinstance(frequencies, list | np.ndarray):
             frequencies = []
 
         if test_ts:

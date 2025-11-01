@@ -18,6 +18,20 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
+# Lazy logger import to avoid circular dependencies
+def _get_logger():
+    """Get logger for this module, with lazy import to avoid circular dependencies."""
+    try:
+        from qme.utils.logging import get_qme_logger
+
+        return get_qme_logger(__name__)
+    except ImportError:
+        # Fallback for when logging isn't available yet
+        import logging
+
+        return logging.getLogger(__name__)
+
+
 class CalculatorRegistry:
     """Registry for calculator creation functions with lazy loading.
 
@@ -85,6 +99,8 @@ class CalculatorRegistry:
 
     def _load_backend(self, backend_name: str) -> None:
         """Lazy load a backend when first accessed."""
+        logger = _get_logger()
+
         if backend_name in self._registry:
             return  # Already loaded
 
@@ -95,6 +111,7 @@ class CalculatorRegistry:
         function_name = backend_info.function
 
         try:
+            logger.debug("Loading backend '%s' from module '%s'", backend_name, module_name)
             module = importlib.import_module(module_name)
             func_or_class = getattr(module, function_name)
 
@@ -105,20 +122,25 @@ class CalculatorRegistry:
             else:
                 # Regular function
                 self._registry[backend_name] = func_or_class
+            logger.debug("Successfully loaded backend '%s'", backend_name)
 
-        except ImportError:
+        except ImportError as e:
             # Backend not available, this is expected for optional dependencies
-            # ImportError is silent here - the backend simply isn't loaded
-            pass
+            # ImportError is logged at debug level since it's expected for optional backends
+            logger.debug("Backend '%s' not available (ImportError): %s", backend_name, e)
         except AttributeError as e:
             # AttributeError means the function/class doesn't exist in the module
             # This indicates a broken backend implementation, not just missing dependency
             import warnings
 
-            warnings.warn(
+            error_msg = (
                 f"Failed to load backend '{backend_name}': function/class '{function_name}' "
                 f"not found in module '{module_name}'. Error: {e}. "
-                f"This may indicate a broken backend installation.",
+                f"This may indicate a broken backend installation."
+            )
+            logger.error(error_msg)
+            warnings.warn(
+                error_msg,
                 stacklevel=2,
             )
         except (RuntimeError, ValueError, TypeError) as e:
@@ -126,10 +148,14 @@ class CalculatorRegistry:
             # These could indicate configuration issues, version conflicts, etc.
             import warnings
 
-            warnings.warn(
+            error_msg = (
                 f"Failed to load backend '{backend_name}' from module '{module_name}': {e}. "
                 f"This may indicate a configuration issue or version conflict. "
-                f"Check backend installation and compatibility.",
+                f"Check backend installation and compatibility."
+            )
+            logger.error(error_msg, exc_info=True)
+            warnings.warn(
+                error_msg,
                 stacklevel=2,
             )
 
@@ -186,6 +212,8 @@ class CalculatorRegistry:
             If backend is not registered or available
 
         """
+        logger = _get_logger()
+
         # Lazy load the backend
         self._load_backend(backend)
         if backend not in self._registry:
@@ -194,6 +222,8 @@ class CalculatorRegistry:
             from qme.backends.availability import get_available_backends
 
             available = get_available_backends(include_mock=False)
+            error_msg = f"Backend '{backend}' is not available for calculator creation. Available: {available}"
+            logger.error(error_msg)
             raise BackendError(backend, available, "calculator creation")
 
         factory_func = self._registry[backend]

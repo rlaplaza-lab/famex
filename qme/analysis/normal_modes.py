@@ -10,6 +10,10 @@ import numpy as np
 from ase import Atoms, units
 from scipy.linalg import eigh
 
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
+
 __all__ = ["diagonalize_mass_weighted_hessian", "convert_frequency_unit"]
 
 
@@ -38,9 +42,9 @@ def diagonalize_mass_weighted_hessian(
     # Mass-weight the Hessian
     masses = atoms.get_masses()[indices]
     if np.any(masses == 0):
-        raise ValueError(
-            "Zero mass encountered. Use Atoms.set_masses() to set all masses to non-zero values."
-        )
+        msg = "Zero mass encountered. Use Atoms.set_masses() to set all masses to non-zero values."
+        logger.error(msg)
+        raise ValueError(msg)
 
     mass_sqrt = np.repeat(np.sqrt(masses), 3)
     mass_inv_sqrt = mass_sqrt**-1
@@ -100,4 +104,5 @@ def convert_frequency_unit(frequencies: np.ndarray, unit: str) -> np.ndarray:
         # Convert cm^-1 to THz using ASE units
         return frequencies * units._c * 100 / 1e12
     msg = f"Unknown frequency unit: {unit}"
+    logger.error("%s (supported units: cm-1, meV, THz)", msg)
     raise ValueError(msg)

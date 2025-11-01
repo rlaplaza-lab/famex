@@ -16,8 +16,12 @@ import numpy as np
 from ase.constraints import FixAtoms, Hookean
 from ase.units import Ang, eV
 
+from qme.utils.logging import get_qme_logger
+
 if TYPE_CHECKING:
     from ase import Atoms
+
+logger = get_qme_logger(__name__)
 
 
 class QMEConstraintManager:
@@ -39,6 +43,7 @@ class QMEConstraintManager:
 
     def add_fixed_atoms(self, atom_indices: list[int]) -> None:
         """Fix specified atoms at their initial positions."""
+        logger.debug("Adding fixed atoms constraint for indices: %s", atom_indices)
         constraint = FixedAtomsConstraint(atom_indices, self.reference_atoms)
         self.constraints.append(constraint)
 
@@ -69,12 +74,20 @@ class QMEConstraintManager:
             constraint = HarmonicAngleConstraint(atom_indices, self.reference_atoms, force_constant)
         else:
             msg = f"Unknown constraint type: {constraint_type}"
+            logger.error(msg)
             raise ValueError(msg)
 
+        logger.debug(
+            "Adding harmonic constraint: type=%s, atoms=%s, k=%.2f",
+            constraint_type,
+            atom_indices,
+            force_constant,
+        )
         self.constraints.append(constraint)
 
     def apply_constraints(self, atoms: Atoms) -> list[Any]:
         """Apply all constraints to atoms object."""
+        logger.debug("Applying %d constraints to atoms object", len(self.constraints))
         ase_constraints = []
         for constraint in self.constraints:
             ase_constraints.extend(constraint.to_ase_constraints())
@@ -83,6 +96,12 @@ class QMEConstraintManager:
         existing_constraints = getattr(atoms, "constraints", [])
         all_constraints = existing_constraints + ase_constraints
         atoms.set_constraint(all_constraints)
+        logger.debug(
+            "Applied %d total constraints (%d existing, %d new)",
+            len(all_constraints),
+            len(existing_constraints),
+            len(ase_constraints),
+        )
         return all_constraints
 
     def get_constraint_info(self) -> dict[str, Any]:
@@ -188,6 +207,7 @@ class HarmonicBondConstraint:
         """
         if len(atom_indices) != 2:
             msg = "Bond constraint requires exactly 2 atoms"
+            logger.error("%s, got %d atoms", msg, len(atom_indices))
             raise ValueError(msg)
 
         self.atom_indices = atom_indices
@@ -233,6 +253,7 @@ class HarmonicAngleConstraint:
         """
         if len(atom_indices) != 3:
             msg = "Angle constraint requires exactly 3 atoms"
+            logger.error("%s, got %d atoms", msg, len(atom_indices))
             raise ValueError(msg)
 
         self.atom_indices = atom_indices
@@ -290,6 +311,7 @@ def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> QMEC
         parts = spec.strip().split()
         if len(parts) < 2:
             msg = f"Invalid constraint specification: {spec}"
+            logger.error("%s (expected format: 'type indices [k=value]')", msg)
             raise ValueError(msg)
 
         constraint_type = parts[0]
@@ -313,8 +335,12 @@ def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> QMEC
 
         else:
             msg = f"Unknown constraint type: {constraint_type}"
+            logger.error(
+                "%s (supported types: fix, harmonic_position, harmonic_bond, harmonic_angle)", msg
+            )
             raise ValueError(msg)
 
+    logger.debug("Parsed %d constraint specifications", len(constraint_specs))
     return constraint_manager
 
 
@@ -339,9 +365,11 @@ def validate_atom_indices(atom_indices: list[int], atoms: Atoms) -> bool:
     for idx in atom_indices:
         if not isinstance(idx, int):
             msg = f"Atom index must be integer, got {type(idx)}"
+            logger.error("%s", msg)
             raise ValueError(msg)
         if idx < 0 or idx >= n_atoms:
             msg = f"Atom index {idx} out of range [0, {n_atoms - 1}]"
+            logger.error("%s", msg)
             raise ValueError(msg)
 
     return True
@@ -373,7 +401,7 @@ def get_constraint_summary(atoms: Atoms) -> dict[str, Any]:
             if hasattr(constraint, "index"):
                 # FixAtoms has an 'index' attribute that contains the indices
                 indices = getattr(constraint, "index", [])
-                if isinstance(indices, (list, tuple, np.ndarray)):
+                if isinstance(indices, list | tuple | np.ndarray):
                     summary["fixed_atoms"].extend(indices)
                 else:
                     summary["fixed_atoms"].append(indices)
