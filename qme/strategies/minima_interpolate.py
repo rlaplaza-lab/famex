@@ -8,6 +8,9 @@ from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
 from qme.io.path_manager import PathManager
 from qme.strategies.minima import LocalMinimaStrategy
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 class MultiStructureMinimaInterpolateStrategy(BaseStrategy):

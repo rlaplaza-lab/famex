@@ -8,6 +8,7 @@ from ase.calculators.calculator import all_changes
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+from qme.utils.logging import get_qme_logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -15,6 +16,8 @@ if TYPE_CHECKING:
     import numpy as np
     import torch
     from ase import Atoms
+
+logger = get_qme_logger(__name__)
 
 
 class UMAPotential(BasePotential):
@@ -149,6 +152,11 @@ class UMAPotential(BasePotential):
 
             except ImportError as e:
                 # Missing dependencies
+                logger.error(
+                    "Failed to load UMA model '%s': missing required dependencies. Error: %s",
+                    self.model_name,
+                    e,
+                )
                 msg = (
                     f"Failed to load UMA model '{self.model_name}': missing required dependencies. "
                     f"Error: {e}. Install fairchem-core and ensure all dependencies are available."
@@ -156,6 +164,11 @@ class UMAPotential(BasePotential):
                 raise ImportError(msg) from e
             except (ValueError, TypeError, KeyError) as e:
                 # Configuration or model format errors
+                logger.error(
+                    "Failed to load UMA model '%s': invalid model configuration. Error: %s",
+                    self.model_name,
+                    e,
+                )
                 msg = (
                     f"Failed to load UMA model '{self.model_name}': invalid model configuration. "
                     f"Error: {e}. Check that the model name is correct and the model format is valid."
@@ -163,6 +176,11 @@ class UMAPotential(BasePotential):
                 raise ValueError(msg) from e
             except OSError as e:
                 # File system errors
+                logger.error(
+                    "Failed to load UMA model '%s': file access error. Error: %s",
+                    self.model_name,
+                    e,
+                )
                 msg = (
                     f"Failed to load UMA model '{self.model_name}': file access error. "
                     f"Error: {e}. Check file permissions and ensure model files are accessible."
@@ -170,6 +188,11 @@ class UMAPotential(BasePotential):
                 raise RuntimeError(msg) from e
             except RuntimeError as e:
                 # Runtime errors from PyTorch/backend
+                logger.error(
+                    "Failed to load UMA model '%s': runtime error. Error: %s",
+                    self.model_name,
+                    e,
+                )
                 msg = (
                     f"Failed to load UMA model '{self.model_name}': runtime error. "
                     f"Error: {e}. This may indicate a device/GPU issue or model incompatibility."
@@ -204,6 +227,7 @@ class UMAPotential(BasePotential):
             self._load_calculator()
 
         if self._calc is None:
+            logger.error("Failed to load UMA calculator")
             msg = "Failed to load UMA calculator"
             raise RuntimeError(msg)
 
@@ -214,6 +238,7 @@ class UMAPotential(BasePotential):
             if "expected scalar type Double but found Float" in str(
                 e,
             ) or "mat1 and mat2 must have the same dtype, but got Double and Float" in str(e):
+                logger.debug("UMA dtype mismatch detected, adjusting precision and retrying")
                 # Try to set model to use consistent precision
                 if "expected scalar type Double but found Float" in str(e):
                     self._set_model_precision("double")
@@ -223,6 +248,7 @@ class UMAPotential(BasePotential):
                 # Retry calculation
                 self._calc.calculate(atoms, properties, system_changes)
             else:
+                logger.exception("Unexpected error during UMA calculation")
                 raise
 
         # Extract results from the underlying calculator
@@ -286,6 +312,7 @@ class UMAPotential(BasePotential):
             self._load_calculator()
 
         if self._calc is None:
+            logger.error("Failed to load UMA calculator for Hessian calculation")
             msg = "Failed to load UMA calculator"
             raise RuntimeError(msg)
 

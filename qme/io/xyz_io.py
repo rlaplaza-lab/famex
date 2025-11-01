@@ -19,8 +19,12 @@ from ase.data import atomic_numbers
 from ase.io import read as ase_read
 from ase.io import write as ase_write
 
+from qme.utils.logging import get_qme_logger
+
 if TYPE_CHECKING:
     from qme.io.geometry import Geometry
+
+logger = get_qme_logger(__name__)
 
 
 def parse_xyz_comment(comment: str) -> dict[str, Any]:
@@ -236,12 +240,14 @@ def read_xyz_with_metadata(
     """
     filename = Path(filename)
     if not filename.exists():
+        logger.error("XYZ file not found: %s", filename)
         raise FileNotFoundError(f"XYZ file not found: {filename}")
 
     # Read with ASE - always read all frames for multi-frame support
     try:
         atoms_list = ase_read(str(filename), ":", **kwargs)
     except Exception as e:
+        logger.exception("Failed to read XYZ file %s: %s", filename, e)
         raise ValueError(f"Failed to read XYZ file {filename}: {e}") from e
 
     # Ensure we have a list
@@ -249,6 +255,7 @@ def read_xyz_with_metadata(
         atoms_list = [atoms_list]
 
     if not atoms_list:
+        logger.error("XYZ file %s contains no structures", filename)
         raise ValueError(f"XYZ file {filename} contains no structures")
 
     # Select frame(s)
@@ -260,9 +267,16 @@ def read_xyz_with_metadata(
         selected_frames = [atoms_list[-1]]
     elif isinstance(frame, int):
         if frame < 0 or frame >= len(atoms_list):
+            logger.error(
+                "Frame index %d out of range (0-%d) for file %s",
+                frame,
+                len(atoms_list) - 1,
+                filename,
+            )
             raise ValueError(f"Frame index {frame} out of range (0-{len(atoms_list) - 1})")
         selected_frames = [atoms_list[frame]]
     else:
+        logger.error("Invalid frame selection '%s' for file %s", frame, filename)
         raise ValueError(f"Invalid frame selection: {frame}")
 
     # Convert to Geometry objects with metadata
@@ -355,6 +369,7 @@ def write_xyz_with_metadata(
             ase_write(str(filename), prepared_atoms, **kwargs)
     except OSError as e:
         # File system errors (permissions, disk full, etc.)
+        logger.exception("Failed to write XYZ file %s: file system error", filename)
         msg = (
             f"Failed to write XYZ file {filename}: {e}. "
             f"This may be due to file system permissions, insufficient disk space, "
@@ -363,6 +378,7 @@ def write_xyz_with_metadata(
         raise OSError(msg) from e
     except (ValueError, TypeError, KeyError) as e:
         # Data format errors (invalid structure data or unsupported format)
+        logger.exception("Failed to write XYZ file %s: data format error", filename)
         msg = (
             f"Failed to write XYZ file {filename}: {e}. "
             f"This may indicate invalid or corrupted structure data."

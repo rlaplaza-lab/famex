@@ -17,7 +17,10 @@ from weakref import WeakValueDictionary
 
 import requests
 
+from qme.utils.logging import get_qme_logger
 from qme.utils.path_security import PathSecurityError, sanitize_filename, validate_safe_path
+
+logger = get_qme_logger(__name__)
 
 
 class CalculatorCache:
@@ -209,8 +212,7 @@ class ModelCache:
             with open(self.metadata_file, "w") as f:
                 json.dump(self.metadata, f, indent=2)
         except OSError as e:
-            # Use print instead of logger to avoid circular imports
-            print(f"Warning: Could not save cache metadata: {e}")
+            logger.warning("Could not save cache metadata: %s", e)
 
     def _get_model_hash(self, model_name: str, model_url: str) -> str:
         """Generate a hash for model identification."""
@@ -251,13 +253,13 @@ class ModelCache:
         # Verify file integrity if checksum is available
         if "checksum" in cache_entry:
             if not self._verify_checksum(cached_path, cache_entry["checksum"]):
-                print(f"Warning: Cached model {model_name} failed checksum verification")
+                logger.warning("Cached model %s failed checksum verification", model_name)
                 cached_path.unlink()
                 del self.metadata[model_hash]
                 self._save_metadata()
                 return None
 
-        print(f"Using cached model: {cached_path}")
+        logger.info("Using cached model: %s", cached_path)
         return cached_path
 
     def cache_model(self, model_name: str, model_url: str, model_data: bytes) -> Path:
@@ -322,7 +324,7 @@ class ModelCache:
         }
         self._save_metadata()
 
-        print(f"Cached model: {cached_path}")
+        logger.info("Cached model: %s", cached_path)
         return cached_path
 
     def _verify_checksum(self, file_path: Path, expected_checksum: str) -> bool:
@@ -529,12 +531,13 @@ def download_and_cache_model(model_name: str, model_url: str) -> Path:
         return cached_path
 
     # Download model
-    print(f"Downloading model {model_name} from {model_url}")
+    logger.info("Downloading model %s from %s", model_name, model_url)
     try:
         response = requests.get(model_url, timeout=30)
         response.raise_for_status()
         model_data = response.content
     except requests.RequestException as e:
+        logger.error("Failed to download model %s from %s: %s", model_name, model_url, e)
         msg = f"Failed to download model {model_name}: {e}"
         raise RuntimeError(msg)
 

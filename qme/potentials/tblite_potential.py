@@ -15,6 +15,9 @@ from ase import Atoms
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 @contextlib.contextmanager
@@ -202,9 +205,11 @@ class TBLitePotential(BasePotential):
                 self._calc = TBLite(**calc_kwargs)
 
             except ImportError as e:
+                logger.error("TBLite not available: %s. Install with: pip install tblite", e)
                 msg = f"TBLite not available ({e}). Install with: pip install tblite"
                 raise ImportError(msg)
             except (ValueError, AttributeError, RuntimeError) as e:
+                logger.error("Failed to initialize TBLite calculator: %s", e)
                 msg = f"Failed to initialize TBLite calculator: {e}"
                 raise RuntimeError(msg)
 
@@ -257,6 +262,7 @@ class TBLitePotential(BasePotential):
             self._load_calculator()
 
         if self._calc is None:
+            logger.error("Failed to load TBLite calculator")
             msg = "Failed to load TBLite calculator"
             raise RuntimeError(msg)
 
@@ -267,6 +273,7 @@ class TBLitePotential(BasePotential):
             with suppress_tblite_output():
                 self._calc.calculate(self.atoms, properties, system_changes)
         except (AttributeError, RuntimeError) as e:
+            logger.exception("TBLite calculation failed: %s", e)
             msg = f"TBLite calculation failed: {e}"
             raise RuntimeError(msg)
 

@@ -11,6 +11,9 @@ from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
 from qme.io.path_manager import PathManager
 from qme.strategies.neb_optimizer import NEBOptimizer
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 class MultiStructureCINEBStrategy(BaseStrategy):
@@ -96,6 +99,7 @@ class MultiStructureCINEBStrategy(BaseStrategy):
             path = flat
 
         if len(path) < 3:
+            logger.error("CI-NEB requires at least 3 images (npoints >= 3), got %d", len(path))
             msg = "CI-NEB requires at least 3 images (npoints >= 3)"
             raise ValueError(msg)
 
@@ -103,6 +107,9 @@ class MultiStructureCINEBStrategy(BaseStrategy):
         if self.explorer is not None:
             PathManager.attach_calculators(self.explorer, path)
             if any(getattr(img, "calc", None) is None for img in path):
+                logger.error(
+                    "Failed to attach calculators to CI-NEB images. Check backend/model availability."
+                )
                 raise RuntimeError(
                     "Failed to attach calculators to CI-NEB images. Check backend/model availability.",
                 )
