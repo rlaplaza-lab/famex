@@ -8,6 +8,7 @@ calculations. It compares:
 2. 5-point central difference (O(h⁴))
 3. 3-point + Richardson extrapolation
 4. 5-point + Richardson extrapolation (O(h⁶) when combined)
+5. Adaptive 5-point + Richardson (automatically optimizes step size)
 
 The comparison uses a harmonic potential where the analytical Hessian is known
 exactly, allowing precise error analysis.
@@ -84,12 +85,27 @@ def compare_hessian_methods(atoms: Atoms, delta: float = 0.05) -> None:
     hessian_5point_rich = hc_5point_rich.calculate_numerical_hessian()
     error_5point_rich = np.max(np.abs(hessian_5point_rich - hessian_analytical))
 
+    # 5. Adaptive 5-point + Richardson (NEW!)
+    hc_adaptive = HessianCalculator(
+        atoms,
+        calc,
+        delta=delta,
+        method="5point",
+        richardson=True,
+        adaptive_delta=True,
+        max_iterations=3,
+        verbose=0,
+    )
+    hessian_adaptive = hc_adaptive.calculate_numerical_hessian()
+    error_adaptive = np.max(np.abs(hessian_adaptive - hessian_analytical))
+
     # Print results
     methods = [
         ("3-point central", error_3point),
         ("5-point central", error_5point),
         ("3-point + Richardson", error_3point_rich),
         ("5-point + Richardson", error_5point_rich),
+        ("Adaptive 5-point + Richardson", error_adaptive),
     ]
 
     print("Method                         | Max Error")
@@ -104,6 +120,7 @@ def compare_hessian_methods(atoms: Atoms, delta: float = 0.05) -> None:
         "5-point": 15 * len(atoms),
         "3-point + Richardson": 12 * len(atoms),
         "5-point + Richardson": 30 * len(atoms),
+        "Adaptive 5-point + Richardson": "~30-90 * N (adaptive)",
     }
 
     print("Computational Cost (force evaluations):")
