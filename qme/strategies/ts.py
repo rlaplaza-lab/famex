@@ -93,7 +93,7 @@ class LocalTSStrategy(BaseStrategy):
         opt_class = _get_local_optimizer_class(local_optimizer_name)
         # Accept either a single Atoms instance or a list of them
         single_input = False
-        if not isinstance(atoms_list, (list, tuple)):
+        if not isinstance(atoms_list, list | tuple):
             single_input = True
             atoms_iter = [atoms_list]
         else:
@@ -144,11 +144,21 @@ class LocalTSStrategy(BaseStrategy):
                 "trust_krylov_ts",
                 "trust-krylov-transition",
             }:
-                opt_kwargs.setdefault("hessian_update_freq", 1)
+                # Use initial Hessian only (None) - more efficient and often sufficient
+                # The mode update logic will still trigger Hessian recomputation when needed
+                opt_kwargs.setdefault("hessian_update_freq", None)
                 opt_kwargs.setdefault("mode_recompute_interval", 1)
                 opt_kwargs.setdefault("index_tolerance", 5e-4)
                 opt_kwargs.setdefault("min_positive_eigenvalue", 4e-3)
                 opt_kwargs.setdefault("negative_mode_boost", 8e-3)
+            elif normalized_name in ("rfo", "rfo-ts", "rational-function", "rational_function"):
+                # RFO optimizer: recompute Hessian every 10 steps for better convergence
+                # TS optimization needs accurate Hessian information
+                opt_kwargs.setdefault("hessian_update_freq", 10)
+                opt_kwargs.setdefault("hessian_method", "auto")
+                # Use slightly larger trust radius initially for better convergence
+                opt_kwargs.setdefault("trust_radius", 0.02)  # Double the default
+                opt_kwargs.setdefault("max_trust_radius", 0.06)  # Double the default
 
             opt = opt_class(atoms_copy, **opt_kwargs)
 
@@ -159,6 +169,15 @@ class LocalTSStrategy(BaseStrategy):
             # Get step count and convergence status using helpers
             steps_taken = StrategyUtils.get_step_count(opt)
             converged = StrategyUtils.get_convergence_status(opt, atoms_copy)
+
+            # Diagnostic: log Hessian call count for trust-krylov-ts or rfo
+            if hasattr(opt, "hessian_calls"):
+                if self.explorer.verbose >= 1:
+                    logger.info(
+                        f"Hessian computed {opt.hessian_calls} time(s) "
+                        f"over {steps_taken} steps "
+                        f"(update_freq={opt_kwargs.get('hessian_update_freq', 'default')})"
+                    )
 
             # Increment step counter in profiler
             if self.profiler is not None:

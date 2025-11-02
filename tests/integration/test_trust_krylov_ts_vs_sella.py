@@ -9,6 +9,7 @@ import pytest
 from ase.io import read
 
 from qme.backends.dependencies import deps
+from qme.optimizers.rfo_optimizer import RFOTransitionState
 from qme.optimizers.scipy_optimizers import TrustKrylovTS
 from qme.potentials.uma_potential import get_uma_calculator
 from tests.test_utils import BackendTestMixin, TestMoleculeFactory
@@ -154,3 +155,46 @@ def test_trust_krylov_ts_bh28_subset_success_rate() -> None:
             successes += 1
 
     assert successes >= len(BH28_TS_SUBSET) - 1, f"BH28 TS results: {results}"
+
+
+def test_rfo_ts_basic_functionality_with_uma() -> None:
+    """Test RFO TS optimizer basic functionality on a small UMA system."""
+    BackendTestMixin.require_backend("uma")
+
+    atoms_template = TestMoleculeFactory.get_ethylene_twisted_ts_guess()
+
+    def fresh_atoms():
+        atoms = atoms_template.copy()
+        atoms.calc = get_uma_calculator()
+        return atoms
+
+    # Baseline gradient/energy from the starting geometry.
+    baseline_atoms = fresh_atoms()
+    initial_force = _max_force(baseline_atoms)
+    initial_energy = baseline_atoms.get_potential_energy()
+    assert initial_force > 1e-6, "Baseline geometry should not be stationary"
+
+    # Run RFO optimizer.
+    atoms_rfo = fresh_atoms()
+    rfo_opt = RFOTransitionState(
+        atoms_rfo,
+        hessian_update_freq=10,
+        hessian_method="auto",
+        trust_radius=0.02,
+        max_trust_radius=0.06,
+    )
+    rfo_opt.run(fmax=0.2, steps=30)
+    rfo_force = _max_force(atoms_rfo)
+    rfo_energy = atoms_rfo.get_potential_energy()
+
+    # RFO should make progress relative to the baseline.
+    assert rfo_force <= initial_force + 0.1, "RFO should not significantly increase the force"
+
+    # RFO should reach reasonable convergence.
+    assert rfo_force < 0.3, f"RFO should reduce forces, got {rfo_force:.6f} eV/Å"
+
+    # Energy should be in a reasonable range.
+    energy_window = max(0.05, 0.05 * abs(initial_energy))
+    assert abs(rfo_energy - initial_energy) < energy_window, (
+        f"RFO energy {rfo_energy:.6f} should be within {energy_window:.6f} of initial"
+    )

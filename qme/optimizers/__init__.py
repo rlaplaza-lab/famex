@@ -12,6 +12,7 @@ from qme.optimizers.ase_wrappers import (
     VerboseOptimizerWrapper,
     VerboseSella,
 )
+from qme.optimizers.rfo_optimizer import RFOTransitionState
 from qme.optimizers.scipy_optimizers import (
     NewtonCG,
     TrustExact,
@@ -27,6 +28,7 @@ __all__ = [
     "VerboseBFGS",
     "VerboseFIRE",
     "VerboseSella",
+    "RFOTransitionState",
     "TrustKrylov",
     "TrustKrylovTS",
     "TrustNCG",
