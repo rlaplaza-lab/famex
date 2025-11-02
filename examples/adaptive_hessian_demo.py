@@ -152,7 +152,7 @@ def demo_noise_estimation():
     water.calc = calc
 
     print("\n1. Force noise estimation:")
-    force_noise = estimate_force_noise(water, calc, n_samples=5, verbose=1)
+    force_noise = estimate_force_noise(water, calc, n_samples=5)
     print(f"   Estimated force noise: {force_noise:.2e} eV/Å")
 
     if force_noise > 1e-4:
