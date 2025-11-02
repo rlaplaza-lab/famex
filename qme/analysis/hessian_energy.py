@@ -224,7 +224,7 @@ class EnergyBasedHessianCalculator:
 
         # Fill lower triangle (Hessian is symmetric)
         for i in range(n_coords):
-            for j in range(i):
+            for j in range(i + 1, n_coords):
                 hessian[j, i] = hessian[i, j]
 
         # Final symmetrization for numerical stability
