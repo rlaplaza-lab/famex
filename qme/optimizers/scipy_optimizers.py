@@ -713,6 +713,12 @@ class TrustKrylovTS(TrustKrylov):
         self._ts_previous_hessian_raw: np.ndarray | None = None  # Raw Hessian (for reference)
         self._ts_step_quality_history: list[float] = []
 
+        # P-RFO parameters (similar to RFO optimizer)
+        self._ts_trust_radius: float = 0.01  # Initial trust radius for TS (geomeTRIC default)
+        self._ts_max_trust_radius: float = 0.03  # Maximum trust radius
+        self._ts_min_trust_radius: float = 0.001  # Minimum trust radius
+        self._ts_alpha: float = 1.0  # Trust radius control parameter for P-RFO
+
     # ------------------------------------------------------------------
     # Public helpers for seeding / inspecting the tracked transition mode
     # ------------------------------------------------------------------
@@ -882,6 +888,248 @@ class TrustKrylovTS(TrustKrylov):
         mode_normalized = mode / np.linalg.norm(mode)
         return vector - 2.0 * np.dot(vector, mode_normalized) * mode_normalized
 
+    def _compute_prfo_step(
+        self, gradient: np.ndarray, hessian: np.ndarray, alpha: float
+    ) -> tuple[np.ndarray, float]:
+        """Compute P-RFO step for transition state optimization.
+
+        Following geomeTRIC's Partitioned RFO (P-RFO) approach:
+        1. Diagonalize Hessian to find transition mode (lowest eigenvalue)
+        2. For transition mode: solve 2x2 RFO problem, select highest eigenvalue for maximization
+        3. For other modes: minimize using projected RFO formula
+        4. Combine steps: y = w_tv * y~_tv + sum(w_k * y~_k)
+
+        This provides explicit partitioning unlike the reflection approach.
+
+        Parameters
+        ----------
+        gradient : np.ndarray
+            Raw gradient vector (negative forces)
+        hessian : np.ndarray
+            Raw Hessian matrix
+        alpha : float
+            Trust radius control parameter
+
+        Returns:
+        -------
+        step : np.ndarray
+            P-RFO step vector
+        lambda_max : float
+            Highest eigenvalue from transition mode RFO problem
+        """
+        n = len(gradient)
+
+        # Step 1: Diagonalize Hessian to find transition mode
+        sym_hessian = 0.5 * (hessian + hessian.T)
+
+        try:
+            hessian_eigenvalues, hessian_eigenvectors = np.linalg.eigh(sym_hessian)
+        except np.linalg.LinAlgError as exc:
+            logger.error(f"Failed to diagonalize Hessian for P-RFO: {exc}")
+            raise
+
+        # Find transition mode (lowest eigenvalue)
+        tv_index = int(np.argmin(hessian_eigenvalues))
+        omega_tv = float(hessian_eigenvalues[tv_index])
+        w_tv = hessian_eigenvectors[:, tv_index].copy()
+
+        # Normalize transition mode
+        w_tv_norm = np.linalg.norm(w_tv)
+        if w_tv_norm < 1e-12:
+            grad_norm = np.linalg.norm(gradient)
+            if grad_norm > 1e-12:
+                w_tv = -gradient / grad_norm
+            else:
+                w_tv = hessian_eigenvectors[:, 0] / np.linalg.norm(hessian_eigenvectors[:, 0])
+        else:
+            w_tv = w_tv / w_tv_norm
+
+        # Update tracked mode
+        self._ts_mode_vector = w_tv.copy()
+        self._ts_mode_eigenvalue = omega_tv
+        self._ts_last_mode_step = self.nsteps
+
+        # Step 2: Compute step along transition mode using 2x2 RFO problem
+        g_tilde_tv = np.dot(gradient, w_tv)
+
+        # Build 2x2 RFO matrix for transition mode
+        rfo_tv_matrix = np.array([[0.0, g_tilde_tv], [g_tilde_tv, omega_tv]])
+        metric_tv = np.array([[1.0, 0.0], [0.0, alpha]])
+
+        # Solve 2x2 generalized eigenvalue problem
+        try:
+            from scipy.linalg import eigh as scipy_eigh
+
+            tv_eigenvalues, tv_eigenvectors = scipy_eigh(rfo_tv_matrix, metric_tv)
+        except (ImportError, np.linalg.LinAlgError):
+            metric_tv_inv = np.linalg.inv(metric_tv)
+            standard_tv = metric_tv_inv @ rfo_tv_matrix
+            tv_eigenvalues, tv_eigenvectors = np.linalg.eig(standard_tv)
+            tv_eigenvalues = np.real(tv_eigenvalues)
+            tv_eigenvectors = np.real(tv_eigenvectors)
+
+        # Select HIGHEST eigenvalue for maximization (TS climbing)
+        tv_max_idx = int(np.argmax(tv_eigenvalues))
+        lambda_tv_max = float(tv_eigenvalues[tv_max_idx])
+        v_tv = tv_eigenvectors[:, tv_max_idx]
+
+        # Extract step along transition mode
+        v0_tv = v_tv[0]
+        if abs(v0_tv) > 1e-12:
+            y_tilde_tv = v_tv[1] / v0_tv
+        else:
+            denominator = omega_tv - alpha * lambda_tv_max
+            if abs(denominator) > 1e-12:
+                y_tilde_tv = -g_tilde_tv / denominator
+            else:
+                y_tilde_tv = 0.0
+
+        # Step 3: Compute steps along other modes (minimization)
+        tv_min_idx = int(np.argmin(tv_eigenvalues))
+        lambda_tv_min = float(tv_eigenvalues[tv_min_idx])
+
+        # Project gradient onto all Hessian eigenvectors
+        g_tilde_all = np.dot(hessian_eigenvectors.T, gradient)
+
+        # Compute steps in eigenbasis
+        y_tilde_all = np.zeros(n)
+        for k in range(n):
+            omega_k = hessian_eigenvalues[k]
+            g_tilde_k = g_tilde_all[k]
+
+            if k == tv_index:
+                y_tilde_all[k] = y_tilde_tv
+            else:
+                denominator = omega_k - alpha * lambda_tv_min
+                if abs(denominator) > 1e-12:
+                    y_tilde_all[k] = -g_tilde_k / denominator
+                else:
+                    y_tilde_all[k] = 0.0
+
+        # Step 4: Transform back from eigenbasis to Cartesian coordinates
+        step = np.zeros(n)
+        for k in range(n):
+            step += hessian_eigenvectors[:, k] * y_tilde_all[k]
+
+        # Apply trust radius constraint
+        step_norm = np.linalg.norm(step)
+        if step_norm > 1e-12:
+            if step_norm > self._ts_trust_radius * 1.01:
+                step = step / step_norm * self._ts_trust_radius
+                step_norm = self._ts_trust_radius
+        else:
+            if np.linalg.norm(w_tv) > 1e-12:
+                step = w_tv * self._ts_trust_radius * 0.1
+            else:
+                step = np.zeros(n)
+
+        if self.verbose >= 2:
+            step_norm_final = np.linalg.norm(step)
+            grad_step_dot = np.dot(gradient, step) if step_norm_final > 1e-12 else 0.0
+            logger.debug(
+                f"P-RFO step: lambda_tv_max={lambda_tv_max:.6f}, omega_tv={omega_tv:.6f}, "
+                f"step_norm={step_norm_final:.6f}, grad·step={grad_step_dot:.6f}, alpha={alpha:.6f}"
+            )
+
+        return step, lambda_tv_max
+
+    def _find_optimal_alpha(self, gradient: np.ndarray, hessian: np.ndarray) -> float:
+        """Find optimal alpha parameter for P-RFO step to match trust radius.
+
+        Uses bisection to find alpha such that ||step(alpha)|| ≈ trust_radius.
+        """
+        alpha_min = 1e-4
+        alpha_max = 1e4
+
+        if 1e-4 < self._ts_alpha < 1e4:
+            alpha = self._ts_alpha
+        else:
+            alpha = 1.0
+
+        max_iter = 20
+        tolerance = 0.01 * self._ts_trust_radius
+
+        for _iteration in range(max_iter):
+            try:
+                step, _ = self._compute_prfo_step(gradient, hessian, alpha)
+                step_norm = np.linalg.norm(step)
+
+                error = abs(step_norm - self._ts_trust_radius)
+                if error < tolerance:
+                    break
+
+                if step_norm > self._ts_trust_radius:
+                    alpha_min = alpha
+                    if alpha_max < 1e4:
+                        alpha = (alpha + alpha_max) / 2.0
+                    else:
+                        alpha *= 1.5
+                else:
+                    alpha_max = alpha
+                    if alpha_min > 1e-4:
+                        alpha = (alpha_min + alpha) / 2.0
+                    else:
+                        alpha *= 0.8
+
+                alpha = max(1e-4, min(alpha, 1e4))
+
+                if alpha_min >= alpha_max - 1e-10:
+                    break
+            except Exception as e:
+                if self.verbose >= 2:
+                    logger.debug(f"Alpha optimization error: {e}")
+                break
+
+        self._ts_alpha = alpha
+        return alpha
+
+    def _adjust_trust_radius(self, step_quality: float, step_size: float) -> None:
+        """Adjust trust radius based on step quality (geomeTRIC approach).
+
+        Following geomeTRIC's approach:
+        - Q ≥ 0.75: Good step, increase by √2
+        - 0.50 ≤ Q < 0.75: Okay step, unchanged
+        - 0 ≤ Q < 0.50: Poor step, decrease
+        - Q < 0: Very poor, decrease
+
+        Parameters
+        ----------
+        step_quality : float
+            Step quality factor Q
+        step_size : float
+            Norm of the step taken
+        """
+        if step_quality >= 0.75:
+            # Good step
+            new_trust = self._ts_trust_radius * np.sqrt(2.0)
+            self._ts_trust_radius = min(new_trust, self._ts_max_trust_radius)
+            if self.verbose >= 2:
+                logger.debug(
+                    f"Good step (Q={step_quality:.4f}), increased trust radius to {self._ts_trust_radius:.6f}"
+                )
+        elif step_quality >= 0.50:
+            # Okay step - unchanged
+            if self.verbose >= 2:
+                logger.debug(
+                    f"Okay step (Q={step_quality:.4f}), trust radius unchanged: {self._ts_trust_radius:.6f}"
+                )
+        elif step_quality >= 0.0:
+            # Poor step
+            new_trust = 0.5 * min(self._ts_trust_radius, step_size)
+            self._ts_trust_radius = max(new_trust, self._ts_min_trust_radius)
+            if self.verbose >= 1:
+                logger.warning(
+                    f"Poor step (Q={step_quality:.4f}), decreased trust radius to {self._ts_trust_radius:.6f}"
+                )
+        else:
+            # Very poor step (Q < 0)
+            new_trust = 0.5 * min(self._ts_trust_radius, step_size)
+            self._ts_trust_radius = max(new_trust, self._ts_min_trust_radius)
+            if self.verbose >= 1:
+                logger.warning(
+                    f"Very poor step (Q={step_quality:.4f}), decreased trust radius to {self._ts_trust_radius:.6f}"
+                )
+
     def _stabilise_hessian(self, hessian: np.ndarray, primary_mode: np.ndarray) -> np.ndarray:
         """Ensure the reflected Hessian is positive definite except for the flipped mode."""
         sym_hessian = 0.5 * (hessian + hessian.T)
@@ -1007,64 +1255,97 @@ class TrustKrylovTS(TrustKrylov):
         return reflected
 
     def hessian_func(self, x: np.ndarray) -> np.ndarray:
-        """Calculate Hessian with transition state mode stabilization."""
+        """Calculate Hessian using P-RFO partitioning for transition state optimization.
+
+        Instead of reflection, we compute P-RFO steps explicitly and modify the Hessian
+        so SciPy's trust-krylov naturally follows the P-RFO direction.
+        """
         raw_hessian = super().hessian_func(x)
         self._ts_last_raw_hessian = raw_hessian.copy()
-
-        # Store both raw and stabilized Hessians for step quality computation
-        # The stabilized Hessian is what trust-krylov actually uses for the step
         self._ts_previous_hessian_raw = raw_hessian.copy()
+
+        # Get raw gradient (will be reflected in gradient() method)
+        raw_gradient = super().gradient(x)
 
         if self._should_update_mode():
             self._update_mode_from_hessian(raw_hessian)
 
-        if self._ts_mode_vector is None or self._ts_mode_eigenvalue is None:
-            if self.verbose >= 2:
-                logger.debug("No transition mode available, returning raw Hessian")
-            return raw_hessian
+        # If no mode, try to find it from Hessian
+        if self._ts_mode_vector is None:
+            try:
+                sym_hessian = 0.5 * (raw_hessian + raw_hessian.T)
+                eigenvalues, eigenvectors = np.linalg.eigh(sym_hessian)
+                min_index = int(np.argmin(eigenvalues))
+                self._ts_mode_vector = eigenvectors[:, min_index].copy()
+                self._ts_mode_eigenvalue = float(eigenvalues[min_index])
+                self._ts_last_mode_step = self.nsteps
+            except Exception:
+                if self.verbose >= 1:
+                    logger.warning("Failed to find transition mode, using raw Hessian")
+                return raw_hessian
 
-        # Normalize mode vector (safety check)
-        mode_norm = np.linalg.norm(self._ts_mode_vector)
-        if mode_norm < 1e-12:
-            if self.verbose >= 1:
-                logger.warning("Mode vector has zero norm in hessian_func, returning raw Hessian")
-            return raw_hessian
-        mode = self._ts_mode_vector / mode_norm
+        # Compute P-RFO step
+        try:
+            # Find optimal alpha to match trust radius
+            alpha = self._find_optimal_alpha(raw_gradient, raw_hessian)
+            prfo_step, lambda_max = self._compute_prfo_step(raw_gradient, raw_hessian, alpha)
 
-        # Compute curvature along the mode
-        curvature = float(mode @ (raw_hessian @ mode))
+            # Transform Hessian so trust-krylov's step is similar to P-RFO step
+            # We want the Newton step -H^-1 * g to be close to prfo_step
+            # So we modify H so that H_mod * prfo_step ≈ -g
+            # Use rank-1 update: H_mod = H + β * (g + H*prfo_step) * prfo_step^T / ||prfo_step||^2
 
-        # Reflect the Hessian: flip the curvature along the mode
-        # This makes the optimization climb along the mode while minimizing in other directions
-        # The reflection formula: H' = H - 2 * (v^T H v) * v v^T
-        # This changes the sign of the eigenvalue along mode while keeping others the same
-        reflected_hessian = raw_hessian - 2.0 * curvature * np.outer(mode, mode)
+            step_norm = np.linalg.norm(prfo_step)
+            if step_norm > 1e-12:
+                # Compute what gradient would produce prfo_step
+                H_prfo = raw_hessian @ prfo_step
+                g_desired = -H_prfo  # Negative because we want -H^-1 * g = prfo_step
+                g_error = raw_gradient - g_desired
 
-        # CRITICAL: After reflection, we want the mode direction to have NEGATIVE curvature
-        # in the final Hessian that trust-krylov sees, so it will climb along that direction.
-        # But we stabilize to prevent numerical issues, so we need to ensure the stabilization
-        # doesn't completely eliminate the negative curvature we need for climbing.
-        stabilised = self._stabilise_hessian(reflected_hessian, mode)
+                # Small rank-1 update to guide toward P-RFO
+                beta = 0.5  # Mixing parameter
+                if np.linalg.norm(g_error) > 1e-10:
+                    modified_hessian = raw_hessian + beta * np.outer(g_error, prfo_step) / (
+                        step_norm**2 + 1e-10
+                    )
+                    modified_hessian = 0.5 * (modified_hessian + modified_hessian.T)
+                else:
+                    modified_hessian = raw_hessian
+            else:
+                modified_hessian = raw_hessian
 
-        # Verify the mode still allows climbing after stabilization
-        final_mode_curvature = float(mode @ (stabilised @ mode))
-        if final_mode_curvature > self._ts_min_positive_eig * 2.0:
-            # Mode curvature is too positive - trust-krylov will minimize instead of climb
-            # We need to ensure it's slightly negative or very close to zero to allow climbing
-            # Adjust by making it slightly negative
-            correction = -self._ts_index_tolerance - final_mode_curvature
-            stabilised += correction * np.outer(mode, mode)
+            # Ensure transition mode has negative curvature for climbing
+            mode = self._ts_mode_vector / np.linalg.norm(self._ts_mode_vector)
+            mode_curvature = float(mode @ (modified_hessian @ mode))
+            if mode_curvature > -self._ts_index_tolerance:
+                target_curvature = -self._ts_negative_mode_boost
+                correction = target_curvature - mode_curvature
+                modified_hessian += correction * np.outer(mode, mode)
+
+            # Stabilize: make other negative eigenvalues positive (except transition mode)
+            stabilised = self._stabilise_hessian(modified_hessian, mode)
+
+            # Store for step quality computation
+            self._ts_previous_hessian = stabilised.copy()
+
             if self.verbose >= 2:
                 logger.debug(
-                    f"Mode curvature too positive ({final_mode_curvature:.2e}), "
-                    f"adjusted to allow climbing"
+                    f"P-RFO Hessian: step_norm={step_norm:.6f}, "
+                    f"lambda_max={lambda_max:.6f}, alpha={alpha:.6f}"
                 )
 
-        # Store stabilized Hessian for step quality computation (used in next callback)
-        # This is what trust-krylov actually uses, so quality should be based on this
-        self._ts_previous_hessian = stabilised.copy()
+            return stabilised
 
-        return stabilised
+        except Exception as e:
+            if self.verbose >= 1:
+                logger.warning(f"P-RFO computation failed: {e}, falling back to reflection")
+            # Fallback: use old reflection method
+            mode = self._ts_mode_vector / np.linalg.norm(self._ts_mode_vector)
+            curvature = float(mode @ (raw_hessian @ mode))
+            reflected_hessian = raw_hessian - 2.0 * curvature * np.outer(mode, mode)
+            stabilised = self._stabilise_hessian(reflected_hessian, mode)
+            self._ts_previous_hessian = stabilised.copy()
+            return stabilised
 
     def _compute_step_quality(
         self,
@@ -1161,6 +1442,9 @@ class TrustKrylovTS(TrustKrylov):
                     self._ts_previous_hessian,  # Use stabilized Hessian
                 )
                 self._ts_step_quality_history.append(step_quality)
+
+                # Adjust trust radius based on step quality (P-RFO approach)
+                self._adjust_trust_radius(step_quality, step_norm)
 
                 if self.verbose >= 2:
                     quality_status = (
