@@ -125,8 +125,7 @@ def demo_method_comparison():
     report.print_summary()
 
     # Compare frequencies
-    masses = water.get_masses()
-    report.compare_frequencies(masses)
+    report.compare_frequencies(water)
 
 
 def demo_noise_estimation():

@@ -137,6 +137,8 @@ def compare_hessian_methods(
         "timings": timings,
         "metrics": metrics,
         "recommendations": recommendations,
+        "atoms": atoms,  # Store for frequency comparison
+        "indices": indices if indices is not None else list(range(len(atoms))),
     }
 
 
@@ -332,6 +334,10 @@ class HessianComparisonReport:
         self.timings = comparison_results["timings"]
         self.metrics = comparison_results["metrics"]
         self.recommendations = comparison_results["recommendations"]
+        self.atoms = comparison_results.get("atoms")
+        self.indices = comparison_results.get(
+            "indices", list(range(len(comparison_results.get("atoms", []))))
+        )
 
     def print_summary(self) -> None:
         """Print formatted summary of comparison."""
@@ -359,21 +365,29 @@ class HessianComparisonReport:
 
         print("\n" + "=" * 80)
 
-    def compare_frequencies(self, masses: np.ndarray) -> None:
+    def compare_frequencies(self, atoms: Atoms | None = None) -> None:
         """Compare vibrational frequencies from different Hessians.
 
         Parameters
         ----------
-        masses : np.ndarray
-            Atomic masses in u
+        atoms : Atoms, optional
+            Atoms object to use for frequency calculation.
+            If None, uses atoms from comparison_results.
         """
         from qme.analysis.normal_modes import diagonalize_mass_weighted_hessian
+
+        if atoms is None:
+            atoms = self.atoms
+
+        if atoms is None:
+            logger.warning("Cannot compare frequencies: atoms not available")
+            return
 
         frequencies_dict = {}
 
         for method, hessian in self.hessians.items():
             try:
-                frequencies, _ = diagonalize_mass_weighted_hessian(hessian, masses)
+                frequencies, _ = diagonalize_mass_weighted_hessian(hessian, atoms, self.indices)
                 frequencies_dict[method] = frequencies
             except Exception as e:
                 logger.warning(f"Failed to compute frequencies for {method}: {e}")

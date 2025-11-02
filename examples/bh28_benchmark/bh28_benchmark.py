@@ -86,14 +86,24 @@ class BH28Benchmark:
         ts_optimizer: str = "SELLA",
     ) -> None:
         """Initialize comprehensive benchmark."""
-        self.dataset_dir = Path(dataset_dir)
+        # If dataset_dir is relative, try to resolve it relative to script location
+        dataset_path = Path(dataset_dir)
+        if not dataset_path.is_absolute():
+            # Try relative to script directory first
+            script_dir = Path(__file__).parent
+            script_relative_path = script_dir / dataset_dir
+            if script_relative_path.exists():
+                dataset_path = script_relative_path
+            # Otherwise use as-is (current working directory)
+
+        self.dataset_dir = dataset_path
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         self.minima_optimizer = minima_optimizer
         self.ts_optimizer = ts_optimizer
 
         if not self.dataset_dir.exists():
-            msg = f"BH28 dataset directory not found: {dataset_dir}"
+            msg = f"BH28 dataset directory not found: {self.dataset_dir}. Tried: {dataset_dir}"
             raise FileNotFoundError(msg)
 
         # Load reference barrier heights from JSON
@@ -610,7 +620,7 @@ class BH28Benchmark:
             return [self._convert_to_serializable(item) for item in obj]
         if isinstance(obj, np.ndarray):
             return obj.tolist()
-        if isinstance(obj, (np.integer, np.floating)):
+        if isinstance(obj, np.integer | np.floating):
             return obj.item()
         if hasattr(obj, "get_chemical_formula"):  # ASE Atoms object
             return {
@@ -618,7 +628,7 @@ class BH28Benchmark:
                 "positions": obj.positions.tolist(),
                 "symbols": obj.get_chemical_symbols(),
             }
-        if isinstance(obj, (int, float, str, bool)) or obj is None:
+        if isinstance(obj, int | float | str | bool) or obj is None:
             return obj
         return str(obj)
 
