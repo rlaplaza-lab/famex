@@ -299,10 +299,10 @@ class FrequencyAnalysis:
         """Intelligent Hessian method selection based on capabilities and noise.
 
         This method implements adaptive selection of the best Hessian computation
-        approach for maximum quality. The selection order is:
+        approach for optimal quality/cost balance. The selection order is:
         1. Try analytical Hessian (if available)
-        2. If force noise is high, try energy-based FD
-        3. Fall back to adaptive force-based FD
+        2. If force noise is high (>1e-4 eV/Å), try energy-based FD
+        3. Fall back to 5-point + Richardson extrapolation (optimal balance)
 
         Returns:
         -------
@@ -389,9 +389,9 @@ class FrequencyAnalysis:
             if self.verbose >= 1:
                 logger.info("  Force noise acceptable, using force-based FD")
 
-        # Step 4: Fall back to adaptive force-based FD
+        # Step 4: Fall back to high-quality force-based FD
         if self.verbose >= 1:
-            logger.info("  Using adaptive force-based FD...")
+            logger.info("  Using high-quality force-based FD (5-point + Richardson)...")
         hessian_calc = HessianCalculator(
             self.atoms,
             self.calculator,
@@ -401,15 +401,12 @@ class FrequencyAnalysis:
             delta2=self.delta / 2.0 if self.delta2 is None else self.delta2,
             indices=self.indices,
             verbose=self.verbose,
-            adaptive_delta=True,
-            delta_range=(0.001, 0.05),
-            target_noise=1e-5,
-            max_iterations=5,
+            adaptive_delta=False,  # Fixed delta with Richardson is optimal cost/accuracy
         )
         self._hessian = hessian_calc.calculate_numerical_hessian()
 
         if self.verbose >= 1:
-            logger.info("  ✓ Adaptive force-based FD Hessian computed")
+            logger.info("  ✓ Force-based FD Hessian computed")
         return self._hessian
 
     def diagonalize_hessian(self) -> tuple[np.ndarray, np.ndarray]:
