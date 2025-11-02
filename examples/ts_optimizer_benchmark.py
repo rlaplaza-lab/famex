@@ -74,7 +74,7 @@ def benchmark_ts_optimizer(
         verbose=verbose,
         test_ts=True,
         create_structure_func=create_ts_structure,
-        suitable_optimizers=["sella", "trust-krylov-ts"],
+        suitable_optimizers=["sella", "trust-krylov-ts", "rfo"],
     )
 
 
@@ -329,7 +329,7 @@ def main() -> int:
     parser.add_argument(
         "--optimizers",
         type=str,
-        help="Comma-separated list of optimizers to benchmark (default: sella, options: sella,trust-krylov-ts)",
+        help="Comma-separated list of optimizers to benchmark (default: sella, options: sella,trust-krylov-ts,rfo)",
     )
 
     args = parser.parse_args()
@@ -351,7 +351,7 @@ def main() -> int:
     if args.optimizers:
         requested_optimizers = [o.strip().lower() for o in args.optimizers.split(",")]
         # Filter to only TS optimizers
-        valid_optimizers = ["sella", "trust-krylov-ts"]
+        valid_optimizers = ["sella", "trust-krylov-ts", "rfo"]
         ts_optimizers = [opt for opt in requested_optimizers if opt in valid_optimizers]
         if len(ts_optimizers) != len(requested_optimizers):
             [opt for opt in requested_optimizers if opt not in valid_optimizers]

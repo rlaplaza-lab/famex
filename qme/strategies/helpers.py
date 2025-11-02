@@ -128,6 +128,10 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
         from qme.optimizers.scipy_optimizers import TrustKrylovTS
 
         return TrustKrylovTS
+    if name in ("rfo", "rfo-ts", "rational-function", "rational_function"):
+        from qme.optimizers.rfo_optimizer import RFOTransitionState
+
+        return RFOTransitionState
     if name in ("trust-ncg", "trustncg", "trust_ncg"):
         from qme.optimizers.scipy_optimizers import TrustNCG
 
