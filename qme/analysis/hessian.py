@@ -21,6 +21,7 @@ from qme.analysis.finite_differences import (
     FiniteDifferenceScheme,
     FivePointCentralDifferenceScheme,
     ForwardDifferenceScheme,
+    SevenPointCentralDifferenceScheme,
 )
 from qme.utils.logging import get_qme_logger
 
@@ -70,6 +71,7 @@ class HessianCalculator:
     - 'forward' (2-point): Fast, 1st order accuracy, requires N+1 calculations
     - 'central' (3-point): Standard choice, 2nd order accuracy, requires 2N+1 calculations
     - '5point': High accuracy, 4th order accuracy, requires 4N+1 calculations
+    - '7point': Very high accuracy, 6th order accuracy, requires 6N+1 calculations
 
     Richardson extrapolation can improve accuracy by combining results from two
     different step sizes, effectively canceling leading error terms.
@@ -265,17 +267,21 @@ class HessianCalculator:
             self.scheme = ForwardDifferenceScheme()
         elif method == "5point":
             self.scheme = FivePointCentralDifferenceScheme()
+        elif method == "7point":
+            self.scheme = SevenPointCentralDifferenceScheme()
         else:
-            msg = f"Unknown finite difference method: {method}. Use 'forward', 'central', or '5point'."
+            msg = f"Unknown finite difference method: {method}. Use 'forward', 'central', '5point', or '7point'."
             raise ValueError(msg)
 
         if self.richardson:
-            if isinstance(self.scheme, FivePointCentralDifferenceScheme):
+            if isinstance(self.scheme, SevenPointCentralDifferenceScheme):
+                self._richardson_order = 6
+            elif isinstance(self.scheme, FivePointCentralDifferenceScheme):
                 self._richardson_order = 4
             elif isinstance(self.scheme, CentralDifferenceScheme):
                 self._richardson_order = 2
             else:
-                msg = "Richardson extrapolation currently supported only for 'central' or '5point' methods."
+                msg = "Richardson extrapolation currently supported only for 'central', '5point', or '7point' methods."
                 raise ValueError(msg)
             if self.delta2 is None:
                 self.delta2 = self.delta / 2.0
@@ -377,7 +383,9 @@ class HessianCalculator:
             Hessian column
 
         """
-        if isinstance(self.scheme, FivePointCentralDifferenceScheme):
+        if isinstance(self.scheme, SevenPointCentralDifferenceScheme):
+            return self._compute_seven_point_derivative(atom_index, direction, delta)
+        elif isinstance(self.scheme, FivePointCentralDifferenceScheme):
             return self._compute_five_point_derivative(atom_index, direction, delta)
         else:
             forces_plus = self._get_forces_displaced(atom_index, direction, delta)
@@ -573,6 +581,49 @@ class HessianCalculator:
             forces_minus2=forces_minus2,
         )
 
+    def _compute_seven_point_derivative(
+        self,
+        atom_index: int,
+        direction: int,
+        delta: float,
+    ) -> np.ndarray:
+        """Compute 7-point finite difference derivative.
+
+        The 7-point scheme requires forces at ±delta, ±2delta, and ±3delta displacements.
+
+        Parameters
+        ----------
+        atom_index : int
+            Index of atom to displace
+        direction : int
+            Coordinate direction (0=x, 1=y, 2=z)
+        delta : float
+            Displacement step size
+
+        Returns:
+        -------
+        np.ndarray
+            Hessian column using 7-point stencil
+
+        """
+        forces_minus3 = self._get_forces_displaced(atom_index, direction, -3 * delta)
+        forces_minus2 = self._get_forces_displaced(atom_index, direction, -2 * delta)
+        forces_minus = self._get_forces_displaced(atom_index, direction, -delta)
+        forces_plus = self._get_forces_displaced(atom_index, direction, delta)
+        forces_plus2 = self._get_forces_displaced(atom_index, direction, 2 * delta)
+        forces_plus3 = self._get_forces_displaced(atom_index, direction, 3 * delta)
+
+        return self.scheme.compute_derivative(
+            forces_plus,
+            forces_minus,
+            None,  # forces_ref not used for 7-point
+            delta,
+            forces_plus2=forces_plus2,
+            forces_minus2=forces_minus2,
+            forces_plus3=forces_plus3,
+            forces_minus3=forces_minus3,
+        )
+
     def _calculate_hessian_adaptive(self) -> np.ndarray:
         """Calculate Hessian with adaptive delta selection.
 
@@ -750,4 +801,5 @@ __all__ = [
     "CentralDifferenceScheme",
     "ForwardDifferenceScheme",
     "FivePointCentralDifferenceScheme",
+    "SevenPointCentralDifferenceScheme",
 ]

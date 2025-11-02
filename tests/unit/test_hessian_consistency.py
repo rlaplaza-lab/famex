@@ -241,13 +241,26 @@ class TestHessianConsistency:
         # Should all produce same shape
         assert hessian_forward.shape == hessian_central.shape == hessian_5point.shape
 
+    def test_7point_scheme_works(self, water_molecule: Atoms) -> None:
+        """Test that 7-point scheme works."""
+        calc = HarmonicCalculator()
+        hc_7point = HessianCalculator(water_molecule, calc, method="7point", verbose=0)
+        hessian_7point = hc_7point.calculate_numerical_hessian()
+
+        # Check shape
+        assert hessian_7point.shape == (9, 9)
+
+        # Should be symmetric
+        asym = np.max(np.abs(hessian_7point - hessian_7point.T))
+        assert asym < 1e-10
+
     def test_invalid_method_raises_error(self) -> None:
         """Test that invalid method raises error."""
         atoms = Atoms(symbols="H", positions=[[0, 0, 0]])
         calc = HarmonicCalculator()
 
         with pytest.raises(ValueError, match="Unknown finite difference method"):
-            HessianCalculator(atoms, calc, method="7point", verbose=0)
+            HessianCalculator(atoms, calc, method="invalid", verbose=0)
 
     def test_richardson_with_forward_raises_error(self) -> None:
         """Test that Richardson with forward method raises error."""
