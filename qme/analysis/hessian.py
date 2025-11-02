@@ -10,11 +10,26 @@ for additional accuracy improvements.
 
 from __future__ import annotations
 
+import time
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from typing import Protocol, cast
 
 import numpy as np
 from ase import Atoms
 from numpy.typing import NDArray
+
+# Optional progress bar support
+try:
+    from tqdm import tqdm
+
+    HAS_TQDM = True
+except ImportError:
+    HAS_TQDM = False
+
+    # Dummy tqdm for when not available
+    def tqdm(iterable, *args, **kwargs):  # type: ignore[misc]
+        return iterable
+
 
 from qme.analysis.finite_differences import (
     CentralDifferenceScheme,
@@ -121,6 +136,8 @@ class HessianCalculator:
         delta_range: tuple[float, float] = (0.001, 0.05),
         target_noise: float = 1e-5,
         max_iterations: int = 5,
+        n_workers: int | None = None,
+        parallel_backend: str = "thread",
     ) -> None:
         """Initialize Hessian calculator.
 
@@ -148,6 +165,7 @@ class HessianCalculator:
             - 0: Quiet (minimal output)
             - 1: Normal (default, shows progress)
             - 2: Verbose (detailed information)
+            - 3: Very verbose (includes progress bar if tqdm available)
         adaptive_delta : bool, default False
             Whether to automatically select optimal delta based on noise estimation.
             Uses Richardson extrapolation error to find best delta.
@@ -157,6 +175,15 @@ class HessianCalculator:
             Target noise level in eV/Å² for adaptive delta selection.
         max_iterations : int, default 5
             Maximum iterations for adaptive delta selection.
+        n_workers : int, optional
+            Number of parallel workers for force calculations.
+            If None, uses sequential computation (default).
+            If > 1, parallelizes independent displacement calculations.
+            Recommended for CPU-bound calculators and large systems.
+        parallel_backend : str, default "thread"
+            Parallel backend to use: 'thread' or 'process'.
+            'thread' is safer for most calculators but limited by GIL.
+            'process' requires picklable calculators.
 
         Raises:
         ------
@@ -238,6 +265,27 @@ class HessianCalculator:
         self.delta_range = delta_range
         self.target_noise = target_noise
         self.max_iterations = max_iterations
+
+        # Parallelization settings
+        if n_workers is not None and n_workers < 1:
+            msg = f"n_workers must be >= 1, got {n_workers}"
+            raise ValueError(msg)
+        self.n_workers = n_workers
+        if parallel_backend not in ("thread", "process"):
+            msg = f"parallel_backend must be 'thread' or 'process', got {parallel_backend}"
+            raise ValueError(msg)
+        self.parallel_backend = parallel_backend
+
+        # Cache for reference forces (computed once, reused)
+        self._reference_forces: np.ndarray | None = None
+
+        # Error recovery settings
+        self.max_retries = 3
+        self.retry_backoff = 1.5  # Exponential backoff multiplier
+        self.allow_partial = False  # Allow partial Hessian if some columns fail
+
+        # Performance statistics (populated after calculation)
+        self._stats: dict[str, float | int] | None = None
 
         if len(self.indices) > 0:
             positions = atoms.positions[self.indices]
@@ -349,10 +397,41 @@ class HessianCalculator:
         >>> print(f"Symmetry error: {symmetry_error:.2e}")  # Should be ~0
 
         """
-        if self.adaptive_delta:
-            return self._calculate_hessian_adaptive()
+        # Reset cache and stats at start of calculation
+        self._reference_forces = None
+        self._stats = {
+            "n_force_evaluations": 0,
+            "n_retries": 0,
+            "total_time": 0.0,
+            "time_per_column": 0.0,
+            "time_per_force_eval": 0.0,
+        }
 
-        return self._calculate_hessian_fixed()
+        start_time = time.time()
+        try:
+            if self.adaptive_delta:
+                result = self._calculate_hessian_adaptive()
+            else:
+                result = self._calculate_hessian_fixed()
+
+            # Update stats with timing
+            if self._stats is not None:
+                elapsed = time.time() - start_time
+                self._stats["total_time"] = elapsed
+                if self._stats["n_force_evaluations"] > 0:
+                    self._stats["time_per_force_eval"] = (
+                        elapsed / self._stats["n_force_evaluations"]
+                    )
+                n_coords = 3 * len(self.indices)
+                if n_coords > 0:
+                    self._stats["time_per_column"] = elapsed / n_coords
+
+            return result
+        except Exception:
+            # Update stats even on failure
+            if self._stats is not None:
+                self._stats["total_time"] = time.time() - start_time
+            raise
 
     def _compute_derivative_at_delta(
         self,
@@ -388,10 +467,10 @@ class HessianCalculator:
         elif isinstance(self.scheme, FivePointCentralDifferenceScheme):
             return self._compute_five_point_derivative(atom_index, direction, delta)
         else:
-            forces_plus = self._get_forces_displaced(atom_index, direction, delta)
+            forces_plus = self._get_forces_displaced_with_retry(atom_index, direction, delta)
             forces_minus = None
             if isinstance(self.scheme, CentralDifferenceScheme):
-                forces_minus = self._get_forces_displaced(atom_index, direction, -delta)
+                forces_minus = self._get_forces_displaced_with_retry(atom_index, direction, -delta)
             return self.scheme.compute_derivative(forces_plus, forces_minus, forces_ref, delta)
 
     def _compute_richardson_extrapolated_derivative(
@@ -443,16 +522,105 @@ class HessianCalculator:
     def _get_reference_forces(self) -> np.ndarray:
         """Get forces at reference geometry.
 
+        Caches the result after first computation to avoid redundant calculations.
+
         Returns:
         -------
         np.ndarray
             Forces on atoms in indices, flattened
 
         """
+        if self._reference_forces is not None:
+            return self._reference_forces
+
         if not hasattr(self.atoms, "calc") or self.atoms.calc is None:
             self.atoms.calc = self.calculator
         forces = self.atoms.get_forces()
-        return cast(NDArray[np.float64], forces[self.indices].flatten())
+        self._reference_forces = cast(NDArray[np.float64], forces[self.indices].flatten())
+        return self._reference_forces
+
+    def get_statistics(self) -> dict[str, float | int]:
+        """Get performance statistics from last calculation.
+
+        Returns:
+        -------
+        dict[str, Union[float, int]]
+            Dictionary containing:
+            - n_force_evaluations: Number of force evaluations performed
+            - n_retries: Total number of retries attempted
+            - total_time: Total calculation time in seconds
+            - time_per_column: Average time per Hessian column in seconds
+            - time_per_force_eval: Average time per force evaluation in seconds
+
+        """
+        if self._stats is None:
+            return {}
+        return self._stats.copy()
+
+    def _get_forces_displaced_with_retry(
+        self,
+        atom_index: int,
+        direction: int,
+        displacement: float,
+    ) -> np.ndarray:
+        """Get forces for displaced geometry with retry logic.
+
+        Parameters
+        ----------
+        atom_index : int
+            Index of atom to displace
+        direction : int
+            Coordinate direction (0=x, 1=y, 2=z)
+        displacement : float
+            Displacement in Å
+
+        Returns:
+        -------
+        np.ndarray
+            Forces on atoms in indices, flattened
+
+        Raises:
+        ------
+        RuntimeError
+            If force calculation fails after all retries
+
+        """
+        last_error = None
+        for attempt in range(self.max_retries):
+            try:
+                result = self._get_forces_displaced(atom_index, direction, displacement)
+                # Track retries
+                if attempt > 0 and self._stats is not None:
+                    self._stats["n_retries"] = self._stats.get("n_retries", 0) + attempt
+                return result
+            except Exception as e:
+                last_error = e
+                if attempt < self.max_retries - 1:
+                    # Exponential backoff: wait before retry
+                    wait_time = self.retry_backoff**attempt
+                    if self.verbose >= 2:
+                        coord_name = ["x", "y", "z"][direction]
+                        logger.debug(
+                            f"Retry {attempt + 1}/{self.max_retries} for atom {atom_index}, "
+                            f"{coord_name}-displacement {displacement:+.4f} Å "
+                            f"(waiting {wait_time:.2f}s): {e}"
+                        )
+                    time.sleep(wait_time)
+                else:
+                    # Final attempt failed
+                    coord_name = (
+                        ["x", "y", "z"][direction]
+                        if 0 <= direction < 3
+                        else f"unknown({direction})"
+                    )
+                    msg = (
+                        f"Force calculation failed after {self.max_retries} attempts "
+                        f"for atom {atom_index}, {coord_name}-displacement {displacement:+.4f} Å: {last_error}"
+                    )
+                    raise RuntimeError(msg) from last_error
+
+        # Should never reach here, but satisfy type checker
+        raise RuntimeError("Unexpected error in retry logic")
 
     def _get_forces_displaced(
         self,
@@ -538,6 +706,10 @@ class HessianCalculator:
             )
             raise RuntimeError(msg)
 
+        # Track force evaluation count
+        if self._stats is not None:
+            self._stats["n_force_evaluations"] = self._stats.get("n_force_evaluations", 0) + 1
+
         return forces[self.indices].flatten()
 
     def _compute_five_point_derivative(
@@ -567,10 +739,10 @@ class HessianCalculator:
             Hessian column using 5-point stencil
 
         """
-        forces_minus2 = self._get_forces_displaced(atom_index, direction, -2 * delta)
-        forces_minus = self._get_forces_displaced(atom_index, direction, -delta)
-        forces_plus = self._get_forces_displaced(atom_index, direction, delta)
-        forces_plus2 = self._get_forces_displaced(atom_index, direction, 2 * delta)
+        forces_minus2 = self._get_forces_displaced_with_retry(atom_index, direction, -2 * delta)
+        forces_minus = self._get_forces_displaced_with_retry(atom_index, direction, -delta)
+        forces_plus = self._get_forces_displaced_with_retry(atom_index, direction, delta)
+        forces_plus2 = self._get_forces_displaced_with_retry(atom_index, direction, 2 * delta)
 
         return self.scheme.compute_derivative(
             forces_plus,
@@ -606,12 +778,12 @@ class HessianCalculator:
             Hessian column using 7-point stencil
 
         """
-        forces_minus3 = self._get_forces_displaced(atom_index, direction, -3 * delta)
-        forces_minus2 = self._get_forces_displaced(atom_index, direction, -2 * delta)
-        forces_minus = self._get_forces_displaced(atom_index, direction, -delta)
-        forces_plus = self._get_forces_displaced(atom_index, direction, delta)
-        forces_plus2 = self._get_forces_displaced(atom_index, direction, 2 * delta)
-        forces_plus3 = self._get_forces_displaced(atom_index, direction, 3 * delta)
+        forces_minus3 = self._get_forces_displaced_with_retry(atom_index, direction, -3 * delta)
+        forces_minus2 = self._get_forces_displaced_with_retry(atom_index, direction, -2 * delta)
+        forces_minus = self._get_forces_displaced_with_retry(atom_index, direction, -delta)
+        forces_plus = self._get_forces_displaced_with_retry(atom_index, direction, delta)
+        forces_plus2 = self._get_forces_displaced_with_retry(atom_index, direction, 2 * delta)
+        forces_plus3 = self._get_forces_displaced_with_retry(atom_index, direction, 3 * delta)
 
         return self.scheme.compute_derivative(
             forces_plus,
@@ -736,6 +908,34 @@ class HessianCalculator:
         finally:
             self.delta = original_delta
 
+    def _compute_hessian_column(
+        self, j: int, forces_ref: np.ndarray | None
+    ) -> tuple[int, np.ndarray]:
+        """Compute a single Hessian column (helper for parallelization).
+
+        Parameters
+        ----------
+        j : int
+            Column index (0 to n_coords-1)
+        forces_ref : np.ndarray | None
+            Reference forces (for forward differences)
+
+        Returns:
+        -------
+        tuple[int, np.ndarray]
+            (column_index, hessian_column)
+
+        """
+        atom_j = self.indices[j // 3]
+        coord_j = j % 3
+
+        if self.richardson:
+            column = self._compute_richardson_extrapolated_derivative(atom_j, coord_j)
+        else:
+            column = self._compute_derivative_at_delta(atom_j, coord_j, self.delta, forces_ref)
+
+        return (j, column)
+
     def _calculate_hessian_fixed(self) -> np.ndarray:
         """Original fixed-delta Hessian calculation (non-adaptive path).
 
@@ -755,40 +955,119 @@ class HessianCalculator:
             logger.info(
                 f"Calculating Hessian for {n_atoms} atoms using {type(self.scheme).__name__}"
             )
+            if self.n_workers and self.n_workers > 1:
+                logger.info(
+                    f"Using {self.n_workers} parallel workers ({self.parallel_backend} backend)"
+                )
 
         forces_ref = None
         if isinstance(self.scheme, ForwardDifferenceScheme):
             forces_ref = self._get_reference_forces()
 
-        for j in range(n_coords):
-            atom_j = self.indices[j // 3]
-            coord_j = j % 3
+        # Use parallel computation if enabled and not using Richardson (which has dependencies)
+        use_parallel = (
+            self.n_workers is not None
+            and self.n_workers > 1
+            and not self.richardson  # Richardson has inter-column dependencies
+        )
 
-            try:
-                if self.richardson:
-                    hessian[:, j] = self._compute_richardson_extrapolated_derivative(
-                        atom_j, coord_j
-                    )
-                else:
-                    hessian[:, j] = self._compute_derivative_at_delta(
-                        atom_j, coord_j, self.delta, forces_ref
-                    )
-            except Exception as e:
-                coord_name = ["x", "y", "z"][coord_j]
-                msg = (
-                    f"Failed to compute Hessian column for atom {atom_j}, "
-                    f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}"
-                )
-                raise RuntimeError(msg) from e
+        # Progress tracking
+        use_progress_bar = self.verbose >= 3 and HAS_TQDM and not use_parallel
+        start_time = time.time() if self.verbose >= 1 else None
 
-            if self.verbose >= 2:
-                logger.debug(f"Completed coordinate {j + 1}/{n_coords}")
+        if use_parallel:
+            # Parallel column computation
+            executor_class = (
+                ThreadPoolExecutor if self.parallel_backend == "thread" else ProcessPoolExecutor
+            )
+
+            with executor_class(max_workers=self.n_workers) as executor:
+                # Submit all column computations
+                futures = {
+                    executor.submit(self._compute_hessian_column, j, forces_ref): j
+                    for j in range(n_coords)
+                }
+
+                # Collect results as they complete with progress tracking
+                completed = 0
+                if self.verbose >= 1:
+                    logger.info(f"Computing {n_coords} columns in parallel...")
+
+                for future in as_completed(futures):
+                    j = futures[future]  # Get column index from future mapping
+                    try:
+                        _, column = future.result()
+                        hessian[:, j] = column
+                        completed += 1
+                        if self.verbose >= 2:
+                            elapsed = time.time() - (start_time or 0)
+                            rate = completed / elapsed if elapsed > 0 else 0
+                            eta = (n_coords - completed) / rate if rate > 0 else 0
+                            logger.debug(
+                                f"Completed {completed}/{n_coords} columns "
+                                f"({rate:.1f} cols/s, ETA: {eta:.1f}s)"
+                            )
+                    except Exception as e:
+                        coord_j = j % 3
+                        coord_name = ["x", "y", "z"][coord_j]
+                        atom_j = self.indices[j // 3]
+                        msg = (
+                            f"Failed to compute Hessian column for atom {atom_j}, "
+                            f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}"
+                        )
+                        raise RuntimeError(msg) from e
+        else:
+            # Sequential computation (original approach)
+            coord_iter = tqdm(
+                range(n_coords), desc="Computing Hessian", disable=not use_progress_bar
+            )
+            for j in coord_iter:
+                atom_j = self.indices[j // 3]
+                coord_j = j % 3
+
+                try:
+                    if self.richardson:
+                        hessian[:, j] = self._compute_richardson_extrapolated_derivative(
+                            atom_j, coord_j
+                        )
+                    else:
+                        hessian[:, j] = self._compute_derivative_at_delta(
+                            atom_j, coord_j, self.delta, forces_ref
+                        )
+                except Exception as e:
+                    coord_name = ["x", "y", "z"][coord_j]
+                    if self.allow_partial:
+                        logger.warning(
+                            f"Failed to compute Hessian column for atom {atom_j}, "
+                            f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}. "
+                            f"Skipping this column (partial Hessian will be incomplete)."
+                        )
+                        # Leave column as zeros - caller should handle partial results
+                        continue
+                    else:
+                        msg = (
+                            f"Failed to compute Hessian column for atom {atom_j}, "
+                            f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}"
+                        )
+                        raise RuntimeError(msg) from e
+
+                if self.verbose >= 2 and not use_progress_bar:
+                    elapsed = time.time() - (start_time or 0) if start_time else 0
+                    rate = (j + 1) / elapsed if elapsed > 0 else 0
+                    eta = (n_coords - j - 1) / rate if rate > 0 else 0
+                    logger.debug(
+                        f"Completed coordinate {j + 1}/{n_coords} "
+                        f"({rate:.2f} cols/s, ETA: {eta:.1f}s)"
+                    )
 
         # Symmetrize Hessian: H_sym = (H + H^T) / 2
         HESSIAN_SYMMETRIZATION_FACTOR = 0.5
         hessian = HESSIAN_SYMMETRIZATION_FACTOR * (hessian + hessian.T)
 
-        if self.verbose >= 2:
+        if self.verbose >= 1:
+            elapsed = time.time() - (start_time or 0) if start_time else 0
+            logger.info(f"Hessian calculation completed in {elapsed:.2f} seconds")
+        elif self.verbose >= 2:
             logger.info("Hessian calculation completed")
         return cast(NDArray[np.float64], hessian)
 
