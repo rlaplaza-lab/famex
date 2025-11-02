@@ -189,13 +189,18 @@ class FrequencyAnalysis:
         return self._construct_hessian_from_batch(batch_results)
 
     def _generate_displaced_structures(self) -> list[Atoms]:
-        """Generate all displaced structures for finite differences."""
+        """Generate all displaced structures for finite differences.
+
+        Note: Currently only supports 3-point central difference scheme.
+        For 5-point or 7-point schemes, use non-batch methods.
+        """
         displaced_structures = []
 
-        # Add the original structure
+        # Add the original structure (reference)
         displaced_structures.append(self.atoms.copy())
 
-        # Generate displaced structures
+        # Generate displaced structures for central difference scheme
+        # For each atom in indices, for each coordinate (x, y, z)
         for i in self.indices:
             for j in range(3):  # x, y, z directions
                 # Positive displacement
@@ -208,28 +213,57 @@ class FrequencyAnalysis:
                 atoms_neg.positions[i, j] -= self.delta
                 displaced_structures.append(atoms_neg)
 
+        if self.verbose >= 2:
+            logger.debug(f"Generated {len(displaced_structures)} structures for batch calculation")
+
         return displaced_structures
 
     def _construct_hessian_from_batch(self, batch_results: list[dict[str, Any]]) -> np.ndarray:
-        """Construct Hessian matrix from batch calculation results."""
+        """Construct Hessian matrix from batch calculation results.
+
+        Uses central difference scheme: H_ij = (F_i(-δj) - F_i(+δj)) / (2*δ)
+        where F_i are forces on atom i and δj is displacement of coordinate j.
+        """
         n_atoms = len(self.indices)
-        hessian = np.zeros((3 * n_atoms, 3 * n_atoms))
+        n_coords = 3 * n_atoms
+        hessian = np.zeros((n_coords, n_coords))
+
+        # Validate batch results
+        expected_results = 1 + 2 * n_coords  # 1 reference + 2 per coordinate
+        if len(batch_results) < expected_results:
+            msg = (
+                f"Insufficient batch results: expected {expected_results}, got {len(batch_results)}"
+            )
+            raise RuntimeError(msg)
 
         # Calculate Hessian using finite differences
         result_idx = 1  # Start from index 1 (skip reference structure)
 
         for i in range(n_atoms):
             for j in range(3):  # x, y, z directions
-                # Positive displacement
-                pos_forces = batch_results[result_idx]["forces"]
+                # Get positive and negative displacement forces
+                if result_idx >= len(batch_results):
+                    msg = f"Not enough batch results at index {result_idx}"
+                    raise RuntimeError(msg)
+
+                pos_forces = batch_results[result_idx].get("forces")
+                if pos_forces is None:
+                    msg = f"Missing forces in batch result {result_idx}"
+                    raise RuntimeError(msg)
                 result_idx += 1
 
-                # Negative displacement
-                neg_forces = batch_results[result_idx]["forces"]
+                if result_idx >= len(batch_results):
+                    msg = f"Not enough batch results at index {result_idx}"
+                    raise RuntimeError(msg)
+
+                neg_forces = batch_results[result_idx].get("forces")
+                if neg_forces is None:
+                    msg = f"Missing forces in batch result {result_idx}"
+                    raise RuntimeError(msg)
                 result_idx += 1
 
-                # Calculate second derivative using finite differences
-                # d²E/dx² ≈ (F_neg - F_pos) / (2 * delta)
+                # Calculate Hessian column using central differences
+                # H_ij = -∂F_i/∂x_j = (F_i(-δ) - F_i(+δ)) / (2*δ)
                 hessian_row = 3 * i + j
                 for k in range(n_atoms):
                     atom_k = self.indices[k]
@@ -241,6 +275,9 @@ class FrequencyAnalysis:
 
         # Symmetrize for numerical stability
         hessian = 0.5 * (hessian + hessian.T)
+
+        if self.verbose >= 2:
+            logger.debug("Hessian constructed from batch results")
 
         return cast(NDArray[np.float64], hessian)
 
