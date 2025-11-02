@@ -144,9 +144,10 @@ class LocalTSStrategy(BaseStrategy):
                 "trust_krylov_ts",
                 "trust-krylov-transition",
             }:
-                # Use initial Hessian only (None) - more efficient and often sufficient
-                # The mode update logic will still trigger Hessian recomputation when needed
-                opt_kwargs.setdefault("hessian_update_freq", None)
+                # TrustKrylovTS: recompute Hessian periodically for better convergence
+                # TS optimization needs accurate Hessian information, similar to RFO
+                # Tests show hessian_update_freq=1 works well, but 10 is more efficient
+                opt_kwargs.setdefault("hessian_update_freq", 10)
                 opt_kwargs.setdefault("mode_recompute_interval", 1)
                 opt_kwargs.setdefault("index_tolerance", 5e-4)
                 opt_kwargs.setdefault("min_positive_eigenvalue", 4e-3)
