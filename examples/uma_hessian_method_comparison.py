@@ -32,6 +32,7 @@ os.environ["MPLBACKEND"] = "Agg"
 
 import qme
 from qme.analysis.frequency import HessianCalculator
+from qme.backends.availability import is_backend_available
 
 
 def compute_finite_difference_hessian(
@@ -275,13 +276,31 @@ def compare_methods(
             print(f"  Reference Hessian ||H||_F: {ref_norm:.6e}, max|H|: {ref_max:.6e} eV/Å²")
 
     # Test only the preferred analytical method
-    methods_to_test = [("double_backward", True)]
+    # MACE may not support method/symmetrize parameters, so handle both cases
+    if hasattr(atoms.calc, "get_hessian"):
+        # Check if get_hessian accepts method/symmetrize parameters (UMA-style)
+        import inspect
+
+        sig = inspect.signature(atoms.calc.get_hessian)
+        params = list(sig.parameters.keys())
+        supports_method_param = "method" in params
+
+        if supports_method_param:
+            methods_to_test = [("double_backward", True)]
+        else:
+            # MACE-style: no method/symmetrize parameters
+            methods_to_test = [(None, None)]
+    else:
+        methods_to_test = []
 
     results = {}
     masses = atoms.get_masses()
 
     for method, symmetrize in methods_to_test:
-        method_name = f"{method}_sym={symmetrize}"
+        if method is None:
+            method_name = "analytical"
+        else:
+            method_name = f"{method}_sym={symmetrize}"
         if verbose:
             print(f"\n{method_name}:")
             print("-" * 80)
@@ -289,7 +308,14 @@ def compare_methods(
         # Compute analytical Hessian
         start = time.time()
         try:
-            analytical_hessian = atoms.calc.get_hessian(atoms, method=method, symmetrize=symmetrize)
+            if method is None:
+                # MACE-style: no parameters
+                analytical_hessian = atoms.calc.get_hessian(atoms)
+            else:
+                # UMA-style: with method and symmetrize
+                analytical_hessian = atoms.calc.get_hessian(
+                    atoms, method=method, symmetrize=symmetrize
+                )
             analytical_time = time.time() - start
         except Exception as e:
             if verbose:
@@ -401,11 +427,21 @@ def main():
         ],
     )
 
-    # Set up UMA calculator
-    calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+    # Set up calculator - prefer UMA, fallback to MACE
+    if is_backend_available("uma"):
+        calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+        backend_name = "UMA"
+    elif is_backend_available("mace"):
+        calc = qme.get_mace_calculator()
+        backend_name = "MACE"
+        print(
+            "Note: UMA not available, using MACE instead. Some UMA-specific Hessian methods may not be available."
+        )
+    else:
+        raise RuntimeError("No suitable backend available (need UMA or MACE)")
     calc.ensure_loaded()
 
-    print("UMA Hessian Method Comparison")
+    print(f"{backend_name} Hessian Method Comparison")
     print("=" * 80)
     print("\nThis script compares different Hessian computation methods")
     print("against finite differences to identify the most accurate approach.\n")
@@ -472,9 +508,14 @@ def main():
 
             # Compute analytical Hessian
             t0 = time.time()
-            H_analytical = ext_atoms.calc.get_hessian(
-                ext_atoms, method="double_backward", symmetrize=True
-            )
+            try:
+                # Try UMA-style with parameters first
+                H_analytical = ext_atoms.calc.get_hessian(
+                    ext_atoms, method="double_backward", symmetrize=True
+                )
+            except TypeError:
+                # MACE-style: no parameters
+                H_analytical = ext_atoms.calc.get_hessian(ext_atoms)
             t_analytical = time.time() - t0
 
             print("\nAnalytical Hessian:")

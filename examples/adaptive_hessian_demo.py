@@ -17,6 +17,17 @@ from ase import Atoms
 import qme
 from qme.analysis.frequency import FrequencyAnalysis
 from qme.analysis.hessian_comparison import HessianComparisonReport, compare_hessian_methods
+from qme.backends.availability import is_backend_available
+
+
+def get_available_calculator():
+    """Get an available calculator, preferring MACE over UMA."""
+    if is_backend_available("mace"):
+        return qme.get_mace_calculator()
+    elif is_backend_available("uma"):
+        return qme.get_uma_calculator(model_name="uma-s-1p1")
+    else:
+        raise RuntimeError("No suitable backend available (need MACE or UMA)")
 
 
 def demo_basic_usage():
@@ -36,7 +47,7 @@ def demo_basic_usage():
     )
 
     # Set up calculator
-    calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+    calc = get_available_calculator()
     calc.ensure_loaded()
     water.calc = calc
 
@@ -70,7 +81,7 @@ def demo_adaptive_delta():
         ],
     )
 
-    calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+    calc = get_available_calculator()
     calc.ensure_loaded()
     water.calc = calc
 
@@ -110,7 +121,7 @@ def demo_method_comparison():
         ],
     )
 
-    calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+    calc = get_available_calculator()
     calc.ensure_loaded()
     water.calc = calc
 
@@ -146,7 +157,7 @@ def demo_noise_estimation():
         ],
     )
 
-    calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+    calc = get_available_calculator()
     calc.ensure_loaded()
     water.calc = calc
 
