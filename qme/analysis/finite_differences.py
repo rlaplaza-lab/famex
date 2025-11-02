@@ -7,6 +7,7 @@ Available schemes:
 - ForwardDifferenceScheme (2-point): 1st order accuracy, fast but less accurate
 - CentralDifferenceScheme (3-point): 2nd order accuracy, standard choice
 - FivePointCentralDifferenceScheme (5-point): 4th order accuracy, high accuracy option
+- SevenPointCentralDifferenceScheme (7-point): 6th order accuracy, highest accuracy
 """
 
 from __future__ import annotations
@@ -281,9 +282,119 @@ class FivePointCentralDifferenceScheme:
         return cast(NDArray[np.float64], -hessian_col)
 
 
+class SevenPointCentralDifferenceScheme:
+    """7-point central difference finite difference scheme (6th order accuracy).
+
+    This scheme uses a 7-point stencil to compute derivatives with 6th order
+    accuracy, providing even higher accuracy than the 5-point scheme. It requires
+    forces at ±δ, ±2δ, and ±3δ displacements.
+
+    Uses the stencil for first derivative:
+    ∂f/∂x ≈ [f(x+3h) - 9f(x+2h) + 45f(x+h) - 45f(x-h) + 9f(x-2h) - f(x-3h)] / (60h)
+
+    For Hessian calculation from forces F = -∇E:
+    H = -∂F/∂x = -[F(x+3δ) - 9F(x+2δ) + 45F(x+δ) - 45F(x-δ) + 9F(x-2δ) - F(x-3δ)] / (60δ)
+
+    Examples:
+    --------
+    >>> scheme = SevenPointCentralDifferenceScheme()
+    >>> # Requires forces at 6 displacement points
+    >>> hessian_col = scheme.compute_derivative(
+    ...     forces_plus,      # F(+δ)
+    ...     forces_minus,     # F(-δ)
+    ...     None,             # forces_ref not used
+    ...     delta=0.01,
+    ...     forces_plus2=forces_plus2,   # F(+2δ)
+    ...     forces_minus2=forces_minus2, # F(-2δ)
+    ...     forces_plus3=forces_plus3,   # F(+3δ)
+    ...     forces_minus3=forces_minus3  # F(-3δ)
+    ... )
+
+    Notes:
+    -----
+    - Requires forces at 6 displacement points: ±δ, ±2δ, ±3δ
+    - Highest accuracy (6th order) but slowest
+    - Best for very high-accuracy applications
+    - Compatible with Richardson extrapolation (can achieve 8th+ order effectively)
+    - May be sensitive to very large displacements
+
+    See Also:
+    --------
+    FivePointCentralDifferenceScheme : Faster 4th order scheme
+    CentralDifferenceScheme : Faster 2nd order scheme
+    ForwardDifferenceScheme : Fastest 1st order scheme
+
+    """
+
+    def compute_derivative(
+        self,
+        forces_plus: np.ndarray,
+        forces_minus: np.ndarray | None,
+        forces_ref: np.ndarray | None,
+        delta: float,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        """Compute Hessian column using 7-point central differences.
+
+        Parameters
+        ----------
+        forces_plus : np.ndarray
+            Forces at +delta displacement
+        forces_minus : np.ndarray
+            Forces at -delta displacement
+        forces_ref : np.ndarray, optional
+            Forces at reference geometry (not used, for protocol compatibility)
+        delta : float
+            Displacement step size
+        **kwargs : Any
+            Additional forces at ±2delta and ±3delta:
+            - forces_plus2: Forces at +2*delta displacement
+            - forces_minus2: Forces at -2*delta displacement
+            - forces_plus3: Forces at +3*delta displacement
+            - forces_minus3: Forces at -3*delta displacement
+
+        Returns:
+        -------
+        np.ndarray
+            Hessian column: -∂F/∂x
+
+        """
+        if forces_minus is None:
+            msg = "7-point central difference requires forces_minus"
+            raise ValueError(msg)
+        required_kwargs = ["forces_plus2", "forces_minus2", "forces_plus3", "forces_minus3"]
+        missing = [kw for kw in required_kwargs if kw not in kwargs]
+        if missing:
+            msg = f"7-point central difference requires: {', '.join(missing)}"
+            raise ValueError(msg)
+
+        forces_plus2 = kwargs["forces_plus2"]
+        forces_minus2 = kwargs["forces_minus2"]
+        forces_plus3 = kwargs["forces_plus3"]
+        forces_minus3 = kwargs["forces_minus3"]
+
+        # 7-point stencil for first derivative:
+        # ∂f/∂x ≈ [f(x+3h) - 9f(x+2h) + 45f(x+h) - 45f(x-h) + 9f(x-2h) - f(x-3h)] / (60h)
+        #
+        # For Hessian calculation from forces F = -∇E:
+        # H = -∂F/∂x
+        hessian_col = (
+            forces_plus3
+            - 9 * forces_plus2
+            + 45 * forces_plus
+            - 45 * forces_minus
+            + 9 * forces_minus2
+            - forces_minus3
+        ) / (60 * delta)
+
+        # This gives dF/dx, so we need to negate to get H = -dF/dx
+        return cast(NDArray[np.float64], -hessian_col)
+
+
 __all__ = [
     "FiniteDifferenceScheme",
     "CentralDifferenceScheme",
     "ForwardDifferenceScheme",
     "FivePointCentralDifferenceScheme",
+    "SevenPointCentralDifferenceScheme",
 ]
