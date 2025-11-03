@@ -2,9 +2,11 @@
 """QME TS Optimizer Benchmark - Transition State Optimizer Comparison.
 
 This benchmark compares the performance of different transition state optimizers
-(sella, trust-krylov-ts) for transition state finding using various QME ML backends.
+(sella, trust-krylov-ts, rfo) for transition state finding using various QME ML backends.
 It focuses specifically on TS optimization to evaluate which optimizers work best
 for finding transition states across different ML backends.
+
+By default, all three optimizers (sella, trust-krylov-ts, rfo) are tested on equal footing.
 
 Usage:
     python ts_optimizer_benchmark.py [--backends BACKEND1,BACKEND2,...]
@@ -12,7 +14,7 @@ Usage:
     python ts_optimizer_benchmark.py [--device DEVICE]
 
 Features:
-    - Transition state optimizer comparison (sella, trust-krylov-ts)
+    - Transition state optimizer comparison (sella, trust-krylov-ts, rfo)
     - All available ML backends tested
     - Detailed timing and convergence analysis
     - TS-specific optimization evaluation
@@ -64,7 +66,7 @@ def benchmark_ts_optimizer(
 ) -> dict[str, Any]:
     """Benchmark a single backend with a specific optimizer for transition state optimization.
 
-    Suitable optimizers: Sella, Trust-Krylov-TS
+    Suitable optimizers: Sella, Trust-Krylov-TS, RFO
     """
     return benchmark_optimization(
         backend=backend,
@@ -329,7 +331,7 @@ def main() -> int:
     parser.add_argument(
         "--optimizers",
         type=str,
-        help="Comma-separated list of optimizers to benchmark (default: sella, options: sella,trust-krylov-ts,rfo)",
+        help="Comma-separated list of optimizers to benchmark (default: sella,trust-krylov-ts,rfo - all tested on equal footing)",
     )
 
     args = parser.parse_args()
@@ -348,15 +350,21 @@ def main() -> int:
         available_backends = get_available_backends()
 
     # Determine which optimizers to test
+    valid_optimizers = ["sella", "trust-krylov-ts", "rfo"]
     if args.optimizers:
         requested_optimizers = [o.strip().lower() for o in args.optimizers.split(",")]
         # Filter to only TS optimizers
-        valid_optimizers = ["sella", "trust-krylov-ts", "rfo"]
         ts_optimizers = [opt for opt in requested_optimizers if opt in valid_optimizers]
         if len(ts_optimizers) != len(requested_optimizers):
-            [opt for opt in requested_optimizers if opt not in valid_optimizers]
+            invalid_opts = [opt for opt in requested_optimizers if opt not in valid_optimizers]
+            if invalid_opts:
+                interface.print_warning(
+                    f"Invalid optimizers ignored: {', '.join(invalid_opts)}. "
+                    f"Valid options: {', '.join(valid_optimizers)}"
+                )
     else:
-        ts_optimizers = ["sella"]
+        # Default: test all TS optimizers on equal footing
+        ts_optimizers = ["sella", "trust-krylov-ts", "rfo"]
 
     if not ts_optimizers:
         interface.print_error("No valid TS optimizers specified!")
