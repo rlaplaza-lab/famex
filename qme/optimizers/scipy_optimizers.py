@@ -1614,10 +1614,36 @@ class TrustKrylovTS(TrustKrylov):
                 logger.info("Optimization converged!")
         elif self.verbose >= 1:
             actual_steps = self.nsteps - 1  # Subtract initial step count
-            logger.warning(
-                f"Optimization stopped after {actual_steps} trust-region steps without converging "
-                f"(max outer iterations: {steps})"
+
+            # Get SciPy's actual stop reason
+            scipy_message = (
+                str(getattr(self._scipy_result, "message", "unknown reason"))
+                if self._scipy_result is not None
+                else "unknown reason"
             )
+
+            # Check if SciPy stopped due to maxiter (outer iterations)
+            scipy_stopped_due_to_maxiter = (
+                "Maximum number of iterations" in scipy_message
+                or "max iterations" in scipy_message.lower()
+            )
+
+            if scipy_stopped_due_to_maxiter:
+                logger.warning(
+                    f"Optimization stopped after {actual_steps} trust-region steps "
+                    f"(reached max outer iterations: {steps})"
+                )
+            else:
+                # Stopped for other reason (not maxiter) - show actual reason
+                logger.warning(
+                    f"Optimization stopped after {actual_steps} trust-region steps without converging"
+                )
+                logger.warning(f"  SciPy reason: {scipy_message}")
+                logger.warning(
+                    "  Note: Each trust-region step uses inner Krylov iterations to solve the subproblem. "
+                    "Failure may indicate inner Krylov solver struggling with the subproblem "
+                    "(each step may perform up to ~1000 inner Krylov iterations)."
+                )
             logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
 
         return converged
