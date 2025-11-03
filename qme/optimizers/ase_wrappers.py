@@ -231,7 +231,11 @@ class VerboseOptimizerWrapper(Optimizer):
             if result:
                 logger.info("Optimization converged!")
             else:
-                logger.warning(f"Optimization stopped after {steps} steps without converging")
+                actual_steps = self.wrapped_optimizer.get_number_of_steps()
+                logger.warning(
+                    f"Optimization stopped after {actual_steps} steps without converging "
+                    f"(max allowed: {steps})"
+                )
                 forces = self.atoms.get_forces()
                 logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
 
