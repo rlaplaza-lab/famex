@@ -178,7 +178,7 @@ def demo_noise_estimation():
     print(f"   Expected noise at optimal delta: {noise:.2e} eV/Å²")
 
 
-def main():
+def main() -> int:
     """Run all demos."""
     print("\n" + "=" * 80)
     print("ADAPTIVE HESSIAN SELECTION DEMONSTRATION")
@@ -212,4 +212,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    sys.exit(main())

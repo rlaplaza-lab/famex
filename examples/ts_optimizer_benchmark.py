@@ -46,7 +46,12 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 
 def create_ts_structure() -> Atoms:
-    """Create a transition state structure for TS optimization using example files."""
+    """Create a transition state structure for TS optimization using example files.
+
+    Note: The structure should be reasonably close to the actual TS. If optimizers
+    consistently fail to find a TS (0 or >1 imaginary frequencies), the starting
+    structure may be too far from the saddle point.
+    """
     from pathlib import Path
 
     from ase.io import read
@@ -82,33 +87,52 @@ def benchmark_ts_optimizer(
 
 def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None:
     """Print a detailed frequency analysis summary for TS optimization."""
-    # Print legend
-
-    # Header
+    print(f"\n{'=' * 120}")
+    print("TRANSITION STATE VALIDATION SUMMARY")
+    print(f"{'=' * 120}")
+    print(
+        "A valid TS must have exactly 1 imaginary frequency (saddle point). "
+        "Optimizers that fail to find a TS are marked as failed."
+    )
 
     # Results
+    print(
+        f"\n{'Backend':<12} {'Optimizer':<15} {'Imag. Freq':<12} {'Status':<15} {'Lowest 3 Freq (cm⁻¹)':<25}"
+    )
+    print("=" * 120)
+
+    failed_optimizers = []
     for results in results_list:
         if results["available"] and "frequency_results" in results:
             freq_results = results["frequency_results"]
             n_imag = freq_results.get("n_imaginary_frequencies", 0)
             is_valid = freq_results.get("is_valid_result", False)
-            freq_results.get("zero_point_energy", 0)
             frequencies = freq_results.get("frequencies", [])
+
+            backend = results.get("backend", "unknown")
+            optimizer = results.get("optimizer", "unknown")
 
             # Format first 3 frequencies
             if len(frequencies) >= 3:
-                f"[{frequencies[0]:.1f}, {frequencies[1]:.1f}, {frequencies[2]:.1f}]"
+                freq_str = f"[{frequencies[0]:.1f}, {frequencies[1]:.1f}, {frequencies[2]:.1f}]"
             else:
-                pass
+                freq_str = "N/A"
 
             # Status indicator
-            if is_valid or n_imag != 1:
-                pass
+            if is_valid:
+                status = "✅ Valid TS"
+            elif n_imag == 0:
+                status = "❌ Minimum (0 imag)"
+                failed_optimizers.append((backend, optimizer, "found minimum, not TS"))
+            elif n_imag > 1:
+                status = f"❌ Not TS ({n_imag} imag)"
+                failed_optimizers.append(
+                    (backend, optimizer, f"found {n_imag} imaginary frequencies, not TS")
+                )
             else:
-                pass
+                status = "❌ Invalid"
 
-        else:
-            pass
+            print(f"{backend:<12} {optimizer:<15} {n_imag:<12} {status:<15} {freq_str:<25}")
 
     # Summary statistics
     available_results = [r for r in results_list if r["available"] and "frequency_results" in r]
@@ -118,24 +142,27 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None
             1 for r in available_results if r["frequency_results"].get("is_valid_result", False)
         )
         total_count = len(available_results)
-        (valid_count / total_count * 100) if total_count > 0 else 0
+        success_rate = (valid_count / total_count * 100) if total_count > 0 else 0
+
+        print(f"\n{'=' * 120}")
+        print(
+            f"SUMMARY: {valid_count}/{total_count} optimizations found valid TS ({success_rate:.1f}% success rate)"
+        )
 
         # TS-specific issues
         ts_results = available_results  # All results are TS results in this benchmark
         if ts_results:
-            ts_valid = sum(
-                1 for r in ts_results if r["frequency_results"].get("is_valid_result", False)
-            )
-            (ts_valid / len(ts_results) * 100) if ts_results else 0
-
-            # TS-specific issues
             ts_with_wrong_freq = sum(
                 1
                 for r in ts_results
                 if r["frequency_results"].get("n_imaginary_frequencies", 0) != 1
             )
             if ts_with_wrong_freq > 0:
-                pass
+                print(
+                    f"\n⚠️  WARNING: {ts_with_wrong_freq} optimizer(s) failed to find transition states:"
+                )
+                for backend, optimizer, reason in failed_optimizers:
+                    print(f"   - {backend}/{optimizer}: {reason}")
 
 
 def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
@@ -148,10 +175,14 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
 
     # Header
     print(
-        f"\n{'Backend':<12} {'Optimizer':<15} {'Status':<8} {'Total Time':<12} {'Opt Steps':<10} "
-        f"{'Time/Step':<12} {'Final Energy':<15} {'Max Force':<12} {'Valid':<8}"
+        f"\n{'Backend':<12} {'Optimizer':<15} {'Status':<10} {'Total Time':<12} {'Opt Steps':<10} "
+        f"{'Time/Step':<12} {'Final Energy':<15} {'Max Force':<12} {'TS Valid':<10}"
     )
     print("=" * 120)
+    print(
+        "Note: Status shows convergence + TS validation. '✅ TS' = converged & valid TS, "
+        "'⚠️ No TS' = converged but not a TS (failed), '❌' = didn't converge"
+    )
 
     # Results
     for results in results_list:
@@ -172,12 +203,25 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
             steps_str = str(steps_taken) if steps_taken is not None else "N/A"
             energy_str = f"{final_energy:.6f}" if final_energy is not None else "N/A"
             force_str = f"{max_force:.6f}" if max_force is not None else "N/A"
+
+            # For TS optimization, status should reflect both convergence AND valid TS
+            # A TS optimizer fails if it doesn't find a saddle point (1 imaginary frequency)
+            n_imag = freq_results.get("n_imaginary_frequencies", 0)
+            if converged and is_valid:
+                status = "✅ TS"  # Converged and valid TS
+            elif converged and not is_valid:
+                status = "⚠️ No TS"  # Converged but not a TS (optimizer failed)
+            else:
+                status = "❌"  # Didn't converge
+
             valid_str = "✅" if is_valid else "❌"
-            status = "✅" if converged else "❌"
+            if not is_valid and n_imag != 1:
+                # Add note about imaginary frequency count
+                valid_str = f"❌ ({n_imag} imag)"
 
             print(
-                f"{backend:<12} {optimizer:<15} {status:<8} {timings.get('total', 0):<12.3f} {steps_str:<10} "
-                f"{time_per_step:<12.6f} {energy_str:<15} {force_str:<12} {valid_str:<8}"
+                f"{backend:<12} {optimizer:<15} {status:<10} {timings.get('total', 0):<12.3f} {steps_str:<10} "
+                f"{time_per_step:<12.6f} {energy_str:<15} {force_str:<12} {valid_str:<10}"
             )
 
         else:

@@ -404,7 +404,7 @@ def compare_methods(
     return results
 
 
-def main():
+def main() -> int:
     """Main function to run comparison."""
     # Create test molecules
     water = Atoms(
@@ -605,6 +605,10 @@ def main():
             f"\nRecommended default: method='{best.split('_sym=')[0]}', symmetrize={best.split('=')[-1]}"
         )
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    sys.exit(main())

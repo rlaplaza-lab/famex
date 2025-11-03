@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
 """Demonstration of enhanced thermochemistry capabilities in QME.
 
-This example shows the new thermochemistry features including:
-- Quasi-harmonic corrections (Grimme and Truhlar methods)
-- Complete statistical thermodynamics (translational, rotational, electronic)
-- Solvation corrections
-- Symmetry handling
+This example shows the new thermochemistry features including quasi-harmonic
+corrections, complete statistical thermodynamics, solvation corrections, and
+symmetry handling.
 
-Based on GoodVibes-inspired thermochemistry implementation.
+Usage:
+    python thermochemistry_demo.py [--backends BACKEND1,BACKEND2,...]
+
+Features:
+    - Quasi-harmonic corrections (Grimme and Truhlar methods)
+    - Complete statistical thermodynamics (translational, rotational, electronic)
+    - Solvation corrections
+    - Symmetry handling
+    - Based on GoodVibes-inspired thermochemistry implementation
 """
 
 import os
 
-import numpy as np
-from ase import Atoms
-
 # Disable ASE GUI to prevent popup windows
 os.environ["DISPLAY"] = ""
 os.environ["MPLBACKEND"] = "Agg"
+
+import numpy as np
+from ase import Atoms
 
 from qme.analysis import (
     QuasiHarmonicHandler,
@@ -69,7 +75,7 @@ def print_thermochemistry_results(results: dict) -> None:
     print("=" * 80 + "\n")
 
 
-def main():
+def main() -> int:
     """Run thermochemistry demonstrations."""
     print("=" * 80)
     print("QME Enhanced Thermochemistry Demo")
@@ -220,6 +226,10 @@ def main():
     print("Demo complete!")
     print("=" * 80)
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    sys.exit(main())

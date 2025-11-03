@@ -3,16 +3,16 @@
 
 This script demonstrates the accuracy improvements achieved by using higher-order
 finite difference schemes and Richardson extrapolation for Hessian calculations.
-It compares:
-1. 3-point central difference (standard, O(h²))
-2. 5-point central difference (O(h⁴))
-3. 7-point central difference (O(h⁶))
-4. 3-point + Richardson extrapolation
-5. 5-point + Richardson extrapolation (O(h⁶) when combined)
-6. 7-point + Richardson extrapolation (O(h⁸) when combined)
-7. Energy-based FD (4N² energy evals)
-8. Adaptive 5-point + Richardson (automatically optimizes step size)
-9. Analytical MACE Hessian (if available)
+
+Usage:
+    python hessian_accuracy_comparison.py
+
+Features:
+    - Compares multiple finite difference schemes (3-point, 5-point, 7-point)
+    - Tests Richardson extrapolation variants
+    - Energy-based finite differences
+    - Adaptive step size selection
+    - Comparison against analytical MACE Hessian (if available)
 
 The comparison uses a harmonic potential where the analytical Hessian is known
 exactly, allowing precise error analysis.
@@ -20,12 +20,12 @@ exactly, allowing precise error analysis.
 
 import os
 
-import numpy as np
-from ase import Atoms
-
 # Disable ASE GUI to prevent popup windows
 os.environ["DISPLAY"] = ""
 os.environ["MPLBACKEND"] = "Agg"
+
+import numpy as np
+from ase import Atoms
 
 from qme.analysis.frequency import HessianCalculator
 from qme.analysis.hessian_energy import EnergyBasedHessianCalculator
@@ -183,7 +183,7 @@ def compare_hessian_methods(atoms: Atoms, delta: float = 0.05) -> None:
     print("The accuracy differences become significant for non-quadratic potentials.")
 
 
-def main():
+def main() -> int:
     """Main function."""
     # Create test molecules
     water = Atoms(
@@ -292,6 +292,10 @@ def main():
         except Exception as e:
             print(f"\n⚠ MACE comparison skipped: {e}")
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    sys.exit(main())
