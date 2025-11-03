@@ -323,7 +323,9 @@ class MACEPotential(BasePotential):
                 raise ImportError(msg)
             raise
 
-    def get_property(self, prop: str, atoms: Atoms | None = None) -> Any:
+    def get_property(
+        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
         """Get a specific property from the calculator.
 
         This method is used by ASE's property system and frequency analysis.
@@ -334,6 +336,8 @@ class MACEPotential(BasePotential):
             Property name ('energy', 'forces', 'hessian', etc.)
         atoms : Atoms, optional
             Atoms object to calculate property for
+        allow_calculation : bool, default=True
+            Whether calculation is allowed (ASE standard parameter, ignored here)
 
         Returns:
         -------
