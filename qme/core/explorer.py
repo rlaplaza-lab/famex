@@ -256,6 +256,7 @@ class Explorer:
         auto_register: bool = True,
         verbose: int = 1,
         profile: bool = False,
+        force_finite_diff_hessian: bool = False,
     ) -> None:
         """Initialize the Explorer with molecular structure and configuration.
 
@@ -295,6 +296,10 @@ class Explorer:
             Verbosity level
         profile : bool, default False
             Whether to enable profiling
+        force_finite_diff_hessian : bool, default False
+            If True, forces use of finite difference hessians for TS optimizers
+            and frequency calculations. When True and target is "ts", automatically
+            sets hessian_method="finite_differences" in ts_kwargs if not already specified.
         """
         if isinstance(atoms, Atoms):
             self.atoms_list: list[Atoms] = [atoms]
@@ -324,6 +329,13 @@ class Explorer:
         self.strategy = (strategy or "").strip().lower()
         self.target = (target or "").strip().lower()
         self.ts_kwargs = ts_kwargs or {}
+
+        # If force_finite_diff_hessian is True and target is "ts", set hessian_method
+        # in ts_kwargs if not already specified
+        self.force_finite_diff_hessian = force_finite_diff_hessian
+        if self.force_finite_diff_hessian and self.target == "ts":
+            if "hessian_method" not in self.ts_kwargs:
+                self.ts_kwargs["hessian_method"] = "finite_differences"
 
         self.constraints_spec = constraints
         self.initial_hessian = initial_hessian
@@ -1093,6 +1105,9 @@ class Explorer:
             delta=delta,
             indices=indices,
         )
+        # Override method if force_finite_diff_hessian is True
+        if self.force_finite_diff_hessian and method == "auto":
+            method = "finite_differences"
         hessian = freq_analysis.calculate_hessian(method=method)
         frequencies, _normal_modes = freq_analysis.diagonalize_hessian()
         vib_frequencies = freq_analysis.get_frequencies()

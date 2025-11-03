@@ -104,6 +104,13 @@ def _common_explorer_options(f: Any) -> Any:
             show_default=True,
             help="Temperature in Kelvin for thermodynamic calculations",
         ),
+        click.option(
+            "--force-finite-diff-hessian",
+            "force_finite_diff_hessian",
+            is_flag=True,
+            default=False,
+            help="Force use of finite difference hessians for TS optimizers and frequency calculations",
+        ),
     ]
     for opt in reversed(opts):
         f = opt(f)
@@ -179,6 +186,7 @@ def minima(
     dry_run: bool,
     calculate_frequencies: bool,
     temperature: float,
+    force_finite_diff_hessian: bool,
 ) -> None:
     """Minima optimization using various strategies."""
     # Validate strategy-specific requirements
@@ -227,6 +235,7 @@ def minima(
             ts_kwargs=ts_kwargs,
             constraints=constraints,
             verbose=verbosity,
+            force_finite_diff_hessian=force_finite_diff_hessian,
         )
 
         if dry_run:
@@ -357,6 +366,7 @@ def ts(
     dry_run: bool,
     calculate_frequencies: bool,
     temperature: float,
+    force_finite_diff_hessian: bool,
 ) -> None:
     """Transition state optimization using various strategies."""
     # Validate strategy-specific requirements
@@ -405,6 +415,7 @@ def ts(
             ts_kwargs=ts_kwargs,
             constraints=constraints,
             verbose=verbosity,
+            force_finite_diff_hessian=force_finite_diff_hessian,
         )
 
         if dry_run:
@@ -552,6 +563,7 @@ def path(
     dry_run: bool,
     calculate_frequencies: bool,
     temperature: float,
+    force_finite_diff_hessian: bool,
 ) -> None:
     """Reaction path optimization using various strategies.
 
@@ -610,6 +622,7 @@ def path(
             ts_kwargs=ts_kwargs,
             constraints=constraints,
             verbose=verbosity,
+            force_finite_diff_hessian=force_finite_diff_hessian,
         )
 
         if dry_run:
