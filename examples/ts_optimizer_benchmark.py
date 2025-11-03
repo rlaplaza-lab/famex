@@ -115,13 +115,27 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None
             n_imag = freq_results.get("n_imaginary_frequencies", 0)
             is_valid = freq_results.get("is_valid_result", False)
             frequencies = freq_results.get("frequencies", [])
+            method_used = freq_results.get("method_used", "unknown")
 
             backend = results.get("backend", "unknown")
             optimizer = results.get("optimizer", "unknown")
 
             # Format first 3 frequencies
+            # Try to get frequencies from ts_analysis if main frequencies list is empty
+            if not frequencies and freq_results.get("ts_analysis", {}):
+                ts_analysis = freq_results.get("ts_analysis", {})
+                all_freqs = ts_analysis.get("all_frequencies", [])
+                if all_freqs and len(all_freqs) >= 3:
+                    frequencies = all_freqs[:3]
+                elif all_freqs:
+                    frequencies = all_freqs
+
             if len(frequencies) >= 3:
                 freq_str = f"[{frequencies[0]:.1f}, {frequencies[1]:.1f}, {frequencies[2]:.1f}]"
+            elif len(frequencies) > 0:
+                freq_str = f"[{', '.join(f'{f:.1f}' for f in frequencies)}]"
+            elif method_used == "not_calculated":
+                freq_str = "Failed"
             else:
                 freq_str = "N/A"
 
