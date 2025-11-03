@@ -68,10 +68,16 @@ def benchmark_ts_optimizer(
     device: str | None = None,
     model_name: str | None = None,
     verbose: bool = True,
+    calculate_frequencies: bool = True,
 ) -> dict[str, Any]:
     """Benchmark a single backend with a specific optimizer for transition state optimization.
 
     Suitable optimizers: Sella, Trust-Krylov-TS, RFO
+
+    Parameters
+    ----------
+    calculate_frequencies : bool
+        Whether to perform frequency analysis to validate TS (default: True)
     """
     return benchmark_optimization(
         backend=backend,
@@ -82,6 +88,7 @@ def benchmark_ts_optimizer(
         test_ts=True,
         create_structure_func=create_ts_structure,
         suitable_optimizers=["sella", "trust-krylov-ts", "rfo"],
+        calculate_frequencies=calculate_frequencies,
     )
 
 
@@ -377,6 +384,18 @@ def main() -> int:
         type=str,
         help="Comma-separated list of optimizers to benchmark (default: sella,trust-krylov-ts,rfo - all tested on equal footing)",
     )
+    parser.add_argument(
+        "--freq",
+        action="store_true",
+        default=True,
+        help="Perform frequency analysis to validate TS (default: True). Use --no-freq to disable.",
+    )
+    parser.add_argument(
+        "--no-freq",
+        dest="freq",
+        action="store_false",
+        help="Skip frequency analysis (faster but no TS validation)",
+    )
 
     args = parser.parse_args()
 
@@ -440,6 +459,7 @@ def main() -> int:
                     optimizer=optimizer,
                     device=device,
                     verbose=args.verbose,
+                    calculate_frequencies=args.freq,
                 )
                 results_list.append(results)
             except KeyboardInterrupt:

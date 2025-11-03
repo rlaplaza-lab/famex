@@ -230,6 +230,7 @@ def benchmark_optimization(
     test_ts: bool = False,
     create_structure_func: Callable[[], Any] | None = None,
     suitable_optimizers: list[str] | None = None,
+    calculate_frequencies: bool = True,
 ) -> dict[str, Any]:
     """Common benchmark function for optimization and frequency analysis.
 
@@ -253,6 +254,9 @@ def benchmark_optimization(
         Function to create the initial structure
     suitable_optimizers : List[str]
         List of optimizers suitable for this task
+    calculate_frequencies : bool
+        Whether to perform frequency analysis (default: True).
+        Frequency analysis is recommended for TS validation.
 
     Returns:
     -------
@@ -459,78 +463,106 @@ def benchmark_optimization(
         if verbose and avg_time_per_step is not None:
             pass
 
-        # Frequency analysis (mandatory)
+        # Frequency analysis (optional, controlled by calculate_frequencies flag)
         freq_start = time.perf_counter()
+        freq_results = {}
 
-        # Use the explorer's calculate_frequencies method directly
-        # This method handles the calculator attachment automatically
-        # Ensure optimized_atoms is the right type for calculate_frequencies
-        atoms_for_freq = (
-            optimized_atoms
-            if isinstance(optimized_atoms, type(None) | type(explorer.atoms_list[0]))
-            else None
-        )
-        freq_results = explorer.calculate_frequencies(
-            atoms=atoms_for_freq,  # Use optimized atoms if available
-            delta=0.01,
-            method="auto",
-            temperature=298.15,
-            save_hessian=False,  # Don't save large Hessian matrix
-        )
+        if calculate_frequencies:
+            # Use the explorer's calculate_frequencies method directly
+            # This method handles the calculator attachment automatically
+            # Ensure optimized_atoms is the right type for calculate_frequencies
+            atoms_for_freq = (
+                optimized_atoms
+                if isinstance(optimized_atoms, type(None) | type(explorer.atoms_list[0]))
+                else None
+            )
+            try:
+                freq_results = explorer.calculate_frequencies(
+                    atoms=atoms_for_freq,  # Use optimized atoms if available
+                    delta=0.01,
+                    method="auto",
+                    temperature=298.15,
+                    save_hessian=False,  # Don't save large Hessian matrix
+                )
+            except Exception as e:
+                if verbose >= 1:
+                    logger.warning(f"Frequency analysis failed: {e}")
+                freq_results = {}
 
         freq_time = time.perf_counter() - freq_start
-        results["timings"]["frequency_analysis"] = freq_time
+        results["timings"]["frequency_analysis"] = freq_time if calculate_frequencies else 0.0
 
         # Enhanced validation based on task type using proper frequency analysis
-        frequencies = freq_results.get("frequencies", [])
+        frequencies = freq_results.get("frequencies", []) if freq_results else []
         if not isinstance(frequencies, list | np.ndarray):
             frequencies = []
 
         if test_ts:
             # TS optimization validation
-            is_ts = freq_results.get("is_ts", False)
-            ts_analysis = freq_results.get("ts_analysis", {})
-            n_imaginary = (
-                ts_analysis.get("n_imaginary_frequencies", 0)
-                if isinstance(ts_analysis, dict)
-                else 0
-            )
-            is_valid_result = is_ts and (n_imaginary == 1)
+            if calculate_frequencies and freq_results:
+                is_ts = freq_results.get("is_ts", False)
+                ts_analysis = freq_results.get("ts_analysis", {})
+                n_imaginary = (
+                    ts_analysis.get("n_imaginary_frequencies", 0)
+                    if isinstance(ts_analysis, dict)
+                    else 0
+                )
+                is_valid_result = is_ts and (n_imaginary == 1)
+            else:
+                # No frequency analysis - can't validate TS
+                is_ts = False
+                ts_analysis = {}
+                n_imaginary = 0
+                is_valid_result = False
+
             result_type = "TS"
 
-            if not is_valid_result and verbose:
+            if not is_valid_result and verbose and calculate_frequencies:
                 if n_imaginary == 0 or n_imaginary > 1:
                     pass
 
             results["frequency_results"] = {
                 "n_frequencies": len(frequencies) if isinstance(frequencies, Sized) else 0,
                 "frequencies": frequencies[:10] if isinstance(frequencies, Sequence) else [],
-                "zero_point_energy": freq_results.get("zero_point_energy", 0.0),
+                "zero_point_energy": freq_results.get("zero_point_energy", 0.0)
+                if freq_results
+                else 0.0,
                 "is_transition_state": is_ts,
                 "is_valid_result": is_valid_result,
                 "n_imaginary_frequencies": n_imaginary,
-                "method_used": freq_results.get("method_used", "unknown"),
+                "method_used": freq_results.get("method_used", "unknown")
+                if freq_results
+                else "not_calculated",
                 "result_type": result_type,
                 "ts_analysis": ts_analysis,
             }
         else:
             # Minima optimization validation
-            is_minimum = freq_results.get("is_minimum", False)
-            minima_analysis = freq_results.get("minima_analysis", {})
-            n_significant_imaginary = (
-                minima_analysis.get("n_significant_imaginary_frequencies", 0)
-                if isinstance(minima_analysis, dict)
-                else 0
-            )
-            n_small_negative = (
-                minima_analysis.get("n_small_negative_frequencies", 0)
-                if isinstance(minima_analysis, dict)
-                else 0
-            )
-            is_valid_result = is_minimum
+            if calculate_frequencies and freq_results:
+                is_minimum = freq_results.get("is_minimum", False)
+                minima_analysis = freq_results.get("minima_analysis", {})
+                n_significant_imaginary = (
+                    minima_analysis.get("n_significant_imaginary_frequencies", 0)
+                    if isinstance(minima_analysis, dict)
+                    else 0
+                )
+                n_small_negative = (
+                    minima_analysis.get("n_small_negative_frequencies", 0)
+                    if isinstance(minima_analysis, dict)
+                    else 0
+                )
+                is_valid_result = is_minimum
+            else:
+                # No frequency analysis - can't validate
+                is_minimum = False
+                minima_analysis = {}
+                n_significant_imaginary = 0
+                n_small_negative = 0
+                is_valid_result = False
+
             result_type = "minima"
 
-            if not is_valid_result and verbose:
+            if not is_valid_result and verbose and calculate_frequencies:
                 if n_significant_imaginary > 0:
                     pass
                 if n_small_negative > 0:
@@ -539,17 +571,21 @@ def benchmark_optimization(
             results["frequency_results"] = {
                 "n_frequencies": len(frequencies) if isinstance(frequencies, Sized) else 0,
                 "frequencies": frequencies[:10] if isinstance(frequencies, Sequence) else [],
-                "zero_point_energy": freq_results.get("zero_point_energy", 0.0),
+                "zero_point_energy": freq_results.get("zero_point_energy", 0.0)
+                if freq_results
+                else 0.0,
                 "is_minimum": is_minimum,
                 "is_valid_result": is_valid_result,
                 "n_significant_imaginary_frequencies": n_significant_imaginary,
                 "n_small_negative_frequencies": n_small_negative,
-                "method_used": freq_results.get("method_used", "unknown"),
+                "method_used": freq_results.get("method_used", "unknown")
+                if freq_results
+                else "not_calculated",
                 "result_type": result_type,
                 "minima_analysis": minima_analysis,
             }
 
-            if verbose and n_small_negative > 0:
+            if verbose and n_small_negative > 0 and calculate_frequencies:
                 pass
 
         # Calculate total time (excluding None values)
