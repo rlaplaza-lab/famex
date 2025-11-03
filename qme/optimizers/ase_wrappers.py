@@ -232,10 +232,20 @@ class VerboseOptimizerWrapper(Optimizer):
                 logger.info("Optimization converged!")
             else:
                 actual_steps = self.wrapped_optimizer.get_number_of_steps()
+                # Get the actual stop reason from wrapped optimizer if available
+                scipy_reason = ""
+                if (
+                    hasattr(self.wrapped_optimizer, "_scipy_result")
+                    and self.wrapped_optimizer._scipy_result
+                ):
+                    scipy_reason = str(getattr(self.wrapped_optimizer._scipy_result, "message", ""))
+
                 logger.warning(
-                    f"Optimization stopped after {actual_steps} steps without converging "
-                    f"(max optimization steps: {steps})"
+                    f"Optimization stopped after {actual_steps} steps without converging"
                 )
+                if scipy_reason and "Maximum number of iterations" not in scipy_reason:
+                    logger.warning(f"  SciPy reason: {scipy_reason}")
+                logger.warning(f"  (Max outer iterations limit: {steps})")
                 forces = self.atoms.get_forces()
                 logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
 

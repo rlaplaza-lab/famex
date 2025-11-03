@@ -68,7 +68,7 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-addopts = "-v --tb=short --cov=qme --cov-report=term-missing --cov-report=html --cov-report=xml"
+addopts = "-v --tb=short"
 
 [tool.coverage.run]
 source = ["qme"]

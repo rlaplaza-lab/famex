@@ -161,6 +161,20 @@ class LocalTSStrategy(BaseStrategy):
                 opt_kwargs.setdefault("trust_radius", 0.02)  # Double the default
                 opt_kwargs.setdefault("max_trust_radius", 0.06)  # Double the default
 
+            # Force finite difference hessian if flag is set
+            if getattr(self.explorer, "force_finite_diff_hessian", False):
+                if normalized_name in {
+                    "trust-krylov-ts",
+                    "trustkrylovts",
+                    "trust_krylov_ts",
+                    "trust-krylov-transition",
+                    "rfo",
+                    "rfo-ts",
+                    "rational-function",
+                    "rational_function",
+                }:
+                    opt_kwargs["hessian_method"] = "finite_differences"
+
             opt = opt_class(atoms_copy, **opt_kwargs)
 
             # Profile optimization execution
@@ -207,12 +221,19 @@ class LocalTSStrategy(BaseStrategy):
                 else nullcontext()
             ):
                 temperature = kwargs.get("temperature", 298.15)
+                # Pass method="finite_differences" if force_finite_diff_hessian is True
+                freq_method = None
+                if getattr(self.explorer, "force_finite_diff_hessian", False):
+                    freq_method = "finite_differences"
                 for atoms_copy in results:
-                    freq_result = self.explorer.calculate_frequencies(
-                        atoms=atoms_copy,
-                        temperature=temperature,
-                        save_hessian=False,  # Don't save large Hessian matrix by default
-                    )
+                    freq_kwargs = {
+                        "atoms": atoms_copy,
+                        "temperature": temperature,
+                        "save_hessian": False,  # Don't save large Hessian matrix by default
+                    }
+                    if freq_method is not None:
+                        freq_kwargs["method"] = freq_method
+                    freq_result = self.explorer.calculate_frequencies(**freq_kwargs)
                     frequency_results.append(freq_result)
         else:
             frequency_results = [None] * len(results)
