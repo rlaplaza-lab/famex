@@ -535,7 +535,11 @@ class SciPyHessianOptimizer(Optimizer):
             if self.verbose >= 1:
                 logger.info("Optimization converged!")
         elif self.verbose >= 1:
-            logger.warning(f"Optimization stopped after {steps} steps without converging")
+            actual_steps = self.nsteps - 1  # Subtract initial step count
+            logger.warning(
+                f"Optimization stopped after {actual_steps} steps without converging "
+                f"(max allowed: {steps})"
+            )
             logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
 
         return converged
@@ -1574,7 +1578,11 @@ class TrustKrylovTS(TrustKrylov):
             if self.verbose >= 1:
                 logger.info("Optimization converged!")
         elif self.verbose >= 1:
-            logger.warning(f"Optimization stopped after {steps} steps without converging")
+            actual_steps = self.nsteps - 1  # Subtract initial step count
+            logger.warning(
+                f"Optimization stopped after {actual_steps} steps without converging "
+                f"(max allowed: {steps})"
+            )
             logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
 
         return converged
