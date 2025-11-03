@@ -535,10 +535,19 @@ class SciPyHessianOptimizer(Optimizer):
             if self.verbose >= 1:
                 logger.info("Optimization converged!")
         elif self.verbose >= 1:
-            actual_steps = self.nsteps - 1  # Subtract initial step count
+            # Get actual iteration count from SciPy result (outer iterations)
+            scipy_iterations = (
+                self._scipy_result.nit if self._scipy_result is not None else self.nsteps - 1
+            )
+            # self.nsteps tracks callback calls (outer iterations/trust-region steps)
+            callback_steps = self.nsteps - 1  # Subtract initial step count
+
+            # Use SciPy's iteration count if available (more accurate)
+            actual_steps = scipy_iterations if self._scipy_result is not None else callback_steps
+
             logger.warning(
-                f"Optimization stopped after {actual_steps} steps without converging "
-                f"(max optimization steps: {steps})"
+                f"Optimization stopped after {actual_steps} trust-region steps without converging "
+                f"(max outer iterations: {steps})"
             )
             logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
 
@@ -1580,8 +1589,8 @@ class TrustKrylovTS(TrustKrylov):
         elif self.verbose >= 1:
             actual_steps = self.nsteps - 1  # Subtract initial step count
             logger.warning(
-                f"Optimization stopped after {actual_steps} steps without converging "
-                f"(max optimization steps: {steps})"
+                f"Optimization stopped after {actual_steps} trust-region steps without converging "
+                f"(max outer iterations: {steps})"
             )
             logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
 
