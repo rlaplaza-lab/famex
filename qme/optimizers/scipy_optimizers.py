@@ -538,7 +538,7 @@ class SciPyHessianOptimizer(Optimizer):
             actual_steps = self.nsteps - 1  # Subtract initial step count
             logger.warning(
                 f"Optimization stopped after {actual_steps} steps without converging "
-                f"(max allowed: {steps})"
+                f"(max optimization steps: {steps})"
             )
             logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
 
@@ -1581,7 +1581,7 @@ class TrustKrylovTS(TrustKrylov):
             actual_steps = self.nsteps - 1  # Subtract initial step count
             logger.warning(
                 f"Optimization stopped after {actual_steps} steps without converging "
-                f"(max allowed: {steps})"
+                f"(max optimization steps: {steps})"
             )
             logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
 
