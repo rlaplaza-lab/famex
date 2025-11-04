@@ -59,7 +59,7 @@ def create_ts_structure() -> Atoms:
     # Use the actual TS structure from example files
     # Get the directory where this script is located
     script_dir = Path(__file__).parent
-    return read(script_dir / "example_files" / "A_C_A_B_A_C_ts.xyz")
+    return read(script_dir / "example_files" / "reaction_001_ts.xyz")
 
 
 def benchmark_ts_optimizer(
@@ -69,6 +69,8 @@ def benchmark_ts_optimizer(
     model_name: str | None = None,
     verbose: bool = True,
     calculate_frequencies: bool = True,
+    hessian_update_freq: int | None = None,
+    force_finite_diff_hessian: bool = False,
 ) -> dict[str, Any]:
     """Benchmark a single backend with a specific optimizer for transition state optimization.
 
@@ -78,7 +80,20 @@ def benchmark_ts_optimizer(
     ----------
     calculate_frequencies : bool
         Whether to perform frequency analysis to validate TS (default: True)
+    hessian_update_freq : int | None
+        Hessian update frequency for Hessian-based optimizers (None = use default)
+    force_finite_diff_hessian : bool
+        Force use of finite difference Hessians instead of analytical
     """
+    # Prepare ts_kwargs if hessian_update_freq is specified for Hessian-based optimizers
+    ts_kwargs = None
+    if hessian_update_freq is not None and optimizer in ["trust-krylov-ts", "rfo"]:
+        ts_kwargs = {"hessian_update_freq": hessian_update_freq}
+    if force_finite_diff_hessian:
+        if ts_kwargs is None:
+            ts_kwargs = {}
+        ts_kwargs["hessian_method"] = "finite_differences"
+
     return benchmark_optimization(
         backend=backend,
         optimizer=optimizer,
@@ -89,6 +104,8 @@ def benchmark_ts_optimizer(
         create_structure_func=create_ts_structure,
         suitable_optimizers=["sella", "trust-krylov-ts", "rfo"],
         calculate_frequencies=calculate_frequencies,
+        ts_kwargs=ts_kwargs,
+        force_finite_diff_hessian=force_finite_diff_hessian,
     )
 
 
@@ -410,6 +427,17 @@ def main() -> int:
         action="store_false",
         help="Skip frequency analysis (faster but no TS validation)",
     )
+    parser.add_argument(
+        "--hessian-update-freq",
+        type=int,
+        default=5,
+        help="Hessian update frequency for Hessian-based optimizers (default: 5)",
+    )
+    parser.add_argument(
+        "--force-finite-diff-hessian",
+        action="store_true",
+        help="Force use of finite difference Hessians instead of analytical",
+    )
 
     args = parser.parse_args()
 
@@ -474,6 +502,8 @@ def main() -> int:
                     device=device,
                     verbose=args.verbose,
                     calculate_frequencies=args.freq,
+                    hessian_update_freq=args.hessian_update_freq,
+                    force_finite_diff_hessian=args.force_finite_diff_hessian,
                 )
                 results_list.append(results)
             except KeyboardInterrupt:

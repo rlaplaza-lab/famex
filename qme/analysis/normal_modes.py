@@ -56,10 +56,13 @@ def diagonalize_mass_weighted_hessian(
     # ASE conversion factor: h*nu (eV) from omega^2 (in mass-weighted units)
     # s = ħ * 1e10 / sqrt(e * amu)
     s = units._hbar * 1e10 / np.sqrt(units._e * units._amu)
-    hnu = s * np.sqrt(omega2.astype(complex))  # eV
-    frequencies = (hnu / units.invcm).real  # cm^-1
+    hnu = s * np.sqrt(omega2.astype(complex))  # eV (complex for negative omega2)
 
-    # Keep sign for imaginary modes
+    # Convert to frequencies: use absolute value to get magnitude
+    # For negative omega2, sqrt gives imaginary numbers - we want the magnitude
+    frequencies = np.abs(hnu / units.invcm)  # cm^-1 (magnitude)
+
+    # Mark imaginary frequencies as negative (omega2 < 0 means saddle point)
     frequencies[omega2 < 0] *= -1
 
     # Convert eigenvectors back to Cartesian coordinates

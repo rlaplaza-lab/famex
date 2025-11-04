@@ -16,6 +16,81 @@ from qme.utils.logging import get_qme_logger
 logger = get_qme_logger(__name__)
 
 
+class LoggingFile:
+    """File-like object that routes output to QME logger.
+
+    This allows ASE optimizer output to be captured and routed through
+    the QME logging system, respecting verbosity levels.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the logging file.
+
+        The logger level is determined by the QME logging system's
+        verbosity configuration, so this will automatically respect
+        the current verbosity level.
+        """
+        import logging
+        import sys
+
+        self.log_level = logging.INFO  # Use INFO level for optimizer steps
+        self.buffer = ""
+        # Check current logger level - if it's WARNING or above, suppress output
+        self.should_output = logger.getEffectiveLevel() <= logging.INFO
+        self.stdout = sys.stdout
+
+    def write(self, text: str) -> int:
+        """Write text to stdout, but only if verbosity allows it.
+
+        Parameters
+        ----------
+        text : str
+            Text to write
+
+        Returns:
+        -------
+        int
+            Number of characters written
+        """
+        if not text:
+            return 0
+
+        # If verbosity is 0 (logger level is WARNING), suppress output
+        if not self.should_output:
+            return len(text)  # Consume the text but don't output it
+
+        # At verbosity 1+, write directly to stdout (clean output, no logger prefix)
+        # Accumulate in buffer until we have a complete line
+        self.buffer += text
+
+        # Process complete lines
+        while "\n" in self.buffer:
+            line, self.buffer = self.buffer.split("\n", 1)
+            if line.strip():  # Only output non-empty lines
+                self.stdout.write(line.strip() + "\n")
+
+        return len(text)
+
+    def flush(self) -> None:
+        """Flush any remaining buffer content."""
+        if self.should_output and self.buffer.strip():
+            self.stdout.write(self.buffer.strip() + "\n")
+            self.buffer = ""
+            self.stdout.flush()
+
+    def close(self) -> None:
+        """Close the file (flush remaining content)."""
+        self.flush()
+
+    def __enter__(self) -> "LoggingFile":
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Context manager exit."""
+        self.close()
+
+
 class ProfilerCalculatorWrapper(Calculator):
     """Wrapper for ASE calculators that tracks energy and force calls for profiling."""
 
@@ -167,17 +242,25 @@ class VerboseOptimizerWrapper(Optimizer):
         # Store verbosity level and profiler
         self.verbose = verbose
         self.profiler = profiler
+        self._logging_file = None  # Store reference to logging file for cleanup
 
         # Set up logging based on verbosity
+        # Route ASE optimizer output through our logging system
         if verbose == 0:
             # Quiet mode: suppress ASE logging by using None logfile
             logfile = None
-        elif verbose == 1:
-            # Normal mode: use provided logfile or default
-            pass
-        else:
-            # Verbose mode: use provided logfile or default
-            pass
+        elif verbose >= 1:
+            # Normal/verbose mode: route through logging system
+            # Create a logging file wrapper - it will use INFO level,
+            # which respects the logger's verbosity configuration
+            # (At verbosity 0, logger level is WARNING, so INFO won't print)
+            logging_file = LoggingFile()
+            self._logging_file = logging_file  # Store for cleanup
+            # If user provided a specific logfile, use it; otherwise use our logger
+            if logfile is None or logfile == "-":
+                logfile = logging_file
+            # If user provided a file path or file object, keep it as-is
+            # (but we could also wrap it to add logging - maybe in future)
 
         # Initialize the wrapped optimizer
         self.wrapped_optimizer = wrapped_optimizer_class(
@@ -218,6 +301,8 @@ class VerboseOptimizerWrapper(Optimizer):
 
     def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:  # type: ignore[override]
         """Run the optimization with verbosity control."""
+        from contextlib import redirect_stdout
+
         if self.verbose >= 2:
             optimizer_name = self.wrapped_optimizer.__class__.__name__
             logger.info(f"Starting {optimizer_name} optimization")
@@ -225,7 +310,14 @@ class VerboseOptimizerWrapper(Optimizer):
             logger.info(f"Maximum steps: {steps}")
 
         # Run the wrapped optimizer
-        result = self.wrapped_optimizer.run(fmax=fmax, steps=steps)
+        # If we're using LoggingFile, redirect stdout to it to capture print() statements
+        # This prevents duplicate output from ASE optimizers
+        if self._logging_file is not None:
+            with redirect_stdout(self._logging_file):
+                result = self.wrapped_optimizer.run(fmax=fmax, steps=steps)
+            self._logging_file.flush()
+        else:
+            result = self.wrapped_optimizer.run(fmax=fmax, steps=steps)
 
         if self.verbose >= 1:
             if result:
