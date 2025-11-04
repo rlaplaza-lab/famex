@@ -132,6 +132,8 @@ class LocalTSStrategy(BaseStrategy):
                 # Sella-specific kwargs for TS search
                 opt_kwargs.setdefault("internal", True)
                 opt_kwargs.setdefault("order", 1)
+                # Remove hessian_method if present (Sella doesn't accept it)
+                opt_kwargs.pop("hessian_method", None)
                 # Check if Hessian is provided in explorer
                 if (
                     hasattr(self.explorer, "initial_hessian")

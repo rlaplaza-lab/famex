@@ -136,6 +136,7 @@ def print_model_info(
     model_name: str | None = None,
     model_path: str | None = None,
     device: str | None = None,
+    verbose: int = 1,
 ) -> None:
     """Print clean model information for the user.
 
@@ -149,8 +150,14 @@ def print_model_info(
         Path to model file (for local models)
     device : str, optional
         Device being used (cpu/cuda)
+    verbose : int, default=1
+        Verbosity level. Only prints if verbose >= 1.
 
     """
+    # Only print at verbosity >= 1
+    if verbose == 0:
+        return
+
     import click
 
     click.echo(f"\n🔧 Initializing {backend.upper()} Backend")

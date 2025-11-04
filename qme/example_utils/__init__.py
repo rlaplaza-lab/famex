@@ -231,6 +231,8 @@ def benchmark_optimization(
     create_structure_func: Callable[[], Any] | None = None,
     suitable_optimizers: list[str] | None = None,
     calculate_frequencies: bool = True,
+    ts_kwargs: dict[str, Any] | None = None,
+    force_finite_diff_hessian: bool = False,
 ) -> dict[str, Any]:
     """Common benchmark function for optimization and frequency analysis.
 
@@ -257,6 +259,12 @@ def benchmark_optimization(
     calculate_frequencies : bool
         Whether to perform frequency analysis (default: True).
         Frequency analysis is recommended for TS validation.
+    ts_kwargs : dict[str, Any] | None
+        Optional keyword arguments to pass to TS optimizers via Explorer's ts_kwargs.
+        For example: {"hessian_update_freq": 5} to set Hessian update frequency.
+    force_finite_diff_hessian : bool
+        If True, forces use of finite difference Hessians for TS optimizers and frequency
+        calculations instead of analytical Hessians (default: False).
 
     Returns:
     -------
@@ -324,6 +332,46 @@ def benchmark_optimization(
             return results
         structure = create_structure_func()
 
+        # For TS optimization, compute initial Hessian to help optimizers
+        # This ensures the optimizers have proper curvature information from the start
+        initial_hessian = None
+        if test_ts:
+            try:
+                from qme.analysis.frequency import FrequencyAnalysis
+
+                # Attach calculator temporarily to compute initial Hessian
+                from qme.backends.registry import create_calculator
+
+                # Extract charge/spin from structure if available
+                charge = getattr(structure, "charge", None)
+                if charge is None and hasattr(structure, "info") and "charge" in structure.info:
+                    charge = structure.info["charge"]
+                charge = charge if charge is not None else 0
+
+                spin = getattr(structure, "spin", None)
+                if spin is None and hasattr(structure, "info") and "spin" in structure.info:
+                    spin = structure.info["spin"]
+                spin = spin if spin is not None else 1
+
+                temp_calc = create_calculator(
+                    backend=backend,
+                    model_name=model_name,
+                    device=device,
+                    charge=charge,
+                    spin=spin,
+                )
+                structure.calc = temp_calc
+
+                freq_analysis = FrequencyAnalysis(atoms=structure, calculator=temp_calc, verbose=0)
+                hessian_method = "finite_differences" if force_finite_diff_hessian else "auto"
+                initial_hessian = freq_analysis.calculate_hessian(method=hessian_method)
+                structure.calc = None  # Detach calculator - Explorer will reattach
+            except Exception as e:
+                if verbose >= 1:
+                    logger.warning(
+                        f"Failed to compute initial Hessian: {e}. Continuing without it."
+                    )
+
         # Initialize QME optimizer
         init_start = time.perf_counter()
 
@@ -338,6 +386,10 @@ def benchmark_optimization(
             target="ts" if test_ts else "minima",
             strategy="local",
             profile=True,  # Enable profiling for benchmark mode
+            verbose=verbose,
+            ts_kwargs=ts_kwargs if test_ts else None,
+            force_finite_diff_hessian=force_finite_diff_hessian if test_ts else False,
+            initial_hessian=initial_hessian,
         )
 
         init_time = time.perf_counter() - init_start
@@ -388,7 +440,7 @@ def benchmark_optimization(
             if test_ts:
                 run_results = explorer.run(
                     fmax=0.005,  # Stricter criteria for TS
-                    steps=1000,
+                    steps=100,  # Reasonable limit for TS benchmarking
                 )
             else:
                 run_results = explorer.run(

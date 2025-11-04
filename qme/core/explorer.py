@@ -489,7 +489,9 @@ class Explorer:
 
             # Get the effective model name that will actually be used
             effective_model_name = self._get_effective_model_name()
-            print_model_info(self.backend, effective_model_name, self.model_path, self.device)
+            print_model_info(
+                self.backend, effective_model_name, self.model_path, self.device, verbose=self.verbose
+            )
             self._calculator_created = True
 
         calc = create_calculator(
