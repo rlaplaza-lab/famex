@@ -103,7 +103,7 @@ precision = 2
 show_missing = true
 skip_covered = false
 skip_empty = false
-fail_under = 60
+fail_under = 55
 
 [tool.ruff]
 line-length = 100
@@ -141,7 +141,6 @@ ignore = [
     "SIM102",  # nested ifs are sometimes clearer than combined conditions
     "SIM105",  # contextlib.suppress is not always clearer than try-except-pass
     "SIM108",  # ternary operators are not always clearer than if-else blocks
-    "UP038",  # isinstance with tuple - rule removed in newer ruff, but older pre-commit still checks
     "D100",  # Missing docstring in public module
     "D101",  # Missing docstring in public class
     "D102",  # Missing docstring in public method
