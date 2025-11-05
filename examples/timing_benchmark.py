@@ -1,41 +1,19 @@
 #!/usr/bin/env python3
-"""QME Timing Benchmark - ML Backend Performance Analysis.
+"""QME Timing Benchmark - ML Backend Performance Analysis."""
 
-This benchmark evaluates the performance of different QME ML backends for simple
-geometry optimization and frequency analysis using example structures. All
-backends use the same default optimizer (BFGS) to ensure fair comparison of
-backend performance rather than optimizer differences.
-
-Usage:
-    python timing_benchmark.py [--backends BACKEND1,BACKEND2,...]
-    python timing_benchmark.py [--device DEVICE]
-
-Features:
-    - Simple geometry optimization + frequency analysis
-    - All backends use same default optimizer (BFGS)
-    - Individual energy and force calculation benchmarks
-    - Detailed timing breakdown and performance comparison
-    - ML backend performance comparison (not optimizer comparison)
-"""
-
-import json
 import sys
 import time
 import warnings
-from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 from ase import Atoms
 
 # Use consolidated backend availability from qme.backend_availability
-
 # Import QME components
-try:
-    from qme.backends.registry import calculator_registry
-    from qme.core.explorer import Explorer
-except ImportError:
-    sys.exit(1)
+from qme.backends.registry import calculator_registry
+from qme.core.explorer import Explorer
 
 # Import common interface
 from qme.example_utils import QMEExampleInterface, create_standard_epilog
@@ -60,7 +38,7 @@ def create_benchmark_molecule() -> Atoms:
     return read(os.path.join(script_dir, "example_files", "A_C_A_B_A_C_reactant.xyz"))
 
 
-def time_function(func, *args, **kwargs):
+def time_function(func: Callable[..., Any], *args: Any, **kwargs: Any) -> tuple[Any, float]:
     """Time a function call and return result and timing."""
     start_time = time.perf_counter()
     result = func(*args, **kwargs)
@@ -74,25 +52,7 @@ def benchmark_backend(
     model_name: str | None = None,
     verbose: bool = True,
 ) -> dict[str, Any]:
-    """Benchmark a single backend for optimization and frequency analysis.
-
-    Parameters
-    ----------
-    backend : str
-        Backend name (e.g., 'mock', 'aimnet2', 'uma', 'so3lr', 'mace', 'orb')
-    device : str, optional
-        Device to use ('cpu' or 'cuda'). Auto-detected if None.
-    model_name : str, optional
-        Specific model name to use
-    verbose : bool
-        Whether to print progress information
-
-    Returns:
-    -------
-    Dict[str, Any]
-        Benchmark results including timings for each step
-
-    """
+    """Benchmark a single backend for optimization and frequency analysis."""
     # Auto-detect optimal device
     device = get_optimal_device(device)
 
@@ -114,22 +74,14 @@ def benchmark_backend(
         # Check if backend is available
         if not calculator_registry.is_backend_available(backend):
             results["error"] = f"Backend {backend} not available (dependencies missing)"
-            if verbose:
-                pass
             return results
 
         results["available"] = True
-        if verbose:
-            pass
 
         # Create benchmark molecule
-        if verbose:
-            pass
         molecule = create_benchmark_molecule()
 
         # Initialize QME optimizer
-        if verbose:
-            pass
         init_start = time.perf_counter()
 
         explorer = Explorer(
@@ -148,12 +100,7 @@ def benchmark_backend(
         init_time = time.perf_counter() - init_start
         results["timings"]["initialization"] = init_time
 
-        if verbose:
-            pass
-
         # Attach calculator to atoms object
-        if verbose:
-            pass
         load_start = time.perf_counter()
 
         # Attach calculator using Explorer's method
@@ -162,12 +109,7 @@ def benchmark_backend(
         load_time = time.perf_counter() - load_start
         results["timings"]["structure_loading"] = load_time
 
-        if verbose:
-            pass
-
         # Test single energy calculation (first call - includes calculator initialization)
-        if verbose:
-            pass
         energy_first_start = time.perf_counter()
 
         explorer.atoms_list[0].get_potential_energy()
@@ -175,12 +117,7 @@ def benchmark_backend(
         energy_first_time = time.perf_counter() - energy_first_start
         results["timings"]["single_energy_first"] = energy_first_time
 
-        if verbose:
-            pass
-
         # Test single energy calculation (second call - pure evaluation)
-        if verbose:
-            pass
         energy_second_start = time.perf_counter()
 
         explorer.atoms_list[0].get_potential_energy()
@@ -188,15 +125,10 @@ def benchmark_backend(
         energy_second_time = time.perf_counter() - energy_second_start
         results["timings"]["single_energy_second"] = energy_second_time
 
-        if verbose:
-            pass
-
         # Store the pure evaluation time as the main single_energy metric
         results["timings"]["single_energy"] = energy_second_time
 
         # Test single force calculation
-        if verbose:
-            pass
         force_start = time.perf_counter()
 
         forces = explorer.atoms_list[0].get_forces()
@@ -205,12 +137,7 @@ def benchmark_backend(
         force_time = time.perf_counter() - force_start
         results["timings"]["single_forces"] = force_time
 
-        if verbose:
-            pass
-
         # Geometry optimization using Explorer strategies
-        if verbose:
-            pass
         opt_start = time.perf_counter()
 
         # Use Explorer's run method with proper strategy
@@ -264,12 +191,7 @@ def benchmark_backend(
         if isinstance(run_results, dict) and "performance" in run_results:
             results["performance"] = run_results["performance"]
 
-        if verbose and avg_time_per_step is not None:
-            pass
-
         # Frequency analysis
-        if verbose:
-            pass
         freq_start = time.perf_counter()
 
         freq_results = explorer.calculate_frequencies(
@@ -291,20 +213,12 @@ def benchmark_backend(
             "method_used": freq_results["method_used"],
         }
 
-        if verbose:
-            pass
-
         # Calculate total time (excluding None values)
         total_time = sum(v for v in results["timings"].values() if v is not None)
         results["timings"]["total"] = total_time
 
-        if verbose:
-            pass
-
     except Exception as e:
         results["error"] = str(e)
-        if verbose:
-            pass
 
     return results
 
@@ -453,15 +367,6 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
             print(f"  Total Calls: {total_count}")
 
 
-def save_results(results_list: list[dict[str, Any]], output_file: str) -> None:
-    """Save benchmark results to JSON file."""
-    output_path = Path(output_file)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(output_path, "w") as f:
-        json.dump(results_list, f, indent=2, default=str)
-
-
 def main() -> int:
     """Main function to run the timing benchmark."""
     # Create standardized interface
@@ -479,13 +384,15 @@ def main() -> int:
     # Set up logging based on verbosity level
     interface.setup_logging(args.verbose)
 
-    # Parse backends if provided
-    if args.backends:
-        available_backends = [b.strip() for b in args.backends.split(",")]
-    else:
-        from qme.backends.availability import get_available_backends
-
-        available_backends = get_available_backends()
+    # Backend handling
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    _, available_backends = interface.select_backend(
+        requested_backends=requested,
+        verbose=args.verbose,
+    )
+    if not available_backends:
+        interface.print_error("No available backends found")
+        return 1
 
     interface.print_backend_summary(available_backends, "Benchmarking Backends")
 
@@ -525,7 +432,7 @@ def main() -> int:
     print_performance_summary(results_list)
 
     # Save results
-    save_results(results_list, args.output or interface.get_default_output_file())
+    interface.save_results(results_list, args.output or interface.get_default_output_file())
 
     interface.print_success()
     return 0

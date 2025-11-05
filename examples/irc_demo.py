@@ -1,33 +1,16 @@
 #!/usr/bin/env python3
-"""QME IRC Demo - Intrinsic Reaction Coordinate Calculation.
+"""QME IRC Demo - Intrinsic Reaction Coordinate Calculation."""
 
-This example demonstrates how to calculate an IRC (Intrinsic Reaction Coordinate)
-path from a transition state. The IRC follows the gradient downhill in both
-forward and backward directions to generate the minimum energy path connecting
-reactants and products.
-
-Features:
-    - Calculates IRC path from a single transition state structure
-    - Follows gradient in both forward and backward directions
-    - Generates complete reaction pathway through the TS
-    - Energy profile analysis along the IRC path
-    - Saves trajectory for visualization
-"""
-
-import os
 import sys
 from pathlib import Path
 
 from ase.io import read, write
 
-# Disable ASE GUI to prevent popup windows
-os.environ["DISPLAY"] = ""
-os.environ["MPLBACKEND"] = "Agg"
-
 import qme
-from qme.example_utils import QMEExampleInterface, create_standard_epilog
+from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
 
 
+@setup_example_environment
 def main() -> int:
     """Run IRC calculation demo."""
     # Create standardized interface
@@ -73,27 +56,18 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    # Set default output if not provided
-    if args.output is None:
-        args.output = None  # Will be set later based on input filename
-
     interface.print_header()
     interface.setup_logging(args.verbose)
 
-    # Parse backends if provided
-    backend = "uma"  # Default
-    if args.backends:
-        backends_list = [b.strip() for b in args.backends.split(",")]
-        if backends_list:
-            backend = backends_list[0]
-            if len(backends_list) > 1:
-                interface.print_warning(f"Multiple backends specified, using first: {backend}")
-
-    # Check backend availability
-    from qme.backends.availability import is_backend_available
-
-    if not is_backend_available(backend):
-        interface.print_error(f"Backend '{backend}' not available")
+    # Backend handling
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    backend, available_backends = interface.select_backend(
+        requested_backends=requested,
+        preferred_backends=["uma", "mace"],
+        verbose=args.verbose,
+    )
+    if backend is None:
+        interface.print_error("No suitable backend available (need UMA or MACE)")
         return 1
 
     interface.print_backend_summary([backend], "Using Backend")
@@ -101,22 +75,25 @@ def main() -> int:
     # Get device info
     device = interface.get_device_info(args.device)
 
+    # Load transition state structure early to determine default output filename
+    ts_file = Path(args.ts_file)
+    if not ts_file.exists():
+        interface.print_error(f"Transition state file not found: {ts_file}")
+        return 1
+
+    # Set default output if not provided (based on input filename)
+    output_file = args.output or f"{ts_file.stem}_irc.xyz"
+
     config = {
         "Backend": backend,
         "Device": device,
-        "Output": args.output or "auto",
+        "Output": output_file,
         "Verbose": args.verbose,
         "Direction": args.direction,
     }
     interface.print_configuration(config)
 
     try:
-        # Load transition state structure
-        ts_file = Path(args.ts_file)
-        if not ts_file.exists():
-            interface.print_error(f"Transition state file not found: {ts_file}")
-            return 1
-
         print(f"\nLoading transition state from: {ts_file}")
         ts_atoms = read(ts_file)
         print(f"✓ Loaded structure with {len(ts_atoms)} atoms")
@@ -151,7 +128,7 @@ def main() -> int:
 
         # Calculate and display energies along path
         energies = []
-        for _i, atoms in enumerate(trajectory):
+        for atoms in trajectory:
             try:
                 energy = atoms.get_potential_energy()
                 energies.append(energy)
@@ -169,7 +146,6 @@ def main() -> int:
                 print(f"  Energy range: {max_e - min_e:.6f} eV")
 
         # Save trajectory
-        output_file = args.output or ts_file.stem + "_irc.xyz"
         write(output_file, trajectory)
         print(f"\n✓ Saved IRC trajectory to: {output_file}")
 

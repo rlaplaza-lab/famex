@@ -1,27 +1,6 @@
 #!/usr/bin/env python3
-"""QME TS Optimizer Benchmark - Transition State Optimizer Comparison.
+"""QME TS Optimizer Benchmark - Transition State Optimizer Comparison."""
 
-This benchmark compares the performance of different transition state optimizers
-(sella, trust-krylov-ts, rfo) for transition state finding using various QME ML backends.
-It focuses specifically on TS optimization to evaluate which optimizers work best
-for finding transition states across different ML backends.
-
-By default, all three optimizers (sella, trust-krylov-ts, rfo) are tested on equal footing.
-
-Usage:
-    python ts_optimizer_benchmark.py [--backends BACKEND1,BACKEND2,...]
-    python ts_optimizer_benchmark.py [--optimizers OPT1,OPT2,...]
-    python ts_optimizer_benchmark.py [--device DEVICE]
-
-Features:
-    - Transition state optimizer comparison (sella, trust-krylov-ts, rfo)
-    - All available ML backends tested
-    - Detailed timing and convergence analysis
-    - TS-specific optimization evaluation
-    - Focus on TS finding capabilities
-"""
-
-import json
 import sys
 import warnings
 from pathlib import Path
@@ -29,14 +8,8 @@ from typing import Any
 
 from ase import Atoms
 
-# Import QME components
-try:
-    pass  # QME components imported via benchmark_optimization function
-except ImportError:
-    sys.exit(1)
-
+# Import QME components (via benchmark_optimization function)
 # Backend availability helpers
-
 # Common interface and device utils
 from qme.example_utils import QMEExampleInterface, benchmark_optimization, create_standard_epilog
 
@@ -46,14 +19,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 
 def create_ts_structure() -> Atoms:
-    """Create a transition state structure for TS optimization using example files.
-
-    Note: The structure should be reasonably close to the actual TS. If optimizers
-    consistently fail to find a TS (0 or >1 imaginary frequencies), the starting
-    structure may be too far from the saddle point.
-    """
-    from pathlib import Path
-
+    """Create a transition state structure for TS optimization."""
     from ase.io import read
 
     # Use the actual TS structure from example files
@@ -72,19 +38,7 @@ def benchmark_ts_optimizer(
     hessian_update_freq: int | None = None,
     force_finite_diff_hessian: bool = False,
 ) -> dict[str, Any]:
-    """Benchmark a single backend with a specific optimizer for transition state optimization.
-
-    Suitable optimizers: Sella, Trust-Krylov-TS, RFO
-
-    Parameters
-    ----------
-    calculate_frequencies : bool
-        Whether to perform frequency analysis to validate TS (default: True)
-    hessian_update_freq : int | None
-        Hessian update frequency for Hessian-based optimizers (None = use default)
-    force_finite_diff_hessian : bool
-        Force use of finite difference Hessians instead of analytical
-    """
+    """Benchmark TS optimizer (Sella, Trust-Krylov-TS, RFO)."""
     # Prepare ts_kwargs if hessian_update_freq is specified for Hessian-based optimizers
     ts_kwargs = None
     if hessian_update_freq is not None and optimizer in ["trust-krylov-ts", "rfo"]:
@@ -316,47 +270,7 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
                 optimizer_groups[opt_name] = []
             optimizer_groups[opt_name].append(result)
 
-        for _opt_name, opt_results in optimizer_groups.items():
-            # Calculate statistics - filter out None values
-            steps_list = [
-                r["optimization_results"].get("steps_taken", 0)
-                for r in opt_results
-                if r["optimization_results"].get("steps_taken") is not None
-            ]
-            time_per_step_list = [
-                r["timings"].get("avg_time_per_step", 0)
-                for r in opt_results
-                if r["timings"].get("avg_time_per_step") is not None
-            ]
-            total_time_list = [
-                r["timings"].get("optimization", 0)
-                for r in opt_results
-                if r["timings"].get("optimization") is not None
-            ]
-            converged_list = [
-                r["optimization_results"].get("converged", False) for r in opt_results
-            ]
-
-            if steps_list:
-                pass
-
-            if time_per_step_list:
-                pass
-
-            if total_time_list:
-                pass
-
-            if converged_list:
-                sum(converged_list) / len(converged_list) * 100
-
-            # Quality analysis for TS optimization
-            valid_result_list = [
-                r["frequency_results"].get("is_valid_result", False)
-                for r in opt_results
-                if "frequency_results" in r
-            ]
-            if valid_result_list:
-                sum(valid_result_list) / len(valid_result_list) * 100
+        # Statistics computed but not displayed in current implementation
 
 
 def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
@@ -368,17 +282,6 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
 
     if not has_performance_data:
         return
-
-    # Section 1: Calculator Calls & Memory
-
-    # Header
-
-    # Results
-    for results in results_list:
-        if results.get("available") and "performance" in results:
-            perf = results["performance"]
-            perf.get("calculator_calls", {})
-            perf.get("memory", {})
 
     # Section 2: Detailed Timing Breakdown
 
@@ -393,8 +296,6 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
     if not all_sections:
         return
 
-    # Header for detailed timing
-
     # Show timing statistics for each section
     for section in sorted(all_sections):
         section_stats = []
@@ -404,32 +305,6 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
                 timings = perf.get("timings", {})
                 if section in timings:
                     section_stats.append(timings[section])
-
-        if section_stats:
-            # Calculate aggregate statistics across all results
-            sum(stat.get("total_time", 0.0) for stat in section_stats)
-            total_count = sum(stat.get("count", 0) for stat in section_stats)
-            (
-                sum(stat.get("avg_time", 0.0) * stat.get("count", 0) for stat in section_stats)
-                / total_count
-                if total_count > 0
-                else 0.0
-            )
-            min(stat.get("min_time", 0.0) for stat in section_stats)
-            max(stat.get("max_time", 0.0) for stat in section_stats)
-
-
-def save_results(results_list: list[dict[str, Any]], output_file: str) -> None:
-    """Save benchmark results to JSON file."""
-    # If output_file is just a filename, save it in the examples directory
-    if not Path(output_file).is_absolute() and "/" not in output_file:
-        output_path = Path(__file__).parent / output_file
-    else:
-        output_path = Path(output_file)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(output_path, "w") as f:
-        json.dump(results_list, f, indent=2, default=str)
 
 
 def main() -> int:
@@ -480,13 +355,15 @@ def main() -> int:
     # Set up logging based on verbosity level
     interface.setup_logging(args.verbose)
 
-    # Parse backends if provided
-    if args.backends:
-        available_backends = [b.strip() for b in args.backends.split(",")]
-    else:
-        from qme.backends.availability import get_available_backends
-
-        available_backends = get_available_backends()
+    # Backend handling
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    _, available_backends = interface.select_backend(
+        requested_backends=requested,
+        verbose=args.verbose,
+    )
+    if not available_backends:
+        interface.print_error("No available backends found")
+        return 1
 
     # Determine which optimizers to test
     valid_optimizers = ["sella", "trust-krylov-ts", "rfo"]
@@ -582,7 +459,7 @@ def main() -> int:
     print_performance_summary(results_list)
 
     # Save results
-    save_results(results_list, args.output or interface.get_default_output_file())
+    interface.save_results(results_list, args.output or interface.get_default_output_file())
 
     interface.print_success()
     return 0

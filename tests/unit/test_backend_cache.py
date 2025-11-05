@@ -1,5 +1,3 @@
-"""Unit tests for backend caching functionality - edge cases and error handling."""
-
 from __future__ import annotations
 
 import tempfile
@@ -22,10 +20,7 @@ from qme.backends.cache import (
 
 
 class TestCalculatorCacheEdgeCases:
-    """Test CalculatorCache edge cases and error handling."""
-
-    def test_cache_access_order_tracking(self) -> None:
-        """Test that access order is properly tracked."""
+    def test_cache_access_order_tracking(self):
         cache = CalculatorCache(max_size=3)
         calc1 = MagicMock()
         calc2 = MagicMock()
@@ -49,8 +44,7 @@ class TestCalculatorCacheEdgeCases:
         # calc1 should still be there (was accessed)
         assert cache.get("backend1", None, "cpu") == calc1
 
-    def test_cache_key_with_none_values(self) -> None:
-        """Test cache key generation with None values."""
+    def test_cache_key_with_none_values(self):
         cache = CalculatorCache()
 
         key1 = cache._generate_key("test", None, None)
@@ -63,8 +57,7 @@ class TestCalculatorCacheEdgeCases:
         key3 = cache._generate_key("test", None, None, extra=None)
         assert key1 != key3  # Different parameter set
 
-    def test_cache_key_with_complex_parameters(self) -> None:
-        """Test cache key generation with complex parameters."""
+    def test_cache_key_with_complex_parameters(self):
         cache = CalculatorCache()
 
         key1 = cache._generate_key(
@@ -87,8 +80,7 @@ class TestCalculatorCacheEdgeCases:
         # Keys should be same regardless of parameter order
         assert key1 == key2
 
-    def test_cache_with_same_key_multiple_times(self) -> None:
-        """Test caching same key multiple times updates the cache."""
+    def test_cache_with_same_key_multiple_times(self):
         cache = CalculatorCache()
         calc1 = MagicMock()
         calc2 = MagicMock()
@@ -103,8 +95,7 @@ class TestCalculatorCacheEdgeCases:
         retrieved = cache.get("test", "model", "cpu")
         assert retrieved == calc2
 
-    def test_cache_eviction_when_at_limit(self) -> None:
-        """Test eviction when exactly at max_size."""
+    def test_cache_eviction_when_at_limit(self):
         cache = CalculatorCache(max_size=2)
         calc1 = MagicMock()
         calc2 = MagicMock()
@@ -125,8 +116,7 @@ class TestCalculatorCacheEdgeCases:
             cache.get("backend1", None, "cpu") is None or cache.get("backend2", None, "cpu") is None
         )
 
-    def test_cache_clear_resets_access_order(self) -> None:
-        """Test that clearing cache resets access order."""
+    def test_cache_clear_resets_access_order(self):
         cache = CalculatorCache()
         calc = MagicMock()
 
@@ -138,8 +128,7 @@ class TestCalculatorCacheEdgeCases:
         assert cache._access_counter == 0
         assert len(cache._access_order) == 0
 
-    def test_cache_with_weak_references(self) -> None:
-        """Test that weak references allow garbage collection."""
+    def test_cache_with_weak_references(self):
         cache = CalculatorCache()
 
         # Create calculator and cache it
@@ -160,10 +149,7 @@ class TestCalculatorCacheEdgeCases:
 
 
 class TestModelCacheEdgeCases:
-    """Test ModelCache edge cases and error handling."""
-
-    def test_model_cache_metadata_corruption_handling(self) -> None:
-        """Test handling of corrupted metadata file."""
+    def test_model_cache_metadata_corruption_handling(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -175,8 +161,7 @@ class TestModelCacheEdgeCases:
             assert isinstance(new_cache.metadata, dict)
             assert len(new_cache.metadata) == 0
 
-    def test_model_cache_missing_file_cleanup(self) -> None:
-        """Test that missing files are cleaned from metadata."""
+    def test_model_cache_missing_file_cleanup(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -195,8 +180,7 @@ class TestModelCacheEdgeCases:
             assert result is None
             assert "test_model" not in str(cache.metadata)
 
-    def test_model_cache_checksum_mismatch(self) -> None:
-        """Test checksum mismatch detection."""
+    def test_model_cache_checksum_mismatch(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -213,8 +197,7 @@ class TestModelCacheEdgeCases:
             # File should be deleted
             assert not cached_path.exists()
 
-    def test_model_cache_multiple_models_same_name(self) -> None:
-        """Test caching multiple models with same name but different URLs."""
+    def test_model_cache_multiple_models_same_name(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -233,8 +216,7 @@ class TestModelCacheEdgeCases:
             assert retrieved1 == path1
             assert retrieved2 == path2
 
-    def test_model_cache_filename_sanitization(self) -> None:
-        """Test that model names are properly sanitized in filenames."""
+    def test_model_cache_filename_sanitization(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -249,8 +231,7 @@ class TestModelCacheEdgeCases:
             assert ":" not in cached_path.name
             assert cached_path.exists()
 
-    def test_model_cache_get_info_empty_cache(self) -> None:
-        """Test getting cache info when cache is empty."""
+    def test_model_cache_get_info_empty_cache(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -261,8 +242,7 @@ class TestModelCacheEdgeCases:
             assert isinstance(info["models"], list)
             assert len(info["models"]) == 0
 
-    def test_model_cache_clear_nonexistent_model(self) -> None:
-        """Test clearing a model that doesn't exist."""
+    def test_model_cache_clear_nonexistent_model(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -270,8 +250,7 @@ class TestModelCacheEdgeCases:
             cache.clear_cache(model_name="nonexistent")
             assert len(cache.metadata) == 0
 
-    def test_model_cache_metadata_persistence(self) -> None:
-        """Test that metadata persists across cache instances."""
+    def test_model_cache_metadata_persistence(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache1 = ModelCache(cache_dir=tmpdir)
             model_data = b"test data"
@@ -284,27 +263,22 @@ class TestModelCacheEdgeCases:
             result = cache2.get_cached_model("test_model", "http://example.com/model")
             assert result is not None
 
-    def test_model_cache_handles_permission_errors(self) -> None:
-        """Test handling of permission errors during cache operations."""
+    def test_model_cache_handles_permission_errors(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
             # Try to save metadata to read-only location (if possible)
             # This test mainly ensures error handling exists
             # Actual permission errors depend on system configuration
-            try:
+            import contextlib
+
+            with contextlib.suppress(OSError, PermissionError):
                 # This should complete or raise a handled error
                 cache._save_metadata()
-            except (OSError, PermissionError):
-                # Permission errors are acceptable
-                pass
 
 
 class TestUnifiedCacheEdgeCases:
-    """Test UnifiedCache edge cases."""
-
-    def test_unified_cache_info(self) -> None:
-        """Test getting unified cache information."""
+    def test_unified_cache_info(self):
         cache = UnifiedCache()
         mock_calc = MagicMock()
 
@@ -317,8 +291,7 @@ class TestUnifiedCacheEdgeCases:
         assert info["calculator_cache"]["size"] >= 0
         assert info["calculator_cache"]["max_size"] > 0
 
-    def test_unified_cache_clear_clears_both(self) -> None:
-        """Test that clear_all clears both caches."""
+    def test_unified_cache_clear_clears_both(self):
         cache = UnifiedCache()
         mock_calc = MagicMock()
 
@@ -335,10 +308,7 @@ class TestUnifiedCacheEdgeCases:
 
 
 class TestGlobalCacheFunctions:
-    """Test global cache convenience functions."""
-
-    def test_get_cached_calculator_function(self) -> None:
-        """Test get_cached_calculator convenience function."""
+    def test_get_cached_calculator_function(self):
         mock_calc = MagicMock()
         cache_calculator(mock_calc, "test", "model", "cpu")
 
@@ -346,8 +316,7 @@ class TestGlobalCacheFunctions:
 
         assert retrieved == mock_calc
 
-    def test_cache_calculator_function(self) -> None:
-        """Test cache_calculator convenience function."""
+    def test_cache_calculator_function(self):
         mock_calc = MagicMock()
 
         key = cache_calculator(mock_calc, "test", "model", "cpu")
@@ -356,23 +325,20 @@ class TestGlobalCacheFunctions:
         retrieved = get_cached_calculator("test", "model", "cpu")
         assert retrieved == mock_calc
 
-    def test_get_model_cache_function(self) -> None:
-        """Test get_model_cache convenience function."""
+    def test_get_model_cache_function(self):
         cache = get_model_cache()
 
         assert isinstance(cache, ModelCache)
         assert cache.cache_dir.exists()
 
-    def test_get_unified_cache_function(self) -> None:
-        """Test get_unified_cache convenience function."""
+    def test_get_unified_cache_function(self):
         cache = get_unified_cache()
 
         assert isinstance(cache, UnifiedCache)
         assert isinstance(cache.calculator_cache, CalculatorCache)
         assert isinstance(cache.model_cache, ModelCache)
 
-    def test_clear_all_caches_function(self) -> None:
-        """Test clear_all_caches convenience function."""
+    def test_clear_all_caches_function(self):
         # Get unified cache
         unified = get_unified_cache()
 
@@ -390,8 +356,7 @@ class TestGlobalCacheFunctions:
         retrieved = unified.calculator_cache.get("test", "model", "cpu")
         assert retrieved is None
 
-    def test_download_and_cache_model_with_existing_cache(self) -> None:
-        """Test download_and_cache_model uses existing cache."""
+    def test_download_and_cache_model_with_existing_cache(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
             model_data = b"cached model data"
@@ -404,8 +369,7 @@ class TestGlobalCacheFunctions:
                 assert result.exists()
                 assert result.read_bytes() == model_data
 
-    def test_download_and_cache_model_downloads_when_not_cached(self) -> None:
-        """Test download_and_cache_model downloads when not cached."""
+    def test_download_and_cache_model_downloads_when_not_cached(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -426,8 +390,7 @@ class TestGlobalCacheFunctions:
                 assert result.read_bytes() == model_data
                 mock_get.assert_called_once()
 
-    def test_download_and_cache_model_handles_download_error(self) -> None:
-        """Test download_and_cache_model handles download errors."""
+    def test_download_and_cache_model_handles_download_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 

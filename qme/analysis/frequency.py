@@ -22,6 +22,7 @@ from qme.analysis.hessian import HessianCalculator
 from qme.analysis.molecular_properties import determine_degrees_of_freedom
 from qme.analysis.normal_modes import convert_frequency_unit, diagonalize_mass_weighted_hessian
 from qme.analysis.thermodynamics import ThermodynamicProperties
+from qme.analysis.utils import has_calculator_property, validate_indices
 from qme.analysis.validation import validate_hessian
 from qme.utils.logging import get_qme_logger
 from qme.utils.validation import QMEError
@@ -72,20 +73,15 @@ class FrequencyAnalysis:
         """
         self.atoms = atoms
         self.calculator = calculator
-        # Only set calculator if atoms doesn't have one or it's different
-        if self.atoms.calc is None or self.atoms.calc is not calculator:
-            self.atoms.calc = calculator
+        self.atoms.calc = calculator
         self.delta = delta
         self.richardson = richardson
         self.delta2 = delta2
-        self.indices = indices if indices is not None else list(range(len(atoms)))
+        self.indices = validate_indices(atoms, indices)
         self.verbose = verbose
-
-        # Determine degrees of freedom to remove
-        if nfree is None:
-            self.nfree = determine_degrees_of_freedom(atoms, self.indices)
-        else:
-            self.nfree = nfree
+        self.nfree = (
+            nfree if nfree is not None else determine_degrees_of_freedom(atoms, self.indices)
+        )
 
         # Initialize result storage
         self._hessian: np.ndarray | None = None
@@ -114,15 +110,14 @@ class FrequencyAnalysis:
             return self._calculate_hessian_autoselect()
 
         if method == "auto":
-            if self._supports_direct_frequencies():
+            if has_calculator_property(self.calculator, "frequencies"):
                 method = "direct_frequencies"
             elif (
                 hasattr(self.calculator, "supports_batch_evaluation")
                 and self.calculator.supports_batch_evaluation
             ):
                 method = "batch"
-            elif self._supports_direct_hessian():
-                # Try direct method but be prepared to fall back
+            elif has_calculator_property(self.calculator, "hessian"):
                 method = "direct"
             else:
                 method = "finite_differences"
@@ -149,10 +144,6 @@ class FrequencyAnalysis:
         else:
             msg = f"Unknown Hessian method: {method}"
             raise ValueError(msg)
-
-        if self._hessian is None:
-            msg = "Hessian calculation failed"
-            raise RuntimeError(msg)
 
         # Validate Hessian and warn if issues detected
         validation_results = validate_hessian(self._hessian, warn_on_issues=True)
@@ -242,19 +233,11 @@ class FrequencyAnalysis:
         for i in range(n_atoms):
             for j in range(3):  # x, y, z directions
                 # Get positive and negative displacement forces
-                if result_idx >= len(batch_results):
-                    msg = f"Not enough batch results at index {result_idx}"
-                    raise RuntimeError(msg)
-
                 pos_forces = batch_results[result_idx].get("forces")
                 if pos_forces is None:
                     msg = f"Missing forces in batch result {result_idx}"
                     raise RuntimeError(msg)
                 result_idx += 1
-
-                if result_idx >= len(batch_results):
-                    msg = f"Not enough batch results at index {result_idx}"
-                    raise RuntimeError(msg)
 
                 neg_forces = batch_results[result_idx].get("forces")
                 if neg_forces is None:
@@ -281,56 +264,21 @@ class FrequencyAnalysis:
 
         return cast(NDArray[np.float64], hessian)
 
-    def _supports_direct_hessian(self) -> bool:
-        """Check if calculator supports direct Hessian calculation."""
-        # First check implemented_properties if available
-        if hasattr(self.calculator, "implemented_properties"):
-            return "hessian" in self.calculator.implemented_properties
-
-        # Fallback: check for methods only if implemented_properties is not available
-        return hasattr(self.calculator, "get_hessian") or hasattr(
-            self.calculator,
-            "calculate_hessian",
-        )
-
-    def _supports_direct_frequencies(self) -> bool:
-        """Check if calculator supports direct frequency calculation."""
-        if (
-            hasattr(self.calculator, "implemented_properties")
-            and "frequencies" in self.calculator.implemented_properties
-        ):
-            return True
-
-        return hasattr(self.calculator, "get_frequencies") or hasattr(
-            self.calculator,
-            "calculate_frequencies",
-        )
-
     def _calculate_direct_frequencies(self) -> np.ndarray:
         """Calculate frequencies directly from calculator (when supported)."""
-        if (
-            hasattr(self.calculator, "implemented_properties")
-            and "frequencies" in self.calculator.implemented_properties
-        ):
-            return cast(
-                NDArray[np.float64], self.calculator.get_property("frequencies", self.atoms)
-            )
+        from qme.analysis.utils import get_calculator_property
 
-        if hasattr(self.calculator, "get_frequencies"):
-            return cast(NDArray[np.float64], self.calculator.get_frequencies(self.atoms))
-        return cast(NDArray[np.float64], self.calculator.calculate_frequencies(self.atoms))
+        return cast(
+            NDArray[np.float64], get_calculator_property(self.calculator, "frequencies", self.atoms)
+        )
 
     def _calculate_direct_hessian(self) -> np.ndarray:
         """Calculate Hessian directly from calculator (when supported)."""
-        if (
-            hasattr(self.calculator, "implemented_properties")
-            and "hessian" in self.calculator.implemented_properties
-        ):
-            return cast(NDArray[np.float64], self.calculator.get_property("hessian", self.atoms))
+        from qme.analysis.utils import get_calculator_property
 
-        if hasattr(self.calculator, "get_hessian"):
-            return cast(NDArray[np.float64], self.calculator.get_hessian(self.atoms))
-        return cast(NDArray[np.float64], self.calculator.calculate_hessian(self.atoms))
+        return cast(
+            NDArray[np.float64], get_calculator_property(self.calculator, "hessian", self.atoms)
+        )
 
     def _calculate_hessian_autoselect(self) -> np.ndarray:
         """Intelligent Hessian method selection based on capabilities and noise.
@@ -350,38 +298,31 @@ class FrequencyAnalysis:
         if self.verbose >= 1:
             logger.info("Hessian autoselect: choosing optimal method...")
 
-        # Step 1: Check for analytical Hessian
-        if self._supports_direct_hessian():
+        # Step 1: Try analytical Hessian if available
+        if has_calculator_property(self.calculator, "hessian"):
             if self.verbose >= 1:
                 logger.info("  Trying analytical Hessian...")
             try:
                 analytical_hessian = self._calculate_direct_hessian()
                 # Validate analytical Hessian
-                if not np.any(np.isnan(analytical_hessian)) and not np.any(
-                    np.isinf(analytical_hessian)
-                ):
-                    # Check symmetry
+                if np.any(np.isnan(analytical_hessian)) or np.any(np.isinf(analytical_hessian)):
+                    logger.warning(
+                        "  Analytical Hessian contains NaN/Inf, falling back to finite differences"
+                    )
+                else:
                     asymmetry = np.max(np.abs(analytical_hessian - analytical_hessian.T))
-                    if asymmetry < 1e-4:
+                    if asymmetry >= 1e-4:
+                        logger.warning(
+                            f"  Analytical Hessian has high asymmetry ({asymmetry:.2e}), "
+                            "falling back to finite differences"
+                        )
+                    else:
                         if self.verbose >= 1:
                             logger.info("  ✓ Using analytical Hessian")
                         self._hessian = analytical_hessian
                         return analytical_hessian
-                    else:
-                        if self.verbose >= 1:
-                            logger.warning(
-                                f"  Analytical Hessian has high asymmetry ({asymmetry:.2e}), "
-                                "falling back to finite differences"
-                            )
-                else:
-                    if self.verbose >= 1:
-                        logger.warning(
-                            "  Analytical Hessian contains NaN/Inf, "
-                            "falling back to finite differences"
-                        )
-            except Exception as e:
-                if self.verbose >= 1:
-                    logger.warning(f"  Analytical Hessian failed: {e}, falling back to FD")
+            except (AttributeError, RuntimeError) as e:
+                logger.warning(f"  Analytical Hessian failed: {e}, falling back to FD")
 
         # Step 2: Estimate force noise
         if self.verbose >= 1:
@@ -395,8 +336,7 @@ class FrequencyAnalysis:
             if self.verbose >= 1:
                 logger.info(f"  Force noise: {force_noise:.2e} eV/Å")
         except Exception as e:
-            if self.verbose >= 1:
-                logger.warning(f"  Force noise estimation failed: {e}, assuming moderate noise")
+            logger.warning(f"  Force noise estimation failed: {e}, assuming moderate noise")
             force_noise = 1e-5  # Default moderate noise
 
         # Step 3: Try energy-based FD if force noise is very high
@@ -414,17 +354,17 @@ class FrequencyAnalysis:
                     verbose=0 if self.verbose < 2 else self.verbose,
                 )
                 energy_hessian = energy_calc.calculate_energy_hessian()
-                if not np.any(np.isnan(energy_hessian)) and not np.any(np.isinf(energy_hessian)):
+                if np.any(np.isnan(energy_hessian)) or np.any(np.isinf(energy_hessian)):
+                    logger.warning("  Energy-based FD failed: invalid Hessian, falling back")
+                else:
                     if self.verbose >= 1:
                         logger.info("  ✓ Using energy-based FD Hessian")
                     self._hessian = energy_hessian
                     return energy_hessian
-            except Exception as e:
-                if self.verbose >= 1:
-                    logger.warning(f"  Energy-based FD failed: {e}, falling back to force-based FD")
-        else:
-            if self.verbose >= 1:
-                logger.info("  Force noise acceptable, using force-based FD")
+            except (RuntimeError, ValueError) as e:
+                logger.warning(f"  Energy-based FD failed: {e}, falling back to force-based FD")
+        elif self.verbose >= 1:
+            logger.info("  Force noise acceptable, using force-based FD")
 
         # Step 4: Fall back to high-quality force-based FD
         if self.verbose >= 1:
@@ -524,7 +464,7 @@ class FrequencyAnalysis:
 
         # Ensure keep indices exist (computed in get_frequencies)
         if self._keep_indices is None:
-            _ = self.get_frequencies()  # sets _keep_indices
+            _ = self.get_frequencies()
 
         return self._normal_modes[:, self._keep_indices]
 

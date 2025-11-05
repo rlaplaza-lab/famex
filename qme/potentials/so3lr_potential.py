@@ -75,8 +75,9 @@ class SO3LRPotential(BasePotential):
     def _load_calculator(self) -> None:
         """Load the SO3LR ASE calculator."""
         # Skip if already loaded
-        if hasattr(self, "_calc") and self._calc is not None:
-            return
+        if self._calc is not None:
+            return  # type: ignore[unreachable]
+        # After this point, we know _calc is None, so we need to load it
 
         from qme.utils.ml_warnings import quiet_backend_loading
 
@@ -124,14 +125,15 @@ class SO3LRPotential(BasePotential):
         # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
-
-        # Use the underlying calculator directly
-        self._calc.calculate(atoms, properties, system_changes)
+        # After _load_calculator() returns without exception, _calc is guaranteed to be set
+        assert self._calc is not None
+        self._calc.calculate(atoms, properties, system_changes)  # type: ignore[unreachable]
 
         # Extract results from the underlying calculator
         if properties is not None and "energy" in properties:
             try:
-                self.results["energy"] = self._calc.results["energy"]
+                if self._calc.results is not None:
+                    self.results["energy"] = self._calc.results["energy"]
             except (AttributeError, KeyError, TypeError):
                 # Fallback: calculator doesn't have .results or key doesn't exist
                 # AttributeError: .results doesn't exist
@@ -141,7 +143,8 @@ class SO3LRPotential(BasePotential):
 
         if properties is not None and "forces" in properties:
             try:
-                self.results["forces"] = self._calc.results["forces"]
+                if self._calc.results is not None:
+                    self.results["forces"] = self._calc.results["forces"]
             except (AttributeError, KeyError, TypeError):
                 # Fallback: calculator doesn't have .results or key doesn't exist
                 # AttributeError: .results doesn't exist

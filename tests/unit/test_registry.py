@@ -1,24 +1,17 @@
-"""Unit tests for StrategyRegistry."""
-
 from __future__ import annotations
 
 import pytest
-from ase import Atoms
 
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY, StrategyRegistry
 
 
 class TestStrategyRegistry:
-    """Test StrategyRegistry functionality."""
-
-    def test_registry_initialization(self) -> None:
-        """Test registry initializes empty."""
+    def test_registry_initialization(self):
         registry = StrategyRegistry()
         assert len(registry._strategies) == 0
 
-    def test_register_strategy(self) -> None:
-        """Test registering a strategy class."""
+    def test_register_strategy(self):
         registry = StrategyRegistry()
 
         class TestStrategy(BaseStrategy):
@@ -30,7 +23,7 @@ class TestStrategyRegistry:
                 aliases=["test"],
             )
 
-            def run(self, atoms_list: list[Atoms], **kwargs):
+            def run(self, atoms_list, **kwargs):
                 return {"optimized_atoms": atoms_list[0]}
 
         registry.register(TestStrategy)
@@ -38,8 +31,7 @@ class TestStrategyRegistry:
         assert "test:strategy" in registry._strategies
         assert registry._strategies["test:strategy"] == TestStrategy
 
-    def test_register_strategy_auto_aliases(self) -> None:
-        """Test that aliases are automatically registered."""
+    def test_register_strategy_auto_aliases(self):
         registry = StrategyRegistry()
 
         class TestStrategy(BaseStrategy):
@@ -51,7 +43,7 @@ class TestStrategyRegistry:
                 aliases=["test", "alias1", "alias2"],
             )
 
-            def run(self, atoms_list: list[Atoms], **kwargs):
+            def run(self, atoms_list, **kwargs):
                 return {"optimized_atoms": atoms_list[0]}
 
         registry.register(TestStrategy)
@@ -63,8 +55,7 @@ class TestStrategyRegistry:
         assert registry._strategies["test"] == TestStrategy
         assert registry._strategies["alias1"] == TestStrategy
 
-    def test_register_strategy_missing_metadata(self) -> None:
-        """Test registering strategy without metadata raises error."""
+    def test_register_strategy_missing_metadata(self):
         registry = StrategyRegistry()
 
         class BadStrategy:
@@ -73,8 +64,7 @@ class TestStrategyRegistry:
         with pytest.raises(ValueError, match="missing metadata"):
             registry.register(BadStrategy)
 
-    def test_register_strategy_duplicate_alias(self) -> None:
-        """Test registering strategy with duplicate alias raises error."""
+    def test_register_strategy_duplicate_alias(self):
         registry = StrategyRegistry()
 
         class Strategy1(BaseStrategy):
@@ -86,7 +76,7 @@ class TestStrategyRegistry:
                 aliases=["common"],
             )
 
-            def run(self, atoms_list: list[Atoms], **kwargs):
+            def run(self, atoms_list, **kwargs):
                 return {"optimized_atoms": atoms_list[0]}
 
         class Strategy2(BaseStrategy):
@@ -98,7 +88,7 @@ class TestStrategyRegistry:
                 aliases=["common"],  # Duplicate alias
             )
 
-            def run(self, atoms_list: list[Atoms], **kwargs):
+            def run(self, atoms_list, **kwargs):
                 return {"optimized_atoms": atoms_list[0]}
 
         registry.register(Strategy1)
@@ -106,8 +96,7 @@ class TestStrategyRegistry:
         with pytest.raises(ValueError, match="already registered"):
             registry.register(Strategy2)
 
-    def test_get_strategy_by_name(self) -> None:
-        """Test getting strategy by full name."""
+    def test_get_strategy_by_name(self):
         registry = StrategyRegistry()
 
         class TestStrategy(BaseStrategy):
@@ -119,7 +108,7 @@ class TestStrategyRegistry:
                 aliases=["test"],
             )
 
-            def run(self, atoms_list: list[Atoms], **kwargs):
+            def run(self, atoms_list, **kwargs):
                 return {"optimized_atoms": atoms_list[0]}
 
         registry.register(TestStrategy)
@@ -127,8 +116,7 @@ class TestStrategyRegistry:
         retrieved = registry.get("test:strategy")
         assert retrieved == TestStrategy
 
-    def test_get_strategy_by_alias(self) -> None:
-        """Test getting strategy by alias."""
+    def test_get_strategy_by_alias(self):
         registry = StrategyRegistry()
 
         class TestStrategy(BaseStrategy):
@@ -140,7 +128,7 @@ class TestStrategyRegistry:
                 aliases=["test"],
             )
 
-            def run(self, atoms_list: list[Atoms], **kwargs):
+            def run(self, atoms_list, **kwargs):
                 return {"optimized_atoms": atoms_list[0]}
 
         registry.register(TestStrategy)
@@ -148,15 +136,13 @@ class TestStrategyRegistry:
         retrieved = registry.get("test")
         assert retrieved == TestStrategy
 
-    def test_get_strategy_not_found(self) -> None:
-        """Test getting non-existent strategy raises KeyError."""
+    def test_get_strategy_not_found(self):
         registry = StrategyRegistry()
 
         with pytest.raises(KeyError, match="No strategy found"):
             registry.get("nonexistent")
 
-    def test_get_by_target_strategy(self) -> None:
-        """Test getting strategy by target and strategy components."""
+    def test_get_by_target_strategy(self):
         registry = StrategyRegistry()
 
         class TestStrategy(BaseStrategy):
@@ -168,7 +154,7 @@ class TestStrategyRegistry:
                 aliases=[],
             )
 
-            def run(self, atoms_list: list[Atoms], **kwargs):
+            def run(self, atoms_list, **kwargs):
                 return {"optimized_atoms": atoms_list[0]}
 
         registry.register(TestStrategy)
@@ -176,15 +162,13 @@ class TestStrategyRegistry:
         retrieved = registry.get_by_target_strategy("test", "strategy")
         assert retrieved == TestStrategy
 
-    def test_get_by_target_strategy_not_found(self) -> None:
-        """Test getting strategy by target/strategy that doesn't exist."""
+    def test_get_by_target_strategy_not_found(self):
         registry = StrategyRegistry()
 
         with pytest.raises(KeyError):
             registry.get_by_target_strategy("nonexistent", "strategy")
 
-    def test_has_strategy(self) -> None:
-        """Test checking if strategy exists."""
+    def test_has_strategy(self):
         registry = StrategyRegistry()
 
         class TestStrategy(BaseStrategy):
@@ -196,7 +180,7 @@ class TestStrategyRegistry:
                 aliases=["test"],
             )
 
-            def run(self, atoms_list: list[Atoms], **kwargs):
+            def run(self, atoms_list, **kwargs):
                 return {"optimized_atoms": atoms_list[0]}
 
         registry.register(TestStrategy)
@@ -205,8 +189,7 @@ class TestStrategyRegistry:
         assert registry.has_strategy("test") is True
         assert registry.has_strategy("nonexistent") is False
 
-    def test_list_strategies(self) -> None:
-        """Test listing all registered strategies."""
+    def test_list_strategies(self):
         registry = StrategyRegistry()
 
         class Strategy1(BaseStrategy):
@@ -218,7 +201,7 @@ class TestStrategyRegistry:
                 aliases=["test1"],
             )
 
-            def run(self, atoms_list: list[Atoms], **kwargs):
+            def run(self, atoms_list, **kwargs):
                 return {"optimized_atoms": atoms_list[0]}
 
         class Strategy2(BaseStrategy):
@@ -230,7 +213,7 @@ class TestStrategyRegistry:
                 aliases=["test2"],
             )
 
-            def run(self, atoms_list: list[Atoms], **kwargs):
+            def run(self, atoms_list, **kwargs):
                 return {"optimized_atoms": atoms_list[0]}
 
         registry.register(Strategy1)
@@ -245,8 +228,7 @@ class TestStrategyRegistry:
         assert strategies["test:strategy1"].name == "test:strategy1"
         assert strategies["test:strategy2"].name == "test:strategy2"
 
-    def test_list_strategies_no_duplicates(self) -> None:
-        """Test that list_strategies doesn't include duplicate entries from aliases."""
+    def test_list_strategies_no_duplicates(self):
         registry = StrategyRegistry()
 
         class TestStrategy(BaseStrategy):
@@ -258,7 +240,7 @@ class TestStrategyRegistry:
                 aliases=["test", "alias1", "alias2"],
             )
 
-            def run(self, atoms_list: list[Atoms], **kwargs):
+            def run(self, atoms_list, **kwargs):
                 return {"optimized_atoms": atoms_list[0]}
 
         registry.register(TestStrategy)
@@ -272,15 +254,11 @@ class TestStrategyRegistry:
 
 
 class TestGlobalRegistry:
-    """Test the global REGISTRY instance."""
-
-    def test_global_registry_exists(self) -> None:
-        """Test that global REGISTRY instance exists."""
+    def test_global_registry_exists(self):
         assert REGISTRY is not None
         assert isinstance(REGISTRY, StrategyRegistry)
 
-    def test_global_registry_has_registered_strategies(self) -> None:
-        """Test that global registry has strategies after imports."""
+    def test_global_registry_has_registered_strategies(self):
         # Import strategies to trigger registration
         import qme.strategies  # noqa: F401
 

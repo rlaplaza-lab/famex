@@ -82,7 +82,7 @@ class LocalIRCStrategy(BaseStrategy):
 
         # Handle single Atoms or list input
         if not isinstance(atoms_list, (list, tuple)):
-            atoms_input = atoms_list
+            atoms_input = atoms_list  # type: ignore[unreachable]
         else:
             if len(atoms_list) != 1:
                 msg = (
@@ -275,7 +275,7 @@ class LocalIRCStrategy(BaseStrategy):
 
                 if verbose >= 2:
                     imaginary_freqs = ts_analysis["imaginary_frequencies"]
-                    if imaginary_freqs:
+                    if imaginary_freqs and isinstance(imaginary_freqs, (list, tuple)):
                         logger.warning(
                             f"Imaginary frequencies (cm^-1): {[f'{f:.1f}' for f in imaginary_freqs]}",
                         )

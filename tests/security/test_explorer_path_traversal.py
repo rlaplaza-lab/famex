@@ -1,4 +1,4 @@
-"""Security tests for Explorer path traversal vulnerabilities."""
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path
@@ -10,10 +10,7 @@ from qme import Explorer
 
 
 class TestExplorerPathTraversal:
-    """Test Explorer save methods against path traversal attacks."""
-
     def test_save_structure_rejects_traversal(self):
-        """Test that save_structure rejects path traversal attempts."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         explorer = Explorer(atoms, backend="mock", target="minima")
 
@@ -30,7 +27,6 @@ class TestExplorerPathTraversal:
                 explorer.save_structure(atoms, evil_path)
 
     def test_save_trajectory_rejects_traversal(self):
-        """Test that save_trajectory rejects path traversal attempts."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         trajectory = [atoms, atoms]
         explorer = Explorer(atoms, backend="mock", target="path", strategy="neb")
@@ -47,7 +43,6 @@ class TestExplorerPathTraversal:
                 explorer.save_trajectory(trajectory, evil_path)
 
     def test_save_structure_allows_safe_paths(self):
-        """Test that save_structure allows legitimate paths."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         explorer = Explorer(atoms, backend="mock", target="minima")
 
@@ -73,7 +68,6 @@ class TestExplorerPathTraversal:
                     pass
 
     def test_save_trajectory_allows_safe_paths(self):
-        """Test that save_trajectory allows legitimate paths."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         trajectory = [atoms, atoms]
         explorer = Explorer(atoms, backend="mock", target="path", strategy="neb")
@@ -100,7 +94,6 @@ class TestExplorerPathTraversal:
                     pass
 
     def test_explorer_rejects_null_bytes(self):
-        """Test that Explorer rejects null bytes in paths."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         explorer = Explorer(atoms, backend="mock", target="minima")
 

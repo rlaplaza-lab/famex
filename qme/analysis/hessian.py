@@ -12,24 +12,11 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import numpy as np
 from ase import Atoms
 from numpy.typing import NDArray
-
-# Optional progress bar support
-try:
-    from tqdm import tqdm
-
-    HAS_TQDM = True
-except ImportError:
-    HAS_TQDM = False
-
-    # Dummy tqdm for when not available
-    def tqdm(iterable, *args, **kwargs):  # type: ignore[misc]
-        return iterable
-
 
 from qme.analysis.finite_differences import (
     CentralDifferenceScheme,
@@ -38,7 +25,27 @@ from qme.analysis.finite_differences import (
     ForwardDifferenceScheme,
     SevenPointCentralDifferenceScheme,
 )
+from qme.analysis.utils import validate_indices
 from qme.utils.logging import get_qme_logger
+
+# Optional progress bar support
+HAS_TQDM: bool
+if TYPE_CHECKING:
+    from tqdm import tqdm  # type: ignore[import-untyped]
+
+    HAS_TQDM = True
+else:
+    try:
+        from tqdm import tqdm  # type: ignore[import-untyped]
+
+        HAS_TQDM = True
+    except ImportError:
+        HAS_TQDM = False
+
+        # Dummy tqdm for when not available
+        def tqdm(iterable: Any, *args: Any, **kwargs: Any) -> Any:
+            return iterable
+
 
 logger = get_qme_logger(__name__)
 
@@ -221,41 +228,11 @@ class HessianCalculator:
             msg = f"delta must be positive, got {delta}"
             raise ValueError(msg)
 
-        if indices is not None:
-            if not isinstance(indices, list) or len(indices) == 0:
-                msg = "indices must be a non-empty list"
-                raise ValueError(msg)
-            if len(set(indices)) != len(indices):
-                msg = "indices must be unique"
-                raise ValueError(msg)
-            if not all(0 <= idx < len(atoms) for idx in indices):
-                invalid = [idx for idx in indices if not (0 <= idx < len(atoms))]
-                msg = f"indices out of bounds: {invalid} (system has {len(atoms)} atoms)"
-                raise ValueError(msg)
-            self.indices = indices
-        else:
-            self.indices = list(range(len(atoms)))
+        self.indices = validate_indices(atoms, indices)
 
         self.atoms = atoms
         self.calculator = calculator
-        if self.atoms.calc is None or self.atoms.calc is not calculator:
-            self.atoms.calc = calculator
-        try:
-            test_forces = self.atoms.get_forces()
-            if test_forces is None:
-                msg = "Calculator does not provide forces (get_forces returned None)"
-                raise ValueError(msg)
-            if not isinstance(test_forces, np.ndarray):
-                msg = f"Calculator forces must be numpy array, got {type(test_forces)}"
-                raise ValueError(msg)
-            if np.any(np.isnan(test_forces)) or np.any(np.isinf(test_forces)):
-                logger.warning(
-                    "Calculator returned NaN or Inf forces at reference geometry. "
-                    "Hessian calculation may fail."
-                )
-        except Exception as e:
-            msg = f"Calculator validation failed: {e}. Ensure calculator is properly initialized."
-            raise ValueError(msg) from e
+        self.atoms.calc = calculator
 
         self.delta = delta
         self.richardson = richardson
@@ -279,13 +256,15 @@ class HessianCalculator:
         # Cache for reference forces (computed once, reused)
         self._reference_forces: np.ndarray | None = None
 
+        # Richardson extrapolation order (None if not using Richardson)
+        self._richardson_order: int | None = None
+
         # Error recovery settings
         self.max_retries = 3
-        self.retry_backoff = 1.5  # Exponential backoff multiplier
         self.allow_partial = False  # Allow partial Hessian if some columns fail
 
         # Performance statistics (populated after calculation)
-        self._stats: dict[str, float | int] | None = None
+        self._stats: dict[str, float | int] = {}
 
         if len(self.indices) > 0:
             positions = atoms.positions[self.indices]
@@ -310,13 +289,15 @@ class HessianCalculator:
                 )
 
         if method == "central":
-            self.scheme: FiniteDifferenceScheme = CentralDifferenceScheme()
+            self.scheme: FiniteDifferenceScheme = cast(
+                FiniteDifferenceScheme, CentralDifferenceScheme()
+            )
         elif method == "forward":
-            self.scheme = ForwardDifferenceScheme()
+            self.scheme = cast(FiniteDifferenceScheme, ForwardDifferenceScheme())
         elif method == "5point":
-            self.scheme = FivePointCentralDifferenceScheme()
+            self.scheme = cast(FiniteDifferenceScheme, FivePointCentralDifferenceScheme())
         elif method == "7point":
-            self.scheme = SevenPointCentralDifferenceScheme()
+            self.scheme = cast(FiniteDifferenceScheme, SevenPointCentralDifferenceScheme())
         else:
             msg = f"Unknown finite difference method: {method}. Use 'forward', 'central', '5point', or '7point'."
             raise ValueError(msg)
@@ -399,13 +380,16 @@ class HessianCalculator:
         """
         # Reset cache and stats at start of calculation
         self._reference_forces = None
-        self._stats = {
-            "n_force_evaluations": 0,
-            "n_retries": 0,
-            "total_time": 0.0,
-            "time_per_column": 0.0,
-            "time_per_force_eval": 0.0,
-        }
+        self._stats.clear()
+        self._stats.update(
+            {
+                "n_force_evaluations": 0,
+                "n_retries": 0,
+                "total_time": 0.0,
+                "time_per_column": 0.0,
+                "time_per_force_eval": 0.0,
+            }
+        )
 
         start_time = time.time()
         try:
@@ -415,22 +399,18 @@ class HessianCalculator:
                 result = self._calculate_hessian_fixed()
 
             # Update stats with timing
-            if self._stats is not None:
-                elapsed = time.time() - start_time
-                self._stats["total_time"] = elapsed
-                if self._stats["n_force_evaluations"] > 0:
-                    self._stats["time_per_force_eval"] = (
-                        elapsed / self._stats["n_force_evaluations"]
-                    )
-                n_coords = 3 * len(self.indices)
-                if n_coords > 0:
-                    self._stats["time_per_column"] = elapsed / n_coords
+            elapsed = time.time() - start_time
+            self._stats["total_time"] = elapsed
+            if self._stats["n_force_evaluations"] > 0:
+                self._stats["time_per_force_eval"] = elapsed / self._stats["n_force_evaluations"]
+            n_coords = 3 * len(self.indices)
+            if n_coords > 0:
+                self._stats["time_per_column"] = elapsed / n_coords
 
             return result
         except Exception:
             # Update stats even on failure
-            if self._stats is not None:
-                self._stats["total_time"] = time.time() - start_time
+            self._stats["total_time"] = time.time() - start_time
             raise
 
     def _compute_derivative_at_delta(
@@ -533,8 +513,6 @@ class HessianCalculator:
         if self._reference_forces is not None:
             return self._reference_forces
 
-        if not hasattr(self.atoms, "calc") or self.atoms.calc is None:
-            self.atoms.calc = self.calculator
         forces = self.atoms.get_forces()
         self._reference_forces = cast(NDArray[np.float64], forces[self.indices].flatten())
         return self._reference_forces
@@ -553,8 +531,6 @@ class HessianCalculator:
             - time_per_force_eval: Average time per force evaluation in seconds
 
         """
-        if self._stats is None:
-            return {}
         return self._stats.copy()
 
     def _get_forces_displaced_with_retry(
@@ -590,37 +566,35 @@ class HessianCalculator:
             try:
                 result = self._get_forces_displaced(atom_index, direction, displacement)
                 # Track retries
-                if attempt > 0 and self._stats is not None:
+                if attempt > 0:
                     self._stats["n_retries"] = self._stats.get("n_retries", 0) + attempt
                 return result
             except Exception as e:
                 last_error = e
                 if attempt < self.max_retries - 1:
-                    # Exponential backoff: wait before retry
-                    wait_time = self.retry_backoff**attempt
+                    # Simple retry without backoff
                     if self.verbose >= 2:
                         coord_name = ["x", "y", "z"][direction]
                         logger.debug(
                             f"Retry {attempt + 1}/{self.max_retries} for atom {atom_index}, "
-                            f"{coord_name}-displacement {displacement:+.4f} Å "
-                            f"(waiting {wait_time:.2f}s): {e}"
+                            f"{coord_name}-displacement {displacement:+.4f} Å: {e}"
                         )
-                    time.sleep(wait_time)
-                else:
-                    # Final attempt failed
-                    coord_name = (
-                        ["x", "y", "z"][direction]
-                        if 0 <= direction < 3
-                        else f"unknown({direction})"
-                    )
-                    msg = (
-                        f"Force calculation failed after {self.max_retries} attempts "
-                        f"for atom {atom_index}, {coord_name}-displacement {displacement:+.4f} Å: {last_error}"
-                    )
-                    raise RuntimeError(msg) from last_error
-
-        # Should never reach here, but satisfy type checker
-        raise RuntimeError("Unexpected error in retry logic")
+                    continue
+                # Final attempt failed
+                coord_name = ["x", "y", "z"][direction]
+                msg = (
+                    f"Force calculation failed after {self.max_retries} attempts "
+                    f"for atom {atom_index}, {coord_name}-displacement {displacement:+.4f} Å: {last_error}"
+                )
+                raise RuntimeError(msg) from last_error
+        # This should never be reached, but mypy needs it
+        assert last_error is not None, "All retries failed but no error was captured"
+        coord_name = ["x", "y", "z"][direction]
+        msg = (
+            f"Force calculation failed after {self.max_retries} attempts "
+            f"for atom {atom_index}, {coord_name}-displacement {displacement:+.4f} Å: {last_error}"
+        )
+        raise RuntimeError(msg) from last_error
 
     def _get_forces_displaced(
         self,
@@ -650,25 +624,27 @@ class HessianCalculator:
             If force calculation fails or returns invalid results
 
         """
-        coord_names = ["x", "y", "z"]
-        coord_name = coord_names[direction] if 0 <= direction < 3 else f"unknown({direction})"
+        coord_name = ["x", "y", "z"][direction]
 
         atoms_displaced = self.atoms.copy()
         atoms_displaced.positions[atom_index, direction] += displacement
 
         # MockCalculator requires fresh instances to avoid state contamination.
         # Real calculators (UMA, AIMNet2, etc.) are reused to avoid model reloading.
-        try:
-            from qme.potentials.mock_potential import MockCalculator
-        except ImportError:
-            MockCalculator = None
+        from typing import cast
 
-        if MockCalculator is not None and isinstance(self.calculator, MockCalculator):
-            calc = MockCalculator(
-                backend=self.calculator.backend,
-                force_constant=getattr(self.calculator, "force_constant", 1.0),
-                charge=getattr(self.calculator, "charge", 0),
-                mult=getattr(self.calculator, "mult", 1),
+        from qme.potentials.mock_potential import MockCalculator as MockCalculatorType
+
+        calc: CalculatorProtocol
+        if isinstance(self.calculator, MockCalculatorType):
+            calc = cast(
+                CalculatorProtocol,
+                MockCalculatorType(
+                    backend=self.calculator.backend,
+                    force_constant=getattr(self.calculator, "force_constant", 1.0),
+                    charge=getattr(self.calculator, "charge", 0),
+                    mult=getattr(self.calculator, "mult", 1),
+                ),
             )
         else:
             calc = self.calculator
@@ -684,18 +660,6 @@ class HessianCalculator:
             )
             raise RuntimeError(msg) from e
 
-        if forces is None:
-            msg = (
-                f"Calculator returned None forces for atom {atom_index}, "
-                f"{coord_name}-displacement {displacement:+.4f} Å"
-            )
-            raise RuntimeError(msg)
-        if not isinstance(forces, np.ndarray):
-            msg = (
-                f"Calculator forces must be numpy array, got {type(forces)} "
-                f"for atom {atom_index}, {coord_name}-displacement {displacement:+.4f} Å"
-            )
-            raise RuntimeError(msg)
         if np.any(np.isnan(forces)) or np.any(np.isinf(forces)):
             nan_count = np.sum(np.isnan(forces))
             inf_count = np.sum(np.isinf(forces))
@@ -707,10 +671,10 @@ class HessianCalculator:
             raise RuntimeError(msg)
 
         # Track force evaluation count
-        if self._stats is not None:
-            self._stats["n_force_evaluations"] = self._stats.get("n_force_evaluations", 0) + 1
+        self._stats["n_force_evaluations"] = self._stats.get("n_force_evaluations", 0) + 1
 
-        return forces[self.indices].flatten()
+        result = forces[self.indices].flatten()
+        return np.asarray(result)
 
     def _compute_five_point_derivative(
         self,

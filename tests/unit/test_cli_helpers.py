@@ -1,5 +1,3 @@
-"""Unit tests for CLI helper functions."""
-
 from __future__ import annotations
 
 import json
@@ -21,10 +19,7 @@ from qme.cli.cli_helpers import (
 
 
 class TestParseKVPairs:
-    """Test key-value pair parsing."""
-
-    def test_parse_basic_pairs(self) -> None:
-        """Test parsing basic key-value pairs."""
+    def test_parse_basic_pairs(self):
         pairs = ["k=5.0", "steps=100", "name=test"]
         result = parse_kv_pairs(pairs)
 
@@ -32,16 +27,14 @@ class TestParseKVPairs:
         assert result["steps"] == 100
         assert result["name"] == "test"
 
-    def test_parse_bool_values(self) -> None:
-        """Test parsing boolean values."""
+    def test_parse_bool_values(self):
         pairs = ["verbose=true", "quiet=false"]
         result = parse_kv_pairs(pairs)
 
         assert result["verbose"] is True
         assert result["quiet"] is False
 
-    def test_parse_int_float(self) -> None:
-        """Test parsing integer and float values."""
+    def test_parse_int_float(self):
         pairs = ["count=42", "weight=3.14"]
         result = parse_kv_pairs(pairs)
 
@@ -50,29 +43,25 @@ class TestParseKVPairs:
         assert result["count"] == 42
         assert result["weight"] == 3.14
 
-    def test_parse_string_values(self) -> None:
-        """Test parsing string values that can't be converted."""
+    def test_parse_string_values(self):
         pairs = ["path=/some/path", "message=hello world"]
         result = parse_kv_pairs(pairs)
 
         assert result["path"] == "/some/path"
         assert result["message"] == "hello world"
 
-    def test_parse_empty_list(self) -> None:
-        """Test parsing empty list."""
+    def test_parse_empty_list(self):
         result = parse_kv_pairs([])
         assert result == {}
 
-    def test_parse_invalid_format(self) -> None:
-        """Test parsing items without equals sign."""
+    def test_parse_invalid_format(self):
         pairs = ["invalid", "valid=value"]
         result = parse_kv_pairs(pairs)
 
         assert "invalid" not in result
         assert result["valid"] == "value"
 
-    def test_parse_with_spaces(self) -> None:
-        """Test parsing with whitespace in keys/values."""
+    def test_parse_with_spaces(self):
         pairs = [" key = value ", "k2=v2"]
         result = parse_kv_pairs(pairs)
 
@@ -81,10 +70,7 @@ class TestParseKVPairs:
 
 
 class TestLoadAtomsFromXYZ:
-    """Test loading atoms from XYZ files."""
-
-    def test_load_single_frame_xyz(self) -> None:
-        """Test loading single frame XYZ file."""
+    def test_load_single_frame_xyz(self):
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
@@ -98,17 +84,13 @@ class TestLoadAtomsFromXYZ:
         finally:
             Path(temp_file).unlink()
 
-    def test_load_nonexistent_file(self) -> None:
-        """Test loading nonexistent file raises error."""
+    def test_load_nonexistent_file(self):
         with pytest.raises((FileNotFoundError, OSError)):
             load_atoms_from_xyz("nonexistent.xyz")
 
 
 class TestWriteAtoms:
-    """Test writing atoms to files."""
-
-    def test_write_single_atoms(self) -> None:
-        """Test writing single Atoms object."""
+    def test_write_single_atoms(self):
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
@@ -122,8 +104,7 @@ class TestWriteAtoms:
             if Path(temp_file).exists():
                 Path(temp_file).unlink()
 
-    def test_write_list_of_atoms(self) -> None:
-        """Test writing list of Atoms (trajectory)."""
+    def test_write_list_of_atoms(self):
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         atoms2 = Atoms("H2", positions=[[0, 0, 0], [0.80, 0, 0]])
         atoms_list = [atoms1, atoms2]
@@ -139,8 +120,7 @@ class TestWriteAtoms:
             if Path(temp_file).exists():
                 Path(temp_file).unlink()
 
-    def test_write_dict_result(self) -> None:
-        """Test writing dict with optimized_atoms."""
+    def test_write_dict_result(self):
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         result_dict = {"optimized_atoms": atoms, "converged": True}
 
@@ -154,18 +134,14 @@ class TestWriteAtoms:
             if Path(temp_file).exists():
                 Path(temp_file).unlink()
 
-    def test_write_none_path(self) -> None:
-        """Test writing with None path returns None."""
+    def test_write_none_path(self):
         atoms = Atoms("H2")
         result = write_atoms(atoms, None)
         assert result is None
 
 
 class TestPrintFrequencySummary:
-    """Test frequency summary printing."""
-
-    def test_print_minima_summary(self, capsys) -> None:
-        """Test printing frequency summary for minima."""
+    def test_print_minima_summary(self, capsys):
         frequency_analysis = {
             "frequencies": [100.0, 200.0, 300.0, 400.0],
             "zero_point_energy": 0.5,
@@ -184,8 +160,7 @@ class TestPrintFrequencySummary:
         assert "Zero-point energy" in captured.out
         assert "Valid minimum" in captured.out
 
-    def test_print_ts_summary(self, capsys) -> None:
-        """Test printing frequency summary for TS."""
+    def test_print_ts_summary(self, capsys):
         frequency_analysis = {
             "frequencies": [-100.0, 200.0, 300.0],
             "zero_point_energy": 0.4,
@@ -203,18 +178,14 @@ class TestPrintFrequencySummary:
         assert "transition state" in captured.out.lower()
         assert "imaginary frequency" in captured.out.lower()
 
-    def test_print_empty_summary(self, capsys) -> None:
-        """Test printing empty summary does nothing."""
+    def test_print_empty_summary(self, capsys):
         print_frequency_summary({}, target="minima")
         captured = capsys.readouterr()
         assert captured.out == ""
 
 
 class TestSaveResultsJSON:
-    """Test saving results to JSON."""
-
-    def test_save_basic_results(self) -> None:
-        """Test saving basic results dictionary."""
+    def test_save_basic_results(self):
         results = {
             "converged": True,
             "steps_taken": 10,
@@ -243,8 +214,7 @@ class TestSaveResultsJSON:
             if json_path.exists():
                 json_path.unlink()
 
-    def test_save_with_frequency_analysis(self) -> None:
-        """Test saving results with frequency analysis."""
+    def test_save_with_frequency_analysis(self):
         import numpy as np
 
         results = {
@@ -277,26 +247,21 @@ class TestSaveResultsJSON:
 
 
 class TestCacheCommands:
-    """Test cache management CLI commands."""
-
-    def test_cache_info_command(self) -> None:
-        """Test cache info command."""
+    def test_cache_info_command(self):
         runner = CliRunner()
         result = runner.invoke(cache, ["info"])
 
         assert result.exit_code == 0
         assert "QME Model Cache" in result.output
 
-    def test_cache_verify_command(self) -> None:
-        """Test cache verify command."""
+    def test_cache_verify_command(self):
         runner = CliRunner()
         result = runner.invoke(cache, ["verify"])
 
         assert result.exit_code == 0
         assert "Verifying" in result.output or "cache" in result.output.lower()
 
-    def test_cache_clear_command_no_yes(self) -> None:
-        """Test cache clear command without --yes flag."""
+    def test_cache_clear_command_no_yes(self):
         runner = CliRunner()
         # Simulate 'n' for no
         result = runner.invoke(cache, ["clear"], input="n\n")
@@ -306,10 +271,7 @@ class TestCacheCommands:
 
 
 class TestLoadAtomsFromXYZExtended:
-    """Extended tests for loading atoms."""
-
-    def test_load_xyz_with_multiple_frames(self) -> None:
-        """Test loading XYZ with multiple frames (edge case coverage)."""
+    def test_load_xyz_with_multiple_frames(self):
         import tempfile
         from pathlib import Path
 
@@ -338,9 +300,7 @@ H  0.0  0.0  1.6
 
 
 class TestCoerceToAtoms:
-    """Test _coerce_to_atoms helper function."""
-
-    def test_coerce_atoms_tuple(self) -> None:
+    def test_coerce_atoms_tuple(self):
         from qme.cli.cli_helpers import _coerce_to_atoms
 
         atoms1 = Atoms("H2")
@@ -349,14 +309,14 @@ class TestCoerceToAtoms:
         result = _coerce_to_atoms((atoms1, atoms2))
         assert result == atoms1  # First one
 
-    def test_coerce_atoms_dict(self) -> None:
+    def test_coerce_atoms_dict(self):
         from qme.cli.cli_helpers import _coerce_to_atoms
 
         atoms = Atoms("H2O")
         result = _coerce_to_atoms({"optimized_atoms": atoms})
         assert result == atoms
 
-    def test_coerce_atoms_path(self) -> None:
+    def test_coerce_atoms_path(self):
         from qme.cli.cli_helpers import _coerce_to_atoms
 
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
@@ -371,7 +331,7 @@ class TestCoerceToAtoms:
         finally:
             Path(temp_file).unlink(missing_ok=True)
 
-    def test_coerce_atoms_invalid(self) -> None:
+    def test_coerce_atoms_invalid(self):
         from qme.cli.cli_helpers import _coerce_to_atoms
 
         with pytest.raises(TypeError):
@@ -379,10 +339,7 @@ class TestCoerceToAtoms:
 
 
 class TestLoadNonXYZFile:
-    """Test loading non-XYZ formats."""
-
-    def test_load_non_xyz_file(self) -> None:
-        """Test loading non-XYZ file."""
+    def test_load_non_xyz_file(self):
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".cif", delete=False) as f:

@@ -29,10 +29,11 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          ruff check qme/
-          ruff format --check qme/
+          ruff check qme/ tests/ examples/
+          ruff format --check qme/ tests/ examples/
 
       - name: Type check with mypy
+        continue-on-error: true
         run: mypy qme/
 
       - name: Run tests

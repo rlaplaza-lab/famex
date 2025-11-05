@@ -91,7 +91,7 @@ class MultiStructureNEBStrategy(BaseStrategy):
         # Note: path should already be flat, but handle edge cases
         if path and hasattr(path[0], "__iter__") and not isinstance(path[0], Atoms):
             # If first element is iterable but not Atoms, might be nested
-            try:
+            try:  # type: ignore[unreachable]
                 flat = []
                 for seg in path:
                     if isinstance(seg, (list, tuple)):  # noqa: UP038
@@ -134,7 +134,7 @@ class MultiStructureNEBStrategy(BaseStrategy):
         # Filter redundant structures and issue warnings
         if optimized_path:
             # Convert atoms_list to list for comparison
-            input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
+            input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]  # type: ignore[unreachable]
 
             filtered_path, _removed_indices, warnings_list = (
                 PathManager.filter_redundant_structures(

@@ -1,4 +1,4 @@
-"""Test growing string method implementation."""
+from __future__ import annotations
 
 import pytest
 from ase import Atoms
@@ -7,10 +7,7 @@ from qme.core.explorer import Explorer
 
 
 class TestGrowingStringMethod:
-    """Test suite for growing string method."""
-
-    def test_growing_string_basic(self) -> None:
-        """Test basic growing string functionality with mock backend."""
+    def test_growing_string_basic(self):
         # Create simple reactant and product structures (H2 molecule)
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
@@ -58,8 +55,7 @@ class TestGrowingStringMethod:
         # Verify optimized_atoms is an Atoms object
         assert isinstance(result["optimized_atoms"], Atoms)
 
-    def test_growing_string_requires_two_atoms(self) -> None:
-        """Test that growing string requires exactly two Atoms objects."""
+    def test_growing_string_requires_two_atoms(self):
         single_atoms = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         explorer = Explorer(single_atoms, backend="mock", target="ts", strategy="growing_string")
 
@@ -81,8 +77,7 @@ class TestGrowingStringMethod:
         with pytest.raises(ValueError, match="exactly 2 Atoms objects"):
             explorer_multi.run()
 
-    def test_growing_string_with_ts_refinement_fails(self) -> None:
-        """Test growing string with TS refinement fails with mock backend."""
+    def test_growing_string_with_ts_refinement_fails(self):
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
@@ -103,8 +98,7 @@ class TestGrowingStringMethod:
                 refine_ts=True,  # This will fail with mock backend
             )
 
-    def test_growing_string_strategy_registration(self) -> None:
-        """Test that growing string strategy is properly registered with correct metadata."""
+    def test_growing_string_strategy_registration(self):
         # Create reactant and product
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
@@ -121,8 +115,7 @@ class TestGrowingStringMethod:
         assert all_strategies["ts:growing_string"]["type"] == "multi-structure"
         assert "growing string" in all_strategies["ts:growing_string"]["description"].lower()
 
-    def test_growing_string_limits_and_thresholds(self) -> None:
-        """Test that growing string respects limits and uses thresholds correctly."""
+    def test_growing_string_limits_and_thresholds(self):
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 

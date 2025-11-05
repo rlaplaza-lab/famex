@@ -1,5 +1,3 @@
-"""Unit tests for BaseStrategy and StrategyMetadata."""
-
 from __future__ import annotations
 
 import pytest
@@ -9,10 +7,7 @@ from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 
 
 class TestStrategyMetadata:
-    """Test StrategyMetadata dataclass."""
-
-    def test_metadata_creation(self) -> None:
-        """Test creating metadata with required fields."""
+    def test_metadata_creation(self):
         metadata = StrategyMetadata(
             name="test:strategy",
             target="test",
@@ -27,8 +22,7 @@ class TestStrategyMetadata:
         assert metadata.aliases == ["test", "ts"]
         assert metadata.requires_multiple_structures is False
 
-    def test_metadata_multiple_structures_flag(self) -> None:
-        """Test metadata with requires_multiple_structures flag."""
+    def test_metadata_multiple_structures_flag(self):
         metadata = StrategyMetadata(
             name="test:multi",
             target="path",
@@ -39,8 +33,7 @@ class TestStrategyMetadata:
         )
         assert metadata.requires_multiple_structures is True
 
-    def test_metadata_empty_aliases(self) -> None:
-        """Test metadata with empty aliases list."""
+    def test_metadata_empty_aliases(self):
         metadata = StrategyMetadata(
             name="test:noalias",
             target="test",
@@ -50,8 +43,7 @@ class TestStrategyMetadata:
         )
         assert metadata.aliases == []
 
-    def test_metadata_equality(self) -> None:
-        """Test metadata equality comparison."""
+    def test_metadata_equality(self):
         metadata1 = StrategyMetadata(
             name="test:strategy",
             target="test",
@@ -70,8 +62,6 @@ class TestStrategyMetadata:
 
 
 class ConcreteTestStrategy(BaseStrategy):
-    """Concrete implementation of BaseStrategy for testing."""
-
     metadata = StrategyMetadata(
         name="test:concrete",
         target="test",
@@ -83,10 +73,9 @@ class ConcreteTestStrategy(BaseStrategy):
 
     def run(
         self,
-        atoms_list: list[Atoms],
-        **kwargs: dict,
-    ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
-        """Concrete implementation of run method."""
+        atoms_list,
+        **kwargs,
+    ):
         self.validate_inputs(atoms_list)
         optimized = atoms_list[0].copy()
         result = self.prepare_result(optimized, converged=True, steps_taken=10)
@@ -94,18 +83,14 @@ class ConcreteTestStrategy(BaseStrategy):
 
 
 class TestBaseStrategy:
-    """Test BaseStrategy abstract base class."""
-
-    def test_strategy_initialization(self) -> None:
-        """Test strategy initialization with explorer."""
+    def test_strategy_initialization(self):
         explorer_mock = object()
         strategy = ConcreteTestStrategy(explorer_mock)
 
         assert strategy.explorer is explorer_mock
         assert strategy.profiler is None
 
-    def test_strategy_initialization_with_profiler(self) -> None:
-        """Test strategy initialization with profiler."""
+    def test_strategy_initialization_with_profiler(self):
         explorer_mock = object()
         profiler_mock = object()
         strategy = ConcreteTestStrategy(explorer_mock, profiler=profiler_mock)
@@ -113,16 +98,14 @@ class TestBaseStrategy:
         assert strategy.explorer is explorer_mock
         assert strategy.profiler is profiler_mock
 
-    def test_validate_inputs_empty_list(self) -> None:
-        """Test validate_inputs raises error for empty list."""
+    def test_validate_inputs_empty_list(self):
         explorer_mock = object()
         strategy = ConcreteTestStrategy(explorer_mock)
 
         with pytest.raises(ValueError, match="No atoms provided"):
             strategy.validate_inputs([])
 
-    def test_validate_inputs_valid_list(self) -> None:
-        """Test validate_inputs accepts valid list."""
+    def test_validate_inputs_valid_list(self):
         explorer_mock = object()
         strategy = ConcreteTestStrategy(explorer_mock)
         atoms = Atoms("H2")
@@ -130,8 +113,7 @@ class TestBaseStrategy:
         # Should not raise
         strategy.validate_inputs([atoms])
 
-    def test_prepare_result_single_atoms(self) -> None:
-        """Test prepare_result with single Atoms object."""
+    def test_prepare_result_single_atoms(self):
         explorer_mock = object()
         strategy = ConcreteTestStrategy(explorer_mock)
         atoms = Atoms("H2")
@@ -143,8 +125,7 @@ class TestBaseStrategy:
         assert result["converged"] is True
         assert result["steps_taken"] == 5
 
-    def test_prepare_result_list_atoms(self) -> None:
-        """Test prepare_result with list of Atoms."""
+    def test_prepare_result_list_atoms(self):
         explorer_mock = object()
         strategy = ConcreteTestStrategy(explorer_mock)
         atoms_list = [Atoms("H2"), Atoms("H2")]
@@ -155,8 +136,7 @@ class TestBaseStrategy:
         assert result["strategy"] == "test:concrete"
         assert result["converged"] is True
 
-    def test_prepare_result_with_non_standard_types(self) -> None:
-        """Test prepare_result converts non-standard types to strings."""
+    def test_prepare_result_with_non_standard_types(self):
         explorer_mock = object()
         strategy = ConcreteTestStrategy(explorer_mock)
         atoms = Atoms("H2")
@@ -169,8 +149,7 @@ class TestBaseStrategy:
         # Metadata dict should be converted to string
         assert isinstance(result["metadata"], str)
 
-    def test_merge_profiler_results_no_profiler(self) -> None:
-        """Test _merge_profiler_results when profiler is None."""
+    def test_merge_profiler_results_no_profiler(self):
         explorer_mock = object()
         strategy = ConcreteTestStrategy(explorer_mock)
         result = {"test": "value"}
@@ -180,8 +159,7 @@ class TestBaseStrategy:
         assert merged == result
         assert "performance" not in merged
 
-    def test_merge_profiler_results_with_profiler(self) -> None:
-        """Test _merge_profiler_results when profiler is available."""
+    def test_merge_profiler_results_with_profiler(self):
         explorer_mock = object()
 
         class MockProfiler:
@@ -198,8 +176,7 @@ class TestBaseStrategy:
         assert "performance" in merged
         assert merged["performance"] == {"time": 1.0, "memory": 100}
 
-    def test_run_abstract_method(self) -> None:
-        """Test that run method must be implemented in subclasses."""
+    def test_run_abstract_method(self):
         explorer_mock = object()
         strategy = ConcreteTestStrategy(explorer_mock)
         atoms = Atoms("H2")
@@ -212,8 +189,7 @@ class TestBaseStrategy:
         assert result["converged"] is True
         assert result["steps_taken"] == 10
 
-    def test_run_validates_inputs(self) -> None:
-        """Test that run method calls validate_inputs."""
+    def test_run_validates_inputs(self):
         explorer_mock = object()
         strategy = ConcreteTestStrategy(explorer_mock)
 
@@ -221,8 +197,7 @@ class TestBaseStrategy:
         with pytest.raises(ValueError, match="No atoms provided"):
             strategy.run([])
 
-    def test_metadata_attribute_exists(self) -> None:
-        """Test that metadata attribute exists on strategy."""
+    def test_metadata_attribute_exists(self):
         explorer_mock = object()
         strategy = ConcreteTestStrategy(explorer_mock)
 

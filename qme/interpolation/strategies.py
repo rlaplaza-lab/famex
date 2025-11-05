@@ -13,8 +13,10 @@ Available strategies:
 """
 
 from abc import ABC, abstractmethod
+from typing import cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from qme.utils.logging import get_qme_logger
 
@@ -293,7 +295,7 @@ class QuadraticInterpolation(InterpolationStrategy):
         # where offset creates a smooth curve
         linear = start + t * (end - start)
         offset = 0.1 * (end - start)  # Small offset for curvature
-        return linear + t * (1 - t) * offset
+        return cast(NDArray[np.floating], linear + t * (1 - t) * offset)
 
 
 class CubicSplineInterpolation(InterpolationStrategy):
@@ -354,7 +356,7 @@ class CubicSplineInterpolation(InterpolationStrategy):
 
 
 # Registry of available interpolation strategies
-INTERPOLATION_REGISTRY = {
+INTERPOLATION_REGISTRY: dict[str, type[InterpolationStrategy]] = {
     "linear": LinearInterpolation,
     "geodesic": GeodesicInterpolation,
     "idpp": IDPPInterpolation,
@@ -391,6 +393,7 @@ def get_interpolation_strategy(method: str) -> InterpolationStrategy:
             msg,
         )
 
+    # All classes in registry are concrete implementations
     strategy_class = INTERPOLATION_REGISTRY[method_lower]
     return strategy_class()
 

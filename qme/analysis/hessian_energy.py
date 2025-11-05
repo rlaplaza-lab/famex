@@ -16,6 +16,7 @@ import numpy as np
 from ase import Atoms
 from numpy.typing import NDArray
 
+from qme.analysis.utils import validate_indices
 from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
@@ -116,37 +117,11 @@ class EnergyBasedHessianCalculator:
             msg = f"delta must be positive, got {delta}"
             raise ValueError(msg)
 
-        if indices is not None:
-            if not isinstance(indices, list) or len(indices) == 0:
-                msg = "indices must be a non-empty list"
-                raise ValueError(msg)
-            if len(set(indices)) != len(indices):
-                msg = "indices must be unique"
-                raise ValueError(msg)
-            if not all(0 <= idx < len(atoms) for idx in indices):
-                invalid = [idx for idx in indices if not (0 <= idx < len(atoms))]
-                msg = f"indices out of bounds: {invalid} (system has {len(atoms)} atoms)"
-                raise ValueError(msg)
-            self.indices = indices
-        else:
-            self.indices = list(range(len(atoms)))
+        self.indices = validate_indices(atoms, indices)
 
         self.atoms = atoms
         self.calculator = calculator
-        if self.atoms.calc is None or self.atoms.calc is not calculator:
-            self.atoms.calc = calculator
-
-        # Validate calculator can compute energy
-        try:
-            test_energy = self.atoms.get_potential_energy()
-            if not np.isfinite(test_energy):
-                logger.warning(
-                    "Calculator returned non-finite energy at reference geometry. "
-                    "Hessian calculation may fail."
-                )
-        except Exception as e:
-            msg = f"Calculator validation failed: {e}. Ensure calculator is properly initialized."
-            raise ValueError(msg) from e
+        self.atoms.calc = calculator
 
         self.delta = delta
         self.verbose = verbose
@@ -326,18 +301,11 @@ class EnergyBasedHessianCalculator:
         atoms_displaced.calc = self.calculator
 
         # Compute energy
-        try:
-            energy = atoms_displaced.get_potential_energy()
-            if not np.isfinite(energy):
-                msg = "Calculator returned non-finite energy at displacement"
-                raise RuntimeError(msg)
-            return energy
-        except Exception as e:
-            msg = (
-                f"Energy calculation failed for displacement "
-                f"(atom {atom_i} coord {coord_i}: {disp_i}, atom {atom_j} coord {coord_j}: {disp_j}): {e}"
-            )
-            raise RuntimeError(msg) from e
+        energy = atoms_displaced.get_potential_energy()
+        if not np.isfinite(energy):
+            msg = "Calculator returned non-finite energy at displacement"
+            raise RuntimeError(msg)
+        return cast(float, energy)
 
     def _get_energy_at_ref(self) -> float:
         """Get energy at reference geometry.
@@ -347,7 +315,7 @@ class EnergyBasedHessianCalculator:
         float
             Reference energy in eV
         """
-        return self.atoms.get_potential_energy()
+        return cast(float, self.atoms.get_potential_energy())
 
 
 __all__ = [

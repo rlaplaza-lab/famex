@@ -96,8 +96,8 @@ class TorchSimPotential(BasePotential):
         self.backend = backend
         self.default_charge = default_charge
         self.default_spin = default_spin
-        self._torch_sim = None
-        self._model = None
+        self._torch_sim: Any = None
+        self._model: Any = None
         self._state = None
 
         # Enable batch evaluation for TorchSim
@@ -184,7 +184,7 @@ class TorchSimPotential(BasePotential):
             torch_device = deps.get("torch").device(self.device)
             # mace_model from return_raw_model=True is a PyTorch module, not MACECalculator
             if hasattr(mace_model, "to"):
-                mace_model = mace_model.to(torch_device)  # type: ignore[attr-defined]
+                mace_model = mace_model.to(torch_device)
             self._mace_model = MaceModel(model=mace_model, device=torch_device)
 
         except (ValueError, AttributeError, RuntimeError) as e:
@@ -291,15 +291,16 @@ class TorchSimPotential(BasePotential):
         if self._torch_sim is None:
             msg = "TorchSim not initialized. Call _load_calculator() first."
             raise RuntimeError(msg)
+        # After the check, _torch_sim is guaranteed to be not None
+        assert self._torch_sim is not None
 
-        if self._state is None:
-            self._state = self._torch_sim.io.atoms_to_state(atoms_copy, device=device, dtype=dtype)
-        else:
-            # Update existing state
-            self._state = self._torch_sim.io.atoms_to_state(atoms_copy, device=device, dtype=dtype)
+        # Update state (always refresh to ensure consistency)
+        # atoms_to_state returns a SimState, not None (but mypy doesn't know this)
+        self._state = self._torch_sim.io.atoms_to_state(atoms_copy, device=device, dtype=dtype)
 
         # Enable gradients for positions (needed for force calculations)
-        self._state.positions.requires_grad_(True)
+        # Type ignore: mypy thinks _state could be None, but atoms_to_state doesn't return None
+        self._state.positions.requires_grad_(True)  # type: ignore[attr-defined]
 
         # Return the SimState directly - the MACE model will convert it if needed
         return self._state
@@ -311,6 +312,8 @@ class TorchSimPotential(BasePotential):
         if self._torch_sim is None:
             msg = "TorchSim not initialized. Call _load_calculator() first."
             raise RuntimeError(msg)
+        # After the check, _torch_sim is guaranteed to be not None
+        assert self._torch_sim is not None
 
         result = self._torch_sim.io.state_to_atoms(state)
         return cast(Atoms, result)
@@ -339,10 +342,15 @@ class TorchSimPotential(BasePotential):
         if self._model is None:
             msg = "Failed to load TorchSim model"
             raise RuntimeError(msg)
+        # After the check, _model is guaranteed to be not None
+        assert self._model is not None
 
         # Check if we're using a TorchSim model or regular calculator
         if hasattr(self._model, "forward"):
             # TorchSim model - use the state-based approach
+            if self.atoms is None:
+                msg = "atoms cannot be None"
+                raise ValueError(msg)
             state = self._atoms_to_state(self.atoms)
             self._current_atoms = self.atoms
 
@@ -354,40 +362,42 @@ class TorchSimPotential(BasePotential):
             self._model.calculate(self.atoms, properties, system_changes)
 
             # Extract results from the calculator
-            if "energy" in properties:
-                try:
-                    self.results["energy"] = self._model.results["energy"]
-                except (AttributeError, KeyError, TypeError):
-                    # Fallback: calculator doesn't have .results or key doesn't exist
-                    # AttributeError: .results doesn't exist
-                    # KeyError: key doesn't exist in results
-                    # TypeError: .results exists but isn't dict-like
-                    self.results["energy"] = self.results.get("energy")
+            if properties is not None:
+                if "energy" in properties:
+                    try:
+                        self.results["energy"] = self._model.results["energy"]
+                    except (AttributeError, KeyError, TypeError):
+                        # Fallback: calculator doesn't have .results or key doesn't exist
+                        # AttributeError: .results doesn't exist
+                        # KeyError: key doesn't exist in results
+                        # TypeError: .results exists but isn't dict-like
+                        self.results["energy"] = self.results.get("energy")
 
-            if "forces" in properties:
-                try:
-                    self.results["forces"] = self._model.results["forces"]
-                except (AttributeError, KeyError, TypeError):
-                    # Fallback: calculator doesn't have .results or key doesn't exist
-                    # AttributeError: .results doesn't exist
-                    # KeyError: key doesn't exist in results
-                    # TypeError: .results exists but isn't dict-like
-                    self.results["forces"] = self.results.get("forces")
+                if "forces" in properties:
+                    try:
+                        self.results["forces"] = self._model.results["forces"]
+                    except (AttributeError, KeyError, TypeError):
+                        # Fallback: calculator doesn't have .results or key doesn't exist
+                        # AttributeError: .results doesn't exist
+                        # KeyError: key doesn't exist in results
+                        # TypeError: .results exists but isn't dict-like
+                        self.results["forces"] = self.results.get("forces")
             return
 
-        if "energy" in properties and "energy" in results:
-            energy = results["energy"]
-            # Handle both single system and batched results
-            if energy.dim() == 0:
-                self.results["energy"] = float(energy)
-            else:
-                self.results["energy"] = float(energy[0])  # Take first system if batched
+        if properties is not None:
+            if "energy" in properties and "energy" in results:
+                energy = results["energy"]
+                # Handle both single system and batched results
+                if energy.dim() == 0:
+                    self.results["energy"] = float(energy)
+                else:
+                    self.results["energy"] = float(energy[0])  # Take first system if batched
 
-        if "forces" in properties and "forces" in results:
-            forces = results["forces"]
-            # Convert to numpy and ensure correct shape
-            forces_np = forces.detach().cpu().numpy()
-            self.results["forces"] = forces_np
+            if "forces" in properties and "forces" in results:
+                forces = results["forces"]
+                # Convert to numpy and ensure correct shape
+                forces_np = forces.detach().cpu().numpy()
+                self.results["forces"] = forces_np
 
     def get_potential_energy(
         self,
@@ -443,6 +453,8 @@ class TorchSimPotential(BasePotential):
         if self._model is None:
             msg = "Failed to load TorchSim model"
             raise RuntimeError(msg)
+        # After the check, _model is guaranteed to be not None
+        assert self._model is not None
 
         # Convert all atoms to TorchSim states
         states = []
@@ -500,12 +512,13 @@ class TorchSimPotential(BasePotential):
         if hasattr(self._model, "forward"):
             try:
                 # Try TorchSim's native batching (works on both CPU and GPU)
-                if self._torch_sim is not None and hasattr(self._torch_sim, "batch_states"):
-                    # Use TorchSim's built-in batching
-                    batch_state = self._torch_sim.batch_states(states)
-                    batch_results = self._model(batch_state)
-                    self._batch_results = self._split_batch_results(batch_results, len(states))
-                    return states[0]
+                if self._torch_sim is not None:
+                    if hasattr(self._torch_sim, "batch_states"):
+                        # Use TorchSim's built-in batching
+                        batch_state = self._torch_sim.batch_states(states)
+                        batch_results = self._model(batch_state)
+                        self._batch_results = self._split_batch_results(batch_results, len(states))
+                        return states[0]
 
                 # Fallback: Manual batching for TorchSim models
                 if len(states) > 1:
@@ -607,6 +620,8 @@ class TorchSimPotential(BasePotential):
         if self._model is None:
             msg = "Model not loaded. Call _load_calculator() first."
             raise RuntimeError(msg)
+        # After the check, _model is guaranteed to be not None
+        assert self._model is not None
 
         batch_results = []
         for state in states:

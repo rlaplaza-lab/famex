@@ -1,5 +1,3 @@
-"""Unit tests for QME utility modules: logging, profiler, and ml_warnings."""
-
 from __future__ import annotations
 
 import logging
@@ -27,10 +25,7 @@ from qme.utils.profiler import (
 
 
 class TestLogging:
-    """Test logging configuration and utilities."""
-
-    def test_setup_qme_logging_default(self) -> None:
-        """Test default logging setup."""
+    def test_setup_qme_logging_default(self):
         setup_qme_logging(force=True)
 
         logger = logging.getLogger("qme")
@@ -45,15 +40,13 @@ class TestLogging:
             (2, logging.DEBUG),
         ],
     )
-    def test_setup_qme_logging_verbosity(self, verbosity: int, expected_level: int) -> None:
-        """Test logging setup with different verbosity levels."""
+    def test_setup_qme_logging_verbosity(self, verbosity, expected_level):
         setup_qme_logging(verbosity=verbosity, force=True)
 
         logger = logging.getLogger("qme")
         assert logger.level == expected_level
 
-    def test_setup_qme_logging_no_force(self) -> None:
-        """Test that logging setup doesn't reconfigure if already configured."""
+    def test_setup_qme_logging_no_force(self):
         setup_qme_logging(force=True)
         initial_handlers = len(logging.getLogger("qme").handlers)
 
@@ -64,21 +57,18 @@ class TestLogging:
         # Should have same number of handlers (or fewer if cleared)
         assert final_handlers <= initial_handlers
 
-    def test_get_qme_logger_main(self) -> None:
-        """Test getting logger for __main__."""
+    def test_get_qme_logger_main(self):
         logger = get_qme_logger("__main__")
         assert logger.name == "qme"
 
-    def test_get_qme_logger_module_name(self) -> None:
-        """Test getting logger for module names."""
+    def test_get_qme_logger_module_name(self):
         logger = get_qme_logger("test_module")
         assert logger.name == "qme.test_module"
 
         logger2 = get_qme_logger("qme.already.qme.module")
         assert logger2.name == "qme.already.qme.module"
 
-    def test_get_qme_log_level(self) -> None:
-        """Test getting current log level."""
+    def test_get_qme_log_level(self):
         setup_qme_logging(verbosity=2, force=True)
         level = get_qme_log_level()
         assert level == logging.DEBUG
@@ -87,18 +77,14 @@ class TestLogging:
         level = get_qme_log_level()
         assert level == logging.WARNING
 
-    def test_is_in_quiet_context_default(self) -> None:
-        """Test quiet context check returns False by default."""
+    def test_is_in_quiet_context_default(self):
         # By default, should not be in quiet context
         result = is_in_quiet_context()
         assert result is False
 
     @patch("click.echo")
     @patch("qme.utils.device.get_device_info")
-    def test_print_model_info_minimal(
-        self, mock_get_device_info: MagicMock, mock_echo: MagicMock
-    ) -> None:
-        """Test print_model_info with minimal information."""
+    def test_print_model_info_minimal(self, mock_get_device_info, mock_echo):
         print_model_info("test_backend")
 
         # Should have printed backend name
@@ -108,10 +94,7 @@ class TestLogging:
 
     @patch("click.echo")
     @patch("qme.utils.device.get_device_info")
-    def test_print_model_info_full(
-        self, mock_get_device_info: MagicMock, mock_echo: MagicMock
-    ) -> None:
-        """Test print_model_info with all information."""
+    def test_print_model_info_full(self, mock_get_device_info, mock_echo):
         mock_get_device_info.return_value = {"gpu_name": "Test GPU", "cuda_available": True}
 
         print_model_info(
@@ -132,10 +115,9 @@ class TestLogging:
     @patch("qme.utils.device.get_device_info")
     def test_print_model_info_device_error_handling(
         self,
-        mock_get_device_info: MagicMock,
-        mock_echo: MagicMock,
-    ) -> None:
-        """Test that print_model_info handles device info errors gracefully."""
+        mock_get_device_info,
+        mock_echo,
+    ):
         mock_get_device_info.side_effect = Exception("GPU info error")
 
         # Should not raise exception
@@ -144,10 +126,7 @@ class TestLogging:
 
 
 class TestProfiler:
-    """Test performance profiler functionality."""
-
-    def test_profiler_initialization(self) -> None:
-        """Test profiler initialization."""
+    def test_profiler_initialization(self):
         profiler = PerformanceProfiler()
 
         assert profiler._gpu_available is not None  # Should detect GPU availability
@@ -155,8 +134,7 @@ class TestProfiler:
         assert profiler._calculator_calls["energy"] == 0
         assert profiler._calculator_calls["forces"] == 0
 
-    def test_increment_call_existing(self) -> None:
-        """Test incrementing existing call counter."""
+    def test_increment_call_existing(self):
         profiler = PerformanceProfiler()
 
         profiler.increment_call("energy", count=3)
@@ -165,15 +143,13 @@ class TestProfiler:
         profiler.increment_call("energy", count=2)
         assert profiler._calculator_calls["energy"] == 5
 
-    def test_increment_call_new(self) -> None:
-        """Test incrementing new call counter."""
+    def test_increment_call_new(self):
         profiler = PerformanceProfiler()
 
         profiler.increment_call("custom_call", count=7)
         assert profiler._calculator_calls["custom_call"] == 7
 
-    def test_profile_section_context_manager(self) -> None:
-        """Test profile_section context manager."""
+    def test_profile_section_context_manager(self):
         profiler = PerformanceProfiler()
 
         with profiler.profile_section("test_section"):
@@ -185,8 +161,7 @@ class TestProfiler:
         assert timing.duration is not None
         assert timing.duration >= 0
 
-    def test_profile_section_with_parent(self) -> None:
-        """Test profile_section with parent."""
+    def test_profile_section_with_parent(self):
         profiler = PerformanceProfiler()
 
         with profiler.profile_section("parent"):  # noqa: SIM117
@@ -198,8 +173,7 @@ class TestProfiler:
         child_timing = profiler._timings["child"][0]
         assert child_timing.parent == "parent"
 
-    def test_start_end_timing(self) -> None:
-        """Test manual timing with start_timing and end_timing."""
+    def test_start_end_timing(self):
         profiler = PerformanceProfiler()
 
         timing = profiler.start_timing("manual_timing")
@@ -211,15 +185,13 @@ class TestProfiler:
         assert duration >= 0
         assert "manual_timing" in profiler._timings
 
-    def test_end_timing_nonexistent(self) -> None:
-        """Test ending timing that doesn't exist."""
+    def test_end_timing_nonexistent(self):
         profiler = PerformanceProfiler()
 
         duration = profiler.end_timing("nonexistent")
         assert duration is None
 
-    def test_snapshot_memory(self) -> None:
-        """Test memory snapshot functionality."""
+    def test_snapshot_memory(self):
         profiler = PerformanceProfiler()
 
         initial_snapshots = len(profiler._memory_snapshots)
@@ -229,8 +201,7 @@ class TestProfiler:
         assert memory_info.ram_mb > 0
         assert len(profiler._memory_snapshots) == initial_snapshots + 1
 
-    def test_get_summary(self) -> None:
-        """Test getting profiler summary."""
+    def test_get_summary(self):
         profiler = PerformanceProfiler()
 
         # Add some activity
@@ -252,8 +223,7 @@ class TestProfiler:
         assert summary["calculator_calls"]["forces"] == 10
         assert "test" in summary["timings"]
 
-    def test_get_summary_timing_stats(self) -> None:
-        """Test timing statistics in summary."""
+    def test_get_summary_timing_stats(self):
         profiler = PerformanceProfiler()
 
         # Multiple timings of same section
@@ -270,8 +240,7 @@ class TestProfiler:
         assert timing_stats["min_time"] >= 0
         assert timing_stats["max_time"] >= 0
 
-    def test_timing_entry_finish(self) -> None:
-        """Test TimingEntry finish method."""
+    def test_timing_entry_finish(self):
         import time
 
         timing = TimingEntry(name="test", start_time=time.perf_counter())
@@ -285,16 +254,15 @@ class TestProfiler:
         assert duration == timing.duration
         assert duration >= 0
 
-    def test_profile_call_decorator_with_profiler(self) -> None:
-        """Test profile_call decorator when profiler is available."""
+    def test_profile_call_decorator_with_profiler(self):
         profiler = PerformanceProfiler()
 
         class TestClass:
-            def __init__(self) -> None:
+            def __init__(self):
                 self.profiler = profiler
 
             @profile_call
-            def test_method(self) -> str:
+            def test_method(self):
                 return "result"
 
         obj = TestClass()
@@ -305,12 +273,10 @@ class TestProfiler:
         summary = profiler.get_summary()
         assert len(summary["timings"]) > 0
 
-    def test_profile_call_decorator_without_profiler(self) -> None:
-        """Test profile_call decorator when profiler is not available."""
-
+    def test_profile_call_decorator_without_profiler(self):
         class TestClass:
             @profile_call
-            def test_method(self) -> str:
+            def test_method(self):
                 return "result"
 
         obj = TestClass()
@@ -318,16 +284,15 @@ class TestProfiler:
 
         assert result == "result"
 
-    def test_profile_optimizer_step_decorator(self) -> None:
-        """Test profile_optimizer_step decorator."""
+    def test_profile_optimizer_step_decorator(self):
         profiler = PerformanceProfiler()
 
         class Optimizer:
-            def __init__(self) -> None:
+            def __init__(self):
                 self.profiler = profiler
 
             @profile_optimizer_step
-            def step(self) -> None:
+            def step(self):
                 pass
 
         optimizer = Optimizer()
@@ -339,10 +304,7 @@ class TestProfiler:
 
 
 class TestMLWarnings:
-    """Test ML warning suppression utilities."""
-
-    def test_verbose_filter_logger_name(self) -> None:
-        """Test VerboseFilter filtering by logger name."""
+    def test_verbose_filter_logger_name(self):
         filter_obj = VerboseFilter()
         record = logging.LogRecord(
             name="torch.some.module",
@@ -357,8 +319,7 @@ class TestMLWarnings:
         # Should filter out torch logger
         assert filter_obj.filter(record) is False
 
-    def test_verbose_filter_suppressed_pattern(self) -> None:
-        """Test VerboseFilter filtering by message pattern."""
+    def test_verbose_filter_suppressed_pattern(self):
         filter_obj = VerboseFilter()
         record = logging.LogRecord(
             name="some.module",
@@ -373,8 +334,7 @@ class TestMLWarnings:
         # Should filter out messages with suppressed pattern
         assert filter_obj.filter(record) is False
 
-    def test_verbose_filter_normal_message(self) -> None:
-        """Test VerboseFilter allows normal messages."""
+    def test_verbose_filter_normal_message(self):
         filter_obj = VerboseFilter()
         record = logging.LogRecord(
             name="qme.some.module",
@@ -389,8 +349,7 @@ class TestMLWarnings:
         # Should allow normal messages
         assert filter_obj.filter(record) is True
 
-    def test_suppress_ml_warnings_context(self) -> None:
-        """Test suppress_ml_warnings context manager."""
+    def test_suppress_ml_warnings_context(self):
         original_stderr = sys.stderr
 
         with suppress_ml_warnings() as captured:
@@ -404,8 +363,7 @@ class TestMLWarnings:
         # Should have captured messages
         assert isinstance(captured, list)
 
-    def test_suppress_ml_warnings_restores_stderr(self) -> None:
-        """Test that suppress_ml_warnings properly restores stderr even on exception."""
+    def test_suppress_ml_warnings_restores_stderr(self):
         original_stderr = sys.stderr
 
         try:
@@ -421,10 +379,9 @@ class TestMLWarnings:
     @patch("qme.utils.ml_warnings.suppress_ml_warnings")
     def test_quiet_backend_loading_basic(
         self,
-        mock_suppress: MagicMock,
-        mock_print_info: MagicMock,
-    ) -> None:
-        """Test quiet_backend_loading context manager."""
+        mock_suppress,
+        mock_print_info,
+    ):
         mock_suppress.return_value.__enter__ = MagicMock(return_value=[])
         mock_suppress.return_value.__exit__ = MagicMock(return_value=None)
 
@@ -440,10 +397,9 @@ class TestMLWarnings:
     @patch("qme.utils.ml_warnings.suppress_ml_warnings")
     def test_quiet_backend_loading_no_info(
         self,
-        mock_suppress: MagicMock,
-        mock_print_info: MagicMock,
-    ) -> None:
-        """Test quiet_backend_loading with show_model_info=False."""
+        mock_suppress,
+        mock_print_info,
+    ):
         mock_suppress.return_value.__enter__ = MagicMock(return_value=[])
         mock_suppress.return_value.__exit__ = MagicMock(return_value=None)
 
@@ -460,11 +416,10 @@ class TestMLWarnings:
     @patch("qme.utils.ml_warnings.suppress_ml_warnings")
     def test_quiet_backend_loading_nested_context(
         self,
-        mock_suppress: MagicMock,
-        mock_print_info: MagicMock,
-        mock_is_quiet: MagicMock,
-    ) -> None:
-        """Test quiet_backend_loading when already in quiet context."""
+        mock_suppress,
+        mock_print_info,
+        mock_is_quiet,
+    ):
         mock_suppress.return_value.__enter__ = MagicMock(return_value=[])
         mock_suppress.return_value.__exit__ = MagicMock(return_value=None)
         mock_is_quiet.return_value = True  # Already in quiet context
@@ -479,33 +434,26 @@ class TestMLWarnings:
 
 
 class TestQMEInitModule:
-    """Test qme.__init__ module lazy imports."""
-
     def test_explorer_lazy_import(self):
-        """Test lazy import of Explorer."""
         from qme import Explorer
 
         assert Explorer is not None
 
     def test_profiler_lazy_import(self):
-        """Test lazy import of PerformanceProfiler."""
         from qme import PerformanceProfiler
 
         assert PerformanceProfiler is not None
 
     def test_deps_lazy_import(self):
-        """Test lazy import of deps."""
         from qme import deps
 
         assert deps is not None
 
     def test_geometry_lazy_import(self):
-        """Test lazy import of Geometry."""
         from qme import Geometry
 
         assert Geometry is not None
 
     def test_invalid_attribute_error(self):
-        """Test that invalid attribute raises AttributeError."""
         with pytest.raises(AttributeError, match="has no attribute 'invalid_attr_xyz'"):
             _ = qme.invalid_attr_xyz  # noqa: F841

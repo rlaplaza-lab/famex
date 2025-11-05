@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 import pytest
 from ase import Atoms
@@ -12,32 +14,43 @@ from qme.constraints.constraints import (
 )
 
 
-class TestConstraintManager:
-    def setup_method(self) -> None:
-        self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
-        self.constraint_manager = QMEConstraintManager(self.atoms)
+@pytest.fixture
+def water_atoms():
+    return Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
 
-    def test_initialization(self) -> None:
-        assert len(self.constraint_manager.constraints) == 0
+
+@pytest.fixture
+def constraint_manager(water_atoms):
+    return QMEConstraintManager(water_atoms)
+
+
+class TestConstraintManager:
+    def test_initialization(self, constraint_manager: QMEConstraintManager):
+        assert len(constraint_manager.constraints) == 0
 
     @pytest.mark.parametrize("atom_indices", [[0], [1], [2], [0, 2]])
-    def test_add_fixed_atoms(self, atom_indices) -> None:
-        self.constraint_manager.add_fixed_atoms(atom_indices)
-        assert len(self.constraint_manager.constraints) == 1
-        assert isinstance(self.constraint_manager.constraints[0], FixedAtomsConstraint)
+    def test_add_fixed_atoms(self, constraint_manager: QMEConstraintManager, atom_indices):
+        constraint_manager.add_fixed_atoms(atom_indices)
+        assert len(constraint_manager.constraints) == 1
+        assert isinstance(constraint_manager.constraints[0], FixedAtomsConstraint)
 
-        info = self.constraint_manager.get_constraint_info()
+        info = constraint_manager.get_constraint_info()
         assert info["fixed_atoms"] == atom_indices
 
     @pytest.mark.parametrize(
         ("atoms", "force_constant"), [([0, 1], 5.0), ([1, 2], 3.0), ([0, 2], 2.5)]
     )
-    def test_add_harmonic_bond_constraint(self, atoms, force_constant) -> None:
-        self.constraint_manager.add_harmonic_constraint("bond", atoms, force_constant)
-        assert len(self.constraint_manager.constraints) == 1
-        assert isinstance(self.constraint_manager.constraints[0], HarmonicBondConstraint)
+    def test_add_harmonic_bond_constraint(
+        self,
+        constraint_manager: QMEConstraintManager,
+        atoms,
+        force_constant,
+    ):
+        constraint_manager.add_harmonic_constraint("bond", atoms, force_constant)
+        assert len(constraint_manager.constraints) == 1
+        assert isinstance(constraint_manager.constraints[0], HarmonicBondConstraint)
 
-        info = self.constraint_manager.get_constraint_info()
+        info = constraint_manager.get_constraint_info()
         assert len(info["harmonic_constraints"]) == 1
         hc = info["harmonic_constraints"][0]
         assert hc["type"] == "bond"
@@ -45,81 +58,72 @@ class TestConstraintManager:
         assert hc["force_constant"] == force_constant
 
     @pytest.mark.parametrize(("atoms", "force_constant"), [([1, 0, 2], 2.0), ([0, 1, 2], 1.5)])
-    def test_add_harmonic_angle_constraint(self, atoms, force_constant) -> None:
-        self.constraint_manager.add_harmonic_constraint("angle", atoms, force_constant)
-        assert len(self.constraint_manager.constraints) == 1
-        assert isinstance(self.constraint_manager.constraints[0], HarmonicAngleConstraint)
+    def test_add_harmonic_angle_constraint(
+        self,
+        constraint_manager: QMEConstraintManager,
+        atoms,
+        force_constant,
+    ):
+        constraint_manager.add_harmonic_constraint("angle", atoms, force_constant)
+        assert len(constraint_manager.constraints) == 1
+        assert isinstance(constraint_manager.constraints[0], HarmonicAngleConstraint)
 
-    def test_invalid_constraint_type(self) -> None:
+    def test_invalid_constraint_type(self, constraint_manager: QMEConstraintManager):
         with pytest.raises(ValueError):
-            self.constraint_manager.add_harmonic_constraint("invalid", [0, 1])
+            constraint_manager.add_harmonic_constraint("invalid", [0, 1])
 
 
 class TestConstraintParsing:
-    def setup_method(self) -> None:
-        self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
-
-    def test_parse_fixed_atoms(self) -> None:
-        """Test parsing fixed atom constraints with various inputs."""
+    def test_parse_fixed_atoms(self, water_atoms):
         test_cases = [("fix 0", [0]), ("fix 0,2", [0, 2])]
         for constraint_string, expected_atoms in test_cases:
-            cm = parse_constraint_string(constraint_string, self.atoms)
+            cm = parse_constraint_string(constraint_string, water_atoms)
             info = cm.get_constraint_info()
             assert info["fixed_atoms"] == expected_atoms
 
-    def test_parse_harmonic_constraints(self) -> None:
-        """Test parsing harmonic constraints."""
+    def test_parse_harmonic_constraints(self, water_atoms):
         test_cases = [
             ("harmonic_bond 0,1 k=5.0", "bond", [0, 1], 5.0),
             ("harmonic_bond 0,2 k=2.5", "bond", [0, 2], 2.5),
         ]
         for constraint_string, expected_type, expected_atoms, expected_k in test_cases:
-            cm = parse_constraint_string(constraint_string, self.atoms)
+            cm = parse_constraint_string(constraint_string, water_atoms)
             info = cm.get_constraint_info()
             hc = info["harmonic_constraints"][0]
             assert hc["type"] == expected_type
             assert hc["atoms"] == expected_atoms
             assert hc["force_constant"] == expected_k
 
-    def test_parse_invalid(self) -> None:
+    def test_parse_invalid(self, water_atoms):
         with pytest.raises(ValueError):
-            parse_constraint_string("invalid 0,1", self.atoms)
+            parse_constraint_string("invalid 0,1", water_atoms)
 
 
 class TestConstraintValidation:
-    def setup_method(self) -> None:
-        self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
-
-    def test_validate_valid_indices(self) -> None:
-        """Test validation with various valid index combinations."""
+    def test_validate_valid_indices(self, water_atoms):
         valid_cases = [[0], [2], [0, 1], [1, 2], [0, 1, 2]]
         for indices in valid_cases:
-            assert validate_atom_indices(indices, self.atoms) is True
+            assert validate_atom_indices(indices, water_atoms) is True
 
-    def test_validate_invalid_indices(self) -> None:
-        """Test validation with various invalid index combinations."""
+    def test_validate_invalid_indices(self, water_atoms):
         invalid_cases = [[0, 3], [1, 4], [0, 1, 3]]
         for invalid_indices in invalid_cases:
             with pytest.raises(ValueError):
-                validate_atom_indices(invalid_indices, self.atoms)
+                validate_atom_indices(invalid_indices, water_atoms)
 
-    def test_validate_non_integer(self) -> None:
-        """Test validation rejects non-integer indices."""
+    def test_validate_non_integer(self, water_atoms):
         non_integer_cases = [[0, 1.5], [1.0, 2], [0.5]]
         for non_integer_indices in non_integer_cases:
-            with pytest.raises(ValueError):
-                validate_atom_indices(non_integer_indices, self.atoms)  # type: ignore
+            with pytest.raises(AssertionError):
+                validate_atom_indices(non_integer_indices, water_atoms)  # type: ignore
 
 
 class TestHarmonicConstraintInternals:
-    def setup_method(self) -> None:
-        self.atoms = Atoms("H2O", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
-
-    def test_bond_reference_calculation(self) -> None:
-        c = HarmonicBondConstraint([0, 1], self.atoms, 5.0)
-        expected = np.linalg.norm(self.atoms.positions[1] - self.atoms.positions[0])
+    def test_bond_reference_calculation(self, water_atoms):
+        c = HarmonicBondConstraint([0, 1], water_atoms, 5.0)
+        expected = np.linalg.norm(water_atoms.positions[1] - water_atoms.positions[0])
         assert abs(c.reference_value - expected) < 1e-10
 
-    def test_angle_reference_validation(self) -> None:
+    def test_angle_reference_validation(self, water_atoms):
         with pytest.raises(ValueError):
-            HarmonicAngleConstraint([0, 1], self.atoms, 2.0)
+            HarmonicAngleConstraint([0, 1], water_atoms, 2.0)

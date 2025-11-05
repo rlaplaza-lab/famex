@@ -1,5 +1,3 @@
-"""Unit tests for Geometry class and I/O functions."""
-
 from __future__ import annotations
 
 import tempfile
@@ -14,10 +12,7 @@ from tests.test_utils import TestMoleculeFactory
 
 
 class TestGeometryInitialization:
-    """Test Geometry initialization."""
-
-    def test_geometry_from_atoms_and_positions(self) -> None:
-        """Test creating Geometry from atoms list and positions."""
+    def test_geometry_from_atoms_and_positions(self):
         atoms = ["H", "H"]
         positions = [[0, 0, 0], [0.74, 0, 0]]
 
@@ -27,15 +22,13 @@ class TestGeometryInitialization:
         assert geom.charge == 0
         assert geom.mult == 1
 
-    def test_geometry_from_atoms_string(self) -> None:
-        """Test creating Geometry from atoms string."""
+    def test_geometry_from_atoms_string(self):
         geom = Geometry(atoms="HH", positions=[[0, 0, 0], [0.74, 0, 0]])
 
         assert len(geom) == 2
         assert list(geom.get_chemical_symbols()) == ["H", "H"]
 
-    def test_geometry_from_coords_flat(self) -> None:
-        """Test creating Geometry from flat coordinates array."""
+    def test_geometry_from_coords_flat(self):
         atoms = ["H", "H"]
         coords = [0, 0, 0, 0.74, 0, 0]  # Flat array
 
@@ -45,8 +38,7 @@ class TestGeometryInitialization:
         positions = geom.get_positions()
         assert positions.shape == (2, 3)
 
-    def test_geometry_from_ase_atoms(self) -> None:
-        """Test creating Geometry from ASE Atoms object."""
+    def test_geometry_from_ase_atoms(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         atoms.info["charge"] = 1
         atoms.info["spin"] = 2
@@ -57,8 +49,7 @@ class TestGeometryInitialization:
         assert geom.charge == 1
         assert geom.mult == 2
 
-    def test_geometry_with_charge_mult(self) -> None:
-        """Test creating Geometry with explicit charge and multiplicity."""
+    def test_geometry_with_charge_mult(self):
         geom = Geometry(
             atoms=["H", "H"],
             positions=[[0, 0, 0], [0.74, 0, 0]],
@@ -69,8 +60,7 @@ class TestGeometryInitialization:
         assert geom.charge == 1
         assert geom.mult == 2
 
-    def test_geometry_from_ase_atoms_extracts_charge_spin(self) -> None:
-        """Test that Geometry extracts charge/spin from ASE atoms info."""
+    def test_geometry_from_ase_atoms_extracts_charge_spin(self):
         atoms = Atoms("H2")
         atoms.info["charge"] = 1
         atoms.info["spin"] = 3
@@ -80,8 +70,7 @@ class TestGeometryInitialization:
         assert geom.charge == 1
         assert geom.mult == 3
 
-    def test_geometry_from_ase_atoms_with_constructor_override(self) -> None:
-        """Test that ASE atoms info overrides constructor defaults."""
+    def test_geometry_from_ase_atoms_with_constructor_override(self):
         atoms = Atoms("H2")
         atoms.info["charge"] = 1
         atoms.info["spin"] = 3
@@ -93,13 +82,11 @@ class TestGeometryInitialization:
         assert geom.charge == 1
         assert geom.mult == 3
 
-    def test_geometry_raises_error_without_coords_or_positions(self) -> None:
-        """Test that Geometry raises error without coordinates."""
+    def test_geometry_raises_error_without_coords_or_positions(self):
         with pytest.raises(ValueError, match="Must provide either"):
             Geometry(atoms=["H", "H"])
 
-    def test_geometry_empty_initialization(self) -> None:
-        """Test creating empty Geometry."""
+    def test_geometry_empty_initialization(self):
         geom = Geometry()
 
         assert len(geom) == 0
@@ -108,10 +95,7 @@ class TestGeometryInitialization:
 
 
 class TestGeometryProperties:
-    """Test Geometry properties and methods."""
-
-    def test_coords3d_property(self) -> None:
-        """Test coords3d property."""
+    def test_coords3d_property(self):
         geom = Geometry(
             atoms=["H", "H"],
             positions=[[0, 0, 0], [1, 0, 0]],
@@ -121,8 +105,7 @@ class TestGeometryProperties:
         assert coords.shape == (2, 3)
         assert np.allclose(coords, [[0, 0, 0], [1, 0, 0]])
 
-    def test_coords3d_setter(self) -> None:
-        """Test coords3d setter."""
+    def test_coords3d_setter(self):
         geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [1, 0, 0]])
 
         new_coords = np.array([[2, 0, 0], [3, 0, 0]])
@@ -130,16 +113,14 @@ class TestGeometryProperties:
 
         assert np.allclose(geom.get_positions(), new_coords)
 
-    def test_coords_property_flat(self) -> None:
-        """Test coords property returns flat array."""
+    def test_coords_property_flat(self):
         geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [1, 0, 0]])
 
         coords = geom.coords
         assert coords.shape == (6,)
         assert np.allclose(coords, [0, 0, 0, 1, 0, 0])
 
-    def test_coords_setter(self) -> None:
-        """Test coords setter from flat array."""
+    def test_coords_setter(self):
         geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [1, 0, 0]])
 
         flat_coords = [2, 0, 0, 3, 0, 0]
@@ -148,11 +129,11 @@ class TestGeometryProperties:
         positions = geom.get_positions()
         assert np.allclose(positions, [[2, 0, 0], [3, 0, 0]])
 
-    def test_energy_property_with_calculator(self) -> None:
-        """Test energy property when calculator is attached."""
+    def test_energy_property_with_calculator(self):
         geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [0.74, 0, 0]])
 
-        # Mock calculator - ASE's get_potential_energy calls calc.calculate() then calc.get_potential_energy()
+        # Mock calculator - ASE's get_potential_energy calls calc.calculate()
+        # then calc.get_potential_energy()
         from unittest.mock import MagicMock
 
         mock_calc = MagicMock()
@@ -169,8 +150,7 @@ class TestGeometryProperties:
         # If calculator worked, energy should be -1.0, otherwise None
         assert energy is None or energy == -1.0
 
-    def test_energy_property_without_calculator(self) -> None:
-        """Test energy property without calculator."""
+    def test_energy_property_without_calculator(self):
         geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [0.74, 0, 0]])
 
         # No calculator, should return None
@@ -180,8 +160,7 @@ class TestGeometryProperties:
         geom.energy = -2.0
         assert geom.energy == -2.0
 
-    def test_energy_property_handles_calculator_error(self) -> None:
-        """Test energy property handles calculator errors gracefully."""
+    def test_energy_property_handles_calculator_error(self):
         geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [0.74, 0, 0]])
 
         # Mock calculator that raises error
@@ -200,8 +179,7 @@ class TestGeometryProperties:
         # Should return fallback energy when calculator fails
         assert geom.energy == -3.0
 
-    def test_get_forces_with_calculator(self) -> None:
-        """Test get_forces when calculator is attached."""
+    def test_get_forces_with_calculator(self):
         geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [0.74, 0, 0]])
 
         # Mock calculator - ASE's get_forces calls calc.calculate() then calc.get_forces()
@@ -221,15 +199,13 @@ class TestGeometryProperties:
         # If calculator worked, forces should match, otherwise None
         assert forces is None or np.allclose(forces, mock_forces)
 
-    def test_get_forces_without_calculator(self) -> None:
-        """Test get_forces without calculator."""
+    def test_get_forces_without_calculator(self):
         geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [0.74, 0, 0]])
 
         forces = geom.get_forces()
         assert forces is None
 
-    def test_get_symbols(self) -> None:
-        """Test get_symbols method."""
+    def test_get_symbols(self):
         geom = Geometry(atoms=["H", "O", "H"], positions=[[0, 0, 0], [1, 0, 0], [2, 0, 0]])
 
         symbols = geom.get_symbols()
@@ -237,10 +213,7 @@ class TestGeometryProperties:
 
 
 class TestGeometryMethods:
-    """Test Geometry utility methods."""
-
-    def test_copy(self) -> None:
-        """Test copying Geometry."""
+    def test_copy(self):
         geom = Geometry(
             atoms=["H", "H"],
             positions=[[0, 0, 0], [0.74, 0, 0]],
@@ -260,23 +233,20 @@ class TestGeometryMethods:
         geom_copy.charge = 2
         assert geom.charge == 1
 
-    def test_get_distance_between(self) -> None:
-        """Test get_distance_between method."""
+    def test_get_distance_between(self):
         geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [1, 0, 0]])
 
         distance = geom.get_distance_between(0, 1)
         assert abs(distance - 1.0) < 1e-6
 
-    def test_get_all_pairwise_distances(self) -> None:
-        """Test get_all_pairwise_distances method."""
+    def test_get_all_pairwise_distances(self):
         geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [1, 0, 0]])
 
         distances = geom.get_all_pairwise_distances()
         assert distances.shape == (2, 2)
         assert abs(distances[0, 1] - 1.0) < 1e-6
 
-    def test_get_angle_degrees(self) -> None:
-        """Test get_angle_degrees method."""
+    def test_get_angle_degrees(self):
         # Create a simple structure
         geom = Geometry(
             atoms=["H", "H", "H"],
@@ -290,8 +260,7 @@ class TestGeometryMethods:
         # We just verify it's numeric and callable, not the specific value
         assert np.isfinite(angle) or (np.isnan(angle) is False and np.isinf(angle) is False)
 
-    def test_get_dihedral_degrees(self) -> None:
-        """Test get_dihedral_degrees method."""
+    def test_get_dihedral_degrees(self):
         # Simple planar structure
         geom = Geometry(
             atoms=["C", "C", "H", "H"],
@@ -302,8 +271,7 @@ class TestGeometryMethods:
         # Should be 0 or 180 for planar structure
         assert 0 <= abs(dihedral) <= 180
 
-    def test_center_of_mass(self) -> None:
-        """Test center_of_mass method."""
+    def test_center_of_mass(self):
         geom = Geometry(
             atoms=["H", "H"],
             positions=[[0, 0, 0], [2, 0, 0]],
@@ -315,10 +283,7 @@ class TestGeometryMethods:
 
 
 class TestGeometryStringRepresentation:
-    """Test Geometry string representation."""
-
-    def test_str_representation(self) -> None:
-        """Test string representation."""
+    def test_str_representation(self):
         geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [0.74, 0, 0]], charge=1, mult=2)
 
         str_repr = str(geom)
@@ -329,10 +294,7 @@ class TestGeometryStringRepresentation:
 
 
 class TestReadGeometry:
-    """Test read_geometry function."""
-
-    def test_read_geometry_xyz(self) -> None:
-        """Test reading geometry from XYZ file."""
+    def test_read_geometry_xyz(self):
         atoms = TestMoleculeFactory.get_water_distorted()
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
@@ -347,13 +309,11 @@ class TestReadGeometry:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_read_geometry_nonexistent_file(self) -> None:
-        """Test reading geometry from nonexistent file."""
+    def test_read_geometry_nonexistent_file(self):
         with pytest.raises((FileNotFoundError, OSError)):
             read_geometry("nonexistent_file.xyz")
 
-    def test_read_geometry_xyz_with_metadata(self) -> None:
-        """Test reading XYZ file with charge/spin metadata."""
+    def test_read_geometry_xyz_with_metadata(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         atoms.info["comment"] = "charge=1 spin=2"
 
@@ -371,10 +331,7 @@ class TestReadGeometry:
 
 
 class TestWriteGeometry:
-    """Test write_geometry function."""
-
-    def test_write_geometry_xyz(self) -> None:
-        """Test writing geometry to XYZ file."""
+    def test_write_geometry_xyz(self):
         geom = Geometry(
             atoms=["H", "H"],
             positions=[[0, 0, 0], [0.74, 0, 0]],
@@ -396,8 +353,7 @@ class TestWriteGeometry:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_write_geometry_ase_atoms(self) -> None:
-        """Test writing ASE Atoms object."""
+    def test_write_geometry_ase_atoms(self):
         atoms = TestMoleculeFactory.get_water_distorted()
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
@@ -412,10 +368,7 @@ class TestWriteGeometry:
 
 
 class TestReadGaussianInput:
-    """Test read_gaussian_input function."""
-
-    def test_read_gaussian_input_minimize(self) -> None:
-        """Test reading Gaussian input file for minimization."""
+    def test_read_gaussian_input_minimize(self):
         content = """# opt
 
 Title
@@ -443,8 +396,7 @@ H 0.0 0.0 1.0
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_read_gaussian_input_transition_state(self) -> None:
-        """Test reading Gaussian input file for transition state."""
+    def test_read_gaussian_input_transition_state(self):
         content = """# opt=ts
 
 Title
@@ -468,8 +420,7 @@ H 1.0 0.0 0.0
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_read_gaussian_input_with_charge_mult(self) -> None:
-        """Test reading Gaussian input with charge and multiplicity."""
+    def test_read_gaussian_input_with_charge_mult(self):
         content = """# opt
 
 Title
@@ -492,8 +443,7 @@ H 1.0 0.0 0.0
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_read_gaussian_input_no_route_line(self) -> None:
-        """Test reading Gaussian input without route line."""
+    def test_read_gaussian_input_no_route_line(self):
         content = """Title
 
 0 1
@@ -511,8 +461,7 @@ H 0.0 0.0 0.0
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_read_gaussian_input_no_coordinates(self) -> None:
-        """Test reading Gaussian input without coordinates."""
+    def test_read_gaussian_input_no_coordinates(self):
         content = """# opt
 
 Title

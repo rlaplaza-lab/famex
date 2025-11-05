@@ -1,41 +1,21 @@
 #!/usr/bin/env python3
-"""Compare Hessian accuracy for different finite difference schemes.
+"""Compare Hessian accuracy for different finite difference schemes."""
 
-This script demonstrates the accuracy improvements achieved by using higher-order
-finite difference schemes and Richardson extrapolation for Hessian calculations.
-
-Usage:
-    python hessian_accuracy_comparison.py
-
-Features:
-    - Compares multiple finite difference schemes (3-point, 5-point, 7-point)
-    - Tests Richardson extrapolation variants
-    - Energy-based finite differences
-    - Adaptive step size selection
-    - Comparison against analytical MACE Hessian (if available)
-
-The comparison uses a harmonic potential where the analytical Hessian is known
-exactly, allowing precise error analysis.
-"""
-
-import os
-
-# Disable ASE GUI to prevent popup windows
-os.environ["DISPLAY"] = ""
-os.environ["MPLBACKEND"] = "Agg"
+import sys
 
 import numpy as np
 from ase import Atoms
 
 from qme.analysis.frequency import HessianCalculator
 from qme.analysis.hessian_energy import EnergyBasedHessianCalculator
-
-try:
-    import qme
-
-    has_mace = True
-except ImportError:
-    has_mace = False
+from qme.example_utils import (
+    QMEExampleInterface,
+    create_methane_molecule,
+    create_standard_epilog,
+    create_water_molecule,
+    get_calculator_for_backend,
+    setup_example_environment,
+)
 
 
 class HarmonicCalculator:
@@ -183,119 +163,147 @@ def compare_hessian_methods(atoms: Atoms, delta: float = 0.05) -> None:
     print("The accuracy differences become significant for non-quadratic potentials.")
 
 
+@setup_example_environment
 def main() -> int:
     """Main function."""
-    # Create test molecules
-    water = Atoms(
-        symbols="OHH",
-        positions=[
-            [0.0, 0.0, 0.0],
-            [0.96, 0.0, 0.0],
-            [0.24, 0.93, 0.0],
-        ],
+    # Create standardized interface
+    interface = QMEExampleInterface(
+        name="Hessian Accuracy Comparison",
+        description="Hessian Accuracy Comparison for Different Finite Difference Schemes",
+        epilog=create_standard_epilog("demo"),
     )
 
-    methane = Atoms(
-        symbols="CHHHH",
-        positions=[
-            [0.0, 0.0, 0.0],
-            [1.09, 0.0, 0.0],
-            [-0.36, 1.03, 0.0],
-            [-0.36, -0.51, 0.89],
-            [-0.36, -0.51, -0.89],
-        ],
+    parser = interface.create_parser()
+    args = parser.parse_args()
+
+    interface.print_header()
+    interface.setup_logging(args.verbose)
+
+    # Backend handling - optional for this demo (can work with harmonic calculator)
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    backend, available_backends = interface.select_backend(
+        requested_backends=requested,
+        preferred_backends=["mace"],
+        verbose=args.verbose,
     )
+    # Note: backend can be None - demo still works with harmonic calculator
 
-    print("\n" + "=" * 80)
-    print("WATER (3 atoms)")
-    print("=" * 80)
-    compare_hessian_methods(water, delta=0.05)
+    if backend:
+        interface.print_backend_summary([backend], "Using Backend")
 
-    print("\n" + "=" * 80)
-    print("METHANE (5 atoms)")
-    print("=" * 80)
-    compare_hessian_methods(methane, delta=0.05)
+    # Get device info
+    device = interface.get_device_info(args.device)
 
-    # Test with different step sizes
-    print("\n" + "=" * 80)
-    print("CONVERGENCE ANALYSIS (Water, varying step sizes)")
-    print("=" * 80)
-    print()
+    config = {
+        "Backend": backend or "auto-select (MACE if available, otherwise harmonic only)",
+        "Device": device,
+        "Verbose": args.verbose,
+    }
+    interface.print_configuration(config)
 
-    deltas = [0.1, 0.05, 0.01, 0.005]
-    calc = HarmonicCalculator(k=1.0)
-    hessian_analytical = calc.get_hessian(water)
+    try:
+        # Create test molecules
+        water = create_water_molecule()
+        methane = create_methane_molecule()
 
-    print("Step Size | 3-point Error | 5-point Error | Improvement")
-    print("-" * 80)
-    for delta in deltas:
-        hc_3 = HessianCalculator(water, calc, delta=delta, method="central", verbose=0)
-        hc_5 = HessianCalculator(water, calc, delta=delta, method="5point", verbose=0)
+        print("\n" + "=" * 80)
+        print("WATER (3 atoms)")
+        print("=" * 80)
+        compare_hessian_methods(water, delta=0.05)
 
-        hessian_3 = hc_3.calculate_numerical_hessian()
-        hessian_5 = hc_5.calculate_numerical_hessian()
+        print("\n" + "=" * 80)
+        print("METHANE (5 atoms)")
+        print("=" * 80)
+        compare_hessian_methods(methane, delta=0.05)
 
-        error_3 = np.max(np.abs(hessian_3 - hessian_analytical))
-        error_5 = np.max(np.abs(hessian_5 - hessian_analytical))
+        # Test with different step sizes
+        print("\n" + "=" * 80)
+        print("CONVERGENCE ANALYSIS (Water, varying step sizes)")
+        print("=" * 80)
+        print()
 
-        improvement = error_3 / error_5 if error_5 > 0 else np.inf
-        print(f"{delta:8.3f} | {error_3:13.2e} | {error_5:13.2e} | {improvement:11.2f}x")
+        deltas = [0.1, 0.05, 0.01, 0.005]
+        calc = HarmonicCalculator(k=1.0)
+        hessian_analytical = calc.get_hessian(water)
 
-    # Optional: Compare with MACE analytical Hessian if available
-    if has_mace:
-        try:
-            print("\n" + "=" * 80)
-            print("MACE ANALYTICAL HESSIAN COMPARISON")
-            print("=" * 80)
-            print("\nComparing FD methods against MACE analytical Hessian...")
+        print("Step Size | 3-point Error | 5-point Error | Improvement")
+        print("-" * 80)
+        for delta in deltas:
+            hc_3 = HessianCalculator(water, calc, delta=delta, method="central", verbose=0)
+            hc_5 = HessianCalculator(water, calc, delta=delta, method="5point", verbose=0)
 
-            # Create MACE calculator
-            mace_calc = qme.get_mace_calculator(model="small", device="cpu")
-            water.calc = mace_calc
+            hessian_3 = hc_3.calculate_numerical_hessian()
+            hessian_5 = hc_5.calculate_numerical_hessian()
 
-            # Get analytical Hessian
-            from qme.analysis.frequency import FrequencyAnalysis
+            error_3 = np.max(np.abs(hessian_3 - hessian_analytical))
+            error_5 = np.max(np.abs(hessian_5 - hessian_analytical))
 
-            freq_analysis = FrequencyAnalysis(water, mace_calc, verbose=0)
-            hessian_mace = freq_analysis.calculate_hessian(method="direct")
+            improvement = error_3 / error_5 if error_5 > 0 else np.inf
+            print(f"{delta:8.3f} | {error_3:13.2e} | {error_5:13.2e} | {improvement:11.2f}x")
 
-            print("\nComputing FD Hessians and comparing...")
+        # Optional: Compare with MACE analytical Hessian if available
+        if backend == "mace":
+            try:
+                print("\n" + "=" * 80)
+                print("MACE ANALYTICAL HESSIAN COMPARISON")
+                print("=" * 80)
+                print("\nComparing FD methods against MACE analytical Hessian...")
 
-            # Compare a few key methods
-            methods_to_test = [
-                ("3-point", "central", False),
-                ("5-point", "5point", False),
-                ("7-point", "7point", False),
-                ("5-point + Richardson", "5point", True),
-                ("7-point + Richardson", "7point", True),
-            ]
+                # Create MACE calculator
+                mace_calc = get_calculator_for_backend(backend, device=device, model_name="small")
+                water.calc = mace_calc
 
-            print(f"\n{'Method':30s} {'Max Error (eV/Å²)':>20s}")
-            print("-" * 80)
+                # Get analytical Hessian
+                from qme.analysis.frequency import FrequencyAnalysis
 
-            for name, method, use_richardson in methods_to_test:
-                hc = HessianCalculator(
-                    water,
-                    mace_calc,
-                    delta=0.01,
-                    method=method,
-                    richardson=use_richardson,
-                    verbose=0,
-                )
-                hessian_fd = hc.calculate_numerical_hessian()
-                error = np.max(np.abs(hessian_fd - hessian_mace))
-                print(f"{name:30s} {error:20.2e}")
+                freq_analysis = FrequencyAnalysis(water, mace_calc, verbose=0)
+                hessian_mace = freq_analysis.calculate_hessian(method="direct")
 
-            print("\nNote: Analytical Hessian from MACE is not necessarily 'true',")
-            print("but it represents the MLIP's best estimate without FD errors.")
+                print("\nComputing FD Hessians and comparing...")
 
-        except Exception as e:
-            print(f"\n⚠ MACE comparison skipped: {e}")
+                # Compare a few key methods
+                methods_to_test = [
+                    ("3-point", "central", False),
+                    ("5-point", "5point", False),
+                    ("7-point", "7point", False),
+                    ("5-point + Richardson", "5point", True),
+                    ("7-point + Richardson", "7point", True),
+                ]
 
-    return 0
+                print(f"\n{'Method':30s} {'Max Error (eV/Å²)':>20s}")
+                print("-" * 80)
+
+                for name, method, use_richardson in methods_to_test:
+                    hc = HessianCalculator(
+                        water,
+                        mace_calc,
+                        delta=0.01,
+                        method=method,
+                        richardson=use_richardson,
+                        verbose=0,
+                    )
+                    hessian_fd = hc.calculate_numerical_hessian()
+                    error = np.max(np.abs(hessian_fd - hessian_mace))
+                    print(f"{name:30s} {error:20.2e}")
+
+                print("\nNote: Analytical Hessian from MACE is not necessarily 'true',")
+                print("but it represents the MLIP's best estimate without FD errors.")
+
+            except Exception as e:
+                interface.print_warning(f"MACE comparison skipped: {e}")
+
+        interface.print_success()
+        return 0
+    except KeyboardInterrupt:
+        print("\nInterrupted by user")
+        return 1
+    except Exception as e:
+        interface.print_error(f"Error: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return 1
 
 
 if __name__ == "__main__":
-    import sys
-
     sys.exit(main())

@@ -55,11 +55,13 @@ class StrategyUtils:
         # For optimizers, prioritize step_count attribute over get_number_of_steps()
         # because get_number_of_steps() returns 0 by default from ASE Optimizer base class
         if hasattr(optimizer, "step_count") and optimizer.step_count is not None:
-            return optimizer.step_count
+            step_count = optimizer.step_count
+            return int(step_count) if isinstance(step_count, (int, float)) else None
 
         # Fallback to ASE's get_number_of_steps() for other optimizers
         if hasattr(optimizer, "get_number_of_steps"):
-            return optimizer.get_number_of_steps()
+            steps = optimizer.get_number_of_steps()
+            return int(steps) if isinstance(steps, (int, float)) else None
 
         return None
 
@@ -235,7 +237,7 @@ class StrategyUtils:
             forces = previous_node.get_forces()
 
             # Create new node by copying and adjusting positions
-            new_node = previous_node.copy()
+            new_node: Atoms = previous_node.copy()
 
             # Manually copy calculator reference (ASE copy() doesn't copy calculator)
             if hasattr(previous_node, "calc") and previous_node.calc is not None:

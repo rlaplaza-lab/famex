@@ -92,8 +92,8 @@ class MultiStructureCINEBStrategy(BaseStrategy):
         )
 
         # Flatten nested segments if needed
-        if path and isinstance(path[0], list):
-            flat = []
+        if path and isinstance(path[0], list):  # type: ignore[unreachable]
+            flat = []  # type: ignore[unreachable]
             for seg in path:
                 flat.extend(seg)
             path = flat
@@ -129,7 +129,7 @@ class MultiStructureCINEBStrategy(BaseStrategy):
         # Filter redundant structures and issue warnings
         if optimized_path:
             # Convert atoms_list to list for comparison
-            input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]
+            input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]  # type: ignore[unreachable]
 
             filtered_path, _removed_indices, warnings_list = (
                 PathManager.filter_redundant_structures(

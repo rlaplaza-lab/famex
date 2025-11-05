@@ -1,29 +1,9 @@
 #!/usr/bin/env python3
-"""Demonstration of enhanced thermochemistry capabilities in QME.
+"""Demonstration of enhanced thermochemistry capabilities in QME."""
 
-This example shows the new thermochemistry features including quasi-harmonic
-corrections, complete statistical thermodynamics, solvation corrections, and
-symmetry handling.
-
-Usage:
-    python thermochemistry_demo.py [--backends BACKEND1,BACKEND2,...]
-
-Features:
-    - Quasi-harmonic corrections (Grimme and Truhlar methods)
-    - Complete statistical thermodynamics (translational, rotational, electronic)
-    - Solvation corrections
-    - Symmetry handling
-    - Based on GoodVibes-inspired thermochemistry implementation
-"""
-
-import os
-
-# Disable ASE GUI to prevent popup windows
-os.environ["DISPLAY"] = ""
-os.environ["MPLBACKEND"] = "Agg"
+import sys
 
 import numpy as np
-from ase import Atoms
 
 from qme.analysis import (
     QuasiHarmonicHandler,
@@ -32,9 +12,15 @@ from qme.analysis import (
     SymmetryHandler,
     ThermodynamicProperties,
 )
+from qme.example_utils import (
+    QMEExampleInterface,
+    create_standard_epilog,
+    create_water_molecule,
+    setup_example_environment,
+)
 
 
-def print_thermochemistry_results(results: dict) -> None:
+def print_thermochemistry_results(results: dict[str, float]) -> None:
     """Pretty print thermochemistry results."""
     print("\n" + "=" * 80)
     print("THERMOCHEMISTRY RESULTS")
@@ -75,161 +61,184 @@ def print_thermochemistry_results(results: dict) -> None:
     print("=" * 80 + "\n")
 
 
+@setup_example_environment
 def main() -> int:
     """Run thermochemistry demonstrations."""
-    print("=" * 80)
-    print("QME Enhanced Thermochemistry Demo")
-    print("=" * 80)
-
-    # Create a simple water molecule for demonstration
-    # This would normally come from an actual quantum chemistry calculation
-    atoms = Atoms("H2O", positions=[[0, 0, 0], [0, 0, 0.96], [0.82, 0, -0.26]])
-
-    # Example frequencies (in cm^-1) - these would come from frequency analysis
-    # Approximate values for water at B3LYP/6-31G* level
-    frequencies = np.array([1627.2, 3832.2, 3942.5])
-
-    print("\nExample molecule: H2O")
-    print(f"Frequencies: {frequencies} cm^-1")
-
-    # ========================================================================
-    # Example 1: Basic RRHO thermodynamics (backward compatible)
-    # ========================================================================
-    print("\n" + "#" * 80)
-    print("# Example 1: Basic RRHO Thermodynamics (Backward Compatible)")
-    print("#" * 80)
-
-    # Create ThermodynamicProperties object with default RRHO method
-    thermo_rrho = ThermodynamicProperties(
-        frequencies,
-        atoms,
-        temperature=298.15,
-        method="rrho",
-        multiplicity=1,
-        solvent="none",  # Gas phase
+    # Create standardized interface
+    interface = QMEExampleInterface(
+        name="Thermochemistry Demo",
+        description="Enhanced Thermochemistry Capabilities Demonstration",
+        epilog=create_standard_epilog("demo"),
     )
 
-    results_rrho = thermo_rrho.calculate_complete_thermodynamics(energy=0.0)
-    print_thermochemistry_results(results_rrho)
+    parser = interface.create_parser()
+    args = parser.parse_args()
 
-    # ========================================================================
-    # Example 2: Grimme's quasi-harmonic corrections
-    # ========================================================================
-    print("\n" + "#" * 80)
-    print("# Example 2: Grimme's Quasi-Harmonic Corrections")
-    print("#" * 80)
+    interface.print_header()
+    interface.setup_logging(args.verbose)
 
-    thermo_grimme = ThermodynamicProperties(
-        frequencies,
-        atoms,
-        temperature=298.15,
-        method="grimme",
-        freq_cutoff=100.0,  # cm^-1
-        multiplicity=1,
-        solvent="none",
-    )
+    # This demo doesn't use ML backends, so no device info needed
+    config = {
+        "Verbose": args.verbose,
+    }
+    interface.print_configuration(config)
 
-    results_grimme = thermo_grimme.calculate_complete_thermodynamics(energy=0.0)
-    print_thermochemistry_results(results_grimme)
+    try:
+        # Create a simple water molecule for demonstration
+        # This would normally come from an actual quantum chemistry calculation
+        atoms = create_water_molecule()
 
-    # Compare vibrational entropies
-    print("\nQuasi-harmonic effect on vibrational entropy:")
-    print(f"RRHO S_vib:    {results_rrho['entropy_vib']:10.6f} eV/K")
-    print(f"Grimme S_vib:  {results_grimme['entropy_vib']:10.6f} eV/K")
-    print(
-        f"Difference:    {results_grimme['entropy_vib'] - results_rrho['entropy_vib']:10.6f} eV/K"
-    )
+        # Example frequencies (in cm^-1) - these would come from frequency analysis
+        # Approximate values for water at B3LYP/6-31G* level
+        frequencies = np.array([1627.2, 3832.2, 3942.5])
 
-    # ========================================================================
-    # Example 3: Truhlar's quasi-harmonic corrections
-    # ========================================================================
-    print("\n" + "#" * 80)
-    print("# Example 3: Truhlar's Quasi-Harmonic Corrections")
-    print("#" * 80)
+        print("\nExample molecule: H2O")
+        print(f"Frequencies: {frequencies} cm^-1")
 
-    thermo_truhlar = ThermodynamicProperties(
-        frequencies,
-        atoms,
-        temperature=298.15,
-        method="truhlar",
-        freq_cutoff=100.0,
-        multiplicity=1,
-        solvent="none",
-    )
+        # ========================================================================
+        # Example 1: Basic RRHO thermodynamics (backward compatible)
+        # ========================================================================
+        print("\n" + "#" * 80)
+        print("# Example 1: Basic RRHO Thermodynamics (Backward Compatible)")
+        print("#" * 80)
 
-    results_truhlar = thermo_truhlar.calculate_complete_thermodynamics(energy=0.0)
-    print_thermochemistry_results(results_truhlar)
+        # Create ThermodynamicProperties object with default RRHO method
+        thermo_rrho = ThermodynamicProperties(
+            frequencies,
+            atoms,
+            temperature=298.15,
+            method="rrho",
+            multiplicity=1,
+            solvent="none",  # Gas phase
+        )
 
-    # ========================================================================
-    # Example 4: Solution-phase thermodynamics
-    # ========================================================================
-    print("\n" + "#" * 80)
-    print("# Example 4: Solution-Phase Thermodynamics (in water)")
-    print("#" * 80)
+        results_rrho = thermo_rrho.calculate_complete_thermodynamics(energy=0.0)
+        print_thermochemistry_results(results_rrho)
 
-    thermo_solution = ThermodynamicProperties(
-        frequencies,
-        atoms,
-        temperature=298.15,
-        method="grimme",
-        freq_cutoff=100.0,
-        multiplicity=1,
-        solvent="H2O",
-        concentration=1.0,  # 1 M
-    )
+        # ========================================================================
+        # Example 2: Grimme's quasi-harmonic corrections
+        # ========================================================================
+        print("\n" + "#" * 80)
+        print("# Example 2: Grimme's Quasi-Harmonic Corrections")
+        print("#" * 80)
 
-    results_solution = thermo_solution.calculate_complete_thermodynamics(energy=0.0)
-    print_thermochemistry_results(results_solution)
+        thermo_grimme = ThermodynamicProperties(
+            frequencies,
+            atoms,
+            temperature=298.15,
+            method="grimme",
+            freq_cutoff=100.0,  # cm^-1
+            multiplicity=1,
+            solvent="none",
+        )
 
-    print("\nSolvent effects on translational entropy:")
-    print(f"Gas phase S_trans:      {results_rrho['entropy_trans']:10.6f} eV/K")
-    print(f"Solution S_trans:       {results_solution['entropy_trans']:10.6f} eV/K")
-    print(
-        f"Difference:             {results_solution['entropy_trans'] - results_rrho['entropy_trans']:10.6f} eV/K"
-    )
+        results_grimme = thermo_grimme.calculate_complete_thermodynamics(energy=0.0)
+        print_thermochemistry_results(results_grimme)
 
-    # ========================================================================
-    # Example 5: Using the individual modules
-    # ========================================================================
-    print("\n" + "#" * 80)
-    print("# Example 5: Using Individual Thermodynamics Modules")
-    print("#" * 80)
+        # Compare vibrational entropies
+        print("\nQuasi-harmonic effect on vibrational entropy:")
+        print(f"RRHO S_vib:    {results_rrho['entropy_vib']:10.6f} eV/K")
+        print(f"Grimme S_vib:  {results_grimme['entropy_vib']:10.6f} eV/K")
+        print(
+            f"Difference:    {results_grimme['entropy_vib'] - results_rrho['entropy_vib']:10.6f} eV/K"
+        )
 
-    print("\n--- Quasi-Harmonic Handler ---")
-    qh_handler = QuasiHarmonicHandler(method="grimme", freq_cutoff=100.0)
-    entropy, _ = qh_handler.vibrational_entropy(frequencies, 298.15)
-    print(f"Total vibrational entropy: {entropy * 1e-3:.4f} J/(mol·K)")
+        # ========================================================================
+        # Example 3: Truhlar's quasi-harmonic corrections
+        # ========================================================================
+        print("\n" + "#" * 80)
+        print("# Example 3: Truhlar's Quasi-Harmonic Corrections")
+        print("#" * 80)
 
-    print("\n--- Solvation Handler ---")
-    solvation = SolvationHandler(solvent="toluene", concentration=0.1)
-    print(f"Free space: {solvation.free_space_ml_per_l:.2f} mL/L")
-    print(f"Effective concentration: {solvation.effective_concentration():.3f} M")
+        thermo_truhlar = ThermodynamicProperties(
+            frequencies,
+            atoms,
+            temperature=298.15,
+            method="truhlar",
+            freq_cutoff=100.0,
+            multiplicity=1,
+            solvent="none",
+        )
 
-    print("\n--- Symmetry Handler ---")
-    # For C2v water molecule
-    symmetry = SymmetryHandler(point_group="C2v", warn_on_assumptions=False)
-    print(f"Point group: {symmetry.point_group}")
-    print(f"Symmetry number: {symmetry.symmetry_number}")
-    print(f"Rotational symmetry (linear): {symmetry.get_rotational_symmetry_number(linear=False)}")
+        results_truhlar = thermo_truhlar.calculate_complete_thermodynamics(energy=0.0)
+        print_thermochemistry_results(results_truhlar)
 
-    print("\n--- Statistical Thermodynamics ---")
-    stat_thermo = StatisticalThermodynamics(
-        atoms,
-        rotational_constants=np.array([0.9435, 0.9336, 0.5368]),  # GHz for H2O
-        symmetry_number=2,
-        multiplicity=1,
-    )
-    rot_entropy = stat_thermo.rotational_entropy(298.15)
-    print(f"Rotational entropy: {rot_entropy * 1e-3:.4f} J/(mol·K)")
+        # ========================================================================
+        # Example 4: Solution-phase thermodynamics
+        # ========================================================================
+        print("\n" + "#" * 80)
+        print("# Example 4: Solution-Phase Thermodynamics (in water)")
+        print("#" * 80)
 
-    print("\n" + "=" * 80)
-    print("Demo complete!")
-    print("=" * 80)
+        thermo_solution = ThermodynamicProperties(
+            frequencies,
+            atoms,
+            temperature=298.15,
+            method="grimme",
+            freq_cutoff=100.0,
+            multiplicity=1,
+            solvent="H2O",
+            concentration=1.0,  # 1 M
+        )
 
-    return 0
+        results_solution = thermo_solution.calculate_complete_thermodynamics(energy=0.0)
+        print_thermochemistry_results(results_solution)
+
+        print("\nSolvent effects on translational entropy:")
+        print(f"Gas phase S_trans:      {results_rrho['entropy_trans']:10.6f} eV/K")
+        print(f"Solution S_trans:       {results_solution['entropy_trans']:10.6f} eV/K")
+        print(
+            f"Difference:             {results_solution['entropy_trans'] - results_rrho['entropy_trans']:10.6f} eV/K"
+        )
+
+        # ========================================================================
+        # Example 5: Using the individual modules
+        # ========================================================================
+        print("\n" + "#" * 80)
+        print("# Example 5: Using Individual Thermodynamics Modules")
+        print("#" * 80)
+
+        print("\n--- Quasi-Harmonic Handler ---")
+        qh_handler = QuasiHarmonicHandler(method="grimme", freq_cutoff=100.0)
+        entropy, _ = qh_handler.vibrational_entropy(frequencies, 298.15)
+        print(f"Total vibrational entropy: {entropy * 1e-3:.4f} J/(mol·K)")
+
+        print("\n--- Solvation Handler ---")
+        solvation = SolvationHandler(solvent="toluene", concentration=0.1)
+        print(f"Free space: {solvation.free_space_ml_per_l:.2f} mL/L")
+        print(f"Effective concentration: {solvation.effective_concentration():.3f} M")
+
+        print("\n--- Symmetry Handler ---")
+        # For C2v water molecule
+        symmetry = SymmetryHandler(point_group="C2v", warn_on_assumptions=False)
+        print(f"Point group: {symmetry.point_group}")
+        print(f"Symmetry number: {symmetry.symmetry_number}")
+        print(
+            f"Rotational symmetry (linear): {symmetry.get_rotational_symmetry_number(linear=False)}"
+        )
+
+        print("\n--- Statistical Thermodynamics ---")
+        stat_thermo = StatisticalThermodynamics(
+            atoms,
+            rotational_constants=np.array([0.9435, 0.9336, 0.5368]),  # GHz for H2O
+            symmetry_number=2,
+            multiplicity=1,
+        )
+        rot_entropy = stat_thermo.rotational_entropy(298.15)
+        print(f"Rotational entropy: {rot_entropy * 1e-3:.4f} J/(mol·K)")
+
+        interface.print_success()
+        return 0
+    except KeyboardInterrupt:
+        print("\nInterrupted by user")
+        return 1
+    except Exception as e:
+        interface.print_error(f"Error: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return 1
 
 
 if __name__ == "__main__":
-    import sys
-
     sys.exit(main())

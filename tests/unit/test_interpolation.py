@@ -1,5 +1,3 @@
-"""Unit tests for interpolation strategies."""
-
 from __future__ import annotations
 
 import numpy as np
@@ -17,10 +15,7 @@ from qme.interpolation.strategies import (
 
 
 class TestLinearInterpolation:
-    """Test linear interpolation strategy."""
-
-    def test_linear_interpolation_basic(self) -> None:
-        """Test basic linear interpolation."""
+    def test_linear_interpolation_basic(self):
         interp = LinearInterpolation()
         start = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         end = np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
@@ -33,8 +28,7 @@ class TestLinearInterpolation:
         # Middle point should be average
         assert np.allclose(path[1], 0.5 * (start + end))
 
-    def test_linear_interpolation_continuity(self) -> None:
-        """Test that linear interpolation produces continuous paths."""
+    def test_linear_interpolation_continuity(self):
         interp = LinearInterpolation()
         start = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         end = np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
@@ -52,10 +46,7 @@ class TestLinearInterpolation:
 
 
 class TestGeodesicInterpolation:
-    """Test geodesic interpolation strategy."""
-
-    def test_geodesic_interpolation_basic(self) -> None:
-        """Test basic geodesic interpolation."""
+    def test_geodesic_interpolation_basic(self):
         interp = GeodesicInterpolation()
         start = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         end = np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
@@ -66,8 +57,7 @@ class TestGeodesicInterpolation:
         assert np.allclose(path[0], start, atol=1e-2)
         assert np.allclose(path[-1], end, atol=1e-2)
 
-    def test_geodesic_distance_matrix(self) -> None:
-        """Test distance matrix calculation."""
+    def test_geodesic_distance_matrix(self):
         interp = GeodesicInterpolation()
         coords = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
 
@@ -78,8 +68,7 @@ class TestGeodesicInterpolation:
         assert np.allclose(dist_matrix[0, 2], 1.0)
         assert np.allclose(dist_matrix[1, 2], np.sqrt(2.0))
 
-    def test_refine_coordinates(self) -> None:
-        """Test coordinate refinement."""
+    def test_refine_coordinates(self):
         interp = GeodesicInterpolation()
         coords = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         target_dists = np.array([[0.0, 2.0], [2.0, 0.0]])
@@ -93,10 +82,7 @@ class TestGeodesicInterpolation:
 
 
 class TestIDPPInterpolation:
-    """Test IDPP interpolation strategy."""
-
-    def test_idpp_interpolation_basic(self) -> None:
-        """Test basic IDPP interpolation."""
+    def test_idpp_interpolation_basic(self):
         interp = IDPPInterpolation()
         start = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         end = np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
@@ -107,8 +93,7 @@ class TestIDPPInterpolation:
         assert np.allclose(path[0], start, atol=1e-2)
         assert np.allclose(path[-1], end, atol=1e-2)
 
-    def test_idpp_preserves_endpoints(self) -> None:
-        """Test that IDPP preserves endpoints exactly."""
+    def test_idpp_preserves_endpoints(self):
         interp = IDPPInterpolation()
         start = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         end = np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
@@ -119,8 +104,7 @@ class TestIDPPInterpolation:
         assert np.allclose(path[0], start)
         assert np.allclose(path[-1], end)
 
-    def test_get_distance_matrix(self) -> None:
-        """Test IDPP distance matrix calculation."""
+    def test_get_distance_matrix(self):
         interp = IDPPInterpolation()
         coords = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         dist_matrix = interp._get_distance_matrix(coords)
@@ -130,10 +114,7 @@ class TestIDPPInterpolation:
 
 
 class TestQuadraticInterpolation:
-    """Test quadratic interpolation strategy."""
-
-    def test_quadratic_interpolation_basic(self) -> None:
-        """Test basic quadratic interpolation."""
+    def test_quadratic_interpolation_basic(self):
         interp = QuadraticInterpolation()
         start = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         end = np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
@@ -144,8 +125,7 @@ class TestQuadraticInterpolation:
         assert np.allclose(path[0], start)
         assert np.allclose(path[-1], end)
 
-    def test_quadratic_interpolate_function(self) -> None:
-        """Test quadratic interpolation function."""
+    def test_quadratic_interpolate_function(self):
         interp = QuadraticInterpolation()
         start = np.array([[0.0, 0.0, 0.0]])
         end = np.array([[1.0, 0.0, 0.0]])
@@ -160,10 +140,7 @@ class TestQuadraticInterpolation:
 
 
 class TestCubicSplineInterpolation:
-    """Test cubic spline interpolation strategy."""
-
-    def test_cubic_spline_interpolation_basic(self) -> None:
-        """Test basic cubic spline interpolation."""
+    def test_cubic_spline_interpolation_basic(self):
         interp = CubicSplineInterpolation()
         start = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         end = np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
@@ -174,8 +151,7 @@ class TestCubicSplineInterpolation:
         assert np.allclose(path[0], start)
         assert np.allclose(path[-1], end)
 
-    def test_cubic_spline_interpolate_function(self) -> None:
-        """Test cubic spline interpolation function."""
+    def test_cubic_spline_interpolate_function(self):
         interp = CubicSplineInterpolation()
         control_points = [
             np.array([[0.0, 0.0, 0.0]]),
@@ -192,8 +168,7 @@ class TestCubicSplineInterpolation:
         result = interp._cubic_spline_interpolate(control_points, 1.0)
         assert np.allclose(result, control_points[-1], atol=1e-6)
 
-    def test_cubic_spline_wrong_number_points(self) -> None:
-        """Test cubic spline with wrong number of control points."""
+    def test_cubic_spline_wrong_number_points(self):
         interp = CubicSplineInterpolation()
         control_points = [
             np.array([[0.0, 0.0, 0.0]]),
@@ -205,25 +180,19 @@ class TestCubicSplineInterpolation:
 
 
 class TestInterpolationRegistry:
-    """Test interpolation strategy registry."""
-
-    def test_get_interpolation_strategy_linear(self) -> None:
-        """Test getting linear interpolation strategy."""
+    def test_get_interpolation_strategy_linear(self):
         strategy = get_interpolation_strategy("linear")
         assert isinstance(strategy, LinearInterpolation)
 
-    def test_get_interpolation_strategy_geodesic(self) -> None:
-        """Test getting geodesic interpolation strategy."""
+    def test_get_interpolation_strategy_geodesic(self):
         strategy = get_interpolation_strategy("geodesic")
         assert isinstance(strategy, GeodesicInterpolation)
 
-    def test_get_interpolation_strategy_idpp(self) -> None:
-        """Test getting IDPP interpolation strategy."""
+    def test_get_interpolation_strategy_idpp(self):
         strategy = get_interpolation_strategy("idpp")
         assert isinstance(strategy, IDPPInterpolation)
 
-    def test_get_interpolation_strategy_case_insensitive(self) -> None:
-        """Test that strategy lookup is case-insensitive."""
+    def test_get_interpolation_strategy_case_insensitive(self):
         strategy1 = get_interpolation_strategy("LINEAR")
         strategy2 = get_interpolation_strategy("linear")
         strategy3 = get_interpolation_strategy("Linear")
@@ -232,13 +201,11 @@ class TestInterpolationRegistry:
         assert isinstance(strategy2, LinearInterpolation)
         assert isinstance(strategy3, LinearInterpolation)
 
-    def test_get_interpolation_strategy_unknown(self) -> None:
-        """Test getting unknown interpolation strategy raises error."""
+    def test_get_interpolation_strategy_unknown(self):
         with pytest.raises(ValueError, match="Unknown interpolation method"):
             get_interpolation_strategy("unknown_method")
 
-    def test_list_interpolation_methods(self) -> None:
-        """Test listing available interpolation methods."""
+    def test_list_interpolation_methods(self):
         methods = list_interpolation_methods()
 
         assert isinstance(methods, dict)
@@ -255,8 +222,6 @@ class TestInterpolationRegistry:
 
 
 class TestInterpolationPathQuality:
-    """Test path quality properties across interpolation methods."""
-
     @pytest.mark.parametrize(
         ("method", "tolerance"),
         [
@@ -267,8 +232,7 @@ class TestInterpolationPathQuality:
             ("spline", 1e-6),
         ],
     )
-    def test_all_methods_preserve_endpoints(self, method: str, tolerance: float) -> None:
-        """Test that all interpolation methods preserve endpoints."""
+    def test_all_methods_preserve_endpoints(self, method, tolerance):
         strategy = get_interpolation_strategy(method)
         start = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         end = np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
@@ -279,8 +243,7 @@ class TestInterpolationPathQuality:
         assert np.allclose(path[-1], end, atol=tolerance)
 
     @pytest.mark.parametrize("method", ["linear", "geodesic", "idpp", "quadratic", "spline"])
-    def test_all_methods_produce_correct_length(self, method: str) -> None:
-        """Test that all methods produce paths of correct length."""
+    def test_all_methods_produce_correct_length(self, method):
         strategy = get_interpolation_strategy(method)
         start = np.array([[0.0, 0.0, 0.0]])
         end = np.array([[1.0, 0.0, 0.0]])
@@ -289,8 +252,7 @@ class TestInterpolationPathQuality:
             path = strategy.interpolate(start, end, npoints=npoints)
             assert len(path) == npoints
 
-    def test_path_smoothness_linear(self) -> None:
-        """Test that linear interpolation produces smooth paths."""
+    def test_path_smoothness_linear(self):
         strategy = LinearInterpolation()
         start = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
         end = np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
@@ -306,8 +268,7 @@ class TestInterpolationPathQuality:
             # For linear interpolation, differences should be very similar
             assert abs(diff1 - diff2) < 1e-6
 
-    def test_interpolation_with_different_system_sizes(self) -> None:
-        """Test interpolation works with different system sizes."""
+    def test_interpolation_with_different_system_sizes(self):
         strategy = LinearInterpolation()
 
         # Test with 1 atom

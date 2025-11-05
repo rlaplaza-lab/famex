@@ -4,7 +4,8 @@ This module provides wrapper classes for ASE optimizers (LBFGS, BFGS, FIRE)
 and Sella to add consistent verbosity control using QME's logging system.
 """
 
-from typing import IO, Any
+from contextlib import redirect_stdout
+from typing import IO, Any, TextIO, cast
 
 import numpy as np
 from ase import Atoms
@@ -37,7 +38,7 @@ class LoggingFile:
         self.buffer = ""
         # Check current logger level - if it's WARNING or above, suppress output
         self.should_output = logger.getEffectiveLevel() <= logging.INFO
-        self.stdout = sys.stdout
+        self.stdout: TextIO = sys.stdout
 
     def write(self, text: str) -> int:
         """Write text to stdout, but only if verbosity allows it.
@@ -212,7 +213,7 @@ class VerboseOptimizerWrapper(Optimizer):
         self,
         atoms: Atoms,
         wrapped_optimizer_class: type[Optimizer],
-        logfile: IO | str | None = "-",
+        logfile: IO[Any] | TextIO | str | None = "-",
         trajectory: str | None = None,
         verbose: int = 1,
         profiler: Any = None,
@@ -258,7 +259,7 @@ class VerboseOptimizerWrapper(Optimizer):
             self._logging_file = logging_file  # Store for cleanup
             # If user provided a specific logfile, use it; otherwise use our logger
             if logfile is None or logfile == "-":
-                logfile = logging_file
+                logfile = logging_file  # type: ignore[assignment]
             # If user provided a file path or file object, keep it as-is
             # (but we could also wrap it to add logging - maybe in future)
 
@@ -301,8 +302,6 @@ class VerboseOptimizerWrapper(Optimizer):
 
     def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:  # type: ignore[override]
         """Run the optimization with verbosity control."""
-        from contextlib import redirect_stdout
-
         if self.verbose >= 2:
             optimizer_name = self.wrapped_optimizer.__class__.__name__
             logger.info(f"Starting {optimizer_name} optimization")
@@ -313,7 +312,9 @@ class VerboseOptimizerWrapper(Optimizer):
         # If we're using LoggingFile, redirect stdout to it to capture print() statements
         # This prevents duplicate output from ASE optimizers
         if self._logging_file is not None:
-            with redirect_stdout(self._logging_file):
+            # LoggingFile implements write() method required by redirect_stdout
+            # but doesn't implement full IO protocol, so we cast it
+            with redirect_stdout(cast(TextIO, self._logging_file)):
                 result = self.wrapped_optimizer.run(fmax=fmax, steps=steps)
             self._logging_file.flush()
         else:
@@ -374,7 +375,7 @@ class VerboseLBFGS(VerboseOptimizerWrapper):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str | None = "-",
+        logfile: IO[Any] | TextIO | str | None = "-",
         trajectory: str | None = None,
         verbose: int = 1,
         **kwargs: Any,
@@ -397,7 +398,7 @@ class VerboseBFGS(VerboseOptimizerWrapper):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str | None = "-",
+        logfile: IO[Any] | TextIO | str | None = "-",
         trajectory: str | None = None,
         verbose: int = 1,
         **kwargs: Any,
@@ -420,7 +421,7 @@ class VerboseFIRE(VerboseOptimizerWrapper):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str | None = "-",
+        logfile: IO[Any] | TextIO | str | None = "-",
         trajectory: str | None = None,
         verbose: int = 1,
         **kwargs: Any,
@@ -443,7 +444,7 @@ class VerboseSella(VerboseOptimizerWrapper):
     def __init__(
         self,
         atoms: Atoms,
-        logfile: IO | str | None = "-",
+        logfile: IO[Any] | TextIO | str | None = "-",
         trajectory: str | None = None,
         verbose: int = 1,
         profiler: Any = None,

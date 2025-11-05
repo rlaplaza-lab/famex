@@ -1,9 +1,4 @@
-"""Test CLI functionality with mock backend.
-
-This module tests basic CLI functionality using the mock backend
-to ensure the CLI interface works correctly without requiring
-real ML potential dependencies.
-"""
+from __future__ import annotations
 
 import os
 import tempfile
@@ -22,10 +17,7 @@ from tests.test_utils import (
 
 
 class TestCLIMockBackend:
-    """Test CLI functionality with mock backend."""
-
-    def test_opt_local_runs_with_mock_backend(self) -> None:
-        """Test local optimization with mock backend."""
+    def test_opt_local_runs_with_mock_backend(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             # Create test molecule
@@ -55,8 +47,7 @@ class TestCLIMockBackend:
             out_path = os.path.splitext(xyz_path)[0] + ".opt.local.xyz"
             assert os.path.exists(out_path), f"Output file not created: {out_path}"
 
-    def test_opt_twoended_runs_with_mock_backend(self) -> None:
-        """Test two-ended optimization with mock backend."""
+    def test_opt_twoended_runs_with_mock_backend(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             # Create reactant and product
@@ -96,8 +87,7 @@ class TestCLIMockBackend:
             out_path = os.path.splitext(reactant_path)[0] + ".opt.interpolate.xyz"
             assert os.path.exists(out_path), f"Output file not created: {out_path}"
 
-    def test_minima_dry_run(self) -> None:
-        """Test minima command with dry-run mode."""
+    def test_minima_dry_run(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             atoms = TestMoleculeFactory.get_water_distorted()
@@ -121,8 +111,7 @@ class TestCLIMockBackend:
             assert "Dry-run analysis" in result.output
             assert "Target: minima" in result.output
 
-    def test_minima_with_frequencies(self) -> None:
-        """Test minima command with frequency calculation."""
+    def test_minima_with_frequencies(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             atoms = TestMoleculeFactory.get_water_distorted()
@@ -150,8 +139,7 @@ class TestCLIMockBackend:
             out_path = os.path.splitext(xyz_path)[0] + ".opt.local.json"
             assert os.path.exists(out_path)
 
-    def test_minima_with_custom_output(self) -> None:
-        """Test minima with custom output path."""
+    def test_minima_with_custom_output(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             atoms = TestMoleculeFactory.get_water_distorted()
@@ -178,8 +166,7 @@ class TestCLIMockBackend:
             assert result.exit_code == 0
             assert os.path.exists(custom_out)
 
-    def test_ts_command_with_mock(self) -> None:
-        """Test TS optimization command errors with mock backend."""
+    def test_ts_command_with_mock(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
@@ -203,8 +190,7 @@ class TestCLIMockBackend:
             # Mock backend doesn't support TS optimization
             assert result.exit_code != 0
 
-    def test_ts_interpolate_command(self) -> None:
-        """Test TS interpolate command errors with mock backend."""
+    def test_ts_interpolate_command(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             reactant = TestMoleculeFactory.get_water_distorted()
@@ -237,8 +223,7 @@ class TestCLIMockBackend:
             # Mock backend doesn't support TS optimization
             assert result.exit_code != 0
 
-    def test_path_neb_command(self) -> None:
-        """Test NEB path optimization."""
+    def test_path_neb_command(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             reactant = TestMoleculeFactory.get_water_distorted()
@@ -272,8 +257,7 @@ class TestCLIMockBackend:
 
             assert result.exit_code == 0
 
-    def test_path_irc_command(self) -> None:
-        """Test IRC path calculation."""
+    def test_path_irc_command(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             ts = TestMoleculeFactory.get_water_dissociation_ts_guess()
@@ -298,8 +282,7 @@ class TestCLIMockBackend:
 
             assert result.exit_code == 0
 
-    def test_path_cineb_command(self) -> None:
-        """Test CI-NEB path optimization."""
+    def test_path_cineb_command(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             reactant = TestMoleculeFactory.get_water_distorted()
@@ -333,8 +316,7 @@ class TestCLIMockBackend:
 
             assert result.exit_code == 0
 
-    def test_path_interpolate_command(self) -> None:
-        """Test raw interpolation path command."""
+    def test_path_interpolate_command(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             reactant = TestMoleculeFactory.get_water_distorted()
@@ -366,8 +348,7 @@ class TestCLIMockBackend:
 
             assert result.exit_code == 0
 
-    def test_verbose_options(self) -> None:
-        """Test verbose flag options."""
+    def test_verbose_options(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             atoms = TestMoleculeFactory.get_water_distorted()
@@ -392,8 +373,7 @@ class TestCLIMockBackend:
 
             assert result.exit_code == 0
 
-    def test_constraints_option(self) -> None:
-        """Test constraints option."""
+    def test_constraints_option(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             atoms = TestMoleculeFactory.get_water_distorted()
@@ -418,8 +398,7 @@ class TestCLIMockBackend:
 
             assert result.exit_code == 0
 
-    def test_optimizer_kwargs(self) -> None:
-        """Test optimizer kwargs parsing."""
+    def test_optimizer_kwargs(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             atoms = TestMoleculeFactory.get_water_distorted()
@@ -444,8 +423,7 @@ class TestCLIMockBackend:
 
             assert result.exit_code == 0
 
-    def test_missing_product_error(self) -> None:
-        """Test error when product is missing for interpolate strategy."""
+    def test_missing_product_error(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             atoms = TestMoleculeFactory.get_water_distorted()
@@ -467,8 +445,7 @@ class TestCLIMockBackend:
             assert result.exit_code != 0
             assert "product" in result.output.lower() or "required" in result.output.lower()
 
-    def test_invalid_strategy_error(self) -> None:
-        """Test error with invalid strategy."""
+    def test_invalid_strategy_error(self):
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmp:
             atoms = TestMoleculeFactory.get_water_distorted()
@@ -492,12 +469,8 @@ class TestCLIMockBackend:
 
 
 class TestBackendMinimaIntegration:
-    """Test backend integration for minima optimization."""
-
-    def test_h2_minima_across_backends(self) -> None:
-        """Ensure minima optimization succeeds across available backends."""
-
-        def _run_minima(backend: str):
+    def test_h2_minima_across_backends(self):
+        def _run_minima(backend):
             atoms = TestMoleculeFactory.get_h2_stretched()
             explorer = qme.Explorer(
                 atoms=atoms,
@@ -524,13 +497,9 @@ class TestBackendMinimaIntegration:
 
 
 class TestBackendTransitionStateIntegration:
-    """Test backend integration for transition state optimization."""
-
     @pytest.mark.skipif(not qme.deps.has("sella"), reason="Sella is required for TS optimization")
-    def test_water_ts_smoke(self) -> None:
-        """Run a single TS optimization smoke test across available backends."""
-
-        def _run_ts(backend: str):
+    def test_water_ts_smoke(self):
+        def _run_ts(backend):
             atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
             explorer = qme.Explorer(atoms=atoms, backend=backend, target="ts", strategy="local")
             result = explorer.run(fmax=0.1, steps=50)
@@ -558,10 +527,7 @@ class TestBackendTransitionStateIntegration:
 
 
 class TestBackendPathIntegration:
-    """Test backend integration for path optimization."""
-
-    def test_mock_neb_smoke(self) -> None:
-        """Exercise NEB workflow with the mock backend to ensure plumbing works."""
+    def test_mock_neb_smoke(self):
         reactant = TestMoleculeFactory.get_water_distorted()
         product = TestMoleculeFactory.get_water_distorted()
         product.positions[2] += (1.5, 0.0, 0.0)

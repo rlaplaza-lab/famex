@@ -1,4 +1,4 @@
-"""Tests for custom XYZ I/O functionality."""
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path
@@ -18,8 +18,6 @@ from qme.io.xyz_io import (
 
 
 class TestParseXYZComment:
-    """Test XYZ comment line parsing."""
-
     @pytest.mark.parametrize(
         ("comment", "expected"),
         [
@@ -34,14 +32,11 @@ class TestParseXYZComment:
         ids=["basic", "with_energy", "partial", "reordered", "with_text", "empty", "no_metadata"],
     )
     def test_parse_variations(self, comment, expected):
-        """Test parsing various metadata formats and edge cases."""
         result = parse_xyz_comment(comment)
         assert result == expected
 
 
 class TestFormatXYZComment:
-    """Test XYZ comment line formatting."""
-
     @pytest.mark.parametrize(
         ("obj_type", "info", "charge_attr", "mult_attr", "energy", "expected"),
         [
@@ -74,7 +69,6 @@ class TestFormatXYZComment:
         ],
     )
     def test_format_variations(self, obj_type, info, charge_attr, mult_attr, energy, expected):
-        """Test formatting with various metadata combinations."""
         if obj_type == "atoms":
             obj = Atoms("H2")
             if info:
@@ -97,10 +91,7 @@ class TestFormatXYZComment:
 
 
 class TestValidateXYZStructure:
-    """Test XYZ structure validation."""
-
     def test_validate_valid_structure(self):
-        """Test validation of valid structure."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
         issues = validate_xyz_structure(atoms)
         assert issues == []
@@ -126,13 +117,11 @@ class TestValidateXYZStructure:
         ids=["no_atoms", "nan_coords", "inf_coords", "large_coords", "close_atoms"],
     )
     def test_validate_coordinate_errors(self, atoms_factory, expected_msg):
-        """Test validation with various coordinate errors."""
         atoms = atoms_factory()
         issues = validate_xyz_structure(atoms)
         assert any(expected_msg in issue for issue in issues)
 
     def test_validate_strict_mode(self):
-        """Test strict validation mode."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
         atoms.info = {"charge": 0, "spin": 0}  # Invalid spin
         issues = validate_xyz_structure(atoms, strict=True)
@@ -140,10 +129,7 @@ class TestValidateXYZStructure:
 
 
 class TestReadXYZWithMetadata:
-    """Test reading XYZ files with metadata."""
-
     def test_read_single_frame(self):
-        """Test reading single frame XYZ."""
         xyz_content = """2
 charge=0 spin=1
 H  0.0  0.0  0.0
@@ -163,7 +149,6 @@ H  0.0  0.0  0.74
             Path(temp_file).unlink()
 
     def test_read_multi_frame(self):
-        """Test reading various frames from multi-frame XYZ."""
         xyz_content = """2
 charge=0 spin=1
 H  0.0  0.0  0.0
@@ -204,7 +189,6 @@ H  0.0  0.0  0.85
             Path(temp_file).unlink()
 
     def test_read_no_metadata(self):
-        """Test reading XYZ without metadata."""
         xyz_content = """2
 Some comment
 H  0.0  0.0  0.0
@@ -225,12 +209,10 @@ H  0.0  0.0  0.74
             Path(temp_file).unlink()
 
     def test_read_nonexistent_file(self):
-        """Test reading nonexistent file."""
         with pytest.raises(FileNotFoundError):
             read_xyz_with_metadata("nonexistent.xyz")
 
     def test_read_invalid_frame_index(self):
-        """Test reading with invalid frame index."""
         xyz_content = """2
 charge=0 spin=1
 H  0.0  0.0  0.0
@@ -248,8 +230,6 @@ H  0.0  0.0  0.74
 
 
 class TestWriteXYZWithMetadata:
-    """Test writing XYZ files with metadata."""
-
     @pytest.mark.parametrize(
         ("obj_type", "info", "energy", "expected_comment"),
         [
@@ -260,7 +240,6 @@ class TestWriteXYZWithMetadata:
         ids=["atoms_basic", "atoms_with_energy", "geometry"],
     )
     def test_write_variations(self, obj_type, info, energy, expected_comment):
-        """Test writing structures with various metadata combinations."""
         if obj_type == "atoms":
             obj = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
             if info:
@@ -287,7 +266,6 @@ class TestWriteXYZWithMetadata:
             Path(temp_file).unlink()
 
     def test_write_trajectory(self):
-        """Test writing trajectory (multiple structures)."""
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
         atoms1.info = {"charge": 0, "spin": 1}
 
@@ -316,7 +294,6 @@ class TestWriteXYZWithMetadata:
             Path(temp_file).unlink()
 
     def test_write_no_metadata(self):
-        """Test writing structure without metadata."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
@@ -336,10 +313,7 @@ class TestWriteXYZWithMetadata:
 
 
 class TestXYZRoundTrip:
-    """Test round-trip XYZ reading and writing."""
-
     def test_round_trip_metadata_preservation(self):
-        """Test that metadata is preserved through write/read cycle."""
         # Create structure with metadata
         atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
         atoms.info = {"charge": 1, "spin": 2}
@@ -362,7 +336,6 @@ class TestXYZRoundTrip:
             Path(temp_file).unlink()
 
     def test_round_trip_geometry_object(self):
-        """Test round-trip with Geometry object."""
         # Create Geometry with metadata
         geom1 = Geometry(["H", "H"], positions=[[0, 0, 0], [0, 0, 0.74]], charge=0, mult=1)
 
@@ -386,10 +359,7 @@ class TestXYZRoundTrip:
 
 
 class TestBackwardCompatibility:
-    """Test backward compatibility with ASE-written XYZ files."""
-
     def test_read_ase_written_xyz(self):
-        """Test reading XYZ file written by ASE (no metadata)."""
         # Create structure and write with ASE
         atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
 

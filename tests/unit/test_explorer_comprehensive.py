@@ -1,5 +1,3 @@
-"""Comprehensive tests for Explorer class covering basic functionality and edge cases."""
-
 from __future__ import annotations
 
 import tempfile
@@ -16,8 +14,6 @@ from tests.test_utils import TestMoleculeFactory
 
 
 class TestExplorerInitialization:
-    """Test Explorer initialization."""
-
     @pytest.mark.parametrize(
         ("atoms_input", "expected_length", "expected_index"),
         [
@@ -25,8 +21,7 @@ class TestExplorerInitialization:
             ("list", 2, None),
         ],
     )
-    def test_init_with_atoms(self, atoms_input, expected_length, expected_index) -> None:
-        """Test Explorer initialization with single or multiple Atoms objects."""
+    def test_init_with_atoms(self, atoms_input, expected_length, expected_index):
         atoms = TestMoleculeFactory.get_water_distorted()
         if atoms_input == "single":
             input_atoms = atoms
@@ -50,10 +45,7 @@ class TestExplorerInitialization:
             ("  minima  ", "  local  ", "minima", "local"),  # whitespace stripped
         ],
     )
-    def test_init_with_target_strategy(
-        self, target, strategy, expected_target, expected_strategy
-    ) -> None:
-        """Test Explorer initialization with target and strategy."""
+    def test_init_with_target_strategy(self, target, strategy, expected_target, expected_strategy):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock", target=target, strategy=strategy)
 
@@ -70,8 +62,7 @@ class TestExplorerInitialization:
         ("profile", "has_profiler"),
         [(False, False), (True, True)],
     )
-    def test_init_with_profile(self, profile, has_profiler) -> None:
-        """Test Explorer initialization with profiling."""
+    def test_init_with_profile(self, profile, has_profiler):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock", profile=profile)
 
@@ -80,8 +71,7 @@ class TestExplorerInitialization:
         else:
             assert explorer.profiler is None
 
-    def test_init_with_defaults(self) -> None:
-        """Test Explorer initialization with default parameters."""
+    def test_init_with_defaults(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock")
 
@@ -92,8 +82,7 @@ class TestExplorerInitialization:
         assert explorer.verbose == 1
         assert explorer.profiler is None
 
-    def test_init_with_constraints_and_optimizer_kwargs(self) -> None:
-        """Test Explorer initialization with constraints and optimizer kwargs."""
+    def test_init_with_constraints_and_optimizer_kwargs(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         optimizer_kwargs = {"maxstep": 0.1}
         explorer = Explorer(
@@ -108,10 +97,7 @@ class TestExplorerInitialization:
 
 
 class TestExplorerListStrategies:
-    """Test Explorer.list_strategies method."""
-
-    def test_list_strategies_all(self) -> None:
-        """Test listing all strategies."""
+    def test_list_strategies_all(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock")
 
@@ -126,8 +112,7 @@ class TestExplorerListStrategies:
             assert isinstance(metadata, dict)
             assert "description" in metadata
 
-    def test_list_strategies_filtered(self) -> None:
-        """Test listing strategies filtered by kind."""
+    def test_list_strategies_filtered(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock")
 
@@ -141,8 +126,6 @@ class TestExplorerListStrategies:
 
 
 class TestExplorerExplainRun:
-    """Test Explorer.explain_run method."""
-
     @pytest.mark.parametrize(
         ("target", "strategy", "expected_target"),
         [
@@ -151,8 +134,7 @@ class TestExplorerExplainRun:
             ("path", "neb", "path"),
         ],
     )
-    def test_explain_run_strategies(self, target, strategy, expected_target) -> None:
-        """Test explain_run for different strategy combinations."""
+    def test_explain_run_strategies(self, target, strategy, expected_target):
         atoms = TestMoleculeFactory.get_water_distorted()
         if target == "path":
             atoms = [atoms, TestMoleculeFactory.get_water_distorted()]
@@ -166,8 +148,7 @@ class TestExplorerExplainRun:
         if target == "path":
             assert explanation["strategy"] == "neb" or "neb" in str(explanation["strategy"]).lower()
 
-    def test_explain_run_invalid_backend(self) -> None:
-        """Test explain_run with invalid backend."""
+    def test_explain_run_invalid_backend(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="nonexistent_backend")
 
@@ -177,8 +158,7 @@ class TestExplorerExplainRun:
         # The explanation should indicate the issue
         assert isinstance(explanation, dict)
 
-    def test_explain_run_invalid_strategy(self) -> None:
-        """Test explain_run with invalid strategy."""
+    def test_explain_run_invalid_strategy(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock", target="minima", strategy="nonexistent")
 
@@ -190,10 +170,7 @@ class TestExplorerExplainRun:
 
 
 class TestExplorerErrorHandling:
-    """Test Explorer error handling."""
-
-    def test_empty_atoms_list_raises_error(self) -> None:
-        """Test that empty atoms list raises error."""
+    def test_empty_atoms_list_raises_error(self):
         # Explorer initialization doesn't validate empty list immediately
         # Error would occur during run() when strategy tries to access atoms
         explorer = Explorer([], backend="mock")
@@ -201,16 +178,14 @@ class TestExplorerErrorHandling:
         with pytest.raises((ValueError, IndexError)):
             explorer.run()
 
-    def test_run_with_invalid_backend(self) -> None:
-        """Test run with invalid backend raises error."""
+    def test_run_with_invalid_backend(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="nonexistent_backend_xyz123")
 
         with pytest.raises((BackendError, ValueError, KeyError)):
             explorer.run(steps=1)
 
-    def test_run_path_strategy_requires_multiple_structures(self) -> None:
-        """Test that path strategies require multiple structures."""
+    def test_run_path_strategy_requires_multiple_structures(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock", target="path", strategy="neb")
 
@@ -218,8 +193,7 @@ class TestExplorerErrorHandling:
         with pytest.raises((ValueError, KeyError)):
             explorer.run(steps=1)
 
-    def test_invalid_device_handled_gracefully(self) -> None:
-        """Test that invalid device is handled gracefully."""
+    def test_invalid_device_handled_gracefully(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         # Should either work with default or raise a clear error
         explorer = Explorer(atoms, backend="mock", device="invalid_device")
@@ -228,8 +202,7 @@ class TestExplorerErrorHandling:
         # Just verify Explorer is created
         assert explorer.device == "invalid_device"
 
-    def test_constraints_parsing_error(self) -> None:
-        """Test that invalid constraints are handled."""
+    def test_constraints_parsing_error(self):
         atoms = TestMoleculeFactory.get_water_distorted()
 
         # Invalid constraints should be caught during run, not init
@@ -238,8 +211,7 @@ class TestExplorerErrorHandling:
         # Constraints are parsed during run, not init
         assert explorer.constraints_spec == "invalid_constraint_string"
 
-    def test_strategy_not_found_error(self) -> None:
-        """Test error when strategy is not found."""
+    def test_strategy_not_found_error(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock", target="minima", strategy="nonexistent_strategy")
 
@@ -257,8 +229,6 @@ class TestExplorerErrorHandling:
 
 
 class TestExtractChargeSpin:
-    """Test _extract_charge_spin function with various metadata formats."""
-
     @pytest.mark.parametrize(
         (
             "comment",
@@ -301,8 +271,7 @@ class TestExtractChargeSpin:
         default_spin,
         expected_charge,
         expected_spin,
-    ) -> None:
-        """Test charge/spin extraction with various metadata combinations."""
+    ):
         atoms = TestMoleculeFactory.get_water_distorted()
 
         if comment:
@@ -323,8 +292,7 @@ class TestExtractChargeSpin:
         assert charge == expected_charge
         assert spin == expected_spin
 
-    def test_extract_with_invalid_attribute_types(self) -> None:
-        """Test extraction handles invalid attribute types gracefully."""
+    def test_extract_with_invalid_attribute_types(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         atoms.charge = "invalid"
         atoms.mult = None
@@ -334,8 +302,7 @@ class TestExtractChargeSpin:
         assert charge == 0
         assert spin == 1
 
-    def test_extract_with_none_info(self) -> None:
-        """Test extraction when atoms.info is None."""
+    def test_extract_with_none_info(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         atoms.info = None
 
@@ -346,10 +313,7 @@ class TestExtractChargeSpin:
 
 
 class TestExplorerRun:
-    """Test Explorer.run() method including basic and edge cases."""
-
-    def test_run_basic_minima(self) -> None:
-        """Test basic run for minima optimization."""
+    def test_run_basic_minima(self):
         atoms = TestMoleculeFactory.get_h2_stretched()
         explorer = Explorer(atoms, backend="mock", target="minima", strategy="local")
 
@@ -360,8 +324,7 @@ class TestExplorerRun:
         assert "strategy" in result
         assert "converged" in result
 
-    def test_run_with_steps_limit(self) -> None:
-        """Test run with steps limit."""
+    def test_run_with_steps_limit(self):
         atoms = TestMoleculeFactory.get_h2_stretched()
         explorer = Explorer(atoms, backend="mock", target="minima")
 
@@ -372,8 +335,7 @@ class TestExplorerRun:
         if "steps_taken" in result:
             assert result["steps_taken"] <= 2
 
-    def test_run_with_custom_runner(self) -> None:
-        """Test run() with custom runner function."""
+    def test_run_with_custom_runner(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock")
 
@@ -390,8 +352,7 @@ class TestExplorerRun:
         assert result["converged"] is True
         assert "optimized_atoms" in result
 
-    def test_run_with_custom_runner_returns_atoms(self) -> None:
-        """Test run() handles custom runner returning Atoms directly."""
+    def test_run_with_custom_runner_returns_atoms(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock")
 
@@ -403,16 +364,14 @@ class TestExplorerRun:
         assert result["strategy"] == "custom"
         assert isinstance(result["optimized_atoms"], Atoms)
 
-    def test_run_with_invalid_strategy_name(self) -> None:
-        """Test run() raises error for invalid strategy."""
+    def test_run_with_invalid_strategy_name(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock", target="invalid", strategy="nonexistent")
 
         with pytest.raises(NotImplementedError):
             explorer.run()
 
-    def test_run_with_calculate_frequencies(self) -> None:
-        """Test run() with calculate_frequencies=True."""
+    def test_run_with_calculate_frequencies(self):
         atoms = TestMoleculeFactory.get_h2_stretched()
         explorer = Explorer(atoms, backend="mock", target="minima", strategy="local")
 
@@ -424,8 +383,7 @@ class TestExplorerRun:
         assert "frequencies" in freq_analysis
         assert "is_minimum" in freq_analysis or "is_minimum" in result
 
-    def test_run_with_frequency_calculation_failure(self) -> None:
-        """Test run() handles frequency calculation failures gracefully."""
+    def test_run_with_frequency_calculation_failure(self):
         atoms = TestMoleculeFactory.get_h2_stretched()
         explorer = Explorer(atoms, backend="mock", target="minima", strategy="local")
 
@@ -436,8 +394,7 @@ class TestExplorerRun:
             with pytest.raises(Exception, match="Frequency calc failed"):
                 explorer.run(steps=2, fmax=0.5, calculate_frequencies=True)
 
-    def test_run_defaults_to_minima_local(self) -> None:
-        """Test run() defaults to minima:local when target/strategy not set."""
+    def test_run_defaults_to_minima_local(self):
         atoms = TestMoleculeFactory.get_h2_stretched()
         explorer = Explorer(atoms, backend="mock", target="", strategy="")
 
@@ -448,8 +405,6 @@ class TestExplorerRun:
 
 
 class TestExplorerFromFile:
-    """Test Explorer.from_file() method including basic and edge cases."""
-
     @pytest.mark.parametrize(
         ("kwargs", "assertions"),
         [
@@ -458,8 +413,7 @@ class TestExplorerFromFile:
         ],
         ids=["basic", "custom_target"],
     )
-    def test_from_file_variations(self, kwargs, assertions) -> None:
-        """Test creating Explorer from file with various options."""
+    def test_from_file_variations(self, kwargs, assertions):
         atoms = TestMoleculeFactory.get_water_distorted()
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
@@ -472,13 +426,11 @@ class TestExplorerFromFile:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_from_file_nonexistent_file(self) -> None:
-        """Test from_file with nonexistent file raises error."""
+    def test_from_file_nonexistent_file(self):
         with pytest.raises((FileNotFoundError, OSError)):
             Explorer.from_file("nonexistent_file.xyz", backend="mock")
 
-    def test_from_file_with_list_return(self) -> None:
-        """Test from_file handles read_geometry returning a list."""
+    def test_from_file_with_list_return(self):
         atoms = TestMoleculeFactory.get_water_distorted()
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
@@ -495,8 +447,7 @@ class TestExplorerFromFile:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_from_file_with_all_options(self) -> None:
-        """Test from_file with all optional parameters."""
+    def test_from_file_with_all_options(self):
         atoms = TestMoleculeFactory.get_water_distorted()
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
@@ -529,10 +480,7 @@ class TestExplorerFromFile:
 
 
 class TestExplorerLoadStructure:
-    """Test Explorer.load_structure() method."""
-
-    def test_load_structure_from_file(self) -> None:
-        """Test loading structure from file."""
+    def test_load_structure_from_file(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock")
 
@@ -549,8 +497,7 @@ class TestExplorerLoadStructure:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_load_structure_from_atoms(self) -> None:
-        """Test loading structure from Atoms object."""
+    def test_load_structure_from_atoms(self):
         atoms1 = TestMoleculeFactory.get_water_distorted()
         atoms2 = TestMoleculeFactory.get_h2_stretched()
         explorer = Explorer(atoms1, backend="mock")
@@ -561,8 +508,7 @@ class TestExplorerLoadStructure:
         assert len(explorer.atoms_list) == 1
         assert explorer.atoms_list[0] == atoms2
 
-    def test_load_structure_handles_list(self) -> None:
-        """Test load_structure handles read_geometry returning list."""
+    def test_load_structure_handles_list(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock")
 
@@ -581,10 +527,7 @@ class TestExplorerLoadStructure:
 
 
 class TestExplorerCalculateFrequencies:
-    """Test Explorer.calculate_frequencies() method."""
-
-    def test_calculate_frequencies_basic(self) -> None:
-        """Test basic frequency calculation."""
+    def test_calculate_frequencies_basic(self):
         atoms = TestMoleculeFactory.get_h2_stretched()
         explorer = Explorer(atoms, backend="mock")
 
@@ -598,8 +541,7 @@ class TestExplorerCalculateFrequencies:
         assert "is_ts" in results
         assert "is_minimum" in results
 
-    def test_calculate_frequencies_with_explicit_atoms(self) -> None:
-        """Test frequency calculation with explicit atoms parameter."""
+    def test_calculate_frequencies_with_explicit_atoms(self):
         atoms1 = TestMoleculeFactory.get_h2_stretched()
         atoms2 = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms1, backend="mock")
@@ -609,8 +551,7 @@ class TestExplorerCalculateFrequencies:
         assert "frequencies" in results
         assert results["n_atoms"] == len(atoms2)
 
-    def test_calculate_frequencies_with_indices(self) -> None:
-        """Test frequency calculation with atom indices."""
+    def test_calculate_frequencies_with_indices(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer(atoms, backend="mock")
 
@@ -619,8 +560,7 @@ class TestExplorerCalculateFrequencies:
         assert "frequencies" in results
         assert results["indices"] == [0, 1]
 
-    def test_calculate_frequencies_without_hessian(self) -> None:
-        """Test frequency calculation without saving Hessian."""
+    def test_calculate_frequencies_without_hessian(self):
         atoms = TestMoleculeFactory.get_h2_stretched()
         explorer = Explorer(atoms, backend="mock")
 
@@ -629,15 +569,13 @@ class TestExplorerCalculateFrequencies:
         assert "frequencies" in results
         assert "hessian" not in results
 
-    def test_calculate_frequencies_no_atoms_raises_error(self) -> None:
-        """Test frequency calculation with no atoms raises error."""
+    def test_calculate_frequencies_no_atoms_raises_error(self):
         explorer = Explorer([], backend="mock")
 
         with pytest.raises(RuntimeError, match="No structure available"):
             explorer.calculate_frequencies()
 
-    def test_calculate_frequencies_with_custom_temperature(self) -> None:
-        """Test frequency calculation with custom temperature."""
+    def test_calculate_frequencies_with_custom_temperature(self):
         atoms = TestMoleculeFactory.get_h2_stretched()
         explorer = Explorer(atoms, backend="mock")
 
@@ -648,8 +586,6 @@ class TestExplorerCalculateFrequencies:
 
 
 class TestExplorerSaveMethods:
-    """Test Explorer save methods including basic and edge cases."""
-
     @pytest.mark.parametrize(
         ("method_name", "suffix", "test_data_factory"),
         [
@@ -666,8 +602,7 @@ class TestExplorerSaveMethods:
         ],
         ids=["save_structure_xyz", "save_structure_json", "save_trajectory"],
     )
-    def test_save_methods(self, method_name, suffix, test_data_factory) -> None:
-        """Test saving structures and trajectories in various formats."""
+    def test_save_methods(self, method_name, suffix, test_data_factory):
         test_data = test_data_factory()
         if method_name == "save_trajectory":
             explorer = Explorer(test_data, backend="mock")
@@ -700,8 +635,7 @@ class TestExplorerSaveMethods:
         ],
         ids=["structure_error", "trajectory_error"],
     )
-    def test_save_methods_error_handling(self, method_name, patch_target) -> None:
-        """Test error handling for save methods."""
+    def test_save_methods_error_handling(self, method_name, patch_target):
         atoms = TestMoleculeFactory.get_water_distorted()
         explorer = Explorer([atoms] if method_name == "save_trajectory" else atoms, backend="mock")
 
@@ -720,8 +654,7 @@ class TestExplorerSaveMethods:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_save_trajectory_clean_atoms_fallback(self) -> None:
-        """Test save_trajectory uses clean atoms on failure."""
+    def test_save_trajectory_clean_atoms_fallback(self):
         atoms = TestMoleculeFactory.get_water_distorted()
         # Add some attributes that might cause write issues
         atoms.info = {"charge": 0, "spin": 1}
@@ -753,8 +686,6 @@ class TestExplorerSaveMethods:
 
 
 class TestExplorerEffectiveMethods:
-    """Test Explorer _get_effective_* methods."""
-
     @pytest.mark.parametrize(
         ("backend", "model_name", "expected"),
         [
@@ -763,8 +694,7 @@ class TestExplorerEffectiveMethods:
         ],
         ids=["explicit_model", "backend_default"],
     )
-    def test_get_effective_model_name(self, backend, model_name, expected) -> None:
-        """Test _get_effective_model_name for different backends."""
+    def test_get_effective_model_name(self, backend, model_name, expected):
         atoms = TestMoleculeFactory.get_water_distorted()
         kwargs = {"model_name": model_name} if model_name else {}
         explorer = Explorer(atoms, backend=backend, **kwargs)
@@ -783,8 +713,7 @@ class TestExplorerEffectiveMethods:
         ],
         ids=["minima_default", "ts_default", "explicit"],
     )
-    def test_get_effective_optimizer(self, target, local_optimizer, expected_optimizer) -> None:
-        """Test _get_effective_optimizer with various configurations."""
+    def test_get_effective_optimizer(self, target, local_optimizer, expected_optimizer):
         atoms = TestMoleculeFactory.get_water_distorted()
         kwargs = (
             {"target": target, "local_optimizer": local_optimizer}
@@ -796,10 +725,7 @@ class TestExplorerEffectiveMethods:
 
 
 class TestExplorerProfilerIntegration:
-    """Test Explorer profiler integration."""
-
-    def test_run_with_profiler(self) -> None:
-        """Test run() integrates with profiler."""
+    def test_run_with_profiler(self):
         atoms = TestMoleculeFactory.get_h2_stretched()
         explorer = Explorer(atoms, backend="mock", profile=True)
 
@@ -808,8 +734,7 @@ class TestExplorerProfilerIntegration:
         assert explorer.profiler is not None
         assert "optimized_atoms" in result
 
-    def test_profiler_attached_to_strategy(self) -> None:
-        """Test profiler is attached to strategy instances."""
+    def test_profiler_attached_to_strategy(self):
         atoms = TestMoleculeFactory.get_h2_stretched()
         explorer = Explorer(atoms, backend="mock", profile=True, target="minima", strategy="local")
 
@@ -818,10 +743,7 @@ class TestExplorerProfilerIntegration:
 
 
 class TestExplorerChargeSpinHandling:
-    """Test Explorer charge/spin handling in calculator creation."""
-
-    def test_calculate_frequencies_sets_charge_spin_in_info(self) -> None:
-        """Test calculate_frequencies sets charge/spin in atoms.info."""
+    def test_calculate_frequencies_sets_charge_spin_in_info(self):
         atoms = TestMoleculeFactory.get_h2_stretched()
         # Remove calculator
         atoms.calc = None

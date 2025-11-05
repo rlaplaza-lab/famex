@@ -11,13 +11,14 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any
+from types import ModuleType
+from typing import Any, cast
 
 # psutil is optional - import lazily when needed
-_psutil = None
+_psutil: ModuleType | bool | None = None
 
 
-def _get_psutil():
+def _get_psutil() -> ModuleType | None:
     """Get psutil module, importing it lazily."""
     global _psutil
     if _psutil is None:
@@ -27,7 +28,10 @@ def _get_psutil():
             _psutil = psutil
         except ImportError:
             _psutil = False  # Mark as unavailable
-    return _psutil if _psutil is not False else None
+    if _psutil is False or _psutil is None:
+        return None
+    # At this point, _psutil must be ModuleType
+    return cast(ModuleType, _psutil)
 
 
 @dataclass

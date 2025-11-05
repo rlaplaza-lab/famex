@@ -1,40 +1,18 @@
 #!/usr/bin/env python3
-"""QME Growing String Method Demo - Transition State Search.
+"""QME Growing String Method Demo - Transition State Search."""
 
-This example demonstrates the growing string method (DE-GSM) for finding
-transition states between a reactant and product configuration. The growing
-string method dynamically grows a string of images between the endpoints to
-locate the transition state.
-
-Features:
-    - Growing string method (DE-GSM) for TS search
-    - Dynamic image addition between reactant and product
-    - Optional endpoint optimization before growing
-    - Optional TS refinement after finding
-    - Configurable step size and convergence criteria
-    - Saves complete reaction pathway
-"""
-
-import os
 import sys
 from pathlib import Path
 
 from ase import Atoms
 from ase.io import read, write
 
-# Disable ASE GUI to prevent popup windows
-os.environ["DISPLAY"] = ""
-os.environ["MPLBACKEND"] = "Agg"
-
 import qme
-from qme.example_utils import QMEExampleInterface, create_standard_epilog
+from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
 
 
 def create_h2_reaction():
-    """Create a simple H2 dissociation reaction for demo purposes.
-
-    Returns reactant (compressed H2) and product (stretched H2).
-    """
+    """Create H2 dissociation reaction (reactant and product)."""
     # Reactant: Compressed H2
     reactant = Atoms("H2", positions=[(0, 0, 0), (0.6, 0, 0)])
 
@@ -44,6 +22,7 @@ def create_h2_reaction():
     return reactant, product
 
 
+@setup_example_environment
 def main() -> int:
     """Run growing string method demo."""
     # Create standardized interface
@@ -101,27 +80,18 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    # Set default output if not provided
-    if args.output is None:
-        args.output = "growing_string_result.xyz"
-
     interface.print_header()
     interface.setup_logging(args.verbose)
 
-    # Parse backends if provided
-    backend = "uma"  # Default
-    if args.backends:
-        backends_list = [b.strip() for b in args.backends.split(",")]
-        if backends_list:
-            backend = backends_list[0]
-            if len(backends_list) > 1:
-                interface.print_warning(f"Multiple backends specified, using first: {backend}")
-
-    # Check backend availability
-    from qme.backends.availability import is_backend_available
-
-    if not is_backend_available(backend):
-        interface.print_error(f"Backend '{backend}' not available")
+    # Backend handling
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    backend, available_backends = interface.select_backend(
+        requested_backends=requested,
+        preferred_backends=["uma", "mace"],
+        verbose=args.verbose,
+    )
+    if backend is None:
+        interface.print_error("No suitable backend available (need UMA or MACE)")
         return 1
 
     interface.print_backend_summary([backend], "Using Backend")
@@ -129,10 +99,13 @@ def main() -> int:
     # Get device info
     device = interface.get_device_info(args.device)
 
+    # Set default output if not provided
+    output_file = args.output or "growing_string_result.xyz"
+
     config = {
         "Backend": backend,
         "Device": device,
-        "Output": args.output,
+        "Output": output_file,
         "Verbose": args.verbose,
     }
     interface.print_configuration(config)
@@ -181,7 +154,7 @@ def main() -> int:
 
         # Calculate energies along path
         energies = []
-        for _i, atoms in enumerate(trajectory):
+        for atoms in trajectory:
             try:
                 energy = atoms.get_potential_energy()
                 energies.append(energy)
@@ -200,7 +173,7 @@ def main() -> int:
                 print(f"  TS found at image: {ts_idx + 1}/{len(trajectory)}")
 
         # Save trajectory
-        output_path = Path(args.output)
+        output_path = Path(output_file)
         write(str(output_path), trajectory)
         print(f"\n✓ Saved trajectory to: {output_path}")
 
