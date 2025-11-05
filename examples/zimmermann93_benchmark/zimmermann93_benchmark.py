@@ -33,7 +33,7 @@ from ase.io import read
 from qme import Explorer, calculator_registry
 
 # Import common interface
-from qme.example_utils import QMEExampleInterface, create_standard_epilog
+from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -171,12 +171,22 @@ class Zimmermann93Benchmark:
         verbose: bool = False,
     ) -> dict:
         results: dict[str, dict] = {}
+        total_tests = len(backends) * len(reactions)
+        current_test = 0
 
         for backend in backends:
             backend_results: dict[str, dict] = {}
+            print(f"\n{'=' * 80}", flush=True)
+            print(f"Testing backend: {backend}", flush=True)
+            print(f"{'=' * 80}", flush=True)
 
             try:
                 for reaction in reactions:
+                    current_test += 1
+                    print(
+                        f"\n[{current_test}/{total_tests}] Testing {backend}/{reaction}...",
+                        flush=True,
+                    )
                     reaction_data: dict = {
                         "timings": {},
                         "optimization_results": {},
@@ -301,6 +311,7 @@ class Zimmermann93Benchmark:
                                 "success": True,
                             },
                         )
+                        print(f"  ✓ Completed {backend}/{reaction}", flush=True)
 
                         # Calculate total time
                         total_time = sum(
@@ -326,6 +337,7 @@ class Zimmermann93Benchmark:
                             "optimization_results": {},
                             "frequency_results": {},
                         }
+                        print(f"  ✗ Failed {backend}/{reaction}: {e}", flush=True)
 
                     backend_results[reaction] = reaction_data
 
@@ -483,7 +495,7 @@ class Zimmermann93Benchmark:
             # Handle numpy arrays and scalars
             if isinstance(obj, np.ndarray):
                 return obj.tolist()
-            if isinstance(obj, (np.integer, np.floating)):
+            if isinstance(obj, np.integer | np.floating):
                 return float(obj)
 
             # Handle numpy boolean scalars
@@ -512,6 +524,7 @@ class Zimmermann93Benchmark:
             json.dump(serializable, f, indent=2)
 
 
+@setup_example_environment
 def main() -> int:
     """Main entry point for the benchmark."""
     # Create standardized interface

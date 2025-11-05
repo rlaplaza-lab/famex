@@ -7,16 +7,11 @@ from ase import Atoms
 import qme
 from qme.analysis.frequency import FrequencyAnalysis, HessianCalculator
 from qme.backends.availability import is_backend_available
-from tests.test_utils import HarmonicCalculator, TestMoleculeFactory
+from tests.test_utils import HarmonicCalculator
 
 # ============================================================================
 # Shared Fixtures
 # ============================================================================
-
-
-@pytest.fixture
-def water_molecule():
-    return TestMoleculeFactory.get_water_distorted()
 
 
 @pytest.fixture
@@ -47,6 +42,7 @@ def harmonic_atoms():
 
 
 class TestMACEHessianConsistency:
+    @pytest.mark.slow
     @pytest.mark.skipif(not is_backend_available("mace"), reason="MACE backend not available")
     def test_mace_hessian_consistency(self, water_molecule):
         atoms = water_molecule.copy()
@@ -62,6 +58,7 @@ class TestMACEHessianConsistency:
         assert hessian_analytical.shape == hessian_fd.shape
         np.testing.assert_allclose(hessian_analytical, hessian_fd, rtol=0.01, atol=0.5)
 
+    @pytest.mark.slow
     @pytest.mark.skipif(not is_backend_available("mace"), reason="MACE backend not available")
     @pytest.mark.parametrize("method", ["central", "5point"], ids=["central", "5point"])
     def test_mace_fd_methods(self, water_molecule, method):
@@ -79,6 +76,7 @@ class TestMACEHessianConsistency:
         assert hessian_analytical.shape == hessian_fd.shape
         np.testing.assert_allclose(hessian_analytical, hessian_fd, rtol=rtol, atol=atol)
 
+    @pytest.mark.slow
     @pytest.mark.skipif(not is_backend_available("mace"), reason="MACE backend not available")
     def test_mace_hessian_frequency_consistency(self, water_molecule):
         atoms = water_molecule.copy()
@@ -124,6 +122,7 @@ class TestMACEHessianConsistency:
         assert np.all(freqs_analytical_vib > 0), "MACE analytical has negative frequencies"
         assert np.all(freqs_fd_vib > 0), "MACE FD has negative frequencies"
 
+    @pytest.mark.slow
     @pytest.mark.skipif(not is_backend_available("mace"), reason="MACE backend not available")
     def test_mace_methane_hessian_consistency(self, methane_molecule):
         atoms = methane_molecule.copy()
@@ -542,6 +541,7 @@ class TestFrequencyAnalysisMethods:
         ],
         ids=["mace", "uma"],
     )
+    @pytest.mark.slow
     def test_backend_hessian_frequency_consistency(
         self, water_molecule, backend_name, calc_factory
     ):

@@ -14,7 +14,7 @@ from qme.analysis.noise_estimation import (
     estimate_richardson_noise,
 )
 from qme.backends.availability import is_backend_available
-from tests.test_utils import HarmonicCalculator, NoisyCalculator, TestMoleculeFactory
+from tests.test_utils import HarmonicCalculator, NoisyCalculator
 
 
 class TestNoiseEstimation:
@@ -177,10 +177,6 @@ class TestEnergyBasedHessian:
 
 
 class TestAutoselectMethod:
-    @pytest.fixture
-    def water_molecule(self):
-        return TestMoleculeFactory.get_water_distorted()
-
     def test_autoselect_analytical(self):
         calc = HarmonicCalculator()
         atoms = Atoms(

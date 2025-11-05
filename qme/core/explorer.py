@@ -112,13 +112,9 @@ def _extract_charge_spin(
 class Explorer:
     """Explorer runs optimizations/TS searches on one or more Atoms.
 
-    The Explorer provides a clear semantic interface for quantum chemistry calculations
-    using machine learning potentials. It supports various optimization strategies
-    for finding minima, transition states, and reaction pathways.
-
-    The Explorer uses a target/strategy paradigm:
-    - **target**: What you want to obtain (minima, ts, path)
-    - **strategy**: How to get there (local, neb, cineb, interpolate)
+    Uses a target/strategy paradigm:
+    - **target**: What you want (minima, ts, path)
+    - **strategy**: How to get there (local, neb, cineb, interpolate, growing_string, irc)
 
     Parameters
     ----------
@@ -126,12 +122,7 @@ class Explorer:
         Single ASE Atoms object or a sequence of Atoms to operate on.
         For multi-structure strategies (NEB, CI-NEB), provide multiple structures.
     backend : str, default "uma"
-        Calculator backend key. Available options:
-        - "uma": Universal Model for Atoms (recommended)
-        - "aimnet2": AIMNet2 neural network potential
-        - "mace": MACE (Message Passing Neural Network)
-        - "so3lr": SO3LR equivariant neural network
-        - "mock": Mock calculator for testing
+        Calculator backend: uma, aimnet2, mace, orb, so3lr, tblite, torchsim_mace, torchsim_uma, mock
     model_name : str, optional
         Name of the specific model to use. If None, uses backend defaults.
     model_path : str, optional
@@ -142,12 +133,21 @@ class Explorer:
         Default total charge used when per-structure metadata is not available.
     default_spin : int, default 1
         Default spin multiplicity used when per-structure metadata is not available.
-    local_optimizer : str, default "sella"
-        Local optimizer for geometry optimization. Options:
-        - "sella": SELLA optimizer (recommended for TS searches)
+    local_optimizer : str, default "default"
+        Local optimizer for geometry optimization. If "default", auto-selects based
+        on target: "sella" for TS searches, "lbfgs" for minima/path optimizations.
+        Options:
+        - "default": Auto-select based on target (default)
+        - "sella": SELLA optimizer
         - "lbfgs": L-BFGS optimizer
         - "bfgs": BFGS optimizer
         - "fire": FIRE optimizer
+        - "trust-krylov": Trust-region with Krylov subspace
+        - "trust-krylov-ts": Trust-region for TS
+        - "trust-ncg": Trust-region with nonlinear CG
+        - "trust-exact": Trust-region with exact Hessian
+        - "newton-cg": Newton-CG method
+        - "rfo": Rational Function Optimization for TS
     optimizer_kwargs : dict[str, Any], optional
         Keyword arguments forwarded to the local optimizer.
     strategy : str, optional, default "local"
@@ -179,12 +179,9 @@ class Explorer:
 
     Notes:
     -----
-    - If a provided structure exposes ``charge``/``mult`` attributes or
-      ``atoms.info`` includes ``charge``/``spin``, those values override the
-      defaults when creating calculators.
-    - Use :meth:`list_strategies` to discover available strategies and their
-      descriptions.
-    - The Explorer automatically handles calculator creation and caching.
+    - Structure ``charge``/``spin`` attributes override defaults.
+    - Use :meth:`list_strategies` to discover available strategies.
+    - Calculator creation and caching handled automatically.
 
     Examples:
     --------

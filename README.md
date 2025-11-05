@@ -25,6 +25,7 @@ Install a backend separately:
 | `torchsim_mace` | `pip install torch-sim-atomistic` | Maximum performance, requires Python 3.11+ |
 | `torchsim_uma` | `pip install torch-sim-atomistic` | Maximum performance, requires Python 3.11+ |
 | `orb` | `pip install orb-models` | Universal forcefield |
+| `so3lr` | `pip install so3lr` | Research, custom models |
 | `tblite` | `pip install tblite` | Fast semi-empirical |
 
 > **Note**: Python 3.10+ for most backends, 3.11+ for TorchSim. MACE and UMA conflict - use separate environments.
@@ -54,7 +55,7 @@ result = explorer.run(fmax=0.05, steps=1000)
 
 # Save results
 explorer.save_structure(result["optimized_atoms"], "water_optimized.xyz")
-print(f"Final energy: {result['final_energy']:.6f} eV")
+print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV")
 ```
 
 ## Key Features

@@ -302,6 +302,14 @@ class TorchSimPotential(BasePotential):
         # Type ignore: mypy thinks _state could be None, but atoms_to_state doesn't return None
         self._state.positions.requires_grad_(True)  # type: ignore[attr-defined]
 
+        # Ensure numbers attribute exists (needed for batch evaluation)
+        # Some torch_sim versions may not set this automatically
+        if not hasattr(self._state, "numbers") or self._state.numbers is None:  # type: ignore[attr-defined]
+            atomic_numbers = torch.tensor(
+                atoms_copy.get_atomic_numbers(), dtype=torch.long, device=device
+            )
+            self._state.numbers = atomic_numbers  # type: ignore[attr-defined]
+
         # Return the SimState directly - the MACE model will convert it if needed
         return self._state
 
@@ -563,7 +571,35 @@ class TorchSimPotential(BasePotential):
 
         for state in states:
             batch_positions.append(state.positions)
-            batch_numbers.append(state.numbers)
+
+            # Extract atomic numbers - handle different SimState formats
+            if hasattr(state, "numbers"):
+                numbers = state.numbers
+            elif hasattr(state, "atomic_numbers"):
+                numbers = state.atomic_numbers
+            elif hasattr(state, "Z"):
+                numbers = state.Z
+            else:
+                # Fallback: convert state back to Atoms to extract numbers
+                try:
+                    atoms = self._state_to_atoms(state)
+                    device = torch.device(self.device)
+                    numbers = torch.tensor(
+                        atoms.get_atomic_numbers(), dtype=torch.long, device=device
+                    )
+                except Exception as e:
+                    # Last resort: try to infer from positions shape
+                    # This shouldn't happen if torch_sim is working correctly
+                    msg = (
+                        f"Could not extract atomic numbers from SimState. "
+                        f"State has attributes: {dir(state)}. Error: {e}"
+                    )
+                    logger.error(msg)
+                    raise AttributeError(
+                        "SimState object missing 'numbers' attribute and cannot be extracted"
+                    ) from e
+
+            batch_numbers.append(numbers)
             batch_charges.append(getattr(state, "charge", self.default_charge))
             batch_spins.append(getattr(state, "spin", self.default_spin))
 
@@ -581,21 +617,36 @@ class TorchSimPotential(BasePotential):
             if len(pos) < max_atoms:
                 # Pad with zeros
                 pad_size = max_atoms - len(pos)
+                # Use detach().clone() to avoid warnings when copying tensors with gradients
+                if isinstance(pos, torch.Tensor):
+                    pos_tensor = pos.detach().clone().to(dtype=dtype, device=device)
+                else:
+                    pos_tensor = torch.tensor(pos, dtype=dtype, device=device)
                 pos_padded = torch.cat(
                     [
-                        torch.tensor(pos, dtype=dtype, device=device),
+                        pos_tensor,
                         torch.zeros(pad_size, 3, dtype=dtype, device=device),
                     ],
                 )
+                if isinstance(num, torch.Tensor):
+                    num_tensor = num.detach().clone().to(dtype=torch.long, device=device)
+                else:
+                    num_tensor = torch.tensor(num, dtype=torch.long, device=device)
                 num_padded = torch.cat(
                     [
-                        torch.tensor(num, dtype=torch.long, device=device),
+                        num_tensor,
                         torch.zeros(pad_size, dtype=torch.long, device=device),
                     ],
                 )
             else:
-                pos_padded = torch.tensor(pos, dtype=dtype, device=device)
-                num_padded = torch.tensor(num, dtype=torch.long, device=device)
+                if isinstance(pos, torch.Tensor):
+                    pos_padded = pos.detach().clone().to(dtype=dtype, device=device)
+                else:
+                    pos_padded = torch.tensor(pos, dtype=dtype, device=device)
+                if isinstance(num, torch.Tensor):
+                    num_padded = num.detach().clone().to(dtype=torch.long, device=device)
+                else:
+                    num_padded = torch.tensor(num, dtype=torch.long, device=device)
 
             padded_positions.append(pos_padded)
             padded_numbers.append(num_padded)
@@ -607,13 +658,69 @@ class TorchSimPotential(BasePotential):
         batch_spins = torch.tensor(batch_spins, dtype=dtype, device=device)
 
         # Create batch state (this depends on TorchSim's state format)
-        # For now, we'll create a simple batch state that mimics the individual state structure
-        return type(states[0])(
-            positions=batch_positions,
-            numbers=batch_numbers,
-            charge=batch_charges,
-            spin=batch_spins,
+        # We need to extract all required attributes from the first state
+        # and create a batch version with stacked tensors
+        first_state = states[0]
+
+        # Extract required attributes from first state
+        # Use getattr with defaults for optional attributes
+        batch_masses = torch.stack(
+            [
+                getattr(
+                    state, "masses", torch.ones(len(state.positions), dtype=dtype, device=device)
+                )
+                for state in states
+            ]
         )
+        batch_cell = torch.stack(
+            [
+                getattr(state, "cell", torch.zeros((3, 3), dtype=dtype, device=device))
+                for state in states
+            ]
+        )
+        # pbc might be a boolean array or tensor - handle appropriately
+        # For batch states, pbc might need to be a single boolean or per-structure
+        pbc_attr = getattr(first_state, "pbc", None)
+        if pbc_attr is None:
+            # Default: no periodic boundary conditions
+            batch_pbc = False
+        elif isinstance(pbc_attr, torch.Tensor):
+            # If it's a tensor, check if all structures have the same pbc
+            # If so, use the first one; otherwise we'd need to handle per-structure
+            if len(pbc_attr.shape) == 1 and pbc_attr.shape[0] == 3:
+                # 3D pbc - convert to boolean (all True means periodic)
+                batch_pbc = bool(pbc_attr.all().item())
+            else:
+                # Use first value as default
+                batch_pbc = bool(pbc_attr.flat[0].item())
+        elif isinstance(pbc_attr, list | tuple | np.ndarray):
+            # Convert numpy array or list
+            if isinstance(pbc_attr, np.ndarray):
+                batch_pbc = bool(np.all(pbc_attr))
+            else:
+                batch_pbc = all(pbc_attr)
+        else:
+            # Single boolean value
+            batch_pbc = bool(pbc_attr)
+
+        # Create batch state using the first state's class with all required arguments
+        batch_state = type(first_state)(
+            positions=batch_positions,
+            atomic_numbers=batch_numbers,  # Some SimState versions use atomic_numbers
+            masses=batch_masses,
+            cell=batch_cell,
+            pbc=batch_pbc,
+        )
+
+        # Set additional attributes that might be optional
+        if hasattr(first_state, "charge"):
+            batch_state.charge = batch_charges
+        if hasattr(first_state, "spin"):
+            batch_state.spin = batch_spins
+        # Also set numbers in case it's accessed differently
+        batch_state.numbers = batch_numbers
+
+        return batch_state
 
     def _fallback_individual_calculations(self, states: list[Any]) -> list[dict[str, Any]]:
         """Fallback for regular calculators (CPU compatible)."""

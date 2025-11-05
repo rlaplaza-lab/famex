@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import os
-import tempfile
-
 import pytest
 from click.testing import CliRunner
 
@@ -17,458 +14,444 @@ from tests.test_utils import (
 
 
 class TestCLIMockBackend:
-    def test_opt_local_runs_with_mock_backend(self):
+    def test_opt_local_runs_with_mock_backend(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            # Create test molecule
-            atoms = TestMoleculeFactory.get_water_distorted()
-            xyz_path = os.path.join(tmp, "test.xyz")
-            atoms.write(xyz_path)
+        # Create test molecule
+        xyz_path = tmp_path / "test.xyz"
+        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms.write(str(xyz_path))
 
-            # Run optimization
-            result = runner.invoke(
-                main,
-                [
-                    "minima",
-                    "--strategy",
-                    "local",
-                    xyz_path,
-                    "--backend",
-                    "mock",
-                    "--local-optimizer",
-                    "lbfgs",
-                    "--steps",
-                    "2",
-                ],
-            )
+        # Run optimization
+        result = runner.invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "local",
+                str(xyz_path),
+                "--backend",
+                "mock",
+                "--local-optimizer",
+                "lbfgs",
+                "--steps",
+                "2",
+            ],
+        )
 
-            # Verify success
-            assert result.exit_code == 0, f"CLI failed: {result.output}"
-            out_path = os.path.splitext(xyz_path)[0] + ".opt.local.xyz"
-            assert os.path.exists(out_path), f"Output file not created: {out_path}"
+        # Verify success
+        assert result.exit_code == 0, f"CLI failed: {result.output}"
+        out_path = xyz_path.with_suffix(".opt.local.xyz")
+        assert out_path.exists(), f"Output file not created: {out_path}"
 
-    def test_opt_twoended_runs_with_mock_backend(self):
+    def test_opt_twoended_runs_with_mock_backend(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            # Create reactant and product
-            reactant = TestMoleculeFactory.get_water_distorted()
-            product = TestMoleculeFactory.get_water_distorted()
-            # Slightly modify product
-            pos = product.get_positions()
-            pos[1, 0] += 0.1
-            product.set_positions(pos)
+        # Create reactant and product
+        reactant = TestMoleculeFactory.get_water_distorted()
+        product = TestMoleculeFactory.get_water_distorted()
+        # Slightly modify product
+        pos = product.get_positions()
+        pos[1, 0] += 0.1
+        product.set_positions(pos)
 
-            reactant_path = os.path.join(tmp, "r.xyz")
-            product_path = os.path.join(tmp, "p.xyz")
-            reactant.write(reactant_path)
-            product.write(product_path)
+        reactant_path = tmp_path / "r.xyz"
+        product_path = tmp_path / "p.xyz"
+        reactant.write(str(reactant_path))
+        product.write(str(product_path))
 
-            # Run two-ended optimization
-            result = runner.invoke(
-                main,
-                [
-                    "minima",
-                    "--strategy",
-                    "interpolate",
-                    reactant_path,
-                    "--product",
-                    product_path,
-                    "--backend",
-                    "mock",
-                    "--npoints",
-                    "5",
-                    "--steps",
-                    "1",
-                ],
-            )
+        # Run two-ended optimization
+        result = runner.invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "interpolate",
+                str(reactant_path),
+                "--product",
+                str(product_path),
+                "--backend",
+                "mock",
+                "--npoints",
+                "5",
+                "--steps",
+                "1",
+            ],
+        )
 
-            # Verify success
-            assert result.exit_code == 0, f"CLI failed: {result.output}"
-            out_path = os.path.splitext(reactant_path)[0] + ".opt.interpolate.xyz"
-            assert os.path.exists(out_path), f"Output file not created: {out_path}"
+        # Verify success
+        assert result.exit_code == 0, f"CLI failed: {result.output}"
+        out_path = reactant_path.with_suffix(".opt.interpolate.xyz")
+        assert out_path.exists(), f"Output file not created: {out_path}"
 
-    def test_minima_dry_run(self):
+    def test_minima_dry_run(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            atoms = TestMoleculeFactory.get_water_distorted()
-            xyz_path = os.path.join(tmp, "test.xyz")
-            atoms.write(xyz_path)
+        xyz_path = tmp_path / "test.xyz"
+        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms.write(str(xyz_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "minima",
-                    "--strategy",
-                    "local",
-                    xyz_path,
-                    "--backend",
-                    "mock",
-                    "--dry-run",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "local",
+                str(xyz_path),
+                "--backend",
+                "mock",
+                "--dry-run",
+            ],
+        )
 
-            assert result.exit_code == 0
-            assert "Dry-run analysis" in result.output
-            assert "Target: minima" in result.output
+        assert result.exit_code == 0
+        assert "Dry-run analysis" in result.output
+        assert "Target: minima" in result.output
 
-    def test_minima_with_frequencies(self):
+    def test_minima_with_frequencies(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            atoms = TestMoleculeFactory.get_water_distorted()
-            xyz_path = os.path.join(tmp, "test.xyz")
-            atoms.write(xyz_path)
+        xyz_path = tmp_path / "test.xyz"
+        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms.write(str(xyz_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "minima",
-                    "--strategy",
-                    "local",
-                    xyz_path,
-                    "--backend",
-                    "mock",
-                    "--steps",
-                    "2",
-                    "--freq",
-                    "--temperature",
-                    "300",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "local",
+                str(xyz_path),
+                "--backend",
+                "mock",
+                "--steps",
+                "2",
+                "--freq",
+                "--temperature",
+                "300",
+            ],
+        )
 
-            assert result.exit_code == 0
-            out_path = os.path.splitext(xyz_path)[0] + ".opt.local.json"
-            assert os.path.exists(out_path)
+        assert result.exit_code == 0
+        out_path = xyz_path.with_suffix(".opt.local.json")
+        assert out_path.exists()
 
-    def test_minima_with_custom_output(self):
+    def test_minima_with_custom_output(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            atoms = TestMoleculeFactory.get_water_distorted()
-            xyz_path = os.path.join(tmp, "test.xyz")
-            atoms.write(xyz_path)
-            custom_out = os.path.join(tmp, "custom.xyz")
+        xyz_path = tmp_path / "test.xyz"
+        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms.write(str(xyz_path))
+        custom_out = tmp_path / "custom.xyz"
 
-            result = runner.invoke(
-                main,
-                [
-                    "minima",
-                    "--strategy",
-                    "local",
-                    xyz_path,
-                    "--backend",
-                    "mock",
-                    "--steps",
-                    "2",
-                    "--output",
-                    custom_out,
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "local",
+                str(xyz_path),
+                "--backend",
+                "mock",
+                "--steps",
+                "2",
+                "--output",
+                str(custom_out),
+            ],
+        )
 
-            assert result.exit_code == 0
-            assert os.path.exists(custom_out)
+        assert result.exit_code == 0
+        assert custom_out.exists()
 
-    def test_ts_command_with_mock(self):
+    def test_ts_command_with_mock(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
-            xyz_path = os.path.join(tmp, "ts_guess.xyz")
-            atoms.write(xyz_path)
+        xyz_path = tmp_path / "ts_guess.xyz"
+        atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
+        atoms.write(str(xyz_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "ts",
-                    "--strategy",
-                    "local",
-                    xyz_path,
-                    "--backend",
-                    "mock",
-                    "--steps",
-                    "2",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "ts",
+                "--strategy",
+                "local",
+                str(xyz_path),
+                "--backend",
+                "mock",
+                "--steps",
+                "2",
+            ],
+        )
 
-            # Mock backend doesn't support TS optimization
-            assert result.exit_code != 0
+        # Mock backend doesn't support TS optimization
+        assert result.exit_code != 0
 
-    def test_ts_interpolate_command(self):
+    def test_ts_interpolate_command(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            reactant = TestMoleculeFactory.get_water_distorted()
-            product = TestMoleculeFactory.get_water_distorted()
-            pos = product.get_positions()
-            pos[1, 0] += 0.3
-            product.set_positions(pos)
+        reactant = TestMoleculeFactory.get_water_distorted()
+        product = TestMoleculeFactory.get_water_distorted()
+        pos = product.get_positions()
+        pos[1, 0] += 0.3
+        product.set_positions(pos)
 
-            reactant_path = os.path.join(tmp, "r.xyz")
-            product_path = os.path.join(tmp, "p.xyz")
-            reactant.write(reactant_path)
-            product.write(product_path)
+        reactant_path = tmp_path / "r.xyz"
+        product_path = tmp_path / "p.xyz"
+        reactant.write(str(reactant_path))
+        product.write(str(product_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "ts",
-                    "--strategy",
-                    "interpolate",
-                    reactant_path,
-                    "--product",
-                    product_path,
-                    "--backend",
-                    "mock",
-                    "--npoints",
-                    "5",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "ts",
+                "--strategy",
+                "interpolate",
+                str(reactant_path),
+                "--product",
+                str(product_path),
+                "--backend",
+                "mock",
+                "--npoints",
+                "5",
+            ],
+        )
 
-            # Mock backend doesn't support TS optimization
-            assert result.exit_code != 0
+        # Mock backend doesn't support TS optimization
+        assert result.exit_code != 0
 
-    def test_path_neb_command(self):
+    def test_path_neb_command(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            reactant = TestMoleculeFactory.get_water_distorted()
-            product = TestMoleculeFactory.get_water_distorted()
-            pos = product.get_positions()
-            pos[2] += (0.5, 0, 0)
-            product.set_positions(pos)
+        reactant = TestMoleculeFactory.get_water_distorted()
+        product = TestMoleculeFactory.get_water_distorted()
+        pos = product.get_positions()
+        pos[2] += (0.5, 0, 0)
+        product.set_positions(pos)
 
-            reactant_path = os.path.join(tmp, "r.xyz")
-            product_path = os.path.join(tmp, "p.xyz")
-            reactant.write(reactant_path)
-            product.write(product_path)
+        reactant_path = tmp_path / "r.xyz"
+        product_path = tmp_path / "p.xyz"
+        reactant.write(str(reactant_path))
+        product.write(str(product_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "path",
-                    "--strategy",
-                    "neb",
-                    reactant_path,
-                    "--product",
-                    product_path,
-                    "--backend",
-                    "mock",
-                    "--npoints",
-                    "5",
-                    "--steps",
-                    "2",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "path",
+                "--strategy",
+                "neb",
+                str(reactant_path),
+                "--product",
+                str(product_path),
+                "--backend",
+                "mock",
+                "--npoints",
+                "5",
+                "--steps",
+                "2",
+            ],
+        )
 
-            assert result.exit_code == 0
+        assert result.exit_code == 0
 
-    def test_path_irc_command(self):
+    def test_path_irc_command(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            ts = TestMoleculeFactory.get_water_dissociation_ts_guess()
-            ts_path = os.path.join(tmp, "ts.xyz")
-            ts.write(ts_path)
+        ts = TestMoleculeFactory.get_water_dissociation_ts_guess()
+        ts_path = tmp_path / "ts.xyz"
+        ts.write(str(ts_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "path",
-                    "--strategy",
-                    "irc",
-                    ts_path,
-                    "--backend",
-                    "mock",
-                    "--steps",
-                    "5",
-                    "--direction",
-                    "forward",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "path",
+                "--strategy",
+                "irc",
+                str(ts_path),
+                "--backend",
+                "mock",
+                "--steps",
+                "5",
+                "--direction",
+                "forward",
+            ],
+        )
 
-            assert result.exit_code == 0
+        assert result.exit_code == 0
 
-    def test_path_cineb_command(self):
+    def test_path_cineb_command(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            reactant = TestMoleculeFactory.get_water_distorted()
-            product = TestMoleculeFactory.get_water_distorted()
-            pos = product.get_positions()
-            pos[2] += (0.5, 0, 0)
-            product.set_positions(pos)
+        reactant = TestMoleculeFactory.get_water_distorted()
+        product = TestMoleculeFactory.get_water_distorted()
+        pos = product.get_positions()
+        pos[2] += (0.5, 0, 0)
+        product.set_positions(pos)
 
-            reactant_path = os.path.join(tmp, "r.xyz")
-            product_path = os.path.join(tmp, "p.xyz")
-            reactant.write(reactant_path)
-            product.write(product_path)
+        reactant_path = tmp_path / "r.xyz"
+        product_path = tmp_path / "p.xyz"
+        reactant.write(str(reactant_path))
+        product.write(str(product_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "path",
-                    "--strategy",
-                    "cineb",
-                    reactant_path,
-                    "--product",
-                    product_path,
-                    "--backend",
-                    "mock",
-                    "--npoints",
-                    "5",
-                    "--steps",
-                    "2",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "path",
+                "--strategy",
+                "cineb",
+                str(reactant_path),
+                "--product",
+                str(product_path),
+                "--backend",
+                "mock",
+                "--npoints",
+                "5",
+                "--steps",
+                "2",
+            ],
+        )
 
-            assert result.exit_code == 0
+        assert result.exit_code == 0
 
-    def test_path_interpolate_command(self):
+    def test_path_interpolate_command(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            reactant = TestMoleculeFactory.get_water_distorted()
-            product = TestMoleculeFactory.get_water_distorted()
-            pos = product.get_positions()
-            pos[2] += (0.5, 0, 0)
-            product.set_positions(pos)
+        reactant = TestMoleculeFactory.get_water_distorted()
+        product = TestMoleculeFactory.get_water_distorted()
+        pos = product.get_positions()
+        pos[2] += (0.5, 0, 0)
+        product.set_positions(pos)
 
-            reactant_path = os.path.join(tmp, "r.xyz")
-            product_path = os.path.join(tmp, "p.xyz")
-            reactant.write(reactant_path)
-            product.write(product_path)
+        reactant_path = tmp_path / "r.xyz"
+        product_path = tmp_path / "p.xyz"
+        reactant.write(str(reactant_path))
+        product.write(str(product_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "path",
-                    "--strategy",
-                    "interpolate",
-                    reactant_path,
-                    "--product",
-                    product_path,
-                    "--backend",
-                    "mock",
-                    "--npoints",
-                    "5",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "path",
+                "--strategy",
+                "interpolate",
+                str(reactant_path),
+                "--product",
+                str(product_path),
+                "--backend",
+                "mock",
+                "--npoints",
+                "5",
+            ],
+        )
 
-            assert result.exit_code == 0
+        assert result.exit_code == 0
 
-    def test_verbose_options(self):
+    def test_verbose_options(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            atoms = TestMoleculeFactory.get_water_distorted()
-            xyz_path = os.path.join(tmp, "test.xyz")
-            atoms.write(xyz_path)
+        xyz_path = tmp_path / "test.xyz"
+        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms.write(str(xyz_path))
 
-            # Test -vv (verbose=2)
-            result = runner.invoke(
-                main,
-                [
-                    "minima",
-                    "--strategy",
-                    "local",
-                    xyz_path,
-                    "--backend",
-                    "mock",
-                    "--steps",
-                    "1",
-                    "-vv",
-                ],
-            )
+        # Test -vv (verbose=2)
+        result = runner.invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "local",
+                str(xyz_path),
+                "--backend",
+                "mock",
+                "--steps",
+                "1",
+                "-vv",
+            ],
+        )
 
-            assert result.exit_code == 0
+        assert result.exit_code == 0
 
-    def test_constraints_option(self):
+    def test_constraints_option(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            atoms = TestMoleculeFactory.get_water_distorted()
-            xyz_path = os.path.join(tmp, "test.xyz")
-            atoms.write(xyz_path)
+        xyz_path = tmp_path / "test.xyz"
+        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms.write(str(xyz_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "minima",
-                    "--strategy",
-                    "local",
-                    xyz_path,
-                    "--backend",
-                    "mock",
-                    "--steps",
-                    "2",
-                    "--constraints",
-                    "fix 0",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "local",
+                str(xyz_path),
+                "--backend",
+                "mock",
+                "--steps",
+                "2",
+                "--constraints",
+                "fix 0",
+            ],
+        )
 
-            assert result.exit_code == 0
+        assert result.exit_code == 0
 
-    def test_optimizer_kwargs(self):
+    def test_optimizer_kwargs(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            atoms = TestMoleculeFactory.get_water_distorted()
-            xyz_path = os.path.join(tmp, "test.xyz")
-            atoms.write(xyz_path)
+        xyz_path = tmp_path / "test.xyz"
+        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms.write(str(xyz_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "minima",
-                    "--strategy",
-                    "local",
-                    xyz_path,
-                    "--backend",
-                    "mock",
-                    "--steps",
-                    "2",
-                    "--optimizer-kw",
-                    "maxstep=0.1",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "local",
+                str(xyz_path),
+                "--backend",
+                "mock",
+                "--steps",
+                "2",
+                "--optimizer-kw",
+                "maxstep=0.1",
+            ],
+        )
 
-            assert result.exit_code == 0
+        assert result.exit_code == 0
 
-    def test_missing_product_error(self):
+    def test_missing_product_error(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            atoms = TestMoleculeFactory.get_water_distorted()
-            xyz_path = os.path.join(tmp, "test.xyz")
-            atoms.write(xyz_path)
+        xyz_path = tmp_path / "test.xyz"
+        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms.write(str(xyz_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "minima",
-                    "--strategy",
-                    "interpolate",
-                    xyz_path,
-                    "--backend",
-                    "mock",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "interpolate",
+                str(xyz_path),
+                "--backend",
+                "mock",
+            ],
+        )
 
-            assert result.exit_code != 0
-            assert "product" in result.output.lower() or "required" in result.output.lower()
+        assert result.exit_code != 0
+        assert "product" in result.output.lower() or "required" in result.output.lower()
 
-    def test_invalid_strategy_error(self):
+    def test_invalid_strategy_error(self, tmp_path):
         runner = CliRunner()
-        with tempfile.TemporaryDirectory() as tmp:
-            atoms = TestMoleculeFactory.get_water_distorted()
-            xyz_path = os.path.join(tmp, "test.xyz")
-            atoms.write(xyz_path)
+        xyz_path = tmp_path / "test.xyz"
+        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms.write(str(xyz_path))
 
-            result = runner.invoke(
-                main,
-                [
-                    "minima",
-                    "--strategy",
-                    "invalid_strategy",
-                    xyz_path,
-                    "--backend",
-                    "mock",
-                ],
-            )
+        result = runner.invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "invalid_strategy",
+                str(xyz_path),
+                "--backend",
+                "mock",
+            ],
+        )
 
-            # Click should reject invalid choice
-            assert "Invalid choice" in result.output.lower() or result.exit_code != 0
+        # Click should reject invalid choice
+        assert "Invalid choice" in result.output.lower() or result.exit_code != 0
 
 
 class TestBackendMinimaIntegration:
+    @pytest.mark.slow
+    @pytest.mark.integration
     def test_h2_minima_across_backends(self):
         def _run_minima(backend):
             atoms = TestMoleculeFactory.get_h2_stretched()
@@ -497,6 +480,8 @@ class TestBackendMinimaIntegration:
 
 
 class TestBackendTransitionStateIntegration:
+    @pytest.mark.slow
+    @pytest.mark.integration
     @pytest.mark.skipif(not qme.deps.has("sella"), reason="Sella is required for TS optimization")
     def test_water_ts_smoke(self):
         def _run_ts(backend):

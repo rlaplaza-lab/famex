@@ -129,24 +129,20 @@ class TestValidateXYZStructure:
 
 
 class TestReadXYZWithMetadata:
-    def test_read_single_frame(self):
+    def test_read_single_frame(self, tmp_path):
         xyz_content = """2
 charge=0 spin=1
 H  0.0  0.0  0.0
 H  0.0  0.0  0.74
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
-            f.write(xyz_content)
-            temp_file = f.name
+        temp_file = tmp_path / "test.xyz"
+        temp_file.write_text(xyz_content)
 
-        try:
-            geom = read_xyz_with_metadata(temp_file)
-            assert isinstance(geom, Geometry)
-            assert len(geom) == 2
-            assert geom.charge == 0
-            assert geom.mult == 1
-        finally:
-            Path(temp_file).unlink()
+        geom = read_xyz_with_metadata(str(temp_file))
+        assert isinstance(geom, Geometry)
+        assert len(geom) == 2
+        assert geom.charge == 0
+        assert geom.mult == 1
 
     def test_read_multi_frame(self):
         xyz_content = """2
@@ -188,25 +184,21 @@ H  0.0  0.0  0.85
         finally:
             Path(temp_file).unlink()
 
-    def test_read_no_metadata(self):
+    def test_read_no_metadata(self, tmp_path):
         xyz_content = """2
 Some comment
 H  0.0  0.0  0.0
 H  0.0  0.0  0.74
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
-            f.write(xyz_content)
-            temp_file = f.name
+        temp_file = tmp_path / "test.xyz"
+        temp_file.write_text(xyz_content)
 
-        try:
-            geom = read_xyz_with_metadata(temp_file)
-            assert isinstance(geom, Geometry)
-            assert len(geom) == 2
-            # Should use defaults
-            assert geom.charge == 0
-            assert geom.mult == 1
-        finally:
-            Path(temp_file).unlink()
+        geom = read_xyz_with_metadata(str(temp_file))
+        assert isinstance(geom, Geometry)
+        assert len(geom) == 2
+        # Should use defaults
+        assert geom.charge == 0
+        assert geom.mult == 1
 
     def test_read_nonexistent_file(self):
         with pytest.raises(FileNotFoundError):

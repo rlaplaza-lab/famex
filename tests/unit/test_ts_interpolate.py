@@ -55,7 +55,7 @@ class TestMultiStructureTSGuessStrategy:
             strategy.run([reactant, product], npoints=5, fmax=0.5, steps=10, validate_ts=True)
 
     def test_run_with_calculate_frequencies(self):
-        """Test run with calculate_frequencies=True option - expects ValueError with mock backend."""
+        """Test run with calculate_frequencies=True - expects ValueError with mock backend."""
         reactant = TestMoleculeFactory.get_water_distorted()
         product = TestMoleculeFactory.get_water_distorted()
         pos = product.get_positions()
@@ -74,7 +74,7 @@ class TestMultiStructureTSGuessStrategy:
             )
 
     def test_run_with_both_options(self):
-        """Test run with both validate_ts and calculate_frequencies - expects ValueError with mock backend."""
+        """Test run with both validate_ts and calculate_frequencies - expects ValueError."""
         reactant = TestMoleculeFactory.get_water_distorted()
         product = TestMoleculeFactory.get_water_distorted()
         pos = product.get_positions()

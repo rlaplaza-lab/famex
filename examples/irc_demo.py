@@ -22,12 +22,16 @@ def main() -> int:
 
     parser = interface.create_parser()
 
+    # Get script directory for default paths
+    script_dir = Path(__file__).parent
+    default_ts_file = str(script_dir / "example_files" / "A_C_A_B_A_C_ts.xyz")
+
     # Add demo-specific arguments
     parser.add_argument(
         "ts_file",
         nargs="?",
-        default="example_files/A_C_A_B_A_C_ts.xyz",
-        help="Path to transition state XYZ file (default: example_files/A_C_A_B_A_C_ts.xyz)",
+        default=default_ts_file,
+        help="Path to transition state XYZ file (default: example_files/A_C_A_B_A_C_ts.xyz relative to script)",
     )
     parser.add_argument(
         "--steps",

@@ -11,7 +11,7 @@ Examples and benchmarks demonstrating QME capabilities.
 | `growing_string_demo.py` | Growing string method (DE-GSM) for TS search |
 | `timing_benchmark.py` | ML backend performance comparison |
 | `minima_optimizer_benchmark.py` | Minima optimizer comparison (lbfgs, bfgs, fire, trust-krylov) |
-| `ts_optimizer_benchmark.py` | TS optimizer comparison (sella, trust-krylov-ts) |
+| `ts_optimizer_benchmark.py` | TS optimizer comparison (sella, trust-krylov-ts, rfo) |
 | `thermochemistry_demo.py` | Thermochemistry capabilities (quasi-harmonic, solvation, etc.) |
 | `uma_hessian_method_comparison.py` | Diagnostic script for UMA Hessian validation |
 | `bh28_benchmark/` | Chemical accuracy evaluation (28 reactions) |
@@ -37,7 +37,7 @@ python bh28_benchmark/bh28_benchmark.py --quick
 
 - QME package installed
 - At least one ML backend (see [README](../README.md))
-- Optional: SELLA optimizer for transition states
+- SELLA optimizer is included with QME (core dependency)
 
 ## Supporting Files
 

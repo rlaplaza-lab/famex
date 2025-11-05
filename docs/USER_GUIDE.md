@@ -1,6 +1,6 @@
 # QME User Guide
 
-Complete guide to using QME for molecular geometry optimization and transition state searches.
+Reference for CLI, Python API, and backends.
 
 ## Table of Contents
 
@@ -11,9 +11,7 @@ Complete guide to using QME for molecular geometry optimization and transition s
 
 ## Core Concepts
 
-QME uses a semantic interface with two key concepts:
-
-- **Target**: What you want to obtain (`minima`, `ts`, `path`)
+- **Target**: What you want (`minima`, `ts`, `path`)
 - **Strategy**: How to get there (`local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string`)
 
 ### Target/Strategy Matrix
@@ -38,8 +36,6 @@ See [README.md](../README.md) for installation instructions.
 
 ## Command Line Interface
 
-QME provides a structured command-line interface organized into three main commands:
-
 - `qme minima` - Minima optimization (outputs single structure)
 - `qme ts` - Transition state optimization (outputs single TS)
 - `qme path` - Reaction path optimization (outputs trajectories)
@@ -57,7 +53,7 @@ All commands support these common options:
 | `--device` | `None` | Device: cpu\|cuda |
 | `--default-charge` | `0` | Default molecular charge |
 | `--default-spin` | `1` | Default spin multiplicity |
-| `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-krylov-ts\|trust-ncg\|trust-exact\|newton-cg (default=auto-select based on target) |
+| `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-krylov-ts\|trust-ncg\|trust-exact\|newton-cg\|rfo (default=auto-select based on target) |
 | `--optimizer-kw` | `None` | Optimizer kwargs as key=value, repeatable |
 | `--ts-kw` | `None` | TS optimizer kwargs as key=value, repeatable |
 | `--constraints` | `None` | Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0' |
@@ -65,6 +61,7 @@ All commands support these common options:
 | `--temperature` | `298.15` | Temperature in Kelvin for thermodynamic calculations |
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
 | `--freq`, `--frequencies` | `False` | Perform frequency analysis after optimization (includes thermodynamic properties) |
+| `--force-finite-diff-hessian` | `False` | Force use of finite difference hessians for TS optimizers and frequency calculations |
 
 ### qme minima - Minima Optimization
 
@@ -263,7 +260,7 @@ explorer = Explorer(
 
 **Strategies:** `local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string` (see [Target/Strategy Matrix](#targetstrategy-matrix))
 
-**Optimizers:** First-order (`lbfgs`, `bfgs`, `fire`), second-order (`sella`, `trust-krylov`, etc.), or `default` (auto-selects)
+**Optimizers:** `default` (auto-selects), first-order (`lbfgs`, `bfgs`, `fire`), second-order (`sella`, `trust-krylov`, `trust-krylov-ts`, `trust-ncg`, `trust-exact`, `newton-cg`, `rfo`)
 
 ### Key Methods
 

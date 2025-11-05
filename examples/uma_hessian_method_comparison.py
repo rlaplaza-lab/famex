@@ -38,31 +38,29 @@ def main() -> int:
     interface.print_header()
     interface.setup_logging(args.verbose)
 
-    # Backend handling: prefer UMA, fallback to MACE
+    # Backend handling: require UMA only (no fallback)
     requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    # Enforce UMA requirement - if user requests specific backend, require it; otherwise require UMA
+    required_backends = requested if requested else ["uma"]
     backend, available_backends = interface.select_backend(
         requested_backends=requested,
-        preferred_backends=["uma", "mace"],
+        preferred_backends=["uma"],
+        required_backends=required_backends,
         verbose=args.verbose,
     )
-    if backend is None:
-        interface.print_error("No suitable backend available (need UMA or MACE)")
+    if backend is None or backend != "uma":
+        interface.print_error(
+            "This demo requires UMA backend. Use --backends uma\n"
+            "Please install UMA: pip install fairchem-core"
+        )
         return 1
 
     # Get device info
     device = interface.get_device_info(args.device)
 
-    # Set up calculator
-    if backend == "uma":
-        calc = get_calculator_for_backend(backend, device=device, model_name="uma-s-1p1")
-        backend_name = "UMA"
-    else:
-        calc = get_calculator_for_backend(backend, device=device)
-        backend_name = "MACE"
-        if backend != "uma":
-            interface.print_warning(
-                "UMA not selected, using MACE instead. Some UMA-specific Hessian methods may not be available."
-            )
+    # Set up calculator - UMA only
+    calc = get_calculator_for_backend(backend, device=device, model_name="uma-s-1p1")
+    backend_name = "UMA"
 
     interface.print_backend_summary([backend], "Using Backend")
 

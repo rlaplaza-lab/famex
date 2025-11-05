@@ -38,7 +38,7 @@ from ase.io import read
 from qme import Explorer, calculator_registry
 
 # Import common interface
-from qme.example_utils import QMEExampleInterface, create_standard_epilog
+from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -653,6 +653,7 @@ class BH28Benchmark:
         return self.results
 
 
+@setup_example_environment
 def main() -> int:
     """Main entry point for the benchmark."""
     # Create standardized interface
