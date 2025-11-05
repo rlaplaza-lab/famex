@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any
+from typing import Any
+
+from ase import Atoms
 
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
 from qme.strategies.helpers import _get_local_optimizer_class
 from qme.strategies.utils import StrategyUtils
 from qme.utils.logging import get_qme_logger
-
-if TYPE_CHECKING:
-    from ase import Atoms
 
 logger = get_qme_logger(__name__)
 
@@ -31,7 +31,7 @@ class LocalMinimaStrategy(BaseStrategy):
 
     def run(
         self,
-        atoms_list: list[Atoms],
+        atoms_list: Sequence[Atoms],
         fmax: float = 0.05,
         steps: int = 1000,
         calculate_frequencies: bool = False,
@@ -41,7 +41,7 @@ class LocalMinimaStrategy(BaseStrategy):
 
         Parameters
         ----------
-        atoms_list : list[Atoms]
+        atoms_list : Sequence[Atoms]
             List of structures to optimize
         fmax : float, default=0.05
             Force convergence threshold
@@ -65,6 +65,14 @@ class LocalMinimaStrategy(BaseStrategy):
             - free_energy_correction: Free energy correction in eV (float, optional)
 
         """
+        # Handle single Atoms object (runtime check for API misuse)
+        # This is defensive programming - type signature says Sequence[Atoms] but
+        # we handle single Atoms at runtime for better API ergonomics
+        if isinstance(atoms_list, Atoms):  # type: ignore[unreachable]
+            atoms_list = [atoms_list]  # type: ignore[unreachable]
+
+        # Convert Sequence to list for validation and iteration
+        atoms_list = list(atoms_list)
         self.validate_inputs(atoms_list)
 
         local_optimizer_name = kwargs.get("local_optimizer_name", "sella")
@@ -80,16 +88,9 @@ class LocalMinimaStrategy(BaseStrategy):
             logger.info(f"Force threshold: {fmax} eV/Å, Max steps: {steps}")
 
         opt_class = _get_local_optimizer_class(local_optimizer_name)
-        # Accept either a single Atoms instance or a list of them
-        single_input = False
-        if not isinstance(atoms_list, (list, tuple)):
-            single_input = True  # type: ignore[unreachable]
-            atoms_iter = [atoms_list]
-        else:
-            atoms_iter = atoms_list
-            # If it's a single-element list, treat as single input
-            if len(atoms_list) == 1:
-                single_input = True
+        # Check if single-element list
+        single_input = len(atoms_list) == 1
+        atoms_iter = atoms_list
 
         results = []
         step_counts = []

@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
+from ase import Atoms
 
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
 from qme.strategies.helpers import _get_local_optimizer_class
 from qme.utils.logging import get_qme_logger
-
-if TYPE_CHECKING:
-    from ase import Atoms
 
 logger = get_qme_logger(__name__)
 
@@ -32,7 +31,7 @@ class LocalIRCStrategy(BaseStrategy):
 
     def run(
         self,
-        atoms_list: list[Atoms],
+        atoms_list: Sequence[Atoms],
         fmax: float = 0.05,
         steps: int = 100,
         step_size: float = 0.1,
@@ -44,7 +43,7 @@ class LocalIRCStrategy(BaseStrategy):
 
         Parameters
         ----------
-        atoms_list : list[Atoms]
+        atoms_list : Sequence[Atoms]
             List of structures (typically single transition state)
         fmax : float, default=0.05
             Force convergence threshold for endpoint optimization
@@ -71,6 +70,14 @@ class LocalIRCStrategy(BaseStrategy):
             - ts_validation: Transition state validation results (dict, optional)
 
         """
+        # Handle single Atoms object (runtime check for API misuse)
+        # This is defensive programming - type signature says Sequence[Atoms] but
+        # we handle single Atoms at runtime for better API ergonomics
+        if isinstance(atoms_list, Atoms):  # type: ignore[unreachable]
+            atoms_list = [atoms_list]  # type: ignore[unreachable]
+
+        # Convert Sequence to list for validation
+        atoms_list = list(atoms_list)
         self.validate_inputs(atoms_list)
 
         local_optimizer_name = kwargs.get("local_optimizer_name", "bfgs")
@@ -81,18 +88,15 @@ class LocalIRCStrategy(BaseStrategy):
             self.profiler.snapshot_memory()
 
         # Handle single Atoms or list input
-        if not isinstance(atoms_list, (list, tuple)):
-            atoms_input = atoms_list  # type: ignore[unreachable]
-        else:
-            if len(atoms_list) != 1:
-                msg = (
-                    "IRC runner expects a single structure (transition state), "
-                    f"got {len(atoms_list)} structures"
-                )
-                raise ValueError(
-                    msg,
-                )
-            atoms_input = atoms_list[0]
+        if len(atoms_list) != 1:
+            msg = (
+                "IRC runner expects a single structure (transition state), "
+                f"got {len(atoms_list)} structures"
+            )
+            raise ValueError(
+                msg,
+            )
+        atoms_input = atoms_list[0]
 
         # Create a copy to avoid modifying the original
         ts_atoms = atoms_input.copy()
@@ -275,7 +279,7 @@ class LocalIRCStrategy(BaseStrategy):
 
                 if verbose >= 2:
                     imaginary_freqs = ts_analysis["imaginary_frequencies"]
-                    if imaginary_freqs and isinstance(imaginary_freqs, (list, tuple)):
+                    if imaginary_freqs and isinstance(imaginary_freqs, list | tuple):
                         logger.warning(
                             f"Imaginary frequencies (cm^-1): {[f'{f:.1f}' for f in imaginary_freqs]}",
                         )

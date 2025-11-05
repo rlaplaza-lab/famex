@@ -67,7 +67,7 @@ class SO3LRPotential(BasePotential):
 
         # SO3LR-specific attributes
         # Standard backend attribute used by BasePotential helpers
-        self._calc = None
+        self._calc: Any | None = None
 
         # Initialize base class (this will call _load_calculator)
         super().__init__(model_name=model_name, device=device, **kwargs)
@@ -76,7 +76,7 @@ class SO3LRPotential(BasePotential):
         """Load the SO3LR ASE calculator."""
         # Skip if already loaded
         if self._calc is not None:
-            return  # type: ignore[unreachable]
+            return
         # After this point, we know _calc is None, so we need to load it
 
         from qme.utils.ml_warnings import quiet_backend_loading
@@ -127,29 +127,23 @@ class SO3LRPotential(BasePotential):
             self._load_calculator()
         # After _load_calculator() returns without exception, _calc is guaranteed to be set
         assert self._calc is not None
-        self._calc.calculate(atoms, properties, system_changes)  # type: ignore[unreachable]
+        # External library call can raise exceptions even with valid object:
+        # RuntimeError may occur due to calculation failures (convergence, numerical issues, etc.)
+        self._calc.calculate(atoms, properties, system_changes)
 
         # Extract results from the underlying calculator
         if properties is not None and "energy" in properties:
-            try:
-                if self._calc.results is not None:
-                    self.results["energy"] = self._calc.results["energy"]
-            except (AttributeError, KeyError, TypeError):
-                # Fallback: calculator doesn't have .results or key doesn't exist
-                # AttributeError: .results doesn't exist
-                # KeyError: key doesn't exist in results
-                # TypeError: .results exists but isn't dict-like
+            results = getattr(self._calc, "results", None)
+            if isinstance(results, dict):
+                self.results["energy"] = results.get("energy", self.results.get("energy"))
+            else:
                 self.results["energy"] = self.results.get("energy")
 
         if properties is not None and "forces" in properties:
-            try:
-                if self._calc.results is not None:
-                    self.results["forces"] = self._calc.results["forces"]
-            except (AttributeError, KeyError, TypeError):
-                # Fallback: calculator doesn't have .results or key doesn't exist
-                # AttributeError: .results doesn't exist
-                # KeyError: key doesn't exist in results
-                # TypeError: .results exists but isn't dict-like
+            results = getattr(self._calc, "results", None)
+            if isinstance(results, dict):
+                self.results["forces"] = results.get("forces", self.results.get("forces"))
+            else:
                 self.results["forces"] = self.results.get("forces")
 
     def get_potential_energy(

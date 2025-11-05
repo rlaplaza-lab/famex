@@ -9,7 +9,6 @@ from qme.backends.availability import (
     get_available_backends,
     get_available_backends_with_logging,
     get_available_ml_backends,
-    get_available_torchsim_backends,
     get_backend_error_message,
     is_backend_available,
 )
@@ -244,27 +243,10 @@ class TestConvenienceFunctions:
             assert mock_log.info.called
 
     def test_get_available_ml_backends(self):
-        backends = get_available_ml_backends(include_torchsim=True, verbose=False)
+        backends = get_available_ml_backends(verbose=False)
 
         assert isinstance(backends, list)
         assert BACKEND_MOCK not in backends  # Should exclude mock
-
-    def test_get_available_torchsim_backends(self):
-        backends = get_available_torchsim_backends(verbose=False)
-
-        assert isinstance(backends, list)
-        # TorchSim backends are optional, so list might be empty
-
-    def test_get_available_torchsim_backends_verbose(self):
-        with patch("qme.backends.availability._get_logger") as mock_logger:
-            mock_log = MagicMock()
-            mock_logger.return_value = mock_log
-
-            backends = get_available_torchsim_backends(verbose=True)
-
-            assert isinstance(backends, list)
-            # Logger should have been called
-            assert mock_log.info.called
 
 
 class TestConflictChecking:
@@ -274,12 +256,4 @@ class TestConflictChecking:
         with patch("qme.backends.availability.deps") as mock_deps:
             mock_deps.has.return_value = False
             result = _check_e3nn_conflict()
-            assert result is None
-
-    def test_torchsim_fairchem_conflict_not_applicable(self):
-        from qme.backends.availability import _check_torchsim_fairchem_conflict
-
-        with patch("qme.backends.availability.deps") as mock_deps:
-            mock_deps.has.return_value = False
-            result = _check_torchsim_fairchem_conflict()
             assert result is None

@@ -68,8 +68,6 @@ class CalculatorRegistry:
             BACKEND_ORB,
             BACKEND_SO3LR,
             BACKEND_TBLITE,
-            BACKEND_TORCHSIM_MACE,
-            BACKEND_TORCHSIM_UMA,
             BACKEND_UMA,
         )
 
@@ -80,14 +78,6 @@ class CalculatorRegistry:
                 module="qme.potentials", function="get_aimnet2_calculator"
             ),
             BACKEND_MACE: LazyBackend(module="qme.potentials", function="get_mace_calculator"),
-            BACKEND_TORCHSIM_MACE: LazyBackend(
-                module="qme.potentials",
-                function="get_torchsim_mace_calculator",
-            ),
-            BACKEND_TORCHSIM_UMA: LazyBackend(
-                module="qme.potentials",
-                function="get_torchsim_uma_calculator",
-            ),
             BACKEND_ORB: LazyBackend(module="qme.potentials", function="get_orb_calculator"),
             BACKEND_TBLITE: LazyBackend(module="qme.potentials", function="get_tblite_calculator"),
             BACKEND_MOCK: LazyBackend(

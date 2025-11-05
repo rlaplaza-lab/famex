@@ -149,7 +149,7 @@ class TBLitePotential(BasePotential):
         self.verbosity = verbosity
 
         # Placeholder for the underlying calculator implementation
-        self._calc = None
+        self._calc: Any | None = None
 
         super().__init__(backend="tblite", **kwargs)
 
@@ -157,7 +157,7 @@ class TBLitePotential(BasePotential):
         """Load the TBLite calculator implementation."""
         # Skip if already loaded
         if self._calc is not None:
-            return  # type: ignore[unreachable]
+            return
 
         from qme.utils.ml_warnings import quiet_backend_loading
 
@@ -229,9 +229,10 @@ class TBLitePotential(BasePotential):
             return
 
         # Try to set verbosity using the tblite Calculator.set() API
-        if hasattr(self._calc, "set"):  # type: ignore[unreachable]
+        set_method = getattr(self._calc, "set", None)
+        if set_method is not None:
             try:
-                self._calc.set("verbosity", verbosity)
+                set_method("verbosity", verbosity)
                 return
             except (AttributeError, ValueError, RuntimeError):
                 pass
@@ -266,7 +267,10 @@ class TBLitePotential(BasePotential):
         # Delegate to the underlying TBLite calculator
         # Suppress verbose output unless QME verbosity is 3 or higher
         # Note: verbosity is set once during calculator initialization, not here
-        try:  # type: ignore[unreachable]
+        # External library call can raise exceptions even with valid object:
+        # - RuntimeError: Calculation failures (convergence, numerical issues, etc.)
+        # - AttributeError: Method might not exist (though unlikely after initialization)
+        try:
             with suppress_tblite_output():
                 self._calc.calculate(self.atoms, properties, system_changes)
         except (AttributeError, RuntimeError) as e:
@@ -323,8 +327,9 @@ class TBLitePotential(BasePotential):
         if self._calc is None:
             self._load_calculator()
         assert self._calc is not None
-        if hasattr(self._calc, "get_charges"):  # type: ignore[unreachable]
-            return self._calc.get_charges(atoms)
+        get_charges = getattr(self._calc, "get_charges", None)
+        if get_charges is not None:
+            return get_charges(atoms)  # type: ignore[no-any-return]
         msg = "Charge calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
 
@@ -336,8 +341,9 @@ class TBLitePotential(BasePotential):
         if self._calc is None:
             self._load_calculator()
         assert self._calc is not None
-        if hasattr(self._calc, "get_dipole_moment"):  # type: ignore[unreachable]
-            return self._calc.get_dipole_moment(atoms)
+        get_dipole_moment = getattr(self._calc, "get_dipole_moment", None)
+        if get_dipole_moment is not None:
+            return get_dipole_moment(atoms)  # type: ignore[no-any-return]
         msg = "Dipole moment calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
 
@@ -349,8 +355,9 @@ class TBLitePotential(BasePotential):
         if self._calc is None:
             self._load_calculator()
         assert self._calc is not None
-        if hasattr(self._calc, "get_stress"):  # type: ignore[unreachable]
-            return self._calc.get_stress(atoms)
+        get_stress = getattr(self._calc, "get_stress", None)
+        if get_stress is not None:
+            return get_stress(atoms)  # type: ignore[no-any-return]
         msg = "Stress calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
 
@@ -431,8 +438,9 @@ class TBLitePotential(BasePotential):
 
         # For standard properties, check if calculator has it
         if self._calc is not None:
-            if hasattr(self._calc, "get_property"):  # type: ignore[unreachable]
-                return self._calc.get_property(name, atoms, allow_calculation)
+            get_property = getattr(self._calc, "get_property", None)
+            if get_property is not None:
+                return get_property(name, atoms, allow_calculation)
 
         # Fallback: check results
         if hasattr(self, "results") and name in self.results:

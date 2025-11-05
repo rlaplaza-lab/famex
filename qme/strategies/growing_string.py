@@ -51,11 +51,6 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         refine_ts: bool = kwargs.get("refine_ts", True)
 
         # Enforce exactly two structures (reactant, product)
-        if isinstance(atoms_list, Atoms):  # type: ignore[unreachable]
-            msg = "Growing string method requires two Atoms objects (reactant and product)"  # type: ignore[unreachable]
-            raise ValueError(
-                msg,
-            )
         seq = list(atoms_list)
         if len(seq) != 2:
             msg = f"Growing string method requires exactly 2 Atoms objects, got {len(seq)}"
@@ -255,7 +250,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             result = BaseStrategy.prepare_result(
                 self,
                 ts_structure
-                if isinstance(ts_structure, (Atoms, list))
+                if isinstance(ts_structure, Atoms | list)
                 else self.explorer.atoms_list[0],
                 converged=ts_converged,
                 trajectory=full_path,

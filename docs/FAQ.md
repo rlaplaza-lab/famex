@@ -27,7 +27,7 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 
 ### Q: What Python version do I need?
 
-**A:** Python 3.10+ for most backends, 3.11+ for TorchSim.
+**A:** Python 3.10+ required.
 
 ### Q: Backend not available after installation?
 
@@ -90,11 +90,11 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 
 ### Q: How do I speed up calculations?
 
-**A:** Use GPU (`--device cuda`), TorchSim backends, or reduce convergence criteria for testing.
+**A:** Use GPU (`--device cuda`) or reduce convergence criteria for testing.
 
 ### Q: Which backend is fastest?
 
-**A:** TorchSim backends (GPU) > AIMNet2 > UMA > MACE > Mock (testing only)
+**A:** AIMNet2 > UMA > MACE > Mock (testing only). GPU acceleration (`--device cuda`) speeds up all backends.
 
 ## Getting Help
 
