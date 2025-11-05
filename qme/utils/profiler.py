@@ -13,7 +13,21 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any
 
-import psutil
+# psutil is optional - import lazily when needed
+_psutil = None
+
+
+def _get_psutil():
+    """Get psutil module, importing it lazily."""
+    global _psutil
+    if _psutil is None:
+        try:
+            import psutil
+
+            _psutil = psutil
+        except ImportError:
+            _psutil = False  # Mark as unavailable
+    return _psutil if _psutil is not False else None
 
 
 @dataclass
@@ -90,6 +104,11 @@ class PerformanceProfiler:
 
     def _get_memory_info(self) -> MemoryInfo:
         """Get current memory usage information."""
+        psutil = _get_psutil()
+        if psutil is None:
+            # psutil not available, return minimal info
+            return MemoryInfo(ram_mb=0.0, gpu_mb=None, ram_percent=0.0, gpu_percent=None)
+
         process = psutil.Process(os.getpid())
         ram_info = process.memory_info()
         ram_mb = ram_info.rss / 1024 / 1024  # Convert to MB
@@ -245,6 +264,11 @@ class PerformanceProfiler:
 
     def _calculate_resource_stats(self) -> dict[str, Any]:
         """Calculate resource utilization statistics."""
+        psutil = _get_psutil()
+        if psutil is None:
+            # psutil not available, return minimal stats
+            return {"error": "psutil not available"}
+
         try:
             process = psutil.Process(os.getpid())
             cpu_percent = process.cpu_percent()
