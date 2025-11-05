@@ -32,7 +32,7 @@ Reference for CLI, Python API, and backends.
 
 See [README.md](../README.md) for installation instructions.
 
-> **Note**: Python 3.10+ required for most backends, 3.11+ for TorchSim. Some backends conflict (e.g., UMA vs MACE) - use separate environments.
+> **Note**: Python 3.10+ required. Some backends conflict (e.g., UMA vs MACE) - use separate environments.
 
 ## Command Line Interface
 
@@ -47,7 +47,7 @@ All commands support these common options:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--backend` | `uma` | Backend: uma\|aimnet2\|mace\|orb\|so3lr\|tblite\|torchsim_mace\|torchsim_uma\|mock |
+| `--backend` | `uma` | Backend: uma\|aimnet2\|mace\|orb\|so3lr\|tblite\|mock |
 | `--model-name` | `None` | Model name for backend |
 | `--model-path` | `None` | Path to model file (if applicable) |
 | `--device` | `None` | Device: cpu\|cuda |
@@ -287,8 +287,6 @@ explorer.save_trajectory(trajectory_list, "path.xyz")
 | `uma` | `pip install fairchem-core` | Materials science | Conflicts with MACE |
 | `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA |
 | `orb` | `pip install orb-models` | Universal coverage | Molecules and materials |
-| `torchsim_mace` | `pip install torch-sim-atomistic` | Maximum performance | Requires Python 3.11+ |
-| `torchsim_uma` | `pip install torch-sim-atomistic` | Maximum performance | Requires Python 3.11+ |
 | `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations |
 | `so3lr` | `pip install so3lr` | Research | Custom models |
 | `mock` | Built-in | Testing | Development only |

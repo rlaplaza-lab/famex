@@ -102,10 +102,6 @@ class DependencyManager:
                     import mace.calculators
 
                     self._cache["mace"] = mace.calculators
-                elif name == "torch_sim":
-                    import torch_sim as ts
-
-                    self._cache["torch_sim"] = ts
                 elif name == "tblite":
                     import tblite.ase
 
@@ -216,7 +212,6 @@ class DependencyManager:
             BACKEND_MACE: "mace.calculators",
             "orb_models": "orb_models",
             BACKEND_ORB: "orb_models",  # Orb uses orb-models package
-            "torch_sim": "torch_sim",
             BACKEND_TBLITE: "tblite",
         }
 
@@ -259,7 +254,6 @@ class DependencyManager:
             BACKEND_MACE: "mace-torch",
             "orb_models": "orb-models",
             BACKEND_ORB: "orb-models",  # Orb uses orb-models package
-            "torch_sim": "torch-sim-atomistic",
             BACKEND_TBLITE: "tblite",
         }
         return commands.get(name.lower(), name.lower())
@@ -286,8 +280,6 @@ def __getattr__(name: str) -> Any:
         return deps.has(BACKEND_SO3LR)
     if name == "HAS_MACE":
         return deps.has(BACKEND_MACE)
-    if name == "HAS_TORCH_SIM":
-        return deps.has("torch_sim")
     if name == "HAS_TBLITE":
         return deps.has(BACKEND_TBLITE)
     if name == "torch":

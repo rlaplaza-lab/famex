@@ -8,9 +8,7 @@ version = "0.1.0"
 description = "Quick mechanistic exploration using machine learning potentials with Sella optimizer"
 readme = "README.md"
 requires-python = ">=3.10"
-# Note: Python version requirements depend on chosen backend:
-# - Python 3.10+ for most backends (AIMNet2, UMA, MACE, Orb, TBLite)
-# - Python 3.11+ for TorchSim backends
+# Note: Python 3.10+ required for all backends
 license = "MIT"
 authors = [
     {name = "rlaplaza-lab", email = "example@example.com"}
@@ -196,7 +194,6 @@ disallow_untyped_decorators = false
 [[tool.mypy.overrides]]
 module = [
     "geometric.*",
-    "torch_sim.*",
     "e3nn.*",
     "orb_models.*",
     "fairchem.*",

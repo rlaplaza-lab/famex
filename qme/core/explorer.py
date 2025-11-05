@@ -122,7 +122,7 @@ class Explorer:
         Single ASE Atoms object or a sequence of Atoms to operate on.
         For multi-structure strategies (NEB, CI-NEB), provide multiple structures.
     backend : str, default "uma"
-        Calculator backend: uma, aimnet2, mace, orb, so3lr, tblite, torchsim_mace, torchsim_uma, mock
+        Calculator backend: uma, aimnet2, mace, orb, so3lr, tblite, mock
     model_name : str, optional
         Name of the specific model to use. If None, uses backend defaults.
     model_path : str, optional
@@ -360,10 +360,8 @@ class Explorer:
             return "uma-s-1p1"
         if backend_lower == "aimnet2":
             return "aimnet2"
-        if backend_lower in ("mace", "torchsim_mace"):
+        if backend_lower == "mace":
             return "mace-omol-0"
-        if backend_lower == "torchsim_uma":
-            return "uma-s-1p1"
         if backend_lower == "so3lr":
             # SO3LR requires a model_path, not model_name
             return self.model_path or "so3lr-model"

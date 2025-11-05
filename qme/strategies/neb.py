@@ -88,7 +88,9 @@ class MultiStructureNEBStrategy(BaseStrategy):
         )
 
         # Flatten nested segments if needed (defensive check)
-        # Note: path should already be flat, but handle edge cases
+        # Note: path should already be flat, but handle edge cases where PathManager
+        # might return nested structures. The try/except handles runtime errors during
+        # flattening (e.g., if path structure is unexpected despite the condition check).
         if path and hasattr(path[0], "__iter__") and not isinstance(path[0], Atoms):
             # If first element is iterable but not Atoms, might be nested
             try:  # type: ignore[unreachable]
@@ -100,7 +102,7 @@ class MultiStructureNEBStrategy(BaseStrategy):
                         flat.append(seg)
                 path = flat
             except (TypeError, AttributeError):
-                # If flattening fails, keep original path
+                # If flattening fails, keep original path (defensive programming for malformed input)
                 pass
 
         if len(path) < 3:
@@ -134,7 +136,7 @@ class MultiStructureNEBStrategy(BaseStrategy):
         # Filter redundant structures and issue warnings
         if optimized_path:
             # Convert atoms_list to list for comparison
-            input_atoms = list(atoms_list) if not isinstance(atoms_list, Atoms) else [atoms_list]  # type: ignore[unreachable]
+            input_atoms = list(atoms_list)
 
             filtered_path, _removed_indices, warnings_list = (
                 PathManager.filter_redundant_structures(

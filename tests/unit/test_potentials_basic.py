@@ -22,8 +22,6 @@ class TestPotentialsInitBasic:
             "get_mace_calculator",
             "get_orb_calculator",
             "get_tblite_calculator",
-            "get_torchsim_mace_calculator",
-            "get_torchsim_uma_calculator",
         ],
     )
     def test_calculator_factory_functions_exist(self, factory_name):

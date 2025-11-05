@@ -68,14 +68,12 @@ def _should_show_backend(results: dict[str, Any]) -> bool:
 
     Filters out:
     - Backends that are not available (no useful data)
-    - Backends not suitable for TS optimization (mock, torchsim_*)
+    - Backends not suitable for TS optimization (mock)
     """
     backend = results.get("backend", "").lower()
 
     # Filter out backends not suitable for TS optimization
     if backend == "mock":
-        return False
-    if backend.startswith("torchsim_"):
         return False
 
     # Only show if available and has results
