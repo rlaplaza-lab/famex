@@ -397,6 +397,25 @@ class StandardTestAssertions:
         )
 
 
+def assert_error_contains(error, text):
+    """Assert that error message contains expected text.
+
+    Args:
+        error: Exception instance or error message string
+        text: Expected text to find in error message (case-insensitive)
+
+    Example:
+        with pytest.raises(ValueError) as exc_info:
+            # Code that raises error
+            pass
+        assert_error_contains(exc_info.value, "expected error message")
+    """
+    error_msg = str(error) if not isinstance(error, str) else error
+    assert text.lower() in error_msg.lower(), (
+        f"Expected error message to contain '{text}', but got: {error_msg}"
+    )
+
+
 # Pytest fixtures for common test patterns
 @pytest.fixture
 def test_molecules():

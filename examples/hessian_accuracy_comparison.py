@@ -180,13 +180,25 @@ def main() -> int:
     interface.setup_logging(args.verbose)
 
     # Backend handling - optional for this demo (can work with harmonic calculator)
+    # But if user requests a specific backend, validate it's available
     requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+
+    # If user requests a backend, require it to be available
+    required_backends = requested if requested else None
     backend, available_backends = interface.select_backend(
         requested_backends=requested,
         preferred_backends=["mace"],
+        required_backends=required_backends,
         verbose=args.verbose,
     )
-    # Note: backend can be None - demo still works with harmonic calculator
+
+    # If user requested a backend but it's not available, exit early
+    if requested and backend is None:
+        interface.print_error(
+            f"Requested backend(s) not available: {', '.join(requested)}\n"
+            "Please install the required backend or run without --backends to use harmonic calculator."
+        )
+        return 1
 
     if backend:
         interface.print_backend_summary([backend], "Using Backend")

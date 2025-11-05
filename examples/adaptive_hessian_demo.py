@@ -152,15 +152,29 @@ def main() -> int:
     interface.print_header()
     interface.setup_logging(args.verbose)
 
-    # Backend handling (consistent pattern)
+    # Backend handling - require MACE or UMA (consistent pattern)
     requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    # If user requests specific backends, require them; otherwise require MACE or UMA
+    required_backends = requested if requested else ["mace", "uma"]
     backend, available_backends = interface.select_backend(
         requested_backends=requested,
         preferred_backends=["mace", "uma"],
+        required_backends=required_backends,
         verbose=args.verbose,
     )
     if backend is None:
-        interface.print_error("No suitable backend available (need MACE or UMA)")
+        if requested:
+            interface.print_error(
+                f"Requested backend(s) not available: {', '.join(requested)}\n"
+                "Please install the required backend(s)."
+            )
+        else:
+            interface.print_error(
+                "No suitable backend available (need MACE or UMA).\n"
+                "Please install at least one:\n"
+                "  - MACE: pip install mace-torch\n"
+                "  - UMA: pip install fairchem-core"
+            )
         return 1
 
     interface.print_backend_summary([backend], "Using Backend")

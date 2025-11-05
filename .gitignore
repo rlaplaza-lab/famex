@@ -180,6 +180,9 @@ temp/
 # ASE trajectory files
 *.traj
 
+# ASE Vibrations cache files
+vib/
+
 # Output files from optimizations
 *.opt.*
 *.ts.*

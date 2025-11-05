@@ -9,6 +9,7 @@ from qme.utils.validation import (
     QMEError,
     validate_atoms_compatibility,
 )
+from tests.test_utils import assert_error_contains
 
 
 class TestQMEError:
@@ -62,8 +63,8 @@ class TestValidateAtomsCompatibility:
         with pytest.raises(ValueError) as exc_info:
             validate_atoms_compatibility(atoms1, atoms2)
 
-        assert "different number of atoms" in str(exc_info.value)
-        assert "2 vs 3" in str(exc_info.value)
+        assert_error_contains(exc_info.value, "different number of atoms")
+        assert_error_contains(exc_info.value, "2 vs 3")
 
     def test_different_atomic_symbols(self):
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
@@ -75,7 +76,7 @@ class TestValidateAtomsCompatibility:
         with pytest.raises(ValueError) as exc_info:
             validate_atoms_compatibility(atoms1, atoms2)
 
-        assert "different atomic symbols" in str(exc_info.value)
+        assert_error_contains(exc_info.value, "different atomic symbols")
 
     def test_custom_context(self):
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
@@ -84,4 +85,4 @@ class TestValidateAtomsCompatibility:
         with pytest.raises(ValueError) as exc_info:
             validate_atoms_compatibility(atoms1, atoms2, "path segment 0")
 
-        assert "path segment 0" in str(exc_info.value)
+        assert_error_contains(exc_info.value, "path segment 0")

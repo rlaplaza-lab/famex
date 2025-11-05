@@ -355,14 +355,20 @@ def main() -> int:
     # Set up logging based on verbosity level
     interface.setup_logging(args.verbose)
 
-    # Backend handling
+    # Backend handling - exit early if no backends available
     requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
     _, available_backends = interface.select_backend(
         requested_backends=requested,
         verbose=args.verbose,
     )
     if not available_backends:
-        interface.print_error("No available backends found")
+        interface.print_error(
+            "No available backends found. Please install at least one ML backend:\n"
+            "  - MACE: pip install mace-torch\n"
+            "  - UMA: pip install fairchem-core\n"
+            "  - AIMNet2: pip install aimnet2\n"
+            "  - SO3LR: pip install so3lr"
+        )
         return 1
 
     # Determine which optimizers to test

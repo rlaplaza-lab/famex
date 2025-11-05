@@ -12,7 +12,7 @@ from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup
 
 
 def run_command(
-    cmd: list[str], desc: str, backend: str, timeout: int = 600
+    cmd: list[str], desc: str, backend: str, timeout: int = 600, verbose: bool = False
 ) -> tuple[bool, float, str, str]:
     """Run a CLI command and report results."""
     try:
@@ -60,8 +60,10 @@ def run_command(
 
 def create_example_commands(example_files: Path, backend: str, steps: int = 500) -> list[dict]:
     """Create example commands for a specific backend."""
+    # Convert to absolute path for commands to work from any directory
+    example_files_abs = example_files.resolve()
     # Prefer custom TS file if present, otherwise fall back to bundled example
-    ts_input = str(example_files / "A_C_A_B_A_C_ts.xyz")
+    ts_input = str(example_files_abs / "A_C_A_B_A_C_ts.xyz")
 
     commands = [
         {
@@ -71,7 +73,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "minima",
                 "--strategy",
                 "local",
-                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_reactant.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -87,7 +89,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "ts",
                 "--strategy",
                 "local",
-                str(example_files / "A_C_A_B_A_C_ts.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_ts.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -104,9 +106,9 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "minima",
                 "--strategy",
                 "interpolate",
-                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_reactant.xyz"),
                 "--product",
-                str(example_files / "A_C_A_B_A_C_product.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -126,9 +128,9 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "ts",
                 "--strategy",
                 "interpolate",
-                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_reactant.xyz"),
                 "--product",
-                str(example_files / "A_C_A_B_A_C_product.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -149,9 +151,9 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "ts",
                 "--strategy",
                 "growing_string",
-                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_reactant.xyz"),
                 "--product",
-                str(example_files / "A_C_A_B_A_C_product.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -176,9 +178,9 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "path",
                 "--strategy",
                 "interpolate",
-                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_reactant.xyz"),
                 "--product",
-                str(example_files / "A_C_A_B_A_C_product.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
                 "--npoints",
@@ -196,9 +198,9 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "path",
                 "--strategy",
                 "neb",
-                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_reactant.xyz"),
                 "--product",
-                str(example_files / "A_C_A_B_A_C_product.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -218,9 +220,9 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "path",
                 "--strategy",
                 "cineb",
-                str(example_files / "A_C_A_B_A_C_reactant.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_reactant.xyz"),
                 "--product",
-                str(example_files / "A_C_A_B_A_C_product.xyz"),
+                str(example_files_abs / "A_C_A_B_A_C_product.xyz"),
                 "--backend",
                 backend,
                 "--steps",
@@ -270,7 +272,10 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
 
 
 def demo_cli(
-    backends: list[str] | None = None, interface: QMEExampleInterface | None = None
+    backends: list[str] | None = None,
+    interface: QMEExampleInterface | None = None,
+    timeout: int = 600,
+    skip_slow_backends: bool = False,
 ) -> bool:
     """Demonstrate QME CLI with commands using default settings."""
     if interface is None:
@@ -296,11 +301,28 @@ def demo_cli(
         interface.print_error("No ML backends available for comparison.")
         return False
 
+    # Skip slow backends if requested
+    slow_backends = {"mace"}  # Known slow backends
+    if skip_slow_backends:
+        available_backends = [b for b in available_backends if b not in slow_backends]
+        if not available_backends:
+            interface.print_error("No backends remaining after skipping slow backends.")
+            return False
+        interface.print_warning(f"Skipping slow backends: {', '.join(slow_backends)}")
+
     interface.print_backend_summary(available_backends, "Testing Backends")
 
     print("\nChecking directory structure...", flush=True)
-    # Ensure we're in the right directory structure
-    examples_dir = Path("examples")
+    # Find examples directory relative to script location
+    script_dir = Path(__file__).parent
+    examples_dir = script_dir
+    if examples_dir.name != "examples":
+        # If script is in examples/, we're already there
+        # Otherwise, look for examples/ directory
+        potential_examples = script_dir / "examples"
+        if potential_examples.exists():
+            examples_dir = potential_examples
+
     if not examples_dir.exists():
         print(f"ERROR: examples directory not found at {examples_dir.absolute()}", flush=True)
         return False
@@ -354,8 +376,12 @@ def demo_cli(
         backend_start_time = time.time()
 
         for i, example in enumerate(examples, 1):
-            print(f"\nRunning example {i}/{len(examples)}: {example['desc']}", flush=True)
-            success, runtime, stdout, stderr = run_command(example["cmd"], example["desc"], backend)
+            print(
+                f"\n[{backend}] Running example {i}/{len(examples)}: {example['desc']}", flush=True
+            )
+            success, runtime, stdout, stderr = run_command(
+                example["cmd"], example["desc"], backend, timeout=timeout
+            )
 
             backend_results[backend]["examples"].append(
                 {
@@ -412,6 +438,17 @@ def main() -> int | None:
     )
 
     parser = interface.create_parser()
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=600,
+        help="Timeout in seconds for each command (default: 600)",
+    )
+    parser.add_argument(
+        "--skip-slow-backends",
+        action="store_true",
+        help="Skip known slow backends (e.g., mace) to speed up testing",
+    )
     args = parser.parse_args()
 
     # Set up logging based on verbosity level
@@ -427,7 +464,9 @@ def main() -> int | None:
         backends = None  # Will auto-detect in demo_cli
 
     try:
-        success = demo_cli(backends, interface)
+        success = demo_cli(
+            backends, interface, timeout=args.timeout, skip_slow_backends=args.skip_slow_backends
+        )
         return 0 if success else 1
     except KeyboardInterrupt:
         print("\nInterrupted by user")

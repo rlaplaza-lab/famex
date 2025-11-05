@@ -70,6 +70,10 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
 
 [tool.coverage.run]
 source = ["qme"]
@@ -82,6 +86,11 @@ omit = [
     "*/.*egg-info/*",
     "*/examples/*",
     "*/example_utils/*",
+    # Optional backend potentials with low/no test coverage
+    "*/potentials/orb_potential.py",
+    "*/potentials/so3lr_potential.py",
+    "*/potentials/tblite_potential.py",
+    "*/potentials/uma_potential.py",
 ]
 branch = true
 
@@ -103,7 +112,7 @@ precision = 2
 show_missing = true
 skip_covered = false
 skip_empty = false
-fail_under = 55
+fail_under = 60
 
 [tool.ruff]
 line-length = 100

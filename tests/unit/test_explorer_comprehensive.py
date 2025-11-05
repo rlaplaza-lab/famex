@@ -21,12 +21,12 @@ class TestExplorerInitialization:
             ("list", 2, None),
         ],
     )
-    def test_init_with_atoms(self, atoms_input, expected_length, expected_index):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_init_with_atoms(self, water_molecule, atoms_input, expected_length, expected_index):
+        atoms = water_molecule
         if atoms_input == "single":
             input_atoms = atoms
         else:
-            atoms2 = TestMoleculeFactory.get_water_distorted()
+            atoms2 = water_molecule.copy()
             input_atoms = [atoms, atoms2]
 
         explorer = Explorer(input_atoms, backend="mock")
@@ -45,8 +45,10 @@ class TestExplorerInitialization:
             ("  minima  ", "  local  ", "minima", "local"),  # whitespace stripped
         ],
     )
-    def test_init_with_target_strategy(self, target, strategy, expected_target, expected_strategy):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_init_with_target_strategy(
+        self, water_molecule, target, strategy, expected_target, expected_strategy
+    ):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock", target=target, strategy=strategy)
 
         # Empty strings get defaults, others get stripped
@@ -62,8 +64,8 @@ class TestExplorerInitialization:
         ("profile", "has_profiler"),
         [(False, False), (True, True)],
     )
-    def test_init_with_profile(self, profile, has_profiler):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_init_with_profile(self, water_molecule, profile, has_profiler):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock", profile=profile)
 
         if has_profiler:
@@ -71,8 +73,8 @@ class TestExplorerInitialization:
         else:
             assert explorer.profiler is None
 
-    def test_init_with_defaults(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_init_with_defaults(self, water_molecule):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock")
 
         assert explorer.target == "minima"
@@ -82,8 +84,8 @@ class TestExplorerInitialization:
         assert explorer.verbose == 1
         assert explorer.profiler is None
 
-    def test_init_with_constraints_and_optimizer_kwargs(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_init_with_constraints_and_optimizer_kwargs(self, water_molecule):
+        atoms = water_molecule
         optimizer_kwargs = {"maxstep": 0.1}
         explorer = Explorer(
             atoms,
@@ -313,8 +315,8 @@ class TestExtractChargeSpin:
 
 
 class TestExplorerRun:
-    def test_run_basic_minima(self):
-        atoms = TestMoleculeFactory.get_h2_stretched()
+    def test_run_basic_minima(self, h2_molecule):
+        atoms = h2_molecule
         explorer = Explorer(atoms, backend="mock", target="minima", strategy="local")
 
         result = explorer.run(steps=5, fmax=0.5)
@@ -324,8 +326,8 @@ class TestExplorerRun:
         assert "strategy" in result
         assert "converged" in result
 
-    def test_run_with_steps_limit(self):
-        atoms = TestMoleculeFactory.get_h2_stretched()
+    def test_run_with_steps_limit(self, h2_molecule):
+        atoms = h2_molecule
         explorer = Explorer(atoms, backend="mock", target="minima")
 
         result = explorer.run(steps=2, fmax=0.5)
@@ -335,8 +337,8 @@ class TestExplorerRun:
         if "steps_taken" in result:
             assert result["steps_taken"] <= 2
 
-    def test_run_with_custom_runner(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_run_with_custom_runner(self, water_molecule):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock")
 
         def custom_runner(atoms_list, **kwargs):
@@ -352,8 +354,8 @@ class TestExplorerRun:
         assert result["converged"] is True
         assert "optimized_atoms" in result
 
-    def test_run_with_custom_runner_returns_atoms(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_run_with_custom_runner_returns_atoms(self, water_molecule):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock")
 
         def custom_runner(atoms_list, **kwargs):
@@ -364,15 +366,15 @@ class TestExplorerRun:
         assert result["strategy"] == "custom"
         assert isinstance(result["optimized_atoms"], Atoms)
 
-    def test_run_with_invalid_strategy_name(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_run_with_invalid_strategy_name(self, water_molecule):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock", target="invalid", strategy="nonexistent")
 
         with pytest.raises(NotImplementedError):
             explorer.run()
 
-    def test_run_with_calculate_frequencies(self):
-        atoms = TestMoleculeFactory.get_h2_stretched()
+    def test_run_with_calculate_frequencies(self, h2_molecule):
+        atoms = h2_molecule
         explorer = Explorer(atoms, backend="mock", target="minima", strategy="local")
 
         result = explorer.run(steps=2, fmax=0.5, calculate_frequencies=True)
@@ -383,8 +385,8 @@ class TestExplorerRun:
         assert "frequencies" in freq_analysis
         assert "is_minimum" in freq_analysis or "is_minimum" in result
 
-    def test_run_with_frequency_calculation_failure(self):
-        atoms = TestMoleculeFactory.get_h2_stretched()
+    def test_run_with_frequency_calculation_failure(self, h2_molecule):
+        atoms = h2_molecule
         explorer = Explorer(atoms, backend="mock", target="minima", strategy="local")
 
         # Frequency calculation might fail but optimization should still complete
@@ -394,8 +396,8 @@ class TestExplorerRun:
             with pytest.raises(Exception, match="Frequency calc failed"):
                 explorer.run(steps=2, fmax=0.5, calculate_frequencies=True)
 
-    def test_run_defaults_to_minima_local(self):
-        atoms = TestMoleculeFactory.get_h2_stretched()
+    def test_run_defaults_to_minima_local(self, h2_molecule):
+        atoms = h2_molecule
         explorer = Explorer(atoms, backend="mock", target="", strategy="")
 
         result = explorer.run(steps=2, fmax=0.5)

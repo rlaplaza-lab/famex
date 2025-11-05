@@ -225,6 +225,11 @@ def main() -> int:
         type=str,
         help="Comma-separated list of optimizers to benchmark (default: lbfgs,bfgs,fire,trust-krylov)",
     )
+    parser.add_argument(
+        "--skip-slow-optimizers",
+        action="store_true",
+        help="Skip known slow optimizers (e.g., bfgs) to speed up testing",
+    )
 
     args = parser.parse_args()
 
@@ -252,6 +257,13 @@ def main() -> int:
     else:
         minima_optimizers = ["lbfgs", "bfgs", "fire", "trust-krylov"]
 
+    # Skip slow optimizers if requested
+    slow_optimizers = {"bfgs"}  # Known slow optimizers
+    if args.skip_slow_optimizers:
+        minima_optimizers = [opt for opt in minima_optimizers if opt not in slow_optimizers]
+        if minima_optimizers:
+            interface.print_warning(f"Skipping slow optimizers: {', '.join(slow_optimizers)}")
+
     if not minima_optimizers:
         interface.print_error("No valid minima optimizers specified!")
         return 1
@@ -271,9 +283,16 @@ def main() -> int:
 
     # Run benchmarks
     results_list = []
+    total_tests = len(available_backends) * len(minima_optimizers)
+    current_test = 0
 
     for backend in available_backends:
         for optimizer in minima_optimizers:
+            current_test += 1
+            print(
+                f"\n[{current_test}/{total_tests}] Testing {backend}/{optimizer}...",
+                flush=True,
+            )
             try:
                 results = benchmark_minima_optimizer(
                     backend=backend,
@@ -282,9 +301,15 @@ def main() -> int:
                     verbose=args.verbose,
                 )
                 results_list.append(results)
+                if results.get("available", False):
+                    print(f"  ✓ Completed {backend}/{optimizer}", flush=True)
+                else:
+                    print(f"  ✗ Failed {backend}/{optimizer}", flush=True)
             except KeyboardInterrupt:
+                print("\nInterrupted by user", flush=True)
                 break
             except Exception as e:
+                print(f"  ✗ Error {backend}/{optimizer}: {e}", flush=True)
                 results_list.append(
                     {
                         "backend": backend,

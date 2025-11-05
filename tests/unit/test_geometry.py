@@ -38,8 +38,8 @@ class TestGeometryInitialization:
         positions = geom.get_positions()
         assert positions.shape == (2, 3)
 
-    def test_geometry_from_ase_atoms(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_geometry_from_ase_atoms(self, water_molecule):
+        atoms = water_molecule.copy()
         atoms.info["charge"] = 1
         atoms.info["spin"] = 2
 
@@ -294,40 +294,32 @@ class TestGeometryStringRepresentation:
 
 
 class TestReadGeometry:
-    def test_read_geometry_xyz(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_read_geometry_xyz(self, water_molecule, tmp_path):
+        atoms = water_molecule
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
-            temp_path = f.name
-            atoms.write(temp_path)
+        test_file = tmp_path / "test.xyz"
+        atoms.write(str(test_file))
 
-        try:
-            geom = read_geometry(temp_path)
+        geom = read_geometry(str(test_file))
 
-            assert isinstance(geom, Geometry)
-            assert len(geom) == len(atoms)
-        finally:
-            Path(temp_path).unlink(missing_ok=True)
+        assert isinstance(geom, Geometry)
+        assert len(geom) == len(atoms)
 
     def test_read_geometry_nonexistent_file(self):
         with pytest.raises((FileNotFoundError, OSError)):
             read_geometry("nonexistent_file.xyz")
 
-    def test_read_geometry_xyz_with_metadata(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_read_geometry_xyz_with_metadata(self, water_molecule, tmp_path):
+        atoms = water_molecule.copy()
         atoms.info["comment"] = "charge=1 spin=2"
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
-            temp_path = f.name
-            atoms.write(temp_path)
+        test_file = tmp_path / "test.xyz"
+        atoms.write(str(test_file))
 
-        try:
-            geom = read_geometry(temp_path)
+        geom = read_geometry(str(test_file))
 
-            # Metadata may or may not be parsed depending on implementation
-            assert isinstance(geom, Geometry)
-        finally:
-            Path(temp_path).unlink(missing_ok=True)
+        # Metadata may or may not be parsed depending on implementation
+        assert isinstance(geom, Geometry)
 
 
 class TestWriteGeometry:
