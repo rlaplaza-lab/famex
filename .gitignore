@@ -164,6 +164,8 @@ zimmermann93_benchmark_results.json
 # Test output files
 test_*.xyz
 test_*.json
+*test_results.md
+example_test_results.md
 
 # Temporary files
 tmp/
