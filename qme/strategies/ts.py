@@ -135,12 +135,9 @@ class LocalTSStrategy(BaseStrategy):
                 opt_kwargs.setdefault("order", 1)
                 # Remove hessian_method if present (Sella doesn't accept it)
                 opt_kwargs.pop("hessian_method", None)
-                # Check if Hessian is provided in explorer
-                if (
-                    hasattr(self.explorer, "initial_hessian")
-                    and self.explorer.initial_hessian is not None
-                ):
-                    opt_kwargs["hessian"] = self.explorer.initial_hessian
+                # Note: SELLA computes its own Hessian internally and doesn't accept
+                # an initial Hessian as a keyword argument. The initial_hessian from
+                # explorer is not used for SELLA.
             elif normalized_name in {
                 "trust-krylov-ts",
                 "trustkrylovts",
