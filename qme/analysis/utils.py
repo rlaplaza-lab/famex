@@ -119,6 +119,9 @@ def get_calculator_property(
 def has_calculator_property(calculator: Any, property_name: str) -> bool:
     """Check if calculator supports a property.
 
+    This function checks for property support without actually calling the getter,
+    which is important for properties (like Hessians) that require atoms to be set.
+
     Parameters
     ----------
     calculator : Any
@@ -131,8 +134,16 @@ def has_calculator_property(calculator: Any, property_name: str) -> bool:
     bool
         True if calculator supports the property
     """
-    try:
-        get_calculator_property(calculator, property_name, default=None)
+    # Check implemented_properties interface first (most reliable, doesn't require calling)
+    if hasattr(calculator, "implemented_properties"):
+        if property_name in calculator.implemented_properties:
+            return True
+
+    # Check for get_{property_name} method
+    method_name = f"get_{property_name}"
+    if hasattr(calculator, method_name):
         return True
-    except AttributeError:
-        return False
+
+    # Check for calculate_{property_name} method
+    alt_method_name = f"calculate_{property_name}"
+    return bool(hasattr(calculator, alt_method_name))

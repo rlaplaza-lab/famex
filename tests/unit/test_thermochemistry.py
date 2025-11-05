@@ -153,6 +153,21 @@ class TestSolvation:
         with pytest.raises(ValueError):
             get_free_space("unknown_solvent")
 
+    def test_get_free_space_invalid_solvent(self):
+        """Test get_free_space with invalid solvent raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown solvent"):
+            get_free_space("invalid_solvent_name")
+
+    def test_get_free_space_all_supported_solvents(self):
+        """Test get_free_space with all supported solvents."""
+        supported = ["none", "H2O", "toluene", "DMF", "AcOH", "chloroform"]
+        for solvent in supported:
+            free_space = get_free_space(solvent)
+            assert free_space > 0
+            # Gas phase should have maximum free space
+            if solvent == "none":
+                assert abs(free_space - 1000.0) < 0.1
+
     def test_solvation_handler(self):
         handler = SolvationHandler(solvent="H2O", concentration=1.0)
         assert not handler.is_gas_phase()
@@ -160,6 +175,41 @@ class TestSolvation:
 
         handler_gas = SolvationHandler(solvent="none")
         assert handler_gas.is_gas_phase()
+
+    def test_solvation_handler_effective_concentration_gas_phase(self):
+        """Test effective_concentration for gas phase (should equal nominal)."""
+        handler = SolvationHandler(solvent="none", concentration=1.0)
+        assert handler.is_gas_phase()
+        effective = handler.effective_concentration()
+        assert abs(effective - 1.0) < 1e-10
+
+    def test_solvation_handler_effective_concentration_solution(self):
+        """Test effective_concentration for solution phase."""
+        handler = SolvationHandler(solvent="H2O", concentration=1.0)
+        assert not handler.is_gas_phase()
+        effective = handler.effective_concentration()
+        # Effective concentration should be higher than nominal in solution
+        # due to reduced accessible volume
+        assert effective > 1.0
+
+    def test_solvation_handler_effective_concentration_different_concentrations(self):
+        """Test effective_concentration with different nominal concentrations."""
+        for concentration in [0.1, 0.5, 1.0, 2.0]:
+            handler = SolvationHandler(solvent="H2O", concentration=concentration)
+            effective = handler.effective_concentration()
+            # Effective should be proportionally higher
+            assert effective > concentration
+
+    def test_solvation_handler_is_gas_phase(self):
+        """Test is_gas_phase() method with different solvents."""
+        handler_none = SolvationHandler(solvent="none")
+        assert handler_none.is_gas_phase()
+
+        handler_water = SolvationHandler(solvent="H2O")
+        assert not handler_water.is_gas_phase()
+
+        handler_toluene = SolvationHandler(solvent="toluene")
+        assert not handler_toluene.is_gas_phase()
 
 
 class TestSymmetry:
