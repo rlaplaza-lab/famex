@@ -19,7 +19,7 @@ Supported optimizers:
 Based on ASE's SciPyOptimizer pattern but extended for Hessian-based methods.
 """
 
-from typing import IO, Any
+from typing import IO, Any, cast
 
 import numpy as np
 from ase import Atoms
@@ -178,8 +178,14 @@ class SciPyHessianOptimizer(Optimizer):
         self._previous_fmax = None
 
         # SciPy optimization state
-        self.max_steps = 0
+        self.max_steps: int = 0
         self._scipy_result = None
+        # Initialize fmax (inherited from Optimizer but may not be typed)
+        # Use setattr to avoid type checking issues with inherited attributes
+        if not hasattr(self, "fmax"):
+            self.fmax = 0.05
+        # Type annotation for mypy
+        self.fmax: float = getattr(self, "fmax", 0.05)  # type: ignore[assignment]
 
         # Validate method
         valid_methods = ["trust-krylov", "trust-ncg", "trust-exact", "Newton-CG"]
@@ -212,14 +218,14 @@ class SciPyHessianOptimizer(Optimizer):
         """Convert atoms positions to 1D array for SciPy."""
         if atoms is None:
             atoms = self.atoms
-        if atoms is None:  # type: ignore[unreachable]
-            msg = "Atoms object is not initialized"
+        if atoms is None:  # Defensive check
+            msg = "Atoms object is not initialized"  # type: ignore[unreachable]
             raise RuntimeError(msg)
-        return atoms.get_positions().ravel()  # type: ignore[no-any-return]
+        return cast(np.ndarray, atoms.get_positions().ravel())
 
     def _x_to_positions(self, x: np.ndarray) -> np.ndarray:
         """Convert 1D array to positions array."""
-        return x.reshape(-1, 3)
+        return cast(np.ndarray, x.reshape(-1, 3))
 
     def objective(self, x: np.ndarray) -> float:
         """Objective function for minimization (potential energy).
@@ -307,8 +313,8 @@ class SciPyHessianOptimizer(Optimizer):
             current_fmax = self._get_current_fmax()
 
             # Force-based criterion: large forces suggest need for update
-            if current_fmax is not None and self._previous_fmax is not None:  # type: ignore[unreachable]
-                if current_fmax > self._previous_fmax * self.force_threshold_ratio:
+            if current_fmax is not None and self._previous_fmax is not None:
+                if current_fmax > self._previous_fmax * self.force_threshold_ratio:  # type: ignore[unreachable]
                     need_full_update = True
                     reason = f"force increase ({current_fmax:.4f} > {self._previous_fmax:.4f} × {self.force_threshold_ratio})"
 
@@ -356,13 +362,13 @@ class SciPyHessianOptimizer(Optimizer):
             self._last_gradient = None
             self.bfgs_updates = 0
 
-        elif (  # type: ignore[unreachable]
+        elif (
             self.use_bfgs_update
             and self._last_positions is not None
-            and self._last_gradient is not None
+            and self._last_gradient is not None  # type: ignore[unreachable]
         ):
             # BFGS approximate update
-            self._last_hessian_step = self.nsteps
+            self._last_hessian_step = self.nsteps  # type: ignore[unreachable]
 
             # Get current gradient
             current_gradient = self.gradient(x)
@@ -449,7 +455,7 @@ class SciPyHessianOptimizer(Optimizer):
         if self.converged(forces_flat):
             raise ConvergedError
 
-    def run(self, fmax: float = 0.05, steps: int = 100) -> bool:
+    def run(self, fmax: float = 0.05, steps: int = 100) -> bool:  # type: ignore[override]
         """Run the optimization.
 
         Parameters
@@ -465,8 +471,8 @@ class SciPyHessianOptimizer(Optimizer):
             True if converged, False otherwise.
 
         """
-        self.fmax = fmax
-        self.max_steps = steps + self.nsteps
+        self.fmax = float(fmax)
+        self.max_steps = int(steps + self.nsteps)
 
         # Get initial position
         x0 = self._positions_to_x()
@@ -487,7 +493,7 @@ class SciPyHessianOptimizer(Optimizer):
         try:
             # Set up options for SciPy minimize
             # For trust-region methods, we can control convergence more tightly
-            options = {
+            options: dict[str, Any] = {
                 "maxiter": steps,
                 "disp": False,  # We handle logging ourselves
             }
@@ -509,9 +515,7 @@ class SciPyHessianOptimizer(Optimizer):
                 # For TS optimization, we need a larger trust region to allow climbing
                 # Increased from 1.0 to 2.0 for better initial exploration in TS regions
                 if is_ts_optimizer:
-                    options["initial_tr_radius"] = (
-                        2.0  # Larger initial trust region for TS climbing
-                    )
+                    options["initial_tr_radius"] = 2.0
                 else:
                     options["initial_tr_radius"] = 1.0  # Default, but explicit
                 # max_tr_radius: Maximum trust region radius (default is infinity)
@@ -521,7 +525,7 @@ class SciPyHessianOptimizer(Optimizer):
                 if self.method == "trust-krylov":
                     # maxiter: Maximum number of outer iterations (already set above to steps)
                     # Ensure it's explicitly set to allow full iterations
-                    options["maxiter"] = steps  # Explicitly set to ensure it's respected
+                    options["maxiter"] = int(steps)  # Explicitly set to ensure it's respected
                     # inexact: If True, requires less nonlinear iterations but more vector products
                     # This can help when approximation quality is poor
                     # Set to True to allow solver to continue even with degraded approximations
@@ -540,9 +544,9 @@ class SciPyHessianOptimizer(Optimizer):
                 options=options,
             )
 
-            # Update final positions
+            # Update final positions - defensive check
             if self._scipy_result is not None:
-                self.atoms.set_positions(self._x_to_positions(self._scipy_result.x))
+                self.atoms.set_positions(self._x_to_positions(self._scipy_result.x))  # type: ignore[unreachable]
         except ConvergedError:
             if self.verbose >= 1:
                 logger.info("Optimization converged!")
@@ -551,7 +555,8 @@ class SciPyHessianOptimizer(Optimizer):
         # Check final convergence
         forces = self.atoms.get_forces()
         forces_flat = forces.ravel()
-        converged = self.converged(forces_flat)
+        converged_result = self.converged(forces_flat)
+        converged: bool = bool(converged_result)
 
         if converged:
             if self.verbose >= 1:
@@ -823,7 +828,8 @@ class TrustKrylovTS(TrustKrylov):
         """Return a copy of the current transition mode vector, if available."""
         if self._ts_mode_vector is None:
             return None
-        return self._ts_mode_vector.copy()
+        result = self._ts_mode_vector.copy()
+        return np.asarray(result) if result is not None else None
 
     def get_transition_mode_info(self) -> dict[str, Any]:
         """Return diagnostic information about the tracked transition mode."""
@@ -964,7 +970,8 @@ class TrustKrylovTS(TrustKrylov):
     def _reflect_along_mode(vector: np.ndarray, mode: np.ndarray) -> np.ndarray:
         """Reflect *vector* along *mode* (Householder reflection)."""
         mode_normalized = mode / np.linalg.norm(mode)
-        return vector - 2.0 * np.dot(vector, mode_normalized) * mode_normalized
+        result = vector - 2.0 * np.dot(vector, mode_normalized) * mode_normalized
+        return np.asarray(result)
 
     def _compute_prfo_step(
         self, gradient: np.ndarray, hessian: np.ndarray, alpha: float
@@ -1090,11 +1097,11 @@ class TrustKrylovTS(TrustKrylov):
             step += hessian_eigenvectors[:, k] * y_tilde_all[k]
 
         # Apply trust radius constraint
-        step_norm = np.linalg.norm(step)
+        step_norm = float(np.linalg.norm(step))
         if step_norm > 1e-12:
             if step_norm > self._ts_trust_radius * 1.01:
                 step = step / step_norm * self._ts_trust_radius
-                step_norm = self._ts_trust_radius
+                step_norm = float(self._ts_trust_radius)
         else:
             if np.linalg.norm(w_tv) > 1e-12:
                 step = w_tv * self._ts_trust_radius * 0.1
@@ -1249,10 +1256,11 @@ class TrustKrylovTS(TrustKrylov):
         except np.linalg.LinAlgError:
             # Fallback: add diagonal ridge with conservative value
             n = sym_hessian.shape[0]
-            trace_val = abs(np.trace(sym_hessian))
+            trace_val = float(abs(np.trace(sym_hessian)))
             ridge = max(self._ts_min_positive_eig, trace_val / n * 1e-9)
             stabilised = sym_hessian + ridge * np.eye(n)
-            return 0.5 * (stabilised + stabilised.T)
+            result = 0.5 * (stabilised + stabilised.T)
+            return np.asarray(result)
 
         # Ensure only the tracked mode carries the flipped signature.
         stabilised = sym_hessian.copy()
@@ -1322,7 +1330,7 @@ class TrustKrylovTS(TrustKrylov):
         except (np.linalg.LinAlgError, ValueError):
             pass
 
-        return stabilised
+        return np.asarray(stabilised)
 
     # ------------------------------------------------------------------
     # Overrides for gradient / Hessian that perform the TS reflection
@@ -1500,8 +1508,8 @@ class TrustKrylovTS(TrustKrylov):
             return -abs(actual_energy_change)  # Negative quality for unexpected change
 
         # Quality factor: Q = 1 - |ΔE_actual/ΔE_pred - 1|
-        ratio = actual_energy_change / predicted_change
-        quality = 1.0 - abs(ratio - 1.0)
+        ratio = float(actual_energy_change / predicted_change)
+        quality = float(1.0 - abs(ratio - 1.0))
 
         return quality
 
@@ -1527,7 +1535,7 @@ class TrustKrylovTS(TrustKrylov):
             and self._ts_previous_hessian is not None
         ):
             step_vector = x - self._ts_previous_positions
-            step_norm = np.linalg.norm(step_vector)
+            step_norm = float(np.linalg.norm(step_vector))
             if step_norm > 1e-12:  # Only compute quality if step is significant
                 actual_energy_change = current_energy - self._ts_previous_energy
 
@@ -1596,14 +1604,14 @@ class TrustKrylovTS(TrustKrylov):
         self._ts_previous_energy = current_energy
         self._ts_previous_positions = x.copy()
 
-    def run(self, fmax: float = 0.05, steps: int = 100) -> bool:
+    def run(self, fmax: float = 0.05, steps: int = 100) -> bool:  # type: ignore[override]
         """Run TS optimization with smaller trust radius and step quality tracking.
 
         Uses smaller initial trust radius (0.01-0.03) as recommended by geomeTRIC
         for TS optimization, which is 0.1× the default minimization values.
         """
-        self.fmax = fmax
-        self.max_steps = steps + self.nsteps
+        self.fmax = float(fmax)
+        self.max_steps = int(steps + self.nsteps)
 
         # Get initial position
         x0 = self._positions_to_x()
@@ -1626,7 +1634,7 @@ class TrustKrylovTS(TrustKrylov):
         try:
             # Set up options for SciPy minimize with TS-specific trust region settings
             # Inspired by geomeTRIC: use much smaller trust radius for TS optimization
-            options = {
+            options: dict[str, Any] = {
                 "maxiter": steps,
                 "disp": False,  # We handle logging ourselves
             }
@@ -1654,9 +1662,9 @@ class TrustKrylovTS(TrustKrylov):
                 options=options,
             )
 
-            # Update final positions
+            # Update final positions - defensive check
             if self._scipy_result is not None:
-                self.atoms.set_positions(self._x_to_positions(self._scipy_result.x))
+                self.atoms.set_positions(self._x_to_positions(self._scipy_result.x))  # type: ignore[unreachable]
 
             # Log step quality summary
             if self._ts_step_quality_history and self.verbose >= 1:
@@ -1677,7 +1685,8 @@ class TrustKrylovTS(TrustKrylov):
         # Check final convergence
         forces = self.atoms.get_forces()
         forces_flat = forces.ravel()
-        converged = self.converged(forces_flat)
+        converged_result = self.converged(forces_flat)
+        converged: bool = bool(converged_result)
 
         if converged:
             if self.verbose >= 1:

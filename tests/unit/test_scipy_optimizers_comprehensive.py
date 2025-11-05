@@ -1,4 +1,4 @@
-"""Comprehensive tests for SciPy optimizers covering basic functionality and edge cases."""
+from __future__ import annotations
 
 from unittest.mock import patch
 
@@ -20,8 +20,6 @@ from tests.test_utils import StandardTestAssertions, TestMoleculeFactory
 
 
 class TestSciPyOptimizersBasic:
-    """Basic tests for all SciPy optimizer variants."""
-
     @pytest.mark.parametrize(
         ("optimizer_class", "method"),
         [
@@ -32,7 +30,6 @@ class TestSciPyOptimizersBasic:
         ],
     )
     def test_optimizer_initialization_and_parameters(self, optimizer_class, method):
-        """Test initialization and parameter acceptance for all optimizer types."""
         atoms = TestMoleculeFactory.get_perturbed_molecule(
             TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
         )
@@ -63,7 +60,6 @@ class TestSciPyOptimizersBasic:
         [(5, False, 5), (10, True, 10), (None, False, None)],
     )
     def test_optimizer_hessian_update_settings(self, update_freq, adaptive, expected_freq):
-        """Test optimizer with periodic and adaptive Hessian updates."""
         atoms = TestMoleculeFactory.get_perturbed_molecule(
             TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
         )
@@ -81,7 +77,6 @@ class TestSciPyOptimizersBasic:
             assert opt.force_threshold_ratio == 2.5
 
     def test_positions_conversion(self):
-        """Test position array conversion methods."""
         atoms = TestMoleculeFactory.get_perturbed_molecule(
             TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
         )
@@ -96,7 +91,6 @@ class TestSciPyOptimizersBasic:
         assert np.allclose(positions_back, atoms.positions)
 
     def test_objective_function(self):
-        """Test objective function returns energy."""
         atoms = TestMoleculeFactory.get_perturbed_molecule(
             TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
         )
@@ -108,7 +102,6 @@ class TestSciPyOptimizersBasic:
         assert np.isclose(energy, atoms.get_potential_energy())
 
     def test_gradient_function(self):
-        """Test gradient function returns negative forces."""
         atoms = TestMoleculeFactory.get_perturbed_molecule(
             TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
         )
@@ -123,7 +116,6 @@ class TestSciPyOptimizersBasic:
         assert np.allclose(grad, expected_grad)
 
     def test_hessian_computation(self):
-        """Test Hessian computation and symmetry."""
         atoms = TestMoleculeFactory.get_perturbed_molecule(
             TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
         )
@@ -137,7 +129,6 @@ class TestSciPyOptimizersBasic:
         assert opt.hessian_calls == 1
 
     def test_hessian_caching(self):
-        """Test that Hessian is cached when update_freq is None."""
         atoms = TestMoleculeFactory.get_perturbed_molecule(
             TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
         )
@@ -159,7 +150,6 @@ class TestSciPyOptimizersBasic:
         assert opt.hessian_calls == 1  # Still only 1 full Hessian
 
     def test_convergence(self):
-        """Test basic convergence check."""
         atoms = TestMoleculeFactory.get_perturbed_molecule(
             TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
         )
@@ -178,7 +168,6 @@ class TestSciPyOptimizersBasic:
         [(None, 1), (3, 2)],
     )
     def test_hessian_update_frequency(self, update_freq, expected_total_calls):
-        """Test Hessian update frequency modes."""
         atoms = TestMoleculeFactory.get_perturbed_molecule(
             TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
         )
@@ -202,7 +191,6 @@ class TestSciPyOptimizersBasic:
         assert opt.hessian_calls == expected_total_calls
 
     def test_basic_optimization_run(self):
-        """Test that optimizer can run without errors."""
         atoms = TestMoleculeFactory.get_perturbed_molecule(
             TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
         )
@@ -217,7 +205,6 @@ class TestSciPyOptimizersBasic:
         assert opt.nsteps > 0
 
     def test_step_counting(self):
-        """Test that step counter increments correctly."""
         atoms = TestMoleculeFactory.get_perturbed_molecule(
             TestMoleculeFactory.get_h2o_equilibrium(), seed=42, magnitude=0.05
         )
@@ -232,7 +219,6 @@ class TestSciPyOptimizersBasic:
 
     @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
     def test_optimizer_optimization_quality(self, optimizer_class):
-        """Test that optimizers actually optimize and achieve reasonable convergence."""
         atoms = Atoms("H2O", positions=[[0, 0, 0], [0.8, 0.6, 0], [-0.8, 0.6, 0]])
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -271,21 +257,18 @@ class TestSciPyOptimizersBasic:
             converged = opt.converged(forces_flat)
             if converged:
                 assert max_force < 0.05, (
-                    f"{optimizer_class.__name__} claims convergence but max force is {max_force:.6f} eV/Å"
+                    f"{optimizer_class.__name__} claims convergence "
+                    f"but max force is {max_force:.6f} eV/Å"
                 )
 
 
 class TestOptimizerErrors:
-    """Test error handling and invalid configurations."""
-
     def test_requires_calculator(self):
-        """Test that optimizer raises error without calculator."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         with pytest.raises(ValueError, match="calculator"):
             TrustKrylov(atoms, logfile=None)
 
     def test_invalid_method(self):
-        """Test that invalid method raises error."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -296,7 +279,6 @@ class TestOptimizerErrors:
 
     @pytest.mark.parametrize("update_freq", [-1, 0])
     def test_invalid_update_frequency(self, update_freq):
-        """Test that invalid update frequencies are handled correctly."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -306,14 +288,11 @@ class TestOptimizerErrors:
 
 
 class TestSciPyOptimizerVerboseMode:
-    """Test verbose mode and logging paths."""
-
     @pytest.mark.parametrize(
         ("verbose", "logfile", "expected_verbose"),
         [(0, "-", 0), (2, None, 2)],
     )
     def test_verbose_mode_settings(self, verbose, logfile, expected_verbose):
-        """Test different verbose mode settings."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -332,7 +311,6 @@ class TestSciPyOptimizerVerboseMode:
 
     @pytest.mark.parametrize("optimizer_class", [TrustKrylov, TrustNCG, TrustExact, NewtonCG])
     def test_verbose_logging_in_optimization(self, optimizer_class):
-        """Test verbose logging during optimization."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -345,10 +323,7 @@ class TestSciPyOptimizerVerboseMode:
 
 
 class TestAdaptiveHessianUpdates:
-    """Test adaptive Hessian update logic."""
-
     def test_adaptive_hessian_force_increase_trigger(self):
-        """Test adaptive Hessian triggers on force increase."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -374,7 +349,6 @@ class TestAdaptiveHessianUpdates:
             assert opt.hessian_calls >= 1
 
     def test_adaptive_hessian_periodic_update(self):
-        """Test adaptive Hessian with periodic updates."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -402,7 +376,6 @@ class TestAdaptiveHessianUpdates:
             assert opt.hessian_calls > _initial_calls
 
     def test_adaptive_hessian_no_force_increase(self):
-        """Test adaptive Hessian doesn't update when forces decrease."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -430,10 +403,7 @@ class TestAdaptiveHessianUpdates:
 
 
 class TestBFGSUpdates:
-    """Test BFGS approximate Hessian updates."""
-
     def test_bfgs_update_basic(self):
-        """Test basic BFGS update."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -467,7 +437,6 @@ class TestBFGSUpdates:
         assert opt.bfgs_updates >= 0  # May be 0 if sy too small
 
     def test_bfgs_update_small_sy(self):
-        """Test BFGS update skipped when sy is too small."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -501,10 +470,7 @@ class TestBFGSUpdates:
 
 
 class TestHessianErrorPaths:
-    """Test Hessian computation error paths."""
-
     def test_hessian_none_raises_error(self):
-        """Test that None Hessian after logic raises error."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -530,10 +496,7 @@ class TestHessianErrorPaths:
 
 
 class TestConvergedErrorHandling:
-    """Test ConvergedError handling."""
-
     def test_converged_error_raised_in_callback(self):
-        """Test ConvergedError is raised when converged."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -561,7 +524,6 @@ class TestConvergedErrorHandling:
                 opt.callback(x)
 
     def test_converged_error_caught_in_run(self):
-        """Test ConvergedError is caught in run() method."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -579,10 +541,7 @@ class TestConvergedErrorHandling:
 
 
 class TestInitialHessian:
-    """Test initial Hessian handling."""
-
     def test_initial_hessian_provided(self):
-        """Test optimizer with provided initial Hessian."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -599,14 +558,11 @@ class TestInitialHessian:
 
 
 class TestAlphaScaling:
-    """Test alpha scaling factor."""
-
     @pytest.mark.parametrize(
         ("function_name", "expected_factor"),
         [("objective", 1.0 / 2.0), ("gradient", -1.0 / 2.0)],
     )
     def test_alpha_scaling(self, function_name, expected_factor):
-        """Test alpha scaling in objective and gradient functions."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -625,10 +581,7 @@ class TestAlphaScaling:
 
 
 class TestGetCurrentFmax:
-    """Test _get_current_fmax method."""
-
     def test_get_current_fmax_success(self):
-        """Test _get_current_fmax returns max force."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -639,7 +592,6 @@ class TestGetCurrentFmax:
         assert fmax >= 0
 
     def test_get_current_fmax_failure_returns_none(self):
-        """Test _get_current_fmax returns None on error."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -652,10 +604,7 @@ class TestGetCurrentFmax:
 
 
 class TestTrustKrylovTS:
-    """Test TrustKrylovTS transition state optimizer."""
-
     def test_trust_krylov_ts_initialization(self):
-        """Test TrustKrylovTS initialization."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -670,7 +619,6 @@ class TestTrustKrylovTS:
         assert opt._ts_index_tolerance == 1e-3
 
     def test_trust_krylov_ts_set_transition_mode(self):
-        """Test setting transition mode manually."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -684,7 +632,6 @@ class TestTrustKrylovTS:
         assert opt._ts_manual_mode_override is True
 
     def test_trust_krylov_ts_set_transition_mode_invalid_length(self):
-        """Test set_transition_mode with invalid length."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -696,7 +643,6 @@ class TestTrustKrylovTS:
             opt.set_transition_mode(mode)
 
     def test_trust_krylov_ts_set_transition_mode_zero_norm(self):
-        """Test set_transition_mode with zero norm."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -708,7 +654,6 @@ class TestTrustKrylovTS:
             opt.set_transition_mode(mode)
 
     def test_trust_krylov_ts_get_transition_mode(self):
-        """Test getting transition mode."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -728,7 +673,6 @@ class TestTrustKrylovTS:
         assert np.linalg.norm(mode_out) == pytest.approx(1.0)
 
     def test_trust_krylov_ts_get_transition_mode_info(self):
-        """Test getting transition mode info."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -743,7 +687,6 @@ class TestTrustKrylovTS:
         assert "manual_override" in info
 
     def test_trust_krylov_ts_reflect_along_mode(self):
-        """Test _reflect_along_mode static method."""
         mode = np.array([1.0, 0.0, 0.0])
         vector = np.array([1.0, 1.0, 0.0])
 
@@ -754,7 +697,6 @@ class TestTrustKrylovTS:
         assert np.allclose(reflected, expected)
 
     def test_trust_krylov_ts_gradient_reflection(self):
-        """Test gradient reflection in TS mode."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -773,7 +715,6 @@ class TestTrustKrylovTS:
         assert opt._ts_last_raw_gradient is not None
 
     def test_trust_krylov_ts_hessian_stabilization(self):
-        """Test Hessian stabilization in TS mode."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -798,10 +739,7 @@ class TestTrustKrylovTS:
 
 
 class TestRunMethodEdgeCases:
-    """Test run() method edge cases."""
-
     def test_run_with_nsteps_already_set(self):
-        """Test run() when nsteps is already non-zero."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -815,7 +753,6 @@ class TestRunMethodEdgeCases:
         assert opt.nsteps >= 5
 
     def test_run_verbose_logging(self):
-        """Test run() verbose logging paths."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -826,7 +763,6 @@ class TestRunMethodEdgeCases:
         assert isinstance(result, bool)
 
     def test_run_converged_at_end(self):
-        """Test run() when converged at end."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -839,7 +775,6 @@ class TestRunMethodEdgeCases:
         # Might converge or not depending on forces
 
     def test_run_not_converged_warning(self):
-        """Test run() warning when not converged."""
         atoms = TestMoleculeFactory.get_h2o_equilibrium()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -854,10 +789,7 @@ class TestRunMethodEdgeCases:
 
 
 class TestRFOTransitionState:
-    """Test RFOTransitionState transition state optimizer."""
-
     def test_rfo_initialization(self):
-        """Test RFOTransitionState initialization."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -874,7 +806,6 @@ class TestRFOTransitionState:
         assert opt.max_trust_radius == 0.06
 
     def test_rfo_positions_conversion(self):
-        """Test position array conversion methods."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
         opt = RFOTransitionState(atoms, logfile=None)
@@ -887,7 +818,6 @@ class TestRFOTransitionState:
         assert np.allclose(positions_back, atoms.positions)
 
     def test_rfo_gradient_function(self):
-        """Test gradient function returns negative forces."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
         opt = RFOTransitionState(atoms, logfile=None)
@@ -900,7 +830,6 @@ class TestRFOTransitionState:
         assert np.allclose(grad, expected_grad)
 
     def test_rfo_hessian_computation(self):
-        """Test Hessian computation and symmetry."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
         opt = RFOTransitionState(atoms, logfile=None)
@@ -912,7 +841,6 @@ class TestRFOTransitionState:
         assert opt.hessian_calls == 1
 
     def test_rfo_hessian_caching(self):
-        """Test that Hessian is cached when update_freq is set."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
         opt = RFOTransitionState(atoms, logfile=None, hessian_update_freq=5)
@@ -931,7 +859,6 @@ class TestRFOTransitionState:
         assert opt.hessian_calls == 1  # Still only 1 full Hessian
 
     def test_rfo_convergence(self):
-        """Test basic convergence check."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
         opt = RFOTransitionState(atoms, logfile=None)
@@ -944,7 +871,6 @@ class TestRFOTransitionState:
         assert not opt.converged(np.array([0.1, 0.1, 0.1]))
 
     def test_rfo_hessian_update_frequency(self):
-        """Test Hessian update frequency modes."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
         opt = RFOTransitionState(atoms, logfile=None, hessian_update_freq=3)
@@ -964,7 +890,6 @@ class TestRFOTransitionState:
         assert opt.hessian_calls >= 2
 
     def test_rfo_basic_optimization_run(self):
-        """Test that RFO optimizer can run without errors."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
         opt = RFOTransitionState(atoms, logfile=None, hessian_update_freq=5)
@@ -978,7 +903,6 @@ class TestRFOTransitionState:
         assert opt.nsteps > 0
 
     def test_rfo_step_counting(self):
-        """Test that step counter increments correctly."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
         opt = RFOTransitionState(atoms, logfile=None)
@@ -990,7 +914,6 @@ class TestRFOTransitionState:
         assert opt.get_number_of_steps() == opt.nsteps
 
     def test_rfo_optimization_quality(self):
-        """Test that RFO optimizer actually optimizes and achieves reasonable convergence."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -1019,13 +942,11 @@ class TestRFOTransitionState:
         StandardTestAssertions.assert_forces_reasonable(forces, backend="mock")
 
     def test_rfo_requires_calculator(self):
-        """Test that optimizer raises error without calculator."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         with pytest.raises(ValueError, match="calculator"):
             RFOTransitionState(atoms, logfile=None)
 
     def test_rfo_initial_hessian_provided(self):
-        """Test optimizer with provided initial Hessian."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -1041,7 +962,6 @@ class TestRFOTransitionState:
         assert hessian is not None
 
     def test_rfo_trust_radius_adjustment(self):
-        """Test trust radius adjustment logic."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -1060,7 +980,6 @@ class TestRFOTransitionState:
         assert opt.trust_radius <= 0.01
 
     def test_rfo_step_quality_computation(self):
-        """Test step quality factor computation."""
         atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
         atoms.calc = qme.MockCalculator(backend="mock")
 
@@ -1074,12 +993,12 @@ class TestRFOTransitionState:
         predicted_quadratic = 0.5 * np.dot(step, hessian @ step)
         predicted_linear = np.dot(step, gradient)
         predicted_change = predicted_quadratic + predicted_linear
-        Q = opt._compute_step_quality(predicted_change, step, gradient, hessian)
-        assert 0.5 <= Q <= 1.0
+        quality = opt._compute_step_quality(predicted_change, step, gradient, hessian)
+        assert 0.5 <= quality <= 1.0
 
         # Poor step: actual much different from predicted
-        # Use a smaller multiplier to keep Q >= 0 (avoid very poor steps with Q < 0)
+        # Use a smaller multiplier to keep quality >= 0 (avoid very poor steps with quality < 0)
         poor_actual = predicted_change * 2.5  # Different from predicted but not extreme
-        Q = opt._compute_step_quality(poor_actual, step, gradient, hessian)
-        # Q can be negative for very poor steps, so just check it's less than good
-        assert Q < 0.5  # Should be poor (Q < 0.5) or very poor (Q < 0)
+        quality = opt._compute_step_quality(poor_actual, step, gradient, hessian)
+        # quality can be negative for very poor steps, so just check it's less than good
+        assert quality < 0.5  # Should be poor (quality < 0.5) or very poor (quality < 0)

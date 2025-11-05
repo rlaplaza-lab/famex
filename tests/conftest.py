@@ -1,11 +1,3 @@
-"""Pytest configuration and shared fixtures for QME tests.
-
-This file provides:
-- Common test fixtures
-- Import path setup
-- Shared utilities
-"""
-
 import sys
 from pathlib import Path
 
@@ -17,6 +9,8 @@ sys.path.insert(0, str(root_dir))
 from tests.test_utils import (  # noqa: E402
     BackendTestRunner,
     BackendTestWarning,
+    HarmonicCalculator,
+    NoisyCalculator,
     StandardTestAssertions,
     TestMoleculeFactory,
     assert_backend_calculator,
@@ -29,6 +23,8 @@ from tests.test_utils import (  # noqa: E402
 __all__ = [
     "BackendTestRunner",
     "BackendTestWarning",
+    "HarmonicCalculator",
+    "NoisyCalculator",
     "StandardTestAssertions",
     "TestMoleculeFactory",
     "assert_backend_calculator",

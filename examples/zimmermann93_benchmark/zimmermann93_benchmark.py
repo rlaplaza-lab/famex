@@ -30,10 +30,7 @@ from ase import Atoms
 from ase.io import read
 
 # Import QME components
-try:
-    from qme import Explorer, calculator_registry
-except ImportError:
-    sys.exit(1)
+from qme import Explorer, calculator_registry
 
 # Import common interface
 from qme.example_utils import QMEExampleInterface, create_standard_epilog
@@ -163,8 +160,6 @@ class Zimmermann93Benchmark:
 
     def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
         """Print a formatted summary of backends."""
-        for _i, _backend in enumerate(backends, 1):
-            pass
 
     def run_benchmark(
         self,
@@ -579,17 +574,14 @@ def main() -> int:
     interface.print_header("Two-Ended Transition State Search")
 
     # Determine backends to test
-    if args.backends:
-        requested_backends = [b.strip() for b in args.backends.split(",")]
-        backends = interface.filter_available_backends(requested_backends, verbose=args.verbose)
-        if not backends:
-            interface.print_error("No requested backends are available!")
-            return 1
-    else:
-        backends = interface.get_available_ml_backends()
-        if not backends:
-            interface.print_error("No ML backends available!")
-            return 1
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    _backend, backends = interface.select_backend(
+        requested_backends=requested,
+        verbose=args.verbose,
+    )
+    if not backends:
+        interface.print_error("No ML backends available!")
+        return 1
 
     interface.print_backend_summary(backends, "Benchmarking Backends")
 

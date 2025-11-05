@@ -94,7 +94,7 @@ class LocalTSStrategy(BaseStrategy):
         # Accept either a single Atoms instance or a list of them
         single_input = False
         if not isinstance(atoms_list, list | tuple):
-            single_input = True
+            single_input = True  # type: ignore[unreachable]
             atoms_iter = [atoms_list]
         else:
             atoms_iter = atoms_list
@@ -208,7 +208,7 @@ class LocalTSStrategy(BaseStrategy):
             converged_flags.append(converged)
 
         # Validate TS structures if requested
-        validation_results = []
+        validation_results: list[dict[str, Any] | None] = []
         if validate_ts:
             with self.profiler.profile_section("ts_validation") if self.profiler else nullcontext():
                 for atoms_copy in results:

@@ -1,4 +1,4 @@
-"""Security tests for path traversal vulnerabilities."""
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path
@@ -15,8 +15,6 @@ from qme.utils.path_security import (
 
 
 class TestPathSanitization:
-    """Test path sanitization functions."""
-
     def test_sanitize_filename_basic(self):
         assert sanitize_filename("model.jpt") == "model.jpt"
         assert sanitize_filename("model-v2_final.jpt") == "model-v2_final.jpt"
@@ -33,12 +31,10 @@ class TestPathSanitization:
         assert sanitize_filename("model$PATH.txt") == "model_PATH.txt"
 
     def test_sanitize_filename_null_byte(self):
-        # Null bytes should be removed
         result = sanitize_filename("model\x00.jpt")
         assert "\x00" not in result
 
     def test_sanitize_filename_unicode_attacks(self):
-        # Test various Unicode normalization attacks
         assert sanitize_filename("model\u202e.jpt") == "model_.jpt"  # Right-to-left override
         assert sanitize_filename("model\ufeff.jpt") == "model_.jpt"  # Zero-width no-break space
 
@@ -90,8 +86,6 @@ class TestPathSanitization:
 
 
 class TestModelCachePathTraversal:
-    """Test ModelCache against path traversal attacks."""
-
     def test_cache_model_with_traversal_name(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)

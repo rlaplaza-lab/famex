@@ -12,6 +12,7 @@ from typing import Any, Protocol
 import numpy as np
 from ase import Atoms
 
+from qme.analysis.utils import has_calculator_property, validate_indices
 from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
@@ -87,14 +88,8 @@ def compare_hessian_methods(
     if methods is None:
         methods = []
         # Check for analytical Hessian
-        if hasattr(calculator, "get_hessian") or hasattr(calculator, "implemented_properties"):
-            if (
-                hasattr(calculator, "implemented_properties")
-                and "hessian" in calculator.implemented_properties
-                or hasattr(calculator, "get_hessian")
-            ):
-                methods.append("analytical")
-
+        if has_calculator_property(calculator, "hessian"):
+            methods.append("analytical")
         # Add FD methods
         methods.extend(["force_fd", "adaptive"])
 
@@ -138,7 +133,7 @@ def compare_hessian_methods(
         "metrics": metrics,
         "recommendations": recommendations,
         "atoms": atoms,  # Store for frequency comparison
-        "indices": indices if indices is not None else list(range(len(atoms))),
+        "indices": validate_indices(atoms, indices),
     }
 
 
@@ -221,16 +216,13 @@ def _compute_quality_metrics(hessian: np.ndarray) -> dict[str, float]:
     max_asymmetry = float(np.max(asymmetry))
 
     # Condition number
-    try:
-        eigenvalues = np.linalg.eigvals(hessian)
-        eigenvalues = eigenvalues[np.isfinite(eigenvalues)]
-        eigenvalues_abs = np.abs(eigenvalues)
-        eigenvalues_abs = eigenvalues_abs[eigenvalues_abs > 0]
-        if len(eigenvalues_abs) > 0:
-            condition_number = float(np.max(eigenvalues_abs) / np.min(eigenvalues_abs))
-        else:
-            condition_number = float("inf")
-    except Exception:
+    eigenvalues = np.linalg.eigvals(hessian)
+    eigenvalues = eigenvalues[np.isfinite(eigenvalues)]
+    eigenvalues_abs = np.abs(eigenvalues)
+    eigenvalues_abs = eigenvalues_abs[eigenvalues_abs > 0]
+    if len(eigenvalues_abs) > 0:
+        condition_number = float(np.max(eigenvalues_abs) / np.min(eigenvalues_abs))
+    else:
         condition_number = float("inf")
 
     # NaN/Inf check
@@ -274,7 +266,7 @@ def _generate_recommendations(
         return []
 
     # Score each method (higher is better)
-    scores = {}
+    scores: dict[str, float] = {}
 
     for method, metric in metrics.items():
         score = 0.0

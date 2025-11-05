@@ -1,25 +1,5 @@
 #!/usr/bin/env python3
-"""QME CLI Demo - Comprehensive Backend Comparison.
-
-This example demonstrates QME's command-line interface capabilities by running
-various optimization tasks across all available ML backends and comparing their
-performance and reliability.
-
-Features:
-    - Structure optimization using 'minima' command
-    - Transition state optimization using 'ts' command with multiple strategies:
-      * Local TS optimization
-      * Two-ended TS optimization via interpolation
-      * Growing String Method (GSM) for TS optimization
-    - Two-ended optimization workflows
-    - Reaction path optimization using 'path' command with different strategies:
-      * Raw interpolation path generation (interpolate strategy)
-      * NEB path optimization (neb strategy)
-      * CI-NEB (Climbing Image NEB) path optimization (cineb strategy)
-      * IRC path from transition state (irc strategy)
-    - Trajectory saving for multi-image results
-    - Comprehensive backend performance comparison
-"""
+"""QME CLI Demo - Comprehensive Backend Comparison."""
 
 import os
 import subprocess
@@ -27,24 +7,13 @@ import sys
 import time
 from pathlib import Path
 
-# Disable ASE GUI to prevent popup windows
-os.environ["DISPLAY"] = ""
-os.environ["MPLBACKEND"] = "Agg"
-
 # Import common interface
-try:
-    from qme.example_utils import QMEExampleInterface, create_standard_epilog
-except ImportError:
-    sys.exit(1)
+from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
 
 
-def print_backend_summary(backends: list[str], title: str = "Available Backends") -> None:
-    """Print a formatted summary of backends."""
-    for _i, _backend in enumerate(backends, 1):
-        pass
-
-
-def run_command(cmd, desc, backend, timeout=600) -> tuple[bool, float, str, str]:
+def run_command(
+    cmd: list[str], desc: str, backend: str, timeout: int = 600
+) -> tuple[bool, float, str, str]:
     """Run a CLI command and report results."""
     try:
         start_time = time.time()
@@ -67,8 +36,6 @@ def run_command(cmd, desc, backend, timeout=600) -> tuple[bool, float, str, str]
 
         if result.returncode == 0:
             return True, runtime, result.stdout, result.stderr
-        if result.stderr:
-            pass
         return False, runtime, result.stdout, result.stderr
 
     except subprocess.TimeoutExpired as e:
@@ -92,15 +59,7 @@ def run_command(cmd, desc, backend, timeout=600) -> tuple[bool, float, str, str]
 
 
 def create_example_commands(example_files: Path, backend: str, steps: int = 500) -> list[dict]:
-    """Create example commands for a specific backend using default settings.
-
-    Notes:
-    -----
-    - TS optimizations are not supported on the 'mock' backend. We skip
-      'tsopt' examples when backend == 'mock' to avoid hard errors. Timeouts
-      are acceptable for heavy runs, but CLI argument mistakes are not.
-
-    """
+    """Create example commands for a specific backend."""
     # Prefer custom TS file if present, otherwise fall back to bundled example
     ts_input = str(example_files / "A_C_A_B_A_C_ts.xyz")
 
@@ -310,7 +269,9 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
     return commands
 
 
-def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface = None):
+def demo_cli(
+    backends: list[str] | None = None, interface: QMEExampleInterface | None = None
+) -> bool:
     """Demonstrate QME CLI with commands using default settings."""
     if interface is None:
         interface = QMEExampleInterface("CLI Demo", "Comprehensive Backend Comparison")
@@ -321,9 +282,15 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
     if backends:
         available_backends = backends
     else:
-        from qme.backends.availability import get_available_backends
+        # Use interface to get available backends
+        _, available_backends = interface.select_backend(
+            requested_backends=None,
+            verbose=interface.verbose if hasattr(interface, "verbose") else 1,
+        )
+        if not available_backends:
+            from qme.backends.availability import get_available_backends
 
-        available_backends = get_available_backends()
+            available_backends = get_available_backends()
 
     if not available_backends:
         interface.print_error("No ML backends available for comparison.")
@@ -386,8 +353,8 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
 
         backend_start_time = time.time()
 
-        for _i, example in enumerate(examples, 1):
-            print(f"\nRunning example {_i}/{len(examples)}: {example['desc']}", flush=True)
+        for i, example in enumerate(examples, 1):
+            print(f"\nRunning example {i}/{len(examples)}: {example['desc']}", flush=True)
             success, runtime, stdout, stderr = run_command(example["cmd"], example["desc"], backend)
 
             backend_results[backend]["examples"].append(
@@ -423,27 +390,6 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
     total_time = time.time() - total_start_time
     print(f"\nOverall completion time: {total_time:.2f}s", flush=True)
 
-    # Overall comparison summary
-
-    for backend in available_backends:
-        results = backend_results[backend]
-        results["total_time"] / len(results["examples"]) if results["examples"] else 0
-
-    # Find best performing backend
-    successful_backends = [
-        (backend, results)
-        for backend, results in backend_results.items()
-        if results["successful"] > 0
-    ]
-
-    if successful_backends:
-        # Sort by success rate, then by speed
-        best_backend = max(
-            successful_backends,
-            key=lambda x: (x[1]["successful"], -x[1]["total_time"]),
-        )
-        best_backend[1]["successful"] + best_backend[1]["failed"]
-
     # Check if all backends had some success
     total_successful = sum(results["successful"] for results in backend_results.values())
     total_tests = len(available_backends) * total_examples_per_backend
@@ -455,6 +401,7 @@ def demo_cli(backends: list[str] | None = None, interface: QMEExampleInterface =
     return success_rate > 0.3  # At least 30% working
 
 
+@setup_example_environment
 def main() -> int | None:
     """Main entry point with argument parsing."""
     # Create standardized interface
@@ -470,10 +417,14 @@ def main() -> int | None:
     # Set up logging based on verbosity level
     interface.setup_logging(args.verbose)
 
-    # Parse backends if provided
-    backends = None
-    if args.backends:
-        backends = [b.strip() for b in args.backends.split(",")]
+    # Backend handling
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    _, backends = interface.select_backend(
+        requested_backends=requested,
+        verbose=args.verbose,
+    )
+    if not backends:
+        backends = None  # Will auto-detect in demo_cli
 
     try:
         success = demo_cli(backends, interface)

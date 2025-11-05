@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 
     import torch
     from ase import Atoms
+else:
+    torch = None  # type: ignore[assignment, misc]
 
 logger = get_qme_logger(__name__)
 
@@ -76,8 +78,8 @@ class UMAPotential(BasePotential):
             device = "cpu"  # Default device, will be auto-detected later if needed
 
         # Initialize UMA-specific attributes first
-        self.predictor = None
-        self._calc = None
+        self.predictor: Any = None
+        self._calc: Any = None
         self.default_charge = default_charge
         self.default_spin = default_spin
 
@@ -92,18 +94,20 @@ class UMAPotential(BasePotential):
         precision : str
             Precision to set ('float32' or 'double')
         """
-        if self.predictor is not None and hasattr(self.predictor, "model"):
-            model = self.predictor.model
-            if precision == "float32" and hasattr(model, "float"):
-                model.float()
-            elif precision == "double" and hasattr(model, "double"):
-                model.double()
+        if self.predictor is not None:
+            if hasattr(self.predictor, "model"):
+                model = self.predictor.model
+                if precision == "float32" and hasattr(model, "float"):
+                    model.float()
+                elif precision == "double" and hasattr(model, "double"):
+                    model.double()
 
     def _load_calculator(self) -> None:
         """Load the UMA model from fairchem v2 API."""
         # Skip if already loaded
-        if hasattr(self, "_calc") and self._calc is not None:
-            return
+        if hasattr(self, "_calc"):
+            if self._calc is not None:
+                return
 
         from qme.utils.ml_warnings import quiet_backend_loading
 
@@ -225,11 +229,11 @@ class UMAPotential(BasePotential):
         # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
-
-        if self._calc is None:
-            logger.error("Failed to load UMA calculator")
-            msg = "Failed to load UMA calculator"
-            raise RuntimeError(msg)
+            # After loading, _calc should be set (or exception was raised)
+            if self._calc is None:
+                logger.error("Failed to load UMA calculator")
+                msg = "Failed to load UMA calculator"
+                raise RuntimeError(msg)
 
         # Use the underlying calculator directly
         try:
@@ -252,11 +256,12 @@ class UMAPotential(BasePotential):
                 raise
 
         # Extract results from the underlying calculator
-        if "energy" in properties:
-            self.results["energy"] = self._calc.results["energy"]
+        if properties is not None:
+            if "energy" in properties:
+                self.results["energy"] = self._calc.results["energy"]
 
-        if "forces" in properties:
-            self.results["forces"] = self._calc.results["forces"]
+            if "forces" in properties:
+                self.results["forces"] = self._calc.results["forces"]
 
     def _get_backend_name(self) -> str:
         """Get the backend name for UMA."""
@@ -310,13 +315,15 @@ class UMAPotential(BasePotential):
         # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
-
-        if self._calc is None:
-            logger.error("Failed to load UMA calculator for Hessian calculation")
-            msg = "Failed to load UMA calculator"
-            raise RuntimeError(msg)
+            # After loading, _calc should be set (or exception was raised)
+            if self._calc is None:
+                logger.error("Failed to load UMA calculator for Hessian calculation")
+                msg = "Failed to load UMA calculator"
+                raise RuntimeError(msg)
 
         # Set default charge and spin if not already set (ensure Python integers)
+        # BasePotential.calculate sets self.atoms, so it should not be None here
+        assert self.atoms is not None, "atoms should be set by base class calculate method"
         if self.atoms is not None:
             if "charge" not in self.atoms.info:
                 self.atoms.info["charge"] = int(self.default_charge)
@@ -563,13 +570,10 @@ class UMAPotential(BasePotential):
                 create_graph=False,
                 allow_unused=False,
             )[0]
+            # torch.autograd.grad with allow_unused=False should not return None
             hess_row = hess_row.detach()
-
-            if hess_row is None:
-                hessian.append(torch.zeros(num_elements, dtype=forces.dtype, device=forces.device))
-            else:
-                # Flatten to (3N,)
-                hessian.append(hess_row.view(-1))
+            # Flatten to (3N,)
+            hessian.append(hess_row.view(-1))
 
         return torch.stack(hessian)
 
@@ -651,13 +655,9 @@ class UMAPotential(BasePotential):
                 create_graph=False,
                 allow_unused=False,
             )[0]
-            if hess_row is not None:
-                # Negative sign: Hessian = -∂forces/∂positions
-                hessian_list.append((-hess_row).view(-1))
-            else:
-                hessian_list.append(
-                    torch.zeros(num_elements, dtype=forces.dtype, device=forces.device)
-                )
+            # torch.autograd.grad with allow_unused=False should not return None
+            # Negative sign: Hessian = -∂forces/∂positions
+            hessian_list.append((-hess_row).view(-1))
 
         hessian = torch.stack(hessian_list)
 

@@ -106,15 +106,34 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
 
         # Validate TS structure if requested
         validation_result = None
+        optimized_atoms = ts_result["optimized_atoms"]
         if validate_ts:
-            validation_result = validate_ts_structure(ts_result["optimized_atoms"], self.explorer)
+            # Type narrowing: validate_ts_structure expects Atoms
+            if isinstance(optimized_atoms, Atoms):
+                validation_result = validate_ts_structure(optimized_atoms, self.explorer)
 
         # Return single TS structure
-        result = self.prepare_result(
-            ts_result["optimized_atoms"],
-            steps_taken=ts_result["steps_taken"],
-            converged=ts_result["converged"],
-        )
+        # Type narrowing: prepare_result expects Atoms | Sequence[Atoms]
+        if isinstance(optimized_atoms, Atoms) or (
+            isinstance(optimized_atoms, list) and all(isinstance(a, Atoms) for a in optimized_atoms)
+        ):
+            result = self.prepare_result(
+                optimized_atoms,
+                steps_taken=ts_result["steps_taken"],
+                converged=ts_result["converged"],
+            )
+        else:
+            # Fallback: create result with original structure
+            from qme.core.base_strategy import BaseStrategy
+
+            result = BaseStrategy.prepare_result(
+                self,
+                optimized_atoms
+                if isinstance(optimized_atoms, (Atoms, list))
+                else self.explorer.atoms_list[0],
+                steps_taken=ts_result["steps_taken"],
+                converged=ts_result["converged"],
+            )
         if validation_result is not None:
             result["ts_validation"] = validation_result
         # Pass through frequency analysis results if available

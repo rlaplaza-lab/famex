@@ -13,6 +13,7 @@ import numpy as np
 from ase import Atoms
 from numpy.typing import NDArray
 
+from qme.analysis.utils import validate_indices
 from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
@@ -116,8 +117,7 @@ def estimate_force_noise(
     >>> if noise > 1e-4:
     ...     print("High force noise detected, may affect FD Hessians")
     """
-    if indices is None:
-        indices = list(range(len(atoms)))
+    indices = validate_indices(atoms, indices)
 
     # Get reference forces
     atoms_ref = atoms.copy()
@@ -147,9 +147,8 @@ def estimate_force_noise(
             continue
 
     if len(noise_samples) == 0:
-        # All calculations failed, return high noise estimate
-        logger.warning("All force noise samples failed, assuming high noise")
-        return 1.0
+        msg = "All force noise samples failed. Cannot estimate noise."
+        raise RuntimeError(msg)
 
     # RMS noise across all samples
     noise_array = np.array(noise_samples)
@@ -217,17 +216,16 @@ def estimate_optimal_delta(
         msg = f"Invalid delta_range: min_delta ({min_delta}) >= max_delta ({max_delta})"
         raise ValueError(msg)
 
-    # Select finite difference scheme
+    # Select finite difference scheme class
     if method == "central":
-        scheme = CentralDifferenceScheme()
+        scheme_class: type = CentralDifferenceScheme
     elif method == "5point":
-        scheme = FivePointCentralDifferenceScheme()
+        scheme_class = FivePointCentralDifferenceScheme
     else:
         msg = f"Unknown method '{method}', use 'central' or '5point'"
         raise ValueError(msg)
 
-    if indices is None:
-        indices = list(range(len(atoms)))
+    indices = validate_indices(atoms, indices)
 
     best_delta = 0.01  # Reasonable default
     best_noise = float("inf")
@@ -250,9 +248,11 @@ def estimate_optimal_delta(
         # Compute Hessians at both deltas
         try:
             hessian_current = _compute_hessian_at_delta(
-                atoms, calculator, current_delta, scheme, indices
+                atoms, calculator, current_delta, scheme_class, indices
             )
-            hessian_half = _compute_hessian_at_delta(atoms, calculator, half_delta, scheme, indices)
+            hessian_half = _compute_hessian_at_delta(
+                atoms, calculator, half_delta, scheme_class, indices
+            )
 
             # Estimate noise
             noise_estimate = estimate_richardson_noise(hessian_current, hessian_half)

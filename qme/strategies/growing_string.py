@@ -51,8 +51,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         refine_ts: bool = kwargs.get("refine_ts", True)
 
         # Enforce exactly two structures (reactant, product)
-        if isinstance(atoms_list, Atoms):
-            msg = "Growing string method requires two Atoms objects (reactant and product)"
+        if isinstance(atoms_list, Atoms):  # type: ignore[unreachable]
+            msg = "Growing string method requires two Atoms objects (reactant and product)"  # type: ignore[unreachable]
             raise ValueError(
                 msg,
             )
@@ -232,16 +232,37 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         # Validate TS structure if requested
         validation_result = None
         if validate_ts:
-            validation_result = validate_ts_structure(ts_structure, self.explorer)
+            # Type narrowing: validate_ts_structure expects Atoms
+            if isinstance(ts_structure, Atoms):
+                validation_result = validate_ts_structure(ts_structure, self.explorer)
 
-        result = self.prepare_result(
-            ts_structure,
-            converged=ts_converged,
-            trajectory=full_path,
-            forward_string=forward_string,
-            backward_string=backward_string,
-            strings_met=converged,
-        )
+        # Type narrowing: prepare_result expects Atoms | Sequence[Atoms]
+        if isinstance(ts_structure, Atoms) or (
+            isinstance(ts_structure, list) and all(isinstance(a, Atoms) for a in ts_structure)
+        ):
+            result = self.prepare_result(
+                ts_structure,
+                converged=ts_converged,
+                trajectory=full_path,
+                forward_string=forward_string,
+                backward_string=backward_string,
+                strings_met=converged,
+            )
+        else:
+            # Fallback: create result with original structure
+            from qme.core.base_strategy import BaseStrategy
+
+            result = BaseStrategy.prepare_result(
+                self,
+                ts_structure
+                if isinstance(ts_structure, (Atoms, list))
+                else self.explorer.atoms_list[0],
+                converged=ts_converged,
+                trajectory=full_path,
+                forward_string=forward_string,
+                backward_string=backward_string,
+                strings_met=converged,
+            )
         if validation_result is not None:
             result["ts_validation"] = validation_result
         # Pass through frequency analysis results if available

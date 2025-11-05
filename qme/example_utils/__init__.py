@@ -6,11 +6,16 @@ functionality across all QME examples to ensure consistency.
 """
 
 import argparse
+import contextlib
+import functools
 import json
+import os
 import time
-from collections.abc import Callable, Sequence, Sized
+from collections.abc import Callable, Generator, Sequence, Sized
 from pathlib import Path
 from typing import Any
+
+from ase import Atoms
 
 # Import QME components
 from qme.backends.availability import is_backend_available
@@ -125,16 +130,26 @@ class QMEExampleInterface:
         """Print standardized warning message."""
         logger.warning("\n⚠️  %s", message)
 
-    def save_results(self, results: dict[str, Any], output_file: str | None = None) -> None:
-        """Save results to JSON file."""
+    def save_results(
+        self, results: dict[str, Any] | list[dict[str, Any]], output_file: str | None = None
+    ) -> None:
+        """Save results to JSON file.
+
+        Parameters
+        ----------
+        results : dict[str, Any] | list[dict[str, Any]]
+            Results to save (can be a dict or list of dicts)
+        output_file : str | None
+            Output file path (default: auto-generated based on example name)
+        """
         if output_file is None:
-            output_file = f"{self.name.lower().replace(' ', '_')}_results.json"
+            output_file = self.get_default_output_file()
 
         output_path = Path(output_file)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(output_path, "w") as f:
-            json.dump(results, f, indent=2)
+            json.dump(results, f, indent=2, default=str)
 
     def get_default_output_file(self) -> str:
         """Get default output file name for this example."""
@@ -151,6 +166,37 @@ class QMEExampleInterface:
         from qme.utils.logging import setup_qme_logging
 
         setup_qme_logging(verbosity=verbose)
+
+    def select_backend(
+        self,
+        requested_backends: list[str] | None,
+        preferred_backends: list[str] | None = None,
+        required_backends: list[str] | None = None,
+        verbose: int = 1,
+    ) -> tuple[str | None, list[str]]:
+        """Select a backend with fallback logic.
+
+        Convenience method that wraps select_backend_with_fallback.
+
+        Parameters
+        ----------
+        requested_backends : list[str] | None
+            Backends requested by user (from --backends argument)
+        preferred_backends : list[str] | None
+            Preferred backends in order of preference (default: None, auto-select)
+        required_backends : list[str] | None
+            Backends that must be available (default: None)
+        verbose : int
+            Verbosity level
+
+        Returns:
+        -------
+        tuple[str | None, list[str]]
+            Selected backend (or None if none available) and list of all available backends
+        """
+        return select_backend_with_fallback(
+            self, requested_backends, preferred_backends, required_backends, verbose
+        )
 
 
 def create_standard_epilog(example_type: str) -> str:
@@ -356,9 +402,12 @@ def benchmark_optimization(
                 temp_calc = create_calculator(
                     backend=backend,
                     model_name=model_name,
+                    model_path=None,
                     device=device,
+                    default_charge=charge,
+                    default_spin=spin,
                     charge=charge,
-                    spin=spin,
+                    mult=spin,  # mult = 2*spin + 1, but for now pass spin as mult
                 )
                 structure.calc = temp_calc
 
@@ -659,3 +708,220 @@ def benchmark_optimization(
         results["error"] = str(e)
 
     return results
+
+
+def create_water_molecule() -> Atoms:
+    """Create a standard water molecule for testing."""
+    return Atoms(
+        symbols="OHH",
+        positions=[
+            [0.0, 0.0, 0.0],
+            [0.96, 0.0, 0.0],
+            [0.24, 0.93, 0.0],
+        ],
+    )
+
+
+def create_methane_molecule() -> Atoms:
+    """Create a standard methane molecule for testing."""
+    return Atoms(
+        symbols="CHHHH",
+        positions=[
+            [0.0, 0.0, 0.0],
+            [1.09, 0.0, 0.0],
+            [-0.36, 1.03, 0.0],
+            [-0.36, -0.51, 0.89],
+            [-0.36, -0.51, -0.89],
+        ],
+    )
+
+
+def setup_example_environment(func: Callable | None = None) -> Callable:
+    """Decorator/context manager to set up environment for examples.
+
+    Disables GUI popups and sets up headless operation for matplotlib/ASE.
+    Can be used as a decorator or context manager.
+
+    Parameters
+    ----------
+    func : callable, optional
+        Function to decorate. If None, returns a context manager.
+
+    Examples:
+    --------
+    As decorator:
+        @setup_example_environment
+        def main():
+            # Your code here
+            pass
+
+    As context manager:
+        with setup_example_environment():
+            # Your code here
+            pass
+    """
+    # Store original environment variables
+    original_display = os.environ.get("DISPLAY")
+    original_mplbackend = os.environ.get("MPLBACKEND")
+    original_qt = os.environ.get("QT_QPA_PLATFORM")
+
+    def _setup() -> None:
+        """Set environment variables for headless operation."""
+        os.environ["DISPLAY"] = ""
+        os.environ["MPLBACKEND"] = "Agg"
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+    def _restore() -> None:
+        """Restore original environment variables."""
+        if original_display is not None:
+            os.environ["DISPLAY"] = original_display
+        elif "DISPLAY" in os.environ:
+            del os.environ["DISPLAY"]
+
+        if original_mplbackend is not None:
+            os.environ["MPLBACKEND"] = original_mplbackend
+        elif "MPLBACKEND" in os.environ:
+            del os.environ["MPLBACKEND"]
+
+        if original_qt is not None:
+            os.environ["QT_QPA_PLATFORM"] = original_qt
+        elif "QT_QPA_PLATFORM" in os.environ:
+            del os.environ["QT_QPA_PLATFORM"]
+
+    @contextlib.contextmanager
+    def _context_manager() -> Generator[None, None, None]:
+        """Context manager for environment setup."""
+        _setup()
+        try:
+            yield
+        finally:
+            _restore()
+
+    if func is None:
+        # Used as context manager
+        return _context_manager()
+
+    # Used as decorator
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        _setup()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            _restore()
+
+    return wrapper
+
+
+def select_backend_with_fallback(
+    interface: QMEExampleInterface,
+    requested_backends: list[str] | None,
+    preferred_backends: list[str] | None = None,
+    required_backends: list[str] | None = None,
+    verbose: int = 1,
+) -> tuple[str | None, list[str]]:
+    """Select a backend with fallback logic.
+
+    Parameters
+    ----------
+    interface : QMEExampleInterface
+        Example interface instance
+    requested_backends : list[str] | None
+        Backends requested by user (from --backends argument)
+    preferred_backends : list[str] | None
+        Preferred backends in order of preference (default: None, auto-select)
+    required_backends : list[str] | None
+        Backends that must be available (default: None)
+    verbose : int
+        Verbosity level
+
+    Returns:
+    -------
+    tuple[str | None, list[str]]
+        Selected backend (or None if none available) and list of all available backends
+    """
+    # Get available ML backends
+    available_backends = interface.get_available_ml_backends()
+
+    # If user requested specific backends, filter to available ones
+    if requested_backends:
+        filtered = interface.filter_available_backends(requested_backends, verbose=verbose)
+        if required_backends:
+            # Check if any required backends are in the filtered list
+            filtered_required = [b for b in filtered if b in required_backends]
+            if not filtered_required:
+                return None, available_backends
+        if filtered:
+            # Return first available from requested list
+            return filtered[0], filtered
+
+    # Auto-select based on preferences
+    if preferred_backends:
+        for backend in preferred_backends:
+            if backend in available_backends:
+                return backend, available_backends
+
+    # No preferences, return first available
+    if available_backends:
+        return available_backends[0], available_backends
+
+    return None, available_backends
+
+
+def get_calculator_for_backend(
+    backend: str,
+    device: str | None = None,
+    model_name: str | None = None,
+) -> Any:
+    """Create a calculator for the specified backend.
+
+    Parameters
+    ----------
+    backend : str
+        Backend name (e.g., 'mace', 'uma', 'aimnet2')
+    device : str | None
+        Device to use ('cpu' or 'cuda'). Auto-detected if None.
+    model_name : str | None
+        Specific model name to use (backend-specific)
+
+    Returns:
+    -------
+    Calculator
+        Configured calculator instance
+
+    Raises:
+    ------
+    RuntimeError
+        If backend is not available or calculator creation fails
+    """
+    import qme
+
+    if not is_backend_available(backend):
+        raise RuntimeError(f"Backend '{backend}' not available")
+
+    # Auto-detect device if not provided
+    device = get_optimal_device(device)
+
+    # Create calculator based on backend
+    if backend == "mace":
+        calc = qme.get_mace_calculator(device=device)
+    elif backend == "uma":
+        calc = qme.get_uma_calculator(model_name=model_name or "uma-s-1p1", device=device)
+    elif backend == "aimnet2":
+        calc = qme.get_aimnet2_calculator(device=device)
+    elif backend == "so3lr":
+        calc = qme.get_so3lr_calculator(device=device)
+    else:
+        # Fallback to registry
+        from qme.backends.registry import create_calculator
+
+        calc = create_calculator(
+            backend=backend,
+            model_name=model_name,
+            model_path=None,
+            device=device,
+            default_charge=0,
+            default_spin=1,
+        )
+
+    return calc

@@ -1,5 +1,3 @@
-"""Consolidated unit tests for backend registry, availability, cache, and dependencies."""
-
 from __future__ import annotations
 
 import tempfile
@@ -23,16 +21,12 @@ from qme.utils.validation import BackendError
 
 
 class TestCalculatorRegistry:
-    """Test calculator registry functionality."""
-
-    def test_registry_initialization(self) -> None:
-        """Test registry initializes correctly."""
+    def test_registry_initialization(self):
         registry = CalculatorRegistry()
         assert len(registry._registry) == 0
         assert len(registry._lazy_registry) > 0  # Should have lazy backends
 
-    def test_get_registered_backends(self) -> None:
-        """Test getting list of registered backend names."""
+    def test_get_registered_backends(self):
         registry = CalculatorRegistry()
         backends = registry.get_registered_backends()
 
@@ -40,8 +34,7 @@ class TestCalculatorRegistry:
         assert len(backends) > 0
         assert BACKEND_MOCK in backends
 
-    def test_register_custom_backend(self) -> None:
-        """Test registering a custom backend factory function."""
+    def test_register_custom_backend(self):
         registry = CalculatorRegistry()
 
         def custom_factory(**kwargs):
@@ -68,34 +61,29 @@ class TestCalculatorRegistry:
         ],
         ids=["with_params", "with_none", "all_params"],
     )
-    def test_create_calculator_with_params(self, params) -> None:
-        """Test creating calculator with various parameters."""
+    def test_create_calculator_with_params(self, params):
         registry = CalculatorRegistry()
         calc = registry.create_calculator(BACKEND_MOCK, **params)
         assert calc is not None
 
-    def test_create_calculator_mock(self) -> None:
-        """Test creating mock calculator."""
+    def test_create_calculator_mock(self):
         registry = CalculatorRegistry()
         calc = registry.create_calculator(BACKEND_MOCK)
         assert calc is not None
         # Verify it's an instance (not the class itself)
         assert not isinstance(calc, type)
 
-    def test_create_calculator_unavailable_backend(self) -> None:
-        """Test creating calculator for unavailable backend."""
+    def test_create_calculator_unavailable_backend(self):
         registry = CalculatorRegistry()
         with pytest.raises(BackendError, match="not available"):
             registry.create_calculator("nonexistent_backend")
 
-    def test_is_backend_available_mock(self) -> None:
-        """Test checking availability of mock backend."""
+    def test_is_backend_available_mock(self):
         registry = CalculatorRegistry()
         assert registry.is_backend_available(BACKEND_MOCK) is True
 
     @patch("qme.backends.registry.is_backend_available")
-    def test_is_backend_available_delegation(self, mock_available: MagicMock) -> None:
-        """Test that is_backend_available delegates to availability checker."""
+    def test_is_backend_available_delegation(self, mock_available):
         registry = CalculatorRegistry()
         mock_available.return_value = True
 
@@ -105,18 +93,14 @@ class TestCalculatorRegistry:
 
 
 class TestRegistryLazyLoading:
-    """Test lazy loading of backends."""
-
-    def test_load_backend_lazy(self) -> None:
-        """Test lazy loading of backend."""
+    def test_load_backend_lazy(self):
         registry = CalculatorRegistry()
         assert BACKEND_MOCK in registry._lazy_registry
 
         registry._load_backend(BACKEND_MOCK)
         assert BACKEND_MOCK in registry._registry
 
-    def test_load_backend_already_loaded(self) -> None:
-        """Test loading already loaded backend doesn't reload."""
+    def test_load_backend_already_loaded(self):
         registry = CalculatorRegistry()
 
         registry._load_backend(BACKEND_MOCK)
@@ -127,14 +111,12 @@ class TestRegistryLazyLoading:
 
         assert first_func == second_func
 
-    def test_load_nonexistent_backend(self) -> None:
-        """Test loading a backend that doesn't exist."""
+    def test_load_nonexistent_backend(self):
         registry = CalculatorRegistry()
         registry._load_backend("nonexistent_backend")
         assert "nonexistent_backend" not in registry._registry
 
-    def test_load_with_import_error(self) -> None:
-        """Test handling of import errors during lazy loading."""
+    def test_load_with_import_error(self):
         registry = CalculatorRegistry()
 
         registry._lazy_registry["test_fail"] = type(
@@ -150,8 +132,7 @@ class TestRegistryLazyLoading:
         registry._load_backend("test_fail")
         assert "test_fail" not in registry._registry
 
-    def test_load_with_attribute_error(self) -> None:
-        """Test handling of attribute errors during lazy loading."""
+    def test_load_with_attribute_error(self):
         registry = CalculatorRegistry()
 
         registry._lazy_registry["test_attr_fail"] = type(
@@ -170,8 +151,7 @@ class TestRegistryLazyLoading:
         assert "test_attr_fail" not in registry._registry
 
     @patch("qme.backends.registry.importlib.import_module")
-    def test_load_backend_import_error(self, mock_import: MagicMock) -> None:
-        """Test handling import errors during backend loading."""
+    def test_load_backend_import_error(self, mock_import):
         registry = CalculatorRegistry()
         mock_import.side_effect = ImportError("Module not found")
 
@@ -180,8 +160,6 @@ class TestRegistryLazyLoading:
 
 
 class TestCreateCalculatorFunction:
-    """Test create_calculator convenience function."""
-
     @pytest.mark.parametrize(
         ("use_cache", "charge", "mult", "verbose"),
         [
@@ -192,8 +170,7 @@ class TestCreateCalculatorFunction:
         ],
         ids=["no_cache", "with_cache", "with_charge_mult", "verbose"],
     )
-    def test_create_calculator_variations(self, use_cache, charge, mult, verbose) -> None:
-        """Test calculator creation with various parameter combinations."""
+    def test_create_calculator_variations(self, use_cache, charge, mult, verbose):
         calc = create_calculator(
             backend=BACKEND_MOCK,
             model_name=None,
@@ -208,8 +185,7 @@ class TestCreateCalculatorFunction:
         )
         assert calc is not None
 
-    def test_create_calculator_unavailable_backend(self) -> None:
-        """Test creating calculator for unavailable backend."""
+    def test_create_calculator_unavailable_backend(self):
         with pytest.raises(BackendError, match="not available"):
             create_calculator(
                 backend="nonexistent_backend_xyz123",
@@ -220,8 +196,7 @@ class TestCreateCalculatorFunction:
                 default_spin=1,
             )
 
-    def test_create_calculator_cache_behavior(self) -> None:
-        """Test calculator caching behavior."""
+    def test_create_calculator_cache_behavior(self):
         calc1 = create_calculator(
             backend=BACKEND_MOCK,
             model_name=None,
@@ -246,8 +221,7 @@ class TestCreateCalculatorFunction:
         assert calc1 is not None
         assert calc2 is not None
 
-    def test_create_calculator_uses_cached_when_available(self) -> None:
-        """Test that cached calculator is used when available."""
+    def test_create_calculator_uses_cached_when_available(self):
         mock_cached_calc = MagicMock()
 
         with (
@@ -267,8 +241,7 @@ class TestCreateCalculatorFunction:
             assert calc == mock_cached_calc
             mock_create.assert_not_called()
 
-    def test_create_calculator_handles_cache_errors(self) -> None:
-        """Test that cache errors are handled gracefully."""
+    def test_create_calculator_handles_cache_errors(self):
         with patch("qme.backends.registry.calculator_registry.create_calculator") as mock_create:
             mock_calc = MagicMock()
             mock_create.return_value = mock_calc
@@ -302,8 +275,7 @@ class TestCreateCalculatorFunction:
                 )
                 assert calc is not None
 
-    def test_create_calculator_backend_error_includes_available(self) -> None:
-        """Test that BackendError includes list of available backends."""
+    def test_create_calculator_backend_error_includes_available(self):
         with pytest.raises(BackendError) as exc_info:
             create_calculator(
                 backend="nonexistent_backend",
@@ -319,20 +291,15 @@ class TestCreateCalculatorFunction:
 
 
 class TestBackendAvailability:
-    """Test backend availability checking."""
-
-    def test_mock_always_available(self) -> None:
-        """Test that mock backend is always available."""
+    def test_mock_always_available(self):
         assert is_backend_available(BACKEND_MOCK) is True
 
-    def test_get_availability_reason_mock(self) -> None:
-        """Test getting availability reason for mock."""
+    def test_get_availability_reason_mock(self):
         reason = get_availability_reason(BACKEND_MOCK)
         assert "available" in reason.lower()
 
     @pytest.mark.parametrize("include_mock", [True, False], ids=["include", "exclude"])
-    def test_get_available_backends(self, include_mock) -> None:
-        """Test get_available_backends with and without mock."""
+    def test_get_available_backends(self, include_mock):
         backends = get_available_backends(include_mock=include_mock)
         assert isinstance(backends, list)
         if include_mock:
@@ -340,43 +307,37 @@ class TestBackendAvailability:
         else:
             assert BACKEND_MOCK not in backends
 
-    def test_clear_availability_cache(self) -> None:
-        """Test clearing availability cache."""
+    def test_clear_availability_cache(self):
         is_backend_available(BACKEND_MOCK)
         clear_availability_cache()
 
         checker = BackendAvailabilityChecker()
         assert len(checker._cache) == 0
 
-    def test_get_backend_error_message(self) -> None:
-        """Test getting backend error message."""
+    def test_get_backend_error_message(self):
         message = get_backend_error_message("nonexistent_backend")
         assert "nonexistent_backend" in message
         assert "available" in message.lower() or "install" in message.lower()
 
-    def test_backend_availability_checker_init(self) -> None:
-        """Test BackendAvailabilityChecker initialization."""
+    def test_backend_availability_checker_init(self):
         checker = BackendAvailabilityChecker()
         assert isinstance(checker._cache, dict)
         assert isinstance(checker._conflict_cache, dict)
         assert len(checker._requirements) > 0
 
-    def test_check_basic_dependencies(self) -> None:
-        """Test checking basic dependencies."""
+    def test_check_basic_dependencies(self):
         checker = BackendAvailabilityChecker()
         result = checker._check_basic_dependencies(BACKEND_MOCK)
         assert result is True
 
     @patch("qme.backends.availability.deps")
-    def test_check_basic_dependencies_missing(self, mock_deps: MagicMock) -> None:
-        """Test checking dependencies when missing."""
+    def test_check_basic_dependencies_missing(self, mock_deps):
         checker = BackendAvailabilityChecker()
         mock_deps.has.return_value = False
         result = checker._check_basic_dependencies("uma")
         assert result is False
 
-    def test_get_availability_reason_unavailable(self) -> None:
-        """Test getting reason when backend unavailable."""
+    def test_get_availability_reason_unavailable(self):
         checker = BackendAvailabilityChecker()
         with patch.object(checker, "_check_basic_dependencies", return_value=False):
             reason = checker.get_availability_reason("test_backend")
@@ -384,23 +345,18 @@ class TestBackendAvailability:
 
 
 class TestCalculatorCache:
-    """Test calculator caching functionality."""
-
-    def test_cache_initialization(self) -> None:
-        """Test cache initialization."""
+    def test_cache_initialization(self):
         cache = CalculatorCache(max_size=5)
         assert cache.max_size == 5
         assert len(cache._cache) == 0
 
-    def test_cache_key_generation(self) -> None:
-        """Test cache key generation is consistent."""
+    def test_cache_key_generation(self):
         cache = CalculatorCache()
         key1 = cache._generate_key("test", "model", "cpu", param1=1, param2=2)
         key2 = cache._generate_key("test", "model", "cpu", param2=2, param1=1)
         assert key1 == key2
 
-    def test_cache_put_get(self) -> None:
-        """Test putting and getting from cache."""
+    def test_cache_put_get(self):
         cache = CalculatorCache()
         mock_calc = MagicMock()
 
@@ -409,14 +365,12 @@ class TestCalculatorCache:
 
         assert retrieved == mock_calc
 
-    def test_cache_miss(self) -> None:
-        """Test cache miss returns None."""
+    def test_cache_miss(self):
         cache = CalculatorCache()
         result = cache.get("test", "model", "cpu")
         assert result is None
 
-    def test_cache_eviction(self) -> None:
-        """Test cache evicts oldest entries when full."""
+    def test_cache_eviction(self):
         cache = CalculatorCache(max_size=2)
 
         calc1 = MagicMock()
@@ -432,8 +386,7 @@ class TestCalculatorCache:
             or cache.get("backend1", None, "cpu") != calc1
         )
 
-    def test_cache_clear(self) -> None:
-        """Test clearing cache."""
+    def test_cache_clear(self):
         cache = CalculatorCache()
         mock_calc = MagicMock()
 
@@ -446,11 +399,8 @@ class TestCalculatorCache:
 
 
 class TestModelCache:
-    """Test model caching functionality."""
-
     @pytest.mark.parametrize("custom_dir", [True, False], ids=["custom", "default"])
-    def test_cache_initialization(self, custom_dir) -> None:
-        """Test cache initialization."""
+    def test_cache_initialization(self, custom_dir):
         if custom_dir:
             with tempfile.TemporaryDirectory() as tmpdir:
                 cache = ModelCache(cache_dir=tmpdir)
@@ -460,8 +410,7 @@ class TestModelCache:
             assert cache.cache_dir.exists()
             assert cache.cache_dir.is_dir()
 
-    def test_get_model_hash(self) -> None:
-        """Test model hash generation."""
+    def test_get_model_hash(self):
         cache = ModelCache(cache_dir=tempfile.mkdtemp())
 
         hash1 = cache._get_model_hash("model1", "http://example.com/model")
@@ -471,15 +420,13 @@ class TestModelCache:
         assert hash1 == hash2
         assert hash1 != hash3
 
-    def test_get_cached_model_not_cached(self) -> None:
-        """Test getting model that isn't cached."""
+    def test_get_cached_model_not_cached(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
             result = cache.get_cached_model("test_model", "http://example.com/model")
             assert result is None
 
-    def test_cache_model_and_retrieve(self) -> None:
-        """Test caching a model and retrieving it."""
+    def test_cache_model_and_retrieve(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -492,8 +439,7 @@ class TestModelCache:
             retrieved_path = cache.get_cached_model("test_model", "http://example.com/model")
             assert retrieved_path == cached_path
 
-    def test_cache_model_checksum_verification(self) -> None:
-        """Test checksum verification of cached models."""
+    def test_cache_model_checksum_verification(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -504,8 +450,7 @@ class TestModelCache:
             retrieved_path = cache.get_cached_model("test_model", "http://example.com/model")
             assert retrieved_path is None or not cached_path.exists()
 
-    def test_clear_cache_all(self) -> None:
-        """Test clearing entire cache."""
+    def test_clear_cache_all(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -517,8 +462,7 @@ class TestModelCache:
             assert len(list(cache.cache_dir.glob("*.jpt"))) == 0
             assert len(cache.metadata) == 0
 
-    def test_clear_cache_specific_model(self) -> None:
-        """Test clearing specific model from cache."""
+    def test_clear_cache_specific_model(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -530,8 +474,7 @@ class TestModelCache:
             assert cache.get_cached_model("model1", "http://example.com/m1") is None
             assert cache.get_cached_model("model2", "http://example.com/m2") is not None
 
-    def test_get_cache_info(self) -> None:
-        """Test getting cache information."""
+    def test_get_cache_info(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ModelCache(cache_dir=tmpdir)
 
@@ -544,16 +487,12 @@ class TestModelCache:
 
 
 class TestUnifiedCache:
-    """Test unified cache combining calculator and model caches."""
-
-    def test_unified_cache_initialization(self) -> None:
-        """Test unified cache initialization."""
+    def test_unified_cache_initialization(self):
         cache = UnifiedCache()
         assert isinstance(cache.calculator_cache, CalculatorCache)
         assert isinstance(cache.model_cache, ModelCache)
 
-    def test_unified_cache_get_cached_calculator(self) -> None:
-        """Test getting cached calculator from unified cache."""
+    def test_unified_cache_get_cached_calculator(self):
         cache = UnifiedCache()
         mock_calc = MagicMock()
 
@@ -562,8 +501,7 @@ class TestUnifiedCache:
 
         assert retrieved == mock_calc
 
-    def test_unified_cache_clear_all(self) -> None:
-        """Test clearing all caches."""
+    def test_unified_cache_clear_all(self):
         cache = UnifiedCache()
         mock_calc = MagicMock()
 
@@ -576,25 +514,20 @@ class TestUnifiedCache:
 
 
 class TestDependencyManager:
-    """Test dependency management functionality."""
-
-    def test_dependency_manager_has(self) -> None:
-        """Test checking if dependency exists."""
+    def test_dependency_manager_has(self):
         from qme.backends.dependencies import deps
 
         result = deps.has("nonexistent_package")
         assert isinstance(result, bool)
 
-    def test_dependency_manager_get(self) -> None:
-        """Test getting dependency module."""
+    def test_dependency_manager_get(self):
         from qme.backends.dependencies import deps
 
         if deps.has("numpy"):
             result = deps.get("numpy")
             assert result is not None
 
-    def test_dependency_manager_structure(self) -> None:
-        """Test DependencyManager has expected structure."""
+    def test_dependency_manager_structure(self):
         from qme.backends.dependencies import deps
 
         assert hasattr(deps, "has")

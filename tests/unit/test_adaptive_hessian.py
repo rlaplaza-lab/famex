@@ -1,8 +1,4 @@
-"""Test adaptive Hessian calculation functionality.
-
-This module tests the adaptive Hessian selection and noise estimation features
-including adaptive delta selection, force noise estimation, and autoselect logic.
-"""
+from __future__ import annotations
 
 import numpy as np
 import pytest
@@ -18,89 +14,18 @@ from qme.analysis.noise_estimation import (
     estimate_richardson_noise,
 )
 from qme.backends.availability import is_backend_available
-from tests.test_utils import TestMoleculeFactory
-
-
-class NoisyCalculator:
-    """Mock calculator that adds noise to forces for testing."""
-
-    def __init__(self, noise_level: float = 0.0) -> None:
-        """Initialize with specified noise level."""
-        self.noise_level = noise_level
-
-    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Compute forces with added noise."""
-        if atoms is None:
-            atoms = self.atoms
-
-        # Simple harmonic forces
-        positions = atoms.positions
-        forces = -1.0 * positions
-
-        # Add noise
-        if self.noise_level > 0:
-            noise = np.random.normal(0, self.noise_level, forces.shape)
-            forces += noise
-
-        return forces
-
-    def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
-    ) -> float:
-        """Compute potential energy."""
-        if atoms is None:
-            atoms = self.atoms
-
-        # Simple harmonic energy
-        positions = atoms.positions
-        energy = 0.5 * np.sum(positions**2)
-        return float(energy)
-
-
-class HarmonicCalculator:
-    """Mock calculator for harmonic potential."""
-
-    def __init__(self, k: float = 1.0) -> None:
-        """Initialize with force constant k."""
-        self.k = k
-
-    def get_forces(self, atoms: Atoms) -> np.ndarray:
-        """Compute harmonic forces: F = -k * r."""
-        forces = -self.k * atoms.positions
-        return forces
-
-    def get_hessian(self, atoms: Atoms) -> np.ndarray:
-        """Compute analytical harmonic Hessian: H = k * I."""
-        n_atoms = len(atoms)
-        n_coords = 3 * n_atoms
-        hessian = self.k * np.eye(n_coords)
-        return hessian
-
-    def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
-    ) -> float:
-        """Compute harmonic potential energy."""
-        if atoms is None:
-            atoms = self.atoms
-
-        positions = atoms.positions
-        energy = 0.5 * self.k * np.sum(positions**2)
-        return float(energy)
+from tests.test_utils import HarmonicCalculator, NoisyCalculator, TestMoleculeFactory
 
 
 class TestNoiseEstimation:
-    """Test noise estimation utilities."""
-
     @pytest.fixture
-    def harmonic_atoms(self) -> Atoms:
-        """Simple harmonic system for testing."""
+    def harmonic_atoms(self):
         return Atoms(
             symbols="HH",
             positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
         )
 
-    def test_estimate_richardson_noise(self) -> None:
-        """Test Richardson noise estimation."""
+    def test_estimate_richardson_noise(self):
         # Create two slightly different Hessians
         h1 = np.eye(3) + 0.01 * np.random.randn(3, 3)
         h2 = np.eye(3) + 0.01 * np.random.randn(3, 3)
@@ -109,8 +34,7 @@ class TestNoiseEstimation:
         assert isinstance(noise, float)
         assert noise > 0
 
-    def test_estimate_force_noise(self) -> None:
-        """Test force noise estimation."""
+    def test_estimate_force_noise(self):
         atoms = Atoms(
             symbols="HH",
             positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
@@ -132,8 +56,7 @@ class TestNoiseEstimation:
         assert isinstance(noise, float)
         assert noise >= 0
 
-    def test_estimate_optimal_delta(self, harmonic_atoms) -> None:
-        """Test optimal delta estimation."""
+    def test_estimate_optimal_delta(self, harmonic_atoms):
         calc = HarmonicCalculator()
         harmonic_atoms.calc = calc
 
@@ -149,18 +72,14 @@ class TestNoiseEstimation:
 
 
 class TestAdaptiveHessianCalculator:
-    """Test adaptive Hessian calculation features."""
-
     @pytest.fixture
-    def harmonic_atoms(self) -> Atoms:
-        """Simple harmonic system for testing."""
+    def harmonic_atoms(self):
         return Atoms(
             symbols="HH",
             positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
         )
 
-    def test_adaptive_delta_basic(self, harmonic_atoms) -> None:
-        """Test basic adaptive delta functionality."""
+    def test_adaptive_delta_basic(self, harmonic_atoms):
         calc = HarmonicCalculator()
         harmonic_atoms.calc = calc
 
@@ -177,8 +96,7 @@ class TestAdaptiveHessianCalculator:
         assert hessian is not None
         assert hessian.shape == (6, 6)
 
-    def test_adaptive_delta_vs_fixed(self, harmonic_atoms) -> None:
-        """Test that adaptive delta produces reasonable Hessian."""
+    def test_adaptive_delta_vs_fixed(self, harmonic_atoms):
         calc = HarmonicCalculator()
         harmonic_atoms.calc = calc
 
@@ -206,8 +124,7 @@ class TestAdaptiveHessianCalculator:
         # Should produce similar results
         np.testing.assert_allclose(hessian_fixed, hessian_adaptive, rtol=0.1, atol=0.1)
 
-    def test_adaptive_delta_warnings(self, harmonic_atoms) -> None:
-        """Test adaptive delta handles edge cases gracefully."""
+    def test_adaptive_delta_warnings(self, harmonic_atoms):
         calc = HarmonicCalculator()
         harmonic_atoms.calc = calc
 
@@ -226,18 +143,14 @@ class TestAdaptiveHessianCalculator:
 
 
 class TestEnergyBasedHessian:
-    """Test energy-based Hessian calculation."""
-
     @pytest.fixture
-    def harmonic_atoms(self) -> Atoms:
-        """Simple harmonic system for testing."""
+    def harmonic_atoms(self):
         return Atoms(
             symbols="HH",
             positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
         )
 
-    def test_energy_based_basic(self, harmonic_atoms) -> None:
-        """Test basic energy-based Hessian calculation."""
+    def test_energy_based_basic(self, harmonic_atoms):
         calc = HarmonicCalculator()
         harmonic_atoms.calc = calc
 
@@ -247,8 +160,7 @@ class TestEnergyBasedHessian:
         assert hessian is not None
         assert hessian.shape == (6, 6)
 
-    def test_energy_vs_force_consistency(self, harmonic_atoms) -> None:
-        """Test that energy-based FD matches force-based FD for harmonic system."""
+    def test_energy_vs_force_consistency(self, harmonic_atoms):
         calc = HarmonicCalculator()
         harmonic_atoms.calc = calc
 
@@ -265,21 +177,18 @@ class TestEnergyBasedHessian:
 
 
 class TestAutoselectMethod:
-    """Test autoselect method in FrequencyAnalysis."""
-
     @pytest.fixture
-    def water_molecule(self) -> Atoms:
-        """Water molecule for testing."""
+    def water_molecule(self):
         return TestMoleculeFactory.get_water_distorted()
 
-    def test_autoselect_analytical(self) -> None:
-        """Test autoselect chooses analytical when available."""
+    def test_autoselect_analytical(self):
         calc = HarmonicCalculator()
         atoms = Atoms(
             symbols="HH",
             positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
         )
         atoms.calc = calc
+        calc.atoms = atoms  # Set atoms for when get_hessian is called without argument
 
         freq_analysis = FrequencyAnalysis(atoms, calc, verbose=0)
         hessian = freq_analysis.calculate_hessian(method="autoselect")
@@ -287,8 +196,7 @@ class TestAutoselectMethod:
         assert hessian is not None
         assert hessian.shape == (6, 6)
 
-    def test_autoselect_adaptive_fd(self) -> None:
-        """Test autoselect falls back to adaptive FD when no analytical."""
+    def test_autoselect_adaptive_fd(self):
         calc = NoisyCalculator(noise_level=1e-6)  # Low noise
         atoms = Atoms(
             symbols="HH",
@@ -304,8 +212,7 @@ class TestAutoselectMethod:
         assert hessian.shape == (6, 6)
 
     @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
-    def test_autoselect_uma_integration(self, water_molecule) -> None:
-        """Integration test with UMA calculator."""
+    def test_autoselect_uma_integration(self, water_molecule):
         atoms = water_molecule.copy()
         atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p1")
         atoms.calc.ensure_loaded()
@@ -322,8 +229,7 @@ class TestAutoselectMethod:
         asymmetry = np.max(np.abs(hessian - hessian.T))
         assert asymmetry < 0.01  # Reasonable tolerance
 
-    def test_autoselect_logging(self, water_molecule) -> None:
-        """Test that autoselect logs its decisions."""
+    def test_autoselect_logging(self, water_molecule):
         calc = NoisyCalculator(noise_level=1e-6)
         atoms = water_molecule.copy()
         atoms.calc = calc
@@ -336,19 +242,15 @@ class TestAutoselectMethod:
 
 
 class TestNoisySystems:
-    """Test adaptive features on noisy systems."""
-
     @pytest.fixture
-    def noisy_atoms(self) -> Atoms:
-        """System with noisy calculator."""
+    def noisy_atoms(self):
         atoms = Atoms(
             symbols="HHH",
             positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0], [0.0, 0.5, 0.0]],
         )
         return atoms
 
-    def test_adaptive_delta_noise_handling(self, noisy_atoms) -> None:
-        """Test adaptive delta handles noisy systems."""
+    def test_adaptive_delta_noise_handling(self, noisy_atoms):
         # Low noise
         calc_low = NoisyCalculator(noise_level=1e-6)
         noisy_atoms.calc = calc_low
@@ -367,8 +269,7 @@ class TestNoisySystems:
         assert hessian is not None
         assert hessian.shape == (9, 9)
 
-    def test_adaptive_delta_very_noisy(self, noisy_atoms) -> None:
-        """Test adaptive delta with very noisy system."""
+    def test_adaptive_delta_very_noisy(self, noisy_atoms):
         # High noise
         calc_high = NoisyCalculator(noise_level=0.01)
         noisy_atoms.calc = calc_high
@@ -387,8 +288,7 @@ class TestNoisySystems:
         hessian = hessian_calc.calculate_numerical_hessian()
         assert hessian is not None
 
-    def test_energy_based_noisy(self, noisy_atoms) -> None:
-        """Test energy-based FD with noisy calculator."""
+    def test_energy_based_noisy(self, noisy_atoms):
         calc = NoisyCalculator(noise_level=1e-5)
         noisy_atoms.calc = calc
         calc.atoms = noisy_atoms

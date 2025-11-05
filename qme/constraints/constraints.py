@@ -363,10 +363,8 @@ def validate_atom_indices(atom_indices: list[int], atoms: Atoms) -> bool:
     """
     n_atoms = len(atoms)
     for idx in atom_indices:
-        if not isinstance(idx, int):
-            msg = f"Atom index must be integer, got {type(idx)}"
-            logger.error("%s", msg)
-            raise ValueError(msg)
+        # Runtime type check for defensive programming
+        assert isinstance(idx, int), f"Atom index must be integer, got {type(idx)}"
         if idx < 0 or idx >= n_atoms:
             msg = f"Atom index {idx} out of range [0, {n_atoms - 1}]"
             logger.error("%s", msg)

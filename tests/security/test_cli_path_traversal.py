@@ -1,4 +1,4 @@
-"""Security tests for CLI path traversal vulnerabilities."""
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path
@@ -10,10 +10,7 @@ from qme.cli.cli_helpers import write_atoms
 
 
 class TestCLIPathTraversal:
-    """Test CLI path handling against path traversal attacks."""
-
     def test_write_atoms_rejects_traversal(self):
-        """Test that write_atoms rejects path traversal attempts."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
 
         # Try various path traversal attempts
@@ -29,7 +26,6 @@ class TestCLIPathTraversal:
                 write_atoms(atoms, evil_path)
 
     def test_write_atoms_allows_safe_paths(self):
-        """Test that write_atoms allows legitimate paths."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
 
         # These should all work
@@ -42,10 +38,7 @@ class TestCLIPathTraversal:
 
         for path in safe_paths:
             with tempfile.TemporaryDirectory() as tmpdir:
-                if path.startswith("/"):
-                    full_path = path
-                else:
-                    full_path = str(Path(tmpdir) / path)
+                full_path = path if path.startswith("/") else str(Path(tmpdir) / path)
 
                 try:
                     result = write_atoms(atoms, full_path)
@@ -58,7 +51,6 @@ class TestCLIPathTraversal:
                     pass
 
     def test_write_atoms_rejects_null_bytes(self):
-        """Test that write_atoms rejects null bytes in paths."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
 
         with pytest.raises(ValueError, match="Unsafe output path"):

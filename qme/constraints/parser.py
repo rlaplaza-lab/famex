@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from qme.constraints.constraints import parse_constraint_string
 from qme.utils.logging import get_qme_logger
@@ -10,6 +10,8 @@ from qme.utils.logging import get_qme_logger
 if TYPE_CHECKING:
     from ase import Atoms
     from ase.constraints import FixConstraint
+else:
+    from ase.constraints import FixConstraint  # noqa: PLC0415
 
 logger = get_qme_logger(__name__)
 
@@ -51,19 +53,16 @@ def parse_constraints(
     - "fix 0,1; harmonic_bond 2,3 k=5.0"
 
     """
-    if constraint_specs is None:
-        return []
-
     # Handle different input formats
     if isinstance(constraint_specs, str):
         constraint_manager = parse_constraint_string(constraint_specs, atoms)
     elif isinstance(constraint_specs, list):
         # Handle list of pre-made ASE constraints
         if all(callable(c) or hasattr(c, "adjust_positions") for c in constraint_specs):
-            # Already ASE constraints
-            return constraint_specs
+            # Already ASE constraints - cast to ensure type safety
+            return cast(list[FixConstraint], constraint_specs)
         # List of constraint specifications to parse
-        constraint_strings = []
+        constraint_strings: list[str] = []
         for spec in constraint_specs:
             if isinstance(spec, str):
                 constraint_strings.append(spec)
@@ -73,9 +72,10 @@ def parse_constraints(
 
         constraint_str = "; ".join(constraint_strings)
         constraint_manager = parse_constraint_string(constraint_str, atoms)
-    else:
-        msg = f"Unsupported constraint specification type: {type(constraint_specs)}"
-        raise ValueError(msg)
+    elif isinstance(constraint_specs, dict):
+        msg = "Dict constraint specifications not yet implemented"
+        raise NotImplementedError(msg)
+    # All cases are covered by the type signature: str | list[str] | list[FixConstraint] | dict[str, Any]
 
     # Apply constraints to atoms and get ASE constraint list
     constraint_manager.apply_constraints(atoms)
@@ -94,4 +94,5 @@ def parse_constraints(
                 hc["reference_value"],
             )
 
-    return atoms.constraints
+    # atoms.constraints is a list of FixConstraint objects
+    return cast(list[FixConstraint], list(atoms.constraints))

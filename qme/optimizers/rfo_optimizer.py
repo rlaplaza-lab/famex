@@ -9,7 +9,7 @@ The implementation uses Cartesian coordinates and leverages QME's efficient Hess
 calculation infrastructure.
 """
 
-from typing import IO, Any
+from typing import IO, Any, cast
 
 import numpy as np
 from ase import Atoms
@@ -175,6 +175,14 @@ class RFOTransitionState(Optimizer):
         self._transition_mode: np.ndarray | None = None
         self._transition_mode_eigenvalue: float | None = None
 
+        # Initialize fmax (inherited from Optimizer but may not be typed)
+        # Use setattr to avoid type checking issues with inherited attributes
+        if not hasattr(self, "fmax"):
+            self.fmax = 0.05
+        # Type annotation for mypy
+        self.fmax: float = getattr(self, "fmax", 0.05)  # type: ignore[assignment]
+        self.max_steps: int = 0
+
         if self.verbose >= 2:
             logger.info("Initialized RFO transition state optimizer")
             if hessian_update_freq is None:
@@ -188,14 +196,14 @@ class RFOTransitionState(Optimizer):
         """Convert atoms positions to 1D array."""
         if atoms is None:
             atoms = self.atoms
-        if atoms is None:  # type: ignore[unreachable]
-            msg = "Atoms object is not initialized"
+        if atoms is None:  # Defensive check
+            msg = "Atoms object is not initialized"  # type: ignore[unreachable]
             raise RuntimeError(msg)
-        return atoms.get_positions().ravel()  # type: ignore[no-any-return]
+        return cast(np.ndarray, atoms.get_positions().ravel())
 
     def _x_to_positions(self, x: np.ndarray) -> np.ndarray:
         """Convert 1D array to positions array."""
-        return x.reshape(-1, 3)
+        return cast(np.ndarray, x.reshape(-1, 3))
 
     def _get_gradient(self, x: np.ndarray) -> np.ndarray:
         """Get gradient (negative forces) at position x."""
@@ -529,12 +537,12 @@ class RFOTransitionState(Optimizer):
             step += hessian_eigenvectors[:, k] * y_tilde_all[k]
 
         # Apply trust radius constraint
-        step_norm = np.linalg.norm(step)
+        step_norm = float(np.linalg.norm(step))
         if step_norm > 1e-12:
             # Scale to trust radius if needed
             if step_norm > self.trust_radius * 1.01:
                 step = step / step_norm * self.trust_radius
-                step_norm = self.trust_radius
+                step_norm = float(self.trust_radius)
         else:
             # Step is zero, use small step along transition mode
             if np.linalg.norm(w_tv) > 1e-12:
@@ -602,7 +610,7 @@ class RFOTransitionState(Optimizer):
 
         # Quality factor: Q = 1 - |ΔE_actual/ΔE_pred - 1|
         ratio = actual_energy_change / predicted_change
-        quality = 1.0 - abs(ratio - 1.0)
+        quality: float = 1.0 - abs(ratio - 1.0)
 
         return quality
 
@@ -737,7 +745,7 @@ class RFOTransitionState(Optimizer):
         self.alpha = alpha
         return alpha
 
-    def run(self, fmax: float = 0.05, steps: int = 100) -> bool:
+    def run(self, fmax: float = 0.05, steps: int = 100) -> bool:  # type: ignore[override]
         """Run the RFO optimization.
 
         Parameters
@@ -753,8 +761,8 @@ class RFOTransitionState(Optimizer):
             True if converged, False otherwise.
 
         """
-        self.fmax = fmax
-        self.max_steps = steps + self.nsteps
+        self.fmax = float(fmax)
+        self.max_steps = int(steps + self.nsteps)
 
         # Get initial position and energy
         x0 = self._positions_to_x()
@@ -814,7 +822,7 @@ class RFOTransitionState(Optimizer):
                     return False
 
                 # Check step size
-                step_norm = np.linalg.norm(step)
+                step_norm: float = float(np.linalg.norm(step))
                 if step_norm < 1e-12:
                     if self.verbose >= 1:
                         logger.warning("Step size is zero, stopping optimization")
@@ -947,7 +955,7 @@ class RFOTransitionState(Optimizer):
         # Check final convergence
         forces = self.atoms.get_forces()
         forces_flat = forces.ravel()
-        converged = self.converged(forces_flat)
+        converged: bool = bool(self.converged(forces_flat))
 
         if converged:
             if self.verbose >= 1:

@@ -7,6 +7,7 @@ based on the AIMNet2 repository implementation.
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -77,8 +78,8 @@ def get_model_path(model_name: str) -> str:
 
     """
     try:
-        from qme.potentials.model_cache import (
-            download_and_cache_model,  # type: ignore[import-not-found]
+        from qme.potentials.model_cache import (  # type: ignore[import-not-found]
+            download_and_cache_model,
         )
     except ImportError:
         download_and_cache_model = None
@@ -618,8 +619,8 @@ class AIMNet2Potential(BasePotential):
 
     def calculate(
         self,
-        atoms: Any = None,
-        properties: list[str] | None = None,
+        atoms: Atoms | None = None,
+        properties: Sequence[str] | None = None,
         system_changes: Any = all_changes,
     ) -> None:
         """Calculate properties using AIMNET2 potential."""
@@ -646,7 +647,9 @@ class AIMNet2Potential(BasePotential):
         # Calculate with forces if requested
         # Ensure backend loaded
         if self._calc is None:
-            self._load_calculator()
+            self._load_calculator()  # type: ignore[unreachable]
+        # After _load_calculator() returns without exception, _calc is guaranteed to be set
+        assert self._calc is not None
 
         forces_needed = "forces" in properties
         results = self._calc(data, forces=forces_needed)

@@ -1,53 +1,32 @@
 #!/usr/bin/env python3
-"""Demonstrate adaptive Hessian selection and comparison.
+"""Demonstrate adaptive Hessian selection and comparison."""
 
-This script shows how to use QME's adaptive Hessian features to automatically
-select the best computation method and parameters for optimal accuracy.
-"""
-
-import os
-
-# Disable ASE GUI to prevent popup windows
-os.environ["DISPLAY"] = ""
-os.environ["MPLBACKEND"] = "Agg"
+import sys
 
 import numpy as np
-from ase import Atoms
 
-import qme
 from qme.analysis.frequency import FrequencyAnalysis
 from qme.analysis.hessian_comparison import HessianComparisonReport, compare_hessian_methods
-from qme.backends.availability import is_backend_available
+from qme.example_utils import (
+    QMEExampleInterface,
+    create_standard_epilog,
+    create_water_molecule,
+    get_calculator_for_backend,
+    setup_example_environment,
+)
 
 
-def get_available_calculator():
-    """Get an available calculator, preferring MACE over UMA."""
-    if is_backend_available("mace"):
-        return qme.get_mace_calculator()
-    elif is_backend_available("uma"):
-        return qme.get_uma_calculator(model_name="uma-s-1p1")
-    else:
-        raise RuntimeError("No suitable backend available (need MACE or UMA)")
-
-
-def demo_basic_usage():
+def demo_basic_usage(backend: str | None = None, device: str | None = None):
     """Show basic usage of adaptive Hessian features."""
     print("\n" + "=" * 80)
     print("DEMO 1: Basic Adaptive Hessian Usage")
     print("=" * 80)
 
     # Create a test molecule
-    water = Atoms(
-        symbols="OHH",
-        positions=[
-            [0.0, 0.0, 0.0],
-            [0.96, 0.0, 0.0],
-            [0.24, 0.93, 0.0],
-        ],
-    )
+    water = create_water_molecule()
 
     # Set up calculator
-    calc = get_available_calculator()
+    calc = get_calculator_for_backend(backend, device=device)
     calc.ensure_loaded()
     water.calc = calc
 
@@ -63,7 +42,7 @@ def demo_basic_usage():
     print(f"  Symmetry error: {np.max(np.abs(hessian - hessian.T)):.2e} eV/Å²")
 
 
-def demo_adaptive_delta():
+def demo_adaptive_delta(backend: str | None = None, device: str | None = None):
     """Demonstrate adaptive delta selection."""
     print("\n" + "=" * 80)
     print("DEMO 2: Adaptive Delta Selection")
@@ -72,16 +51,9 @@ def demo_adaptive_delta():
     from qme.analysis.hessian import HessianCalculator
 
     # Create test molecule
-    water = Atoms(
-        symbols="OHH",
-        positions=[
-            [0.0, 0.0, 0.0],
-            [0.96, 0.0, 0.0],
-            [0.24, 0.93, 0.0],
-        ],
-    )
+    water = create_water_molecule()
 
-    calc = get_available_calculator()
+    calc = get_calculator_for_backend(backend, device=device)
     calc.ensure_loaded()
     water.calc = calc
 
@@ -105,23 +77,16 @@ def demo_adaptive_delta():
     print(f"   Symmetry error: {asymmetry_adaptive:.2e} eV/Å²")
 
 
-def demo_method_comparison():
+def demo_method_comparison(backend: str | None = None, device: str | None = None):
     """Compare multiple Hessian methods."""
     print("\n" + "=" * 80)
     print("DEMO 3: Method Comparison")
     print("=" * 80)
 
     # Create test molecule
-    water = Atoms(
-        symbols="OHH",
-        positions=[
-            [0.0, 0.0, 0.0],
-            [0.96, 0.0, 0.0],
-            [0.24, 0.93, 0.0],
-        ],
-    )
+    water = create_water_molecule()
 
-    calc = get_available_calculator()
+    calc = get_calculator_for_backend(backend, device=device)
     calc.ensure_loaded()
     water.calc = calc
 
@@ -139,7 +104,7 @@ def demo_method_comparison():
     report.compare_frequencies(water)
 
 
-def demo_noise_estimation():
+def demo_noise_estimation(backend: str | None = None, device: str | None = None):
     """Demonstrate noise estimation features."""
     print("\n" + "=" * 80)
     print("DEMO 4: Noise Estimation")
@@ -148,16 +113,9 @@ def demo_noise_estimation():
     from qme.analysis.noise_estimation import estimate_force_noise, estimate_optimal_delta
 
     # Create test molecule
-    water = Atoms(
-        symbols="OHH",
-        positions=[
-            [0.0, 0.0, 0.0],
-            [0.96, 0.0, 0.0],
-            [0.24, 0.93, 0.0],
-        ],
-    )
+    water = create_water_molecule()
 
-    calc = get_available_calculator()
+    calc = get_calculator_for_backend(backend, device=device)
     calc.ensure_loaded()
     water.calc = calc
 
@@ -178,11 +136,45 @@ def demo_noise_estimation():
     print(f"   Expected noise at optimal delta: {noise:.2e} eV/Å²")
 
 
+@setup_example_environment
 def main() -> int:
     """Run all demos."""
-    print("\n" + "=" * 80)
-    print("ADAPTIVE HESSIAN SELECTION DEMONSTRATION")
-    print("=" * 80)
+    # Create standardized interface
+    interface = QMEExampleInterface(
+        name="Adaptive Hessian Demo",
+        description="Adaptive Hessian Selection Demonstration",
+        epilog=create_standard_epilog("demo"),
+    )
+
+    parser = interface.create_parser()
+    args = parser.parse_args()
+
+    interface.print_header()
+    interface.setup_logging(args.verbose)
+
+    # Backend handling (consistent pattern)
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    backend, available_backends = interface.select_backend(
+        requested_backends=requested,
+        preferred_backends=["mace", "uma"],
+        verbose=args.verbose,
+    )
+    if backend is None:
+        interface.print_error("No suitable backend available (need MACE or UMA)")
+        return 1
+
+    interface.print_backend_summary([backend], "Using Backend")
+
+    # Get device info
+    device = interface.get_device_info(args.device)
+
+    config = {
+        "Backend": backend,
+        "Device": device,
+        "Verbose": args.verbose,
+    }
+    interface.print_configuration(config)
+
     print("\nThis demo showcases QME's adaptive Hessian features:")
     print("- Automatic method selection based on calculator capabilities")
     print("- Adaptive delta selection for optimal accuracy")
@@ -190,10 +182,10 @@ def main() -> int:
     print("- Method comparison and recommendations")
 
     try:
-        demo_basic_usage()
-        demo_adaptive_delta()
-        demo_method_comparison()
-        demo_noise_estimation()
+        demo_basic_usage(backend=backend, device=device)
+        demo_adaptive_delta(backend=backend, device=device)
+        demo_method_comparison(backend=backend, device=device)
+        demo_noise_estimation(backend=backend, device=device)
 
         print("\n" + "=" * 80)
         print("DEMO COMPLETE")
@@ -204,14 +196,18 @@ def main() -> int:
         print("- Check noise estimates if Hessian quality is questionable")
         print("- Compare methods when in doubt about accuracy")
 
+        interface.print_success()
+        return 0
+    except KeyboardInterrupt:
+        print("\nInterrupted by user")
+        return 1
     except Exception as e:
-        print(f"\n❌ Demo failed with error: {e}")
+        interface.print_error(f"Error: {e}")
         import traceback
 
         traceback.print_exc()
+        return 1
 
 
 if __name__ == "__main__":
-    import sys
-
     sys.exit(main())

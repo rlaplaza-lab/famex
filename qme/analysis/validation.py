@@ -55,6 +55,7 @@ def validate_hessian(
         - force_noise_estimate: Estimated force noise (float, optional)
 
     """
+    # Initialize results with required fields
     results: dict[str, bool | float | tuple[int, int]] = {
         "is_valid": True,
         "is_symmetric": True,
@@ -64,8 +65,7 @@ def validate_hessian(
         "max_asymmetry": 0.0,
         "shape": hessian.shape,
     }
-
-    # Add noise metrics if provided
+    # Add optional noise metrics
     if estimated_noise is not None:
         results["estimated_noise"] = estimated_noise
     if force_noise_estimate is not None:
@@ -80,20 +80,18 @@ def validate_hessian(
         results["is_valid"] = False
         return results
 
-    # Check for NaN values
+    # Check for NaN and Inf values
     has_nan = bool(np.any(np.isnan(hessian)))
-    results["has_nan"] = has_nan
-    if has_nan:
-        if warn_on_issues:
-            logger.warning("Hessian contains NaN values. This indicates a calculation error.")
-        results["is_valid"] = False
-
-    # Check for Inf values
     has_inf = bool(np.any(np.isinf(hessian)))
+    results["has_nan"] = has_nan
     results["has_inf"] = has_inf
-    if has_inf:
-        if warn_on_issues:
-            logger.warning("Hessian contains infinite values. This indicates a calculation error.")
+
+    if has_nan and warn_on_issues:
+        logger.warning("Hessian contains NaN values. This indicates a calculation error.")
+    if has_inf and warn_on_issues:
+        logger.warning("Hessian contains infinite values. This indicates a calculation error.")
+
+    if has_nan or has_inf:
         results["is_valid"] = False
 
     # Check symmetry
@@ -111,53 +109,45 @@ def validate_hessian(
             )
 
     # Check condition number
-    try:
-        # Use eigenvalues to compute condition number more robustly
-        eigenvalues = np.linalg.eigvals(hessian)
-        eigenvalues = eigenvalues[np.isfinite(eigenvalues)]
-        if len(eigenvalues) > 0:
-            eigenvalues_abs = np.abs(eigenvalues)
-            eigenvalues_abs = eigenvalues_abs[eigenvalues_abs > 0]
-            if len(eigenvalues_abs) > 0:
-                condition_number = np.max(eigenvalues_abs) / np.min(eigenvalues_abs)
-                results["condition_number"] = float(condition_number)
-                if condition_number > max_condition_number:
-                    if warn_on_issues:
-                        logger.warning(
-                            f"Hessian is ill-conditioned. Condition number: {condition_number:.2e}. "
-                            f"Maximum acceptable: {max_condition_number:.2e}. "
-                            "This may lead to numerical instability in frequency calculations."
-                        )
-        else:
-            if warn_on_issues:
-                logger.warning(
-                    "Hessian has no finite eigenvalues. This indicates a severe problem."
-                )
-            results["is_valid"] = False
-    except Exception as e:
+    eigenvalues = np.linalg.eigvals(hessian)
+    eigenvalues = eigenvalues[np.isfinite(eigenvalues)]
+    eigenvalues_abs = np.abs(eigenvalues[eigenvalues != 0])
+
+    if len(eigenvalues_abs) == 0:
         if warn_on_issues:
-            logger.warning(f"Could not compute condition number: {e}")
+            logger.warning("Hessian has no finite eigenvalues. This indicates a severe problem.")
+        results["is_valid"] = False
+    else:
+        condition_number = np.max(eigenvalues_abs) / np.min(eigenvalues_abs)
+        results["condition_number"] = float(condition_number)
+        if condition_number > max_condition_number and warn_on_issues:
+            logger.warning(
+                f"Hessian is ill-conditioned. Condition number: {condition_number:.2e}. "
+                f"Maximum acceptable: {max_condition_number:.2e}. "
+                "This may lead to numerical instability in frequency calculations."
+            )
 
     # Check noise levels if provided
-    if estimated_noise is not None:
-        HIGH_NOISE_THRESHOLD = 0.01  # eV/Å²
-        if estimated_noise > HIGH_NOISE_THRESHOLD:
-            if warn_on_issues:
-                logger.warning(
-                    f"Hessian has high estimated noise: {estimated_noise:.2e} eV/Å². "
-                    f"Threshold: {HIGH_NOISE_THRESHOLD:.2e}. "
-                    "This may indicate numerical errors or PES instability."
-                )
+    HIGH_NOISE_THRESHOLD = 0.01  # eV/Å²
+    HIGH_FORCE_NOISE_THRESHOLD = 1e-3  # eV/Å
 
-    if force_noise_estimate is not None:
-        HIGH_FORCE_NOISE_THRESHOLD = 1e-3  # eV/Å
-        if force_noise_estimate > HIGH_FORCE_NOISE_THRESHOLD:
-            if warn_on_issues:
-                logger.warning(
-                    f"High force noise detected: {force_noise_estimate:.2e} eV/Å. "
-                    f"Threshold: {HIGH_FORCE_NOISE_THRESHOLD:.2e}. "
-                    "This may contaminate finite difference Hessians."
-                )
+    if estimated_noise is not None and estimated_noise > HIGH_NOISE_THRESHOLD and warn_on_issues:
+        logger.warning(
+            f"Hessian has high estimated noise: {estimated_noise:.2e} eV/Å². "
+            f"Threshold: {HIGH_NOISE_THRESHOLD:.2e}. "
+            "This may indicate numerical errors or PES instability."
+        )
+
+    if (
+        force_noise_estimate is not None
+        and force_noise_estimate > HIGH_FORCE_NOISE_THRESHOLD
+        and warn_on_issues
+    ):
+        logger.warning(
+            f"High force noise detected: {force_noise_estimate:.2e} eV/Å. "
+            f"Threshold: {HIGH_FORCE_NOISE_THRESHOLD:.2e}. "
+            "This may contaminate finite difference Hessians."
+        )
 
     # Overall validity
     if not is_symmetric or has_nan or has_inf:

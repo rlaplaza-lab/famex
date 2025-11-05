@@ -1,5 +1,3 @@
-"""Unit tests for PerformanceProfiler."""
-
 from __future__ import annotations
 
 import time
@@ -17,10 +15,7 @@ from qme.utils.profiler import (
 
 
 class TestTimingEntry:
-    """Test TimingEntry dataclass."""
-
-    def test_timing_entry_creation(self) -> None:
-        """Test creating a TimingEntry."""
+    def test_timing_entry_creation(self):
         entry = TimingEntry(name="test", start_time=0.0)
         assert entry.name == "test"
         assert entry.start_time == 0.0
@@ -28,8 +23,7 @@ class TestTimingEntry:
         assert entry.duration is None
         assert entry.parent is None
 
-    def test_timing_entry_finish(self) -> None:
-        """Test finishing a timing entry."""
+    def test_timing_entry_finish(self):
         entry = TimingEntry(name="test", start_time=time.perf_counter())
 
         # Wait a bit
@@ -44,18 +38,14 @@ class TestTimingEntry:
 
 
 class TestMemoryInfo:
-    """Test MemoryInfo dataclass."""
-
-    def test_memory_info_creation(self) -> None:
-        """Test creating MemoryInfo."""
+    def test_memory_info_creation(self):
         info = MemoryInfo(ram_mb=100.0)
         assert info.ram_mb == 100.0
         assert info.gpu_mb is None
         assert info.ram_percent == 0.0
         assert info.gpu_percent is None
 
-    def test_memory_info_with_gpu(self) -> None:
-        """Test MemoryInfo with GPU information."""
+    def test_memory_info_with_gpu(self):
         info = MemoryInfo(ram_mb=100.0, gpu_mb=50.0, gpu_percent=25.0)
         assert info.ram_mb == 100.0
         assert info.gpu_mb == 50.0
@@ -63,10 +53,7 @@ class TestMemoryInfo:
 
 
 class TestPerformanceProfiler:
-    """Test PerformanceProfiler class."""
-
-    def test_profiler_initialization(self) -> None:
-        """Test profiler initialization."""
+    def test_profiler_initialization(self):
         profiler = PerformanceProfiler()
 
         assert len(profiler._timings) == 0
@@ -77,8 +64,7 @@ class TestPerformanceProfiler:
         # Check initial memory snapshot exists
         assert len(profiler._memory_snapshots) == 1
 
-    def test_snapshot_memory(self) -> None:
-        """Test taking memory snapshots."""
+    def test_snapshot_memory(self):
         profiler = PerformanceProfiler()
         initial_count = len(profiler._memory_snapshots)
 
@@ -88,8 +74,7 @@ class TestPerformanceProfiler:
         assert memory_info.ram_mb > 0
         assert len(profiler._memory_snapshots) == initial_count + 1
 
-    def test_increment_call(self) -> None:
-        """Test incrementing call counters."""
+    def test_increment_call(self):
         profiler = PerformanceProfiler()
 
         profiler.increment_call("energy")
@@ -101,8 +86,7 @@ class TestPerformanceProfiler:
         profiler.increment_call("custom_call", count=5)
         assert profiler._calculator_calls["custom_call"] == 5
 
-    def test_profile_section_context_manager(self) -> None:
-        """Test profile_section context manager."""
+    def test_profile_section_context_manager(self):
         profiler = PerformanceProfiler()
 
         with profiler.profile_section("test_section"):
@@ -116,8 +100,7 @@ class TestPerformanceProfiler:
         assert timing.duration is not None
         assert timing.duration >= 0.01
 
-    def test_profile_section_nested(self) -> None:
-        """Test nested profile sections."""
+    def test_profile_section_nested(self):
         profiler = PerformanceProfiler()
 
         with (
@@ -132,8 +115,7 @@ class TestPerformanceProfiler:
         child_timing = profiler._timings["child"][0]
         assert child_timing.parent == "parent"
 
-    def test_start_end_timing_manual(self) -> None:
-        """Test manual timing control."""
+    def test_start_end_timing_manual(self):
         profiler = PerformanceProfiler()
 
         timing = profiler.start_timing("manual_section")
@@ -148,15 +130,13 @@ class TestPerformanceProfiler:
         assert "manual_section" not in profiler._active_timings
         assert "manual_section" in profiler._timings
 
-    def test_end_timing_not_started(self) -> None:
-        """Test ending timing that was not started."""
+    def test_end_timing_not_started(self):
         profiler = PerformanceProfiler()
 
         duration = profiler.end_timing("nonexistent")
         assert duration is None
 
-    def test_get_summary(self) -> None:
-        """Test getting performance summary."""
+    def test_get_summary(self):
         profiler = PerformanceProfiler()
 
         # Add some activity
@@ -182,8 +162,7 @@ class TestPerformanceProfiler:
         assert summary["calculator_calls"]["forces"] == 3
         assert "test" in summary["timings"]
 
-    def test_get_summary_timing_stats(self) -> None:
-        """Test timing statistics in summary."""
+    def test_get_summary_timing_stats(self):
         profiler = PerformanceProfiler()
 
         # Run same section multiple times
@@ -201,8 +180,7 @@ class TestPerformanceProfiler:
         assert "min_time" in timing_stats
         assert "max_time" in timing_stats
 
-    def test_calculate_memory_stats(self) -> None:
-        """Test memory statistics calculation."""
+    def test_calculate_memory_stats(self):
         profiler = PerformanceProfiler()
 
         # Take multiple snapshots
@@ -220,8 +198,7 @@ class TestPerformanceProfiler:
         assert "snapshots" in memory_stats
         assert memory_stats["snapshots"] >= 4  # Initial + 3 we added
 
-    def test_calculate_resource_stats(self) -> None:
-        """Test resource statistics calculation."""
+    def test_calculate_resource_stats(self):
         profiler = PerformanceProfiler()
 
         summary = profiler.get_summary()
@@ -235,8 +212,7 @@ class TestPerformanceProfiler:
             assert "process_memory_mb" in resource_stats
             assert "system_memory_total_mb" in resource_stats
 
-    def test_gpu_detection(self) -> None:
-        """Test GPU detection."""
+    def test_gpu_detection(self):
         profiler = PerformanceProfiler()
 
         # GPU availability depends on environment
@@ -245,8 +221,7 @@ class TestPerformanceProfiler:
         summary = profiler.get_summary()
         assert isinstance(summary["gpu_available"], bool)
 
-    def test_gpu_memory_tracking(self) -> None:
-        """Test GPU memory tracking when GPU is available."""
+    def test_gpu_memory_tracking(self):
         profiler = PerformanceProfiler()
 
         # Mock GPU as available and import torch in the method
@@ -279,8 +254,7 @@ class TestPerformanceProfiler:
                 elif "torch" in sys.modules:
                     del sys.modules["torch"]
 
-    def test_memory_snapshots_ordering(self) -> None:
-        """Test that memory snapshots are ordered correctly."""
+    def test_memory_snapshots_ordering(self):
         profiler = PerformanceProfiler()
 
         # Take snapshots with delays
@@ -294,8 +268,7 @@ class TestPerformanceProfiler:
         for i in range(len(profiler._memory_snapshots) - 1):
             assert profiler._memory_snapshots[i][0] <= profiler._memory_snapshots[i + 1][0]
 
-    def test_profile_section_exception_handling(self) -> None:
-        """Test that profile_section handles exceptions correctly."""
+    def test_profile_section_exception_handling(self):
         profiler = PerformanceProfiler()
 
         # Cannot combine pytest.raises with profile_section - they serve different purposes
@@ -310,11 +283,7 @@ class TestPerformanceProfiler:
 
 
 class TestProfilerDecorators:
-    """Test profiler decorators."""
-
-    def test_profile_call_decorator_with_profiler(self) -> None:
-        """Test profile_call decorator when profiler exists."""
-
+    def test_profile_call_decorator_with_profiler(self):
         class TestClass:
             def __init__(self):
                 self.profiler = PerformanceProfiler()
@@ -332,9 +301,7 @@ class TestProfilerDecorators:
         summary = obj.profiler.get_summary()
         assert len(summary["timings"]) > 0
 
-    def test_profile_call_decorator_without_profiler(self) -> None:
-        """Test profile_call decorator when profiler doesn't exist."""
-
+    def test_profile_call_decorator_without_profiler(self):
         class TestClass:
             @profile_call
             def test_method(self):
@@ -345,9 +312,7 @@ class TestProfilerDecorators:
 
         assert result == "result"
 
-    def test_profile_optimizer_step_decorator(self) -> None:
-        """Test profile_optimizer_step decorator."""
-
+    def test_profile_optimizer_step_decorator(self):
         class TestOptimizer:
             def __init__(self):
                 self.profiler = PerformanceProfiler()
@@ -369,9 +334,7 @@ class TestProfilerDecorators:
         # Check that timing was recorded
         assert "optimizer_step" in summary["timings"]
 
-    def test_profile_optimizer_step_multiple(self) -> None:
-        """Test profile_optimizer_step with multiple calls."""
-
+    def test_profile_optimizer_step_multiple(self):
         class TestOptimizer:
             def __init__(self):
                 self.profiler = PerformanceProfiler()

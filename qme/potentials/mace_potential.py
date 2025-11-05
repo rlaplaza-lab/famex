@@ -255,7 +255,7 @@ class MACEPotential(BasePotential):
         if self._calc is None:
             self._load_calculator()
 
-        if hasattr(self._calc, "get_stress"):
+        if self._calc is not None and hasattr(self._calc, "get_stress"):
             return self._calc.get_stress(atoms)
         msg = "Stress calculation not supported by this MACE model"
         raise NotImplementedError(msg)
@@ -301,9 +301,10 @@ class MACEPotential(BasePotential):
             hessian = self._calc.get_hessian(atoms=self.atoms)
             # MACE returns Hessian in shape (3N, N, 3), reshape to (3N, 3N)
             if hasattr(hessian, "shape") and len(hessian.shape) == 3:
-                n_atoms = len(self.atoms)
-                if hessian.shape == (3 * n_atoms, n_atoms, 3):
-                    return hessian.reshape(3 * n_atoms, 3 * n_atoms)
+                if self.atoms is not None:
+                    n_atoms = len(self.atoms)
+                    if hessian.shape == (3 * n_atoms, n_atoms, 3):
+                        return hessian.reshape(3 * n_atoms, 3 * n_atoms)
             return hessian
         except (AttributeError, RuntimeError) as e:
             # Handle e3nn compatibility issues similar to other methods
