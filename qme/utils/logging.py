@@ -87,8 +87,10 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
     handler.setFormatter(QMEFormatter())
     qme_logger.addHandler(handler)
 
-    # Allow propagation to root logger so child loggers can inherit handlers
-    qme_logger.propagate = True
+    # Disable propagation to root logger to prevent duplicate warnings
+    # Child loggers (e.g., qme.optimizers.scipy_optimizers) will still use
+    # the qme logger's handler with nice formatting
+    qme_logger.propagate = False
 
     _qme_logging_configured = True
 

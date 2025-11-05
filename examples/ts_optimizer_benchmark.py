@@ -59,7 +59,7 @@ def create_ts_structure() -> Atoms:
     # Use the actual TS structure from example files
     # Get the directory where this script is located
     script_dir = Path(__file__).parent
-    return read(script_dir / "example_files" / "reaction_001_ts.xyz")
+    return read(script_dir / "example_files" / "A_C_A_B_A_C_ts.xyz")
 
 
 def benchmark_ts_optimizer(
@@ -109,6 +109,25 @@ def benchmark_ts_optimizer(
     )
 
 
+def _should_show_backend(results: dict[str, Any]) -> bool:
+    """Determine if a backend result should be displayed.
+
+    Filters out:
+    - Backends that are not available (no useful data)
+    - Backends not suitable for TS optimization (mock, torchsim_*)
+    """
+    backend = results.get("backend", "").lower()
+
+    # Filter out backends not suitable for TS optimization
+    if backend == "mock":
+        return False
+    if backend.startswith("torchsim_"):
+        return False
+
+    # Only show if available and has results
+    return results.get("available", False)
+
+
 def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None:
     """Print a detailed frequency analysis summary for TS optimization."""
     print(f"\n{'=' * 120}")
@@ -127,25 +146,40 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None
 
     failed_optimizers = []
     for results in results_list:
-        if results["available"] and "frequency_results" in results:
+        if _should_show_backend(results) and "frequency_results" in results:
             freq_results = results["frequency_results"]
             n_imag = freq_results.get("n_imaginary_frequencies", 0)
             is_valid = freq_results.get("is_valid_result", False)
-            frequencies = freq_results.get("frequencies", [])
             method_used = freq_results.get("method_used", "unknown")
 
             backend = results.get("backend", "unknown")
             optimizer = results.get("optimizer", "unknown")
 
-            # Format first 3 frequencies
-            # Try to get frequencies from ts_analysis if main frequencies list is empty
-            if not frequencies and freq_results.get("ts_analysis", {}):
+            # Get frequencies for display - use all_frequencies if available (includes all frequencies)
+            # Otherwise use vibrational frequencies. This ensures we see imaginary frequencies even if
+            # they were filtered out of vibrational frequencies for some reason
+            all_freqs = freq_results.get("all_frequencies", [])
+            if not all_freqs:
+                # Fallback to vibrational frequencies
+                all_freqs = freq_results.get("frequencies", [])
+            if not all_freqs and freq_results.get("ts_analysis", {}):
+                # Final fallback: try to get from ts_analysis (vibrational frequencies)
                 ts_analysis = freq_results.get("ts_analysis", {})
                 all_freqs = ts_analysis.get("all_frequencies", [])
-                if all_freqs and len(all_freqs) >= 3:
-                    frequencies = all_freqs[:3]
-                elif all_freqs:
-                    frequencies = all_freqs
+
+            # Filter out near-zero frequencies (trans/rot modes with numerical noise)
+            # Keep only frequencies with |freq| > 10 cm^-1 to avoid showing trans/rot noise
+            if all_freqs:
+                filtered_freqs = [f for f in all_freqs if abs(f) > 10.0]
+                # If filtering removed all frequencies, use original (edge case)
+                if not filtered_freqs and all_freqs:
+                    filtered_freqs = all_freqs
+                # Sort frequencies so negative (imaginary) ones appear first
+                frequencies = sorted(
+                    filtered_freqs, key=lambda x: (x >= 0, x)
+                )  # Negatives first, then positives
+            else:
+                frequencies = []
 
             if len(frequencies) >= 3:
                 freq_str = f"[{frequencies[0]:.1f}, {frequencies[1]:.1f}, {frequencies[2]:.1f}]"
@@ -172,8 +206,10 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None
 
             print(f"{backend:<12} {optimizer:<15} {n_imag:<12} {status:<15} {freq_str:<25}")
 
-    # Summary statistics
-    available_results = [r for r in results_list if r["available"] and "frequency_results" in r]
+    # Summary statistics (filter to only showable backends)
+    available_results = [
+        r for r in results_list if _should_show_backend(r) and "frequency_results" in r
+    ]
     if available_results:
         # Overall validation rate
         valid_count = sum(
@@ -224,7 +260,7 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
 
     # Results
     for results in results_list:
-        if results["available"]:
+        if _should_show_backend(results):
             timings = results["timings"]
             opt_results = results.get("optimization_results", {})
             freq_results = results.get("frequency_results", {})
@@ -266,13 +302,11 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
             backend = results.get("backend", "unknown")
             optimizer = results.get("optimizer", "unknown")
             status = "❌"
-            print(
-                f"{backend:<12} {optimizer:<15} {status:<8} {'N/A':<12} {'N/A':<10} "
-                f"{'N/A':<12} {'N/A':<15} {'N/A':<12} {'N/A':<8}"
-            )
+            # Skip unavailable/unsuitable backends - don't show them at all
+            continue
 
-    # Optimizer performance analysis
-    available_results = [r for r in results_list if r["available"]]
+    # Optimizer performance analysis (filter to only showable backends)
+    available_results = [r for r in results_list if _should_show_backend(r)]
     if available_results:
         # Group by optimizer
         optimizer_groups = {}
@@ -488,40 +522,59 @@ def main() -> int:
     }
     interface.print_configuration(config)
 
-    len(available_backends) * len(ts_optimizers)
-
     # Run benchmarks
     results_list = []
 
     for backend in available_backends:
         for optimizer in ts_optimizers:
-            try:
-                results = benchmark_ts_optimizer(
-                    backend=backend,
-                    optimizer=optimizer,
-                    device=device,
-                    verbose=args.verbose,
-                    calculate_frequencies=args.freq,
-                    hessian_update_freq=args.hessian_update_freq,
-                    force_finite_diff_hessian=args.force_finite_diff_hessian,
-                )
-                results_list.append(results)
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                results_list.append(
-                    {
-                        "backend": backend,
-                        "optimizer": optimizer,
-                        "device": device,
-                        "test_ts": True,
-                        "available": False,
-                        "error": str(e),
-                        "timings": {},
-                        "optimization_results": {},
-                        "frequency_results": {},
-                    },
-                )
+            # For Hessian-based optimizers, test multiple update frequencies
+            if optimizer in ["trust-krylov-ts", "rfo"]:
+                # Test with: single Hessian (None), every 5 steps, every 10 steps
+                hessian_freqs = [None, 5, 10]
+            else:
+                # For other optimizers (e.g., sella), use default or specified value
+                hessian_freqs = [args.hessian_update_freq]
+
+            for hessian_freq in hessian_freqs:
+                # Create a unique identifier for this configuration
+                optimizer_name = optimizer
+                if optimizer in ["trust-krylov-ts", "rfo"]:
+                    if hessian_freq is None:
+                        optimizer_name = f"{optimizer}_single_hessian"
+                    else:
+                        optimizer_name = f"{optimizer}_hessian_freq_{hessian_freq}"
+
+                try:
+                    results = benchmark_ts_optimizer(
+                        backend=backend,
+                        optimizer=optimizer,
+                        device=device,
+                        verbose=args.verbose,
+                        calculate_frequencies=args.freq,
+                        hessian_update_freq=hessian_freq,
+                        force_finite_diff_hessian=args.force_finite_diff_hessian,
+                    )
+                    # Update optimizer name in results to reflect the configuration
+                    results["optimizer"] = optimizer_name
+                    results["hessian_update_freq"] = hessian_freq
+                    results_list.append(results)
+                except KeyboardInterrupt:
+                    break
+                except Exception as e:
+                    results_list.append(
+                        {
+                            "backend": backend,
+                            "optimizer": optimizer_name,
+                            "hessian_update_freq": hessian_freq,
+                            "device": device,
+                            "test_ts": True,
+                            "available": False,
+                            "error": str(e),
+                            "timings": {},
+                            "optimization_results": {},
+                            "frequency_results": {},
+                        },
+                    )
 
     # Print summaries
     print_frequency_analysis_summary(results_list)
