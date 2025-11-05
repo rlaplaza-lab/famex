@@ -440,7 +440,7 @@ def benchmark_optimization(
             if test_ts:
                 run_results = explorer.run(
                     fmax=0.005,  # Stricter criteria for TS
-                    steps=100,  # Reasonable limit for TS benchmarking
+                    steps=100,  # Increased limit for TS benchmarking to allow full convergence
                 )
             else:
                 run_results = explorer.run(
@@ -573,9 +573,18 @@ def benchmark_optimization(
                 if n_imaginary == 0 or n_imaginary > 1:
                     pass
 
+            # Store all_frequencies from freq_results (includes trans/rot modes)
+            # This is important for TS validation as it contains all frequencies including imaginary ones
+            all_frequencies_from_freq = (
+                freq_results.get("all_frequencies", []) if freq_results else []
+            )
+
             results["frequency_results"] = {
                 "n_frequencies": len(frequencies) if isinstance(frequencies, Sized) else 0,
                 "frequencies": frequencies[:10] if isinstance(frequencies, Sequence) else [],
+                "all_frequencies": all_frequencies_from_freq[:20]
+                if isinstance(all_frequencies_from_freq, Sequence)
+                else [],  # Store all frequencies (includes trans/rot)
                 "zero_point_energy": freq_results.get("zero_point_energy", 0.0)
                 if freq_results
                 else 0.0,

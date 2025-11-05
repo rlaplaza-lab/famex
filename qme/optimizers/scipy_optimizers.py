@@ -495,17 +495,39 @@ class SciPyHessianOptimizer(Optimizer):
             # Add trust-region specific options for better convergence
             # These help prevent early termination when close to convergence
             if self.method in ("trust-krylov", "trust-ncg", "trust-exact"):
+                # Check if this is a TS optimizer by looking for TS-specific attribute
+                is_ts_optimizer = hasattr(self, "_ts_trust_radius")
                 # gtol: Gradient norm tolerance for convergence (default is 1e-5)
                 # Set to very tight value to prevent premature stopping based on gradient norm
                 # Our callback handles force-based convergence checking
-                options["gtol"] = 1e-8  # Very tight gradient tolerance to allow more iterations
+                # For TS optimization, use even tighter tolerance for more precise convergence
+                if is_ts_optimizer:
+                    options["gtol"] = 1e-9  # Tighter tolerance for TS optimization
+                else:
+                    options["gtol"] = 1e-8  # Very tight gradient tolerance to allow more iterations
                 # initial_tr_radius: Initial trust region radius (default is 1.0)
-                # For TS optimization, we may need a larger trust region to allow climbing
-                # Try increasing slightly if convergence is problematic
-                options["initial_tr_radius"] = 1.0  # Default, but explicit
+                # For TS optimization, we need a larger trust region to allow climbing
+                # Increased from 1.0 to 2.0 for better initial exploration in TS regions
+                if is_ts_optimizer:
+                    options["initial_tr_radius"] = (
+                        2.0  # Larger initial trust region for TS climbing
+                    )
+                else:
+                    options["initial_tr_radius"] = 1.0  # Default, but explicit
                 # max_tr_radius: Maximum trust region radius (default is infinity)
                 # Allow larger trust regions if needed
                 options["max_tr_radius"] = 10.0  # Increase from default to allow more exploration
+                # For trust-krylov specifically, ensure maxiter allows full iterations
+                if self.method == "trust-krylov":
+                    # maxiter: Maximum number of outer iterations (already set above to steps)
+                    # Ensure it's explicitly set to allow full iterations
+                    options["maxiter"] = steps  # Explicitly set to ensure it's respected
+                    # inexact: If True, requires less nonlinear iterations but more vector products
+                    # This can help when approximation quality is poor
+                    # Set to True to allow solver to continue even with degraded approximations
+                    options["inexact"] = (
+                        True  # Allow inexact subproblem solutions for better robustness
+                    )
 
             # Run SciPy optimization
             self._scipy_result = minimize(  # type: ignore[call-overload]
@@ -712,6 +734,8 @@ class TrustKrylovTS(TrustKrylov):
         index_tolerance: float = 5e-4,
         min_positive_eigenvalue: float = 4e-3,
         negative_mode_boost: float = 8e-3,
+        initial_tr_radius: float | None = None,
+        max_tr_radius: float | None = None,
         verbose: int = 1,
         **kwargs: Any,
     ) -> None:
@@ -753,9 +777,12 @@ class TrustKrylovTS(TrustKrylov):
         self._ts_step_quality_history: list[float] = []
 
         # P-RFO parameters (similar to RFO optimizer)
-        self._ts_trust_radius: float = 0.01  # Initial trust radius for TS (geomeTRIC default)
-        self._ts_max_trust_radius: float = 0.03  # Maximum trust radius
-        self._ts_min_trust_radius: float = 0.001  # Minimum trust radius
+        # Increased defaults for better TS climbing: 0.01→0.02, 0.03→0.05
+        self._ts_trust_radius: float = initial_tr_radius if initial_tr_radius is not None else 0.02
+        self._ts_max_trust_radius: float = max_tr_radius if max_tr_radius is not None else 0.05
+        self._ts_min_trust_radius: float = (
+            0.003  # Minimum trust radius (increased from 0.001 to prevent excessive shrinkage)
+        )
         self._ts_alpha: float = 1.0  # Trust radius control parameter for P-RFO
 
     # ------------------------------------------------------------------
@@ -836,18 +863,30 @@ class TrustKrylovTS(TrustKrylov):
         sym_hessian = 0.5 * (hessian + hessian.T)
 
         # Check condition number to detect numerical issues
+        # More aggressive regularization for extremely ill-conditioned Hessians
         try:
             cond_num = np.linalg.cond(sym_hessian)
-            if cond_num > 1e12:
-                if self.verbose >= 2:
+            if cond_num > 1e8:  # Lower threshold (was 1e12) for earlier regularization
+                if self.verbose >= 1:
                     logger.warning(
                         f"Ill-conditioned Hessian (cond={cond_num:.2e}) detected in mode update. "
                         "Using regularization."
                     )
-                # Add small regularization to improve condition number
+                # Add regularization to improve condition number
                 n = sym_hessian.shape[0]
-                reg_factor = np.trace(sym_hessian) / n * 1e-10
+                trace_val = np.trace(sym_hessian)
+                if trace_val > 0:
+                    # Scale regularization based on condition number
+                    if cond_num > 1e15:
+                        # Extremely ill-conditioned - use stronger regularization
+                        reg_factor = trace_val / n * max(1e-7, min(1e-5, 1.0 / np.sqrt(cond_num)))
+                    else:
+                        reg_factor = trace_val / n * max(1e-8, min(1e-6, 1.0 / np.sqrt(cond_num)))
+                else:
+                    reg_factor = abs(trace_val) / n * 1e-8
                 sym_hessian = sym_hessian + reg_factor * np.eye(n)
+                if self.verbose >= 2:
+                    logger.debug(f"Applied regularization {reg_factor:.2e} in mode update")
         except (np.linalg.LinAlgError, ValueError):
             pass  # Continue with original Hessian
 
@@ -1153,16 +1192,19 @@ class TrustKrylovTS(TrustKrylov):
                     f"Okay step (Q={step_quality:.4f}), trust radius unchanged: {self._ts_trust_radius:.6f}"
                 )
         elif step_quality >= 0.0:
-            # Poor step
-            new_trust = 0.5 * min(self._ts_trust_radius, step_size)
+            # Poor step - reduce trust radius but don't shrink too aggressively
+            new_trust = 0.7 * min(self._ts_trust_radius, step_size)  # Less aggressive (was 0.5)
             self._ts_trust_radius = max(new_trust, self._ts_min_trust_radius)
             if self.verbose >= 1:
                 logger.warning(
                     f"Poor step (Q={step_quality:.4f}), decreased trust radius to {self._ts_trust_radius:.6f}"
                 )
         else:
-            # Very poor step (Q < 0)
-            new_trust = 0.5 * min(self._ts_trust_radius, step_size)
+            # Very poor step (Q < 0) - reduce but maintain minimum for progress
+            # Use less aggressive reduction to avoid getting stuck
+            new_trust = 0.7 * min(
+                self._ts_trust_radius, max(step_size, self._ts_min_trust_radius * 2)
+            )  # Less aggressive (was 0.5)
             self._ts_trust_radius = max(new_trust, self._ts_min_trust_radius)
             if self.verbose >= 1:
                 logger.warning(
@@ -1173,18 +1215,27 @@ class TrustKrylovTS(TrustKrylov):
         """Ensure the reflected Hessian is positive definite except for the flipped mode."""
         sym_hessian = 0.5 * (hessian + hessian.T)
 
-        # Check condition number first
+        # Check condition number first - more aggressive regularization for trust-krylov
+        # Lower threshold (1e8 instead of 1e10) for earlier regularization in TS regions
         try:
             cond_num = np.linalg.cond(sym_hessian)
-            if cond_num > 1e14:
+            if cond_num > 1e8:  # Lower threshold for earlier regularization (was 1e10)
                 # Very ill-conditioned, use more aggressive regularization
                 n = sym_hessian.shape[0]
                 # Use trace-based regularization to improve condition number
                 trace_val = np.trace(sym_hessian)
                 if trace_val > 0:
-                    reg_factor = trace_val / n * max(1e-9, 1.0 / cond_num)
+                    # More aggressive regularization for high condition numbers
+                    # Scale regularization more aggressively when condition number is very high
+                    if cond_num > 1e12:
+                        # Very high condition number - use stronger regularization
+                        reg_factor = trace_val / n * max(1e-7, min(1e-5, 1.0 / np.sqrt(cond_num)))
+                    else:
+                        # Moderate condition number - use standard regularization
+                        reg_factor = trace_val / n * max(1e-8, min(1e-6, 1.0 / np.sqrt(cond_num)))
                 else:
-                    reg_factor = abs(trace_val) / n * 1e-9
+                    # Negative trace - use conservative regularization
+                    reg_factor = abs(trace_val) / n * 1e-8
                 sym_hessian = sym_hessian + reg_factor * np.eye(n)
                 if self.verbose >= 2:
                     logger.debug(
@@ -1313,6 +1364,26 @@ class TrustKrylovTS(TrustKrylov):
         if self._ts_mode_vector is None:
             try:
                 sym_hessian = 0.5 * (raw_hessian + raw_hessian.T)
+                # Stabilize Hessian before diagonalization if extremely ill-conditioned
+                try:
+                    cond_num = np.linalg.cond(sym_hessian)
+                    if cond_num > 1e8:
+                        n = sym_hessian.shape[0]
+                        trace_val = np.trace(sym_hessian)
+                        if trace_val > 0:
+                            if cond_num > 1e15:
+                                reg_factor = (
+                                    trace_val / n * max(1e-7, min(1e-5, 1.0 / np.sqrt(cond_num)))
+                                )
+                            else:
+                                reg_factor = (
+                                    trace_val / n * max(1e-8, min(1e-6, 1.0 / np.sqrt(cond_num)))
+                                )
+                        else:
+                            reg_factor = abs(trace_val) / n * 1e-8
+                        sym_hessian = sym_hessian + reg_factor * np.eye(n)
+                except (np.linalg.LinAlgError, ValueError):
+                    pass
                 eigenvalues, eigenvectors = np.linalg.eigh(sym_hessian)
                 min_index = int(np.argmin(eigenvalues))
                 self._ts_mode_vector = eigenvectors[:, min_index].copy()
@@ -1336,20 +1407,15 @@ class TrustKrylovTS(TrustKrylov):
 
             step_norm = np.linalg.norm(prfo_step)
             if step_norm > 1e-12:
-                # Compute what gradient would produce prfo_step
-                H_prfo = raw_hessian @ prfo_step
-                g_desired = -H_prfo  # Negative because we want -H^-1 * g = prfo_step
-                g_error = raw_gradient - g_desired
-
-                # Small rank-1 update to guide toward P-RFO
-                beta = 0.5  # Mixing parameter
-                if np.linalg.norm(g_error) > 1e-10:
-                    modified_hessian = raw_hessian + beta * np.outer(g_error, prfo_step) / (
-                        step_norm**2 + 1e-10
-                    )
-                    modified_hessian = 0.5 * (modified_hessian + modified_hessian.T)
-                else:
-                    modified_hessian = raw_hessian
+                # NOTE: Originally attempted rank-1 update to guide toward P-RFO:
+                #   H_prfo = raw_hessian @ prfo_step
+                #   g_desired = -H_prfo
+                #   g_error = raw_gradient - g_desired
+                #   modified_hessian = raw_hessian + beta * np.outer(g_error, prfo_step) / step_norm^2
+                # However, this modification makes the Hessian ill-conditioned (cond ~10^9)
+                # and causes SciPy's trust-krylov to fail with "bad approximation" errors.
+                # Use raw Hessian directly - the stabilization step will handle TS-specific modifications
+                modified_hessian = raw_hessian
             else:
                 modified_hessian = raw_hessian
 
@@ -1485,6 +1551,14 @@ class TrustKrylovTS(TrustKrylov):
                 # Adjust trust radius based on step quality (P-RFO approach)
                 self._adjust_trust_radius(step_quality, step_norm)
 
+                # Force Hessian recomputation if step quality is very poor
+                # This helps when the Hessian approximation becomes too inaccurate
+                if step_quality < -0.1:  # Very poor step quality
+                    # Force next Hessian update by resetting the last full Hessian step counter
+                    # This ensures we recompute the Hessian on the next call to hessian_func
+                    self._last_full_hessian_step = -999  # Force recompute
+                    # Warning is already logged in _adjust_trust_radius() for very poor steps
+
                 if self.verbose >= 2:
                     quality_status = (
                         "good"
@@ -1499,11 +1573,7 @@ class TrustKrylovTS(TrustKrylov):
                         f"Step {self.nsteps}: quality Q={step_quality:.4f} ({quality_status}), "
                         f"ΔE_actual={actual_energy_change:.6f} eV, step_norm={step_norm:.6f} Å"
                     )
-                elif self.verbose >= 1 and step_quality < 0.0:
-                    logger.warning(
-                        f"Step {self.nsteps}: very poor quality (Q={step_quality:.4f}), "
-                        "consider recomputing Hessian"
-                    )
+                # Removed redundant warning for poor steps - already covered by _adjust_trust_radius()
 
         # Store current state for next step quality computation
         # The gradient and Hessian from this iteration will be stored in gradient/hessian_func

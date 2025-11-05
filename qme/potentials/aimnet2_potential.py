@@ -18,7 +18,7 @@ from torch_cluster import radius_graph
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
 from qme.utils.logging import get_qme_logger
-from qme.utils.path_security import validate_safe_path
+from qme.utils.path_security import PathSecurityError, is_safe_relative_path, validate_safe_path
 
 if TYPE_CHECKING:
     from ase import Atoms
@@ -82,6 +82,16 @@ def get_model_path(model_name: str) -> str:
         )
     except ImportError:
         download_and_cache_model = None
+
+    # Security check: reject path traversal attempts and absolute paths
+    if not is_safe_relative_path(model_name):
+        if os.path.isabs(model_name):
+            msg = f"Absolute paths not allowed for model: {model_name}"
+            raise PathSecurityError(msg)
+        # Check for path traversal patterns
+        if ".." in model_name or "~" in model_name:
+            msg = f"Unsafe model path detected (path traversal attempt): {model_name}"
+            raise PathSecurityError(msg)
 
     # Direct file path
     if os.path.isfile(model_name):

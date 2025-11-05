@@ -643,17 +643,25 @@ class RFOTransitionState(Optimizer):
             new_trust = 0.5 * min(self.trust_radius, step_size)
             self.trust_radius = max(new_trust, self.min_trust_radius)
             if self.verbose >= 1:
-                logger.warning(
-                    f"Poor step (Q={step_quality:.4f}), decreased trust radius to {self.trust_radius:.6f}"
-                )
+                try:
+                    logger.warning(
+                        f"Poor step (Q={step_quality:.4f}), decreased trust radius to {self.trust_radius:.6f}"
+                    )
+                except (ValueError, OSError):
+                    # Handle closed file streams gracefully
+                    pass
         else:
             # Very poor step (Q < 0)
             new_trust = 0.5 * min(self.trust_radius, step_size)
             self.trust_radius = max(new_trust, self.min_trust_radius)
             if self.verbose >= 1:
-                logger.warning(
-                    f"Very poor step (Q={step_quality:.4f}), decreased trust radius to {self.trust_radius:.6f}"
-                )
+                try:
+                    logger.warning(
+                        f"Very poor step (Q={step_quality:.4f}), decreased trust radius to {self.trust_radius:.6f}"
+                    )
+                except (ValueError, OSError):
+                    # Handle closed file streams gracefully
+                    pass
 
     def _find_optimal_alpha(self, gradient: np.ndarray, hessian: np.ndarray) -> float:
         """Find optimal alpha parameter for trust radius control.
@@ -889,7 +897,13 @@ class RFOTransitionState(Optimizer):
                         )
 
                     if self.verbose >= 1:
-                        logger.warning(f"Step rejected due to poor quality (Q={step_quality:.4f})")
+                        try:
+                            logger.warning(
+                                f"Step rejected due to poor quality (Q={step_quality:.4f})"
+                            )
+                        except (ValueError, OSError):
+                            # Handle closed file streams gracefully
+                            pass
                 else:
                     # Accept step - update state for next iteration
                     # Store OLD position and gradient for MS-PSB update in next iteration
@@ -939,8 +953,12 @@ class RFOTransitionState(Optimizer):
             if self.verbose >= 1:
                 logger.info("Optimization converged!")
         elif self.verbose >= 1:
-            logger.warning(f"Optimization stopped after {steps} steps without converging")
-            logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
+            try:
+                logger.warning(f"Optimization stopped after {steps} steps without converging")
+                logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
+            except (ValueError, OSError):
+                # Handle closed file streams gracefully
+                pass
 
         # Log step quality summary
         if self._step_quality_history and self.verbose >= 1:

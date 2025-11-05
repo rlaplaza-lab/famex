@@ -148,12 +148,15 @@ class LocalTSStrategy(BaseStrategy):
             }:
                 # TrustKrylovTS: recompute Hessian periodically for better convergence
                 # TS optimization needs accurate Hessian information, similar to RFO
-                # Tests show hessian_update_freq=1 works well, but 10 is more efficient
-                opt_kwargs.setdefault("hessian_update_freq", 10)
-                opt_kwargs.setdefault("mode_recompute_interval", 1)
+                # More frequent updates (5 steps) improve TS tracking and convergence
+                opt_kwargs.setdefault("hessian_update_freq", 5)
+                opt_kwargs.setdefault("mode_recompute_interval", 2)
                 opt_kwargs.setdefault("index_tolerance", 5e-4)
                 opt_kwargs.setdefault("min_positive_eigenvalue", 4e-3)
                 opt_kwargs.setdefault("negative_mode_boost", 8e-3)
+                # Add trust radius parameters for better TS climbing (similar to RFO defaults)
+                opt_kwargs.setdefault("initial_tr_radius", 0.02)
+                opt_kwargs.setdefault("max_tr_radius", 0.05)
             elif normalized_name in ("rfo", "rfo-ts", "rational-function", "rational_function"):
                 # RFO optimizer: recompute Hessian every 10 steps for better convergence
                 # TS optimization needs accurate Hessian information

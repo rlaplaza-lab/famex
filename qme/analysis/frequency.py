@@ -547,7 +547,10 @@ class FrequencyAnalysis:
             - n_imaginary_frequencies: Number of imaginary frequencies (int)
             - imaginary_frequencies: List of imaginary frequencies (list[float])
             - n_near_zero_frequencies: Number of near-zero frequencies (int)
-            - all_frequencies: All frequencies (list[float])
+            - all_frequencies: Vibrational frequencies (list[float])
+                Note: This contains vibrational frequencies (trans/rot modes removed).
+                For all frequencies including trans/rot, use the top-level all_frequencies
+                from explorer.calculate_frequencies().
             - threshold: Threshold used (float)
             - assessment: Assessment string (str)
 
@@ -569,7 +572,7 @@ class FrequencyAnalysis:
             "n_imaginary_frequencies": n_imaginary,
             "imaginary_frequencies": imaginary_freqs.tolist(),
             "n_near_zero_frequencies": n_near_zero,
-            "all_frequencies": frequencies.tolist(),
+            "all_frequencies": frequencies.tolist(),  # Note: vibrational frequencies (trans/rot removed)
             "threshold": threshold,
             "assessment": self._assess_stationary_point(n_imaginary, n_near_zero, threshold),
         }
@@ -609,7 +612,10 @@ class FrequencyAnalysis:
             - significant_imaginary_frequencies: List of significant imaginary frequencies (list[float])
             - small_negative_frequencies: List of small negative frequencies (list[float])
             - n_near_zero_frequencies: Number of near-zero frequencies (int)
-            - all_frequencies: All frequencies (list[float])
+            - all_frequencies: Vibrational frequencies (list[float])
+                Note: This contains vibrational frequencies (trans/rot modes removed).
+                For all frequencies including trans/rot, use the top-level all_frequencies
+                from explorer.calculate_frequencies().
             - threshold: Threshold used (float)
             - small_negative_cutoff: Small negative cutoff used (float)
             - assessment: Assessment string (str)
@@ -640,7 +646,7 @@ class FrequencyAnalysis:
             "significant_imaginary_frequencies": significant_imaginary.tolist(),
             "small_negative_frequencies": small_negative.tolist(),
             "n_near_zero_frequencies": n_near_zero,
-            "all_frequencies": frequencies.tolist(),
+            "all_frequencies": frequencies.tolist(),  # Note: vibrational frequencies (trans/rot removed)
             "threshold": threshold,
             "small_negative_cutoff": small_negative_cutoff,
             "assessment": self._assess_stationary_point_minima(
