@@ -460,9 +460,20 @@ class Explorer:
             if spin_missing:
                 missing_parts.append(f"spin={spin}")
 
-            logger.warning(
-                f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
-            )
+            # Use debug level instead of warning since defaults are reasonable
+            # and charge/spin are often not critical for neutral closed-shell systems
+            if self.verbose >= 2:
+                logger.debug(
+                    f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
+                )
+            else:
+                # Only warn at verbose level 1 if it's a charged or open-shell system
+                # (charge != 0 or spin != 1), otherwise it's just informational
+                if charge != 0 or spin != 1:
+                    logger.warning(
+                        f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
+                    )
+                # For neutral closed-shell (charge=0, spin=1), don't warn at all
             self._warned_about_defaults = True
 
         # Ensure atoms.info contains values so calculators that read

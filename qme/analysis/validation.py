@@ -18,7 +18,7 @@ __all__ = ["validate_hessian"]
 def validate_hessian(
     hessian: np.ndarray,
     tolerance_symmetry: float = 1e-6,
-    max_condition_number: float = 1e12,
+    max_condition_number: float = 1e18,
     warn_on_issues: bool = True,
     estimated_noise: float | None = None,
     force_noise_estimate: float | None = None,
@@ -32,7 +32,10 @@ def validate_hessian(
     tolerance_symmetry : float
         Tolerance for symmetry check (default: 1e-6)
     max_condition_number : float
-        Maximum acceptable condition number before warning (default: 1e12)
+        Maximum acceptable condition number before warning (default: 1e18)
+        Note: ML potentials often have higher condition numbers (1e16-1e18)
+        that are still numerically stable for frequency calculations.
+        Only condition numbers > 1e18 are considered truly problematic.
     warn_on_issues : bool
         If True, log warnings when issues are detected (default: True)
     estimated_noise : float, optional
