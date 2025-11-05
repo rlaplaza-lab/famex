@@ -43,7 +43,7 @@ class TestTorchSimCalculatorCreation:
             atoms = molecule("H2")
             atoms.calc = calc
             energy = atoms.get_potential_energy()
-            assert isinstance(energy, (float, int))
+            assert isinstance(energy, float | int)
         else:
             with pytest.raises(ImportError, match="Backend 'torchsim_mace' is not available"):
                 calculator_registry.create_calculator(
@@ -54,6 +54,7 @@ class TestTorchSimCalculatorCreation:
 
 
 class TestTorchSimOptimization:
+    @pytest.mark.slow
     @pytest.mark.skipif(
         not _torchsim_ready(),
         reason="TorchSim or compatible dependencies not available",

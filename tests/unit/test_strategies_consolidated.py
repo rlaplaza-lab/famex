@@ -21,26 +21,8 @@ from tests.test_utils import TestMoleculeFactory
 # ============================================================================
 # Shared Fixtures
 # ============================================================================
-
-
-@pytest.fixture
-def water_distorted():
-    return TestMoleculeFactory.get_water_distorted()
-
-
-@pytest.fixture
-def h2_stretched():
-    return TestMoleculeFactory.get_h2_stretched()
-
-
-@pytest.fixture
-def reactant_product_pair():
-    reactant = TestMoleculeFactory.get_water_distorted()
-    product = TestMoleculeFactory.get_water_distorted()
-    pos = product.get_positions()
-    pos[1, 0] += 0.2
-    product.set_positions(pos)
-    return reactant, product
+# Note: water_molecule, h2_molecule, and reactant_product_pair are available
+# from conftest.py. Only test-specific fixtures are defined here.
 
 
 @pytest.fixture
@@ -57,7 +39,7 @@ class TestStrategyInitialization:
     @pytest.mark.parametrize(
         ("strategy_class", "atoms_fixture", "expected_attrs"),
         [
-            (LocalMinimaStrategy, "water_distorted", {"profiler": None}),
+            (LocalMinimaStrategy, "water_molecule", {"profiler": None}),
             (LocalTSStrategy, "water_dissociation_ts_guess", {}),
             (LocalIRCStrategy, "water_dissociation_ts_guess", {}),
             (MultiStructureNEBStrategy, "reactant_product_pair", {}),
@@ -87,23 +69,23 @@ class TestStrategyInitialization:
 
 class TestSingleStructureStrategies:
     @pytest.mark.parametrize(
-        ("strategy_class", "atoms_getter", "expected_strategy_name", "skip_if_no_sella"),
+        ("strategy_class", "atoms_fixture", "expected_strategy_name", "skip_if_no_sella"),
         [
             (
                 LocalMinimaStrategy,
-                lambda: TestMoleculeFactory.get_h2_stretched(),
+                "h2_molecule",
                 "minima:local",
                 False,
             ),
             (
                 LocalTSStrategy,
-                lambda: TestMoleculeFactory.get_water_dissociation_ts_guess(),
+                "water_dissociation_ts_guess",
                 "ts:local",
                 True,
             ),
             (
                 LocalIRCStrategy,
-                lambda: TestMoleculeFactory.get_water_dissociation_ts_guess(),
+                "water_dissociation_ts_guess",
                 "path:irc",
                 False,
             ),
@@ -112,15 +94,16 @@ class TestSingleStructureStrategies:
     )
     def test_strategy_run_basic(
         self,
+        request,
         strategy_class,
-        atoms_getter,
+        atoms_fixture,
         expected_strategy_name,
         skip_if_no_sella,
     ):
         if skip_if_no_sella and not qme.deps.has("sella"):
             pytest.skip("Sella required for TS optimization")
 
-        atoms = atoms_getter()
+        atoms = request.getfixturevalue(atoms_fixture)
         explorer = Explorer(atoms, backend="mock")
         strategy = strategy_class(explorer)
 
@@ -135,22 +118,24 @@ class TestSingleStructureStrategies:
             raise
 
     @pytest.mark.parametrize(
-        ("strategy_class", "atoms_getter", "skip_if_no_sella"),
+        ("strategy_class", "atoms_fixture", "skip_if_no_sella"),
         [
-            (LocalMinimaStrategy, lambda: TestMoleculeFactory.get_water_distorted(), False),
+            (LocalMinimaStrategy, "water_molecule", False),
             (
                 LocalTSStrategy,
-                lambda: TestMoleculeFactory.get_water_dissociation_ts_guess(),
+                "water_dissociation_ts_guess",
                 True,
             ),
         ],
         ids=["minima", "ts"],
     )
-    def test_strategy_run_with_frequencies(self, strategy_class, atoms_getter, skip_if_no_sella):
+    def test_strategy_run_with_frequencies(
+        self, request, strategy_class, atoms_fixture, skip_if_no_sella
+    ):
         if skip_if_no_sella and not qme.deps.has("sella"):
             pytest.skip("Sella required for TS optimization")
 
-        atoms = atoms_getter()
+        atoms = request.getfixturevalue(atoms_fixture)
         explorer = Explorer(atoms, backend="mock")
         strategy = strategy_class(explorer)
 
@@ -318,8 +303,8 @@ class TestMultiStructureStrategies:
 
 
 class TestLocalMinimaStrategy:
-    def test_run_with_different_optimizers(self):
-        atoms = TestMoleculeFactory.get_h2_stretched()
+    def test_run_with_different_optimizers(self, h2_molecule):
+        atoms = h2_molecule
         explorer = Explorer(atoms, backend="mock")
         strategy = LocalMinimaStrategy(explorer)
 
@@ -327,9 +312,9 @@ class TestLocalMinimaStrategy:
             result = strategy.run([atoms], steps=3, fmax=0.5, local_optimizer_name=optimizer)
             assert result["optimized_atoms"] is not None
 
-    def test_run_multiple_structures(self):
-        atoms1 = TestMoleculeFactory.get_water_distorted()
-        atoms2 = TestMoleculeFactory.get_water_distorted()
+    def test_run_multiple_structures(self, water_molecule):
+        atoms1 = water_molecule
+        atoms2 = water_molecule.copy()
         explorer = Explorer([atoms1, atoms2], backend="mock")
         strategy = LocalMinimaStrategy(explorer)
 
@@ -340,8 +325,8 @@ class TestLocalMinimaStrategy:
         assert isinstance(result["converged"], list)
         assert len(result["converged"]) == 2
 
-    def test_run_single_structure_list(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_run_single_structure_list(self, water_molecule):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock")
         strategy = LocalMinimaStrategy(explorer)
 
@@ -350,8 +335,8 @@ class TestLocalMinimaStrategy:
         assert isinstance(result["optimized_atoms"], type(atoms))
         assert isinstance(result["converged"], bool)
 
-    def test_run_with_initial_hessian(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_run_with_initial_hessian(self, water_molecule):
+        atoms = water_molecule
         n = len(atoms) * 3
         explorer = Explorer(atoms, backend="mock", initial_hessian=np.eye(n))
         strategy = LocalMinimaStrategy(explorer)
@@ -359,8 +344,8 @@ class TestLocalMinimaStrategy:
         result = strategy.run([atoms], steps=3, fmax=0.5, local_optimizer_name="LBFGS")
         assert result["optimized_atoms"] is not None
 
-    def test_run_with_profiler(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_run_with_profiler(self, water_molecule):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock", profile=True)
         strategy = LocalMinimaStrategy(explorer, profiler=explorer.profiler)
 
@@ -369,16 +354,16 @@ class TestLocalMinimaStrategy:
         assert "performance" in result
         assert result["optimized_atoms"] is not None
 
-    def test_with_constraints(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_with_constraints(self, water_molecule):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock", constraints="fix 0")
         strategy = LocalMinimaStrategy(explorer)
 
         result = strategy.run([atoms], steps=3, fmax=0.5)
         assert result["optimized_atoms"] is not None
 
-    def test_handles_optimizer_failure(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_handles_optimizer_failure(self, water_molecule):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock")
         strategy = LocalMinimaStrategy(explorer)
 
@@ -470,8 +455,8 @@ class TestMultiStructureInterpolateStrategies:
             assert isinstance(result["optimized_atoms"], list)
             assert len(result["optimized_atoms"]) >= 2
 
-    def test_minima_interpolate_requires_multiple_structures(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_minima_interpolate_requires_multiple_structures(self, water_molecule):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock")
         strategy = MultiStructureMinimaInterpolateStrategy(explorer)
 
@@ -486,8 +471,8 @@ class TestMultiStructureInterpolateStrategies:
         result = strategy.run([reactant, product], npoints=5, climb=False, steps=3, fmax=0.5)
         assert result["optimized_atoms"] is not None
 
-    def test_neb_validates_inputs(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_neb_validates_inputs(self, water_molecule):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock")
         strategy = MultiStructureNEBStrategy(explorer)
 
@@ -507,6 +492,54 @@ class TestMultiStructureInterpolateStrategies:
             fmax=0.5,
         )
         assert result["optimized_atoms"] is not None
+
+    def test_neb_path_length_exactly_3(self, reactant_product_pair):
+        """Test NEB works with exactly 3 images (minimum required)."""
+        reactant, product = reactant_product_pair
+        explorer = Explorer([reactant, product], backend="mock")
+        strategy = MultiStructureNEBStrategy(explorer)
+
+        # Should work with npoints=3 (minimum required)
+        result = strategy.run([reactant, product], npoints=3, steps=3, fmax=0.5)
+        assert result["optimized_atoms"] is not None
+
+    def test_neb_nested_path_flattening(self, reactant_product_pair):
+        """Test NEB handles nested path structure and flattens it."""
+        from unittest.mock import patch
+
+        reactant, product = reactant_product_pair
+        explorer = Explorer([reactant, product], backend="mock")
+        strategy = MultiStructureNEBStrategy(explorer)
+
+        # Create a path that could appear nested
+        flat_path = [reactant, product, reactant]  # 3+ atoms for valid path
+
+        with patch("qme.strategies.neb.PathManager.interpolate") as mock_interpolate:
+            mock_interpolate.return_value = flat_path
+
+            # Should handle the path structure
+            result = strategy.run([reactant, product], npoints=5, steps=3, fmax=0.5)
+            assert result is not None
+
+    def test_neb_calculator_attachment_failure_detailed(self, reactant_product_pair):
+        """Test NEB raises RuntimeError when calculator attachment fails."""
+        from unittest.mock import patch
+
+        reactant, product = reactant_product_pair
+        explorer = Explorer([reactant, product], backend="mock")
+        strategy = MultiStructureNEBStrategy(explorer)
+
+        with patch("qme.strategies.neb.PathManager.attach_calculators") as mock_attach:
+            # Simulate attachment that doesn't attach calculators
+            def mock_attach_func(explorer, path):
+                # Don't attach calculators - leave calc as None
+                for img in path:
+                    img.calc = None
+
+            mock_attach.side_effect = mock_attach_func
+
+            with pytest.raises(RuntimeError, match="Failed to attach calculators"):
+                strategy.run([reactant, product], npoints=5, steps=3, fmax=0.5)
 
     def test_cineb_run_with_spring_constant(self, reactant_product_pair):
         reactant, product = reactant_product_pair
@@ -591,8 +624,8 @@ class TestPathInterpolateStrategy:
         assert isinstance(result["optimized_atoms"], list)
         assert len(result["optimized_atoms"]) == 5
 
-    def test_path_interpolate_requires_multiple_structures(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_path_interpolate_requires_multiple_structures(self, water_molecule):
+        atoms = water_molecule
         explorer = Explorer(atoms, backend="mock")
         strategy = PathInterpolateStrategy(explorer)
 

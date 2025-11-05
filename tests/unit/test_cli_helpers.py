@@ -269,6 +269,93 @@ class TestCacheCommands:
         assert result.exit_code == 0
         assert "Cancelled" in result.output or result.exit_code == 0
 
+    def test_cache_clear_with_yes_flag(self):
+        """Test cache clear with --yes flag skips confirmation."""
+        runner = CliRunner()
+        result = runner.invoke(cache, ["clear", "--yes"])
+
+        assert result.exit_code == 0
+        assert "Cleared entire model cache" in result.output
+        assert "Cancelled" not in result.output
+
+    def test_cache_clear_with_model_option(self):
+        """Test cache clear with --model option clears specific model."""
+        runner = CliRunner()
+        result = runner.invoke(cache, ["clear", "--model", "test_model", "--yes"])
+
+        assert result.exit_code == 0
+        assert "Cleared cache for model 'test_model'" in result.output
+
+    def test_cache_clear_with_model_no_yes(self):
+        """Test cache clear with --model but no --yes flag."""
+        runner = CliRunner()
+        # Simulate 'n' for no
+        result = runner.invoke(cache, ["clear", "--model", "test_model"], input="n\n")
+
+        assert result.exit_code == 0
+        assert "Cancelled" in result.output
+
+    def test_cache_verify_with_corrupted_files(self, monkeypatch, tmp_path):
+        """Test cache verify handles corrupted/missing files."""
+        from unittest.mock import MagicMock
+
+        # Create a mock cache
+        mock_cache = MagicMock()
+        mock_cache.get_cache_info.return_value = {
+            "cache_dir": tmp_path,
+            "model_count": 1,
+            "total_size_mb": 1.0,
+            "models": [
+                {
+                    "model_name": "test_model",
+                    "filename": "test_model.pt",
+                    "size": 1024,
+                    "checksum": "abc123",
+                }
+            ],
+        }
+        mock_cache.cache_dir = tmp_path
+        mock_cache._verify_checksum.return_value = False  # Simulate corrupted
+
+        # Patch get_model_cache to return our mock
+        monkeypatch.setattr("qme.cli.cache_commands.get_model_cache", lambda: mock_cache)
+
+        runner = CliRunner()
+        result = runner.invoke(cache, ["verify"])
+
+        assert result.exit_code == 0
+        assert "Verifying" in result.output
+        # Should show verified count (even if 0)
+        assert "Verified:" in result.output
+        assert "Corrupted:" in result.output
+
+    def test_cache_info_shows_cached_models(self, monkeypatch):
+        """Test cache info displays cached models when present."""
+        from unittest.mock import MagicMock
+
+        # Create a mock cache
+        mock_cache = MagicMock()
+        mock_cache.get_cache_info.return_value = {
+            "cache_dir": "/tmp/test_cache",
+            "model_count": 2,
+            "total_size_mb": 10.5,
+            "models": [
+                {"model_name": "model1", "size": 5 * 1024 * 1024, "filename": "model1.pt"},
+                {"model_name": "model2", "size": 5 * 1024 * 1024, "filename": "model2.pt"},
+            ],
+        }
+
+        # Patch get_model_cache to return our mock
+        monkeypatch.setattr("qme.cli.cache_commands.get_model_cache", lambda: mock_cache)
+
+        runner = CliRunner()
+        result = runner.invoke(cache, ["info"])
+
+        assert result.exit_code == 0
+        assert "Cached models:" in result.output
+        assert "model1" in result.output
+        assert "model2" in result.output
+
 
 class TestLoadAtomsFromXYZExtended:
     def test_load_xyz_with_multiple_frames(self):
