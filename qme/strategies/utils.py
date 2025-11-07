@@ -56,12 +56,12 @@ class StrategyUtils:
         # because get_number_of_steps() returns 0 by default from ASE Optimizer base class
         if hasattr(optimizer, "step_count") and optimizer.step_count is not None:
             step_count = optimizer.step_count
-            return int(step_count) if isinstance(step_count, (int, float)) else None
+            return int(step_count) if isinstance(step_count, int | float) else None
 
         # Fallback to ASE's get_number_of_steps() for other optimizers
         if hasattr(optimizer, "get_number_of_steps"):
             steps = optimizer.get_number_of_steps()
-            return int(steps) if isinstance(steps, (int, float)) else None
+            return int(steps) if isinstance(steps, int | float) else None
 
         return None
 
@@ -213,6 +213,10 @@ class StrategyUtils:
     ) -> Atoms | None:
         """Grow string by adding a new node along the steepest descent direction.
 
+        DEPRECATED: This method is kept for backward compatibility but is no longer
+        used by the proper GSM implementation. The new implementation handles node
+        growth internally based on parametrization density.
+
         Parameters
         ----------
         previous_node : Atoms
@@ -232,56 +236,35 @@ class StrategyUtils:
             New node, or None if growth failed
 
         """
-        try:
-            # Get forces on previous node
-            forces = previous_node.get_forces()
+        # Get forces on previous node
+        forces = previous_node.get_forces()
 
-            # Create new node by copying and adjusting positions
-            new_node: Atoms = previous_node.copy()
+        # Create new node by copying and adjusting positions
+        new_node: Atoms = previous_node.copy()
 
-            # Manually copy calculator reference (ASE copy() doesn't copy calculator)
-            if hasattr(previous_node, "calc") and previous_node.calc is not None:
-                new_node.calc = previous_node.calc
+        # Manually copy calculator reference (ASE copy() doesn't copy calculator)
+        if hasattr(previous_node, "calc") and previous_node.calc is not None:
+            new_node.calc = previous_node.calc
 
-            # For forward growth, move along negative gradient (downhill)
-            # For backward growth, also move along negative gradient
-            # The direction is handled by which end we're growing from
-            force_magnitude = np.linalg.norm(forces)
-            if force_magnitude < 1e-6:
-                logger.warning(
-                    f"Growing String: Very small forces ({force_magnitude:.2e}), skipping node",
-                )
-                return None
-
-            # Normalize and scale forces to get step direction
-            step_direction = -forces / force_magnitude  # Negative for downhill
-            displacement = step_direction * step_size
-
-            new_node.positions = previous_node.positions + displacement
-
-            # Re-attach calculator if using explorer (to ensure proper setup)
-            if explorer is not None:
-                explorer._create_and_attach_calculator(new_node)
-                explorer._apply_constraints(new_node)
-
-            # Optimize perpendicular to the path
-            # This is a simplified version - a full implementation would:
-            # 1. Calculate tangent to the path
-            # 2. Project forces perpendicular to tangent
-            # 3. Optimize only in perpendicular directions
-            # For now, we do a quick optimization with few steps
-            try:
-                from qme.strategies.helpers import _get_local_optimizer_class
-
-                OptClass = _get_local_optimizer_class("lbfgs")
-                opt = OptClass(new_node)
-                opt.run(fmax=fmax, steps=5)  # Limited optimization
-            except (RuntimeError, ValueError, AttributeError) as e:
-                logger.warning(f"Growing String: Perpendicular optimization failed: {e}")
-                # Continue anyway with unoptimized node
-
-            return new_node
-
-        except (RuntimeError, ValueError, AttributeError) as e:
-            logger.warning(f"Growing String: Failed to grow node: {e}")
+        # For forward growth, move along negative gradient (downhill)
+        # For backward growth, also move along negative gradient
+        # The direction is handled by which end we're growing from
+        force_magnitude = np.linalg.norm(forces)
+        if force_magnitude < 1e-6:
+            logger.warning(
+                f"Growing String: Very small forces ({force_magnitude:.2e}), skipping node",
+            )
             return None
+
+        # Normalize and scale forces to get step direction
+        step_direction = -forces / force_magnitude  # Negative for downhill
+        displacement = step_direction * step_size
+
+        new_node.positions = previous_node.positions + displacement
+
+        # Re-attach calculator if using explorer (to ensure proper setup)
+        if explorer is not None:
+            explorer._create_and_attach_calculator(new_node)
+            explorer._apply_constraints(new_node)
+
+        return new_node

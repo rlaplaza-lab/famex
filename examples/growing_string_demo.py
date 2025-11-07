@@ -4,21 +4,29 @@
 import sys
 from pathlib import Path
 
-from ase import Atoms
 from ase.io import read, write
 
 import qme
 from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
 
+DEFAULT_REACTANT = "A_C_A_B_A_C_reactant.xyz"
+DEFAULT_PRODUCT = "A_C_A_B_A_C_product.xyz"
 
-def create_h2_reaction():
-    """Create H2 dissociation reaction (reactant and product)."""
-    # Reactant: Compressed H2
-    reactant = Atoms("H2", positions=[(0, 0, 0), (0.6, 0, 0)])
 
-    # Product: Stretched H2
-    product = Atoms("H2", positions=[(0, 0, 0), (2.0, 0, 0)])
+def load_default_reaction() -> tuple:
+    """Load the ACAB example reaction from the bundled example files."""
+    examples_dir = Path(__file__).parent / "example_files"
+    reactant_path = examples_dir / DEFAULT_REACTANT
+    product_path = examples_dir / DEFAULT_PRODUCT
 
+    if not reactant_path.exists() or not product_path.exists():
+        missing = [str(path) for path in (reactant_path, product_path) if not path.exists()]
+        raise FileNotFoundError(
+            f"Default example structures not found. Missing file(s): {', '.join(missing)}"
+        )
+
+    reactant = read(reactant_path)
+    product = read(product_path)
     return reactant, product
 
 
@@ -37,11 +45,19 @@ def main() -> int:
     # Add demo-specific arguments
     parser.add_argument(
         "--reactant",
-        help="Path to reactant XYZ file (optional, uses H2 dissociation if not provided)",
+        help=(
+            "Path to reactant XYZ file "
+            "(optional, defaults to examples/example_files/"
+            f"{DEFAULT_REACTANT})"
+        ),
     )
     parser.add_argument(
         "--product",
-        help="Path to product XYZ file (optional, uses H2 dissociation if not provided)",
+        help=(
+            "Path to product XYZ file "
+            "(optional, defaults to examples/example_files/"
+            f"{DEFAULT_PRODUCT})"
+        ),
     )
     parser.add_argument(
         "--npoints",
@@ -52,8 +68,8 @@ def main() -> int:
     parser.add_argument(
         "--steps",
         type=int,
-        default=50,
-        help="Maximum growing iterations (default: 50)",
+        default=200,
+        help="Maximum growing iterations (default: 200)",
     )
     parser.add_argument(
         "--step-size",
@@ -64,8 +80,8 @@ def main() -> int:
     parser.add_argument(
         "--fmax",
         type=float,
-        default=0.5,
-        help="Force convergence threshold (default: 0.5)",
+        default=0.05,
+        help="Force convergence threshold for growing string optimization (default: 0.05)",
     )
     parser.add_argument(
         "--optimize-endpoints",
@@ -75,7 +91,14 @@ def main() -> int:
     parser.add_argument(
         "--refine-ts",
         action="store_true",
-        help="Refine TS with local optimization after finding it (default: False)",
+        default=True,
+        help="Refine TS with local optimization after finding it (default: True)",
+    )
+    parser.add_argument(
+        "--no-refine-ts",
+        dest="refine_ts",
+        action="store_false",
+        help="Skip TS refinement (use raw highest-energy image as TS)",
     )
 
     args = parser.parse_args()
@@ -119,8 +142,11 @@ def main() -> int:
             print(f"  Reactant: {args.reactant}")
             print(f"  Product: {args.product}")
         else:
-            reactant, product = create_h2_reaction()
-            print("\nUsing default H2 dissociation reaction")
+            reactant, product = load_default_reaction()
+            default_dir = Path(__file__).parent / "example_files"
+            print("\nUsing default ACAB reaction from example_files/")
+            print(f"  Reactant: {default_dir / DEFAULT_REACTANT}")
+            print(f"  Product:  {default_dir / DEFAULT_PRODUCT}")
 
         # Setup Explorer
         print("\nSetting up Explorer with growing string method...")
