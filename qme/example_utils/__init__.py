@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from ase import Atoms
+from ase.io import write as ase_write
 
 # Import QME components
 from qme.backends.availability import is_backend_available
@@ -279,6 +280,9 @@ def benchmark_optimization(
     calculate_frequencies: bool = True,
     ts_kwargs: dict[str, Any] | None = None,
     force_finite_diff_hessian: bool = False,
+    save_optimized_structure: bool = False,
+    structure_label: str | None = None,
+    structure_output_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Common benchmark function for optimization and frequency analysis.
 
@@ -311,6 +315,12 @@ def benchmark_optimization(
     force_finite_diff_hessian : bool
         If True, forces use of finite difference Hessians for TS optimizers and frequency
         calculations instead of analytical Hessians (default: False).
+    save_optimized_structure : bool
+        If True, writes the optimized structure(s) to an XYZ file (default: False).
+    structure_label : str | None
+        Optional label used to build the XYZ filename. Falls back to optimizer name.
+    structure_output_dir : str | Path | None
+        Directory where the XYZ file should be written (default: current working directory).
 
     Returns:
     -------
@@ -556,6 +566,32 @@ def benchmark_optimization(
             "max_force": opt_results["max_force"],
             "steps_taken": steps_taken,
         }
+
+        saved_xyz_path: str | None = None
+        if save_optimized_structure and optimized_atoms is not None:
+            output_dir = Path(structure_output_dir) if structure_output_dir else Path.cwd()
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            raw_label = structure_label if structure_label else optimizer
+            if not raw_label:
+                raw_label = "optimizer"
+            sanitized = "".join(
+                c if c.isalnum() or c in ("-", "_") else "_" for c in raw_label.strip()
+            )
+            sanitized = sanitized or "optimizer"
+            target_tag = "ts" if test_ts else "min"
+            filename = f"{backend}_{sanitized}_{target_tag}.xyz"
+            xyz_path = output_dir / filename
+
+            try:
+                ase_write(xyz_path, optimized_atoms)
+                saved_xyz_path = str(xyz_path)
+            except Exception as exc:
+                if verbose >= 1:
+                    logger.warning("Failed to write optimized structure to %s: %s", xyz_path, exc)
+
+        if saved_xyz_path is not None:
+            results["optimization_results"]["structure_file"] = saved_xyz_path
 
         # Extract performance data from profiler if available
         if isinstance(run_results, dict) and "performance" in run_results:
