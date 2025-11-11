@@ -7,7 +7,6 @@ and node growth based on parametrization density.
 
 from __future__ import annotations
 
-import warnings
 from typing import Any, cast
 
 import numpy as np
@@ -504,6 +503,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         atoms_list: list[Atoms],
         validate_ts: bool = False,
         calculate_frequencies: bool = False,
+        require_ts: bool | None = None,
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Run growing string method.
@@ -516,6 +516,9 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             Whether to validate TS structure
         calculate_frequencies : bool, default=False
             Whether to calculate frequencies
+        require_ts : bool, optional
+            If True, raise an error unless the method returns a validated first-order
+            saddle (strings meet, refinement converges, and one imaginary mode).
         **kwargs : Any
             Additional parameters:
             - npoints: Maximum number of images (default: 15)
@@ -535,6 +538,14 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         self.validate_inputs(atoms_list)
 
         # Parse parameters
+        if require_ts is None:
+            explorer_ts_kwargs = getattr(self.explorer, "ts_kwargs", {}) or {}
+            require_ts = bool(explorer_ts_kwargs.get("require_ts", False))
+        else:
+            require_ts = bool(require_ts)
+
+        kwargs.pop("require_ts", None)
+
         self.max_nodes = kwargs.get("npoints", 15)
         fmax = kwargs.get("fmax", 0.05)
         max_steps = kwargs.get("steps", 200)
@@ -602,7 +613,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         self.reparam_in = reparam_every
 
         # Main GSM loop
-        converged = False
+        strings_met = False
         for iteration in range(max_steps):
             # Check if fully grown
             if len(self.images) >= self.max_nodes:
@@ -632,10 +643,9 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 backward_tip = self.right_string[0].positions
                 distance = np.linalg.norm(forward_tip - backward_tip)
 
-                if distance < 0.5:  # Distance threshold
-                    logger.info(f"Growing String: Strings met (distance: {distance:.4f} Å)")
-                    converged = True
-                    break
+                distance_threshold = kwargs.get("distance_threshold", 0.05)
+                if distance < distance_threshold:
+                    strings_met = True
 
             # Optimize perpendicular to path first
             self.optimize_perpendicular(fmax, max_steps=20)
@@ -658,31 +668,12 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
         logger.info(
             f"Growing String: Complete with {len(full_path)} images "
-            f"(left: {len(self.left_string)}, right: {len(self.right_string)})"
+            f"(left: {len(self.left_string)}, right: {len(self.right_string)}, "
+            f"strings_met={strings_met})"
         )
 
         # Filter redundant structures for consistency with other path strategies
-        if full_path and self.explorer is not None:
-            try:
-                input_atoms = list(atoms_list)
-                filtered_path, _removed_indices, warnings_list = (
-                    PathManager.filter_redundant_structures(
-                        full_path,
-                        input_structures=input_atoms,
-                        rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
-                        energy_threshold=kwargs.get("energy_threshold", 0.001),
-                        strategy_name="ts:growing_string",
-                        preserve_path_continuity=True,  # Preserve path for GSM
-                    )
-                )
-                # Issue warnings if any
-                for warning_msg in warnings_list:
-                    warnings.warn(warning_msg, stacklevel=2)
-                full_path = filtered_path
-            except Exception as e:
-                logger.debug(
-                    f"Failed to filter redundant structures: {e}, continuing with full path"
-                )
+        # For GSM we retain all images to avoid collapsing back onto endpoints
 
         # Find TS as highest energy image
         energies = []
@@ -734,6 +725,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 if k not in {"fmax", "steps", "explorer", "local_optimizer_name"}
             }
 
+            ts_call_kwargs.pop("require_ts", None)
             ts_result = ts_strategy.run(
                 [ts_guess],  # LocalTSStrategy expects Sequence[Atoms]
                 fmax=ts_refinement_fmax,
@@ -746,7 +738,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             ts_converged = ts_result["converged"]
         else:
             ts_structure = ts_guess
-            ts_converged = converged
+            ts_converged = strings_met
 
         ts_structure = ensure_atoms(ts_structure, "Growing string TS candidate")
 
@@ -762,16 +754,72 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             trajectory=full_path,
             forward_string=self.left_string,
             backward_string=self.right_string,
-            strings_met=converged,
+            strings_met=strings_met,
         )
+
+        freq_analysis = None
+        if ts_result is not None and isinstance(ts_result, dict):
+            freq_analysis = ts_result.get("frequency_analysis")
+
+        if (
+            (require_ts or calculate_frequencies)
+            and freq_analysis is None
+            and isinstance(ts_structure, Atoms)
+        ):
+            if self.explorer is not None:
+                freq_analysis = self.explorer.calculate_frequencies(
+                    atoms=ts_structure,
+                    temperature=kwargs.get("temperature", 298.15),
+                    save_hessian=False,
+                )
+
+        validation_error_messages: list[str] = []
+        if require_ts:
+            if not strings_met:
+                validation_error_messages.append(
+                    "Growing string did not converge: forward and backward strings never met."
+                )
+            if not ts_converged:
+                validation_error_messages.append("Local TS refinement failed to converge.")
+            if freq_analysis is None:
+                validation_error_messages.append(
+                    "Frequency analysis unavailable for TS validation."
+                )
+            else:
+                ts_info = freq_analysis.get("ts_analysis") or {}
+                imag_modes = (
+                    freq_analysis.get("num_imaginary_modes")
+                    or freq_analysis.get("n_imaginary_modes")
+                    or freq_analysis.get("n_imaginary_frequencies")
+                    or (
+                        ts_info.get("n_imaginary_frequencies")
+                        if isinstance(ts_info, dict)
+                        else None
+                    )
+                )
+                is_ts = freq_analysis.get("is_ts")
+                if is_ts is None and isinstance(ts_info, dict):
+                    is_ts = ts_info.get("is_transition_state")
+                if not is_ts or (imag_modes is not None and imag_modes != 1):
+                    validation_error_messages.append(
+                        "Refined structure is not a first-order saddle (frequency analysis failed)."
+                    )
+
+        if validation_error_messages:
+            raise RuntimeError(
+                "TS validation failed with require_ts=True:\n- "
+                + "\n- ".join(validation_error_messages)
+            )
 
         if validation_result is not None:
             result["ts_validation"] = validation_result
 
-        if ts_result is not None and "frequency_analysis" in ts_result:
-            result["frequency_analysis"] = ts_result["frequency_analysis"]
-            result["is_ts"] = ts_result.get("is_ts")
-            result["free_energy_correction"] = ts_result.get("free_energy_correction")
+        if freq_analysis is not None:
+            result["frequency_analysis"] = freq_analysis
+            result["is_ts"] = freq_analysis.get("is_ts")
+            if ts_result is not None and isinstance(ts_result, dict):
+                if "free_energy_correction" in ts_result:
+                    result["free_energy_correction"] = ts_result["free_energy_correction"]
 
         return result
 

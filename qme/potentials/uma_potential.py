@@ -299,6 +299,8 @@ class UMAPotential(BasePotential):
             Method to use for Hessian computation:
             - 'vmap': Vector-Jacobian products with vectorization (original MACE-style)
             - 'double_backward': Direct double-backward from energy
+            - 'fairchem' / 'fairchem_vmap': Match FairChem PR #1361 implementation (vmap variant)
+            - 'fairchem_loop': FairChem PR style but without vmap
             - 'auto': Automatically select best method (currently 'double_backward')
         symmetrize : bool, default True
             Whether to symmetrize the Hessian by averaging with its transpose.
@@ -347,6 +349,13 @@ class UMAPotential(BasePotential):
             # Get device from predictor
             device = next(self.predictor.model.parameters()).device
 
+            # Select method after handling 'auto'
+            if method == "auto":
+                method = "double_backward"  # Default to double_backward for better stability
+
+            fairchem_aliases = {"fairchem", "fairchem_vmap", "fairchem_loop"}
+            fairchem_style = method in fairchem_aliases
+
             # Create AtomicData from current atoms
             atoms_copy = self.atoms.copy()
             atoms_copy.info["charge"] = int(self.atoms.info.get("charge", self.default_charge))
@@ -374,13 +383,23 @@ class UMAPotential(BasePotential):
                 if hasattr(module, "p") and hasattr(module, "training"):
                     module.p = 0.0
 
+            # For FairChem-style Hessian we mirror their PR exactly
+            energy_force_head = None
+            prev_head_training = None
+            if fairchem_style:
+                model_module = getattr(self.predictor.model, "module", None)
+                output_heads = getattr(model_module, "output_heads", None)
+                if isinstance(output_heads, dict):
+                    energy_head_wrapper = output_heads.get("energyandforcehead")
+                    if energy_head_wrapper is not None and hasattr(energy_head_wrapper, "head"):
+                        energy_force_head = energy_head_wrapper.head
+                if energy_force_head is not None:
+                    prev_head_training = energy_force_head.training
+                    energy_force_head.training = True
+
             # Compute energy and forces
             result = self.predictor.predict(batch)
             energy = result["energy"]
-
-            # Select computation method
-            if method == "auto":
-                method = "double_backward"  # Default to double_backward for better stability
 
             if method == "double_backward":
                 # Direct double-backward approach
@@ -395,12 +414,30 @@ class UMAPotential(BasePotential):
                     retain_graph=True,
                 )[0]
                 hessian_tensor = self._compute_hessian_vmap(forces, batch.pos)
+            elif method in {"fairchem", "fairchem_vmap"}:
+                hessian_tensor = self._compute_hessian_fairchem_style(
+                    result["forces"],
+                    batch.pos,
+                    use_vmap=True,
+                )
+            elif method == "fairchem_loop":
+                hessian_tensor = self._compute_hessian_fairchem_style(
+                    result["forces"],
+                    batch.pos,
+                    use_vmap=False,
+                )
             else:
-                msg = f"Unknown Hessian computation method: {method}. Use 'vmap', 'double_backward', or 'auto'"
+                msg = (
+                    "Unknown Hessian computation method: "
+                    f"{method}. Use 'vmap', 'double_backward', 'fairchem', 'fairchem_loop', or 'auto'"
+                )
                 raise ValueError(msg)
 
             # Set model back to eval mode
             self.predictor.model.eval()
+
+            if energy_force_head is not None and prev_head_training is not None:
+                energy_force_head.training = prev_head_training
 
             n_atoms = len(self.atoms)
             expected_shape = (3 * n_atoms, 3 * n_atoms)
@@ -466,6 +503,55 @@ class UMAPotential(BasePotential):
                 f"This may indicate a type mismatch in tensor operations."
             )
             raise TypeError(msg) from e
+
+    def _compute_hessian_fairchem_style(
+        self,
+        forces: torch.Tensor,
+        positions: torch.Tensor,
+        *,
+        use_vmap: bool,
+    ) -> torch.Tensor:
+        """Replicate FairChem PR #1361 Hessian logic using PyTorch autograd."""
+        import torch
+
+        forces_flat = forces.view(-1)
+        num_dofs = forces_flat.shape[0]
+        dtype = forces_flat.dtype
+        device = forces_flat.device
+
+        def grad_wrt_positions(vec: torch.Tensor) -> torch.Tensor:
+            grad_pos = torch.autograd.grad(
+                -forces_flat,
+                positions,
+                grad_outputs=vec,
+                retain_graph=True,
+                allow_unused=False,
+                create_graph=False,
+            )[0]
+            return grad_pos.reshape(-1)
+
+        identity = torch.eye(num_dofs, dtype=dtype, device=device)
+
+        if use_vmap and hasattr(torch, "vmap"):
+            try:
+                chunk_size = 1 if num_dofs < 64 else 16
+                hessian = torch.vmap(
+                    grad_wrt_positions,
+                    in_dims=0,
+                    out_dims=0,
+                    chunk_size=chunk_size,
+                )(identity)
+            except RuntimeError:
+                use_vmap = False
+
+        if not use_vmap:
+            rows = []
+            for idx in range(num_dofs):
+                vec = identity[idx]
+                rows.append(grad_wrt_positions(vec))
+            hessian = torch.stack(rows, dim=0)
+
+        return hessian
 
     def _compute_hessian_vmap(self, forces: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
         """Compute Hessian using vector-Jacobian products (VJP) with vectorization.
@@ -663,7 +749,9 @@ class UMAPotential(BasePotential):
 
         return hessian
 
-    def get_property(self, prop: str, atoms: Atoms | None = None) -> Any:
+    def get_property(
+        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
         """Get a specific property from the calculator.
 
         This method is used by ASE's property system and frequency analysis.

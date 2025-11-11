@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""QME TS Optimizer Benchmark - Transition State Optimizer Comparison."""
+"""QME Reaction TS Optimizer Benchmark - Transition State Optimizer Comparison."""
 
 import sys
 import warnings
@@ -22,10 +22,10 @@ def create_ts_structure() -> Atoms:
     """Create a transition state structure for TS optimization."""
     from ase.io import read
 
-    # Use the actual TS structure from example files
+    # Use the reaction TS structure from example files
     # Get the directory where this script is located
     script_dir = Path(__file__).parent
-    return read(script_dir / "example_files" / "A_C_A_B_A_C_ts.xyz")
+    return read(script_dir / "example_files" / "reaction_001_ts.xyz")
 
 
 def benchmark_ts_optimizer(
@@ -310,11 +310,11 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
 
 
 def main() -> int:
-    """Main function to run the TS optimizer comparison benchmark."""
+    """Main function to run the reaction TS optimizer comparison benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
-        name="TS Optimizer Benchmark",
-        description="Transition State Optimizer Comparison",
+        name="Reaction TS Optimizer Benchmark",
+        description="Transition State Optimizer Comparison for reaction_001_ts.xyz",
         epilog=create_standard_epilog("benchmark"),
     )
 
