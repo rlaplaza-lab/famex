@@ -4,6 +4,7 @@ import pytest
 from ase import Atoms
 
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
+from tests.test_utils import StandardTestAssertions
 
 
 class TestStrategyMetadata:
@@ -184,7 +185,7 @@ class TestBaseStrategy:
         # Concrete implementation should work
         result = strategy.run([atoms])
 
-        assert "optimized_atoms" in result
+        StandardTestAssertions.assert_optimization_result(result)
         assert result["strategy"] == "test:concrete"
         assert result["converged"] is True
         assert result["steps_taken"] == 10

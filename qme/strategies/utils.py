@@ -4,6 +4,8 @@ This module provides common helper functions used across different strategies,
 consolidating duplicate code and providing a consistent interface.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 import numpy as np
@@ -46,7 +48,7 @@ class StrategyUtils:
         optimizer : Any
             The optimizer instance
 
-        Returns:
+        Returns
         -------
         int or None
             Number of steps taken, or None if not available
@@ -76,7 +78,7 @@ class StrategyUtils:
         atoms : Atoms
             ASE Atoms object
 
-        Returns:
+        Returns
         -------
         bool
             True if converged, False otherwise
@@ -105,7 +107,7 @@ class StrategyUtils:
         calculator : Any
             Calculator to check
 
-        Returns:
+        Returns
         -------
         bool
             True if calculator supports batch evaluation
@@ -135,7 +137,7 @@ class StrategyUtils:
         supports_batch : bool
             Whether calculator supports batch evaluation
 
-        Returns:
+        Returns
         -------
         tuple[list[float], list[np.ndarray]]
             Energies and forces for all structures
@@ -187,7 +189,7 @@ class StrategyUtils:
         step : int
             Current step number
 
-        Returns:
+        Returns
         -------
         bool
             True if converged
@@ -202,69 +204,3 @@ class StrategyUtils:
             )
             return True
         return False
-
-    @staticmethod
-    def grow_string_node(
-        previous_node: Atoms,
-        direction: str,
-        step_size: float,
-        fmax: float,
-        explorer: Any | None = None,
-    ) -> Atoms | None:
-        """Grow string by adding a new node along the steepest descent direction.
-
-        DEPRECATED: This method is kept for backward compatibility but is no longer
-        used by the proper GSM implementation. The new implementation handles node
-        growth internally based on parametrization density.
-
-        Parameters
-        ----------
-        previous_node : Atoms
-            The last node in the string
-        direction : str
-            "forward" or "backward" to indicate growth direction
-        step_size : float
-            Step size for new node placement (Angstroms)
-        fmax : float
-            Force threshold for perpendicular optimization
-        explorer : Any, optional
-            Explorer instance for calculator management
-
-        Returns:
-        -------
-        Atoms or None
-            New node, or None if growth failed
-
-        """
-        # Get forces on previous node
-        forces = previous_node.get_forces()
-
-        # Create new node by copying and adjusting positions
-        new_node: Atoms = previous_node.copy()
-
-        # Manually copy calculator reference (ASE copy() doesn't copy calculator)
-        if hasattr(previous_node, "calc") and previous_node.calc is not None:
-            new_node.calc = previous_node.calc
-
-        # For forward growth, move along negative gradient (downhill)
-        # For backward growth, also move along negative gradient
-        # The direction is handled by which end we're growing from
-        force_magnitude = np.linalg.norm(forces)
-        if force_magnitude < 1e-6:
-            logger.warning(
-                f"Growing String: Very small forces ({force_magnitude:.2e}), skipping node",
-            )
-            return None
-
-        # Normalize and scale forces to get step direction
-        step_direction = -forces / force_magnitude  # Negative for downhill
-        displacement = step_direction * step_size
-
-        new_node.positions = previous_node.positions + displacement
-
-        # Re-attach calculator if using explorer (to ensure proper setup)
-        if explorer is not None:
-            explorer._create_and_attach_calculator(new_node)
-            explorer._apply_constraints(new_node)
-
-        return new_node

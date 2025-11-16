@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from contextlib import nullcontext
 from typing import Any
 
 from ase import Atoms
@@ -11,7 +10,7 @@ from ase import Atoms
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
 from qme.strategies.helpers import (
-    _get_local_optimizer_class,
+    _run_local_optimization_common,
     _validate_ts_optimization_setup,
     validate_ts_structure,
 )
@@ -59,9 +58,9 @@ class LocalTSStrategy(BaseStrategy):
         **kwargs : Any
             Additional keyword arguments
 
-        Returns:
+        Returns
         -------
-        dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
+        dict[str, Atoms | list[Atoms] | bool | int | float | str]
             Standardized result dictionary containing:
             - optimized_atoms: Optimized structure(s) (Atoms or list[Atoms])
             - strategy: Strategy name (str)
@@ -73,62 +72,19 @@ class LocalTSStrategy(BaseStrategy):
             - free_energy_correction: Free energy correction in eV (float, optional)
 
         """
-        # Handle single Atoms object (runtime check for API misuse)
-        # This is defensive programming - type signature says Sequence[Atoms] but
-        # we handle single Atoms at runtime for better API ergonomics
-        if isinstance(atoms_list, Atoms):  # type: ignore[unreachable]
-            atoms_list = [atoms_list]  # type: ignore[unreachable]
-
-        # Convert Sequence to list for validation and iteration
-        atoms_list = list(atoms_list)
-        self.validate_inputs(atoms_list)
-
         local_optimizer_name = kwargs.get("local_optimizer_name", "sella")
         verbose = kwargs.get("verbose", 1)
-
-        # Start profiling if available
-        if self.profiler is not None:
-            self.profiler.snapshot_memory()
-
-        # Log TS optimization start
-        if verbose >= 1:
-            logger.info(f"Starting local transition state optimization with {local_optimizer_name}")
-            logger.info(f"Force threshold: {fmax} eV/Å, Max steps: {steps}")
+        temperature = kwargs.get("temperature", 298.15)
 
         # Validate TS optimization setup - hardcoded restrictions
         _validate_ts_optimization_setup(self.explorer.backend, local_optimizer_name)
 
-        opt_class = _get_local_optimizer_class(local_optimizer_name)
-        # Check if single-element list
-        single_input = len(atoms_list) == 1
-        atoms_iter = atoms_list
-
-        results = []
-        step_counts = []
-        converged_flags = []
-
-        for atoms in atoms_iter:
-            # CRITICAL FIX: Make a copy of atoms before optimization to prevent in-place modifications
-            # that corrupt the coordinate system for subsequent Hessian calculations
-            atoms_copy = atoms.copy()
-
-            # Profile calculator setup
-            with (
-                self.profiler.profile_section("calculator_setup")
-                if self.profiler
-                else nullcontext()
-            ):
-                self.explorer._create_and_attach_calculator(atoms_copy)
-                self.explorer._apply_constraints(atoms_copy)
-
-            opt_kwargs = getattr(self.explorer, "ts_kwargs", {}) or {}
-            # Add verbosity control and profiler
+        def prepare_ts_optimizer_kwargs(optimizer_name: str, explorer: Any) -> dict[str, Any]:
+            """Prepare optimizer kwargs for TS optimization."""
+            opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
             opt_kwargs = dict(opt_kwargs)
-            opt_kwargs.setdefault("verbose", getattr(self.explorer, "verbose", 1))
-            if self.profiler is not None:
-                opt_kwargs["profiler"] = self.profiler
 
-            normalized_name = local_optimizer_name.lower()
+            normalized_name = optimizer_name.lower()
             if normalized_name == "sella":
                 # Sella-specific kwargs for TS search
                 opt_kwargs.setdefault("internal", True)
@@ -138,24 +94,12 @@ class LocalTSStrategy(BaseStrategy):
                 # Note: SELLA computes its own Hessian internally and doesn't accept
                 # an initial Hessian as a keyword argument. The initial_hessian from
                 # explorer is not used for SELLA.
-            elif normalized_name in {
-                "trust-krylov-ts",
-                "trustkrylovts",
-                "trust_krylov_ts",
-                "trust-krylov-transition",
-            }:
-                # TrustKrylovTS: recompute Hessian periodically for better convergence
-                # TS optimization needs accurate Hessian information, similar to RFO
-                # More frequent updates (5 steps) improve TS tracking and convergence
-                opt_kwargs.setdefault("hessian_update_freq", 5)
-                opt_kwargs.setdefault("mode_recompute_interval", 2)
-                opt_kwargs.setdefault("index_tolerance", 5e-4)
-                opt_kwargs.setdefault("min_positive_eigenvalue", 4e-3)
-                opt_kwargs.setdefault("negative_mode_boost", 8e-3)
-                # Add trust radius parameters for better TS climbing (similar to RFO defaults)
-                opt_kwargs.setdefault("initial_tr_radius", 0.02)
-                opt_kwargs.setdefault("max_tr_radius", 0.05)
-            elif normalized_name in ("rfo", "rfo-ts", "rational-function", "rational_function"):
+            elif normalized_name in (
+                "rfo",
+                "rfo-ts",
+                "rational-function",
+                "rational_function",
+            ):
                 # RFO optimizer: recompute Hessian every 10 steps for better convergence
                 # TS optimization needs accurate Hessian information
                 opt_kwargs.setdefault("hessian_update_freq", 10)
@@ -165,12 +109,8 @@ class LocalTSStrategy(BaseStrategy):
                 opt_kwargs.setdefault("max_trust_radius", 0.06)  # Double the default
 
             # Force finite difference hessian if flag is set
-            if getattr(self.explorer, "force_finite_diff_hessian", False):
+            if getattr(explorer, "force_finite_diff_hessian", False):
                 if normalized_name in {
-                    "trust-krylov-ts",
-                    "trustkrylovts",
-                    "trust_krylov_ts",
-                    "trust-krylov-transition",
                     "rfo",
                     "rfo-ts",
                     "rational-function",
@@ -178,124 +118,57 @@ class LocalTSStrategy(BaseStrategy):
                 }:
                     opt_kwargs["hessian_method"] = "finite_differences"
 
-            opt = opt_class(atoms_copy, **opt_kwargs)
+            return opt_kwargs
 
-            # Profile optimization execution
-            with self.profiler.profile_section("optimization") if self.profiler else nullcontext():
-                opt.run(fmax=fmax, steps=steps)
-
-            # Get step count and convergence status using helpers
-            steps_taken = StrategyUtils.get_step_count(opt)
-            converged = StrategyUtils.get_convergence_status(opt, atoms_copy)
-
-            # Diagnostic: log Hessian call count for trust-krylov-ts or rfo
+        def post_ts_optimization_hook(opt: Any, atoms: Atoms, opt_kwargs: dict[str, Any]) -> None:
+            """Post-optimization hook for TS-specific diagnostic logging."""
+            # Diagnostic: log Hessian call count for rfo
             if hasattr(opt, "hessian_calls"):
                 if self.explorer.verbose >= 1:
                     logger.info(
                         f"Hessian computed {opt.hessian_calls} time(s) "
-                        f"over {steps_taken} steps "
+                        f"over {StrategyUtils.get_step_count(opt)} steps "
                         f"(update_freq={opt_kwargs.get('hessian_update_freq', 'default')})"
                     )
 
-            # Increment step counter in profiler
-            if self.profiler is not None:
-                self.profiler.increment_call("optimizer_steps", steps_taken)
-
-            results.append(atoms_copy)
-            step_counts.append(steps_taken)
-            converged_flags.append(converged)
-
-        # Validate TS structures if requested
-        validation_results: list[dict[str, Any] | None] = []
-        if validate_ts:
-            with self.profiler.profile_section("ts_validation") if self.profiler else nullcontext():
-                for atoms_copy in results:
-                    validation_result = validate_ts_structure(atoms_copy, self.explorer)
+        def ts_validation_hook(results: list[Atoms]) -> list[dict[str, Any] | None]:
+            """TS validation hook."""
+            validation_results: list[dict[str, Any] | None] = []
+            for atoms_copy in results:
+                validation_result = validate_ts_structure(atoms_copy, self.explorer)
+                # Handle tuple return (validation_result, hessian) or dict return
+                # validate_ts_structure returns dict[str, Any] | tuple[dict[str, Any], Any]
+                if isinstance(validation_result, tuple):
+                    validation_results.append(validation_result[0])
+                else:
+                    # Must be dict[str, Any] based on return type
                     validation_results.append(validation_result)
-        else:
-            validation_results = [None] * len(results)
+            return validation_results
 
-        # Perform frequency analysis if requested
-        frequency_results = []
-        if calculate_frequencies:
-            with (
-                self.profiler.profile_section("frequency_analysis")
-                if self.profiler
-                else nullcontext()
-            ):
-                temperature = kwargs.get("temperature", 298.15)
-                # Pass method="finite_differences" if force_finite_diff_hessian is True
-                freq_method = None
-                if getattr(self.explorer, "force_finite_diff_hessian", False):
-                    freq_method = "finite_differences"
-                for atoms_copy in results:
-                    freq_kwargs = {
-                        "atoms": atoms_copy,
-                        "temperature": temperature,
-                        "save_hessian": False,  # Don't save large Hessian matrix by default
-                    }
-                    if freq_method is not None:
-                        freq_kwargs["method"] = freq_method
-                    freq_result = self.explorer.calculate_frequencies(**freq_kwargs)
-                    frequency_results.append(freq_result)
-        else:
-            frequency_results = [None] * len(results)
+        def prepare_ts_frequency_kwargs(atoms: Atoms) -> dict[str, Any]:
+            """Prepare frequency analysis kwargs for TS (supports finite difference override)."""
+            freq_kwargs: dict[str, Any] = {}
+            # Pass method="finite_differences" if force_finite_diff_hessian is True
+            if getattr(self.explorer, "force_finite_diff_hessian", False):
+                freq_kwargs["method"] = "finite_differences"
+            return freq_kwargs
 
-        # Log completion
-        if verbose >= 1:
-            if single_input and results:
-                converged = bool(converged_flags[0])
-                steps_taken = step_counts[0]
-                logger.info(
-                    f"Transition state optimization completed: converged={converged}, steps={steps_taken}",
-                )
-            else:
-                total_converged = sum(converged_flags)
-                total_structures = len(converged_flags)
-                logger.info(
-                    f"Transition state optimization completed: {total_converged}/{total_structures} structures converged",
-                )
-
-        # Prepare result and merge profiler data
-        if single_input and results:
-            result = self.prepare_result(
-                results[0],
-                steps_taken=step_counts[0],
-                converged=bool(converged_flags[0]),
-            )
-            if validation_results[0] is not None:
-                result["ts_validation"] = validation_results[0]
-            if frequency_results[0] is not None:
-                result["frequency_analysis"] = frequency_results[0]
-                result["is_ts"] = frequency_results[0]["is_ts"]
-                # Calculate free energy correction (G - E) = H - TS - E = (E + PV) - TS - E = -TS
-                # For ideal gas: PV = 0, so G - E = -TS
-                thermo = frequency_results[0]["thermodynamic_properties"]
-                result["free_energy_correction"] = (
-                    -thermo["entropy"] * temperature / 1000.0
-                )  # Convert K to eV/K
-        else:
-            result = self.prepare_result(
-                results,
-                steps_taken=step_counts,
-                converged=[bool(c) for c in converged_flags],
-            )
-            if any(v is not None for v in validation_results):
-                result["ts_validation"] = validation_results
-            if any(f is not None for f in frequency_results):
-                result["frequency_analysis"] = frequency_results
-                result["is_ts"] = [f["is_ts"] if f is not None else None for f in frequency_results]
-                # Calculate free energy corrections for all structures
-                free_energy_corrections = []
-                for f in frequency_results:
-                    if f is not None:
-                        thermo = f["thermodynamic_properties"]
-                        free_energy_corrections.append(-thermo["entropy"] * temperature / 1000.0)
-                    else:
-                        free_energy_corrections.append(None)
-                result["free_energy_correction"] = free_energy_corrections
-
-        return self._merge_profiler_results(result)
+        return _run_local_optimization_common(
+            strategy=self,
+            atoms_list=atoms_list,
+            fmax=fmax,
+            steps=steps,
+            local_optimizer_name=local_optimizer_name,
+            verbose=verbose,
+            calculate_frequencies=calculate_frequencies,
+            temperature=temperature,
+            prepare_optimizer_kwargs=prepare_ts_optimizer_kwargs,
+            post_optimization_hook=post_ts_optimization_hook if verbose >= 1 else None,
+            validation_hook=ts_validation_hook if validate_ts else None,
+            prepare_frequency_kwargs=prepare_ts_frequency_kwargs,
+            result_key_name="is_ts",
+            log_prefix="Transition state",
+        )
 
 
 # Register the strategy

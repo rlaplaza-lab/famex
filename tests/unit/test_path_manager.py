@@ -7,13 +7,12 @@ from tests.test_utils import StandardTestAssertions
 
 
 class TestPathManager:
-    def test_linear_interpolation_and_lengths(self):
+    def test_linear_interpolation_and_lengths(self, mock_backend):
         # Use H2O -> H2O (slightly different geometry) for meaningful testing
         reactant = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         product = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
 
-        calc = qme.MockCalculator(backend="mock")
-        path_mgr = qme.PathManager([reactant, product], calculator=calc)
+        path_mgr = qme.PathManager([reactant, product], calculator=mock_backend)
         path = path_mgr.interpolate(npoints=5, method="linear")
 
         # Check path length
@@ -25,12 +24,11 @@ class TestPathManager:
             # Check that structure is reasonable
             StandardTestAssertions.assert_reasonable_geometry(structure, "mock")
 
-    def test_reaction_energy_calculation(self):
+    def test_reaction_energy_calculation(self, mock_backend):
         reactant = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         product = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
 
-        calc = qme.MockCalculator(backend="mock")
-        path_mgr = qme.PathManager([reactant, product], calculator=calc)
+        path_mgr = qme.PathManager([reactant, product], calculator=mock_backend)
 
         # Test energy calculation using the reaction_energy property
         reaction_energy = path_mgr.reaction_energy
@@ -53,13 +51,12 @@ class TestPathManager:
             StandardTestAssertions.assert_energy_reasonable(product_energy, "mock")
             assert isinstance(product_energy, (int, float))
 
-    def test_multi_segment_interpolation(self):
+    def test_multi_segment_interpolation(self, mock_backend):
         struct1 = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
         struct2 = Atoms("H2", positions=[[0, 0, 0], [1.0, 0, 0]])
         struct3 = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
 
-        calc = qme.MockCalculator(backend="mock")
-        path_mgr = qme.PathManager([struct1, struct2, struct3], calculator=calc)
+        path_mgr = qme.PathManager([struct1, struct2, struct3], calculator=mock_backend)
         path = path_mgr.interpolate(npoints=7, method="linear")
 
         # Should have 7 total points across 2 segments
@@ -78,13 +75,12 @@ class TestPathManager:
         assert rmsd >= 0
         assert rmsd < 1.0  # Should be small for similar structures
 
-    def test_find_ts_guess(self):
+    def test_find_ts_guess(self, mock_backend):
         # Create a simple path with known energies
         path = []
         for i in range(5):
             atoms = Atoms("H2", positions=[[0, 0, 0], [0.7 + i * 0.1, 0, 0]])
-            calc = qme.MockCalculator(backend="mock")
-            atoms.calc = calc
+            atoms.calc = mock_backend
             path.append(atoms)
 
         ts_structure, ts_index = qme.PathManager.find_ts_guess(path)
@@ -93,12 +89,11 @@ class TestPathManager:
         assert 0 <= ts_index < len(path)
         assert ts_structure == path[ts_index]
 
-    def test_find_local_minima(self):
+    def test_find_local_minima(self, mock_backend):
         path = []
         for i in range(7):
             atoms = Atoms("H2", positions=[[0, 0, 0], [0.7 + i * 0.1, 0, 0]])
-            calc = qme.MockCalculator(backend="mock")
-            atoms.calc = calc
+            atoms.calc = mock_backend
             path.append(atoms)
 
         minima_indices = qme.PathManager.find_local_minima(path)
@@ -107,15 +102,14 @@ class TestPathManager:
         assert len(minima_indices) > 0
         assert all(0 <= idx < len(path) for idx in minima_indices)
 
-    def test_filter_redundant_structures(self):
+    def test_filter_redundant_structures(self, mock_backend):
         # Create some structures, some redundant
         struct1 = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
         struct2 = Atoms("H2", positions=[[0, 0, 0], [0.701, 0, 0]])  # Very similar
         struct3 = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])  # Different
 
-        calc = qme.MockCalculator(backend="mock")
         for struct in [struct1, struct2, struct3]:
-            struct.calc = calc
+            struct.calc = mock_backend
 
         filtered, removed, warnings = qme.PathManager.filter_redundant_structures(
             [struct1, struct2, struct3],
@@ -128,17 +122,16 @@ class TestPathManager:
         assert isinstance(warnings, list)
         assert len(filtered) <= 3
 
-    def test_path_statistics(self):
+    def test_path_statistics(self, mock_backend):
         reactant = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
         product = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
 
-        calc = qme.MockCalculator(backend="mock")
-        path_mgr = qme.PathManager([reactant, product], calculator=calc)
+        path_mgr = qme.PathManager([reactant, product], calculator=mock_backend)
         path = path_mgr.interpolate(npoints=5, method="linear")
 
         # Attach calculator to path
         for atoms in path:
-            atoms.calc = calc
+            atoms.calc = mock_backend
 
         stats = path_mgr.get_path_statistics(path)
 

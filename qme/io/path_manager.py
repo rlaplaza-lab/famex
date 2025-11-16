@@ -31,7 +31,7 @@ logger = get_qme_logger(__name__)
 class StructureSimilarity:
     """Result of structure similarity comparison.
 
-    Attributes:
+    Attributes
     ----------
     is_similar : bool
         Whether structures are considered similar
@@ -153,7 +153,7 @@ class PathManager:
         explorer : Explorer, optional
             Explorer instance for calculator attachment
 
-        Returns:
+        Returns
         -------
         List[Geometry]
             List of interpolated geometries
@@ -289,7 +289,7 @@ class PathManager:
         path : List[Atoms]
             List of structures along the path
 
-        Returns:
+        Returns
         -------
         tuple[Atoms, int]
             (ts_structure, index)
@@ -321,7 +321,7 @@ class PathManager:
         path : List[Atoms]
             List of structures along the path
 
-        Returns:
+        Returns
         -------
         list[int]
             Indices of local minima
@@ -368,7 +368,7 @@ class PathManager:
         path : List[Atoms]
             List of structures along the path
 
-        Returns:
+        Returns
         -------
         list[int]
             Indices of local maxima
@@ -429,7 +429,7 @@ class PathManager:
             If True, use Kabsch alignment for rotation-invariant RMSD.
             If False, calculate simple positional RMSD (faster but not rotation-invariant).
 
-        Returns:
+        Returns
         -------
         float
             RMSD in Angstroms
@@ -503,7 +503,7 @@ class PathManager:
         align : bool, default True
             Whether to use rotation-invariant RMSD (Kabsch alignment)
 
-        Returns:
+        Returns
         -------
         StructureSimilarity
             Similarity result with is_similar, rmsd, and energy_diff
@@ -589,7 +589,7 @@ class PathManager:
             Whether to use rotation-invariant RMSD (Kabsch alignment).
             Set to False for faster but less accurate comparison.
 
-        Returns:
+        Returns
         -------
         tuple[List[Atoms], List[int], List[str]]
             (filtered_structures, removed_indices, warning_messages)
@@ -752,7 +752,7 @@ class PathManager:
         structures : List[Atoms] or Atoms
             Structure(s) to attach calculators to
 
-        Returns:
+        Returns
         -------
         Calculator
             The calculator instance that was attached
@@ -789,7 +789,7 @@ class PathManager:
         path : List[Geometry] or List[Atoms]
             Geometries along the path
 
-        Returns:
+        Returns
         -------
         list[float]
             List of energies
@@ -816,7 +816,7 @@ class PathManager:
         path_geometries : List[Geometry] or List[Atoms]
             Geometries along the path
 
-        Returns:
+        Returns
         -------
         tuple
             (rmsd_from_reactant, rmsd_from_product)
@@ -849,7 +849,7 @@ class PathManager:
         path_geometries : List[Geometry] or List[Atoms]
             Geometries along the path
 
-        Returns:
+        Returns
         -------
         str
             XYZ trajectory as string
@@ -887,7 +887,7 @@ class PathManager:
         path : List[Atoms]
             List of structures along the path
 
-        Returns:
+        Returns
         -------
         dict
             Dictionary with path statistics including:
@@ -941,7 +941,7 @@ class PathManager:
         return stats
 
     def __str__(self) -> str:
-        """String representation."""
+        """Return string representation."""
         return f"PathManager({len(self.reactant)} atoms, {len(self.structures)} structures)"
 
     def __repr__(self) -> str:

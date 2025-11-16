@@ -17,7 +17,7 @@ def get_optimal_device(device: str | None = None) -> str:
     device : str, optional
         Explicitly requested device. If None, auto-detects.
 
-    Returns:
+    Returns
     -------
     str
         Device to use ('cpu' or 'cuda')
@@ -79,12 +79,12 @@ def validate_device(device: str | None) -> str:
     device : str, optional
         Device specification to validate
 
-    Returns:
+    Returns
     -------
     str
         Validated and normalized device string
 
-    Raises:
+    Raises
     ------
     ValueError
         If device parameter is invalid
@@ -156,13 +156,18 @@ def get_device_info(device: str) -> dict:
     device : str
         Device to get information for
 
-    Returns:
+    Returns
     -------
     dict
         Dictionary containing device information
 
     """
-    info = {"device": device, "cuda_available": False, "gpu_name": None, "gpu_memory": None}
+    info = {
+        "device": device,
+        "cuda_available": False,
+        "gpu_name": None,
+        "gpu_memory": None,
+    }
 
     if device == "cuda":
         try:

@@ -1,5 +1,7 @@
 """Generate interpolated path only (no optimization)."""
 
+from __future__ import annotations
+
 from typing import Any
 
 from ase import Atoms
@@ -7,6 +9,7 @@ from ase import Atoms
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
 from qme.io.path_manager import PathManager
+from qme.strategies.helpers import filter_interpolation_kwargs
 from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
@@ -36,9 +39,8 @@ class PathInterpolateStrategy(BaseStrategy):
 
         # Use PathManager to interpolate; do not optimize path
         path_mgr = PathManager(atoms_list)
-        # Only forward kwargs accepted by PathManager.interpolate
-        allowed_keys = {"rmsd_threshold", "energy_threshold", "calculator"}
-        interpolate_kwargs = {k: v for k, v in kwargs.items() if k in allowed_keys}
+        # Filter kwargs to only include parameters accepted by PathManager.interpolate
+        interpolate_kwargs = filter_interpolation_kwargs(kwargs)
         path = path_mgr.interpolate(
             npoints=npoints,
             method=method,

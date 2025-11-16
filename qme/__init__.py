@@ -14,7 +14,8 @@ Key Features:
 - Mock calculator for testing without ML dependencies
 - Trajectory saving for complete reaction pathways
 
-Examples:
+Examples
+--------
     Basic geometry optimization:
     >>> from qme import Explorer
     >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2")
@@ -27,6 +28,8 @@ Examples:
     >>> explorer.save_trajectory(path, "reaction_path.xyz")
 
 """
+
+from __future__ import annotations
 
 import contextlib
 from typing import Any

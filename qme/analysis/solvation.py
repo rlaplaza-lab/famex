@@ -39,17 +39,17 @@ def get_free_space(solvent: str) -> float:
     solvent : str
         Solvent name (must be in SUPPORTED_SOLVENTS)
 
-    Returns:
+    Returns
     -------
     float
         Accessible free space in mL per L
 
-    Raises:
+    Raises
     ------
     ValueError
         If solvent is not in supported solvents list
 
-    Examples:
+    Examples
     --------
     >>> get_free_space("H2O")
     890.123...  # approximately
@@ -103,7 +103,7 @@ class SolvationHandler:
     def is_gas_phase(self) -> bool:
         """Check if in gas phase.
 
-        Returns:
+        Returns
         -------
         bool
             True if solvent is 'none' (gas phase)
@@ -117,7 +117,7 @@ class SolvationHandler:
         in the accessible free space as the nominal concentration in the
         total solution volume.
 
-        Returns:
+        Returns
         -------
         float
             Effective concentration in mol/L
@@ -130,6 +130,6 @@ class SolvationHandler:
         return self.concentration / (self.free_space_ml_per_l / 1000.0)
 
     def __repr__(self) -> str:
-        """String representation."""
+        """Return string representation."""
         phase = "gas" if self.is_gas_phase() else f"solution ({self.solvent})"
         return f"SolvationHandler({phase}, {self.concentration} M)"

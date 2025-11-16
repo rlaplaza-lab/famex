@@ -66,12 +66,12 @@ def get_model_path(model_name: str) -> str:
     model_name : str
         Name of the model or path to model file
 
-    Returns:
+    Returns
     -------
     str
         Path to the model file
 
-    Notes:
+    Notes
     -----
     If model_name is a file path, returns it directly. Otherwise, looks up
     the model in the registry and downloads it if necessary.
@@ -446,7 +446,7 @@ class NativeAIMNet2Calculator:
         forces : bool
             Whether to calculate forces
 
-        Returns:
+        Returns
         -------
         dict
             Results with 'energy' and optionally 'forces'
@@ -708,7 +708,7 @@ def get_aimnet2_calculator(
     mult: int = 1,
     **kwargs: Any,
 ) -> AIMNet2Potential:
-    """Convenience function to get AIMNET2 calculator.
+    """Get AIMNET2 calculator.
 
     Parameters
     ----------
@@ -723,7 +723,7 @@ def get_aimnet2_calculator(
     **kwargs :
         Additional arguments passed to AIMNet2Potential
 
-    Returns:
+    Returns
     -------
     AIMNet2Potential
         Configured AIMNET2 calculator

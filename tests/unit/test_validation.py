@@ -47,6 +47,17 @@ class TestQMEError:
         assert error.available_backends == available
         assert error.operation == "optimization"
 
+    def test_backend_error_no_available_backends(self):
+        """Test BackendError when no backends are available."""
+        error = BackendError("so3lr", [], "optimization")
+        assert "so3lr" in str(error)
+        assert "optimization" in str(error)
+        assert "No backends are currently available" in str(error)
+        assert "Install at least one backend" in str(error)
+        assert error.backend == "so3lr"
+        assert error.available_backends == []
+        assert error.operation == "optimization"
+
 
 class TestValidateAtomsCompatibility:
     def test_compatible_atoms(self):

@@ -100,7 +100,7 @@ class FrequencyAnalysis:
         method : str
             Method to use: 'auto', 'autoselect', 'direct_frequencies', 'direct', 'batch', or 'finite_differences'
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix (3N x 3N for N atoms)
@@ -269,7 +269,8 @@ class FrequencyAnalysis:
         from qme.analysis.utils import get_calculator_property
 
         return cast(
-            NDArray[np.float64], get_calculator_property(self.calculator, "frequencies", self.atoms)
+            NDArray[np.float64],
+            get_calculator_property(self.calculator, "frequencies", self.atoms),
         )
 
     def _calculate_direct_hessian(self) -> np.ndarray:
@@ -277,7 +278,8 @@ class FrequencyAnalysis:
         from qme.analysis.utils import get_calculator_property
 
         return cast(
-            NDArray[np.float64], get_calculator_property(self.calculator, "hessian", self.atoms)
+            NDArray[np.float64],
+            get_calculator_property(self.calculator, "hessian", self.atoms),
         )
 
     def _calculate_hessian_autoselect(self) -> np.ndarray:
@@ -289,7 +291,7 @@ class FrequencyAnalysis:
         2. If force noise is high (>1e-4 eV/Å), try energy-based FD
         3. Fall back to 5-point + Richardson extrapolation (optimal balance)
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix (3N x 3N)
@@ -389,7 +391,7 @@ class FrequencyAnalysis:
     def diagonalize_hessian(self) -> tuple[np.ndarray, np.ndarray]:
         """Diagonalize mass-weighted Hessian to get normal modes and frequencies.
 
-        Returns:
+        Returns
         -------
         Tuple[np.ndarray, np.ndarray]
             frequencies (in cm^-1) and normal mode eigenvectors
@@ -417,7 +419,7 @@ class FrequencyAnalysis:
         unit : str
             Unit for frequencies: 'cm-1', 'meV', 'THz'
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Vibrational frequencies, excluding translational and rotational modes
@@ -448,7 +450,7 @@ class FrequencyAnalysis:
     def get_normal_modes(self) -> np.ndarray:
         """Get normal mode vectors.
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Normal mode vectors (3N x 3N-6/5 for vibrational modes only)
@@ -479,9 +481,9 @@ class FrequencyAnalysis:
         threshold : float
             Minimum frequency magnitude in cm^-1 to consider significant
 
-        Returns:
+        Returns
         -------
-        dict[str, Union[bool, int, list[float], str]]
+        dict[str, bool | int | list[float] | str]
             Dictionary with TS verification results containing:
             - is_transition_state: Whether structure is a TS (bool)
             - n_imaginary_frequencies: Number of imaginary frequencies (int)
@@ -497,12 +499,34 @@ class FrequencyAnalysis:
         """
         frequencies = self.get_frequencies()
 
-        # Count imaginary frequencies above threshold
-        imaginary_freqs = frequencies[frequencies < -threshold]
+        # Handle complex frequencies: check both negative real parts and significant imaginary parts
+        # Complex frequencies like 0+322j represent imaginary frequencies
+        # Negative real frequencies like -322+0j also represent imaginary frequencies
+        real_freqs = np.real(frequencies)
+        imag_freqs = np.imag(frequencies)
+
+        # Count frequencies with negative real part above threshold
+        # Count frequencies with significant imaginary part (imaginary frequency)
+        # Convert to negative real for consistency: imag_freq > threshold -> -imag_freq
+
+        # Combine both types of imaginary frequencies
+        # For complex frequencies, prefer the imaginary part if significant, otherwise use real part
+        imaginary_freqs_list = []
+        for i, _freq in enumerate(frequencies):
+            if imag_freqs[i] > threshold:
+                # Significant imaginary part - this is an imaginary frequency
+                imaginary_freqs_list.append(-imag_freqs[i])  # Store as negative for convention
+            elif real_freqs[i] < -threshold:
+                # Negative real part - also an imaginary frequency
+                imaginary_freqs_list.append(real_freqs[i])
+
+        imaginary_freqs = np.array(imaginary_freqs_list)
         n_imaginary = len(imaginary_freqs)
 
         # Count near-zero frequencies (should be excluded)
-        near_zero = np.abs(frequencies) < threshold
+        # For complex frequencies, check magnitude
+        freq_magnitudes = np.abs(frequencies)
+        near_zero = freq_magnitudes < threshold
         n_near_zero = int(np.sum(near_zero))
 
         is_ts = n_imaginary == 1
@@ -542,9 +566,9 @@ class FrequencyAnalysis:
             Maximum negative frequency in cm^-1 to consider as "small negative"
             (likely numerical noise, not a true imaginary frequency)
 
-        Returns:
+        Returns
         -------
-        dict[str, Union[bool, int, list[float], str]]
+        dict[str, bool | int | list[float] | str]
             Dictionary with minima verification results containing:
             - is_minimum: Whether structure is a minimum (bool)
             - n_significant_imaginary_frequencies: Number of significant imaginary frequencies (int)
@@ -563,12 +587,14 @@ class FrequencyAnalysis:
         """
         frequencies = self.get_frequencies()
 
+        # Handle complex frequencies by taking real part for comparison
+        real_freqs = np.real(frequencies)
         # Count significant imaginary frequencies above threshold
-        significant_imaginary = frequencies[frequencies < -threshold]
+        significant_imaginary = frequencies[real_freqs < -threshold]
         n_significant_imaginary = len(significant_imaginary)
 
         # Count small negative frequencies (likely numerical noise)
-        small_negative = frequencies[(frequencies < 0) & (frequencies > small_negative_cutoff)]
+        small_negative = frequencies[(real_freqs < 0) & (real_freqs > small_negative_cutoff)]
         n_small_negative = len(small_negative)
 
         # Count near-zero frequencies (should be excluded)
@@ -626,7 +652,7 @@ class FrequencyAnalysis:
     def get_zero_point_energy(self) -> float:
         """Calculate zero-point vibrational energy.
 
-        Returns:
+        Returns
         -------
         float
             Zero-point energy in eV
@@ -637,12 +663,16 @@ class FrequencyAnalysis:
 
         frequencies = self.get_frequencies()  # in cm^-1
         # Only include real (positive) frequencies
-        real_frequencies = frequencies[frequencies > 0]
+        # Handle complex frequencies (imaginary frequencies for TS)
+        # Take real part and filter out non-positive values
+        real_frequencies = frequencies[np.real(frequencies) > 0]
+        # Ensure we have real values (take real part if complex)
+        real_frequencies = np.real(real_frequencies)
 
         # Convert frequencies from cm^-1 to eV, then calculate ZPE
         # ZPE = (1/2) * Σ hνᵢ where νᵢ are frequencies in eV
         freq_eV = real_frequencies * units.invcm  # Convert cm^-1 to eV
-        zpe = 0.5 * np.sum(freq_eV)  # ZPE in eV
+        zpe = float(0.5 * np.sum(freq_eV))  # ZPE in eV, ensure float type
 
         self._zero_point_energy = zpe
         return zpe
@@ -700,9 +730,9 @@ class FrequencyAnalysis:
             If True, calculate complete thermodynamics with all contributions.
             If False, return vibrational-only properties (backward compatible).
 
-        Returns:
+        Returns
         -------
-        dict[str, Union[float, int, list[float]]]
+        dict[str, float | int | list[float]]
             Dictionary with thermodynamic properties.
             If complete=True, includes all contributions (trans, rot, vib, elec).
             If complete=False, returns vibrational-only (backward compatible).
@@ -710,7 +740,11 @@ class FrequencyAnalysis:
         """
         frequencies = self.get_frequencies()  # in cm^-1
         # Only include real frequencies
-        real_frequencies = frequencies[frequencies > 0]
+        # Handle complex frequencies (imaginary frequencies for TS)
+        # Take real part and filter out non-positive values
+        real_frequencies = frequencies[np.real(frequencies) > 0]
+        # Ensure we have real values (take real part if complex)
+        real_frequencies = np.real(real_frequencies)
 
         # Initialize comprehensive thermodynamics calculator
         thermo_props = ThermodynamicProperties(

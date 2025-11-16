@@ -175,7 +175,7 @@ def get_so3lr_calculator(
     device: str | None = None,
     **kwargs: Any,
 ) -> SO3LRPotential:
-    """Convenience function to get SO3LR calculator.
+    """Get SO3LR calculator.
 
     Parameters
     ----------
@@ -188,7 +188,7 @@ def get_so3lr_calculator(
     **kwargs :
         Additional arguments passed to SO3LRPotential
 
-    Returns:
+    Returns
     -------
     SO3LRPotential
         Configured SO3LR calculator

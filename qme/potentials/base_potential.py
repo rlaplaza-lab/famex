@@ -94,7 +94,7 @@ class BasePotential:
         properties: Sequence[str] | None = None,
         system_changes: Any | None = None,
     ) -> None:
-        """Base calculate method that performs minimal setup.
+        """Perform minimal setup for calculation.
 
         Subclasses should call this via super().calculate(...) to ensure
         ``self.atoms`` is set and default properties are applied.
@@ -117,7 +117,7 @@ class BasePotential:
             An optional ASE Atoms object. If provided, it will be set
             as `self.atoms`.
 
-        Returns:
+        Returns
         -------
         Any or None
             The loaded backend calculator object, or None if loading failed.
@@ -156,12 +156,12 @@ class BasePotential:
         This is a convenience method that combines ensure_loaded() with error handling.
         Use this in methods that require a loaded calculator.
 
-        Returns:
+        Returns
         -------
         Any
             The loaded backend calculator object
 
-        Raises:
+        Raises
         ------
         RuntimeError
             If calculator loading fails
@@ -179,7 +179,7 @@ class BasePotential:
         atoms: Atoms | None = None,
         force_consistent: bool = False,
     ) -> float:
-        """Generic get_potential_energy that delegates to underlying backend.
+        """Get potential energy by delegating to underlying backend.
 
         If the backend provides ``get_potential_energy`` it is delegated to.
         Otherwise, a ``calculate`` call is performed and the stored
@@ -200,7 +200,7 @@ class BasePotential:
         return float(self.results.get("energy", 0.0))
 
     def get_forces(self, atoms: Atoms | None = None) -> Any | None:
-        """Generic get_forces that delegates to underlying backend.
+        """Get forces by delegating to underlying backend.
 
         If the backend provides ``get_forces`` it is delegated to. Otherwise a
         ``calculate`` call is performed and the stored ``self.results['forces']``
@@ -236,7 +236,7 @@ class BasePotential:
         properties : List[str], optional
             Properties to calculate (default: ["energy", "forces"])
 
-        Returns:
+        Returns
         -------
         List[dict]
             List of result dictionaries, one for each structure

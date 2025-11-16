@@ -73,7 +73,7 @@ def validate_atoms_compatibility(atoms1: Atoms, atoms2: Atoms, context: str = "o
     context : str
         Context for error messages
 
-    Raises:
+    Raises
     ------
     ValueError
         If atoms are incompatible

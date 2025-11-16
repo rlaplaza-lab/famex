@@ -271,7 +271,7 @@ class MACEPotential(BasePotential):
         atoms : Atoms, optional
             Atoms object to calculate Hessian for
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix of shape (3N, 3N) where N is the number of atoms
@@ -340,7 +340,7 @@ class MACEPotential(BasePotential):
         allow_calculation : bool, default=True
             Whether calculation is allowed (ASE standard parameter, ignored here)
 
-        Returns:
+        Returns
         -------
         Any
             The requested property
@@ -364,7 +364,7 @@ def get_mace_calculator(
     device: str | None = None,
     **kwargs: Any,
 ) -> MACEPotential:
-    """Factory function to create MACE calculator.
+    """Create MACE calculator.
 
     Parameters
     ----------
@@ -375,12 +375,12 @@ def get_mace_calculator(
     **kwargs : dict
         Additional arguments passed to MACEPotential
 
-    Returns:
+    Returns
     -------
     MACEPotential
         Configured MACE calculator instance
 
-    Examples:
+    Examples
     --------
     >>> calc = get_mace_calculator()  # Uses MACE-OMOL-0
     >>> calc = get_mace_calculator(model_name="mace-mp-medium")

@@ -12,6 +12,7 @@ from qme.interpolation.strategies import (
     get_interpolation_strategy,
     list_interpolation_methods,
 )
+from tests.test_constants import INTERP_EXACT_TOL, INTERP_ITERATIVE_TOL
 
 
 class TestLinearInterpolation:
@@ -54,8 +55,9 @@ class TestGeodesicInterpolation:
         path = interp.interpolate(start, end, npoints=5)
 
         assert len(path) == 5
-        assert np.allclose(path[0], start, atol=1e-2)
-        assert np.allclose(path[-1], end, atol=1e-2)
+        # Tightened tolerance: geodesic interpolation should preserve endpoints more accurately
+        assert np.allclose(path[0], start, atol=INTERP_ITERATIVE_TOL)
+        assert np.allclose(path[-1], end, atol=INTERP_ITERATIVE_TOL)
 
     def test_geodesic_distance_matrix(self):
         interp = GeodesicInterpolation()
@@ -90,8 +92,9 @@ class TestIDPPInterpolation:
         path = interp.interpolate(start, end, npoints=5)
 
         assert len(path) == 5
-        assert np.allclose(path[0], start, atol=1e-2)
-        assert np.allclose(path[-1], end, atol=1e-2)
+        # Tightened tolerance: IDPP should preserve endpoints more accurately
+        assert np.allclose(path[0], start, atol=INTERP_ITERATIVE_TOL)
+        assert np.allclose(path[-1], end, atol=INTERP_ITERATIVE_TOL)
 
     def test_idpp_preserves_endpoints(self):
         interp = IDPPInterpolation()
@@ -162,11 +165,11 @@ class TestCubicSplineInterpolation:
 
         # At t=0, should be first control point
         result = interp._cubic_spline_interpolate(control_points, 0.0)
-        assert np.allclose(result, control_points[0], atol=1e-6)
+        assert np.allclose(result, control_points[0], atol=INTERP_EXACT_TOL)
 
         # At t=1, should be last control point
         result = interp._cubic_spline_interpolate(control_points, 1.0)
-        assert np.allclose(result, control_points[-1], atol=1e-6)
+        assert np.allclose(result, control_points[-1], atol=INTERP_EXACT_TOL)
 
     def test_cubic_spline_wrong_number_points(self):
         interp = CubicSplineInterpolation()
@@ -225,11 +228,11 @@ class TestInterpolationPathQuality:
     @pytest.mark.parametrize(
         ("method", "tolerance"),
         [
-            ("linear", 1e-10),
-            ("geodesic", 1e-2),
-            ("idpp", 1e-2),
-            ("quadratic", 1e-6),
-            ("spline", 1e-6),
+            ("linear", INTERP_EXACT_TOL),
+            ("geodesic", INTERP_ITERATIVE_TOL),  # Tightened from 1e-2
+            ("idpp", INTERP_ITERATIVE_TOL),  # Tightened from 1e-2
+            ("quadratic", INTERP_EXACT_TOL),
+            ("spline", INTERP_EXACT_TOL),
         ],
     )
     def test_all_methods_preserve_endpoints(self, method, tolerance):

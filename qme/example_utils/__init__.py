@@ -132,7 +132,9 @@ class QMEExampleInterface:
         logger.warning("\n⚠️  %s", message)
 
     def save_results(
-        self, results: dict[str, Any] | list[dict[str, Any]], output_file: str | None = None
+        self,
+        results: dict[str, Any] | list[dict[str, Any]],
+        output_file: str | None = None,
     ) -> None:
         """Save results to JSON file.
 
@@ -190,7 +192,7 @@ class QMEExampleInterface:
         verbose : int
             Verbosity level
 
-        Returns:
+        Returns
         -------
         tuple[str | None, list[str]]
             Selected backend (or None if none available) and list of all available backends
@@ -284,7 +286,7 @@ def benchmark_optimization(
     structure_label: str | None = None,
     structure_output_dir: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Common benchmark function for optimization and frequency analysis.
+    """Run common benchmark for optimization and frequency analysis.
 
     This function eliminates code duplication between minima and TS optimizer benchmarks.
 
@@ -322,7 +324,7 @@ def benchmark_optimization(
     structure_output_dir : str | Path | None
         Directory where the XYZ file should be written (default: current working directory).
 
-    Returns:
+    Returns
     -------
     Dict[str, Any]
         Benchmark results including timings for each step
@@ -584,8 +586,31 @@ def benchmark_optimization(
             xyz_path = output_dir / filename
 
             try:
-                ase_write(xyz_path, optimized_atoms)
-                saved_xyz_path = str(xyz_path)
+                # Narrow type for ase_write - it accepts Atoms or Sequence[Atoms]
+                # optimized_atoms could be Atoms | list[Atoms] | int | float | str from run_results
+                if isinstance(optimized_atoms, Atoms):
+                    ase_write(xyz_path, optimized_atoms)
+                    saved_xyz_path = str(xyz_path)
+                elif (
+                    isinstance(optimized_atoms, list)
+                    and optimized_atoms
+                    and isinstance(optimized_atoms[0], Atoms)
+                ):
+                    # Check all items are Atoms
+                    if all(isinstance(a, Atoms) for a in optimized_atoms):
+                        ase_write(xyz_path, optimized_atoms)
+                        saved_xyz_path = str(xyz_path)
+                    else:
+                        if verbose >= 1:
+                            logger.warning(
+                                "Cannot write optimized_atoms: list contains non-Atoms items"
+                            )
+                else:
+                    if verbose >= 1:
+                        logger.warning(
+                            "Cannot write optimized_atoms: invalid type %s",
+                            type(optimized_atoms),
+                        )
             except Exception as exc:
                 if verbose >= 1:
                     logger.warning("Failed to write optimized structure to %s: %s", xyz_path, exc)
@@ -665,20 +690,22 @@ def benchmark_optimization(
             )
 
             results["frequency_results"] = {
-                "n_frequencies": len(frequencies) if isinstance(frequencies, Sized) else 0,
-                "frequencies": frequencies[:10] if isinstance(frequencies, Sequence) else [],
-                "all_frequencies": all_frequencies_from_freq[:20]
-                if isinstance(all_frequencies_from_freq, Sequence)
-                else [],  # Store all frequencies (includes trans/rot)
-                "zero_point_energy": freq_results.get("zero_point_energy", 0.0)
-                if freq_results
-                else 0.0,
+                "n_frequencies": (len(frequencies) if isinstance(frequencies, Sized) else 0),
+                "frequencies": (frequencies[:10] if isinstance(frequencies, Sequence) else []),
+                "all_frequencies": (
+                    all_frequencies_from_freq[:20]
+                    if isinstance(all_frequencies_from_freq, Sequence)
+                    else []
+                ),  # Store all frequencies (includes trans/rot)
+                "zero_point_energy": (
+                    freq_results.get("zero_point_energy", 0.0) if freq_results else 0.0
+                ),
                 "is_transition_state": is_ts,
                 "is_valid_result": is_valid_result,
                 "n_imaginary_frequencies": n_imaginary,
-                "method_used": freq_results.get("method_used", "unknown")
-                if freq_results
-                else "not_calculated",
+                "method_used": (
+                    freq_results.get("method_used", "unknown") if freq_results else "not_calculated"
+                ),
                 "result_type": result_type,
                 "ts_analysis": ts_analysis,
             }
@@ -715,18 +742,18 @@ def benchmark_optimization(
                     pass
 
             results["frequency_results"] = {
-                "n_frequencies": len(frequencies) if isinstance(frequencies, Sized) else 0,
-                "frequencies": frequencies[:10] if isinstance(frequencies, Sequence) else [],
-                "zero_point_energy": freq_results.get("zero_point_energy", 0.0)
-                if freq_results
-                else 0.0,
+                "n_frequencies": (len(frequencies) if isinstance(frequencies, Sized) else 0),
+                "frequencies": (frequencies[:10] if isinstance(frequencies, Sequence) else []),
+                "zero_point_energy": (
+                    freq_results.get("zero_point_energy", 0.0) if freq_results else 0.0
+                ),
                 "is_minimum": is_minimum,
                 "is_valid_result": is_valid_result,
                 "n_significant_imaginary_frequencies": n_significant_imaginary,
                 "n_small_negative_frequencies": n_small_negative,
-                "method_used": freq_results.get("method_used", "unknown")
-                if freq_results
-                else "not_calculated",
+                "method_used": (
+                    freq_results.get("method_used", "unknown") if freq_results else "not_calculated"
+                ),
                 "result_type": result_type,
                 "minima_analysis": minima_analysis,
             }
@@ -783,7 +810,7 @@ def setup_example_environment(func: Callable | None = None) -> Callable:
     func : callable, optional
         Function to decorate. If None, returns a context manager.
 
-    Examples:
+    Examples
     --------
     As decorator:
         @setup_example_environment
@@ -871,7 +898,7 @@ def select_backend_with_fallback(
     verbose : int
         Verbosity level
 
-    Returns:
+    Returns
     -------
     tuple[str | None, list[str]]
         Selected backend (or None if none available) and list of all available backends
@@ -920,12 +947,12 @@ def get_calculator_for_backend(
     model_name : str | None
         Specific model name to use (backend-specific)
 
-    Returns:
+    Returns
     -------
     Calculator
         Configured calculator instance
 
-    Raises:
+    Raises
     ------
     RuntimeError
         If backend is not available or calculator creation fails

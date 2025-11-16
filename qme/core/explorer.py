@@ -11,13 +11,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ase import Atoms
-from ase.io import write
 
-from qme.backends.registry import create_calculator
-from qme.constraints.parser import parse_constraints
+from qme.core.calculator_manager import CalculatorManager
+from qme.core.constraint_manager import ConstraintManager
+from qme.core.exceptions import StrategyNotFoundError
+from qme.core.file_io import write_atoms_safely, write_trajectory_safely
 from qme.core.registry import REGISTRY
 from qme.io.geometry import read_geometry
-from qme.io.xyz_io import parse_xyz_comment, write_xyz_with_metadata
 from qme.utils.profiler import PerformanceProfiler
 
 if TYPE_CHECKING:
@@ -26,87 +26,8 @@ if TYPE_CHECKING:
     import numpy as np
 
 
-def _extract_charge_spin(
-    atoms: Atoms,
-    default_charge: int = 0,
-    default_spin: int = 1,
-) -> tuple[int, int]:
-    """Extract charge and spin from atoms object.
-
-    Precedence: XYZ comment metadata > atoms.charge/atoms.mult > atoms.info['charge']/atoms.info['spin'] > defaults
-
-    Parameters
-    ----------
-    atoms : Atoms
-        The atoms object to extract charge/spin from
-    default_charge : int
-        Default charge if not found
-    default_spin : int
-        Default spin if not found
-
-    Returns:
-    -------
-    tuple[int, int]
-        (charge, spin) tuple
-
-    """
-    charge = None
-    spin = None
-
-    # Check XYZ comment line metadata first (highest priority)
-    if hasattr(atoms, "info") and atoms.info is not None:
-        comment = atoms.info.get("comment", "")
-        if comment:
-            metadata = parse_xyz_comment(comment)
-            if "charge" in metadata:
-                try:
-                    charge = int(metadata["charge"])
-                except (ValueError, TypeError):
-                    pass
-            if "spin" in metadata:
-                try:
-                    spin = int(metadata["spin"])
-                except (ValueError, TypeError):
-                    pass
-
-    # Check for attributes (high priority)
-    if hasattr(atoms, "charge") and charge is None:
-        try:
-            charge = int(atoms.charge)
-        except (ValueError, TypeError):
-            pass
-
-    if hasattr(atoms, "mult") and spin is None:
-        try:
-            spin = int(atoms.mult)
-        except (ValueError, TypeError):
-            pass
-
-    # Check atoms.info (medium priority)
-    if hasattr(atoms, "info") and atoms.info is not None:
-        if charge is None and "charge" in atoms.info:
-            try:
-                charge_val = atoms.info.get("charge")
-                if charge_val is not None:
-                    charge = int(charge_val)
-            except (ValueError, TypeError):
-                pass
-
-        if spin is None and "spin" in atoms.info:
-            try:
-                spin_val = atoms.info.get("spin")
-                if spin_val is not None:
-                    spin = int(spin_val)
-            except (ValueError, TypeError):
-                pass
-
-    # Use defaults if still None
-    if charge is None:
-        charge = default_charge
-    if spin is None:
-        spin = default_spin
-
-    return charge, spin
+# Charge/spin extraction moved to qme.core.charge_spin module
+# Imported at top of file
 
 
 class Explorer:
@@ -143,7 +64,6 @@ class Explorer:
         - "bfgs": BFGS optimizer
         - "fire": FIRE optimizer
         - "trust-krylov": Trust-region with Krylov subspace
-        - "trust-krylov-ts": Trust-region for TS
         - "trust-ncg": Trust-region with nonlinear CG
         - "trust-exact": Trust-region with exact Hessian
         - "newton-cg": Newton-CG method
@@ -177,13 +97,13 @@ class Explorer:
     verbose : int, default 1
         Verbosity level (0=quiet, 1=normal, 2=verbose).
 
-    Notes:
+    Notes
     -----
     - Structure ``charge``/``spin`` attributes override defaults.
     - Use :meth:`list_strategies` to discover available strategies.
     - Calculator creation and caching handled automatically.
 
-    Examples:
+    Examples
     --------
     >>> # Minima optimization (local is default)
     >>> explorer = Explorer(atoms, target="minima")
@@ -334,8 +254,22 @@ class Explorer:
             if "hessian_method" not in self.ts_kwargs:
                 self.ts_kwargs["hessian_method"] = "finite_differences"
 
-        self.constraints_spec = constraints
         self.initial_hessian = initial_hessian
+
+        # Initialize managers
+        self.calculator_manager = CalculatorManager(
+            backend=backend,
+            model_name=model_name,
+            model_path=model_path,
+            device=device,
+            default_charge=default_charge,
+            default_spin=default_spin,
+            verbose=verbose,
+        )
+        self.constraint_manager = ConstraintManager(
+            constraints_spec=constraints,
+            cache_parsed=True,
+        )
 
         # Auto-register default strategies unless caller opts out
         if auto_register:
@@ -351,23 +285,7 @@ class Explorer:
 
         Returns the model name that will be used after applying backend-specific defaults.
         """
-        if self.model_name is not None:
-            return self.model_name
-
-        # Apply backend-specific defaults
-        backend_lower = self.backend.lower()
-        if backend_lower == "uma":
-            return "uma-s-1p1"
-        if backend_lower == "aimnet2":
-            return "aimnet2"
-        if backend_lower == "mace":
-            return "mace-omol-0"
-        if backend_lower == "so3lr":
-            # SO3LR requires a model_path, not model_name
-            return self.model_path or "so3lr-model"
-        if backend_lower == "mock":
-            return "mock-model"
-        return "default-model"
+        return self.calculator_manager.get_effective_model_name()
 
     def _get_effective_optimizer(self) -> str:
         """Get the effective optimizer that will actually be used.
@@ -383,149 +301,40 @@ class Explorer:
         # minima or path
         return "lbfgs"
 
-    def _check_missing_charge_spin(self, atoms: Atoms) -> tuple[bool, bool]:
-        """Check if charge and/or spin are missing from atoms.
-
-        Parameters
-        ----------
-        atoms : Atoms
-            The atoms object to check
-
-        Returns:
-        -------
-        tuple[bool, bool]
-            (charge_missing, spin_missing) indicating if each is missing
-
-        """
-        charge_missing = True
-        spin_missing = True
-
-        # Check for attributes first (highest priority)
-        if hasattr(atoms, "charge"):
-            try:
-                if atoms.charge is not None:
-                    int(atoms.charge)  # Test conversion
-                    charge_missing = False
-            except (ValueError, TypeError):
-                pass
-
-        if hasattr(atoms, "mult"):
-            try:
-                if atoms.mult is not None:
-                    int(atoms.mult)  # Test conversion
-                    spin_missing = False
-            except (ValueError, TypeError):
-                pass
-
-        # Check atoms.info (medium priority)
-        if hasattr(atoms, "info") and atoms.info is not None:
-            if "charge" in atoms.info:
-                try:
-                    charge_val = atoms.info.get("charge")
-                    if charge_val is not None:
-                        charge_missing = False
-                except (ValueError, TypeError):
-                    pass
-
-            if "spin" in atoms.info:
-                try:
-                    spin_val = atoms.info.get("spin")
-                    if spin_val is not None:
-                        spin_missing = False
-                except (ValueError, TypeError):
-                    pass
-
-        return charge_missing, spin_missing
-
     def _create_and_attach_calculator(self, atoms: Atoms) -> Any:
         """Create and attach an ASE calculator to ``atoms``.
 
         Prefers explicit ``charge``/``mult`` found on Geometry-like objects or
         in ``atoms.info``. Falls back to the Explorer defaults otherwise.
+
+        Parameters
+        ----------
+        atoms : Atoms
+            Atoms object to attach calculator to
+
+        Returns
+        -------
+        Any
+            The created calculator object
         """
-        # Extract charge and spin using helper function
-        charge, spin = _extract_charge_spin(atoms, self.default_charge, self.default_spin)
-
-        # Check if we're using defaults and warn once
-        charge_missing, spin_missing = self._check_missing_charge_spin(atoms)
-
-        if (charge_missing or spin_missing) and not getattr(self, "_warned_about_defaults", False):
-            from qme.utils.logging import get_qme_logger
-
-            logger = get_qme_logger(__name__)
-
-            missing_parts = []
-            if charge_missing:
-                missing_parts.append(f"charge={charge}")
-            if spin_missing:
-                missing_parts.append(f"spin={spin}")
-
-            # Use debug level instead of warning since defaults are reasonable
-            # and charge/spin are often not critical for neutral closed-shell systems
-            if self.verbose >= 2:
-                logger.debug(
-                    f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
-                )
-            else:
-                # Only warn at verbose level 1 if it's a charged or open-shell system
-                # (charge != 0 or spin != 1), otherwise it's just informational
-                if charge != 0 or spin != 1:
-                    logger.warning(
-                        f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
-                    )
-                # For neutral closed-shell (charge=0, spin=1), don't warn at all
-            self._warned_about_defaults = True
-
-        # Ensure atoms.info contains values so calculators that read
-        # atoms.info (UMA, SO3LR, etc.) see the intended settings.
-        if getattr(atoms, "info", None) is not None:
-            # Coerce to built-in int types to satisfy backends that enforce strict typing
-            try:
-                atoms.info["charge"] = int(atoms.info.get("charge", charge))
-            except (ValueError, TypeError):
-                atoms.info["charge"] = int(charge)
-            try:
-                atoms.info["spin"] = int(atoms.info.get("spin", spin))
-            except (ValueError, TypeError):
-                atoms.info["spin"] = int(spin)
-
-        # Show model initialization info when creating the first calculator
-        if not hasattr(self, "_calculator_created"):
-            from qme.utils.logging import print_model_info
-
-            # Get the effective model name that will actually be used
-            effective_model_name = self._get_effective_model_name()
-            print_model_info(
-                self.backend,
-                effective_model_name,
-                self.model_path,
-                self.device,
-                verbose=self.verbose,
-            )
-            self._calculator_created = True
-
-        calc = create_calculator(
-            backend=self.backend,
-            model_name=self.model_name,
-            model_path=self.model_path,
-            device=self.device,
-            default_charge=self.default_charge,
-            default_spin=self.default_spin,
-            charge=charge,
-            mult=spin,
-            verbose=self.verbose,
-        )
-        atoms.calc = calc
-        return calc
+        return self.calculator_manager.create_and_attach_calculator(atoms)
 
     def _apply_constraints(self, atoms: Atoms) -> list[Any]:
         """Parse and apply constraints to ``atoms`` if specified.
 
         Returns the ASE constraints list after application.
+
+        Parameters
+        ----------
+        atoms : Atoms
+            Atoms object to apply constraints to
+
+        Returns
+        -------
+        list[Any]
+            List of ASE constraint objects
         """
-        if self.constraints_spec is None:
-            return []
-        return parse_constraints(self.constraints_spec, atoms, verbose=False)
+        return self.constraint_manager.apply_constraints(atoms)
 
     # =============================================================================
     # Strategy Management
@@ -538,7 +347,9 @@ class Explorer:
             if kind is None or metadata.target == kind:
                 # Add main strategy name
                 out[name] = {
-                    "type": "multi-structure" if metadata.requires_multiple_structures else "local",
+                    "type": (
+                        "multi-structure" if metadata.requires_multiple_structures else "local"
+                    ),
                     "description": metadata.description,
                 }
                 # Add aliases
@@ -558,9 +369,9 @@ class Explorer:
     def explain_run(self) -> dict[str, str | bool | int | None]:
         """Explain what strategy would be selected without running.
 
-        Returns:
+        Returns
         -------
-        dict[str, Union[str, bool, int, None]]
+        dict[str, str | bool | int | None]
             Dictionary with strategy selection details containing:
             - target: Target type (str)
             - strategy: Strategy type (str)
@@ -598,7 +409,7 @@ class Explorer:
                 "description": metadata.description,
                 "notes": f"Will use {effective_optimizer} optimizer",
             }
-        except KeyError as e:
+        except StrategyNotFoundError as e:
             available = sorted(REGISTRY.list_strategies().keys())
             return {
                 "target": "unknown",
@@ -640,9 +451,9 @@ class Explorer:
         **kwargs
             Additional keyword arguments forwarded to the strategy runner.
 
-        Returns:
+        Returns
         -------
-        dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
+        dict[str, Atoms | list[Atoms] | bool | int | float | str]
             Standardized result dictionary containing:
             - optimized_atoms: Optimized structure(s) (Atoms or list[Atoms])
             - strategy: Strategy name used (str)
@@ -653,7 +464,7 @@ class Explorer:
             - free_energy_correction: Free energy correction in eV (float, optional)
             - Additional strategy-specific metadata
 
-        Examples:
+        Examples
         --------
         >>> # Minima optimization
         >>> explorer = Explorer(atoms, target="minima", strategy="local")
@@ -692,11 +503,11 @@ class Explorer:
         # Get strategy class from registry
         try:
             strategy_class = REGISTRY.get(strategy_name)
-        except KeyError as e:
-            available = sorted(REGISTRY.list_strategies().keys())
-            msg = f"No strategy found for '{strategy_name}'. Available strategies: {available}"
+        except StrategyNotFoundError as e:
+            # Re-raise with more context
             raise NotImplementedError(
-                msg,
+                f"No strategy found for '{strategy_name}'. "
+                f"Available strategies: {sorted(REGISTRY.list_strategies().keys())}"
             ) from e
 
         # Instantiate and run strategy
@@ -756,19 +567,19 @@ class Explorer:
         **kwargs : Any
             Additional arguments passed to Explorer constructor.
 
-        Returns:
+        Returns
         -------
         Explorer
             New Explorer instance with loaded geometry ready for optimization.
 
-        Raises:
+        Raises
         ------
         FileNotFoundError
             If the specified file does not exist.
         ValueError
             If the file format is not supported or file is corrupted.
 
-        Examples:
+        Examples
         --------
         >>> # Load from XYZ file
         >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2")
@@ -807,23 +618,64 @@ class Explorer:
         filename_or_geom : str, Path, or Atoms
             File path or geometry object to load
 
-        Returns:
+        Returns
         -------
         Atoms
             Loaded geometry
 
+        Raises
+        ------
+        TypeError
+            If filename_or_geom is not a valid type
+        FileNotFoundError
+            If file path does not exist
+        ValueError
+            If loaded structure is invalid or empty
+
         """
-        if isinstance(filename_or_geom, str | Path):
-            geom = read_geometry(str(filename_or_geom))
+        if isinstance(filename_or_geom, (str, Path)):
+            file_path = Path(filename_or_geom)
+            if not file_path.exists():
+                msg = (
+                    f"File not found: {file_path}. "
+                    f"Please check that the file exists and the path is correct."
+                )
+                raise FileNotFoundError(msg)
+            try:
+                geom: Atoms | list[Atoms] = read_geometry(str(filename_or_geom))  # type: ignore[assignment]
+            except Exception as e:
+                msg = (
+                    f"Failed to load geometry from {file_path}. "
+                    f"Error: {e}. "
+                    f"Please check that the file format is supported and the file is not corrupted."
+                )
+                raise ValueError(msg) from e
+        elif isinstance(filename_or_geom, Atoms):
+            geom = filename_or_geom
         else:
-            geom = filename_or_geom  # type: ignore[assignment]
+            # This should never be reached due to type system, but kept for runtime safety
+            raise TypeError(
+                f"Expected str, Path, or Atoms, got {type(filename_or_geom).__name__}. "
+                f"Please provide a file path (str or Path) or an Atoms object."
+            )
 
         if isinstance(geom, list):
+            if not geom:
+                msg = "Loaded geometry list is empty. Please check the input file."
+                raise ValueError(msg)
             geom = geom[0]
 
+        # Type narrowing: geom is now Atoms (or Geometry subclass)
+        # After the list check above, geom is guaranteed to be Atoms-compatible
+        atoms_result: Atoms = geom
+
+        if len(atoms_result) == 0:
+            msg = "Loaded structure has no atoms. Please check the input file."
+            raise ValueError(msg)
+
         # Update the atoms_list to contain this new geometry
-        self.atoms_list = [geom]
-        return geom
+        self.atoms_list = [atoms_result]
+        return atoms_result
 
     def save_structure(
         self,
@@ -843,85 +695,7 @@ class Explorer:
             File format (inferred from extension if None)
 
         """
-        output_file = Path(output_file)
-
-        # SECURITY: Validate path doesn't contain traversal patterns
-        if ".." in str(output_file) or "\x00" in str(output_file):
-            msg = f"Unsafe output path detected: {output_file}"
-            raise ValueError(msg)
-
-        # Use custom XYZ writer for .xyz files to preserve metadata
-        if str(output_file).lower().endswith(".xyz"):
-            try:
-                write_xyz_with_metadata(atoms, str(output_file))
-                return
-            except OSError as e:
-                # File system errors (permissions, disk full, etc.)
-                msg = (
-                    f"Failed to save XYZ structure to {output_file}: {e}. "
-                    f"This may be due to file system permissions, insufficient disk space, "
-                    f"or an invalid file path."
-                )
-                raise RuntimeError(msg) from e
-            except (ValueError, TypeError) as e:
-                # Data format errors (invalid structure data)
-                msg = (
-                    f"Failed to save XYZ structure to {output_file}: {e}. "
-                    f"This may indicate invalid or corrupted structure data."
-                )
-                raise RuntimeError(msg) from e
-
-        # Use ASE for other formats
-        try:
-            if format is not None:
-                write(output_file, atoms, format=format)
-            else:
-                write(output_file, atoms)
-        except OSError as e:
-            # File system errors - try with cleaned atoms object
-            try:
-                # Create a clean atoms object with only essential data to avoid
-                # issues with contaminated global state from test isolation
-                clean_atoms = Atoms(
-                    symbols=atoms.symbols,
-                    positions=atoms.positions,
-                    cell=atoms.cell,
-                    pbc=atoms.pbc,
-                )
-                # Copy over essential info
-                if hasattr(atoms, "info") and atoms.info:
-                    for key in ["charge", "spin"]:
-                        if key in atoms.info:
-                            clean_atoms.info[key] = atoms.info[key]
-
-                if format is not None:
-                    write(output_file, clean_atoms, format=format)
-                else:
-                    write(output_file, clean_atoms)
-            except OSError as e2:
-                msg = (
-                    f"Failed to save structure to {output_file}: {e}. "
-                    f"Clean attempt also failed: {e2}. "
-                    f"This may be due to file system permissions, insufficient disk space, "
-                    f"or an invalid file path."
-                )
-                raise RuntimeError(msg) from e2
-            except (ValueError, TypeError, KeyError) as e2:
-                # Data or format errors even with cleaned atoms
-                msg = (
-                    f"Failed to save structure to {output_file}: {e}. "
-                    f"Clean attempt also failed: {e2}. "
-                    f"This may indicate an unsupported format or corrupted structure data."
-                )
-                raise RuntimeError(msg) from e2
-        except (ValueError, TypeError, KeyError) as e:
-            # Data format errors (invalid structure data or unsupported format)
-            msg = (
-                f"Failed to save structure to {output_file}: {e}. "
-                f"This may indicate an unsupported format, invalid structure data, "
-                f"or missing format-specific requirements."
-            )
-            raise RuntimeError(msg) from e
+        write_atoms_safely(atoms, output_file, format)
 
     def save_trajectory(
         self,
@@ -944,95 +718,14 @@ class Explorer:
         format : str, optional
             File format (inferred from extension if None)
 
-        Examples:
+        Examples
         --------
         >>> explorer = Explorer(atoms=[reactant, product], target="path")
         >>> result = explorer.run(npoints=7)
         >>> explorer.save_trajectory(result, "reaction_path.xyz")
 
         """
-        output_file = Path(output_file)
-
-        # SECURITY: Validate path doesn't contain traversal patterns
-        if ".." in str(output_file) or "\x00" in str(output_file):
-            msg = f"Unsafe output path detected: {output_file}"
-            raise ValueError(msg)
-
-        # Use custom XYZ writer for .xyz files to preserve metadata
-        if str(output_file).lower().endswith(".xyz"):
-            try:
-                write_xyz_with_metadata(atoms_list, str(output_file))
-                return
-            except OSError as e:
-                # File system errors (permissions, disk full, etc.)
-                msg = (
-                    f"Failed to save XYZ trajectory to {output_file}: {e}. "
-                    f"This may be due to file system permissions, insufficient disk space, "
-                    f"or an invalid file path."
-                )
-                raise RuntimeError(msg) from e
-            except (ValueError, TypeError) as e:
-                # Data format errors (invalid structure data)
-                msg = (
-                    f"Failed to save XYZ trajectory to {output_file}: {e}. "
-                    f"This may indicate invalid or corrupted structure data in the trajectory."
-                )
-                raise RuntimeError(msg) from e
-
-        # Use ASE for other formats
-        try:
-            if format is not None:
-                write(output_file, atoms_list, format=format)
-            else:
-                write(output_file, atoms_list)
-        except OSError as e:
-            # File system errors - try with cleaned atoms objects
-            try:
-                # Create clean atoms objects with only essential data to avoid
-                # issues with contaminated global state from test isolation
-                clean_atoms_list = []
-                for atoms in atoms_list:
-                    clean_atoms = Atoms(
-                        symbols=atoms.symbols,
-                        positions=atoms.positions,
-                        cell=atoms.cell,
-                        pbc=atoms.pbc,
-                    )
-                    # Copy over essential info
-                    if hasattr(atoms, "info") and atoms.info:
-                        for key in ["charge", "spin"]:
-                            if key in atoms.info:
-                                clean_atoms.info[key] = atoms.info[key]
-                    clean_atoms_list.append(clean_atoms)
-
-                if format is not None:
-                    write(output_file, clean_atoms_list, format=format)
-                else:
-                    write(output_file, clean_atoms_list)
-            except OSError as e2:
-                msg = (
-                    f"Failed to save trajectory to {output_file}: {e}. "
-                    f"Clean attempt also failed: {e2}. "
-                    f"This may be due to file system permissions, insufficient disk space, "
-                    f"or an invalid file path."
-                )
-                raise RuntimeError(msg) from e2
-            except (ValueError, TypeError, KeyError) as e2:
-                # Data or format errors even with cleaned atoms
-                msg = (
-                    f"Failed to save trajectory to {output_file}: {e}. "
-                    f"Clean attempt also failed: {e2}. "
-                    f"This may indicate an unsupported format or corrupted structure data."
-                )
-                raise RuntimeError(msg) from e2
-        except (ValueError, TypeError, KeyError) as e:
-            # Data format errors (invalid structure data or unsupported format)
-            msg = (
-                f"Failed to save trajectory to {output_file}: {e}. "
-                f"This may indicate an unsupported format, invalid structure data, "
-                f"or missing format-specific requirements."
-            )
-            raise RuntimeError(msg) from e
+        write_trajectory_safely(atoms_list, output_file, format)
 
     # =============================================================================
     # Analysis Methods
@@ -1067,9 +760,9 @@ class Explorer:
         **kwargs
             Additional arguments passed to FrequencyAnalysis
 
-        Returns:
+        Returns
         -------
-        dict[str, Union[list[float], float, dict[str, Any], str, int, np.ndarray]]
+        dict[str, list[float] | float | dict[str, Any] | str | int | np.ndarray]
             Dictionary containing:
             - frequencies: Vibrational frequencies in cm⁻¹ (list[float])
             - all_frequencies: All frequencies including trans/rot modes (list[float])
@@ -1097,18 +790,6 @@ class Explorer:
             atoms = self.atoms_list[0]
 
         if getattr(atoms, "calc", None) is None:
-            # Ensure atoms.info has charge/spin info before creating calculator
-            # This prevents repeated warnings during frequency calculations
-            if getattr(atoms, "info", None) is not None:
-                charge, spin = _extract_charge_spin(atoms, self.default_charge, self.default_spin)
-                try:
-                    atoms.info["charge"] = int(atoms.info.get("charge", charge))
-                except Exception:
-                    atoms.info["charge"] = int(charge)
-                try:
-                    atoms.info["spin"] = int(atoms.info.get("spin", spin))
-                except Exception:
-                    atoms.info["spin"] = int(spin)
             self._create_and_attach_calculator(atoms)
 
         freq_analysis = FrequencyAnalysis(

@@ -4,6 +4,8 @@ This module provides wrapper classes for ASE optimizers (LBFGS, BFGS, FIRE)
 and Sella to add consistent verbosity control using QME's logging system.
 """
 
+from __future__ import annotations
+
 from contextlib import redirect_stdout
 from typing import IO, Any, TextIO, cast
 
@@ -48,7 +50,7 @@ class LoggingFile:
         text : str
             Text to write
 
-        Returns:
+        Returns
         -------
         int
             Number of characters written
@@ -83,7 +85,7 @@ class LoggingFile:
         """Close the file (flush remaining content)."""
         self.flush()
 
-    def __enter__(self) -> "LoggingFile":
+    def __enter__(self) -> LoggingFile:
         """Context manager entry."""
         return self
 
@@ -141,6 +143,7 @@ class ProfilerCalculatorWrapper(Calculator):
             self.profiler.increment_call("hessian")
 
         # Delegate to wrapped calculator
+        # ASE calculators return Any (untyped), but we know the return type matches the protocol
         return self.calculator.calculate(atoms, properties, system_changes)  # type: ignore[no-any-return]
 
     @property
@@ -174,22 +177,26 @@ class ProfilerCalculatorWrapper(Calculator):
     ) -> float:
         """Get potential energy and track call in profiler."""
         self.profiler.increment_call("energy")
+        # ASE calculators return Any (untyped), but we know it's float
         return self.calculator.get_potential_energy(atoms, force_consistent)  # type: ignore[no-any-return]
 
     def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get forces and track call in profiler."""
         self.profiler.increment_call("forces")
+        # ASE calculators return Any (untyped), but we know it's np.ndarray
         return self.calculator.get_forces(atoms)  # type: ignore[no-any-return]
 
     def get_stress(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get stress and track call in profiler."""
         # Note: stress calls are not tracked separately, but could be added if needed
+        # ASE calculators return Any (untyped), but we know it's np.ndarray
         return self.calculator.get_stress(atoms)  # type: ignore[no-any-return]
 
     def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get Hessian and track call in profiler."""
         self.profiler.increment_call("hessian")
         if hasattr(self.calculator, "get_hessian"):
+            # ASE calculators return Any (untyped), but we know it's np.ndarray
             return self.calculator.get_hessian(atoms)  # type: ignore[no-any-return]
         msg = f"Calculator {type(self.calculator).__name__} does not support Hessian calculation"
         raise AttributeError(
@@ -198,6 +205,7 @@ class ProfilerCalculatorWrapper(Calculator):
 
     def check_state(self, atoms: Atoms, tol: float = 1e-15) -> bool:
         """Check calculator state (delegate to wrapped calculator)."""
+        # ASE calculators return Any (untyped), but we know it's bool
         return self.calculator.check_state(atoms, tol)  # type: ignore[no-any-return]
 
 
@@ -227,7 +235,7 @@ class VerboseOptimizerWrapper(Optimizer):
             The Atoms object to optimize.
         wrapped_optimizer_class : type[Optimizer]
             The ASE optimizer class to wrap.
-        logfile : Union[IO, str]
+        logfile : IO | str
             File object or filename for logging. Use '-' for stdout.
         trajectory : Optional[str]
             Trajectory file to store optimization path.
@@ -300,6 +308,7 @@ class VerboseOptimizerWrapper(Optimizer):
             optimizer_name = wrapped_optimizer_class.__name__
             logger.info(f"Initialized {optimizer_name} optimizer with verbosity control")
 
+    # ASE Optimizer.run() signature varies by optimizer; this wrapper matches common signature
     def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:  # type: ignore[override]
         """Run the optimization with verbosity control."""
         if self.verbose >= 2:

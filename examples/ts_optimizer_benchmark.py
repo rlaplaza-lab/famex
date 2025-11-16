@@ -40,10 +40,10 @@ def benchmark_ts_optimizer(
     save_optimized_structure: bool = False,
     structure_label: str | None = None,
 ) -> dict[str, Any]:
-    """Benchmark TS optimizer (Sella, Trust-Krylov-TS, RFO)."""
+    """Benchmark TS optimizer (Sella, RFO)."""
     # Prepare ts_kwargs if hessian_update_freq is specified for Hessian-based optimizers
     ts_kwargs = None
-    if hessian_update_freq is not None and optimizer in ["trust-krylov-ts", "rfo"]:
+    if hessian_update_freq is not None and optimizer in ["rfo"]:
         ts_kwargs = {"hessian_update_freq": hessian_update_freq}
     if force_finite_diff_hessian:
         if ts_kwargs is None:
@@ -58,7 +58,7 @@ def benchmark_ts_optimizer(
         verbose=verbose,
         test_ts=True,
         create_structure_func=create_ts_structure,
-        suitable_optimizers=["sella", "trust-krylov-ts", "rfo"],
+        suitable_optimizers=["sella", "rfo"],
         calculate_frequencies=calculate_frequencies,
         ts_kwargs=ts_kwargs,
         force_finite_diff_hessian=force_finite_diff_hessian,
@@ -131,8 +131,13 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None
                 if not filtered_freqs and all_freqs:
                     filtered_freqs = all_freqs
                 # Sort frequencies so negative (imaginary) ones appear first
+                # Handle complex frequencies by converting to real for comparison
                 frequencies = sorted(
-                    filtered_freqs, key=lambda x: (x >= 0, x)
+                    filtered_freqs,
+                    key=lambda x: (
+                        abs(x) >= 0 if isinstance(x, complex) else x >= 0,
+                        abs(x) if isinstance(x, complex) else x,
+                    ),
                 )  # Negatives first, then positives
             else:
                 frequencies = []
@@ -310,7 +315,7 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
 
 
 def main() -> int:
-    """Main function to run the TS optimizer comparison benchmark."""
+    """Run the TS optimizer comparison benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
         name="TS Optimizer Benchmark",
@@ -324,7 +329,7 @@ def main() -> int:
     parser.add_argument(
         "--optimizers",
         type=str,
-        help="Comma-separated list of optimizers to benchmark (default: sella,trust-krylov-ts,rfo - all tested on equal footing)",
+        help="Comma-separated list of optimizers to benchmark (default: sella,rfo - all tested on equal footing)",
     )
     parser.add_argument(
         "--freq",
@@ -379,7 +384,7 @@ def main() -> int:
         return 1
 
     # Determine which optimizers to test
-    valid_optimizers = ["sella", "trust-krylov-ts", "rfo"]
+    valid_optimizers = ["sella", "rfo"]
     if args.optimizers:
         requested_optimizers = [o.strip().lower() for o in args.optimizers.split(",")]
         # Filter to only TS optimizers
@@ -393,7 +398,7 @@ def main() -> int:
                 )
     else:
         # Default: test all TS optimizers on equal footing
-        ts_optimizers = ["sella", "trust-krylov-ts", "rfo"]
+        ts_optimizers = ["sella", "rfo"]
 
     if not ts_optimizers:
         interface.print_error("No valid TS optimizers specified!")
@@ -418,7 +423,7 @@ def main() -> int:
     for backend in available_backends:
         for optimizer in ts_optimizers:
             # For Hessian-based optimizers, test multiple update frequencies
-            if optimizer in ["trust-krylov-ts", "rfo"]:
+            if optimizer in ["rfo"]:
                 # Test with: single Hessian (None), every 5 steps, every 10 steps
                 hessian_freqs = [None, 5, 10]
             else:
@@ -428,7 +433,7 @@ def main() -> int:
             for hessian_freq in hessian_freqs:
                 # Create a unique identifier for this configuration
                 optimizer_name = optimizer
-                if optimizer in ["trust-krylov-ts", "rfo"]:
+                if optimizer in ["rfo"]:
                     if hessian_freq is None:
                         optimizer_name = f"{optimizer}_single_hessian"
                     else:

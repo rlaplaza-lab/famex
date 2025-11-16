@@ -12,6 +12,12 @@ from qme.utils.path_security import (
     sanitize_filename,
     validate_safe_path,
 )
+from tests.security.test_utils import (
+    EVIL_PATHS,
+    SAFE_PATHS,
+    SUSPICIOUS_PATTERNS,
+    WINDOWS_EVIL_PATHS,
+)
 
 
 class TestPathSanitization:
@@ -19,7 +25,12 @@ class TestPathSanitization:
         assert sanitize_filename("model.jpt") == "model.jpt"
         assert sanitize_filename("model-v2_final.jpt") == "model-v2_final.jpt"
 
-    def test_sanitize_filename_removes_paths(self):
+    @pytest.mark.parametrize("evil_path", EVIL_PATHS[:4])
+    def test_sanitize_filename_removes_paths(self, evil_path):
+        result = sanitize_filename(evil_path)
+        assert "../" not in result or result == "passwd"  # Should remove traversal
+
+    def test_sanitize_filename_removes_paths_specific(self):
         assert sanitize_filename("../model.jpt") == "model.jpt"
         assert sanitize_filename("../../etc/passwd") == "passwd"
         assert sanitize_filename("/etc/passwd") == "passwd"
@@ -77,12 +88,13 @@ class TestPathSanitization:
             with pytest.raises(PathSecurityError, match="escape base directory"):
                 validate_safe_path(link, base_dir=base, must_exist=False)
 
-    def test_is_safe_relative_path(self):
-        assert is_safe_relative_path("model.jpt") is True
-        assert is_safe_relative_path("subdir/model.jpt") is True
-        assert is_safe_relative_path("../model.jpt") is False
-        assert is_safe_relative_path("/etc/passwd") is False
-        assert is_safe_relative_path("model$PATH.jpt") is False
+    @pytest.mark.parametrize("safe_path", SAFE_PATHS)
+    def test_is_safe_relative_path_safe(self, safe_path):
+        assert is_safe_relative_path(safe_path) is True, f"{safe_path} should be safe"
+
+    @pytest.mark.parametrize("evil_path", EVIL_PATHS)
+    def test_is_safe_relative_path_evil(self, evil_path):
+        assert is_safe_relative_path(evil_path) is False, f"{evil_path} should be unsafe"
 
 
 class TestModelCachePathTraversal:
@@ -123,13 +135,7 @@ class TestModelCachePathTraversal:
             cache = ModelCache(cache_dir=tmpdir)
 
             # Windows path traversal attempts
-            evil_names = [
-                "..\\..\\windows\\system32\\evil",
-                "C:\\windows\\evil",
-                "\\\\?\\C:\\evil",
-            ]
-
-            for evil_name in evil_names:
+            for evil_name in WINDOWS_EVIL_PATHS:
                 model_data = b"test"
                 cached_path = cache.cache_model(evil_name, "http://test.com", model_data)
                 assert str(cached_path).startswith(str(tmpdir))
@@ -139,14 +145,7 @@ class TestModelCachePathTraversal:
             cache = ModelCache(cache_dir=tmpdir)
 
             # Test various suspicious patterns
-            evil_names = [
-                "~/malicious",
-                "$HOME/malicious",
-                "model~backup",
-                "model$backup",
-            ]
-
-            for evil_name in evil_names:
+            for evil_name in SUSPICIOUS_PATTERNS:
                 model_data = b"test"
                 # Should all be sanitized
                 cached_path = cache.cache_model(evil_name, "http://test.com", model_data)

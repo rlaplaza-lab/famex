@@ -39,7 +39,8 @@ def _get_logger() -> Any:
 def _check_e3nn_conflict() -> str | None:
     """Check for e3nn version conflicts between MACE and FairChem.
 
-    Returns:
+    Returns
+    -------
         Error message if conflict detected, None otherwise
 
     """
@@ -228,7 +229,8 @@ def get_backend_error_message(backend: str) -> str:
     Args:
         backend: Backend name
 
-    Returns:
+    Returns
+    -------
         str: Human-readable error message with installation instructions
 
     """
@@ -259,7 +261,8 @@ def get_available_backends_with_logging(
         include_mock: Whether to include the mock backend
         verbose: Whether to print availability status for each backend
 
-    Returns:
+    Returns
+    -------
         List of available backend names
 
     """
@@ -295,7 +298,8 @@ def filter_available_backends(requested_backends: list[str], verbose: bool = Fal
         requested_backends: List of backend names to check
         verbose: Whether to print status messages
 
-    Returns:
+    Returns
+    -------
         List of available backends from the requested list
 
     """
@@ -324,7 +328,8 @@ def validate_backends(requested_backends: list[str]) -> tuple[list[str], list[st
     Args:
         requested_backends: List of backend names to validate
 
-    Returns:
+    Returns
+    -------
         Tuple of (available_backends, invalid_backends)
 
     """
@@ -348,10 +353,12 @@ def require_ml_backends(min_count: int = 1) -> list[str]:
     Args:
         min_count: Minimum number of ML backends required
 
-    Returns:
+    Returns
+    -------
         List of available ML backends
 
-    Raises:
+    Raises
+    ------
         SystemExit: If insufficient ML backends are available
 
     """
@@ -446,7 +453,8 @@ def require_any_backend(backends: list[str]) -> list[str] | None:
 def get_backend_pairs() -> list[tuple[str, str]]:
     """Get pairs of backends for comparison testing.
 
-    Returns:
+    Returns
+    -------
         List of tuples of (backend1, backend2) pairs where both backends are available.
         Currently returns an empty list as there are no defined pairs.
 

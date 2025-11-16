@@ -2,14 +2,17 @@
 
 This module provides functions for diagonalizing Hessians, computing normal
 modes, and converting between frequency units.
+
+Uses ASE's VibrationsData for consistency with ASE conventions.
 """
 
 from __future__ import annotations
 
 import numpy as np
 from ase import Atoms, units
-from scipy.linalg import eigh
+from numpy.typing import NDArray
 
+from qme.analysis.ase_integration import frequencies_via_ase
 from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
@@ -21,8 +24,11 @@ def diagonalize_mass_weighted_hessian(
     hessian: np.ndarray,
     atoms: Atoms,
     indices: list[int],
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Diagonalize mass-weighted Hessian to get normal modes and frequencies.
+
+    This function uses ASE's VibrationsData to ensure consistency with ASE's
+    conventions for frequency and mode calculations.
 
     Parameters
     ----------
@@ -33,48 +39,23 @@ def diagonalize_mass_weighted_hessian(
     indices : list[int]
         Indices of atoms included in Hessian
 
-    Returns:
+    Returns
     -------
-    tuple[np.ndarray, np.ndarray]
-        Frequencies in cm^-1 and normal mode eigenvectors
+    tuple[NDArray[np.float64], NDArray[np.float64]]
+        Frequencies in cm^-1 and normal mode eigenvectors (Cartesian coordinates).
+        Frequencies are signed: positive for real modes, negative for imaginary.
+
+    Notes
+    -----
+    - Uses ASE's VibrationsData.from_2d() for consistency
+    - Frequencies follow ASE's convention (signed, cm^-1)
+    - Normal modes are in Cartesian coordinates, normalized
 
     """
-    # Mass-weight the Hessian
-    masses = atoms.get_masses()[indices]
-    if np.any(masses == 0):
-        msg = "Zero mass encountered. Use Atoms.set_masses() to set all masses to non-zero values."
-        logger.error(msg)
-        raise ValueError(msg)
+    # Use ASE's VibrationsData for consistency
+    frequencies, modes = frequencies_via_ase(hessian, atoms, indices)
 
-    mass_sqrt = np.repeat(np.sqrt(masses), 3)
-    mass_inv_sqrt = mass_sqrt**-1
-    mass_weighted_hessian = hessian * np.outer(mass_inv_sqrt, mass_inv_sqrt)
-
-    # Diagonalize mass-weighted Hessian
-    omega2, mw_modes = eigh(mass_weighted_hessian)
-
-    # ASE conversion factor: h*nu (eV) from omega^2 (in mass-weighted units)
-    # s = ħ * 1e10 / sqrt(e * amu)
-    s = units._hbar * 1e10 / np.sqrt(units._e * units._amu)
-    hnu = s * np.sqrt(omega2.astype(complex))  # eV (complex for negative omega2)
-
-    # Convert to frequencies: use absolute value to get magnitude
-    # For negative omega2, sqrt gives imaginary numbers - we want the magnitude
-    frequencies = np.abs(hnu / units.invcm)  # cm^-1 (magnitude)
-
-    # Mark imaginary frequencies as negative (omega2 < 0 means saddle point)
-    frequencies[omega2 < 0] *= -1
-
-    # Convert eigenvectors back to Cartesian coordinates
-    cart_modes = mw_modes / mass_sqrt[:, None]
-
-    # Normalize Cartesian mode vectors column-wise
-    for i in range(cart_modes.shape[1]):
-        norm = np.linalg.norm(cart_modes[:, i])
-        if norm > 0:
-            cart_modes[:, i] /= norm
-
-    return frequencies, cart_modes
+    return frequencies, modes
 
 
 def convert_frequency_unit(frequencies: np.ndarray, unit: str) -> np.ndarray:
@@ -87,12 +68,12 @@ def convert_frequency_unit(frequencies: np.ndarray, unit: str) -> np.ndarray:
     unit : str
         Target unit: 'cm-1', 'meV', or 'THz'
 
-    Returns:
+    Returns
     -------
     np.ndarray
         Frequencies in requested unit
 
-    Raises:
+    Raises
     ------
     ValueError
         If unit is not recognized

@@ -7,13 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import qme
-from qme.utils.logging import (
-    get_qme_log_level,
-    get_qme_logger,
-    is_in_quiet_context,
-    print_model_info,
-    setup_qme_logging,
-)
+from qme.utils.logging import print_model_info
 from qme.utils.ml_warnings import VerboseFilter, quiet_backend_loading, suppress_ml_warnings
 from qme.utils.profiler import (
     MemoryInfo,
@@ -25,62 +19,8 @@ from qme.utils.profiler import (
 
 
 class TestLogging:
-    def test_setup_qme_logging_default(self):
-        setup_qme_logging(force=True)
-
-        logger = logging.getLogger("qme")
-        assert logger.level == logging.INFO
-        assert len(logger.handlers) > 0
-
-    @pytest.mark.parametrize(
-        ("verbosity", "expected_level"),
-        [
-            (0, logging.WARNING),
-            (1, logging.INFO),
-            (2, logging.DEBUG),
-        ],
-    )
-    def test_setup_qme_logging_verbosity(self, verbosity, expected_level):
-        setup_qme_logging(verbosity=verbosity, force=True)
-
-        logger = logging.getLogger("qme")
-        assert logger.level == expected_level
-
-    def test_setup_qme_logging_no_force(self):
-        setup_qme_logging(force=True)
-        initial_handlers = len(logging.getLogger("qme").handlers)
-
-        # Setup again without force - should not add new handlers
-        setup_qme_logging(force=False)
-        final_handlers = len(logging.getLogger("qme").handlers)
-
-        # Should have same number of handlers (or fewer if cleared)
-        assert final_handlers <= initial_handlers
-
-    def test_get_qme_logger_main(self):
-        logger = get_qme_logger("__main__")
-        assert logger.name == "qme"
-
-    def test_get_qme_logger_module_name(self):
-        logger = get_qme_logger("test_module")
-        assert logger.name == "qme.test_module"
-
-        logger2 = get_qme_logger("qme.already.qme.module")
-        assert logger2.name == "qme.already.qme.module"
-
-    def test_get_qme_log_level(self):
-        setup_qme_logging(verbosity=2, force=True)
-        level = get_qme_log_level()
-        assert level == logging.DEBUG
-
-        setup_qme_logging(verbosity=0, force=True)
-        level = get_qme_log_level()
-        assert level == logging.WARNING
-
-    def test_is_in_quiet_context_default(self):
-        # By default, should not be in quiet context
-        result = is_in_quiet_context()
-        assert result is False
+    # Logging setup tests are consolidated in test_logging.py
+    # Only keeping print_model_info tests here as they use mocks and test different aspects
 
     @patch("click.echo")
     @patch("qme.utils.device.get_device_info")

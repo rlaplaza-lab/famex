@@ -1,5 +1,7 @@
 """Multi-structure minima optimization strategy via interpolation."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from typing import Any, cast
 
@@ -8,6 +10,7 @@ from ase import Atoms
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
 from qme.io.path_manager import PathManager
+from qme.strategies.helpers import filter_interpolation_kwargs
 from qme.strategies.minima import LocalMinimaStrategy
 from qme.utils.logging import get_qme_logger
 
@@ -55,7 +58,7 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
         **kwargs
             Additional keyword arguments
 
-        Returns:
+        Returns
         -------
         dict[str, Any]
             Results dictionary containing optimized structures and metadata
@@ -65,9 +68,8 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
 
         # Use PathManager to interpolate initial path
         path_mgr = PathManager(atoms_list)
-        # Only forward kwargs accepted by PathManager.interpolate
-        allowed_keys = {"rmsd_threshold", "energy_threshold", "calculator"}
-        interpolate_kwargs = {k: v for k, v in kwargs.items() if k in allowed_keys}
+        # Filter kwargs to only include parameters accepted by PathManager.interpolate
+        interpolate_kwargs = filter_interpolation_kwargs(kwargs)
         initial_path = path_mgr.interpolate(
             npoints=npoints,
             method=method,

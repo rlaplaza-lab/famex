@@ -21,12 +21,12 @@ def validate_indices(atoms: Atoms, indices: list[int] | None) -> list[int]:
     indices : list[int] | None
         Atom indices to validate. If None, returns all indices.
 
-    Returns:
+    Returns
     -------
     list[int]
         Validated list of unique atom indices
 
-    Raises:
+    Raises
     ------
     ValueError
         If indices are invalid (empty, duplicate, or out of bounds)
@@ -74,12 +74,12 @@ def get_calculator_property(
     default : Any, optional
         Default value if property is not available
 
-    Returns:
+    Returns
     -------
     Any
         Property value, or default if not available
 
-    Raises:
+    Raises
     ------
     AttributeError
         If property is not available and no default provided
@@ -129,7 +129,7 @@ def has_calculator_property(calculator: Any, property_name: str) -> bool:
     property_name : str
         Property name to check
 
-    Returns:
+    Returns
     -------
     bool
         True if calculator supports the property

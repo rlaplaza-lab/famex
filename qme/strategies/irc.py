@@ -11,7 +11,7 @@ from ase import Atoms
 
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
-from qme.strategies.helpers import _get_local_optimizer_class
+from qme.strategies.helpers import _get_local_optimizer_class, validate_ts_structure
 from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
@@ -58,9 +58,9 @@ class LocalIRCStrategy(BaseStrategy):
         **kwargs : Any
             Additional keyword arguments
 
-        Returns:
+        Returns
         -------
-        dict[str, Union[Atoms, list[Atoms], bool, int, float, str]]
+        dict[str, Atoms | list[Atoms] | bool | int | float | str]
             Standardized result dictionary containing:
             - optimized_atoms: IRC path structures (list[Atoms])
             - strategy: Strategy name (str)
@@ -70,12 +70,6 @@ class LocalIRCStrategy(BaseStrategy):
             - ts_validation: Transition state validation results (dict, optional)
 
         """
-        # Handle single Atoms object (runtime check for API misuse)
-        # This is defensive programming - type signature says Sequence[Atoms] but
-        # we handle single Atoms at runtime for better API ergonomics
-        if isinstance(atoms_list, Atoms):  # type: ignore[unreachable]
-            atoms_list = [atoms_list]  # type: ignore[unreachable]
-
         # Convert Sequence to list for validation
         atoms_list = list(atoms_list)
         self.validate_inputs(atoms_list)
@@ -110,7 +104,13 @@ class LocalIRCStrategy(BaseStrategy):
         hessian = None
         if validate_ts:
             with self.profiler.profile_section("ts_validation") if self.profiler else nullcontext():
-                hessian = self._validate_transition_state(ts_atoms, verbose)
+                _validation_result, hessian = validate_ts_structure(
+                    ts_atoms,
+                    self.explorer,
+                    threshold=50.0,
+                    return_hessian=True,
+                    verbose=verbose,
+                )
 
         # Log IRC calculation start
         if verbose >= 1:
@@ -202,7 +202,11 @@ class LocalIRCStrategy(BaseStrategy):
 
         # Combine paths: backward (reversed) + ts + forward
         if direction.lower() == "both":
-            trajectory = [*list(reversed(backward_path)), ts_atoms.copy(), *forward_path]
+            trajectory = [
+                *list(reversed(backward_path)),
+                ts_atoms.copy(),
+                *forward_path,
+            ]
         elif direction.lower() == "forward":
             trajectory = [ts_atoms.copy(), *forward_path]
         elif direction.lower() == "backward":
@@ -236,71 +240,6 @@ class LocalIRCStrategy(BaseStrategy):
             result["hessian_computed"] = False
 
         return self._merge_profiler_results(result)
-
-    def _validate_transition_state(self, atoms: Atoms, verbose: int) -> np.ndarray | None:
-        """Validate that the starting structure is a transition state using frequency analysis.
-
-        Parameters
-        ----------
-        atoms : Atoms
-            Structure to validate as transition state
-        verbose : int
-            Verbosity level for logging
-
-        Returns:
-        -------
-        np.ndarray | None
-            Computed Hessian matrix if validation succeeds, None if validation fails
-
-        """
-        try:
-            # Import frequency analysis
-            from qme.analysis.frequency import FrequencyAnalysis
-
-            # Perform frequency analysis to check if structure is a transition state
-            freq_analysis = FrequencyAnalysis(atoms=atoms, calculator=atoms.calc, verbose=0)
-            freq_analysis.calculate_hessian(method="auto")
-            freq_analysis.diagonalize_hessian()
-
-            # Check if it's a transition state
-            ts_analysis = freq_analysis.is_transition_state(threshold=50.0)
-
-            if not ts_analysis["is_transition_state"]:
-                # Log warning about non-transition state
-                n_imaginary = ts_analysis["n_imaginary_frequencies"]
-                assessment = ts_analysis["assessment"]
-
-                if verbose >= 1:
-                    logger.warning(
-                        f"WARNING: Starting structure does not appear to be a transition state. "
-                        f"Found {n_imaginary} imaginary frequency(ies). Assessment: {assessment}. "
-                        f"IRC calculation will proceed but results may be unreliable.",
-                    )
-
-                if verbose >= 2:
-                    imaginary_freqs = ts_analysis["imaginary_frequencies"]
-                    if imaginary_freqs and isinstance(imaginary_freqs, list | tuple):
-                        logger.warning(
-                            f"Imaginary frequencies (cm^-1): {[f'{f:.1f}' for f in imaginary_freqs]}",
-                        )
-
-            elif verbose >= 2:
-                # Log confirmation for valid transition state
-                logger.info(
-                    "✓ Starting structure validated as transition state (1 imaginary frequency)",
-                )
-
-            # Return the computed Hessian for potential reuse
-            return freq_analysis._hessian
-
-        except Exception as e:
-            # If frequency analysis fails, log warning but continue
-            if verbose >= 1:
-                logger.warning(
-                    f"Could not validate transition state: {e}. "
-                    f"IRC calculation will proceed without validation.",
-                )
-            return None
 
 
 # Register the strategy

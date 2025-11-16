@@ -65,7 +65,7 @@ def compare_hessian_methods(
     verbose : int, default 1
         Verbosity level
 
-    Returns:
+    Returns
     -------
     dict[str, Any]
         Comparison results containing:
@@ -75,7 +75,7 @@ def compare_hessian_methods(
         - metrics: Dict mapping method name to quality metrics
         - recommendations: List of recommended methods
 
-    Examples:
+    Examples
     --------
     >>> from ase import Atoms
     >>> atoms = Atoms('H2O', positions=[[0, 0, 0], [0.96, 0, 0], [0, 0.96, 0]])
@@ -203,7 +203,7 @@ def _compute_quality_metrics(hessian: np.ndarray) -> dict[str, float]:
     hessian : np.ndarray
         Hessian matrix
 
-    Returns:
+    Returns
     -------
     dict[str, float]
         Quality metrics including RMS value, max asymmetry, etc.
@@ -257,7 +257,7 @@ def _generate_recommendations(
     verbose : int
         Verbosity level
 
-    Returns:
+    Returns
     -------
     list[str]
         List of recommended methods in order of preference

@@ -64,7 +64,7 @@ _BACKEND_MODULES = {
 
 
 def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
-    """Generic calculator factory function.
+    """Create a generic calculator factory function.
 
     Parameters
     ----------
@@ -73,11 +73,11 @@ def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
     **kwargs
         Arguments passed to the calculator constructor
 
-    Returns:
+    Returns
     -------
     Calculator instance
 
-    Raises:
+    Raises
     ------
     ImportError
         If backend is not available or cannot be imported

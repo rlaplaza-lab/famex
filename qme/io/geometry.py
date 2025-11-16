@@ -172,7 +172,7 @@ class Geometry(Atoms):
         atom1, atom2, atom3 : int
             Atom indices (atom2 is the center atom)
 
-        Returns:
+        Returns
         -------
         float
             Angle in degrees
@@ -188,7 +188,7 @@ class Geometry(Atoms):
         atom1, atom2, atom3, atom4 : int
             Atom indices
 
-        Returns:
+        Returns
         -------
         float
             Dihedral angle in degrees
@@ -199,7 +199,7 @@ class Geometry(Atoms):
     def center_of_mass(self) -> np.ndarray:
         """Get center of mass coordinates.
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Center of mass coordinates (x, y, z)
@@ -208,7 +208,7 @@ class Geometry(Atoms):
         return np.array(self.get_center_of_mass())
 
     def __str__(self) -> str:
-        """String representation."""
+        """Return string representation."""
         return f"Geometry({len(self)} atoms, charge={self.charge}, mult={self.mult})"
 
     def __repr__(self) -> str:
@@ -228,7 +228,7 @@ def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
     **kwargs : Any
         Additional arguments passed to reader
 
-    Returns:
+    Returns
     -------
     Geometry or list[Geometry]
         QME Geometry object(s) with loaded structure(s)
@@ -285,7 +285,7 @@ def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> 
 
 
 def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
-    """Reads a Gaussian input file (.com or .gjf) and determines the intended calculation type.
+    """Read a Gaussian input file (.com or .gjf) and determine the intended calculation type.
 
     Parses the route section to detect if it's a minimization or a transition state search
     and extracts the molecular geometry.
@@ -295,14 +295,14 @@ def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
     filename : str
         Path to the Gaussian input file
 
-    Returns:
+    Returns
     -------
     tuple[Geometry, str]
         A tuple containing:
         - Geometry object with the structure, charge, and multiplicity
         - String indicating the job type ('minimize' or 'transition_state')
 
-    Raises:
+    Raises
     ------
     ValueError
         If the file cannot be parsed or the job type is unclear

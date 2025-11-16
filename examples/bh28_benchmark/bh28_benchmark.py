@@ -655,7 +655,7 @@ class BH28Benchmark:
 
 @setup_example_environment
 def main() -> int:
-    """Main entry point for the benchmark."""
+    """Run the benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
         name="BH28 Benchmark",
@@ -700,7 +700,7 @@ def main() -> int:
     parser.add_argument(
         "--ts-optimizer",
         default="SELLA",
-        choices=["SELLA", "trust-krylov-ts"],
+        choices=["SELLA", "rfo"],
         help="Transition state optimizer to use (default: SELLA)",
     )
 

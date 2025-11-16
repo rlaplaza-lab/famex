@@ -4,8 +4,10 @@ This module provides the main CLI interface for QME (Quick Mechanistic Explorati
 allowing users to perform molecular optimization tasks from the command line.
 """
 
+from __future__ import annotations
+
 import os
-from contextlib import nullcontext
+from contextlib import AbstractContextManager, nullcontext
 from typing import Any
 
 import click
@@ -24,6 +26,105 @@ from qme.utils.ml_warnings import quiet_backend_loading
 # Disable matplotlib and ASE GUI before importing ASE
 # This prevents unwanted popup windows during CLI operations
 os.environ.setdefault("MPLBACKEND", "Agg")
+
+
+def _validate_temperature(ctx: Any, param: Any, value: float) -> float:
+    """Validate temperature parameter is positive.
+
+    Parameters
+    ----------
+    ctx : click.Context
+        Click context
+    param : click.Parameter
+        Click parameter
+    value : float
+        Temperature value
+
+    Returns
+    -------
+    float
+        Validated temperature value
+
+    Raises
+    ------
+    click.BadParameter
+        If temperature is not positive
+    """
+    if value is not None and value <= 0:
+        msg = f"Temperature must be positive, got {value} K"
+        raise click.BadParameter(msg)
+    return value
+
+
+def _handle_frequency_results(
+    results: dict[str, Any],
+    output_path: str,
+    target: str,
+    calculate_frequencies: bool,
+) -> None:
+    """Handle frequency analysis results consistently across all commands.
+
+    This function provides consistent error handling and output for frequency
+    analysis results, ensuring that:
+    - Frequency results are validated before processing
+    - JSON output is saved correctly
+    - Error messages are informative and consistent
+    - Users are informed if frequency calculation failed
+
+    Parameters
+    ----------
+    results : dict[str, Any]
+        Results dictionary from Explorer.run()
+    output_path : str
+        Output file path for saving JSON results
+    target : str
+        Target type ("minima", "ts", or "path")
+    calculate_frequencies : bool
+        Whether frequency analysis was requested
+
+    """
+    if not calculate_frequencies:
+        return
+
+    if "frequency_analysis" not in results:
+        click.echo(
+            "Warning: Frequency analysis was requested (--freq) but not found in results. "
+            "This may indicate:\n"
+            "  - The optimization failed before frequency calculation\n"
+            "  - Frequency calculation encountered an error\n"
+            "  - The strategy does not support frequency analysis",
+            err=True,
+        )
+        return
+
+    freq_analysis = results["frequency_analysis"]
+    if not isinstance(freq_analysis, dict):
+        click.echo(
+            f"Warning: Frequency analysis result has unexpected type {type(freq_analysis)}. "
+            "Expected a dictionary.",
+            err=True,
+        )
+        return
+
+    # Type narrowing: freq_analysis is now dict[str, Any]
+    freq_dict: dict[str, Any] = freq_analysis
+
+    try:
+        print_frequency_summary(freq_dict, target=target)
+        save_results_json(results, output_path)
+    except KeyError as e:
+        click.echo(
+            f"Error: Frequency analysis result is missing required key: {e}. "
+            "The frequency calculation may have been incomplete.",
+            err=True,
+        )
+    except Exception as e:
+        click.echo(
+            f"Error: Failed to process frequency analysis results: {e}\n"
+            "The optimization completed successfully, but frequency analysis output could not be processed. "
+            "Check the error message above for details.",
+            err=True,
+        )
 
 
 def _common_explorer_options(f: Any) -> Any:
@@ -57,8 +158,8 @@ def _common_explorer_options(f: Any) -> Any:
             default="default",
             show_default=True,
             help=(
-                "Local optimizer: default|lbfgs|bfgs|fire|sella|trust-krylov|trust-krylov-ts|"
-                "trust-ncg|trust-exact|newton-cg (default=auto-select based on target)"
+                "Local optimizer: default|lbfgs|bfgs|fire|sella|trust-krylov|"
+                "trust-ncg|trust-exact|newton-cg|rfo (default=auto-select based on target)"
             ),
         ),
         click.option(
@@ -102,7 +203,8 @@ def _common_explorer_options(f: Any) -> Any:
             type=float,
             default=298.15,
             show_default=True,
-            help="Temperature in Kelvin for thermodynamic calculations",
+            callback=lambda ctx, param, value: _validate_temperature(ctx, param, value),
+            help="Temperature in Kelvin for thermodynamic calculations (must be > 0)",
         ),
         click.option(
             "--force-finite-diff-hessian",
@@ -118,11 +220,11 @@ def _common_explorer_options(f: Any) -> Any:
 
 
 @click.group(
-    help="QME CLI: Quick mechanistic exploration with ML potentials.\n\n\b\nCommands:\n  qme minima : Minima optimization (outputs single structure)\n  qme ts     : Transition state optimization (outputs single TS)\n  qme path   : Reaction path optimization (outputs trajectories)\n  qme cache  : Manage model cache\n\n\b\nExamples:\n  # Minima optimization (outputs single structure)\n  qme minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  qme minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  qme ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  qme ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  qme ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  qme ts --strategy local ts_guess.xyz --local-optimizer trust-krylov-ts --fmax 0.02\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  qme path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  qme path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  qme path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  qme path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  qme minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  qme cache info  # Show cache information\n  qme cache clear # Clear model cache",
+    help="QME CLI: Quick mechanistic exploration with ML potentials.\n\n\b\nCommands:\n  qme minima : Minima optimization (outputs single structure)\n  qme ts     : Transition state optimization (outputs single TS)\n  qme path   : Reaction path optimization (outputs trajectories)\n  qme cache  : Manage model cache\n\n\b\nExamples:\n  # Minima optimization (outputs single structure)\n  qme minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  qme minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  qme ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  qme ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  qme ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  qme ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02  # RFO TS optimizer\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  qme path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  qme path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  qme path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  qme path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  qme minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  qme cache info  # Show cache information\n  qme cache clear # Clear model cache",
 )
 @click.version_option()
 def main() -> None:
-    """Main CLI entry point."""
+    """Provide main CLI entry point."""
 
 
 @main.command()
@@ -214,10 +316,12 @@ def minima(
     # Set up explorer
     verbosity = max(0, verbose - 1)
 
+    # Use nullcontext([]) to match the return type of quiet_backend_loading (yields list[str])
+    ctx: AbstractContextManager[list[str]]
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-        ctx = nullcontext()  # type: ignore[assignment]
+        ctx = nullcontext([])
 
     with ctx:
         exp = Explorer(
@@ -272,13 +376,15 @@ def minima(
 
     # Save results
     out = output or out_default
+    # Mypy can't narrow dict value types: results["optimized_atoms"] is typed as
+    # Atoms | list[Atoms] | bool | int | float | str, but runtime it's Atoms | list[Atoms]
     write_atoms(result_atoms, out)  # type: ignore[arg-type]
     click.echo(f"Minima optimization completed. Saved: {out}")
 
-    # Print frequency analysis summary and save JSON if requested
-    if calculate_frequencies and "frequency_analysis" in results:
-        print_frequency_summary(results["frequency_analysis"], target="minima")  # type: ignore[arg-type]
-        save_results_json(results, out)
+    # Handle frequency analysis results (chained after optimization)
+    _handle_frequency_results(
+        results, out, target="minima", calculate_frequencies=calculate_frequencies
+    )
 
 
 @main.command()
@@ -339,6 +445,13 @@ def minima(
     show_default=True,
     help="Step size for growing string method (growing_string strategy only)",
 )
+@click.option(
+    "--require-ts/--allow-ts",
+    "require_ts",
+    default=False,
+    show_default=True,
+    help="If set, fail when the TS strategy does not yield a validated first-order saddle.",
+)
 @_common_explorer_options
 def ts(
     strategy: str,
@@ -352,6 +465,7 @@ def ts(
     max_images: int,
     distance_threshold: float,
     step_size: float,
+    require_ts: bool,
     backend: str,
     model_name: str | None,
     model_path: str | None,
@@ -390,14 +504,18 @@ def ts(
     # Parse kwargs
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
+    if require_ts:
+        ts_kwargs["require_ts"] = True
 
     # Set up explorer
     verbosity = max(0, verbose - 1)
 
+    # Use nullcontext([]) to match the return type of quiet_backend_loading (yields list[str])
+    ctx: AbstractContextManager[list[str]]
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-        ctx = nullcontext()  # type: ignore[assignment]
+        ctx = nullcontext([])
 
     with ctx:
         exp = Explorer(
@@ -465,13 +583,15 @@ def ts(
 
     # Save results
     out = output or out_default
+    # Mypy can't narrow dict value types: results["optimized_atoms"] is typed as
+    # Atoms | list[Atoms] | bool | int | float | str, but runtime it's Atoms | list[Atoms]
     write_atoms(result_atoms, out)  # type: ignore[arg-type]
     click.echo(f"Transition state optimization completed. Saved: {out}")
 
-    # Print frequency analysis summary and save JSON if requested
-    if calculate_frequencies and "frequency_analysis" in results:
-        print_frequency_summary(results["frequency_analysis"], target="ts")  # type: ignore[arg-type]
-        save_results_json(results, out)
+    # Handle frequency analysis results (chained after optimization)
+    _handle_frequency_results(
+        results, out, target="ts", calculate_frequencies=calculate_frequencies
+    )
 
 
 # Add cache commands
@@ -601,10 +721,12 @@ def path(
     # Set up explorer
     verbosity = max(0, verbose - 1)
 
+    # Use nullcontext([]) to match the return type of quiet_backend_loading (yields list[str])
+    ctx: AbstractContextManager[list[str]]
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
-        ctx = nullcontext()  # type: ignore[assignment]
+        ctx = nullcontext([])
 
     with ctx:
         exp = Explorer(
@@ -687,14 +809,17 @@ def path(
 
     # Save results
     out = output or out_default
+    # Mypy can't narrow dict value types: trajectory from result dict is typed as
+    # Atoms | list[Atoms] | bool | int | float | str, but runtime it's list[Atoms]
     write_atoms(trajectory, out)  # type: ignore[arg-type]
+    # len() works on list[Atoms] at runtime, but mypy sees the union type
     click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")  # type: ignore[arg-type]
 
-    # Print frequency analysis summary and save JSON if requested
-    if calculate_frequencies and "frequency_analysis" in result:
-        # For path strategies, we might have frequency analysis on the final structure
-        print_frequency_summary(result["frequency_analysis"], target="path")  # type: ignore[arg-type]
-        save_results_json(result, out)
+    # Handle frequency analysis results (chained after optimization)
+    # Note: For path strategies, frequency analysis is performed on the final structure
+    _handle_frequency_results(
+        result, out, target="path", calculate_frequencies=calculate_frequencies
+    )
 
 
 __all__ = ["main", "minima", "path", "ts"]

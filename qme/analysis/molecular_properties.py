@@ -23,7 +23,7 @@ def is_linear_molecule(atoms: Atoms, indices: list[int]) -> bool:
     indices : list[int]
         Indices of atoms to consider
 
-    Returns:
+    Returns
     -------
     bool
         True if molecule is linear, False otherwise
@@ -54,7 +54,7 @@ def _check_linearity_inertia(atoms: Atoms, indices: list[int]) -> bool:
     indices : list[int]
         Indices of atoms to consider
 
-    Returns:
+    Returns
     -------
     bool
         True if molecule is linear (smallest eigenvalue of inertia tensor is near zero)
@@ -91,7 +91,7 @@ def determine_degrees_of_freedom(atoms: Atoms, indices: list[int]) -> int:
     indices : list[int]
         Indices of atoms to consider
 
-    Returns:
+    Returns
     -------
     int
         Number of degrees of freedom to remove:

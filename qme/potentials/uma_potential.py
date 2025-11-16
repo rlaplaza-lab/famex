@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from ase.calculators.calculator import all_changes
@@ -306,7 +306,7 @@ class UMAPotential(BasePotential):
             Whether to symmetrize the Hessian by averaging with its transpose.
             The Hessian must be symmetric by definition, so this can reduce numerical noise.
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix of shape (3N, 3N) in eV/Å² units where N is the number of atoms
@@ -353,9 +353,6 @@ class UMAPotential(BasePotential):
             if method == "auto":
                 method = "double_backward"  # Default to double_backward for better stability
 
-            fairchem_aliases = {"fairchem", "fairchem_vmap", "fairchem_loop"}
-            fairchem_style = method in fairchem_aliases
-
             # Create AtomicData from current atoms
             atoms_copy = self.atoms.copy()
             atoms_copy.info["charge"] = int(self.atoms.info.get("charge", self.default_charge))
@@ -373,36 +370,34 @@ class UMAPotential(BasePotential):
             batch = data_list_collater([data], otf_graph=True).to(device)
 
             # Enable gradients on positions - this is the key step
-            batch.pos = batch.pos.detach().clone().requires_grad_(True)
+            # Note: otf_graph=True doesn't automatically set this, it's required for autograd
+            # Do NOT detach/clone as that breaks the computation graph connection
+            batch.pos.requires_grad_(True)
 
-            # Set model to training mode for Hessian calculation
-            self.predictor.model.train()
-
-            # Disable dropout layers
-            for module in self.predictor.model.modules():
-                if hasattr(module, "p") and hasattr(module, "training"):
-                    module.p = 0.0
-
-            # For FairChem-style Hessian we mirror their PR exactly
-            energy_force_head = None
-            prev_head_training = None
-            if fairchem_style:
-                model_module = getattr(self.predictor.model, "module", None)
-                output_heads = getattr(model_module, "output_heads", None)
-                if isinstance(output_heads, dict):
-                    energy_head_wrapper = output_heads.get("energyandforcehead")
-                    if energy_head_wrapper is not None and hasattr(energy_head_wrapper, "head"):
-                        energy_force_head = energy_head_wrapper.head
-                if energy_force_head is not None:
-                    prev_head_training = energy_force_head.training
-                    energy_force_head.training = True
+            # Match FairChem's approach: only set head.training = True
+            # Do NOT set model.train() or manually disable dropout
+            # This preserves the computation graph and matches the reference implementation
+            # Match standalone helper exactly: direct access pattern
+            model_module = self.predictor.model.module
+            energy_wrapper = model_module.output_heads["energyandforcehead"]
+            prev_head_training = energy_wrapper.head.training
+            # Match standalone helper: set training=True for all methods
+            # This ensures forces are computed with computation graph when needed
+            # For double_backward, we'll compute forces ourselves from energy
+            energy_wrapper.head.training = True
 
             # Compute energy and forces
             result = self.predictor.predict(batch)
             energy = result["energy"]
 
+            # For double_backward, we need energy with computation graph
+            # When head.training=True, predict() computes forces which might consume the graph
+            # So we need to ensure we can still use the energy graph
+            # The key is that we don't access result["forces"] for double_backward
             if method == "double_backward":
                 # Direct double-backward approach
+                # Energy should still have computation graph even if forces were computed
+                # because we're not accessing result["forces"], so the graph isn't consumed
                 hessian_tensor = self._compute_hessian_double_backward(energy, batch.pos)
             elif method == "vmap":
                 # VJP approach (original)
@@ -433,11 +428,8 @@ class UMAPotential(BasePotential):
                 )
                 raise ValueError(msg)
 
-            # Set model back to eval mode
-            self.predictor.model.eval()
-
-            if energy_force_head is not None and prev_head_training is not None:
-                energy_force_head.training = prev_head_training
+            # Restore head training state (we only modified head.training, not model.train())
+            energy_wrapper.head.training = prev_head_training
 
             n_atoms = len(self.atoms)
             expected_shape = (3 * n_atoms, 3 * n_atoms)
@@ -551,7 +543,7 @@ class UMAPotential(BasePotential):
                 rows.append(grad_wrt_positions(vec))
             hessian = torch.stack(rows, dim=0)
 
-        return hessian
+        return cast(torch.Tensor, hessian)
 
     def _compute_hessian_vmap(self, forces: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
         """Compute Hessian using vector-Jacobian products (VJP) with vectorization.
@@ -565,12 +557,12 @@ class UMAPotential(BasePotential):
         positions : torch.Tensor
             Positions array of shape (N, 3) where N is number of atoms
 
-        Returns:
+        Returns
         -------
         torch.Tensor
             Hessian matrix of shape (3N, 3N)
 
-        Raises:
+        Raises
         ------
         RuntimeError
             If computation fails
@@ -631,7 +623,7 @@ class UMAPotential(BasePotential):
         positions : torch.Tensor
             Positions array of shape (N, 3)
 
-        Returns:
+        Returns
         -------
         torch.Tensor
             Hessian matrix of shape (3N, 3N)
@@ -674,7 +666,7 @@ class UMAPotential(BasePotential):
         hessian : np.ndarray
             Hessian matrix of shape (3N, 3N)
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Symmetrized Hessian matrix of shape (3N, 3N)
@@ -702,12 +694,12 @@ class UMAPotential(BasePotential):
         positions : torch.Tensor
             Positions tensor of shape (N, 3) with gradients enabled
 
-        Returns:
+        Returns
         -------
         torch.Tensor
             Hessian matrix of shape (3N, 3N)
 
-        Raises:
+        Raises
         ------
         RuntimeError
             If computation fails
@@ -763,7 +755,7 @@ class UMAPotential(BasePotential):
         atoms : Atoms, optional
             Atoms object to calculate property for
 
-        Returns:
+        Returns
         -------
         Any
             The requested property
@@ -783,7 +775,7 @@ class UMAPotential(BasePotential):
 
 
 def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs: Any) -> UMAPotential:
-    """Convenience function to get UMA calculator.
+    """Get UMA calculator.
 
     Parameters
     ----------
@@ -792,12 +784,12 @@ def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs: Any) -> UMAPoten
     **kwargs : Any
         Additional arguments passed to UMAPotential
 
-    Returns:
+    Returns
     -------
     UMAPotential
         Configured UMA calculator
 
-    Examples:
+    Examples
     --------
     >>> # Get default UMA calculator
     >>> calc = get_uma_calculator()

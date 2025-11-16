@@ -8,7 +8,6 @@ import pytest
 from ase import Atoms
 
 from qme.io.geometry import Geometry, read_gaussian_input, read_geometry, write_geometry
-from tests.test_utils import TestMoleculeFactory
 
 
 class TestGeometryInitialization:
@@ -345,8 +344,8 @@ class TestWriteGeometry:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_write_geometry_ase_atoms(self):
-        atoms = TestMoleculeFactory.get_water_distorted()
+    def test_write_geometry_ase_atoms(self, water_molecule):
+        atoms = water_molecule.copy()
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
             temp_path = f.name

@@ -48,7 +48,8 @@ class CalculatorRegistry:
         class LazyBackend:
             """Typed helper for lazy backend registry entries.
 
-            Attributes:
+            Attributes
+            ----------
                 module: module path to import (str)
                 function: attribute name (factory function or class) to look up
                 is_class: whether the attribute is a class that should be
@@ -191,12 +192,12 @@ class CalculatorRegistry:
         **kwargs
             Additional arguments passed to calculator
 
-        Returns:
+        Returns
         -------
         Calculator
             Configured calculator instance
 
-        Raises:
+        Raises
         ------
         BackendError
             If backend is not registered or available
@@ -248,7 +249,7 @@ class CalculatorRegistry:
         backend : str
             Backend name to check
 
-        Returns:
+        Returns
         -------
         bool
             True if backend is available and can create real calculators,
@@ -299,19 +300,19 @@ def create_calculator(
     verbose : int, default 1
         Verbosity level for calculator creation (0=quiet, 1=normal, 2=verbose)
 
-    Returns:
+    Returns
     -------
     Calculator
         Configured calculator instance
 
-    Raises:
+    Raises
     ------
     BackendError
         If backend is not available or cannot create calculator
     ValueError
         If parameters are invalid
 
-    Notes:
+    Notes
     -----
     New parameters `charge` and `mult` (optional) are forwarded to
     backends that accept explicit molecular charge / multiplicity
