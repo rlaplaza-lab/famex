@@ -9,6 +9,7 @@ from qme.analysis.frequency import FrequencyAnalysis
 from qme.analysis.hessian import HessianCalculator
 from qme.analysis.molecular_properties import determine_degrees_of_freedom
 from qme.potentials.mock_potential import MockCalculator
+from tests.test_constants import ASE_COMPARISON_TOL, FREQUENCY_COMPARE_TOL, TIGHT_TOL
 
 
 class TestQMEvsASEHessian:
@@ -46,10 +47,12 @@ class TestQMEvsASEHessian:
         # Compare Hessians (allowing small numerical tolerance)
         assert qme_hess.shape == ase_hessian.shape == (3 * len(indices), 3 * len(indices))
         # Symmetry checks
-        np.testing.assert_allclose(qme_hess, qme_hess.T, rtol=1e-6, atol=1e-6)
-        np.testing.assert_allclose(ase_hessian, ase_hessian.T, rtol=1e-6, atol=1e-6)
+        np.testing.assert_allclose(qme_hess, qme_hess.T, rtol=TIGHT_TOL[0], atol=TIGHT_TOL[1])
+        np.testing.assert_allclose(ase_hessian, ase_hessian.T, rtol=TIGHT_TOL[0], atol=TIGHT_TOL[1])
         # Element-wise closeness
-        np.testing.assert_allclose(qme_hess, ase_hessian, rtol=5e-3, atol=5e-3)
+        np.testing.assert_allclose(
+            qme_hess, ase_hessian, rtol=ASE_COMPARISON_TOL[0], atol=ASE_COMPARISON_TOL[1]
+        )
 
         # QME: frequencies via FrequencyAnalysis
         qme_freq = FrequencyAnalysis(
@@ -73,7 +76,9 @@ class TestQMEvsASEHessian:
 
         # Compare vibrational frequencies (signs: imaginary modes negative)
         assert fq_qme.shape == fq_ase.shape
-        np.testing.assert_allclose(fq_qme, fq_ase, rtol=5e-2, atol=20.0)
+        np.testing.assert_allclose(
+            fq_qme, fq_ase, rtol=FREQUENCY_COMPARE_TOL[0], atol=FREQUENCY_COMPARE_TOL[1]
+        )
 
         # Clean up ASE vibrations files
         vib.clean()

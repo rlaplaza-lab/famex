@@ -36,7 +36,7 @@ def calculate_translational_energy(temperature: float) -> float:
     temperature : float
         Temperature in Kelvin
 
-    Returns:
+    Returns
     -------
     float
         Translational energy in J/mol
@@ -65,7 +65,7 @@ def calculate_translational_entropy(
     free_space_ml_per_l : float
         Free space in mL per L of solution (default: 1000 for gas phase)
 
-    Returns:
+    Returns
     -------
     float
         Translational entropy in J/(mol·K)
@@ -102,7 +102,7 @@ def calculate_rotational_energy(
     is_atom : bool
         Whether this is a single atom (default: False)
 
-    Returns:
+    Returns
     -------
     float
         Rotational energy in J/mol
@@ -140,12 +140,12 @@ def calculate_rotational_entropy(
     is_atom : bool
         Whether this is a single atom (default: False)
 
-    Returns:
+    Returns
     -------
     float
         Rotational entropy in J/(mol·K)
 
-    Notes:
+    Notes
     -----
     If rotational_temperatures is empty or all zero, returns 0.0 (atoms).
     For linear molecules with 2 rotational temperatures (rare), returns 0.0
@@ -190,7 +190,7 @@ def calculate_electronic_entropy(multiplicity: int) -> float:
     multiplicity : int
         Spin multiplicity (2S+1)
 
-    Returns:
+    Returns
     -------
     float
         Electronic entropy in J/(mol·K)
@@ -290,7 +290,7 @@ class StatisticalThermodynamics:
         rotational_constants : array-like, optional
             Rotational constants in GHz
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Rotational temperatures in Kelvin
@@ -327,7 +327,7 @@ class StatisticalThermodynamics:
         temperature : float
             Temperature in Kelvin
 
-        Returns:
+        Returns
         -------
         float
             Translational energy in J/mol
@@ -351,7 +351,7 @@ class StatisticalThermodynamics:
         free_space_ml_per_l : float
             Free space in mL per L (1000 for gas phase)
 
-        Returns:
+        Returns
         -------
         float
             Translational entropy in J/(mol·K)
@@ -371,7 +371,7 @@ class StatisticalThermodynamics:
         temperature : float
             Temperature in Kelvin
 
-        Returns:
+        Returns
         -------
         float
             Rotational energy in J/mol
@@ -386,7 +386,7 @@ class StatisticalThermodynamics:
         temperature : float
             Temperature in Kelvin
 
-        Returns:
+        Returns
         -------
         float
             Rotational entropy in J/(mol·K)
@@ -402,7 +402,7 @@ class StatisticalThermodynamics:
     def electronic_entropy(self) -> float:
         """Calculate electronic entropy.
 
-        Returns:
+        Returns
         -------
         float
             Electronic entropy in J/(mol·K)

@@ -13,18 +13,11 @@ from qme.analysis.noise_estimation import (
     estimate_optimal_delta,
     estimate_richardson_noise,
 )
-from qme.backends.availability import is_backend_available
-from tests.test_utils import HarmonicCalculator, NoisyCalculator
+from tests.test_constants import ADAPTIVE_HESSIAN_ASYMMETRY_TOL, ADAPTIVE_HESSIAN_TOL, DEFAULT_DELTA
+from tests.test_utils import HarmonicCalculator, NoisyCalculator, requires_backend
 
 
 class TestNoiseEstimation:
-    @pytest.fixture
-    def harmonic_atoms(self):
-        return Atoms(
-            symbols="HH",
-            positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
-        )
-
     def test_estimate_richardson_noise(self):
         # Create two slightly different Hessians
         h1 = np.eye(3) + 0.01 * np.random.randn(3, 3)
@@ -72,13 +65,6 @@ class TestNoiseEstimation:
 
 
 class TestAdaptiveHessianCalculator:
-    @pytest.fixture
-    def harmonic_atoms(self):
-        return Atoms(
-            symbols="HH",
-            positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
-        )
-
     def test_adaptive_delta_basic(self, harmonic_atoms):
         calc = HarmonicCalculator()
         harmonic_atoms.calc = calc
@@ -86,7 +72,7 @@ class TestAdaptiveHessianCalculator:
         hessian_calc = HessianCalculator(
             harmonic_atoms,
             calc,
-            delta=0.01,
+            delta=DEFAULT_DELTA,
             adaptive_delta=True,
             max_iterations=2,
             verbose=0,
@@ -104,7 +90,7 @@ class TestAdaptiveHessianCalculator:
         hessian_calc_fixed = HessianCalculator(
             harmonic_atoms,
             calc,
-            delta=0.01,
+            delta=DEFAULT_DELTA,
             adaptive_delta=False,
             verbose=0,
         )
@@ -114,15 +100,20 @@ class TestAdaptiveHessianCalculator:
         hessian_calc_adaptive = HessianCalculator(
             harmonic_atoms,
             calc,
-            delta=0.01,
+            delta=DEFAULT_DELTA,
             adaptive_delta=True,
             max_iterations=2,
             verbose=0,
         )
         hessian_adaptive = hessian_calc_adaptive.calculate_numerical_hessian()
 
-        # Should produce similar results
-        np.testing.assert_allclose(hessian_fixed, hessian_adaptive, rtol=0.1, atol=0.1)
+        # Should produce similar results - tightened tolerance for harmonic system
+        np.testing.assert_allclose(
+            hessian_fixed,
+            hessian_adaptive,
+            rtol=ADAPTIVE_HESSIAN_TOL[0],
+            atol=ADAPTIVE_HESSIAN_TOL[1],
+        )
 
     def test_adaptive_delta_warnings(self, harmonic_atoms):
         calc = HarmonicCalculator()
@@ -132,7 +123,7 @@ class TestAdaptiveHessianCalculator:
         hessian_calc = HessianCalculator(
             harmonic_atoms,
             calc,
-            delta=0.01,
+            delta=DEFAULT_DELTA,
             adaptive_delta=True,
             delta_range=(0.0001, 0.001),  # Very small range
             max_iterations=1,
@@ -143,18 +134,13 @@ class TestAdaptiveHessianCalculator:
 
 
 class TestEnergyBasedHessian:
-    @pytest.fixture
-    def harmonic_atoms(self):
-        return Atoms(
-            symbols="HH",
-            positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
-        )
-
     def test_energy_based_basic(self, harmonic_atoms):
         calc = HarmonicCalculator()
         harmonic_atoms.calc = calc
 
-        energy_calc = EnergyBasedHessianCalculator(harmonic_atoms, calc, delta=0.01, verbose=0)
+        energy_calc = EnergyBasedHessianCalculator(
+            harmonic_atoms, calc, delta=DEFAULT_DELTA, verbose=0
+        )
 
         hessian = energy_calc.calculate_energy_hessian()
         assert hessian is not None
@@ -165,15 +151,22 @@ class TestEnergyBasedHessian:
         harmonic_atoms.calc = calc
 
         # Energy-based FD
-        energy_calc = EnergyBasedHessianCalculator(harmonic_atoms, calc, delta=0.01, verbose=0)
+        energy_calc = EnergyBasedHessianCalculator(
+            harmonic_atoms, calc, delta=DEFAULT_DELTA, verbose=0
+        )
         hessian_energy = energy_calc.calculate_energy_hessian()
 
         # Force-based FD
-        hessian_calc = HessianCalculator(harmonic_atoms, calc, delta=0.01, verbose=0)
+        hessian_calc = HessianCalculator(harmonic_atoms, calc, delta=DEFAULT_DELTA, verbose=0)
         hessian_force = hessian_calc.calculate_numerical_hessian()
 
         # Should be very close for harmonic system
-        np.testing.assert_allclose(hessian_energy, hessian_force, rtol=0.01, atol=0.1)
+        np.testing.assert_allclose(
+            hessian_energy,
+            hessian_force,
+            rtol=ADAPTIVE_HESSIAN_TOL[0],
+            atol=ADAPTIVE_HESSIAN_TOL[1],
+        )
 
 
 class TestAutoselectMethod:
@@ -201,13 +194,13 @@ class TestAutoselectMethod:
         atoms.calc = calc
         calc.atoms = atoms
 
-        freq_analysis = FrequencyAnalysis(atoms, calc, delta=0.01, verbose=0)
+        freq_analysis = FrequencyAnalysis(atoms, calc, delta=DEFAULT_DELTA, verbose=0)
         hessian = freq_analysis.calculate_hessian(method="autoselect")
 
         assert hessian is not None
         assert hessian.shape == (6, 6)
 
-    @pytest.mark.skipif(not is_backend_available("uma"), reason="UMA backend not available")
+    @requires_backend("uma")
     def test_autoselect_uma_integration(self, water_molecule):
         atoms = water_molecule.copy()
         atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p1")
@@ -221,9 +214,11 @@ class TestAutoselectMethod:
         assert not np.any(np.isnan(hessian))
         assert not np.any(np.isinf(hessian))
 
-        # Should be symmetric
+        # Should be symmetric - tightened tolerance for UMA backend
         asymmetry = np.max(np.abs(hessian - hessian.T))
-        assert asymmetry < 0.01  # Reasonable tolerance
+        assert asymmetry < ADAPTIVE_HESSIAN_ASYMMETRY_TOL, (
+            f"Hessian asymmetry {asymmetry:.6f} exceeds tolerance"
+        )
 
     def test_autoselect_logging(self, water_molecule):
         calc = NoisyCalculator(noise_level=1e-6)
@@ -255,7 +250,7 @@ class TestNoisySystems:
         hessian_calc = HessianCalculator(
             noisy_atoms,
             calc_low,
-            delta=0.01,
+            delta=DEFAULT_DELTA,
             adaptive_delta=True,
             max_iterations=2,
             verbose=0,
@@ -274,7 +269,7 @@ class TestNoisySystems:
         hessian_calc = HessianCalculator(
             noisy_atoms,
             calc_high,
-            delta=0.01,
+            delta=DEFAULT_DELTA,
             adaptive_delta=True,
             max_iterations=2,
             verbose=0,
@@ -289,7 +284,9 @@ class TestNoisySystems:
         noisy_atoms.calc = calc
         calc.atoms = noisy_atoms
 
-        energy_calc = EnergyBasedHessianCalculator(noisy_atoms, calc, delta=0.01, verbose=0)
+        energy_calc = EnergyBasedHessianCalculator(
+            noisy_atoms, calc, delta=DEFAULT_DELTA, verbose=0
+        )
         hessian = energy_calc.calculate_energy_hessian()
 
         assert hessian is not None

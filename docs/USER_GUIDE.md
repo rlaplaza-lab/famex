@@ -53,7 +53,7 @@ All commands support these common options:
 | `--device` | `None` | Device: cpu\|cuda |
 | `--default-charge` | `0` | Default molecular charge |
 | `--default-spin` | `1` | Default spin multiplicity |
-| `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-krylov-ts\|trust-ncg\|trust-exact\|newton-cg\|rfo (default=auto-select based on target) |
+| `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-ncg\|trust-exact\|newton-cg\|rfo (default=auto-select based on target) |
 | `--optimizer-kw` | `None` | Optimizer kwargs as key=value, repeatable |
 | `--ts-kw` | `None` | TS optimizer kwargs as key=value, repeatable |
 | `--constraints` | `None` | Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0' |
@@ -145,6 +145,7 @@ qme ts --strategy {local,interpolate,growing_string} INPUT [OPTIONS]
 | `--max-images` | `100` | Maximum number of images (growing_string strategy only) |
 | `--distance-threshold` | `0.1` | Distance threshold for convergence (growing_string strategy only) |
 | `--step-size` | `0.1` | Step size for growing string method (growing_string strategy only) |
+| `--require-ts/--allow-ts` | `--allow-ts` | Require a validated first-order saddle (raises an error if GSM/refinement fails) |
 
 #### Examples
 
@@ -156,7 +157,7 @@ qme ts --strategy local ts_guess.xyz
 qme ts --strategy local ts_guess.xyz --freq
 
 # With custom optimizer
-qme ts --strategy local ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02
+qme ts --strategy local ts_guess.xyz --optimizer rfo --fmax 0.02
 
 # TS from interpolation
 qme ts --strategy interpolate reactant.xyz --product product.xyz
@@ -166,6 +167,9 @@ qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 --
 
 # Growing string method
 qme ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
+
+# Strict validation (raises if the TS is not first-order)
+qme ts --strategy growing_string reactant.xyz --product product.xyz --require-ts
 
 # With frequency analysis
 qme ts --strategy interpolate reactant.xyz --product product.xyz --freq
@@ -260,7 +264,7 @@ explorer = Explorer(
 
 **Strategies:** `local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string` (see [Target/Strategy Matrix](#targetstrategy-matrix))
 
-**Optimizers:** `default` (auto-selects), first-order (`lbfgs`, `bfgs`, `fire`), second-order (`sella`, `trust-krylov`, `trust-krylov-ts`, `trust-ncg`, `trust-exact`, `newton-cg`, `rfo`)
+**Optimizers:** `default` (auto-selects), first-order (`lbfgs`, `bfgs`, `fire`), second-order (`sella`, `trust-krylov`, `trust-ncg`, `trust-exact`, `newton-cg`, `rfo`)
 
 ### Key Methods
 

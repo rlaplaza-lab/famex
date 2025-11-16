@@ -92,7 +92,11 @@ class ThermodynamicProperties:
             Concentration in mol/L
 
         """
-        self.frequencies = frequencies[frequencies > 0]  # Only real frequencies
+        # Handle complex frequencies (imaginary frequencies for TS)
+        # Take real part and filter out non-positive values
+        self.frequencies = frequencies[np.real(frequencies) > 0]
+        # Ensure we have real values (take real part if complex)
+        self.frequencies = np.real(self.frequencies)
         self.all_frequencies = frequencies  # Keep all for reference
         self.atoms = atoms
         self.temperature = temperature
@@ -114,7 +118,7 @@ class ThermodynamicProperties:
     def partition_function_vibrational(self) -> float:
         """Calculate vibrational partition function.
 
-        Returns:
+        Returns
         -------
         float
             Vibrational partition function
@@ -138,7 +142,7 @@ class ThermodynamicProperties:
     def heat_capacity_vibrational(self) -> float:
         """Calculate vibrational heat capacity.
 
-        Returns:
+        Returns
         -------
         float
             Heat capacity in eV/K
@@ -160,7 +164,7 @@ class ThermodynamicProperties:
     def entropy_vibrational(self) -> float:
         """Calculate vibrational entropy with quasi-harmonic corrections.
 
-        Returns:
+        Returns
         -------
         float
             Vibrational entropy in eV/K
@@ -182,7 +186,7 @@ class ThermodynamicProperties:
         energy : float, optional
             Electronic energy in eV. If None, extracts from atoms.calc
 
-        Returns:
+        Returns
         -------
         dict
             Dictionary with all thermodynamic contributions:
@@ -299,7 +303,7 @@ class ThermodynamicProperties:
     def calculate_zero_point_energy(self) -> float:
         """Calculate zero-point vibrational energy.
 
-        Returns:
+        Returns
         -------
         float
             Zero-point energy in eV
@@ -312,7 +316,7 @@ class ThermodynamicProperties:
     def calculate_zero_point_energy_in_J_per_mol(self) -> float:  # noqa: N802
         """Calculate zero-point energy in J/mol.
 
-        Returns:
+        Returns
         -------
         float
             Zero-point energy in J/mol
@@ -330,7 +334,7 @@ class ThermodynamicProperties:
     def internal_energy_vibrational(self) -> float:
         """Calculate vibrational internal energy (including thermal contributions).
 
-        Returns:
+        Returns
         -------
         float
             Vibrational internal energy in eV

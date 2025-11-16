@@ -318,7 +318,7 @@ class PerformanceProfiler:
 
 
 def profile_call(func: Any) -> Any:
-    """Decorator to profile individual function calls."""
+    """Profile individual function calls."""
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -338,7 +338,7 @@ def profile_call(func: Any) -> Any:
 
 
 def profile_optimizer_step(func: Any) -> Any:
-    """Decorator specifically for optimizer step functions."""
+    """Profile optimizer step functions."""
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:

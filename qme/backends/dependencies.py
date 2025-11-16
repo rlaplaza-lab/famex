@@ -54,7 +54,7 @@ class DependencyManager:
         package_name : str
             Name of the package to check
 
-        Returns:
+        Returns
         -------
         bool
             True if package is available, False otherwise
@@ -78,7 +78,7 @@ class DependencyManager:
         fallback_value : Any, optional
             Value to return if import fails
 
-        Returns:
+        Returns
         -------
         Any
             The loaded module or fallback value
@@ -140,13 +140,13 @@ class DependencyManager:
         purpose : str, default "this functionality"
             Description of what the dependencies are needed for
 
-        Returns:
+        Returns
         -------
         dict or module
             If one dependency, returns the module directly.
             If multiple, returns dict mapping name -> module.
 
-        Raises:
+        Raises
         ------
         DependencyError
             If any required dependencies are missing

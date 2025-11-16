@@ -53,12 +53,12 @@ def estimate_richardson_noise(
     hessian2 : np.ndarray
         Hessian computed at smaller delta (typically delta/2)
 
-    Returns:
+    Returns
     -------
     float
         Estimated RMS noise level in eV/Å²
 
-    Examples:
+    Examples
     --------
     >>> # Compute Hessians at different deltas
     >>> H_01 = compute_hessian(atoms, calc, delta=0.01)
@@ -106,12 +106,12 @@ def estimate_force_noise(
         Indices of atoms to include in noise estimation
         If None, all atoms are included
 
-    Returns:
+    Returns
     -------
     float
         Estimated RMS noise in forces (eV/Å)
 
-    Examples:
+    Examples
     --------
     >>> noise = estimate_force_noise(atoms, calc, n_samples=10)
     >>> if noise > 1e-4:
@@ -192,12 +192,12 @@ def estimate_optimal_delta(
     verbose : int, default 0
         Verbosity level
 
-    Returns:
+    Returns
     -------
     tuple[float, float]
         (optimal_delta, estimated_noise)
 
-    Examples:
+    Examples
     --------
     >>> opt_delta, noise = estimate_optimal_delta(atoms, calc, delta_range=(0.001, 0.05))
     >>> hessian_calc = HessianCalculator(atoms, calc, delta=opt_delta)
@@ -300,7 +300,7 @@ def _compute_hessian_at_delta(
     scheme: type,
     indices: list[int],
 ) -> NDArray[np.float64]:
-    """Helper function to compute Hessian at a specific delta.
+    """Compute Hessian at a specific delta.
 
     Parameters
     ----------
@@ -315,7 +315,7 @@ def _compute_hessian_at_delta(
     indices : list[int]
         Atom indices to include
 
-    Returns:
+    Returns
     -------
     np.ndarray
         Hessian matrix

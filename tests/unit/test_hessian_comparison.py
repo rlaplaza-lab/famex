@@ -3,31 +3,21 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import qme
 from qme.analysis.hessian_comparison import (
     HessianComparisonReport,
     _compute_quality_metrics,
     _generate_recommendations,
     compare_hessian_methods,
 )
-from tests.test_utils import TestMoleculeFactory
-
-
-@pytest.fixture
-def water_molecule():
-    """Water molecule with calculator for testing."""
-    atoms = TestMoleculeFactory.get_water_distorted()
-    atoms.calc = qme.MockCalculator(backend="mock")
-    return atoms
+from tests.test_constants import HESSIAN_SYMMETRY_TOL
 
 
 class TestCompareHessianMethods:
     """Tests for compare_hessian_methods() function."""
 
-    def test_basic_functionality(self, water_molecule):
+    def test_basic_functionality(self, water_molecule_with_mock):
         """Test basic comparison with mock calculator."""
-        atoms = water_molecule.copy()
-        atoms.calc = qme.MockCalculator(backend="mock")
+        atoms = water_molecule_with_mock
 
         results = compare_hessian_methods(atoms, atoms.calc, methods=["force_fd"], verbose=0)
 
@@ -42,10 +32,9 @@ class TestCompareHessianMethods:
         assert "force_fd" in results["timings"]
         assert "force_fd" in results["metrics"]
 
-    def test_multiple_methods(self, water_molecule):
+    def test_multiple_methods(self, water_molecule_with_mock):
         """Test comparison of multiple methods."""
-        atoms = water_molecule.copy()
-        atoms.calc = qme.MockCalculator(backend="mock")
+        atoms = water_molecule_with_mock
 
         results = compare_hessian_methods(
             atoms, atoms.calc, methods=["force_fd", "adaptive"], verbose=0
@@ -57,10 +46,9 @@ class TestCompareHessianMethods:
         assert len(results["timings"]) == 2
         assert len(results["metrics"]) == 2
 
-    def test_auto_detection_of_methods(self, water_molecule):
+    def test_auto_detection_of_methods(self, water_molecule_with_mock):
         """Test auto-detection when methods=None."""
-        atoms = water_molecule.copy()
-        atoms.calc = qme.MockCalculator(backend="mock")
+        atoms = water_molecule_with_mock
 
         results = compare_hessian_methods(atoms, atoms.calc, methods=None, verbose=0)
 
@@ -68,10 +56,9 @@ class TestCompareHessianMethods:
         assert len(results["methods"]) >= 1
         assert "force_fd" in results["methods"] or "adaptive" in results["methods"]
 
-    def test_error_handling(self, water_molecule):
+    def test_error_handling(self, water_molecule_with_mock):
         """Test that errors in one method don't stop others."""
-        atoms = water_molecule.copy()
-        atoms.calc = qme.MockCalculator(backend="mock")
+        atoms = water_molecule_with_mock
 
         # Include invalid method - should skip it but continue
         results = compare_hessian_methods(
@@ -83,10 +70,9 @@ class TestCompareHessianMethods:
         # unknown_method should not be in results (skipped)
         assert "unknown_method" not in results["hessians"]
 
-    def test_with_indices(self, water_molecule):
+    def test_with_indices(self, water_molecule_with_mock):
         """Test partial Hessian calculation with indices."""
-        atoms = water_molecule.copy()
-        atoms.calc = qme.MockCalculator(backend="mock")
+        atoms = water_molecule_with_mock
 
         results = compare_hessian_methods(
             atoms, atoms.calc, methods=["force_fd"], indices=[0, 1], verbose=0
@@ -96,10 +82,9 @@ class TestCompareHessianMethods:
         hessian = results["hessians"]["force_fd"]
         assert hessian.shape == (6, 6)
 
-    def test_verbose_output(self, water_molecule, caplog):
+    def test_verbose_output(self, water_molecule_with_mock, caplog):
         """Test verbose logging."""
-        atoms = water_molecule.copy()
-        atoms.calc = qme.MockCalculator(backend="mock")
+        atoms = water_molecule_with_mock
 
         with caplog.at_level("INFO"):
             results = compare_hessian_methods(atoms, atoms.calc, methods=["force_fd"], verbose=1)
@@ -117,7 +102,7 @@ class TestQualityMetrics:
         hessian = np.eye(9)  # Identity matrix (symmetric)
         metrics = _compute_quality_metrics(hessian)
 
-        assert metrics["max_asymmetry"] < 1e-10
+        assert metrics["max_asymmetry"] < HESSIAN_SYMMETRY_TOL
         assert metrics["rms_value"] > 0
         assert not metrics["has_nan"]
         assert not metrics["has_inf"]
@@ -140,9 +125,13 @@ class TestQualityMetrics:
         hessian[0, 0] = np.nan
         hessian[1, 1] = np.inf
 
-        # The function computes eigvals before checking NaN/Inf, so it raises LinAlgError
-        # This is expected behavior - the function doesn't handle NaN/Inf gracefully
-        with pytest.raises(np.linalg.LinAlgError, match="Array must not contain infs or NaNs"):
+        # The function computes operations that generate warnings before checking NaN/Inf,
+        # then raises LinAlgError. This is expected behavior - the function doesn't
+        # handle NaN/Inf gracefully. Suppress the expected RuntimeWarning.
+        with (
+            pytest.warns(RuntimeWarning, match="invalid value"),
+            pytest.raises(np.linalg.LinAlgError, match="Array must not contain infs or NaNs"),
+        ):
             _compute_quality_metrics(hessian)
 
     def test_condition_number(self):
@@ -253,10 +242,9 @@ class TestRecommendations:
 class TestHessianComparisonReport:
     """Tests for HessianComparisonReport class."""
 
-    def test_report_creation(self, water_molecule):
+    def test_report_creation(self, water_molecule_with_mock):
         """Test report initialization."""
-        atoms = water_molecule.copy()
-        atoms.calc = qme.MockCalculator(backend="mock")
+        atoms = water_molecule_with_mock
 
         results = compare_hessian_methods(atoms, atoms.calc, methods=["force_fd"])
         report = HessianComparisonReport(results)
@@ -265,10 +253,9 @@ class TestHessianComparisonReport:
         assert "force_fd" in report.hessians
         assert report.atoms is not None
 
-    def test_print_summary(self, water_molecule, capsys):
+    def test_print_summary(self, water_molecule_with_mock, capsys):
         """Test summary printing."""
-        atoms = water_molecule.copy()
-        atoms.calc = qme.MockCalculator(backend="mock")
+        atoms = water_molecule_with_mock
 
         results = compare_hessian_methods(atoms, atoms.calc, methods=["force_fd"])
         report = HessianComparisonReport(results)
@@ -278,10 +265,9 @@ class TestHessianComparisonReport:
         assert "HESSIAN METHOD COMPARISON SUMMARY" in captured.out
         assert "FORCE_FD" in captured.out or "force_fd" in captured.out
 
-    def test_compare_frequencies(self, water_molecule):
+    def test_compare_frequencies(self, water_molecule_with_mock):
         """Test frequency comparison."""
-        atoms = water_molecule.copy()
-        atoms.calc = qme.MockCalculator(backend="mock")
+        atoms = water_molecule_with_mock
 
         results = compare_hessian_methods(atoms, atoms.calc, methods=["force_fd", "adaptive"])
         report = HessianComparisonReport(results)
@@ -316,10 +302,9 @@ class TestHessianComparisonReport:
         captured = capsys.readouterr()
         assert len(captured.out) >= 0  # May or may not print warning
 
-    def test_compare_frequencies_insufficient_methods(self, water_molecule, capsys):
+    def test_compare_frequencies_insufficient_methods(self, water_molecule_with_mock, capsys):
         """Test frequency comparison with < 2 methods."""
-        atoms = water_molecule.copy()
-        atoms.calc = qme.MockCalculator(backend="mock")
+        atoms = water_molecule_with_mock
 
         results = compare_hessian_methods(atoms, atoms.calc, methods=["force_fd"])
         report = HessianComparisonReport(results)

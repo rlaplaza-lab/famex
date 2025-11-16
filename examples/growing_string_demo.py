@@ -208,6 +208,36 @@ def main() -> int:
         write(str(ts_path), result["optimized_atoms"])
         print(f"✓ Saved TS structure to: {ts_path}")
 
+        # Validate TS with frequency analysis
+        frequency_analysis = result.get("frequency_analysis")
+        if frequency_analysis:
+            ts_analysis = frequency_analysis.get("ts_analysis", {})
+            n_imaginary = ts_analysis.get("n_imaginary_frequencies", 0)
+            imaginary_freqs = ts_analysis.get("imaginary_frequencies", [])
+
+            print("\n" + "=" * 60)
+            print("Transition State Frequency Validation")
+            print("=" * 60)
+
+            if n_imaginary == 1:
+                print(f"✓ Valid transition state: {n_imaginary} imaginary frequency found")
+                if imaginary_freqs:
+                    print(f"  Imaginary frequency: {imaginary_freqs[0]:.2f} cm⁻¹")
+            else:
+                print(f"✗ Invalid transition state: {n_imaginary} imaginary frequencies found")
+                if imaginary_freqs:
+                    freq_str = ", ".join(f"{f:.2f}" for f in imaginary_freqs)
+                    print(f"  Imaginary frequencies: {freq_str} cm⁻¹")
+                else:
+                    print("  No imaginary frequencies found")
+                interface.print_error(
+                    f"TS validation failed: expected 1 imaginary frequency, found {n_imaginary}"
+                )
+                return 1
+        else:
+            print("\n⚠ Warning: Frequency analysis not available for TS validation")
+            print("  TS structure saved but not validated")
+
         interface.print_success()
         return 0
 

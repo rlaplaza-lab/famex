@@ -43,9 +43,9 @@ def validate_hessian(
     force_noise_estimate : float, optional
         Estimated noise in force calculations (eV/Å)
 
-    Returns:
+    Returns
     -------
-    dict[str, Union[bool, float]]
+    dict[str, bool | float]
         Validation results containing:
         - is_valid: Overall validity (bool)
         - is_symmetric: Whether matrix is symmetric (bool)

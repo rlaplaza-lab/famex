@@ -58,7 +58,7 @@ class EnergyBasedHessianCalculator:
 
     Use only when force-based methods fail or produce inaccurate results.
 
-    Examples:
+    Examples
     --------
     >>> from ase import Atoms
     >>> from qme.potentials.mock_potential import MockCalculator
@@ -94,12 +94,12 @@ class EnergyBasedHessianCalculator:
             - 1: Normal (default, shows progress)
             - 2: Verbose (detailed information)
 
-        Raises:
+        Raises
         ------
         ValueError
             If delta <= 0 or indices are invalid
 
-        Examples:
+        Examples
         --------
         >>> from ase import Atoms
         >>> atoms = Atoms('H2O', positions=[[0, 0, 0], [0.96, 0, 0], [0, 0.96, 0]])
@@ -132,25 +132,25 @@ class EnergyBasedHessianCalculator:
         Computes second derivatives directly from energy evaluations using
         a 4-point cross-derivative stencil.
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix of shape (3N, 3N) where N is the number of atoms
             in `indices`. Units are eV/Å². The matrix is symmetric and includes
             all selected atoms.
 
-        Raises:
+        Raises
         ------
         RuntimeError
             If energy calculations fail at any displacement step
 
-        Notes:
+        Notes
         -----
         - For N atoms: performs 4N² energy calculations
         - Progress information is logged if verbose >= 2
         - The final Hessian is symmetrized to ensure H = H^T
 
-        Examples:
+        Examples
         --------
         >>> from ase import Atoms
         >>> atoms = Atoms('H2O', positions=[[0, 0, 0], [0.96, 0, 0], [0, 0.96, 0]])
@@ -229,12 +229,12 @@ class EnergyBasedHessianCalculator:
         j : int
             Coordinate index in flattened array (0 to 3N-1)
 
-        Returns:
+        Returns
         -------
         float
             Hessian element H_ij in eV/Å²
 
-        Raises:
+        Raises
         ------
         RuntimeError
             If energy calculation fails
@@ -285,7 +285,7 @@ class EnergyBasedHessianCalculator:
         disp_j : int
             Displacement sign for second atom (-1 or +1)
 
-        Returns:
+        Returns
         -------
         float
             Energy at displaced geometry in eV
@@ -310,7 +310,7 @@ class EnergyBasedHessianCalculator:
     def _get_energy_at_ref(self) -> float:
         """Get energy at reference geometry.
 
-        Returns:
+        Returns
         -------
         float
             Reference energy in eV

@@ -88,10 +88,14 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None
             all_freqs = ts_analysis.get("all_frequencies", [])
 
         if all_freqs:
+            # Convert complex frequencies to real (take absolute value for sorting)
             filtered_freqs = [f for f in all_freqs if abs(f) > 10.0]
             if not filtered_freqs and all_freqs:
                 filtered_freqs = all_freqs
-            frequencies = sorted(filtered_freqs)
+            # Handle complex frequencies by converting to real for sorting
+            frequencies = sorted(
+                filtered_freqs, key=lambda x: abs(x) if isinstance(x, complex) else x
+            )
         else:
             frequencies = []
 
@@ -285,7 +289,7 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
 
 
 def main() -> int:
-    """Main function to run the minima optimizer comparison benchmark."""
+    """Run the minima optimizer comparison benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
         name="Minima Optimizer Benchmark",

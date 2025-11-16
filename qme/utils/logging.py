@@ -103,7 +103,7 @@ def get_qme_logger(name: str) -> logging.Logger:
     name : str
         Logger name, typically __name__ from the calling module
 
-    Returns:
+    Returns
     -------
     logging.Logger
         Configured logger instance
@@ -124,7 +124,7 @@ def get_qme_log_level() -> int:
 def is_in_quiet_context() -> bool:
     """Check if we're currently in a quiet_backend_loading context.
 
-    Returns:
+    Returns
     -------
     bool
         True if we're in a quiet context, False otherwise

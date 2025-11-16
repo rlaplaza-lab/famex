@@ -103,6 +103,14 @@ class TestDeviceUtilities:
             with pytest.raises(ValueError, match="PyTorch not available"):
                 validate_device("cuda")
 
+    def test_validate_device_cuda_import_error(self):
+        """Test validate_device when ImportError occurs during CUDA check."""
+        with patch("qme.backends.dependencies.deps") as mock_deps:
+            mock_deps.has.side_effect = ImportError("No module named torch")
+
+            with pytest.raises(ValueError, match="PyTorch not available"):
+                validate_device("cuda")
+
     @patch("qme.backends.dependencies.deps")
     def test_get_device_info_cpu(self, mock_deps):
         info = get_device_info("cpu")
@@ -153,6 +161,7 @@ class TestDeviceUtilities:
         assert info["device"] == "cuda"
         assert info["cuda_available"] is False
         assert info["gpu_name"] is None
+        assert info["gpu_memory"] is None
 
     @patch("qme.utils.device.logger")
     @patch("qme.backends.dependencies.deps")

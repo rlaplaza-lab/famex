@@ -11,6 +11,7 @@ from qme.analysis.finite_differences import (
     ForwardDifferenceScheme,
     SevenPointCentralDifferenceScheme,
 )
+from tests.test_constants import DEFAULT_DELTA
 
 
 class TestCentralDifferenceScheme:
@@ -21,13 +22,13 @@ class TestCentralDifferenceScheme:
         scheme = CentralDifferenceScheme()
         forces_plus = np.array([1.0, 2.0, 3.0])
         forces_minus = np.array([0.5, 1.5, 2.5])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         result = scheme.compute_derivative(forces_plus, forces_minus, None, delta)
 
         assert isinstance(result, np.ndarray)
         assert result.shape == forces_plus.shape
-        # Expected: -(1.0 - 0.5) / (2 * 0.01) = -25.0
+        # Expected: -(1.0 - 0.5) / (2 * DEFAULT_DELTA) = -25.0
         expected = np.array([-25.0, -25.0, -25.0])
         np.testing.assert_allclose(result, expected)
 
@@ -35,7 +36,7 @@ class TestCentralDifferenceScheme:
         """Test that missing forces_minus raises ValueError."""
         scheme = CentralDifferenceScheme()
         forces_plus = np.array([1.0, 2.0, 3.0])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(ValueError, match="Central difference requires forces_minus"):
             scheme.compute_derivative(forces_plus, None, None, delta)
@@ -49,13 +50,13 @@ class TestForwardDifferenceScheme:
         scheme = ForwardDifferenceScheme()
         forces_plus = np.array([1.0, 2.0, 3.0])
         forces_ref = np.array([0.5, 1.5, 2.5])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         result = scheme.compute_derivative(forces_plus, None, forces_ref, delta)
 
         assert isinstance(result, np.ndarray)
         assert result.shape == forces_plus.shape
-        # Expected: -(1.0 - 0.5) / 0.01 = -50.0
+        # Expected: -(1.0 - 0.5) / DEFAULT_DELTA = -50.0
         expected = np.array([-50.0, -50.0, -50.0])
         np.testing.assert_allclose(result, expected)
 
@@ -63,7 +64,7 @@ class TestForwardDifferenceScheme:
         """Test that missing forces_ref raises ValueError."""
         scheme = ForwardDifferenceScheme()
         forces_plus = np.array([1.0, 2.0, 3.0])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(ValueError, match="Forward difference requires forces_ref"):
             scheme.compute_derivative(forces_plus, None, None, delta)
@@ -79,7 +80,7 @@ class TestFivePointCentralDifferenceScheme:
         forces_minus = np.array([0.5, 1.5, 2.5])
         forces_plus2 = np.array([1.5, 2.5, 3.5])
         forces_minus2 = np.array([0.0, 1.0, 2.0])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         result = scheme.compute_derivative(
             forces_plus,
@@ -97,7 +98,7 @@ class TestFivePointCentralDifferenceScheme:
         """Test that missing forces_minus raises ValueError."""
         scheme = FivePointCentralDifferenceScheme()
         forces_plus = np.array([1.0, 2.0, 3.0])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(ValueError, match="5-point central difference requires forces_minus"):
             scheme.compute_derivative(forces_plus, None, None, delta)
@@ -108,7 +109,7 @@ class TestFivePointCentralDifferenceScheme:
         forces_plus = np.array([1.0, 2.0, 3.0])
         forces_minus = np.array([0.5, 1.5, 2.5])
         forces_minus2 = np.array([0.0, 1.0, 2.0])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(
             ValueError, match="5-point central difference requires forces_plus2 and forces_minus2"
@@ -123,7 +124,7 @@ class TestFivePointCentralDifferenceScheme:
         forces_plus = np.array([1.0, 2.0, 3.0])
         forces_minus = np.array([0.5, 1.5, 2.5])
         forces_plus2 = np.array([1.5, 2.5, 3.5])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(
             ValueError, match="5-point central difference requires forces_plus2 and forces_minus2"
@@ -137,7 +138,7 @@ class TestFivePointCentralDifferenceScheme:
         scheme = FivePointCentralDifferenceScheme()
         forces_plus = np.array([1.0, 2.0, 3.0])
         forces_minus = np.array([0.5, 1.5, 2.5])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(
             ValueError, match="5-point central difference requires forces_plus2 and forces_minus2"
@@ -157,7 +158,7 @@ class TestSevenPointCentralDifferenceScheme:
         forces_minus2 = np.array([0.0, 1.0, 2.0])
         forces_plus3 = np.array([2.0, 3.0, 4.0])
         forces_minus3 = np.array([-0.5, 0.5, 1.5])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         result = scheme.compute_derivative(
             forces_plus,
@@ -177,7 +178,7 @@ class TestSevenPointCentralDifferenceScheme:
         """Test that missing forces_minus raises ValueError."""
         scheme = SevenPointCentralDifferenceScheme()
         forces_plus = np.array([1.0, 2.0, 3.0])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(ValueError, match="7-point central difference requires forces_minus"):
             scheme.compute_derivative(forces_plus, None, None, delta)
@@ -190,7 +191,7 @@ class TestSevenPointCentralDifferenceScheme:
         forces_minus2 = np.array([0.0, 1.0, 2.0])
         forces_plus3 = np.array([2.0, 3.0, 4.0])
         forces_minus3 = np.array([-0.5, 0.5, 1.5])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(ValueError, match="7-point central difference requires"):
             scheme.compute_derivative(
@@ -211,7 +212,7 @@ class TestSevenPointCentralDifferenceScheme:
         forces_plus2 = np.array([1.5, 2.5, 3.5])
         forces_plus3 = np.array([2.0, 3.0, 4.0])
         forces_minus3 = np.array([-0.5, 0.5, 1.5])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(ValueError, match="7-point central difference requires"):
             scheme.compute_derivative(
@@ -232,7 +233,7 @@ class TestSevenPointCentralDifferenceScheme:
         forces_plus2 = np.array([1.5, 2.5, 3.5])
         forces_minus2 = np.array([0.0, 1.0, 2.0])
         forces_minus3 = np.array([-0.5, 0.5, 1.5])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(ValueError, match="7-point central difference requires"):
             scheme.compute_derivative(
@@ -253,7 +254,7 @@ class TestSevenPointCentralDifferenceScheme:
         forces_plus2 = np.array([1.5, 2.5, 3.5])
         forces_minus2 = np.array([0.0, 1.0, 2.0])
         forces_plus3 = np.array([2.0, 3.0, 4.0])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(ValueError, match="7-point central difference requires"):
             scheme.compute_derivative(
@@ -271,7 +272,7 @@ class TestSevenPointCentralDifferenceScheme:
         scheme = SevenPointCentralDifferenceScheme()
         forces_plus = np.array([1.0, 2.0, 3.0])
         forces_minus = np.array([0.5, 1.5, 2.5])
-        delta = 0.01
+        delta = DEFAULT_DELTA
 
         with pytest.raises(ValueError, match="7-point central difference requires"):
             scheme.compute_derivative(forces_plus, forces_minus, None, delta)

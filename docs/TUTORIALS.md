@@ -37,7 +37,6 @@ explorer.save_structure(result['optimized_atoms'], "optimized.xyz")
 | `fire` | First-order | Fast initial relaxation |
 | `sella` | Second-order | Transition states, robust |
 | `trust-krylov` | Second-order | When Hessians are cheap |
-| `trust-krylov-ts` | Second-order | Transition states with trust-region |
 | `trust-ncg` | Second-order | Trust-region with nonlinear CG |
 | `trust-exact` | Second-order | Trust-region with exact Hessian |
 | `newton-cg` | Second-order | Newton-CG method |

@@ -25,10 +25,12 @@ def sanitize_filename(filename: str, allow_path_sep: bool = False) -> str:
         filename: Input filename (may contain path components)
         allow_path_sep: If False, removes all path separators (default: False)
 
-    Returns:
+    Returns
+    -------
         Safe filename with only basename and safe characters
 
-    Raises:
+    Raises
+    ------
         PathSecurityError: If filename is empty after sanitization
     """
     # First, get just the basename (removes all directory components)
@@ -75,10 +77,12 @@ def validate_safe_path(
         must_exist: If True, path must exist (default: False)
         allow_absolute: If True, allows absolute paths (default: False)
 
-    Returns:
+    Returns
+    -------
         Validated Path object (absolute, resolved)
 
-    Raises:
+    Raises
+    ------
         PathSecurityError: If path fails security checks
     """
     try:
@@ -138,7 +142,8 @@ def is_safe_relative_path(path: str) -> bool:
     Args:
         path: Path string to check
 
-    Returns:
+    Returns
+    -------
         True if path appears safe, False otherwise
     """
     if not path or not isinstance(path, str):

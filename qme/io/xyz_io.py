@@ -40,7 +40,7 @@ def parse_xyz_comment(comment: str) -> dict[str, Any]:
     comment : str
         Comment line from XYZ file
 
-    Returns:
+    Returns
     -------
     dict[str, Any]
         Parsed metadata with type conversion
@@ -79,7 +79,7 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
     energy : float, optional
         Energy value to include in comment
 
-    Returns:
+    Returns
     -------
     str
         Formatted comment line
@@ -145,7 +145,7 @@ def validate_xyz_structure(atoms: Atoms, strict: bool = False) -> list[str]:
     strict : bool, default False
         If True, perform additional strict checks
 
-    Returns:
+    Returns
     -------
     list[str]
         List of validation warnings/errors (empty if valid)
@@ -207,7 +207,10 @@ def validate_xyz_structure(atoms: Atoms, strict: bool = False) -> list[str]:
 
 
 def read_xyz_with_metadata(
-    filename: str | Path, frame: str | int = "last", validate: bool = True, **kwargs: Any
+    filename: str | Path,
+    frame: str | int = "last",
+    validate: bool = True,
+    **kwargs: Any,
 ) -> Geometry | list[Geometry]:
     """Read XYZ file with metadata parsing and validation.
 
@@ -226,12 +229,12 @@ def read_xyz_with_metadata(
     **kwargs
         Additional arguments passed to ASE read
 
-    Returns:
+    Returns
     -------
     Geometry or list[Geometry]
         Loaded structure(s) with metadata preserved
 
-    Raises:
+    Raises
     ------
     FileNotFoundError
         If file doesn't exist
@@ -299,7 +302,8 @@ def read_xyz_with_metadata(
                 import warnings
 
                 warnings.warn(
-                    f"XYZ validation issues in {filename}: {'; '.join(issues)}", stacklevel=2
+                    f"XYZ validation issues in {filename}: {'; '.join(issues)}",
+                    stacklevel=2,
                 )
 
         geometries.append(geom)
@@ -329,7 +333,7 @@ def write_xyz_with_metadata(
     **kwargs
         Additional arguments passed to ASE write
 
-    Raises:
+    Raises
     ------
     OSError
         If file cannot be written

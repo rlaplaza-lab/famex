@@ -15,126 +15,101 @@ from qme.utils.logging import (
 
 
 class TestSetupQmeLogging:
-    def test_setup_logging_default(self):
-        # Clear any existing configuration
-        logger = logging.getLogger("qme")
-        logger.handlers.clear()
-
+    def test_setup_logging_default(self, clear_qme_logger):
         setup_qme_logging(verbosity=1, force=True)
 
-        assert logger.level == logging.INFO
-        assert len(logger.handlers) > 0
+        assert clear_qme_logger.level == logging.INFO
+        assert len(clear_qme_logger.handlers) > 0
 
-    def test_setup_logging_quiet(self):
-        logger = logging.getLogger("qme")
-        logger.handlers.clear()
+    @pytest.mark.parametrize(
+        ("verbosity", "expected_level"),
+        [
+            (0, logging.WARNING),
+            (1, logging.INFO),
+            (2, logging.DEBUG),
+        ],
+    )
+    def test_setup_logging_verbosity(self, clear_qme_logger, verbosity, expected_level):
+        setup_qme_logging(verbosity=verbosity, force=True)
 
-        setup_qme_logging(verbosity=0, force=True)
+        assert clear_qme_logger.level == expected_level
 
-        assert logger.level == logging.WARNING
-
-    def test_setup_logging_verbose(self):
-        logger = logging.getLogger("qme")
-        logger.handlers.clear()
-
-        setup_qme_logging(verbosity=2, force=True)
-
-        assert logger.level == logging.DEBUG
-
-    def test_setup_logging_no_force(self):
-        logger = logging.getLogger("qme")
-        logger.handlers.clear()
-
+    def test_setup_logging_no_force(self, clear_qme_logger):
         # First setup
         setup_qme_logging(verbosity=1, force=True)
-        initial_handler_count = len(logger.handlers)
+        initial_handler_count = len(clear_qme_logger.handlers)
 
         # Second setup without force
         setup_qme_logging(verbosity=2, force=False)
 
         # Should not reconfigure
-        assert logger.level == logging.INFO  # Should remain INFO
+        assert clear_qme_logger.level == logging.INFO  # Should remain INFO
         # Handler count might stay same or be different depending on implementation
-        assert len(logger.handlers) == initial_handler_count
+        assert len(clear_qme_logger.handlers) == initial_handler_count
 
-    def test_setup_logging_with_force(self):
-        logger = logging.getLogger("qme")
-        logger.handlers.clear()
-
+    def test_setup_logging_with_force(self, clear_qme_logger):
         # First setup
         setup_qme_logging(verbosity=1, force=True)
 
         # Second setup with force
         setup_qme_logging(verbosity=2, force=True)
 
-        assert logger.level == logging.DEBUG  # Should be updated
+        assert clear_qme_logger.level == logging.DEBUG  # Should be updated
 
-    def test_logging_formatter_info_level(self):
-        logger = logging.getLogger("qme")
-        logger.handlers.clear()
-
+    def test_logging_formatter_info_level(self, clear_qme_logger):
         setup_qme_logging(verbosity=2, force=True)
 
         # Capture output
         stream = StringIO()
         handler = logging.StreamHandler(stream)
-        handler.setFormatter(logger.handlers[0].formatter)
-        logger.addHandler(handler)
+        handler.setFormatter(clear_qme_logger.handlers[0].formatter)
+        clear_qme_logger.addHandler(handler)
 
-        logger.info("Test message")
+        clear_qme_logger.info("Test message")
 
         output = stream.getvalue()
         # INFO messages should not have level prefix
         assert "Test message" in output
         assert "[INFO]" not in output
 
-    def test_logging_formatter_warning_level(self):
-        logger = logging.getLogger("qme")
-        logger.handlers.clear()
-
+    def test_logging_formatter_warning_level(self, clear_qme_logger):
         setup_qme_logging(verbosity=1, force=True)
 
         # Capture output
         stream = StringIO()
         handler = logging.StreamHandler(stream)
-        handler.setFormatter(logger.handlers[0].formatter)
-        logger.addHandler(handler)
+        handler.setFormatter(clear_qme_logger.handlers[0].formatter)
+        clear_qme_logger.addHandler(handler)
 
-        logger.warning("Test warning")
+        clear_qme_logger.warning("Test warning")
 
         output = stream.getvalue()
         assert "⚠️" in output or "WARNING" in output or "Test warning" in output
 
-    def test_logging_formatter_error_level(self):
-        logger = logging.getLogger("qme")
-        logger.handlers.clear()
-
+    def test_logging_formatter_error_level(self, clear_qme_logger):
         setup_qme_logging(verbosity=1, force=True)
 
         # Capture output
         stream = StringIO()
         handler = logging.StreamHandler(stream)
-        handler.setFormatter(logger.handlers[0].formatter)
-        logger.addHandler(handler)
+        handler.setFormatter(clear_qme_logger.handlers[0].formatter)
+        clear_qme_logger.addHandler(handler)
 
-        logger.error("Test error")
+        clear_qme_logger.error("Test error")
 
         output = stream.getvalue()
         assert "❌" in output or "ERROR" in output or "Test error" in output
 
-    def test_logging_formatter_debug_level(self):
-        logger = logging.getLogger("qme")
-        logger.handlers.clear()
-
+    def test_logging_formatter_debug_level(self, clear_qme_logger):
         setup_qme_logging(verbosity=2, force=True)
 
         # Capture output
         stream = StringIO()
         handler = logging.StreamHandler(stream)
-        handler.setFormatter(logger.handlers[0].formatter)
-        logger.addHandler(handler)
+        handler.setFormatter(clear_qme_logger.handlers[0].formatter)
+        clear_qme_logger.addHandler(handler)
 
-        logger.debug("Test debug")
+        clear_qme_logger.debug("Test debug")
 
         output = stream.getvalue()
         assert "[DEBUG]" in output or "Test debug" in output
@@ -167,13 +142,13 @@ class TestGetQmeLogger:
 
 
 class TestGetQmeLogLevel:
-    def test_get_log_level_after_setup(self):
+    def test_get_log_level_after_setup(self, clear_qme_logger):
         setup_qme_logging(verbosity=1, force=True)
 
         level = get_qme_log_level()
         assert level == logging.INFO
 
-    def test_get_log_level_different_verbosities(self):
+    def test_get_log_level_different_verbosities(self, clear_qme_logger):
         setup_qme_logging(verbosity=0, force=True)
         assert get_qme_log_level() == logging.WARNING
 
@@ -221,7 +196,7 @@ class TestPrintModelInfo:
 
 
 class TestLoggingIntegration:
-    def test_logger_used_in_code(self):
+    def test_logger_used_in_code(self, clear_qme_logger):
         logger = get_qme_logger("qme.test")
 
         # Should not raise
@@ -230,14 +205,14 @@ class TestLoggingIntegration:
         logger.warning("Warning message")
         logger.error("Error message")
 
-    def test_multiple_loggers_same_module(self):
+    def test_multiple_loggers_same_module(self, clear_qme_logger):
         logger1 = get_qme_logger("qme.test")
         logger2 = get_qme_logger("qme.test")
 
         # Should return same logger instance (logging.getLogger is cached)
         assert logger1 is logger2
 
-    def test_logger_propagation(self):
+    def test_logger_propagation(self, clear_qme_logger):
         setup_qme_logging(verbosity=1, force=True)
 
         parent = logging.getLogger("qme")

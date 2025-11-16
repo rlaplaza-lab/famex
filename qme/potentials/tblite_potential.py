@@ -4,6 +4,8 @@ This module implements a TBLite calculator integration using the TBLite library
 for semi-empirical quantum chemistry calculations with xTB methods.
 """
 
+from __future__ import annotations
+
 import contextlib
 import os
 import sys
@@ -329,6 +331,7 @@ class TBLitePotential(BasePotential):
         assert self._calc is not None
         get_charges = getattr(self._calc, "get_charges", None)
         if get_charges is not None:
+            # TBLite calculator methods return Any (untyped), but we know it's np.ndarray
             return get_charges(atoms)  # type: ignore[no-any-return]
         msg = "Charge calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
@@ -343,6 +346,7 @@ class TBLitePotential(BasePotential):
         assert self._calc is not None
         get_dipole_moment = getattr(self._calc, "get_dipole_moment", None)
         if get_dipole_moment is not None:
+            # TBLite calculator methods return Any (untyped), but we know it's np.ndarray
             return get_dipole_moment(atoms)  # type: ignore[no-any-return]
         msg = "Dipole moment calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
@@ -357,6 +361,7 @@ class TBLitePotential(BasePotential):
         assert self._calc is not None
         get_stress = getattr(self._calc, "get_stress", None)
         if get_stress is not None:
+            # TBLite calculator methods return Any (untyped), but we know it's np.ndarray
             return get_stress(atoms)  # type: ignore[no-any-return]
         msg = "Stress calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
@@ -374,7 +379,7 @@ class TBLitePotential(BasePotential):
         atoms : Atoms, optional
             Atoms object to calculate Hessian for
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix of shape (3N, 3N) in eV/Å² units
@@ -418,7 +423,7 @@ class TBLitePotential(BasePotential):
         allow_calculation : bool, default True
             Whether to allow calculation if property not cached
 
-        Returns:
+        Returns
         -------
         Any
             The requested property
@@ -456,7 +461,7 @@ def get_tblite_calculator(
     multiplicity: int | None = None,
     **kwargs: Any,
 ) -> TBLitePotential:
-    """Factory function to create TBLite calculator.
+    """Create TBLite calculator.
 
     Parameters
     ----------
@@ -469,12 +474,12 @@ def get_tblite_calculator(
     **kwargs
         Additional arguments passed to TBLitePotential
 
-    Returns:
+    Returns
     -------
     TBLitePotential
         Configured TBLite calculator instance
 
-    Examples:
+    Examples
     --------
     >>> calc = get_tblite_calculator()  # Uses GFN2-xTB
     >>> calc = get_tblite_calculator(method="GFN1-xTB")

@@ -303,12 +303,49 @@ class Zimmermann93Benchmark:
                         except Exception:
                             rmsd = float("nan")
 
+                        validation_errors: list[str] = []
+                        strings_met_flag = True
+                        if isinstance(ts_result, dict):
+                            strings_met_flag = bool(ts_result.get("strings_met", True))
+                            if not strings_met_flag:
+                                validation_errors.append("growing_string_never_converged")
+
+                        if not ts_success:
+                            validation_errors.append("ts_refinement_not_converged")
+
+                        freq_info = reaction_data.get("frequency_results", {})
+                        if isinstance(freq_info, dict):
+                            if freq_info.get("skipped"):
+                                validation_errors.append("frequency_analysis_skipped")
+                            elif freq_info.get("error"):
+                                validation_errors.append("frequency_analysis_failed")
+                            else:
+                                is_ts_flag = freq_info.get("is_transition_state")
+                                ts_analysis = freq_info.get("ts_analysis")
+                                if is_ts_flag is False:
+                                    validation_errors.append(
+                                        "frequency_reports_not_transition_state"
+                                    )
+                                imaginary_modes = None
+                                if isinstance(ts_analysis, dict):
+                                    imaginary_modes = ts_analysis.get("n_imaginary_frequencies")
+                                if imaginary_modes is not None and imaginary_modes != 1:
+                                    validation_errors.append(
+                                        f"unexpected_imaginary_mode_count={imaginary_modes}"
+                                    )
+
+                        validation_success = len(validation_errors) == 0
+
                         reaction_data.update(
                             {
                                 "ts_result": ts_result,
-                                "ts_success": ts_success,
+                                "ts_success": ts_success and validation_success,
                                 "ts_rmsd_to_reference": rmsd,
-                                "success": True,
+                                "success": validation_success,
+                                "validation_errors": validation_errors
+                                if validation_errors
+                                else None,
+                                "strings_met": strings_met_flag,
                             },
                         )
                         print(f"  ✓ Completed {backend}/{reaction}", flush=True)
@@ -526,7 +563,7 @@ class Zimmermann93Benchmark:
 
 @setup_example_environment
 def main() -> int:
-    """Main entry point for the benchmark."""
+    """Run the benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
         name="Zimmermann-93 Benchmark",

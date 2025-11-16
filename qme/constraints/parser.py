@@ -36,12 +36,12 @@ def parse_constraints(
     verbose : int, default 0
         Verbosity level (0=quiet, 1=normal, 2=verbose)
 
-    Returns:
+    Returns
     -------
     List[FixConstraint]
         List of ASE-compatible constraint objects
 
-    Notes:
+    Notes
     -----
     Supported string formats:
     - "fix 0,1,2,3": Fix atoms at indices 0,1,2,3

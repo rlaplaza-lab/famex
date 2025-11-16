@@ -3,33 +3,24 @@ from __future__ import annotations
 import pytest
 
 from qme.utils.path_security import PathSecurityError
+from tests.security.test_utils import EVIL_PATHS
 
 
 class TestAIMNet2PathTraversal:
-    def test_aimnet2_model_path_traversal(self):
+    @pytest.mark.parametrize("evil_name", EVIL_PATHS[:4])
+    def test_aimnet2_model_path_traversal(self, evil_name):
         # Import here to avoid test failures if aimnet2 isn't available
         try:
             from qme.potentials.aimnet2_potential import get_model_path
         except (ImportError, ModuleNotFoundError):
             pytest.skip("AIMNet2 not available")
 
-        # Try with path traversal attempts
-        evil_names = [
-            "../../../etc/passwd",
-            "..\\..\\windows\\system32\\evil",
-            "/etc/passwd",
-            "~/malicious",
-        ]
-
-        for evil_name in evil_names:
-            try:
-                with pytest.raises(
-                    (ValueError, PathSecurityError, RuntimeError, ModuleNotFoundError)
-                ):
-                    get_model_path(evil_name)
-            except ModuleNotFoundError:
-                # Skip if model_cache module is not available (optional dependency)
-                pytest.skip("model_cache module not available")
+        try:
+            with pytest.raises((ValueError, PathSecurityError, RuntimeError, ModuleNotFoundError)):
+                get_model_path(evil_name)
+        except ModuleNotFoundError:
+            # Skip if model_cache module is not available (optional dependency)
+            pytest.skip("model_cache module not available")
 
     def test_aimnet2_fallback_path_validation(self):
         # Import here to avoid test failures if aimnet2 isn't available

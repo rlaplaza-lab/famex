@@ -9,6 +9,8 @@ The implementation uses Cartesian coordinates and leverages QME's efficient Hess
 calculation infrastructure.
 """
 
+from __future__ import annotations
+
 from typing import IO, Any, cast
 
 import numpy as np
@@ -36,7 +38,7 @@ class RFOTransitionState(Optimizer):
     ----------
     atoms : Atoms
         The Atoms object to optimize.
-    logfile : Union[IO, str]
+    logfile : IO | str
         File object or filename for logging. Use '-' for stdout.
     trajectory : Optional[str]
         Trajectory file to store optimization path.
@@ -68,7 +70,7 @@ class RFOTransitionState(Optimizer):
     **kwargs
         Additional arguments passed to Optimizer base class.
 
-    Attributes:
+    Attributes
     ----------
     freq_analysis : FrequencyAnalysis
         FrequencyAnalysis instance for Hessian computation.
@@ -79,7 +81,7 @@ class RFOTransitionState(Optimizer):
     hessian_calls : int
         Number of Hessian evaluations.
 
-    References:
+    References
     ----------
     .. [1] geomeTRIC documentation: https://geometric.readthedocs.io/en/latest/transition.html
     .. [2] Banerjee et al., J. Chem. Phys. 63, 3214 (1975)
@@ -179,7 +181,8 @@ class RFOTransitionState(Optimizer):
         # Use setattr to avoid type checking issues with inherited attributes
         if not hasattr(self, "fmax"):
             self.fmax = 0.05
-        # Type annotation for mypy
+        # Type annotation for mypy - getattr returns Any, but we know it's float here
+        # This is needed because ASE's Optimizer base class doesn't type fmax
         self.fmax: float = getattr(self, "fmax", 0.05)  # type: ignore[assignment]
         self.max_steps: int = 0
 
@@ -197,6 +200,8 @@ class RFOTransitionState(Optimizer):
         if atoms is None:
             atoms = self.atoms
         if atoms is None:  # Defensive check
+            # Mypy thinks this is unreachable after the assignment above, but it's defensive programming
+            # for cases where self.atoms might be None despite type hints
             msg = "Atoms object is not initialized"  # type: ignore[unreachable]
             raise RuntimeError(msg)
         return cast(np.ndarray, atoms.get_positions().ravel())
@@ -408,7 +413,7 @@ class RFOTransitionState(Optimizer):
         alpha : float
             Trust radius control parameter
 
-        Returns:
+        Returns
         -------
         step : np.ndarray
             RFO step vector
@@ -585,7 +590,7 @@ class RFOTransitionState(Optimizer):
         hessian : np.ndarray
             Hessian at previous point (before step)
 
-        Returns:
+        Returns
         -------
         float
             Quality factor Q ∈ [-∞, 1]. Higher is better.
@@ -684,7 +689,7 @@ class RFOTransitionState(Optimizer):
         hessian : np.ndarray
             Hessian matrix
 
-        Returns:
+        Returns
         -------
         float
             Optimal alpha value
@@ -745,6 +750,7 @@ class RFOTransitionState(Optimizer):
         self.alpha = alpha
         return alpha
 
+    # ASE Optimizer.run() signature varies; RFO uses consistent signature for TS optimization
     def run(self, fmax: float = 0.05, steps: int = 100) -> bool:  # type: ignore[override]
         """Run the RFO optimization.
 
@@ -755,7 +761,7 @@ class RFOTransitionState(Optimizer):
         steps : int
             Maximum number of optimization steps.
 
-        Returns:
+        Returns
         -------
         bool
             True if converged, False otherwise.

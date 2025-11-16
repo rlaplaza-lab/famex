@@ -8,26 +8,28 @@ import pytest
 
 import qme
 from qme.core.explorer import Explorer
-from qme.strategies.cineb import MultiStructureCINEBStrategy
 from qme.strategies.irc import LocalIRCStrategy
 from qme.strategies.minima import LocalMinimaStrategy
 from qme.strategies.minima_interpolate import MultiStructureMinimaInterpolateStrategy
-from qme.strategies.neb import MultiStructureNEBStrategy
+from qme.strategies.neb import MultiStructureCINEBStrategy, MultiStructureNEBStrategy
 from qme.strategies.path_interpolate import PathInterpolateStrategy
 from qme.strategies.ts import LocalTSStrategy
 from qme.strategies.ts_interpolate import MultiStructureTSGuessStrategy
-from tests.test_utils import TestMoleculeFactory
+from tests.test_constants import (
+    LOOSE_FMAX,
+    QUICK_STEPS,
+    QUICK_STEPS_EXTENDED,
+    TIGHT_FMAX,
+    VERY_LOOSE_FMAX,
+)
+from tests.test_utils import StandardTestAssertions
 
 # ============================================================================
 # Shared Fixtures
 # ============================================================================
-# Note: water_molecule, h2_molecule, and reactant_product_pair are available
-# from conftest.py. Only test-specific fixtures are defined here.
-
-
-@pytest.fixture
-def water_dissociation_ts_guess():
-    return TestMoleculeFactory.get_water_dissociation_ts_guess()
+# Note: water_molecule, h2_molecule, reactant_product_pair, and
+# water_dissociation_ts_guess are available from conftest.py.
+# Only test-specific fixtures are defined here.
 
 
 # ============================================================================
@@ -108,9 +110,8 @@ class TestSingleStructureStrategies:
         strategy = strategy_class(explorer)
 
         try:
-            result = strategy.run([atoms], steps=5, fmax=0.5)
-            assert "optimized_atoms" in result
-            assert "strategy" in result
+            result = strategy.run([atoms], steps=QUICK_STEPS, fmax=LOOSE_FMAX)
+            StandardTestAssertions.assert_optimization_result(result)
             assert result["strategy"] == expected_strategy_name
         except ValueError as e:
             if "not suitable" in str(e).lower():
@@ -140,7 +141,10 @@ class TestSingleStructureStrategies:
         strategy = strategy_class(explorer)
 
         try:
-            result = strategy.run([atoms], steps=3, fmax=0.5, calculate_frequencies=True)
+            result = strategy.run(
+                [atoms], steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX, calculate_frequencies=True
+            )
+            StandardTestAssertions.assert_optimization_result(result)
             assert "frequency_analysis" in result
             if strategy_class == LocalMinimaStrategy:
                 assert "is_minimum" in result
@@ -180,10 +184,11 @@ class TestMultiStructureStrategies:
         if strategy_class == PathInterpolateStrategy:
             result = strategy.run([reactant, product], npoints=5)
         else:
-            result = strategy.run([reactant, product], npoints=5, steps=5, fmax=0.5)
+            result = strategy.run(
+                [reactant, product], npoints=5, steps=QUICK_STEPS, fmax=LOOSE_FMAX
+            )
 
-        assert "optimized_atoms" in result
-        assert "strategy" in result
+        StandardTestAssertions.assert_optimization_result(result)
         assert result["strategy"] == expected_strategy_name
         assert isinstance(result["optimized_atoms"], list)
 
@@ -227,14 +232,26 @@ class TestMultiStructureStrategies:
 
         if strategy_class == MultiStructureTSGuessStrategy:
             with pytest.raises(ValueError, match="not suitable for transition state"):
-                strategy.run([reactant, product], npoints=5, method=method, steps=2, fmax=0.5)
+                strategy.run(
+                    [reactant, product],
+                    npoints=5,
+                    method=method,
+                    steps=QUICK_STEPS,
+                    fmax=LOOSE_FMAX,
+                )
         elif strategy_class == PathInterpolateStrategy:
             # PathInterpolateStrategy doesn't need steps/fmax
             result = strategy.run([reactant, product], npoints=5, method=method)
             assert result["optimized_atoms"] is not None
             assert isinstance(result["optimized_atoms"], list)
         else:
-            result = strategy.run([reactant, product], npoints=5, method=method, steps=3, fmax=0.5)
+            result = strategy.run(
+                [reactant, product],
+                npoints=5,
+                method=method,
+                steps=QUICK_STEPS_EXTENDED,
+                fmax=LOOSE_FMAX,
+            )
             assert result["optimized_atoms"] is not None
             assert isinstance(result["optimized_atoms"], list)
 
@@ -249,7 +266,9 @@ class TestMultiStructureStrategies:
         strategy = strategy_class(explorer)
 
         with pytest.raises(ValueError, match="at least 3 images"):
-            strategy.run([reactant, product], npoints=2, steps=3, fmax=0.5)
+            strategy.run(
+                [reactant, product], npoints=2, steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX
+            )
 
     @pytest.mark.parametrize(
         "strategy_class",
@@ -268,8 +287,8 @@ class TestMultiStructureStrategies:
             result = strategy.run(
                 [reactant, product],
                 npoints=5,
-                steps=3,
-                fmax=0.5,
+                steps=QUICK_STEPS_EXTENDED,
+                fmax=LOOSE_FMAX,
                 rmsd_threshold=0.1,
                 energy_threshold=0.001,
             )
@@ -278,8 +297,8 @@ class TestMultiStructureStrategies:
     @pytest.mark.parametrize(
         ("strategy_class", "patch_module"),
         [
-            (MultiStructureNEBStrategy, "qme.strategies.neb.PathManager.attach_calculators"),
-            (MultiStructureCINEBStrategy, "qme.strategies.cineb.PathManager.attach_calculators"),
+            (MultiStructureNEBStrategy, "qme.io.path_manager.PathManager.attach_calculators"),
+            (MultiStructureCINEBStrategy, "qme.io.path_manager.PathManager.attach_calculators"),
         ],
         ids=["neb", "cineb"],
     )
@@ -294,7 +313,9 @@ class TestMultiStructureStrategies:
             mock_attach.side_effect = lambda explorer, path: None
 
             with pytest.raises(RuntimeError, match="Failed to attach calculators"):
-                strategy.run([reactant, product], npoints=5, steps=3, fmax=0.5)
+                strategy.run(
+                    [reactant, product], npoints=5, steps=QUICK_STEPS_EXTENDED, fmax=VERY_LOOSE_FMAX
+                )
 
 
 # ============================================================================
@@ -309,7 +330,9 @@ class TestLocalMinimaStrategy:
         strategy = LocalMinimaStrategy(explorer)
 
         for optimizer in ["LBFGS", "BFGS"]:
-            result = strategy.run([atoms], steps=3, fmax=0.5, local_optimizer_name=optimizer)
+            result = strategy.run(
+                [atoms], steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX, local_optimizer_name=optimizer
+            )
             assert result["optimized_atoms"] is not None
 
     def test_run_multiple_structures(self, water_molecule):
@@ -318,7 +341,7 @@ class TestLocalMinimaStrategy:
         explorer = Explorer([atoms1, atoms2], backend="mock")
         strategy = LocalMinimaStrategy(explorer)
 
-        result = strategy.run([atoms1, atoms2], steps=3, fmax=0.5)
+        result = strategy.run([atoms1, atoms2], steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX)
 
         assert isinstance(result["optimized_atoms"], list)
         assert len(result["optimized_atoms"]) == 2
@@ -330,7 +353,7 @@ class TestLocalMinimaStrategy:
         explorer = Explorer(atoms, backend="mock")
         strategy = LocalMinimaStrategy(explorer)
 
-        result = strategy.run([atoms], steps=3, fmax=0.5)
+        result = strategy.run([atoms], steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX)
 
         assert isinstance(result["optimized_atoms"], type(atoms))
         assert isinstance(result["converged"], bool)
@@ -341,7 +364,9 @@ class TestLocalMinimaStrategy:
         explorer = Explorer(atoms, backend="mock", initial_hessian=np.eye(n))
         strategy = LocalMinimaStrategy(explorer)
 
-        result = strategy.run([atoms], steps=3, fmax=0.5, local_optimizer_name="LBFGS")
+        result = strategy.run(
+            [atoms], steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX, local_optimizer_name="LBFGS"
+        )
         assert result["optimized_atoms"] is not None
 
     def test_run_with_profiler(self, water_molecule):
@@ -349,7 +374,7 @@ class TestLocalMinimaStrategy:
         explorer = Explorer(atoms, backend="mock", profile=True)
         strategy = LocalMinimaStrategy(explorer, profiler=explorer.profiler)
 
-        result = strategy.run([atoms], steps=3, fmax=0.5)
+        result = strategy.run([atoms], steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX)
 
         assert "performance" in result
         assert result["optimized_atoms"] is not None
@@ -359,7 +384,7 @@ class TestLocalMinimaStrategy:
         explorer = Explorer(atoms, backend="mock", constraints="fix 0")
         strategy = LocalMinimaStrategy(explorer)
 
-        result = strategy.run([atoms], steps=3, fmax=0.5)
+        result = strategy.run([atoms], steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX)
         assert result["optimized_atoms"] is not None
 
     def test_handles_optimizer_failure(self, water_molecule):
@@ -367,21 +392,22 @@ class TestLocalMinimaStrategy:
         explorer = Explorer(atoms, backend="mock")
         strategy = LocalMinimaStrategy(explorer)
 
-        result = strategy.run([atoms], steps=2, fmax=1e-10)
+        result = strategy.run([atoms], steps=QUICK_STEPS, fmax=TIGHT_FMAX)
 
-        assert "optimized_atoms" in result
-        assert "converged" in result
+        StandardTestAssertions.assert_optimization_result(result)
 
 
 class TestLocalTSStrategy:
     @pytest.mark.skipif(not qme.deps.has("sella"), reason="Sella required for TS optimization")
-    def test_run_with_validation(self):
-        atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
+    def test_run_with_validation(self, water_dissociation_ts_guess):
+        atoms = water_dissociation_ts_guess.copy()
         explorer = Explorer(atoms, backend="mock")
         strategy = LocalTSStrategy(explorer)
 
         try:
-            result = strategy.run([atoms], steps=3, fmax=0.5, validate_ts=True)
+            result = strategy.run(
+                [atoms], steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX, validate_ts=True
+            )
             assert "ts_validation" in result
             assert "is_ts" in result
         except ValueError as e:
@@ -389,22 +415,22 @@ class TestLocalTSStrategy:
                 pytest.skip("Mock backend doesn't support TS optimization")
             raise
 
-    def test_validates_backend(self):
-        atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
+    def test_validates_backend(self, water_dissociation_ts_guess):
+        atoms = water_dissociation_ts_guess.copy()
         explorer = Explorer(atoms, backend="mock")
         strategy = LocalTSStrategy(explorer)
 
         with pytest.raises(ValueError, match="not suitable for transition state"):
-            strategy.run([atoms], steps=3, fmax=0.5)
+            strategy.run([atoms], steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX)
 
-    def test_run_multiple_structures(self):
-        atoms1 = TestMoleculeFactory.get_water_dissociation_ts_guess()
-        atoms2 = TestMoleculeFactory.get_water_dissociation_ts_guess()
+    def test_run_multiple_structures(self, water_dissociation_ts_guess):
+        atoms1 = water_dissociation_ts_guess.copy()
+        atoms2 = water_dissociation_ts_guess.copy()
         explorer = Explorer([atoms1, atoms2], backend="mock")
         strategy = LocalTSStrategy(explorer)
 
         with pytest.raises(ValueError, match="not suitable"):
-            strategy.run([atoms1, atoms2], steps=3, fmax=0.5)
+            strategy.run([atoms1, atoms2], steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX)
 
 
 class TestMultiStructureInterpolateStrategies:
@@ -423,16 +449,16 @@ class TestMultiStructureInterpolateStrategies:
                 strategy.run(
                     [reactant, product],
                     npoints=5,
-                    steps=2,
-                    fmax=0.5,
+                    steps=QUICK_STEPS,
+                    fmax=LOOSE_FMAX,
                     calculate_frequencies=True,
                 )
         else:
             result = strategy.run(
                 [reactant, product],
                 npoints=5,
-                steps=2,
-                fmax=0.5,
+                steps=QUICK_STEPS,
+                fmax=LOOSE_FMAX,
                 calculate_frequencies=True,
             )
             assert "frequency_analysis" in result
@@ -449,7 +475,9 @@ class TestMultiStructureInterpolateStrategies:
                 ValueError("Error"),
             ]
 
-            result = strategy.run([reactant, product], npoints=3, steps=2, fmax=0.5)
+            result = strategy.run(
+                [reactant, product], npoints=3, steps=QUICK_STEPS, fmax=LOOSE_FMAX
+            )
 
             assert "optimized_atoms" in result
             assert isinstance(result["optimized_atoms"], list)
@@ -461,14 +489,16 @@ class TestMultiStructureInterpolateStrategies:
         strategy = MultiStructureMinimaInterpolateStrategy(explorer)
 
         with pytest.raises(ValueError, match="at least 2"):
-            strategy.run([atoms], npoints=5, steps=2, fmax=0.5)
+            strategy.run([atoms], npoints=5, steps=QUICK_STEPS, fmax=LOOSE_FMAX)
 
     def test_cineb_run_with_climb_false(self, reactant_product_pair):
         reactant, product = reactant_product_pair
         explorer = Explorer([reactant, product], backend="mock")
         strategy = MultiStructureCINEBStrategy(explorer)
 
-        result = strategy.run([reactant, product], npoints=5, climb=False, steps=3, fmax=0.5)
+        result = strategy.run(
+            [reactant, product], npoints=5, climb=False, steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX
+        )
         assert result["optimized_atoms"] is not None
 
     def test_neb_validates_inputs(self, water_molecule):
@@ -488,8 +518,8 @@ class TestMultiStructureInterpolateStrategies:
             [reactant, product],
             npoints=5,
             spring_constant=10.0,
-            steps=3,
-            fmax=0.5,
+            steps=QUICK_STEPS_EXTENDED,
+            fmax=LOOSE_FMAX,
         )
         assert result["optimized_atoms"] is not None
 
@@ -500,7 +530,9 @@ class TestMultiStructureInterpolateStrategies:
         strategy = MultiStructureNEBStrategy(explorer)
 
         # Should work with npoints=3 (minimum required)
-        result = strategy.run([reactant, product], npoints=3, steps=3, fmax=0.5)
+        result = strategy.run(
+            [reactant, product], npoints=3, steps=QUICK_STEPS_EXTENDED, fmax=VERY_LOOSE_FMAX
+        )
         assert result["optimized_atoms"] is not None
 
     def test_neb_nested_path_flattening(self, reactant_product_pair):
@@ -518,7 +550,9 @@ class TestMultiStructureInterpolateStrategies:
             mock_interpolate.return_value = flat_path
 
             # Should handle the path structure
-            result = strategy.run([reactant, product], npoints=5, steps=3, fmax=0.5)
+            result = strategy.run(
+                [reactant, product], npoints=5, steps=QUICK_STEPS_EXTENDED, fmax=LOOSE_FMAX
+            )
             assert result is not None
 
     def test_neb_calculator_attachment_failure_detailed(self, reactant_product_pair):
@@ -539,7 +573,9 @@ class TestMultiStructureInterpolateStrategies:
             mock_attach.side_effect = mock_attach_func
 
             with pytest.raises(RuntimeError, match="Failed to attach calculators"):
-                strategy.run([reactant, product], npoints=5, steps=3, fmax=0.5)
+                strategy.run(
+                    [reactant, product], npoints=5, steps=QUICK_STEPS_EXTENDED, fmax=VERY_LOOSE_FMAX
+                )
 
     def test_cineb_run_with_spring_constant(self, reactant_product_pair):
         reactant, product = reactant_product_pair
@@ -550,19 +586,21 @@ class TestMultiStructureInterpolateStrategies:
             [reactant, product],
             npoints=5,
             spring_constant=10.0,
-            steps=3,
-            fmax=0.5,
+            steps=QUICK_STEPS_EXTENDED,
+            fmax=LOOSE_FMAX,
         )
         assert result["optimized_atoms"] is not None
 
 
 class TestLocalIRCStrategy:
-    def test_irc_basic_functionality(self):
-        atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
+    def test_irc_basic_functionality(self, water_dissociation_ts_guess):
+        atoms = water_dissociation_ts_guess.copy()
         explorer = Explorer(atoms, backend="mock")
         strategy = LocalIRCStrategy(explorer)
 
-        result = strategy.run([atoms], steps=5, step_size=0.1, fmax=0.5, direction="both")
+        result = strategy.run(
+            [atoms], steps=QUICK_STEPS, step_size=0.1, fmax=LOOSE_FMAX, direction="both"
+        )
 
         assert "trajectory" in result
         assert "strategy" in result
@@ -573,12 +611,14 @@ class TestLocalIRCStrategy:
     @pytest.mark.parametrize(
         "direction", ["forward", "backward", "both"], ids=["forward", "backward", "both"]
     )
-    def test_irc_directions(self, direction):
-        atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
+    def test_irc_directions(self, water_dissociation_ts_guess, direction):
+        atoms = water_dissociation_ts_guess.copy()
         explorer = Explorer(atoms, backend="mock")
         strategy = LocalIRCStrategy(explorer)
 
-        result = strategy.run([atoms], steps=5, step_size=0.1, fmax=0.5, direction=direction)
+        result = strategy.run(
+            [atoms], steps=QUICK_STEPS, step_size=0.1, fmax=LOOSE_FMAX, direction=direction
+        )
 
         assert "trajectory" in result
         if direction == "forward":
@@ -586,14 +626,14 @@ class TestLocalIRCStrategy:
         elif direction == "backward":
             assert "backward_path" in result
 
-    def test_irc_requires_single_structure(self):
-        atoms1 = TestMoleculeFactory.get_water_dissociation_ts_guess()
-        atoms2 = TestMoleculeFactory.get_water_dissociation_ts_guess()
+    def test_irc_requires_single_structure(self, water_dissociation_ts_guess):
+        atoms1 = water_dissociation_ts_guess.copy()
+        atoms2 = water_dissociation_ts_guess.copy()
         explorer = Explorer([atoms1, atoms2], backend="mock")
         strategy = LocalIRCStrategy(explorer)
 
         with pytest.raises(ValueError, match="single structure"):
-            strategy.run([atoms1, atoms2], steps=5, step_size=0.1, fmax=0.5)
+            strategy.run([atoms1, atoms2], steps=QUICK_STEPS, step_size=0.1, fmax=LOOSE_FMAX)
 
 
 class TestPathInterpolateStrategy:

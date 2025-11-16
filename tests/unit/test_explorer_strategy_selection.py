@@ -5,18 +5,11 @@ from ase import Atoms
 
 from qme.core.explorer import Explorer
 from qme.core.registry import REGISTRY
+from tests.test_constants import QUICK_STEPS
 
 
 class TestExplorerStrategySelection:
     # Registry functionality is tested in test_registry.py
-    # This test duplicates that coverage - keeping minimal check here for integration
-    def test_strategy_registry_basic(self):
-        import qme.strategies  # noqa: F401
-
-        strategies = REGISTRY.list_strategies()
-        assert "minima:local" in strategies
-        assert "path:neb" in strategies
-
     @pytest.mark.parametrize(
         ("strategy_name", "expected_target", "expected_strategy", "expected_requires_multiple"),
         [
@@ -118,7 +111,7 @@ class TestExplorerStrategySelection:
         # Test that we can call run without errors
         # Note: This might fail due to optimization issues, but the strategy selection should work
         try:
-            result = exp.run(steps=1)
+            result = exp.run(steps=QUICK_STEPS)
             assert "optimized_atoms" in result
             assert "strategy" in result
         except Exception as e:
@@ -154,7 +147,7 @@ class TestExplorerStrategySelection:
         assert explanation["valid"] is True  # explain_run doesn't validate inputs
 
         # But running should fail
-        with pytest.raises(ValueError, match="at least 2 structures"):
+        with pytest.raises(ValueError, match=r"requires multiple structures.*at least 2"):
             exp.run()
 
     def test_strategy_error_handling(self):

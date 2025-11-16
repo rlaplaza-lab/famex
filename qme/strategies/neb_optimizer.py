@@ -1,5 +1,7 @@
 """Unified NEB optimizer for both regular NEB and CI-NEB."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from typing import Any
 

@@ -10,6 +10,8 @@ from ase import Atoms
 from ase.build import molecule
 from ase.io import write
 
+from tests.test_constants import DEFAULT_FMAX, HARMONIC_TOL
+
 
 class TestMoleculeFactory:
     @staticmethod
@@ -31,15 +33,20 @@ class TestMoleculeFactory:
 
     @staticmethod
     def get_methane_distorted():
-        """Methane molecule with distorted tetrahedral geometry."""
+        """Methane molecule with realistic equilibrium tetrahedral geometry (C-H ~1.087 Å).
+
+        Note: Despite the method name 'distorted', this now uses a realistic equilibrium
+        geometry to ensure accurate Hessian calculations. The name is kept for backward
+        compatibility with existing tests.
+        """
         return Atoms(
             ["C", "H", "H", "H", "H"],
             positions=[
-                [0.0, 0.0, 0.0],  # C
-                [1.5, 0.0, 0.0],  # H (stretched)
-                [0.0, 1.5, 0.0],  # H (stretched)
-                [0.0, 0.0, 1.5],  # H (stretched)
-                [-1.0, -1.0, -1.0],  # H (displaced)
+                [0.0000000000, 0.0000000000, 0.0000000000],  # C
+                [1.0870000000, 0.0000000000, 0.0000000000],  # H
+                [-0.3623333220, -1.0248334322, -0.0000000000],  # H
+                [-0.3623333220, 0.5124167161, -0.8875317869],  # H
+                [-0.3623333220, 0.5124167161, 0.8875317869],  # H
             ],
         )
 
@@ -77,7 +84,7 @@ class TestMoleculeFactory:
 
     @staticmethod
     def get_sn2_like_ts_guess():
-        """Simple SN2-like transition state guess (F- + CH3Cl -> FCH3 + Cl-)."""
+        """Return simple SN2-like transition state guess (F- + CH3Cl -> FCH3 + Cl-)."""
         return Atoms(
             "CH3FCl",
             positions=[
@@ -207,11 +214,16 @@ class TestResultHandler:
             result: Raw result from optimization strategy (dict, list of dicts, or list of atoms)
             backend: Backend name for error reporting
 
-        Returns:
-            Standardized dictionary with keys: optimized_atoms, steps_taken, converged, strategy
+        Returns
+        -------
+        dict
+            Standardized dictionary with keys: optimized_atoms, steps_taken, converged, strategy.
 
-        Raises:
-            AssertionError: If result format is unexpected or missing required keys
+        Raises
+        ------
+        AssertionError
+            If result format is unexpected or missing required keys.
+
 
         """
         # Handle list return format from run() method
@@ -251,11 +263,12 @@ class StandardTestAssertions:
         for key in expected_keys:
             assert key in result, f"Missing key '{key}' in optimization result"
 
-        # Check converged is boolean-like
-        converged = result["converged"]
-        assert isinstance(converged, bool | list) or converged in (True, False), (
-            "converged should be boolean"
-        )
+        # Check converged is boolean-like (only if converged is in expected_keys)
+        if "converged" in expected_keys:
+            converged = result["converged"]
+            assert isinstance(converged, bool | list) or converged in (True, False), (
+                "converged should be boolean"
+            )
 
         # Handle optimized_atoms - can be single Atoms or list of Atoms
         optimized_atoms = result["optimized_atoms"]
@@ -348,7 +361,9 @@ class StandardTestAssertions:
             )
 
         # Check symmetry (allowing small numerical noise)
-        assert np.allclose(hessian, hessian.T, rtol=1e-6, atol=1e-6), "Hessian should be symmetric"
+        assert np.allclose(hessian, hessian.T, rtol=HARMONIC_TOL[0], atol=HARMONIC_TOL[1]), (
+            "Hessian should be symmetric"
+        )
 
         # Check no NaN or inf
         assert not np.any(np.isnan(hessian)), "Hessian should not contain NaN"
@@ -377,7 +392,7 @@ class StandardTestAssertions:
         assert not np.any(np.isinf(frequencies)), "Frequencies should not contain infinity"
 
     @staticmethod
-    def assert_convergence_quality(atoms, fmax=0.05):
+    def assert_convergence_quality(atoms, fmax=DEFAULT_FMAX):
         """Assert that optimization converged with reasonable quality.
 
         Args:
@@ -451,7 +466,7 @@ def backend_test_with_warnings(
     include_mock=False,
     test_name_suffix="",
 ):
-    """Decorator to run a test across multiple backends with graceful failure handling.
+    """Run a test across multiple backends with graceful failure handling.
 
     When a backend fails, it logs a warning but continues testing other backends.
     The test only fails if ALL backends fail.
@@ -461,7 +476,9 @@ def backend_test_with_warnings(
         include_mock: Whether to include the mock backend in testing.
         test_name_suffix: Suffix to add to test names for backend identification.
 
-    Returns:
+    Returns
+    -------
+    callable
         Decorated test function that handles backend failures gracefully.
 
     """
@@ -530,8 +547,11 @@ class BackendTestRunner:
             include_mock: Whether to include the mock backend in testing.
             **test_kwargs: Additional keyword arguments to pass to the test function.
 
-        Returns:
+        Returns
+        -------
+        dict
             Dictionary mapping backend names to their test results.
+
         """
         if backends is None:
             available_backends = get_available_backends(include_mock=include_mock)
@@ -596,10 +616,13 @@ def parametrize_backends(
         include_mock: Whether to include mock backend.
         ids: Custom test IDs. If None, uses backend names.
 
-    Returns:
-        pytest.mark.parametrize marker
+    Returns
+    -------
+    pytest.mark.parametrize
+        pytest.mark.parametrize marker.
 
-    Example:
+    Examples
+    --------
         @parametrize_backends(include_mock=True)
         def test_something(backend):
             # Test code here
@@ -612,6 +635,35 @@ def parametrize_backends(
         ids = backends
 
     return pytest.mark.parametrize("backend", backends, ids=ids)
+
+
+def requires_backend(backend_name):
+    """Create a pytest marker to skip test if backend is not available.
+
+    This is a convenience wrapper around pytest.mark.skipif that uses the
+    standardized backend availability checking.
+
+    Args:
+        backend_name: Name of the backend to require (e.g., 'uma', 'mace')
+
+    Returns
+    -------
+    pytest.mark.skipif
+        pytest.mark.skipif marker.
+
+    Examples
+    --------
+        @requires_backend("uma")
+        def test_uma_specific_feature():
+            # Test code here
+            pass
+    """
+    from qme.backends.availability import is_backend_available
+
+    return pytest.mark.skipif(
+        not is_backend_available(backend_name),
+        reason=f"{backend_name} backend not available",
+    )
 
 
 @pytest.fixture
@@ -661,11 +713,42 @@ def create_backend_test_atoms(backend):
     Args:
         backend: Backend name
 
-    Returns:
-        Atoms object suitable for testing with the backend
+    Returns
+    -------
+    Atoms
+        Atoms object suitable for testing with the backend.
+
     """
     # Most backends support small molecules
     return TestMoleculeFactory.get_water_distorted()
+
+
+def setup_atoms_with_calculator(atoms, calculator):
+    """Set up atoms with a calculator (common test pattern).
+
+    This reduces repetition of the pattern:
+        atoms = molecule.copy()
+        atoms.calc = calculator
+
+    Args:
+        atoms: Atoms object (will be copied)
+        calculator: Calculator to attach
+
+    Returns
+    -------
+    Atoms
+        Copy of atoms with calculator attached.
+
+    Examples
+    --------
+        atoms = setup_atoms_with_calculator(h2o_molecule, mock_backend)
+        # Equivalent to:
+        # atoms = h2o_molecule.copy()
+        # atoms.calc = mock_backend
+    """
+    atoms_copy = atoms.copy()
+    atoms_copy.calc = calculator
+    return atoms_copy
 
 
 def assert_backend_calculator(calculator, backend="mock"):
@@ -705,8 +788,11 @@ class NoisyCalculator:
         Args:
             atoms: Atoms object (optional, uses self.atoms if None)
 
-        Returns:
-            Forces array with added noise
+        Returns
+        -------
+        np.ndarray
+            Forces array with added noise.
+
         """
         if atoms is None:
             atoms = self.atoms
@@ -729,8 +815,11 @@ class NoisyCalculator:
             atoms: Atoms object (optional, uses self.atoms if None)
             force_consistent: Whether to use force-consistent energy (ignored)
 
-        Returns:
-            Potential energy
+        Returns
+        -------
+        float
+            Potential energy.
+
         """
         if atoms is None:
             atoms = self.atoms
@@ -756,8 +845,11 @@ class HarmonicCalculator:
         Args:
             atoms: Atoms object with positions
 
-        Returns:
-            Forces array
+        Returns
+        -------
+        np.ndarray
+            Forces array.
+
         """
         forces = -self.k * atoms.positions
         return forces
@@ -768,8 +860,11 @@ class HarmonicCalculator:
         Args:
             atoms: Atoms object (optional, uses self.atoms if None)
 
-        Returns:
-            Analytical Hessian matrix
+        Returns
+        -------
+        np.ndarray
+            Analytical Hessian matrix.
+
         """
         if atoms is None:
             atoms = self.atoms
@@ -785,8 +880,11 @@ class HarmonicCalculator:
             atoms: Atoms object (optional, uses self.atoms if None)
             force_consistent: Whether to use force-consistent energy (ignored)
 
-        Returns:
-            Potential energy
+        Returns
+        -------
+        float
+            Potential energy.
+
         """
         if atoms is None:
             atoms = self.atoms

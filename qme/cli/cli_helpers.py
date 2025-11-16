@@ -4,12 +4,15 @@ This module provides utility functions for the QME command line interface,
 including file I/O operations, argument parsing, and data formatting.
 """
 
+from __future__ import annotations
+
 import json
 import os
 from pathlib import Path
 from typing import Any
 
 import click
+import numpy as np
 from ase import Atoms
 from ase.io import read as ase_read
 from ase.io import write as ase_write
@@ -25,13 +28,13 @@ def parse_kv_pairs(pairs: list[str]) -> dict[str, object]:
     pairs : List[str]
         List of key=value strings from CLI arguments
 
-    Returns:
+    Returns
     -------
     Dict[str, object]
         Dictionary with parsed key-value pairs. Values are automatically
         converted to appropriate types (bool, int, float, or str).
 
-    Examples:
+    Examples
     --------
     >>> parse_kv_pairs(["k=5.0", "steps=100", "verbose=true"])
     {'k': 5.0, 'steps': 100, 'verbose': True}
@@ -64,13 +67,13 @@ def load_atoms_from_xyz(path: str) -> Atoms:
     path : str
         Path to the XYZ file
 
-    Returns:
+    Returns
     -------
     Atoms
         ASE Atoms object. If the file contains multiple frames,
         returns the last frame.
 
-    Raises:
+    Raises
     ------
     FileNotFoundError
         If the file doesn't exist
@@ -117,12 +120,12 @@ def _coerce_to_atoms(obj: Any) -> Atoms:
         - Dictionary with 'optimized_atoms' key
         - List/tuple of Atoms objects (first one returned)
 
-    Returns:
+    Returns
     -------
     Atoms
         ASE Atoms object
 
-    Raises:
+    Raises
     ------
     ValueError
         If obj cannot be converted to Atoms
@@ -132,6 +135,7 @@ def _coerce_to_atoms(obj: Any) -> Atoms:
         return obj
     # Strategy dict result
     if isinstance(obj, dict) and "optimized_atoms" in obj:
+        # Dict values are Any, but we know optimized_atoms is Atoms | list[Atoms] at runtime
         return obj["optimized_atoms"]  # type: ignore[no-any-return]
     # List/tuple of Atoms (take first)
     if isinstance(obj, list | tuple) and obj and isinstance(obj[0], Atoms):
@@ -156,15 +160,15 @@ def write_atoms(
     ----------
     atoms : Atoms or List[Atoms] or Any
         ASE Atoms object, list of Atoms objects (trajectory), or other result to write
-    out_path : Optional[str]
+    out_path : str | None
         Output file path. If None, no file is written.
 
-    Returns:
+    Returns
     -------
-    Optional[str]
+    str | None
         Output path if file was written, None otherwise
 
-    Raises:
+    Raises
     ------
     ValueError
         If atoms cannot be converted to valid structure or path is unsafe
@@ -209,38 +213,131 @@ def write_atoms(
     return out_path
 
 
+def validate_frequency_analysis(frequency_analysis: Any) -> list[str]:
+    """Validate frequency analysis result structure and return list of warnings.
+
+    Parameters
+    ----------
+    frequency_analysis : dict[str, Any]
+        Frequency analysis results dictionary
+
+    Returns
+    -------
+    list[str]
+        List of warning messages (empty if no issues found)
+
+    """
+    warnings = []
+
+    if not isinstance(frequency_analysis, dict):
+        warnings.append(f"Frequency analysis is not a dictionary (got {type(frequency_analysis)})")
+        return warnings
+
+    # Check for required keys
+    required_keys = ["frequencies", "zero_point_energy", "thermodynamic_properties"]
+    for key in required_keys:
+        if key not in frequency_analysis:
+            warnings.append(f"Missing required key: {key}")
+
+    # Validate frequencies
+    frequencies = frequency_analysis.get("frequencies", [])
+    if not isinstance(frequencies, (list, tuple)):
+        warnings.append(f"Frequencies should be a list/tuple, got {type(frequencies)}")
+    elif len(frequencies) == 0:
+        warnings.append("Frequencies list is empty")
+    else:
+        # Check for NaN or invalid values
+        try:
+            freq_array = np.array(frequencies)
+            if np.any(np.isnan(freq_array)):
+                warnings.append("Frequencies contain NaN values")
+            if np.all(np.abs(freq_array) < 1e-6):
+                warnings.append("All frequencies are near zero (may indicate calculation error)")
+        except (ValueError, TypeError):
+            warnings.append("Frequencies contain invalid values")
+
+    # Validate zero-point energy
+    zpe = frequency_analysis.get("zero_point_energy")
+    if zpe is None:
+        warnings.append("Zero-point energy is missing")
+    elif not isinstance(zpe, (int, float)):
+        warnings.append(f"Zero-point energy should be numeric, got {type(zpe)}")
+    elif np.isnan(zpe) or np.isinf(zpe):
+        warnings.append("Zero-point energy is NaN or infinite")
+
+    # Validate thermodynamic properties
+    thermo = frequency_analysis.get("thermodynamic_properties", {})
+    if not isinstance(thermo, dict):
+        warnings.append(f"Thermodynamic properties should be a dict, got {type(thermo)}")
+    elif "temperature" not in thermo:
+        warnings.append("Temperature missing from thermodynamic properties")
+
+    return warnings
+
+
 def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "minima") -> None:
     """Print a formatted summary of frequency analysis results.
+
+    This function validates the frequency analysis results and handles edge cases
+    gracefully, providing informative output even when some data is missing or invalid.
 
     Parameters
     ----------
     frequency_analysis : dict[str, Any]
         Frequency analysis results from Explorer.calculate_frequencies()
     target : str, default="minima"
-        Target type ("minima" or "ts") for appropriate validation messages
+        Target type ("minima", "ts", or "path") for appropriate validation messages
 
     """
     if not frequency_analysis:
+        click.echo("Warning: Frequency analysis dictionary is empty", err=True)
         return
 
+    # Validate frequency analysis structure
+    warnings = validate_frequency_analysis(frequency_analysis)
+    if warnings:
+        click.echo("Warning: Frequency analysis validation issues:", err=True)
+        for warning in warnings:
+            click.echo(f"  - {warning}", err=True)
+
     frequencies = frequency_analysis.get("frequencies", [])
-    n_modes = len(frequencies)
+    n_modes = len(frequencies) if isinstance(frequencies, (list, tuple)) else 0
     zpe = frequency_analysis.get("zero_point_energy", 0.0)
+
+    # Safely extract thermodynamic properties
     thermo = frequency_analysis.get("thermodynamic_properties", {})
+    if not isinstance(thermo, dict):
+        thermo = {}
     temperature = thermo.get("temperature", 298.15)
 
     # Calculate free energy correction (G - E) = H - TS - E = -TS (for ideal gas)
     entropy = thermo.get("entropy", 0.0)
-    free_energy_correction = -entropy * temperature / 1000.0  # Convert K to eV/K
+    if isinstance(entropy, (int, float)) and isinstance(temperature, (int, float)):
+        free_energy_correction = -entropy * temperature / 1000.0  # Convert K to eV/K
+    else:
+        free_energy_correction = 0.0
 
     click.echo(f"Frequency analysis completed ({n_modes} modes):")
-    click.echo(f"  Zero-point energy: {zpe:.4f} eV")
-    click.echo(f"  Free energy correction ({temperature:.1f} K): {free_energy_correction:.4f} eV")
+    if isinstance(zpe, (int, float)) and not (np.isnan(zpe) or np.isinf(zpe)):
+        click.echo(f"  Zero-point energy: {zpe:.4f} eV")
+    else:
+        click.echo("  Zero-point energy: N/A")
+
+    if isinstance(free_energy_correction, (int, float)) and not (
+        np.isnan(free_energy_correction) or np.isinf(free_energy_correction)
+    ):
+        click.echo(
+            f"  Free energy correction ({temperature:.1f} K): {free_energy_correction:.4f} eV"
+        )
+    else:
+        click.echo(f"  Free energy correction ({temperature:.1f} K): N/A")
 
     # Validation status
     if target == "ts":
         is_ts = frequency_analysis.get("is_ts", False)
         ts_analysis = frequency_analysis.get("ts_analysis", {})
+        if not isinstance(ts_analysis, dict):
+            ts_analysis = {}
         n_imaginary = ts_analysis.get("n_imaginary_frequencies", 0)
         if is_ts:
             click.echo(f"  Status: ✓ Valid transition state ({n_imaginary} imaginary frequency)")
@@ -248,9 +345,25 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
             click.echo(
                 f"  Status: ✗ Invalid transition state ({n_imaginary} imaginary frequencies)",
             )
+    elif target == "path":
+        # For path strategies, show both minima and TS analysis if available
+        is_minimum = frequency_analysis.get("is_minimum", False)
+        is_ts = frequency_analysis.get("is_ts", False)
+        if is_ts:
+            ts_analysis = frequency_analysis.get("ts_analysis", {})
+            if not isinstance(ts_analysis, dict):
+                ts_analysis = {}
+            n_imaginary = ts_analysis.get("n_imaginary_frequencies", 0)
+            click.echo(f"  Status: Transition state ({n_imaginary} imaginary frequency)")
+        elif is_minimum:
+            click.echo("  Status: ✓ Minimum")
+        else:
+            click.echo("  Status: Unknown (validation not performed)")
     else:  # minima
         is_minimum = frequency_analysis.get("is_minimum", False)
         minima_analysis = frequency_analysis.get("minima_analysis", {})
+        if not isinstance(minima_analysis, dict):
+            minima_analysis = {}
         n_imaginary = minima_analysis.get("n_significant_imaginary_frequencies", 0)
         if is_minimum:
             click.echo(f"  Status: ✓ Valid minimum ({n_imaginary} imaginary frequencies)")
@@ -260,24 +373,31 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
             )
 
     # Show key frequencies
-    if frequencies:
-        # Show first few real frequencies and any imaginary ones
-        real_freqs = [f for f in frequencies if f > 0]
-        imaginary_freqs = [f for f in frequencies if f < 0]
+    if frequencies and isinstance(frequencies, (list, tuple)) and len(frequencies) > 0:
+        try:
+            # Handle complex frequencies by taking real part for comparison
+            # Show first few real frequencies and any imaginary ones
+            real_freqs = [f for f in frequencies if np.real(f) > 0]
+            imaginary_freqs = [f for f in frequencies if np.real(f) < 0]
 
-        if real_freqs:
-            lowest_real = real_freqs[:3]  # First 3 real frequencies
-            freq_str = ", ".join(f"{f:.1f}" for f in lowest_real)
-            click.echo(f"  Lowest frequencies: {freq_str} cm⁻¹")
+            if real_freqs:
+                lowest_real = real_freqs[:3]  # First 3 real frequencies
+                freq_str = ", ".join(f"{np.real(f):.1f}" for f in lowest_real)
+                click.echo(f"  Lowest frequencies: {freq_str} cm⁻¹")
 
-        if imaginary_freqs:
-            # Show all imaginary frequencies
-            imag_str = ", ".join(f"{f:.1f}" for f in imaginary_freqs)
-            click.echo(f"  Imaginary frequencies: {imag_str} cm⁻¹")
+            if imaginary_freqs:
+                # Show all imaginary frequencies
+                imag_str = ", ".join(f"{np.real(f):.1f}" for f in imaginary_freqs)
+                click.echo(f"  Imaginary frequencies: {imag_str} cm⁻¹")
+        except (ValueError, TypeError) as e:
+            click.echo(f"  Warning: Could not display frequencies: {e}", err=True)
 
 
-def save_results_json(results: dict[str, Any], output_path: str) -> None:
+def save_results_json(results: Any, output_path: str) -> None:
     """Save complete results dictionary to JSON file.
+
+    This function validates the results structure, especially frequency analysis,
+    before saving to ensure the JSON output is complete and valid.
 
     Parameters
     ----------
@@ -286,40 +406,109 @@ def save_results_json(results: dict[str, Any], output_path: str) -> None:
     output_path : str
         Path to save JSON file (will replace .xyz extension with .json)
 
+    Raises
+    ------
+    ValueError
+        If results structure is invalid
+    OSError
+        If file cannot be written
+
     """
     # Convert output path to JSON
     json_path = os.path.splitext(output_path)[0] + ".json"
 
+    # Validate that results is a dictionary
+    if not isinstance(results, dict):
+        msg = f"Results must be a dictionary, got {type(results)}"
+        raise ValueError(msg)
+
+    # Type narrowing: results is now dict[str, Any]
+    results_dict: dict[str, Any] = results
+
     # Create a serializable version of results
-    serializable_results = {}
-    for key, value in results.items():
+    serializable_results: dict[str, Any] = {}
+    for key, value in results_dict.items():
         if key == "optimized_atoms":
             # Skip Atoms objects - they're saved separately as XYZ
             continue
         if key == "frequency_analysis" and value:
+            # Validate frequency analysis structure before serialization
+            if not isinstance(value, dict):
+                click.echo(
+                    f"Warning: frequency_analysis is not a dict (got {type(value)}), skipping",
+                    err=True,
+                )
+                continue
+
+            # Validate frequency analysis using validation function
+            warnings = validate_frequency_analysis(value)
+            if warnings:
+                click.echo(
+                    "Warning: Frequency analysis validation issues before saving JSON:",
+                    err=True,
+                )
+                for warning in warnings:
+                    click.echo(f"  - {warning}", err=True)
+
             # Ensure frequency analysis is serializable
             freq_data = dict(value)
             # Convert numpy arrays to lists
             for k, v in freq_data.items():
                 if hasattr(v, "tolist"):
+                    try:
+                        freq_data[k] = v.tolist()
+                    except (AttributeError, ValueError):
+                        # If tolist() fails, try converting to Python type
+                        try:
+                            if np.isscalar(v):
+                                # Type narrowing: v is a scalar, try to convert to float
+                                try:
+                                    freq_data[k] = float(v)  # type: ignore[arg-type]
+                                except (ValueError, TypeError):
+                                    freq_data[k] = str(v)
+                            else:
+                                freq_data[k] = str(v)
+                        except (ValueError, TypeError):
+                            freq_data[k] = str(v)
+                elif isinstance(v, np.ndarray):
                     freq_data[k] = v.tolist()
+                elif isinstance(v, (np.integer, np.floating)):
+                    freq_data[k] = float(v) if isinstance(v, np.floating) else int(v)
+
             serializable_results[key] = freq_data
         else:
             # Try to make other values serializable
             try:
-                if hasattr(value, "tolist"):
+                if isinstance(value, np.ndarray) or hasattr(value, "tolist"):
                     serializable_results[key] = value.tolist()
+                elif isinstance(value, (np.integer, np.floating)):
+                    serializable_results[key] = (
+                        float(value) if isinstance(value, np.floating) else int(value)
+                    )
                 else:
                     serializable_results[key] = value
-            except (TypeError, AttributeError):
+            except (TypeError, AttributeError, ValueError):
                 # Skip non-serializable values
                 continue
 
-    # Save to JSON
-    with open(json_path, "w") as f:
-        json.dump(serializable_results, f, indent=2, default=str)
+    # Verify that frequency_analysis was included if it exists in results_dict
+    if "frequency_analysis" in results_dict and "frequency_analysis" not in serializable_results:
+        click.echo(
+            "Warning: frequency_analysis was present in results but could not be serialized",
+            err=True,
+        )
 
-    click.echo(f"Results saved to: {json_path}")
+    # Save to JSON
+    try:
+        with open(json_path, "w") as f:
+            json.dump(serializable_results, f, indent=2, default=str)
+        click.echo(f"Results saved to: {json_path}")
+    except OSError as e:
+        msg = f"Failed to write JSON file to {json_path}: {e}"
+        raise OSError(msg) from e
+    except (TypeError, ValueError) as e:
+        msg = f"Failed to serialize results to JSON: {e}"
+        raise ValueError(msg) from e
 
 
 __all__ = [
@@ -327,5 +516,6 @@ __all__ = [
     "parse_kv_pairs",
     "print_frequency_summary",
     "save_results_json",
+    "validate_frequency_analysis",
     "write_atoms",
 ]

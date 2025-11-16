@@ -1,5 +1,7 @@
 """Multi-structure TS guess strategy via interpolation with local TS refinement."""
 
+from __future__ import annotations
+
 from typing import Any
 
 from ase import Atoms
@@ -7,7 +9,7 @@ from ase import Atoms
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
 from qme.io.path_manager import PathManager
-from qme.strategies.helpers import validate_ts_structure
+from qme.strategies.helpers import filter_interpolation_kwargs, validate_ts_structure
 from qme.strategies.ts import LocalTSStrategy
 from qme.utils.logging import get_qme_logger
 
@@ -58,7 +60,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         **kwargs
             Additional keyword arguments
 
-        Returns:
+        Returns
         -------
         dict[str, Any]
             Standardized result dictionary
@@ -71,11 +73,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         # Generate interpolated path using PathManager
         path_mgr = PathManager(atoms_list)
         # Filter kwargs to only include parameters accepted by PathManager.interpolate
-        interpolate_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k in ["calculator"]  # Only pass calculator if present
-        }
+        interpolate_kwargs = filter_interpolation_kwargs(kwargs, allowed_keys={"calculator"})
         path = path_mgr.interpolate(
             npoints=npoints,
             method=method,
@@ -128,9 +126,11 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
 
             result = BaseStrategy.prepare_result(
                 self,
-                optimized_atoms
-                if isinstance(optimized_atoms, (Atoms, list))
-                else self.explorer.atoms_list[0],
+                (
+                    optimized_atoms
+                    if isinstance(optimized_atoms, (Atoms, list))
+                    else self.explorer.atoms_list[0]
+                ),
                 steps_taken=ts_result["steps_taken"],
                 converged=ts_result["converged"],
             )

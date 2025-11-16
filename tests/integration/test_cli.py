@@ -5,20 +5,16 @@ from click.testing import CliRunner
 
 import qme
 from qme.cli import main
-from tests.test_utils import (
-    BackendTestRunner,
-    StandardTestAssertions,
-    TestMoleculeFactory,
-    TestResultHandler,
-)
+from tests.test_constants import COMPREHENSIVE_STEPS, DEFAULT_FMAX, LOOSE_FMAX, QUICK_STEPS
+from tests.test_utils import BackendTestRunner, StandardTestAssertions, TestResultHandler
 
 
 class TestCLIMockBackend:
-    def test_opt_local_runs_with_mock_backend(self, tmp_path):
+    def test_opt_local_runs_with_mock_backend(self, tmp_path, water_molecule):
         runner = CliRunner()
         # Create test molecule
         xyz_path = tmp_path / "test.xyz"
-        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
 
         # Run optimization
@@ -34,7 +30,7 @@ class TestCLIMockBackend:
                 "--local-optimizer",
                 "lbfgs",
                 "--steps",
-                "2",
+                str(QUICK_STEPS),
             ],
         )
 
@@ -43,11 +39,11 @@ class TestCLIMockBackend:
         out_path = xyz_path.with_suffix(".opt.local.xyz")
         assert out_path.exists(), f"Output file not created: {out_path}"
 
-    def test_opt_twoended_runs_with_mock_backend(self, tmp_path):
+    def test_opt_twoended_runs_with_mock_backend(self, tmp_path, water_molecule):
         runner = CliRunner()
         # Create reactant and product
-        reactant = TestMoleculeFactory.get_water_distorted()
-        product = TestMoleculeFactory.get_water_distorted()
+        reactant = water_molecule.copy()
+        product = water_molecule.copy()
         # Slightly modify product
         pos = product.get_positions()
         pos[1, 0] += 0.1
@@ -73,7 +69,7 @@ class TestCLIMockBackend:
                 "--npoints",
                 "5",
                 "--steps",
-                "1",
+                str(QUICK_STEPS),
             ],
         )
 
@@ -82,10 +78,10 @@ class TestCLIMockBackend:
         out_path = reactant_path.with_suffix(".opt.interpolate.xyz")
         assert out_path.exists(), f"Output file not created: {out_path}"
 
-    def test_minima_dry_run(self, tmp_path):
+    def test_minima_dry_run(self, tmp_path, water_molecule):
         runner = CliRunner()
         xyz_path = tmp_path / "test.xyz"
-        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
 
         result = runner.invoke(
@@ -105,10 +101,10 @@ class TestCLIMockBackend:
         assert "Dry-run analysis" in result.output
         assert "Target: minima" in result.output
 
-    def test_minima_with_frequencies(self, tmp_path):
+    def test_minima_with_frequencies(self, tmp_path, water_molecule):
         runner = CliRunner()
         xyz_path = tmp_path / "test.xyz"
-        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
 
         result = runner.invoke(
@@ -132,10 +128,10 @@ class TestCLIMockBackend:
         out_path = xyz_path.with_suffix(".opt.local.json")
         assert out_path.exists()
 
-    def test_minima_with_custom_output(self, tmp_path):
+    def test_minima_with_custom_output(self, tmp_path, water_molecule):
         runner = CliRunner()
         xyz_path = tmp_path / "test.xyz"
-        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
         custom_out = tmp_path / "custom.xyz"
 
@@ -158,10 +154,10 @@ class TestCLIMockBackend:
         assert result.exit_code == 0
         assert custom_out.exists()
 
-    def test_ts_command_with_mock(self, tmp_path):
+    def test_ts_command_with_mock(self, tmp_path, water_dissociation_ts_guess):
         runner = CliRunner()
         xyz_path = tmp_path / "ts_guess.xyz"
-        atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
+        atoms = water_dissociation_ts_guess.copy()
         atoms.write(str(xyz_path))
 
         result = runner.invoke(
@@ -181,10 +177,10 @@ class TestCLIMockBackend:
         # Mock backend doesn't support TS optimization
         assert result.exit_code != 0
 
-    def test_ts_interpolate_command(self, tmp_path):
+    def test_ts_interpolate_command(self, tmp_path, water_molecule):
         runner = CliRunner()
-        reactant = TestMoleculeFactory.get_water_distorted()
-        product = TestMoleculeFactory.get_water_distorted()
+        reactant = water_molecule.copy()
+        product = water_molecule.copy()
         pos = product.get_positions()
         pos[1, 0] += 0.3
         product.set_positions(pos)
@@ -213,10 +209,10 @@ class TestCLIMockBackend:
         # Mock backend doesn't support TS optimization
         assert result.exit_code != 0
 
-    def test_path_neb_command(self, tmp_path):
+    def test_path_neb_command(self, tmp_path, water_molecule):
         runner = CliRunner()
-        reactant = TestMoleculeFactory.get_water_distorted()
-        product = TestMoleculeFactory.get_water_distorted()
+        reactant = water_molecule.copy()
+        product = water_molecule.copy()
         pos = product.get_positions()
         pos[2] += (0.5, 0, 0)
         product.set_positions(pos)
@@ -246,9 +242,9 @@ class TestCLIMockBackend:
 
         assert result.exit_code == 0
 
-    def test_path_irc_command(self, tmp_path):
+    def test_path_irc_command(self, tmp_path, water_dissociation_ts_guess):
         runner = CliRunner()
-        ts = TestMoleculeFactory.get_water_dissociation_ts_guess()
+        ts = water_dissociation_ts_guess.copy()
         ts_path = tmp_path / "ts.xyz"
         ts.write(str(ts_path))
 
@@ -270,10 +266,10 @@ class TestCLIMockBackend:
 
         assert result.exit_code == 0
 
-    def test_path_cineb_command(self, tmp_path):
+    def test_path_cineb_command(self, tmp_path, water_molecule):
         runner = CliRunner()
-        reactant = TestMoleculeFactory.get_water_distorted()
-        product = TestMoleculeFactory.get_water_distorted()
+        reactant = water_molecule.copy()
+        product = water_molecule.copy()
         pos = product.get_positions()
         pos[2] += (0.5, 0, 0)
         product.set_positions(pos)
@@ -303,10 +299,10 @@ class TestCLIMockBackend:
 
         assert result.exit_code == 0
 
-    def test_path_interpolate_command(self, tmp_path):
+    def test_path_interpolate_command(self, tmp_path, water_molecule):
         runner = CliRunner()
-        reactant = TestMoleculeFactory.get_water_distorted()
-        product = TestMoleculeFactory.get_water_distorted()
+        reactant = water_molecule.copy()
+        product = water_molecule.copy()
         pos = product.get_positions()
         pos[2] += (0.5, 0, 0)
         product.set_positions(pos)
@@ -334,10 +330,10 @@ class TestCLIMockBackend:
 
         assert result.exit_code == 0
 
-    def test_verbose_options(self, tmp_path):
+    def test_verbose_options(self, tmp_path, water_molecule):
         runner = CliRunner()
         xyz_path = tmp_path / "test.xyz"
-        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
 
         # Test -vv (verbose=2)
@@ -358,10 +354,10 @@ class TestCLIMockBackend:
 
         assert result.exit_code == 0
 
-    def test_constraints_option(self, tmp_path):
+    def test_constraints_option(self, tmp_path, water_molecule):
         runner = CliRunner()
         xyz_path = tmp_path / "test.xyz"
-        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
 
         result = runner.invoke(
@@ -382,10 +378,10 @@ class TestCLIMockBackend:
 
         assert result.exit_code == 0
 
-    def test_optimizer_kwargs(self, tmp_path):
+    def test_optimizer_kwargs(self, tmp_path, water_molecule):
         runner = CliRunner()
         xyz_path = tmp_path / "test.xyz"
-        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
 
         result = runner.invoke(
@@ -406,10 +402,10 @@ class TestCLIMockBackend:
 
         assert result.exit_code == 0
 
-    def test_missing_product_error(self, tmp_path):
+    def test_missing_product_error(self, tmp_path, water_molecule):
         runner = CliRunner()
         xyz_path = tmp_path / "test.xyz"
-        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
 
         result = runner.invoke(
@@ -427,10 +423,10 @@ class TestCLIMockBackend:
         assert result.exit_code != 0
         assert "product" in result.output.lower() or "required" in result.output.lower()
 
-    def test_invalid_strategy_error(self, tmp_path):
+    def test_invalid_strategy_error(self, tmp_path, water_molecule):
         runner = CliRunner()
         xyz_path = tmp_path / "test.xyz"
-        atoms = TestMoleculeFactory.get_water_distorted()
+        atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
 
         result = runner.invoke(
@@ -452,9 +448,9 @@ class TestCLIMockBackend:
 class TestBackendMinimaIntegration:
     @pytest.mark.slow
     @pytest.mark.integration
-    def test_h2_minima_across_backends(self):
+    def test_h2_minima_across_backends(self, h2_molecule):
         def _run_minima(backend):
-            atoms = TestMoleculeFactory.get_h2_stretched()
+            atoms = h2_molecule.copy()
             explorer = qme.Explorer(
                 atoms=atoms,
                 backend=backend,
@@ -464,8 +460,8 @@ class TestBackendMinimaIntegration:
             result = explorer.run(
                 mode="minima",
                 local_optimizer_name="BFGS",
-                fmax=0.05,
-                steps=20,
+                fmax=DEFAULT_FMAX,
+                steps=COMPREHENSIVE_STEPS,
             )
             processed = TestResultHandler.process_result(result, backend)
             StandardTestAssertions.assert_optimization_result(processed)
@@ -483,11 +479,11 @@ class TestBackendTransitionStateIntegration:
     @pytest.mark.slow
     @pytest.mark.integration
     @pytest.mark.skipif(not qme.deps.has("sella"), reason="Sella is required for TS optimization")
-    def test_water_ts_smoke(self):
+    def test_water_ts_smoke(self, water_dissociation_ts_guess):
         def _run_ts(backend):
-            atoms = TestMoleculeFactory.get_water_dissociation_ts_guess()
+            atoms = water_dissociation_ts_guess.copy()
             explorer = qme.Explorer(atoms=atoms, backend=backend, target="ts", strategy="local")
-            result = explorer.run(fmax=0.1, steps=50)
+            result = explorer.run(fmax=LOOSE_FMAX, steps=COMPREHENSIVE_STEPS)
             processed = TestResultHandler.process_result(result, backend)
             StandardTestAssertions.assert_optimization_result(processed)
             StandardTestAssertions.assert_reasonable_geometry(processed["optimized_atoms"], backend)
@@ -512,9 +508,9 @@ class TestBackendTransitionStateIntegration:
 
 
 class TestBackendPathIntegration:
-    def test_mock_neb_smoke(self):
-        reactant = TestMoleculeFactory.get_water_distorted()
-        product = TestMoleculeFactory.get_water_distorted()
+    def test_mock_neb_smoke(self, water_molecule):
+        reactant = water_molecule.copy()
+        product = water_molecule.copy()
         product.positions[2] += (1.5, 0.0, 0.0)
 
         explorer = qme.Explorer(

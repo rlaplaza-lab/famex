@@ -24,7 +24,7 @@ class FiniteDifferenceScheme(Protocol):
     This protocol allows for extensible finite difference implementations.
     Implemented schemes include 2-point (forward), 3-point (central), and 5-point.
 
-    Examples:
+    Examples
     --------
     Custom schemes can be implemented by creating a class that matches this protocol:
 
@@ -40,7 +40,7 @@ class FiniteDifferenceScheme(Protocol):
     ...         # Custom implementation
     ...         return -(forces_plus - forces_minus) / (2 * delta)
 
-    See Also:
+    See Also
     --------
     CentralDifferenceScheme : 2nd order central difference implementation
     ForwardDifferenceScheme : 1st order forward difference implementation
@@ -70,7 +70,7 @@ class FiniteDifferenceScheme(Protocol):
         **kwargs : Any
             Additional force arrays for higher-order schemes
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian column: -∂F/∂x
@@ -89,21 +89,21 @@ class CentralDifferenceScheme:
 
     Where F_i are the forces on atom i and δj is the displacement of coordinate j.
 
-    Examples:
+    Examples
     --------
     >>> scheme = CentralDifferenceScheme()
     >>> # forces_plus: forces at +delta displacement
     >>> # forces_minus: forces at -delta displacement
     >>> hessian_col = scheme.compute_derivative(forces_plus, forces_minus, None, delta=0.01)
 
-    Notes:
+    Notes
     -----
     - Requires both positive and negative displacements (2 force calculations per column)
     - More accurate than forward differences but slower
     - Standard choice for most applications
     - Compatible with Richardson extrapolation
 
-    See Also:
+    See Also
     --------
     ForwardDifferenceScheme : Faster but less accurate 1st order scheme
     FivePointCentralDifferenceScheme : Higher accuracy 4th order scheme
@@ -140,21 +140,21 @@ class ForwardDifferenceScheme:
     Where F_i(0) are the forces at the reference geometry and F_i(+δj) are
     forces after displacing coordinate j by +δ.
 
-    Examples:
+    Examples
     --------
     >>> scheme = ForwardDifferenceScheme()
     >>> # forces_ref: forces at reference geometry (computed once)
     >>> # forces_plus: forces at +delta displacement
     >>> hessian_col = scheme.compute_derivative(forces_plus, None, forces_ref, delta=0.01)
 
-    Notes:
+    Notes
     -----
     - Requires only positive displacements (1 force calculation per column + 1 reference)
     - Fastest method but least accurate (1st order)
     - Not compatible with Richardson extrapolation
     - Use only when speed is critical and accuracy requirements are low
 
-    See Also:
+    See Also
     --------
     CentralDifferenceScheme : More accurate 2nd order scheme
     FivePointCentralDifferenceScheme : Highest accuracy 4th order scheme
@@ -193,7 +193,7 @@ class FivePointCentralDifferenceScheme:
     For Hessian calculation from forces F = -∇E:
     H = -∂F/∂x = [-F(x+2δ) + 8F(x+δ) - 8F(x-δ) + F(x-2δ)] / (12δ)
 
-    Examples:
+    Examples
     --------
     >>> scheme = FivePointCentralDifferenceScheme()
     >>> # Requires forces at 4 displacement points
@@ -206,7 +206,7 @@ class FivePointCentralDifferenceScheme:
     ...     forces_minus2=forces_minus2  # F(-2δ)
     ... )
 
-    Notes:
+    Notes
     -----
     - Requires forces at 4 displacement points: ±δ and ±2δ (4 force calculations per column)
     - Highest accuracy (4th order) but slowest
@@ -214,7 +214,7 @@ class FivePointCentralDifferenceScheme:
     - Compatible with Richardson extrapolation (can achieve 6th+ order effectively)
     - May be sensitive to very large displacements (>2δ approaching bond lengths)
 
-    See Also:
+    See Also
     --------
     CentralDifferenceScheme : Faster 2nd order scheme
     ForwardDifferenceScheme : Fastest 1st order scheme
@@ -246,7 +246,7 @@ class FivePointCentralDifferenceScheme:
             - forces_plus2: Forces at +2*delta displacement
             - forces_minus2: Forces at -2*delta displacement
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian column: -∂F/∂x
@@ -295,7 +295,7 @@ class SevenPointCentralDifferenceScheme:
     For Hessian calculation from forces F = -∇E:
     H = -∂F/∂x = -[F(x+3δ) - 9F(x+2δ) + 45F(x+δ) - 45F(x-δ) + 9F(x-2δ) - F(x-3δ)] / (60δ)
 
-    Examples:
+    Examples
     --------
     >>> scheme = SevenPointCentralDifferenceScheme()
     >>> # Requires forces at 6 displacement points
@@ -310,7 +310,7 @@ class SevenPointCentralDifferenceScheme:
     ...     forces_minus3=forces_minus3  # F(-3δ)
     ... )
 
-    Notes:
+    Notes
     -----
     - Requires forces at 6 displacement points: ±δ, ±2δ, ±3δ
     - Highest accuracy (6th order) but slowest
@@ -318,7 +318,7 @@ class SevenPointCentralDifferenceScheme:
     - Compatible with Richardson extrapolation (can achieve 8th+ order effectively)
     - May be sensitive to very large displacements
 
-    See Also:
+    See Also
     --------
     FivePointCentralDifferenceScheme : Faster 4th order scheme
     CentralDifferenceScheme : Faster 2nd order scheme
@@ -353,7 +353,7 @@ class SevenPointCentralDifferenceScheme:
             - forces_plus3: Forces at +3*delta displacement
             - forces_minus3: Forces at -3*delta displacement
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian column: -∂F/∂x
@@ -362,7 +362,12 @@ class SevenPointCentralDifferenceScheme:
         if forces_minus is None:
             msg = "7-point central difference requires forces_minus"
             raise ValueError(msg)
-        required_kwargs = ["forces_plus2", "forces_minus2", "forces_plus3", "forces_minus3"]
+        required_kwargs = [
+            "forces_plus2",
+            "forces_minus2",
+            "forces_plus3",
+            "forces_minus3",
+        ]
         missing = [kw for kw in required_kwargs if kw not in kwargs]
         if missing:
             msg = f"7-point central difference requires: {', '.join(missing)}"

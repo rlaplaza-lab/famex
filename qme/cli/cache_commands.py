@@ -1,5 +1,7 @@
 """Cache management commands for QME CLI."""
 
+from __future__ import annotations
+
 import click
 
 from qme.backends.cache import get_model_cache

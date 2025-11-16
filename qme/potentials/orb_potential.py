@@ -4,6 +4,8 @@ This module implements integration with Orbital Materials' Orb models,
 providing universal forcefields for molecular and materials calculations.
 """
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from typing import Any
 
@@ -289,7 +291,7 @@ def get_orb_calculator(
     spin: int = 1,
     **kwargs: Any,
 ) -> OrbPotential:
-    """Convenience function to get Orb calculator.
+    """Get Orb calculator.
 
     Parameters
     ----------
@@ -304,7 +306,7 @@ def get_orb_calculator(
     **kwargs :
         Additional arguments passed to OrbPotential
 
-    Returns:
+    Returns
     -------
     OrbPotential
         Configured Orb calculator

@@ -82,12 +82,12 @@ def get_point_group_symmetry_number(point_group: str) -> int:
     point_group : str
         Point group symbol (e.g., 'C1', 'C2v', 'Td', etc.)
 
-    Returns:
+    Returns
     -------
     int
         Symmetry number for the point group
 
-    Raises:
+    Raises
     ------
     ValueError
         If point group is not recognized
@@ -182,7 +182,7 @@ class SymmetryHandler:
         linear : bool
             Whether the molecule is linear
 
-        Returns:
+        Returns
         -------
         int
             Rotational symmetry number
@@ -194,7 +194,7 @@ class SymmetryHandler:
         return self.symmetry_number
 
     def __repr__(self) -> str:
-        """String representation."""
+        """Return string representation."""
         return (
             f"SymmetryHandler(symmetry_number={self.symmetry_number}, "
             f"point_group='{self.point_group}')"

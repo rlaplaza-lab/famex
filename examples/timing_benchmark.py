@@ -368,7 +368,7 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
 
 
 def main() -> int:
-    """Main function to run the timing benchmark."""
+    """Run the timing benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
         name="Timing Benchmark",

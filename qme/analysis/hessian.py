@@ -18,6 +18,7 @@ import numpy as np
 from ase import Atoms
 from numpy.typing import NDArray
 
+from qme.analysis.ase_integration import can_use_ase, hessian_via_ase
 from qme.analysis.finite_differences import (
     CentralDifferenceScheme,
     FiniteDifferenceScheme,
@@ -68,7 +69,7 @@ class CalculatorProtocol(Protocol):
         atoms : Atoms, optional
             Atoms structure. If None, uses previously set atoms.
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Forces array of shape (N, 3) where N is number of atoms.
@@ -98,7 +99,7 @@ class HessianCalculator:
     Richardson extrapolation can improve accuracy by combining results from two
     different step sizes, effectively canceling leading error terms.
 
-    Examples:
+    Examples
     --------
     >>> from ase import Atoms
     >>> from qme.potentials.mock_potential import MockCalculator
@@ -114,7 +115,7 @@ class HessianCalculator:
     ... )
     >>> hessian = hessian_calc_rich.calculate_numerical_hessian()
 
-    Notes:
+    Notes
     -----
     - The Hessian is automatically symmetrized: H = (H + H^T) / 2
     - For N atoms, the Hessian has shape (3N, 3N)
@@ -122,7 +123,7 @@ class HessianCalculator:
     - Large `delta` values (>10% of typical bond length) may cause inaccurate results
     - Very small `delta` values (<1e-5 Å) may suffer from numerical precision issues
 
-    See Also:
+    See Also
     --------
     FrequencyAnalysis : Higher-level interface for frequency calculations
     validate_hessian : Function to validate Hessian properties
@@ -192,12 +193,12 @@ class HessianCalculator:
             'thread' is safer for most calculators but limited by GIL.
             'process' requires picklable calculators.
 
-        Raises:
+        Raises
         ------
         ValueError
             If delta <= 0, indices are invalid, or other parameters are inconsistent
 
-        Examples:
+        Examples
         --------
         >>> from ase import Atoms
         >>> from qme.analysis.hessian import HessianCalculator
@@ -270,13 +271,15 @@ class HessianCalculator:
             positions = atoms.positions[self.indices]
             max_distance = np.max(np.linalg.norm(positions, axis=1))
             min_distance = np.min(
-                [
-                    np.linalg.norm(pos - positions[j])
-                    for i, pos in enumerate(positions)
-                    for j in range(i + 1, len(positions))
-                ]
-                if len(positions) > 1
-                else [max_distance],
+                (
+                    [
+                        np.linalg.norm(pos - positions[j])
+                        for i, pos in enumerate(positions)
+                        for j in range(i + 1, len(positions))
+                    ]
+                    if len(positions) > 1
+                    else [max_distance]
+                ),
             )
             if delta > 0.1 * min_distance:
                 logger.warning(
@@ -340,23 +343,25 @@ class HessianCalculator:
         coordinate and computing the derivative of forces with respect to that
         displacement. The computation is done column by column for efficiency.
 
-        Supports adaptive delta selection when enabled via the `adaptive_delta`
-        parameter.
+        For basic cases (central differences, no advanced features), this method
+        delegates to ASE's Vibrations class. For advanced cases (5-point, 7-point,
+        Richardson extrapolation, adaptive delta), uses custom implementation.
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix of shape (3N, 3N) where N is the number of atoms
             in `indices`. Units are eV/Å². The matrix is symmetric and includes
             all selected atoms.
 
-        Raises:
+        Raises
         ------
         RuntimeError
             If force calculations fail at any displacement step
 
-        Notes:
+        Notes
         -----
+        - For basic central differences: delegates to ASE's Vibrations class
         - For central differences with N atoms: performs 2*3*N force calculations
         - For 5-point scheme: performs 4*3*N force calculations
         - For Richardson extrapolation: doubles the number of calculations
@@ -364,7 +369,7 @@ class HessianCalculator:
         - Progress information is logged if verbose >= 2
         - With adaptive_delta=True, performs additional calculations to optimize delta
 
-        Examples:
+        Examples
         --------
         >>> from ase import Atoms
         >>> from qme.potentials.mock_potential import MockCalculator
@@ -378,6 +383,35 @@ class HessianCalculator:
         >>> print(f"Symmetry error: {symmetry_error:.2e}")  # Should be ~0
 
         """
+        # Check if ASE can handle this case
+        # Determine method string from scheme type
+        method_str = "central"
+        if isinstance(self.scheme, ForwardDifferenceScheme):
+            method_str = "forward"
+        elif isinstance(self.scheme, CentralDifferenceScheme):
+            method_str = "central"
+        else:
+            # 5-point, 7-point, etc. - not supported by ASE
+            method_str = "unknown"
+
+        if can_use_ase(
+            method=method_str,
+            richardson=self.richardson,
+            adaptive_delta=self.adaptive_delta,
+            n_workers=self.n_workers,
+        ):
+            # Only use ASE for central differences (ASE doesn't support forward well)
+            if method_str == "central":
+                if self.verbose >= 1:
+                    logger.info("Using ASE Vibrations for Hessian calculation")
+                return hessian_via_ase(
+                    atoms=self.atoms,
+                    calculator=self.calculator,
+                    delta=self.delta,
+                    indices=self.indices,
+                    verbose=self.verbose,
+                )
+
         # Reset cache and stats at start of calculation
         self._reference_forces = None
         self._stats.clear()
@@ -436,7 +470,7 @@ class HessianCalculator:
         forces_ref : np.ndarray, optional
             Forces at reference geometry (for forward differences)
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian column
@@ -473,7 +507,7 @@ class HessianCalculator:
         direction : int
             Coordinate direction (0=x, 1=y, 2=z)
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Richardson extrapolated Hessian column
@@ -504,7 +538,7 @@ class HessianCalculator:
 
         Caches the result after first computation to avoid redundant calculations.
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Forces on atoms in indices, flattened
@@ -520,9 +554,9 @@ class HessianCalculator:
     def get_statistics(self) -> dict[str, float | int]:
         """Get performance statistics from last calculation.
 
-        Returns:
+        Returns
         -------
-        dict[str, Union[float, int]]
+        dict[str, float | int]
             Dictionary containing:
             - n_force_evaluations: Number of force evaluations performed
             - n_retries: Total number of retries attempted
@@ -550,12 +584,12 @@ class HessianCalculator:
         displacement : float
             Displacement in Å
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Forces on atoms in indices, flattened
 
-        Raises:
+        Raises
         ------
         RuntimeError
             If force calculation fails after all retries
@@ -613,12 +647,12 @@ class HessianCalculator:
         displacement : float
             Displacement in Å
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Forces on atoms in indices, flattened
 
-        Raises:
+        Raises
         ------
         RuntimeError
             If force calculation fails or returns invalid results
@@ -697,7 +731,7 @@ class HessianCalculator:
         delta : float
             Displacement step size
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian column using 5-point stencil
@@ -736,7 +770,7 @@ class HessianCalculator:
         delta : float
             Displacement step size
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian column using 7-point stencil
@@ -766,7 +800,7 @@ class HessianCalculator:
         Uses iterative refinement to find optimal delta that balances truncation
         and roundoff errors based on Richardson extrapolation error.
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix optimized for low noise
@@ -858,7 +892,7 @@ class HessianCalculator:
         delta : float
             Step size to use
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix computed at specified delta
@@ -884,7 +918,7 @@ class HessianCalculator:
         forces_ref : np.ndarray | None
             Reference forces (for forward differences)
 
-        Returns:
+        Returns
         -------
         tuple[int, np.ndarray]
             (column_index, hessian_column)
@@ -906,7 +940,7 @@ class HessianCalculator:
         This is the core Hessian computation logic extracted from
         calculate_numerical_hessian to support adaptive delta selection.
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix

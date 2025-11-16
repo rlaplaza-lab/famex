@@ -137,9 +137,11 @@ class TestStrategyRegistry:
         assert retrieved == TestStrategy
 
     def test_get_strategy_not_found(self):
+        from qme.core.exceptions import StrategyNotFoundError
+
         registry = StrategyRegistry()
 
-        with pytest.raises(KeyError, match="No strategy found"):
+        with pytest.raises(StrategyNotFoundError, match="No strategy found"):
             registry.get("nonexistent")
 
     def test_get_by_target_strategy(self):
@@ -163,9 +165,11 @@ class TestStrategyRegistry:
         assert retrieved == TestStrategy
 
     def test_get_by_target_strategy_not_found(self):
+        from qme.core.exceptions import StrategyNotFoundError
+
         registry = StrategyRegistry()
 
-        with pytest.raises(KeyError):
+        with pytest.raises(StrategyNotFoundError):
             registry.get_by_target_strategy("nonexistent", "strategy")
 
     def test_has_strategy(self):
@@ -251,6 +255,66 @@ class TestStrategyRegistry:
         assert len(strategies) == 1
         assert "test:strategy" in strategies
         assert "test" not in strategies  # Aliases shouldn't appear
+
+    def test_filter_strategies(self):
+        registry = StrategyRegistry()
+
+        class Strategy1(BaseStrategy):
+            metadata = StrategyMetadata(
+                name="test:strategy1",
+                target="minima",
+                strategy="local",
+                description="Test 1",
+                aliases=[],
+                requires_multiple_structures=False,
+            )
+
+            def run(self, atoms_list, **kwargs):
+                return {"optimized_atoms": atoms_list[0]}
+
+        class Strategy2(BaseStrategy):
+            metadata = StrategyMetadata(
+                name="test:strategy2",
+                target="path",
+                strategy="neb",
+                description="Test 2",
+                aliases=[],
+                requires_multiple_structures=True,
+            )
+
+            def run(self, atoms_list, **kwargs):
+                return {"optimized_atoms": atoms_list}
+
+        registry.register(Strategy1)
+        registry.register(Strategy2)
+
+        # Filter by target
+        filtered = registry.get_by_metadata(target="minima")
+        assert len(filtered) == 1
+        assert filtered[0] == Strategy1
+
+        # Filter by strategy
+        filtered = registry.get_by_metadata(strategy="neb")
+        assert len(filtered) == 1
+        assert filtered[0] == Strategy2
+
+        # Filter by requires_multiple
+        filtered = registry.get_by_metadata(requires_multiple=True)
+        assert len(filtered) == 1
+        assert filtered[0] == Strategy2
+
+        filtered = registry.get_by_metadata(requires_multiple=False)
+        assert len(filtered) == 1
+        assert filtered[0] == Strategy1
+
+        # Multiple filters
+        filtered = registry.get_by_metadata(target="path", strategy="neb")
+        assert len(filtered) == 1
+        assert filtered[0] == Strategy2
+
+        # No matches
+        filtered = registry.get_by_metadata(target="nonexistent")
+        assert len(filtered) == 0
 
 
 class TestGlobalRegistry:
