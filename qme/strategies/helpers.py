@@ -76,7 +76,7 @@ def validate_ts_structure(
 
             if verbose >= 2:
                 imaginary_freqs = validation_result.get("imaginary_frequencies")
-                if imaginary_freqs and isinstance(imaginary_freqs, (list, tuple)):
+                if imaginary_freqs and isinstance(imaginary_freqs, list | tuple):
                     logger.warning(
                         f"Imaginary frequencies (cm^-1): {[f'{f:.1f}' for f in imaginary_freqs]}",
                     )
@@ -233,7 +233,7 @@ def _calculate_free_energy_correction(
     if not isinstance(thermo, dict):
         return None
     entropy = thermo.get("entropy", 0.0)
-    if not isinstance(entropy, (int, float)):
+    if not isinstance(entropy, int | float):
         return None
     # Calculate free energy correction (G - E) = H - TS - E = (E + PV) - TS - E = -TS
     # For ideal gas: PV = 0, so G - E = -TS

@@ -161,7 +161,7 @@ def benchmark_backend(
             optimized_atoms = run_results
 
         # Calculate average time per optimization step
-        if isinstance(steps_taken, (int, float)) and steps_taken > 0:
+        if isinstance(steps_taken, int | float) and steps_taken > 0:
             avg_time_per_step = opt_time / steps_taken
         else:
             avg_time_per_step = None

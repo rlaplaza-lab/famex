@@ -97,7 +97,7 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
                 )
                 optimized_atoms = result["optimized_atoms"]
                 # Ensure optimized_atoms is Atoms or list[Atoms]
-                if isinstance(optimized_atoms, (Atoms, list)):
+                if isinstance(optimized_atoms, Atoms | list):
                     optimized_structures.append(optimized_atoms)
                 else:
                     # Fallback to original atoms if type is unexpected
@@ -106,10 +106,10 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
                 converged = result.get("converged", True)
                 steps_val = result.get("steps_taken", 0)
                 converged_flags.append(
-                    bool(converged) if isinstance(converged, (bool, int)) else True
+                    bool(converged) if isinstance(converged, bool | int) else True
                 )
                 # Type narrowing: ensure steps is an int
-                if isinstance(steps_val, (int, float)):
+                if isinstance(steps_val, int | float):
                     steps_taken.append(int(steps_val))
                 else:
                     steps_taken.append(0)
@@ -167,7 +167,7 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
                 if isinstance(thermo, dict):
                     temperature = thermo.get("temperature", 298.15)
                     entropy = thermo.get("entropy", 0.0)
-                    if isinstance(temperature, (int, float)) and isinstance(entropy, (int, float)):
+                    if isinstance(temperature, int | float) and isinstance(entropy, int | float):
                         result["free_energy_correction"] = -entropy * temperature / 1000.0
 
         return result

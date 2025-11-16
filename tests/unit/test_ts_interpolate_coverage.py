@@ -89,7 +89,7 @@ class TestTSInterpolateEdgeCases:
             if "is_ts" in result:
                 assert isinstance(result["is_ts"], bool)
             if "free_energy_correction" in result:
-                assert isinstance(result["free_energy_correction"], (float, type(None)))
+                assert isinstance(result["free_energy_correction"], float | type(None))
         except (ValueError, ImportError) as e:
             if "not suitable" in str(e).lower():
                 pytest.skip("Backend doesn't support TS optimization")

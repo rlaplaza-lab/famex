@@ -241,7 +241,7 @@ def validate_frequency_analysis(frequency_analysis: Any) -> list[str]:
 
     # Validate frequencies
     frequencies = frequency_analysis.get("frequencies", [])
-    if not isinstance(frequencies, (list, tuple)):
+    if not isinstance(frequencies, list | tuple):
         warnings.append(f"Frequencies should be a list/tuple, got {type(frequencies)}")
     elif len(frequencies) == 0:
         warnings.append("Frequencies list is empty")
@@ -260,7 +260,7 @@ def validate_frequency_analysis(frequency_analysis: Any) -> list[str]:
     zpe = frequency_analysis.get("zero_point_energy")
     if zpe is None:
         warnings.append("Zero-point energy is missing")
-    elif not isinstance(zpe, (int, float)):
+    elif not isinstance(zpe, int | float):
         warnings.append(f"Zero-point energy should be numeric, got {type(zpe)}")
     elif np.isnan(zpe) or np.isinf(zpe):
         warnings.append("Zero-point energy is NaN or infinite")
@@ -301,7 +301,7 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
             click.echo(f"  - {warning}", err=True)
 
     frequencies = frequency_analysis.get("frequencies", [])
-    n_modes = len(frequencies) if isinstance(frequencies, (list, tuple)) else 0
+    n_modes = len(frequencies) if isinstance(frequencies, list | tuple) else 0
     zpe = frequency_analysis.get("zero_point_energy", 0.0)
 
     # Safely extract thermodynamic properties
@@ -312,18 +312,18 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
 
     # Calculate free energy correction (G - E) = H - TS - E = -TS (for ideal gas)
     entropy = thermo.get("entropy", 0.0)
-    if isinstance(entropy, (int, float)) and isinstance(temperature, (int, float)):
+    if isinstance(entropy, int | float) and isinstance(temperature, int | float):
         free_energy_correction = -entropy * temperature / 1000.0  # Convert K to eV/K
     else:
         free_energy_correction = 0.0
 
     click.echo(f"Frequency analysis completed ({n_modes} modes):")
-    if isinstance(zpe, (int, float)) and not (np.isnan(zpe) or np.isinf(zpe)):
+    if isinstance(zpe, int | float) and not (np.isnan(zpe) or np.isinf(zpe)):
         click.echo(f"  Zero-point energy: {zpe:.4f} eV")
     else:
         click.echo("  Zero-point energy: N/A")
 
-    if isinstance(free_energy_correction, (int, float)) and not (
+    if isinstance(free_energy_correction, int | float) and not (
         np.isnan(free_energy_correction) or np.isinf(free_energy_correction)
     ):
         click.echo(
@@ -373,7 +373,7 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
             )
 
     # Show key frequencies
-    if frequencies and isinstance(frequencies, (list, tuple)) and len(frequencies) > 0:
+    if frequencies and isinstance(frequencies, list | tuple) and len(frequencies) > 0:
         try:
             # Handle complex frequencies by taking real part for comparison
             # Show first few real frequencies and any imaginary ones
@@ -472,7 +472,7 @@ def save_results_json(results: Any, output_path: str) -> None:
                             freq_data[k] = str(v)
                 elif isinstance(v, np.ndarray):
                     freq_data[k] = v.tolist()
-                elif isinstance(v, (np.integer, np.floating)):
+                elif isinstance(v, np.integer | np.floating):
                     freq_data[k] = float(v) if isinstance(v, np.floating) else int(v)
 
             serializable_results[key] = freq_data
@@ -481,7 +481,7 @@ def save_results_json(results: Any, output_path: str) -> None:
             try:
                 if isinstance(value, np.ndarray) or hasattr(value, "tolist"):
                     serializable_results[key] = value.tolist()
-                elif isinstance(value, (np.integer, np.floating)):
+                elif isinstance(value, np.integer | np.floating):
                     serializable_results[key] = (
                         float(value) if isinstance(value, np.floating) else int(value)
                     )
