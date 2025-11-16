@@ -633,7 +633,7 @@ class Explorer:
             If loaded structure is invalid or empty
 
         """
-        if isinstance(filename_or_geom, (str, Path)):
+        if isinstance(filename_or_geom, str | Path):
             file_path = Path(filename_or_geom)
             if not file_path.exists():
                 msg = (

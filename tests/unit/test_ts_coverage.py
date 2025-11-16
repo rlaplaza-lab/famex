@@ -159,7 +159,7 @@ class TestTSErrorHandling:
             StandardTestAssertions.assert_optimization_result(result)
             # Validation hook should handle both dict and tuple returns
             if "ts_validation" in result:
-                assert isinstance(result["ts_validation"], (dict, list))
+                assert isinstance(result["ts_validation"], dict | list)
         except (ValueError, ImportError) as e:
             if "not suitable" in str(e).lower():
                 pytest.skip("Backend doesn't support TS optimization")

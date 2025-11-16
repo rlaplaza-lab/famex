@@ -128,7 +128,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
                 self,
                 (
                     optimized_atoms
-                    if isinstance(optimized_atoms, (Atoms, list))
+                    if isinstance(optimized_atoms, Atoms | list)
                     else self.explorer.atoms_list[0]
                 ),
                 steps_taken=ts_result["steps_taken"],

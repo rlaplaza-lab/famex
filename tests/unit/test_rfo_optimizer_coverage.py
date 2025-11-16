@@ -71,7 +71,7 @@ class TestRFOConvergenceScenarios:
             assert len(opt._step_quality_history) > 0
             # Quality values should be reasonable
             for quality in opt._step_quality_history:
-                assert isinstance(quality, (int, float))
+                assert isinstance(quality, int | float)
 
     def test_closed_file_stream_handling(self, mock_backend, water_dissociation_ts_guess):
         """Test that closed file streams are handled gracefully."""

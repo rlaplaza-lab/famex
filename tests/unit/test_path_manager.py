@@ -36,7 +36,7 @@ class TestPathManager:
         # Check that reaction energy is reasonable
         if reaction_energy is not None:
             StandardTestAssertions.assert_energy_reasonable(reaction_energy, "mock")
-            assert isinstance(reaction_energy, (int, float))
+            assert isinstance(reaction_energy, int | float)
 
         # Test individual geometry energies
         reactant_energy = path_mgr.reactant.energy
@@ -45,11 +45,11 @@ class TestPathManager:
         # Check that energies are reasonable
         if reactant_energy is not None:
             StandardTestAssertions.assert_energy_reasonable(reactant_energy, "mock")
-            assert isinstance(reactant_energy, (int, float))
+            assert isinstance(reactant_energy, int | float)
 
         if product_energy is not None:
             StandardTestAssertions.assert_energy_reasonable(product_energy, "mock")
-            assert isinstance(product_energy, (int, float))
+            assert isinstance(product_energy, int | float)
 
     def test_multi_segment_interpolation(self, mock_backend):
         struct1 = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
