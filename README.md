@@ -79,7 +79,7 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 qme ts --strategy interpolate reactant.xyz --product product.xyz
 
 # NEB reaction path
-qme path --strategy neb reactant.xyz --product product.xyz --npoints 11
+qme path --strategy neb reactant.xyz product.xyz --npoints 11
 
 # IRC from transition state
 qme path --strategy irc ts.xyz --direction both

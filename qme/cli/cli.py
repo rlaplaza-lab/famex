@@ -15,6 +15,7 @@ import click
 from qme.cli.cache_commands import cache
 from qme.cli.cli_helpers import (
     load_atoms_from_xyz,
+    load_path_structures,
     parse_kv_pairs,
     print_frequency_summary,
     save_results_json,
@@ -220,7 +221,7 @@ def _common_explorer_options(f: Any) -> Any:
 
 
 @click.group(
-    help="QME CLI: Quick mechanistic exploration with ML potentials.\n\n\b\nCommands:\n  qme minima : Minima optimization (outputs single structure)\n  qme ts     : Transition state optimization (outputs single TS)\n  qme path   : Reaction path optimization (outputs trajectories)\n  qme cache  : Manage model cache\n\n\b\nExamples:\n  # Minima optimization (outputs single structure)\n  qme minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  qme minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  qme ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  qme ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  qme ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  qme ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02  # RFO TS optimizer\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  qme path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  qme path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  qme path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  qme path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  qme minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  qme cache info  # Show cache information\n  qme cache clear # Clear model cache",
+    help="QME CLI: Quick mechanistic exploration with ML potentials.\n\n\b\nCommands:\n  qme minima : Minima optimization (outputs single structure)\n  qme ts     : Transition state optimization (outputs single TS)\n  qme path   : Reaction path optimization (outputs trajectories)\n  qme cache  : Manage model cache\n\n\b\nExamples:\n  # Minima optimization (outputs single structure)\n  qme minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  qme minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  qme ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  qme ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  qme ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  qme ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02  # RFO TS optimizer\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  qme path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  qme path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  qme path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  qme path --strategy neb r.xyz intermediate.xyz p.xyz --npoints 11  # Multiple structures\n  qme path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  qme minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  qme cache info  # Show cache information\n  qme cache clear # Clear model cache",
 )
 @click.version_option()
 def main() -> None:
@@ -606,13 +607,7 @@ main.add_command(cache)
     show_default=True,
     help="Path optimization strategy",
 )
-@click.argument("input", type=click.Path(exists=True, dir_okay=False))
-@click.option(
-    "--product",
-    type=click.Path(exists=True, dir_okay=False),
-    default=None,
-    help="Product structure (required for interpolate, neb, cineb strategies)",
-)
+@click.argument("structures", nargs=-1, type=click.Path(exists=True, dir_okay=False), required=True)
 @click.option(
     "--output",
     type=click.Path(dir_okay=False),
@@ -659,8 +654,7 @@ main.add_command(cache)
 @_common_explorer_options
 def path(
     strategy: str,
-    input: str,
-    product: str | None,
+    structures: tuple[str, ...],
     output: str | None,
     fmax: float,
     steps: int,
@@ -693,26 +687,29 @@ def path(
     - cineb: Climbing Image NEB path optimization
     - irc: IRC path from transition state
 
-    For interpolate, neb, and cineb: provide reactant and product structures.
-    For irc: provide only the transition state structure.
+    Input structures can be provided as:
+    - Multiple files: qme path reactant.xyz product.xyz [intermediate.xyz ...]
+    - Single multi-frame XYZ: qme path path_guess.xyz (all frames used)
+    - Single single-frame XYZ: qme path ts.xyz (for IRC strategy)
+
+    For interpolate, neb, and cineb: provide at least 2 structures.
+    For irc: provide 1 structure (transition state).
     """
+    # Load structures from variadic inputs
+    atoms_list = load_path_structures(structures)
+
     # Validate strategy-specific requirements
-    if strategy in ["interpolate", "neb", "cineb"] and product is None:
-        msg = f"--product is required for {strategy} strategy"
-        raise click.BadParameter(msg)
-
-    if strategy == "irc" and product is not None:
-        click.echo("Warning: --product ignored for irc strategy")
-
-    # Load structures
-    atoms = load_atoms_from_xyz(input)
-    atoms_list = [atoms]
-
     if strategy in ["interpolate", "neb", "cineb"]:
-        if product is None:
-            raise ValueError("Product file is required for interpolate/neb/cineb strategy")
-        atoms_product = load_atoms_from_xyz(product)
-        atoms_list = [atoms, atoms_product]
+        if len(atoms_list) < 2:
+            msg = f"{strategy} strategy requires at least 2 structures, got {len(atoms_list)}"
+            raise click.BadParameter(msg)
+    elif strategy == "irc":
+        if len(atoms_list) != 1:
+            click.echo(
+                f"Warning: IRC strategy uses only the first structure, "
+                f"ignoring {len(atoms_list) - 1} additional structure(s)"
+            )
+            atoms_list = [atoms_list[0]]
 
     # Parse kwargs
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
@@ -730,7 +727,7 @@ def path(
 
     with ctx:
         exp = Explorer(
-            atoms=atoms_list[0] if len(atoms_list) == 1 else atoms_list,
+            atoms=atoms_list if len(atoms_list) > 1 else atoms_list[0],
             backend=backend,
             model_name=model_name,
             model_path=model_path,
@@ -758,6 +755,8 @@ def path(
             return
 
         # Run path optimization
+        # Use first structure file for default output naming
+        first_file = structures[0]
         if strategy == "interpolate":
             result = exp.run(
                 npoints=npoints,
@@ -765,7 +764,7 @@ def path(
                 calculate_frequencies=calculate_frequencies,
                 temperature=temperature,
             )
-            out_default = os.path.splitext(input)[0] + ".path.interpolate.xyz"
+            out_default = os.path.splitext(first_file)[0] + ".path.interpolate.xyz"
         elif strategy == "neb":
             result = exp.run(
                 npoints=npoints,
@@ -776,7 +775,7 @@ def path(
                 calculate_frequencies=calculate_frequencies,
                 temperature=temperature,
             )
-            out_default = os.path.splitext(input)[0] + ".path.neb.xyz"
+            out_default = os.path.splitext(first_file)[0] + ".path.neb.xyz"
         elif strategy == "cineb":
             result = exp.run(
                 npoints=npoints,
@@ -788,7 +787,7 @@ def path(
                 calculate_frequencies=calculate_frequencies,
                 temperature=temperature,
             )
-            out_default = os.path.splitext(input)[0] + ".path.cineb.xyz"
+            out_default = os.path.splitext(first_file)[0] + ".path.cineb.xyz"
         elif strategy == "irc":
             result = exp.run(
                 fmax=fmax,
@@ -798,7 +797,7 @@ def path(
                 calculate_frequencies=calculate_frequencies,
                 temperature=temperature,
             )
-            out_default = os.path.splitext(input)[0] + ".path.irc.xyz"
+            out_default = os.path.splitext(first_file)[0] + ".path.irc.xyz"
 
         # Extract trajectory from result
         if isinstance(result, dict) and "trajectory" in result:
