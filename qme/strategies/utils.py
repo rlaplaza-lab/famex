@@ -1,8 +1,4 @@
-"""Shared utilities for strategy implementations.
-
-This module provides common helper functions used across different strategies,
-consolidating duplicate code and providing a consistent interface.
-"""
+"""Shared utilities for strategy implementations."""
 
 from __future__ import annotations
 
@@ -17,18 +13,14 @@ logger = get_qme_logger(__name__)
 
 
 class StrategyUtils:
-    """Shared utilities for strategy implementations."""
-
     @staticmethod
     def ensure_charge_spin_info(atoms: Atoms, charge: int = 0, spin: int = 1) -> None:
-        """Ensure atoms.info has charge and spin."""
         if hasattr(atoms, "info") and atoms.info is not None:
             atoms.info.setdefault("charge", charge)
             atoms.info.setdefault("spin", spin)
 
     @staticmethod
     def get_step_count(optimizer: Any) -> int | None:
-        """Get step count from optimizer."""
         if hasattr(optimizer, "step_count") and optimizer.step_count is not None:
             step_count = optimizer.step_count
             return int(step_count) if isinstance(step_count, int | float) else None
@@ -41,7 +33,6 @@ class StrategyUtils:
 
     @staticmethod
     def get_convergence_status(optimizer: Any, atoms: Atoms) -> bool:
-        """Get convergence status from optimizer."""
         converged_attr = getattr(optimizer, "converged", None)
 
         if callable(converged_attr):
@@ -57,7 +48,6 @@ class StrategyUtils:
 
     @staticmethod
     def check_batch_support(calculator: Any) -> bool:
-        """Check if calculator supports batch evaluation."""
         return (
             calculator is not None
             and hasattr(calculator, "calculate_batch")
@@ -71,7 +61,6 @@ class StrategyUtils:
         calculator: Any,
         supports_batch: bool,
     ) -> tuple[list[float], list[np.ndarray]]:
-        """Calculate energies and forces for path images."""
         energies = []
         forces_list = []
 
@@ -105,7 +94,6 @@ class StrategyUtils:
 
     @staticmethod
     def check_convergence(forces_list: list[np.ndarray], fmax: float, step: int) -> bool:
-        """Check if optimization has converged."""
         max_force = max(np.linalg.norm(forces, axis=1).max() for forces in forces_list)
         if max_force < fmax:
             logger.info(

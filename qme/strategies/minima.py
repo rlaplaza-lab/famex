@@ -35,40 +35,11 @@ class LocalMinimaStrategy(BaseStrategy):
         calculate_frequencies: bool = False,
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
-        """Run local minima optimization.
-
-        Parameters
-        ----------
-        atoms_list : Sequence[Atoms]
-            List of structures to optimize
-        fmax : float, default=0.05
-            Force convergence threshold
-        steps : int, default=1000
-            Maximum optimization steps
-        calculate_frequencies : bool, default=False
-            Whether to perform frequency analysis after optimization
-        **kwargs : Any
-            Additional keyword arguments
-
-        Returns
-        -------
-        dict[str, Atoms | list[Atoms] | bool | int | float | str]
-            Standardized result dictionary containing:
-            - optimized_atoms: Optimized structure(s) (Atoms or list[Atoms])
-            - strategy: Strategy name (str)
-            - converged: Whether optimization converged (bool)
-            - steps_taken: Number of optimization steps (int)
-            - frequency_analysis: Frequency analysis results (dict, optional)
-            - is_minimum: Whether structure is a minimum (bool, optional)
-            - free_energy_correction: Free energy correction in eV (float, optional)
-
-        """
         local_optimizer_name = kwargs.get("local_optimizer_name", "sella")
         verbose = kwargs.get("verbose", 1)
         temperature = kwargs.get("temperature", 298.15)
 
         def prepare_minima_optimizer_kwargs(optimizer_name: str, explorer: Any) -> dict[str, Any]:
-            """Prepare optimizer kwargs for minima."""
             opt_kwargs = getattr(explorer, "optimizer_kwargs", {}) or {}
             opt_kwargs = dict(opt_kwargs)
 

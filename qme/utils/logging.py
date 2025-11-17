@@ -13,7 +13,6 @@ _qme_log_level = logging.INFO
 
 
 def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
-    """Configure QME logging system."""
     global _qme_logging_configured, _qme_log_level
 
     if _qme_logging_configured and not force:
@@ -36,10 +35,7 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
     handler.setLevel(log_level)
 
     class QMEFormatter(logging.Formatter):
-        """Custom formatter for QME logging."""
-
         def format(self, record: logging.LogRecord) -> str:
-            """Format log record."""
             if record.levelno == logging.INFO:
                 return record.getMessage()
             if record.levelno == logging.DEBUG:
@@ -59,7 +55,6 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
 
 
 def get_qme_logger(name: str) -> logging.Logger:
-    """Get QME logger for module."""
     if not name.startswith("qme"):
         name = "qme" if name == "__main__" else f"qme.{name}"
 
@@ -67,12 +62,10 @@ def get_qme_logger(name: str) -> logging.Logger:
 
 
 def get_qme_log_level() -> int:
-    """Get current logging level."""
     return _qme_log_level
 
 
 def is_in_quiet_context() -> bool:
-    """Check if in quiet context."""
     return getattr(_quiet_context_local, "in_quiet_context", False)
 
 
@@ -83,7 +76,6 @@ def print_model_info(
     device: str | None = None,
     verbose: int = 1,
 ) -> None:
-    """Print model information."""
     if verbose == 0:
         return
 

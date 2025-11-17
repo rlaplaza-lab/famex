@@ -12,7 +12,6 @@ def extract_charge_spin_from_atoms(
     default_charge: int = 0,
     default_spin: int = 1,
 ) -> tuple[int, int]:
-    """Extract charge and spin from atoms object."""
     charge = None
     spin = None
 
@@ -69,7 +68,6 @@ def extract_charge_spin_from_atoms(
 
 
 def check_missing_charge_spin(atoms: Atoms) -> tuple[bool, bool]:
-    """Check if charge and/or spin are missing from atoms."""
     charge_missing = True
     spin_missing = True
 

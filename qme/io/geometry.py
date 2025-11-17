@@ -65,32 +65,26 @@ class Geometry(Atoms):
 
     @property
     def coords3d(self) -> np.ndarray:
-        """Get coordinates as (n_atoms, 3) array."""
         return np.array(self.get_positions())
 
     @coords3d.setter
     def coords3d(self, positions: np.ndarray) -> None:
-        """Set coordinates from (n_atoms, 3) array."""
         self.set_positions(positions)
 
     @property
     def coords(self) -> np.ndarray:
-        """Get coordinates as flat array [x1, y1, z1, x2, y2, z2, ...]."""
         return np.array(self.coords3d).flatten()
 
     @coords.setter
     def coords(self, coords: np.ndarray) -> None:
-        """Set coordinates from flat array."""
         coords = np.array(coords)
         self.coords3d = coords.reshape(-1, 3)
 
     def get_symbols(self) -> list[str]:
-        """Get atomic symbols as list."""
         return list(super().get_chemical_symbols())
 
     @property
     def energy(self) -> float | None:
-        """Get energy if calculated."""
         if self.calc is not None:
             try:
                 energy_val = self.get_potential_energy()
@@ -101,11 +95,9 @@ class Geometry(Atoms):
 
     @energy.setter
     def energy(self, value: float | None) -> None:
-        """Set energy value."""
         self._energy = value
 
     def get_forces(self, apply_constraint: bool = True, md: bool = False) -> np.ndarray | None:
-        """Get forces if calculated."""
         if self.calc is not None:
             try:
                 forces = super().get_forces(apply_constraint, md)
@@ -115,7 +107,6 @@ class Geometry(Atoms):
         return getattr(self, "_forces", None)
 
     def copy(self) -> Geometry:
-        """Create a copy of the geometry."""
         atoms_copy = super().copy()
         new_geom = Geometry(ase_atoms=atoms_copy, charge=self.charge, mult=self.mult)
         new_geom._energy = self._energy
@@ -123,27 +114,21 @@ class Geometry(Atoms):
         return new_geom
 
     def get_distance_between(self, atom1: int, atom2: int) -> float:
-        """Get distance between two atoms."""
         return float(self.get_distance(atom1, atom2))
 
     def get_all_pairwise_distances(self) -> np.ndarray:
-        """Get all pairwise distances."""
         return np.array(super().get_all_distances())
 
     def get_angle_degrees(self, atom1: int, atom2: int, atom3: int) -> float:
-        """Get angle between three atoms in degrees (atom2 is the center atom)."""
         return float(self.get_angle(atom1, atom2, atom3) * 180.0 / np.pi)
 
     def get_dihedral_degrees(self, atom1: int, atom2: int, atom3: int, atom4: int) -> float:
-        """Get dihedral angle between four atoms in degrees."""
         return float(self.get_dihedral(atom1, atom2, atom3, atom4) * 180.0 / np.pi)
 
     def center_of_mass(self) -> np.ndarray:
-        """Get center of mass coordinates."""
         return np.array(self.get_center_of_mass())
 
     def __str__(self) -> str:
-        """Return string representation."""
         return f"Geometry({len(self)} atoms, charge={self.charge}, mult={self.mult})"
 
     def __repr__(self) -> str:
@@ -151,7 +136,6 @@ class Geometry(Atoms):
 
 
 def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
-    """Read geometry from file using ASE or custom XYZ reader."""
     filename_str = str(filename)
 
     if filename_str.lower().endswith(".xyz"):
@@ -165,7 +149,6 @@ def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
 
 
 def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> None:
-    """Write geometry to file using ASE or custom XYZ writer."""
     filename_str = str(filename)
 
     if filename_str.lower().endswith(".xyz"):

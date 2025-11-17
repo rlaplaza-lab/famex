@@ -36,7 +36,6 @@ class BaseStrategy(ABC):
         explorer: ExplorerProtocol,
         profiler: PerformanceProfilerProtocol | None = None,
     ) -> None:
-        """Initialize strategy with explorer instance."""
         self.explorer = explorer
         self.profiler = profiler
 
@@ -49,7 +48,6 @@ class BaseStrategy(ABC):
         """Execute strategy. Returns standardized result dict."""
 
     def validate_inputs(self, atoms_list: list[Atoms]) -> None:
-        """Validate inputs before running."""
         if not atoms_list:
             msg = "No atoms provided"
             raise ValueError(msg)
@@ -65,7 +63,6 @@ class BaseStrategy(ABC):
             self._validate_structure_compatibility(atoms_list)
 
     def _validate_structure_compatibility(self, atoms_list: list[Atoms]) -> None:
-        """Validate structures are compatible."""
         if not atoms_list:
             return
 
@@ -89,7 +86,6 @@ class BaseStrategy(ABC):
                 raise ValueError(msg)
 
     def _merge_profiler_results(self, result: dict[str, Any]) -> dict[str, Any]:
-        """Merge profiler results into strategy result."""
         if self.profiler is not None:
             result["performance"] = self.profiler.get_summary()
         return result
@@ -99,7 +95,6 @@ class BaseStrategy(ABC):
         optimized_atoms: Atoms | Sequence[Atoms],
         **metadata: Any,
     ) -> dict[str, Any]:
-        """Standardize result format."""
         result: dict[str, Any] = {
             "optimized_atoms": optimized_atoms,
             "strategy": self.metadata.name,

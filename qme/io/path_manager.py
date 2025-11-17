@@ -39,32 +39,12 @@ class StructureSimilarity:
 
 
 class PathManager:
-    """Manages reaction pathways with support for multi-segment interpolation.
-
-    Handles path interpolation, energy calculations, and path analysis
-    (finding transition states, minima, etc.) for reaction pathways.
-    """
-
     def __init__(
         self,
         structures: Sequence[Atoms] | Atoms,
         calculator: Any = None,
         name: str | None = None,
     ) -> None:
-        """Initialize PathManager with structures defining the path.
-
-        Parameters
-        ----------
-        structures : Sequence[Atoms] or Atoms
-            Structures defining the path. For 2 structures: endpoints.
-            For 3+: endpoints + intermediate waypoints for multi-segment paths.
-            Can also pass a single Atoms which will be converted to a list.
-        calculator : Calculator, optional
-            ASE calculator for energy/force calculations
-        name : str, optional
-            Name for the path
-
-        """
         self.name = name or "PathManager"
 
         if isinstance(structures, Atoms):
@@ -99,17 +79,14 @@ class PathManager:
 
     @property
     def reactant(self) -> Geometry:
-        """Get first structure (reactant)."""
         return self.structures[0]
 
     @property
     def product(self) -> Geometry:
-        """Get last structure (product)."""
         return self.structures[-1]
 
     @property
     def reaction_energy(self) -> float | None:
-        """Get reaction energy (product - reactant)."""
         if self.reactant.energy is not None and self.product.energy is not None:
             return self.product.energy - self.reactant.energy
         return None
@@ -122,30 +99,6 @@ class PathManager:
         calculator: Any | None = None,
         explorer: Any | None = None,
     ) -> list[Geometry]:
-        """Generate reaction pathway by interpolation.
-
-        Supports both simple two-endpoint interpolation and multi-segment
-        interpolation when more than 2 structures are provided.
-
-        Parameters
-        ----------
-        npoints : int, default 10
-            Number of interpolation points (including endpoints)
-        method : str, default "linear"
-            Interpolation method ("linear" or "geodesic")
-        optimize_path : bool, default False
-            Whether to optimize the interpolated path with NEB-like forces
-        calculator : Calculator, optional
-            Calculator for path optimization
-        explorer : Explorer, optional
-            Explorer instance for calculator attachment
-
-        Returns
-        -------
-        List[Geometry]
-            List of interpolated geometries
-
-        """
         if npoints < 2:
             msg = "Need at least 2 points for interpolation"
             raise ValueError(msg)
@@ -201,7 +154,6 @@ class PathManager:
         optimize_path: bool,
         calculator: Any | None,
     ) -> list[Geometry]:
-        """Interpolate a single segment between start and end."""
         start_coords = start.coords3d
         end_coords = end.coords3d
 
@@ -237,7 +189,6 @@ class PathManager:
     def _optimize_path(
         self, path_geometries: list[Geometry], calculator: Any | None
     ) -> list[Geometry]:
-        """Optimize path using simplified NEB-like forces."""
         logger.info("Note: Using simplified NEB-like algorithm for path optimization")
 
         for geom in path_geometries:
@@ -249,19 +200,6 @@ class PathManager:
 
     @staticmethod
     def find_ts_guess(path: Sequence[Atoms]) -> tuple[Atoms, int]:
-        """Find highest energy structure in path as TS guess.
-
-        Parameters
-        ----------
-        path : List[Atoms]
-            List of structures along the path
-
-        Returns
-        -------
-        tuple[Atoms, int]
-            (ts_structure, index)
-
-        """
         energies = []
         for atoms in path:
             try:
@@ -279,19 +217,6 @@ class PathManager:
 
     @staticmethod
     def find_local_minima(path: Sequence[Atoms]) -> list[int]:
-        """Find indices of local minima along path.
-
-        Parameters
-        ----------
-        path : List[Atoms]
-            List of structures along the path
-
-        Returns
-        -------
-        list[int]
-            Indices of local minima
-
-        """
         import math
 
         energies = []
@@ -323,19 +248,6 @@ class PathManager:
 
     @staticmethod
     def find_local_maxima(path: Sequence[Atoms]) -> list[int]:
-        """Find indices of local maxima (potential TS) along path.
-
-        Parameters
-        ----------
-        path : List[Atoms]
-            List of structures along the path
-
-        Returns
-        -------
-        list[int]
-            Indices of local maxima
-
-        """
         import math
 
         energies = []
@@ -371,25 +283,6 @@ class PathManager:
         atoms2: Atoms,
         align: bool = True,
     ) -> float:
-        """Calculate RMSD between two Atoms objects.
-
-        Uses Kabsch algorithm for rotation-invariant RMSD calculation by default.
-        This provides accurate molecular structure comparison regardless of orientation.
-
-        Parameters
-        ----------
-        atoms1, atoms2 : Atoms
-            The two structures to compare
-        align : bool, default True
-            If True, use Kabsch alignment for rotation-invariant RMSD.
-            If False, calculate simple positional RMSD (faster but not rotation-invariant).
-
-        Returns
-        -------
-        float
-            RMSD in Angstroms
-
-        """
         if len(atoms1) != len(atoms2):
             return float("inf")
 
@@ -432,29 +325,6 @@ class PathManager:
         energy2: float | None = None,
         align: bool = True,
     ) -> StructureSimilarity:
-        """Calculate similarity between two structures based on RMSD and energy.
-
-        Parameters
-        ----------
-        atoms1, atoms2 : Atoms
-            The two structures to compare
-        rmsd_threshold : float
-            RMSD threshold for similarity (Angstroms)
-        energy_threshold : float
-            Energy threshold for similarity (eV)
-        energy1 : float | None, optional
-            Pre-computed energy for atoms1. If None, will attempt to calculate.
-        energy2 : float | None, optional
-            Pre-computed energy for atoms2. If None, will attempt to calculate.
-        align : bool, default True
-            Whether to use rotation-invariant RMSD (Kabsch alignment)
-
-        Returns
-        -------
-        StructureSimilarity
-            Similarity result with is_similar, rmsd, and energy_diff
-
-        """
         rmsd = PathManager.calculate_rmsd(atoms1, atoms2, align=align)
 
         if energy1 is None:
@@ -500,40 +370,6 @@ class PathManager:
         min_spacing: int = 1,
         align_rmsd: bool = True,
     ) -> tuple[list[Atoms], list[int], list[str]]:
-        """Filter redundant structures based on RMSD and energy similarity.
-
-        This method uses rotation-invariant RMSD (Kabsch algorithm) by default
-        for accurate molecular structure comparison. It optimizes performance
-        by caching RMSD calculations and reusing pre-computed energies.
-
-        Parameters
-        ----------
-        structures : List[Atoms]
-            List of optimized structures to filter
-        input_structures : List[Atoms], optional
-            Original input structures for comparison
-        rmsd_threshold : float
-            RMSD threshold below which structures are considered redundant (Å)
-        energy_threshold : float
-            Energy threshold below which structures are considered redundant (eV)
-        strategy_name : str
-            Name of the strategy for warning messages
-        preserve_path_continuity : bool, default False
-            If True, preserves minimum spacing between filtered structures
-            to maintain reaction path continuity
-        min_spacing : int, default 1
-            Minimum number of structures to keep between any two kept structures
-            when preserve_path_continuity is True
-        align_rmsd : bool, default True
-            Whether to use rotation-invariant RMSD (Kabsch alignment).
-            Set to False for faster but less accurate comparison.
-
-        Returns
-        -------
-        tuple[List[Atoms], List[int], List[str]]
-            (filtered_structures, removed_indices, warning_messages)
-
-        """
         if not structures:
             return [], [], []
 
@@ -662,21 +498,6 @@ class PathManager:
 
     @staticmethod
     def attach_calculators(explorer: Any, structures: Sequence[Atoms] | Atoms) -> Any | None:
-        """Attach calculators from explorer to structures.
-
-        Parameters
-        ----------
-        explorer : Explorer
-            Explorer instance with calculator configuration
-        structures : List[Atoms] or Atoms
-            Structure(s) to attach calculators to
-
-        Returns
-        -------
-        Calculator
-            The calculator instance that was attached
-
-        """
         struct_list = [structures] if isinstance(structures, Atoms) else list(structures)
 
         if not struct_list:
@@ -694,19 +515,6 @@ class PathManager:
         return struct_list[0].calc if struct_list else None
 
     def calculate_path_energies(self, path: list[Geometry] | list[Atoms]) -> list[float]:
-        """Calculate and return energies for a given reaction path.
-
-        Parameters
-        ----------
-        path : List[Geometry] or List[Atoms]
-            Geometries along the path
-
-        Returns
-        -------
-        list[float]
-            List of energies
-
-        """
         if not path:
             return []
 
@@ -721,19 +529,6 @@ class PathManager:
         self,
         path_geometries: list[Geometry] | list[Atoms],
     ) -> tuple[list[float], list[float]]:
-        """Calculate RMSD profile along reaction path.
-
-        Parameters
-        ----------
-        path_geometries : List[Geometry] or List[Atoms]
-            Geometries along the path
-
-        Returns
-        -------
-        tuple
-            (rmsd_from_reactant, rmsd_from_product)
-
-        """
         rmsd_from_reactant = []
         rmsd_from_product = []
 
@@ -750,19 +545,6 @@ class PathManager:
         return rmsd_from_reactant, rmsd_from_product
 
     def to_xyz_trajectory(self, path_geometries: list[Geometry] | list[Atoms]) -> str:
-        """Convert path to XYZ trajectory string.
-
-        Parameters
-        ----------
-        path_geometries : List[Geometry] or List[Atoms]
-            Geometries along the path
-
-        Returns
-        -------
-        str
-            XYZ trajectory as string
-
-        """
         xyz_lines = []
 
         for i, geom in enumerate(path_geometries):
@@ -783,27 +565,6 @@ class PathManager:
         return "\n".join(xyz_lines)
 
     def get_path_statistics(self, path: list[Atoms]) -> dict:
-        """Get summary statistics for a path.
-
-        Parameters
-        ----------
-        path : List[Atoms]
-            List of structures along the path
-
-        Returns
-        -------
-        dict
-            Dictionary with path statistics including:
-            - num_structures: Number of structures
-            - energies: List of energies
-            - min_energy: Minimum energy
-            - max_energy: Maximum energy
-            - energy_range: Energy range
-            - ts_index: Index of highest energy (TS guess)
-            - minima_indices: Indices of local minima
-            - maxima_indices: Indices of local maxima
-
-        """
         energies = []
         for atoms in path:
             try:
@@ -843,7 +604,6 @@ class PathManager:
         return stats
 
     def __str__(self) -> str:
-        """Return string representation."""
         return f"PathManager({len(self.reactant)} atoms, {len(self.structures)} structures)"
 
     def __repr__(self) -> str:

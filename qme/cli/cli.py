@@ -24,33 +24,10 @@ from qme.cli.cli_helpers import (
 from qme.core.explorer import Explorer
 from qme.utils.ml_warnings import quiet_backend_loading
 
-# Disable matplotlib and ASE GUI before importing ASE
-# This prevents unwanted popup windows during CLI operations
 os.environ.setdefault("MPLBACKEND", "Agg")
 
 
 def _validate_temperature(ctx: Any, param: Any, value: float) -> float:
-    """Validate temperature parameter is positive.
-
-    Parameters
-    ----------
-    ctx : click.Context
-        Click context
-    param : click.Parameter
-        Click parameter
-    value : float
-        Temperature value
-
-    Returns
-    -------
-    float
-        Validated temperature value
-
-    Raises
-    ------
-    click.BadParameter
-        If temperature is not positive
-    """
     if value is not None and value <= 0:
         msg = f"Temperature must be positive, got {value} K"
         raise click.BadParameter(msg)
@@ -63,27 +40,6 @@ def _handle_frequency_results(
     target: str,
     calculate_frequencies: bool,
 ) -> None:
-    """Handle frequency analysis results consistently across all commands.
-
-    This function provides consistent error handling and output for frequency
-    analysis results, ensuring that:
-    - Frequency results are validated before processing
-    - JSON output is saved correctly
-    - Error messages are informative and consistent
-    - Users are informed if frequency calculation failed
-
-    Parameters
-    ----------
-    results : dict[str, Any]
-        Results dictionary from Explorer.run()
-    output_path : str
-        Output file path for saving JSON results
-    target : str
-        Target type ("minima", "ts", or "path")
-    calculate_frequencies : bool
-        Whether frequency analysis was requested
-
-    """
     if not calculate_frequencies:
         return
 
@@ -134,28 +90,9 @@ def _validate_strategy_requirements(
     product: str | None,
     structures_count: int = 1,
 ) -> tuple[list[str], list[str]]:
-    """Validate strategy-specific requirements.
-
-    Parameters
-    ----------
-    strategy : str
-        Strategy name
-    target : str
-        Target type ("minima", "ts", or "path")
-    product : str | None
-        Product file path (if applicable)
-    structures_count : int
-        Number of structures provided
-
-    Returns
-    -------
-    tuple[list[str], list[str]]
-        Tuple of (errors, warnings). If errors exist, command should fail.
-    """
     errors: list[str] = []
     warnings: list[str] = []
 
-    # Strategies that require product file (only for minima/ts, not path)
     if target != "path" and strategy in ["interpolate", "growing_string"]:
         if product is None:
             errors.append(f"--product is required for {strategy} strategy")
@@ -199,58 +136,14 @@ def _create_explorer(
     force_finite_diff_hessian: bool,
     dry_run: bool,
 ) -> tuple[Explorer, AbstractContextManager[list[str]]]:
-    """Create and configure Explorer instance.
-
-    Parameters
-    ----------
-    atoms : Atoms | list[Atoms]
-        Structure(s) to optimize
-    target : str
-        Target type ("minima", "ts", or "path")
-    strategy : str
-        Strategy name
-    backend : str
-        Backend name
-    model_name : str | None
-        Model name
-    model_path : str | None
-        Model path
-    device : str | None
-        Device name
-    default_charge : int
-        Default charge
-    default_spin : int
-        Default spin
-    local_optimizer : str
-        Local optimizer name
-    optimizer_kwargs : dict[str, Any]
-        Optimizer kwargs
-    ts_kwargs : dict[str, Any]
-        TS optimizer kwargs
-    constraints : str | None
-        Constraints spec
-    verbose : int
-        Verbosity level
-    force_finite_diff_hessian : bool
-        Force finite difference hessian
-    dry_run : bool
-        Whether this is a dry run
-
-    Returns
-    -------
-    tuple[Explorer, AbstractContextManager[list[str]]]
-        Explorer instance and context manager for backend loading
-    """
     verbosity = max(0, verbose - 1)
 
-    # Use nullcontext([]) to match the return type of quiet_backend_loading (yields list[str])
     ctx: AbstractContextManager[list[str]]
     if verbosity == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
         ctx = nullcontext([])
 
-    # Prepare atoms for Explorer (single Atoms or list)
     atoms_for_explorer = atoms[0] if isinstance(atoms, list) and len(atoms) == 1 else atoms
 
     exp = Explorer(
@@ -331,28 +224,11 @@ def _generate_output_path(input_path: str, strategy: str, target: str) -> str:
 
 
 def _extract_result_atoms(results: dict[str, Any], target: str) -> Any:
-    """Extract result atoms from results dictionary.
-
-    Parameters
-    ----------
-    results : dict[str, Any]
-        Results dictionary from Explorer.run()
-    target : str
-        Target type ("minima", "ts", or "path")
-
-    Returns
-    -------
-    Atoms | list[Atoms]
-        Result atoms or trajectory
-    """
     if target == "path":
-        # For path strategies, check for trajectory first
         if "trajectory" in results:
             return results["trajectory"]
-        # Fallback to optimized_atoms
         return results.get("optimized_atoms", [])
     else:
-        # For minima and ts, return optimized_atoms
         return results["optimized_atoms"]
 
 
@@ -373,46 +249,6 @@ def _run_optimization(
     direction: str | None = None,
     climb: bool = False,
 ) -> dict[str, Any]:
-    """Run optimization with strategy-specific parameters.
-
-    Parameters
-    ----------
-    exp : Explorer
-        Explorer instance
-    strategy : str
-        Strategy name
-    target : str
-        Target type ("minima", "ts", or "path")
-    fmax : float
-        Convergence threshold
-    steps : int
-        Max optimization steps
-    calculate_frequencies : bool
-        Whether to calculate frequencies
-    temperature : float
-        Temperature for thermodynamic calculations
-    npoints : int | None
-        Number of interpolation points
-    interp : str | None
-        Interpolation method
-    max_images : int | None
-        Maximum number of images (growing_string)
-    distance_threshold : float | None
-        Distance threshold (growing_string)
-    step_size : float | None
-        Step size (growing_string or IRC)
-    spring_constant : float | None
-        Spring constant (NEB/CI-NEB)
-    direction : str | None
-        Direction (IRC)
-    climb : bool
-        Whether to use climbing image (CI-NEB)
-
-    Returns
-    -------
-    dict[str, Any]
-        Results dictionary
-    """
     run_kwargs: dict[str, Any] = {
         "calculate_frequencies": calculate_frequencies,
         "temperature": temperature,
@@ -909,7 +745,6 @@ def ts(
     )
 
 
-# Add cache commands
 main.add_command(cache)
 
 
@@ -1056,7 +891,6 @@ def path(
             _handle_dry_run(exp)
             return
 
-        # Run path optimization
         result = _run_optimization(
             exp=exp,
             strategy=strategy,
@@ -1073,18 +907,13 @@ def path(
             climb=(strategy == "cineb"),
         )
 
-        # Extract trajectory from result
         trajectory = _extract_result_atoms(result, target="path")
         out_default = _generate_output_path(first_file, strategy, "path")
 
-    # Save results
     out = output or out_default
     write_atoms(trajectory, out)  # type: ignore[arg-type]
-    # len() works on list[Atoms] at runtime, but mypy sees the union type
     click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")  # type: ignore[arg-type]
 
-    # Handle frequency analysis results (chained after optimization)
-    # Note: For path strategies, frequency analysis is performed on the final structure
     _handle_frequency_results(
         result, out, target="path", calculate_frequencies=calculate_frequencies
     )
