@@ -504,10 +504,10 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 # be fully grown, so we re-evaluate 'self.fully_grown' here
                 if (not self.fully_grown) and converged(self.rf_ind):
                     # Insert at the end of the right string, just before the current right frontier node
-                    # Actually, we insert at the beginning of right_string (index 0)
+                    # Match pysisyphus: append to right_string (grows forward from product)
                     new_right_frontier = self.get_new_image(self.rf_ind)
                     self.new_image_inds.append(self.left_size)
-                    self.right_string.insert(0, new_right_frontier)
+                    self.right_string.append(new_right_frontier)
                     self.images = self.left_string + self.right_string
                     logger.info("Added new right frontier node.")
                     self.reparam_in = 0
@@ -745,13 +745,15 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         # This matches pysisyphus behavior
         if len(self.images) == 2:
             logger.info("Growing String: Starting with 2 images, growing initial nodes...")
-            # Store rf_ind before modifying left_string, since rf_ind depends on left_size
-            rf_ind_initial = self.rf_ind
+            # Grow left frontier first (from reactant toward center)
             left_frontier = self.get_new_image(self.lf_ind)
             self.left_string.append(left_frontier)
-            # Use the stored rf_ind since it was valid when images had length 2
-            right_frontier = self.get_new_image(rf_ind_initial)
-            self.right_string.insert(0, right_frontier)
+            # Update images after left growth
+            self.images = self.left_string + self.right_string
+            # Now grow right frontier (from product toward center)
+            # rf_ind is now valid after updating images
+            right_frontier = self.get_new_image(self.rf_ind)
+            self.right_string.append(right_frontier)
             self.images = self.left_string + self.right_string
 
             # Ensure calculators are attached to new images
@@ -849,6 +851,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 logger.info(f"Growing String: Iteration {iteration + 1}, " + "\t".join(strs))
 
         # Combine strings into full path
+        # right_string grows forward from product [P, R1, R2, ...] where R2 is closest to center
+        # In the final path, right_string nodes appear in reverse: ... -> R2 -> R1 -> P
         full_path = self.left_string + self.right_string[::-1]
 
         logger.info(
