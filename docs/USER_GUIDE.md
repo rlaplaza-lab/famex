@@ -157,7 +157,7 @@ qme ts --strategy local ts_guess.xyz
 qme ts --strategy local ts_guess.xyz --freq
 
 # With custom optimizer
-qme ts --strategy local ts_guess.xyz --optimizer rfo --fmax 0.02
+qme ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02
 
 # TS from interpolation
 qme ts --strategy interpolate reactant.xyz --product product.xyz
