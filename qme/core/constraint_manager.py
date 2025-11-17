@@ -1,8 +1,4 @@
-"""Constraint management for QME Explorer.
-
-This module provides the ConstraintManager class for handling constraint parsing
-and application to atoms objects.
-"""
+"""Constraint management for QME Explorer."""
 
 from __future__ import annotations
 
@@ -14,29 +10,14 @@ from qme.constraints.parser import parse_constraints
 
 
 class ConstraintManager:
-    """Manages constraint parsing and application for Explorer.
-
-    Handles constraint specification parsing and application to atoms objects.
-    Provides caching of parsed constraints for performance.
-    """
+    """Manages constraint parsing and application for Explorer."""
 
     def __init__(
         self,
         constraints_spec: str | list | dict | None = None,
         cache_parsed: bool = True,
     ) -> None:
-        """Initialize ConstraintManager.
-
-        Parameters
-        ----------
-        constraints_spec : str, list, dict, optional
-            Constraint specification. Can be:
-            - String: "fix 0 1 2" (fix atoms 0, 1, 2)
-            - List: [FixAtoms(indices=[0, 1, 2])]
-            - Dict: {"fix": [0, 1, 2]}
-        cache_parsed : bool, default True
-            Whether to cache parsed constraints for reuse
-        """
+        """Initialize ConstraintManager."""
         self.constraints_spec = constraints_spec
         self.cache_parsed = cache_parsed
         self._cached_constraints: list[Any] | None = None

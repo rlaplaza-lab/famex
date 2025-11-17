@@ -1,8 +1,4 @@
-"""File I/O helper functions for QME Explorer.
-
-This module provides consolidated file I/O operations to reduce code duplication
-and improve error handling.
-"""
+"""File I/O helper functions for QME Explorer."""
 
 from __future__ import annotations
 
@@ -15,24 +11,7 @@ from qme.io.xyz_io import write_xyz_with_metadata
 
 
 def validate_output_path(output_file: str | Path) -> Path:
-    """Validate output file path for security.
-
-    Parameters
-    ----------
-    output_file : str or Path
-        Output file path to validate
-
-    Returns
-    -------
-    Path
-        Validated Path object
-
-    Raises
-    ------
-    ValueError
-        If path contains unsafe patterns
-
-    """
+    """Validate output file path for security."""
     output_file = Path(output_file)
 
     if ".." in str(output_file) or "\x00" in str(output_file):
@@ -61,25 +40,7 @@ def write_atoms_safely(
     output_file: str | Path,
     format: str | None = None,
 ) -> None:
-    """Write atoms to file with comprehensive error handling.
-
-    Parameters
-    ----------
-    atoms : Atoms
-        Structure to save
-    output_file : str or Path
-        Output file path
-    format : str, optional
-        File format (inferred from extension if None)
-
-    Raises
-    ------
-    ValueError
-        If path is unsafe
-    RuntimeError
-        If file write fails
-
-    """
+    """Write atoms to file with error handling."""
     output_file = validate_output_path(output_file)
 
     if str(output_file).lower().endswith(".xyz"):
@@ -120,25 +81,7 @@ def write_trajectory_safely(
     output_file: str | Path,
     format: str | None = None,
 ) -> None:
-    """Write trajectory (multiple structures) to file with comprehensive error handling.
-
-    Parameters
-    ----------
-    atoms_list : list[Atoms]
-        List of structures to save as trajectory
-    output_file : str or Path
-        Output file path
-    format : str, optional
-        File format (inferred from extension if None)
-
-    Raises
-    ------
-    ValueError
-        If path is unsafe
-    RuntimeError
-        If file write fails
-
-    """
+    """Write trajectory (multiple structures) to file with error handling."""
     output_file = validate_output_path(output_file)
 
     if str(output_file).lower().endswith(".xyz"):

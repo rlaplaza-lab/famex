@@ -1,23 +1,4 @@
-"""SciPy-based optimizers with Hessian support for QME.
-
-This module provides ASE-compatible optimizer wrappers for SciPy's
-second-order optimization methods that require Hessian matrices.
-These methods are particularly useful for transition state searches
-and challenging optimization landscapes.
-
-The implementation leverages QME's efficient Hessian calculation
-infrastructure (FrequencyAnalysis) which can compute Hessians cheaply
-using machine learning potentials via finite differences, batch evaluation,
-or direct calculation.
-
-Supported optimizers:
-- Trust-Krylov: Trust region method with Krylov subspace solver
-- Trust-NCG: Trust region Newton Conjugate Gradient
-- Trust-Exact: Exact trust region method (nearly exact solver)
-- Newton-CG: Newton's method with Conjugate Gradient
-
-Based on ASE's SciPyOptimizer pattern but extended for Hessian-based methods.
-"""
+"""SciPy-based optimizers with Hessian support for QME."""
 
 from __future__ import annotations
 
@@ -28,7 +9,6 @@ from ase import Atoms
 from ase.optimize.optimize import Optimizer
 from scipy.optimize import minimize
 
-# FrequencyAnalysis imported locally to avoid circular imports
 from qme.utils.logging import get_qme_logger
 
 logger = get_qme_logger(__name__)
@@ -39,66 +19,7 @@ class ConvergedError(Exception):
 
 
 class SciPyHessianOptimizer(Optimizer):
-    """Base class for SciPy optimizers that use Hessian information.
-
-    This class provides an ASE-compatible interface to SciPy's second-order
-    optimization methods. It computes Hessians efficiently using QME's
-    FrequencyAnalysis class.
-
-    Parameters
-    ----------
-    atoms : Atoms
-        The Atoms object to optimize.
-    method : str
-        SciPy optimization method ('trust-krylov', 'trust-ncg', 'trust-exact', 'Newton-CG')
-    logfile : IO | str
-        File object or filename for logging. Use '-' for stdout.
-    trajectory : Optional[str]
-        Trajectory file to store optimization path.
-    hessian_update_freq : Optional[int]
-        Optional frequency of full Hessian recalculation (in steps).
-        Default is None, which only computes the Hessian once at the beginning.
-        Set to an integer to recompute every N steps.
-    hessian_method : str
-        Method for Hessian calculation: 'auto', 'batch', 'finite_differences', 'direct'
-        Default is 'auto' which selects the best available method.
-    hessian_delta : float
-        Step size for finite difference Hessian calculation (Å). Default is 0.01.
-    initial_hessian : Optional[np.ndarray]
-        Initial Hessian matrix. If None, computed on first step.
-    alpha : float
-        Initial scaling factor for Hessian. Default is 1.0 (no scaling).
-        Can be adjusted to improve convergence.
-    use_bfgs_update : bool
-        Use BFGS approximate updates between full Hessian calculations.
-        Default is True. Significantly reduces computational cost.
-    adaptive_hessian : bool
-        Use adaptive Hessian update frequency based on convergence behavior.
-        Default is False. Enable to trigger additional Hessian evaluations
-        when forces increase sharply.
-    force_threshold_ratio : float
-        Ratio of force increase that triggers a full Hessian update.
-        Default is 2.0. Only used if adaptive_hessian=True.
-    verbose : int
-        Verbosity level for optimization output:
-        - 0: Quiet (minimal output)
-        - 1: Normal (default, shows progress)
-        - 2: Verbose (detailed information)
-    **kwargs
-        Additional arguments passed to Optimizer base class.
-
-    Attributes
-    ----------
-    freq_analysis : FrequencyAnalysis
-        FrequencyAnalysis instance for Hessian computation.
-    hessian : Optional[np.ndarray]
-        Current Hessian matrix.
-    force_calls : int
-        Number of force/gradient evaluations.
-    hessian_calls : int
-        Number of Hessian evaluations.
-
-    """
+    """Base class for SciPy optimizers that use Hessian information."""
 
     def __init__(
         self,
@@ -206,37 +127,13 @@ class SciPyHessianOptimizer(Optimizer):
         return cast(np.ndarray, x.reshape(-1, 3))
 
     def objective(self, x: np.ndarray) -> float:
-        """Objective function for minimization (potential energy).
-
-        Parameters
-        ----------
-        x : np.ndarray
-            Flattened position array.
-
-        Returns
-        -------
-        float
-            Potential energy scaled by alpha.
-
-        """
+        """Objective function for minimization (potential energy)."""
         self.atoms.set_positions(self._x_to_positions(x))
         energy = self.atoms.get_potential_energy()
         return energy / self.alpha  # type: ignore[no-any-return]
 
     def gradient(self, x: np.ndarray) -> np.ndarray:
-        """Gradient of objective function (negative forces).
-
-        Parameters
-        ----------
-        x : np.ndarray
-            Flattened position array.
-
-        Returns
-        -------
-        np.ndarray
-            Gradient (negative forces), flattened and scaled.
-
-        """
+        """Gradient of objective function (negative forces)."""
         self.atoms.set_positions(self._x_to_positions(x))
         self.force_calls += 1
 
@@ -491,59 +388,7 @@ class SciPyHessianOptimizer(Optimizer):
 
 
 class TrustKrylov(SciPyHessianOptimizer):
-    """Trust-Krylov optimizer for ASE.
-
-    This optimizer uses SciPy's trust-krylov method, which is a trust-region
-    algorithm that uses a Krylov subspace to approximately solve the
-    trust-region subproblem. It's particularly good for:
-
-    - Transition state searches (handles indefinite Hessians)
-    - Large systems (doesn't require storing full factorization)
-    - Challenging potential energy surfaces
-
-    The Hessian is computed using QME's FrequencyAnalysis, which leverages
-    efficient batch evaluation or finite differences suitable for ML potentials.
-
-    Parameters
-    ----------
-    atoms : Atoms
-        The Atoms object to optimize.
-    logfile : IO | str
-        File object or filename for logging. Use '-' for stdout.
-    trajectory : Optional[str]
-        Trajectory file to store optimization path.
-    hessian_update_freq : Optional[int]
-        Base frequency of full Hessian recalculation (in steps). Default is None,
-        which only computes the Hessian once at the beginning. Set to an integer
-        to recompute every N steps.
-    hessian_method : str
-        Method for Hessian calculation: 'auto', 'batch', 'finite_differences', 'direct'
-    hessian_delta : float
-        Step size for finite difference Hessian (Å). Default is 0.01.
-    initial_hessian : Optional[np.ndarray]
-        Initial Hessian matrix. If None, computed on first step.
-    use_bfgs_update : bool
-        Use BFGS approximate updates between full Hessians. Default is True.
-    adaptive_hessian : bool
-        Adapt update frequency based on convergence. Default is False.
-    verbose : int
-        Verbosity level for optimization output:
-        - 0: Quiet (minimal output)
-        - 1: Normal (default, shows progress)
-        - 2: Verbose (detailed information)
-    **kwargs
-        Additional arguments passed to Optimizer base class.
-
-    Example:
-    -------
-    >>> from ase.build import molecule
-    >>> from qme.core.scipy_optimizers import TrustKrylov
-    >>> atoms = molecule('H2O')
-    >>> # atoms.calc = ... (attach your calculator)
-    >>> opt = TrustKrylov(atoms, trajectory='opt.traj')
-    >>> opt.run(fmax=0.05, steps=100)
-
-    """
+    """Trust-Krylov optimizer for ASE."""
 
     def __init__(
         self,
@@ -577,17 +422,7 @@ class TrustKrylov(SciPyHessianOptimizer):
 
 
 class TrustNCG(SciPyHessianOptimizer):
-    """Trust-NCG (Newton Conjugate Gradient) optimizer for ASE.
-
-    Uses SciPy's trust-ncg method, which is a trust-region algorithm
-    that uses Newton's conjugate gradient method to approximately solve
-    the trust-region subproblem.
-
-    Parameters
-    ----------
-    See TrustKrylov for parameter documentation.
-
-    """
+    """Trust-NCG optimizer for ASE."""
 
     def __init__(
         self,
@@ -621,17 +456,7 @@ class TrustNCG(SciPyHessianOptimizer):
 
 
 class TrustExact(SciPyHessianOptimizer):
-    """Trust-Exact optimizer for ASE.
-
-    Uses SciPy's trust-exact method, which is a trust-region algorithm
-    that uses a nearly exact solver for the trust-region subproblem.
-    Most accurate but also most computationally expensive.
-
-    Parameters
-    ----------
-    See TrustKrylov for parameter documentation.
-
-    """
+    """Trust-Exact optimizer for ASE."""
 
     def __init__(
         self,
@@ -665,16 +490,7 @@ class TrustExact(SciPyHessianOptimizer):
 
 
 class NewtonCG(SciPyHessianOptimizer):
-    """Newton-CG (Newton Conjugate Gradient) optimizer for ASE.
-
-    Uses SciPy's Newton-CG method, which is Newton's method where
-    the linear system is solved using conjugate gradients.
-
-    Parameters
-    ----------
-    See TrustKrylov for parameter documentation.
-
-    """
+    """Newton-CG optimizer for ASE."""
 
     def __init__(
         self,

@@ -1,8 +1,4 @@
-"""Validation functions for QME Explorer runs.
-
-This module provides input validation for different types of optimization runs,
-checking atoms, optimizer compatibility, backend requirements, and other constraints.
-"""
+"""Validation functions for QME Explorer runs."""
 
 from __future__ import annotations
 
@@ -60,7 +56,7 @@ class DependencyError(Exception):
 
 
 def validate_atoms_compatibility(atoms1: Atoms, atoms2: Atoms, context: str = "operation") -> None:
-    """Validate that two Atoms objects are compatible for operations."""
+    """Validate two Atoms objects are compatible."""
     if len(atoms1) != len(atoms2):
         raise ValueError(
             f"Incompatible atoms for {context}: different number of atoms "

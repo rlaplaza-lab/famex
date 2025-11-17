@@ -83,7 +83,6 @@ class FrequencyAnalysis:
             nfree if nfree is not None else determine_degrees_of_freedom(atoms, self.indices)
         )
 
-        # Initialize result storage
         self._hessian: np.ndarray | None = None
         self._frequencies: np.ndarray | None = None
         self._normal_modes: np.ndarray | None = None
@@ -145,7 +144,6 @@ class FrequencyAnalysis:
             msg = f"Unknown Hessian method: {method}"
             raise ValueError(msg)
 
-        # Validate Hessian and warn if issues detected
         validation_results = validate_hessian(self._hessian, warn_on_issues=True)
         if not validation_results["is_valid"]:
             logger.warning(
@@ -167,16 +165,13 @@ class FrequencyAnalysis:
         if self.verbose >= 1:
             logger.info("Using batch evaluation for Hessian calculation...")
 
-        # Generate all displaced structures
         displaced_structures = self._generate_displaced_structures()
 
-        # Calculate energies and forces for all structures in one batch
         batch_results = self.calculator.calculate_batch(
             displaced_structures,
             properties=["energy", "forces"],
         )
 
-        # Construct Hessian matrix from batch results
         return self._construct_hessian_from_batch(batch_results)
 
     def _generate_displaced_structures(self) -> list[Atoms]:
@@ -187,19 +182,14 @@ class FrequencyAnalysis:
         """
         displaced_structures = []
 
-        # Add the original structure (reference)
         displaced_structures.append(self.atoms.copy())
 
-        # Generate displaced structures for central difference scheme
-        # For each atom in indices, for each coordinate (x, y, z)
         for i in self.indices:
-            for j in range(3):  # x, y, z directions
-                # Positive displacement
+            for j in range(3):
                 atoms_pos = self.atoms.copy()
                 atoms_pos.positions[i, j] += self.delta
                 displaced_structures.append(atoms_pos)
 
-                # Negative displacement
                 atoms_neg = self.atoms.copy()
                 atoms_neg.positions[i, j] -= self.delta
                 displaced_structures.append(atoms_neg)
@@ -219,20 +209,17 @@ class FrequencyAnalysis:
         n_coords = 3 * n_atoms
         hessian = np.zeros((n_coords, n_coords))
 
-        # Validate batch results
-        expected_results = 1 + 2 * n_coords  # 1 reference + 2 per coordinate
+        expected_results = 1 + 2 * n_coords
         if len(batch_results) < expected_results:
             msg = (
                 f"Insufficient batch results: expected {expected_results}, got {len(batch_results)}"
             )
             raise RuntimeError(msg)
 
-        # Calculate Hessian using finite differences
-        result_idx = 1  # Start from index 1 (skip reference structure)
+        result_idx = 1
 
         for i in range(n_atoms):
-            for j in range(3):  # x, y, z directions
-                # Get positive and negative displacement forces
+            for j in range(3):
                 pos_forces = batch_results[result_idx].get("forces")
                 if pos_forces is None:
                     msg = f"Missing forces in batch result {result_idx}"
@@ -245,8 +232,6 @@ class FrequencyAnalysis:
                     raise RuntimeError(msg)
                 result_idx += 1
 
-                # Calculate Hessian column using central differences
-                # H_ij = -∂F_i/∂x_j = (F_i(-δ) - F_i(+δ)) / (2*δ)
                 hessian_row = 3 * i + j
                 for k in range(n_atoms):
                     atom_k = self.indices[k]
@@ -256,7 +241,6 @@ class FrequencyAnalysis:
                             neg_forces[atom_k, coord] - pos_forces[atom_k, coord]
                         ) / (2 * self.delta)
 
-        # Symmetrize for numerical stability
         hessian = 0.5 * (hessian + hessian.T)
 
         if self.verbose >= 2:
@@ -300,13 +284,11 @@ class FrequencyAnalysis:
         if self.verbose >= 1:
             logger.info("Hessian autoselect: choosing optimal method...")
 
-        # Step 1: Try analytical Hessian if available
         if has_calculator_property(self.calculator, "hessian"):
             if self.verbose >= 1:
                 logger.info("  Trying analytical Hessian...")
             try:
                 analytical_hessian = self._calculate_direct_hessian()
-                # Validate analytical Hessian
                 if np.any(np.isnan(analytical_hessian)) or np.any(np.isinf(analytical_hessian)):
                     logger.warning(
                         "  Analytical Hessian contains NaN/Inf, falling back to finite differences"
@@ -326,7 +308,7 @@ class FrequencyAnalysis:
             except (AttributeError, RuntimeError) as e:
                 logger.warning(f"  Analytical Hessian failed: {e}, falling back to FD")
 
-        # Step 2: Estimate force noise
+        # Estimate force noise
         if self.verbose >= 1:
             logger.info("  Estimating force noise...")
         try:
@@ -368,7 +350,6 @@ class FrequencyAnalysis:
         elif self.verbose >= 1:
             logger.info("  Force noise acceptable, using force-based FD")
 
-        # Step 4: Fall back to high-quality force-based FD
         if self.verbose >= 1:
             logger.info("  Using high-quality force-based FD (5-point + Richardson)...")
         hessian_calc = HessianCalculator(
@@ -439,7 +420,6 @@ class FrequencyAnalysis:
 
             freq_all = self._frequencies
 
-        # Remove translational and rotational modes: drop nfree frequencies closest to zero by |freq|
         idx_sorted = np.argsort(np.abs(freq_all))
         keep_idx = idx_sorted[self.nfree :]
         self._keep_indices = keep_idx
@@ -507,14 +487,11 @@ class FrequencyAnalysis:
             if imag_freqs[i] > threshold:
                 imaginary_freqs_list.append(-imag_freqs[i])  # Store as negative for convention
             elif real_freqs[i] < -threshold:
-                # Negative real part - also an imaginary frequency
                 imaginary_freqs_list.append(real_freqs[i])
 
         imaginary_freqs = np.array(imaginary_freqs_list)
         n_imaginary = len(imaginary_freqs)
 
-        # Count near-zero frequencies (should be excluded)
-        # For complex frequencies, check magnitude
         freq_magnitudes = np.abs(frequencies)
         near_zero = freq_magnitudes < threshold
         n_near_zero = int(np.sum(near_zero))
@@ -577,22 +554,16 @@ class FrequencyAnalysis:
         """
         frequencies = self.get_frequencies()
 
-        # Handle complex frequencies by taking real part for comparison
         real_freqs = np.real(frequencies)
-        # Count significant imaginary frequencies above threshold
         significant_imaginary = frequencies[real_freqs < -threshold]
         n_significant_imaginary = len(significant_imaginary)
 
-        # Count small negative frequencies (likely numerical noise)
         small_negative = frequencies[(real_freqs < 0) & (real_freqs > small_negative_cutoff)]
         n_small_negative = len(small_negative)
 
-        # Count near-zero frequencies (should be excluded)
         near_zero = np.abs(frequencies) < threshold
         n_near_zero = int(np.sum(near_zero))
 
-        # A structure is a minimum if it has no significant imaginary frequencies
-        # Small negative frequencies (above cutoff) are considered acceptable
         is_minimum = n_significant_imaginary == 0
 
         return {
@@ -651,17 +622,11 @@ class FrequencyAnalysis:
         if self._zero_point_energy is not None:
             return self._zero_point_energy
 
-        frequencies = self.get_frequencies()  # in cm^-1
-        # Only include real (positive) frequencies
-        # Handle complex frequencies (imaginary frequencies for TS)
-        # Take real part and filter out non-positive values
+        frequencies = self.get_frequencies()
         real_frequencies = frequencies[np.real(frequencies) > 0]
-        # Ensure we have real values (take real part if complex)
         real_frequencies = np.real(real_frequencies)
 
-        # Convert frequencies from cm^-1 to eV, then calculate ZPE
-        # ZPE = (1/2) * Σ hνᵢ where νᵢ are frequencies in eV
-        freq_eV = real_frequencies * units.invcm  # Convert cm^-1 to eV
+        freq_eV = real_frequencies * units.invcm
         zpe = float(0.5 * np.sum(freq_eV))  # ZPE in eV, ensure float type
 
         self._zero_point_energy = zpe
@@ -728,15 +693,10 @@ class FrequencyAnalysis:
             If complete=False, returns vibrational-only (backward compatible).
 
         """
-        frequencies = self.get_frequencies()  # in cm^-1
-        # Only include real frequencies
-        # Handle complex frequencies (imaginary frequencies for TS)
-        # Take real part and filter out non-positive values
+        frequencies = self.get_frequencies()
         real_frequencies = frequencies[np.real(frequencies) > 0]
-        # Ensure we have real values (take real part if complex)
         real_frequencies = np.real(real_frequencies)
 
-        # Initialize comprehensive thermodynamics calculator
         thermo_props = ThermodynamicProperties(
             real_frequencies,
             self.atoms,
