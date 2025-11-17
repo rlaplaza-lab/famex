@@ -297,7 +297,8 @@ class FrequencyAnalysis:
         Returns
         -------
         Tuple[np.ndarray, np.ndarray]
-            frequencies (in cm^-1) and normal mode eigenvectors
+            frequencies (in cm^-1) and normal mode eigenvectors.
+            Frequencies are always real numbers (complex parts are discarded).
 
         """
         if self._hessian is None:
@@ -307,6 +308,11 @@ class FrequencyAnalysis:
         frequencies, eigenvectors = diagonalize_mass_weighted_hessian(
             self._hessian, self.atoms, self.indices
         )
+
+        # Ensure frequencies are real (discard any imaginary parts)
+        # In normal mode analysis, frequencies should be real numbers.
+        # The sign convention (positive/negative) handles imaginary modes.
+        frequencies = np.real(frequencies)
 
         self._frequencies = frequencies
         self._normal_modes = eigenvectors
@@ -325,7 +331,8 @@ class FrequencyAnalysis:
         Returns
         -------
         np.ndarray
-            Vibrational frequencies, excluding translational and rotational modes
+            Vibrational frequencies, excluding translational and rotational modes.
+            Frequencies are always real numbers (complex parts are discarded).
 
         """
         # Gather all frequencies
@@ -341,6 +348,11 @@ class FrequencyAnalysis:
                 raise QMEError(msg)
 
             freq_all = self._frequencies
+
+        # Ensure frequencies are real (discard any imaginary parts)
+        # In normal mode analysis, frequencies should be real numbers.
+        # The sign convention (positive/negative) handles imaginary modes.
+        freq_all = np.real(freq_all)
 
         idx_sorted = np.argsort(np.abs(freq_all))
         keep_idx = idx_sorted[self.nfree :]
@@ -401,15 +413,12 @@ class FrequencyAnalysis:
         """
         frequencies = self.get_frequencies()
 
-        real_freqs = np.real(frequencies)
-        imag_freqs = np.imag(frequencies)
-
+        # Frequencies are now guaranteed to be real (from get_frequencies)
+        # Negative frequencies indicate imaginary modes
         imaginary_freqs_list = []
-        for i, _freq in enumerate(frequencies):
-            if imag_freqs[i] > threshold:
-                imaginary_freqs_list.append(-imag_freqs[i])  # Store as negative for convention
-            elif real_freqs[i] < -threshold:
-                imaginary_freqs_list.append(real_freqs[i])
+        for freq in frequencies:
+            if freq < -threshold:
+                imaginary_freqs_list.append(freq)
 
         imaginary_freqs = np.array(imaginary_freqs_list)
         n_imaginary = len(imaginary_freqs)
@@ -476,11 +485,12 @@ class FrequencyAnalysis:
         """
         frequencies = self.get_frequencies()
 
-        real_freqs = np.real(frequencies)
-        significant_imaginary = frequencies[real_freqs < -threshold]
+        # Frequencies are now guaranteed to be real (from get_frequencies)
+        # Negative frequencies indicate imaginary modes
+        significant_imaginary = frequencies[frequencies < -threshold]
         n_significant_imaginary = len(significant_imaginary)
 
-        small_negative = frequencies[(real_freqs < 0) & (real_freqs > small_negative_cutoff)]
+        small_negative = frequencies[(frequencies < 0) & (frequencies > small_negative_cutoff)]
         n_small_negative = len(small_negative)
 
         near_zero = np.abs(frequencies) < threshold
