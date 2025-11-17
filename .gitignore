@@ -216,3 +216,6 @@ coverage.xml
 # Local configuration files
 .env.local
 .env.*.local
+
+# Internal development directories
+hessian_issues/
