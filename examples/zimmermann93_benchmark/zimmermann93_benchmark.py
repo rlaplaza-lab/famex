@@ -529,9 +529,15 @@ class Zimmermann93Benchmark:
                 except Exception:
                     pass
 
+            # Handle complex numbers first (before numpy arrays)
+            if isinstance(obj, complex):
+                return {"real": float(obj.real), "imag": float(obj.imag), "_type": "complex"}
+            if isinstance(obj, np.complexfloating):
+                return {"real": float(obj.real), "imag": float(obj.imag), "_type": "complex"}
             # Handle numpy arrays and scalars
             if isinstance(obj, np.ndarray):
-                return obj.tolist()
+                # Convert to list and recursively handle complex numbers
+                return [convert(item) for item in obj.tolist()]
             if isinstance(obj, np.integer | np.floating):
                 return float(obj)
 
