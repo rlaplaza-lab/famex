@@ -35,6 +35,7 @@ from tests.test_utils import (  # noqa: E402
     assert_error_contains,
     backend_test_with_warnings,
     create_backend_test_atoms,
+    handle_backend_errors,
     parametrize_backends,
     requires_backend,
 )
@@ -51,6 +52,7 @@ __all__ = [
     "assert_error_contains",
     "backend_test_with_warnings",
     "create_backend_test_atoms",
+    "handle_backend_errors",
     "parametrize_backends",
     "requires_backend",
 ]
@@ -162,6 +164,51 @@ def mock_backend():
     import qme
 
     return qme.MockCalculator(backend="mock")
+
+
+@pytest.fixture
+def any_real_backend_explorer(request):
+    """Fixture that provides an Explorer with any available real backend (uma or mace).
+
+    Tries uma first, then mace. Skips test if neither is available.
+    Works with any atoms fixture by accepting atoms as a parameter (single Atoms or list).
+
+    Usage:
+        def test_something(any_real_backend_explorer, water_molecule):
+            explorer = any_real_backend_explorer(water_molecule)
+            # Use explorer...
+
+        def test_with_list(any_real_backend_explorer, reactant_product_pair):
+            reactant, product = reactant_product_pair
+            explorer = any_real_backend_explorer([reactant, product])
+            # Use explorer...
+    """
+    from qme.backends.availability import is_backend_available
+    from qme.core.explorer import Explorer
+    from qme.utils.validation import BackendError
+
+    def _create_explorer(atoms, skip_message="No real backend available"):
+        """Create explorer with any available real backend.
+
+        Args:
+            atoms: Single Atoms object or list of Atoms objects
+            skip_message: Message to use when skipping test
+        """
+        # Check availability first
+        if not is_backend_available("uma") and not is_backend_available("mace"):
+            pytest.skip(skip_message)
+
+        # Try uma first
+        try:
+            return Explorer(atoms, backend="uma")
+        except (ImportError, BackendError, Exception):
+            # Try mace as fallback
+            try:
+                return Explorer(atoms, backend="mace")
+            except (ImportError, BackendError, Exception):
+                pytest.skip(skip_message)
+
+    return _create_explorer
 
 
 @pytest.fixture

@@ -242,7 +242,9 @@ class TestStrategyUtils:
             np.array([[0.01, 0.0, 0.0], [0.01, 0.0, 0.0]]),
             np.array([[0.02, 0.0, 0.0], [0.02, 0.0, 0.0]]),
         ]
-        fmax = 0.05
+        from tests.test_constants import DEFAULT_FMAX
+
+        fmax = DEFAULT_FMAX
 
         result = StrategyUtils.check_convergence(forces_list, fmax, step=0)
 
@@ -250,11 +252,13 @@ class TestStrategyUtils:
 
     def test_check_convergence_false(self):
         """Test check_convergence when not converged."""
+        from tests.test_constants import DEFAULT_FMAX
+
         forces_list = [
             np.array([[0.1, 0.0, 0.0], [0.1, 0.0, 0.0]]),
             np.array([[0.2, 0.0, 0.0], [0.2, 0.0, 0.0]]),
         ]
-        fmax = 0.05
+        fmax = DEFAULT_FMAX
 
         result = StrategyUtils.check_convergence(forces_list, fmax, step=0)
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from qme.optimizers.rfo_optimizer import ConvergedError, RFOTransitionState
-from tests.test_constants import DEFAULT_FMAX, LOOSE_FMAX, QUICK_STEPS, QUICK_STEPS_EXTENDED
+from tests.test_constants import LOOSE_FMAX, QUICK_STEPS, QUICK_STEPS_EXTENDED, TIGHT_FMAX
 
 
 class TestRFOConvergenceScenarios:
@@ -45,7 +45,7 @@ class TestRFOConvergenceScenarios:
         )
 
         # Run with very few steps and tight convergence
-        result = opt.run(fmax=DEFAULT_FMAX * 0.1, steps=2)  # Very tight, few steps
+        result = opt.run(fmax=TIGHT_FMAX, steps=QUICK_STEPS)  # Very tight, few steps
 
         # Should handle non-convergence gracefully
         assert bool(result) in (True, False)
@@ -133,7 +133,7 @@ class TestRFOConvergenceScenarios:
         )
 
         # Run with very few steps to hit limit quickly
-        result = opt.run(fmax=DEFAULT_FMAX * 0.1, steps=1)  # Tight convergence, 1 step
+        result = opt.run(fmax=TIGHT_FMAX, steps=QUICK_STEPS)  # Tight convergence, minimal steps
 
         # Should handle step limit gracefully
         assert bool(result) in (True, False)
