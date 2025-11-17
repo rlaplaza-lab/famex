@@ -26,10 +26,6 @@ if TYPE_CHECKING:
     import numpy as np
 
 
-# Charge/spin extraction moved to qme.core.charge_spin module
-# Imported at top of file
-
-
 class Explorer:
     """Explorer runs optimizations/TS searches on one or more Atoms.
 
@@ -150,9 +146,7 @@ class Explorer:
 
     """
 
-    # =============================================================================
-    # Initialization
-    # =============================================================================
+    # --- Initialization ---
 
     def __init__(
         self,
@@ -234,21 +228,15 @@ class Explorer:
         # Initialize performance profiler if requested
         self.profiler = PerformanceProfiler() if profile else None
 
-        # Setup QME logging with specified verbosity
         from qme.utils.logging import setup_qme_logging
 
         setup_qme_logging(verbosity=verbose)
 
         self.local_optimizer_name = local_optimizer
         self.optimizer_kwargs = optimizer_kwargs or {}
-
-        # Strategy/target control how run() selects a strategy.
         self.strategy = (strategy or "").strip().lower()
         self.target = (target or "").strip().lower()
         self.ts_kwargs = ts_kwargs or {}
-
-        # If force_finite_diff_hessian is True and target is "ts", set hessian_method
-        # in ts_kwargs if not already specified
         self.force_finite_diff_hessian = force_finite_diff_hessian
         if self.force_finite_diff_hessian and self.target == "ts":
             if "hessian_method" not in self.ts_kwargs:
@@ -256,7 +244,6 @@ class Explorer:
 
         self.initial_hessian = initial_hessian
 
-        # Initialize managers
         self.calculator_manager = CalculatorManager(
             backend=backend,
             model_name=model_name,
@@ -271,88 +258,44 @@ class Explorer:
             cache_parsed=True,
         )
 
-        # Auto-register default strategies unless caller opts out
         if auto_register:
-            # Strategies are auto-registered via imports in __init__.py
             pass
 
-    # =============================================================================
-    # Calculator & Constraints Management
-    # =============================================================================
+    # --- Calculator & Constraints Management ---
 
     def _get_effective_model_name(self) -> str:
-        """Get the effective model name that will actually be used by the backend.
-
-        Returns the model name that will be used after applying backend-specific defaults.
-        """
+        """Get effective model name after applying backend defaults."""
         return self.calculator_manager.get_effective_model_name()
 
     def _get_effective_optimizer(self) -> str:
-        """Get the effective optimizer that will actually be used.
-
-        Returns the optimizer name after applying context-aware defaults.
-        """
+        """Get effective optimizer name after applying defaults."""
         if self.local_optimizer_name != "default":
             return self.local_optimizer_name
-
-        # Context-aware selection based on target
         if self.target == "ts":
             return "sella"
-        # minima or path
         return "lbfgs"
 
     def _create_and_attach_calculator(self, atoms: Atoms) -> Any:
-        """Create and attach an ASE calculator to ``atoms``.
-
-        Prefers explicit ``charge``/``mult`` found on Geometry-like objects or
-        in ``atoms.info``. Falls back to the Explorer defaults otherwise.
-
-        Parameters
-        ----------
-        atoms : Atoms
-            Atoms object to attach calculator to
-
-        Returns
-        -------
-        Any
-            The created calculator object
-        """
+        """Create and attach calculator to atoms."""
         return self.calculator_manager.create_and_attach_calculator(atoms)
 
     def _apply_constraints(self, atoms: Atoms) -> list[Any]:
-        """Parse and apply constraints to ``atoms`` if specified.
-
-        Returns the ASE constraints list after application.
-
-        Parameters
-        ----------
-        atoms : Atoms
-            Atoms object to apply constraints to
-
-        Returns
-        -------
-        list[Any]
-            List of ASE constraint objects
-        """
+        """Apply constraints to atoms."""
         return self.constraint_manager.apply_constraints(atoms)
 
-    # =============================================================================
-    # Strategy Management
-    # =============================================================================
+    # --- Strategy Management ---
 
     def list_strategies(self, kind: str | None = None) -> dict[str, dict[str, str]]:
         """List available strategies; optionally filter by kind."""
         out: dict[str, dict[str, str]] = {}
         for name, metadata in REGISTRY.list_strategies().items():
             if kind is None or metadata.target == kind:
-                # Add main strategy name
                 out[name] = {
                     "type": (
                         "multi-structure" if metadata.requires_multiple_structures else "local"
                     ),
                     "description": metadata.description,
                 }
-                # Add aliases
                 for alias in metadata.aliases:
                     out[alias] = {
                         "type": (
@@ -362,36 +305,16 @@ class Explorer:
                     }
         return out
 
-    # =============================================================================
-    # Execution
-    # =============================================================================
+    # --- Execution ---
 
     def explain_run(self) -> dict[str, str | bool | int | None]:
-        """Explain what strategy would be selected without running.
-
-        Returns
-        -------
-        dict[str, str | bool | int | None]
-            Dictionary with strategy selection details containing:
-            - target: Target type (str)
-            - strategy: Strategy type (str)
-            - strategy_key: Full strategy name (str)
-            - runner: Strategy class name (str or None)
-            - valid: Whether strategy is valid (bool)
-            - strategy_type: Type of strategy (str)
-            - description: Strategy description (str)
-            - notes: Additional notes (str)
-            - error: Error message if invalid (str, optional)
-
-        """
+        """Explain what strategy would be selected without running."""
         try:
-            # Determine strategy name from constructor target/strategy
             if self.target and self.strategy:
                 strategy_name = f"{self.target}:{self.strategy}"
             else:
                 strategy_name = "minima:local"
 
-            # Get strategy class from registry
             strategy_class = REGISTRY.get(strategy_name)
             metadata = strategy_class.metadata
 
@@ -479,7 +402,6 @@ class Explorer:
         >>> result = explorer.run(fmax=0.01)
 
         """
-        # If the caller passed an explicit runner function, use it directly
         if runner is not None:
             call_kwargs = dict(kwargs)
             call_kwargs.setdefault("explorer", self)
@@ -487,40 +409,30 @@ class Explorer:
             call_kwargs.setdefault("verbose", self.verbose)
             call_kwargs.setdefault("calculate_frequencies", calculate_frequencies)
             result = runner(self.atoms_list, **call_kwargs)
-            # Ensure result is properly typed
             if isinstance(result, dict):
                 return result
-            # Convert to expected format if needed
             return {"optimized_atoms": result, "strategy": "custom"}
 
-        # Determine strategy name from constructor target/strategy
         if self.target and self.strategy:
             strategy_name = f"{self.target}:{self.strategy}"
         else:
-            # Default to minima:local
             strategy_name = "minima:local"
 
-        # Get strategy class from registry
         try:
             strategy_class = REGISTRY.get(strategy_name)
         except StrategyNotFoundError as e:
-            # Re-raise with more context
             raise NotImplementedError(
                 f"No strategy found for '{strategy_name}'. "
                 f"Available strategies: {sorted(REGISTRY.list_strategies().keys())}"
             ) from e
 
-        # Instantiate and run strategy
         strategy_instance = strategy_class(explorer=self, profiler=self.profiler)
-        # Pass the effective optimizer name to the strategy
         kwargs.setdefault("local_optimizer_name", self._get_effective_optimizer())
         kwargs.setdefault("verbose", self.verbose)
         kwargs.setdefault("calculate_frequencies", calculate_frequencies)
         return strategy_instance.run(self.atoms_list, **kwargs)
 
-    # =============================================================================
-    # File I/O Methods
-    # =============================================================================
+    # --- File I/O Methods ---
 
     @classmethod
     def from_file(
@@ -611,69 +523,29 @@ class Explorer:
         )
 
     def load_structure(self, filename_or_geom: str | Path | Atoms) -> Atoms:
-        """Load structure from file or geometry object and update atoms_list.
-
-        Parameters
-        ----------
-        filename_or_geom : str, Path, or Atoms
-            File path or geometry object to load
-
-        Returns
-        -------
-        Atoms
-            Loaded geometry
-
-        Raises
-        ------
-        TypeError
-            If filename_or_geom is not a valid type
-        FileNotFoundError
-            If file path does not exist
-        ValueError
-            If loaded structure is invalid or empty
-
-        """
+        """Load structure from file or geometry object and update atoms_list."""
         if isinstance(filename_or_geom, str | Path):
             file_path = Path(filename_or_geom)
             if not file_path.exists():
-                msg = (
-                    f"File not found: {file_path}. "
-                    f"Please check that the file exists and the path is correct."
-                )
-                raise FileNotFoundError(msg)
+                raise FileNotFoundError(f"File not found: {file_path}")
             try:
                 geom: Atoms | list[Atoms] = read_geometry(str(filename_or_geom))  # type: ignore[assignment]
             except Exception as e:
-                msg = (
-                    f"Failed to load geometry from {file_path}. "
-                    f"Error: {e}. "
-                    f"Please check that the file format is supported and the file is not corrupted."
-                )
-                raise ValueError(msg) from e
+                raise ValueError(f"Failed to load geometry from {file_path}: {e}") from e
         elif isinstance(filename_or_geom, Atoms):
             geom = filename_or_geom
         else:
-            # This should never be reached due to type system, but kept for runtime safety
-            raise TypeError(
-                f"Expected str, Path, or Atoms, got {type(filename_or_geom).__name__}. "
-                f"Please provide a file path (str or Path) or an Atoms object."
-            )
+            raise TypeError(f"Expected str, Path, or Atoms, got {type(filename_or_geom).__name__}")
 
         if isinstance(geom, list):
             if not geom:
-                msg = "Loaded geometry list is empty. Please check the input file."
-                raise ValueError(msg)
+                raise ValueError("Loaded geometry list is empty")
             geom = geom[0]
 
-        # Type narrowing: geom is now Atoms (or Geometry subclass)
-        # After the list check above, geom is guaranteed to be Atoms-compatible
         atoms_result: Atoms = geom
 
         if len(atoms_result) == 0:
-            msg = "Loaded structure has no atoms. Please check the input file."
-            raise ValueError(msg)
-
-        # Update the atoms_list to contain this new geometry
+            raise ValueError("Loaded structure has no atoms")
         self.atoms_list = [atoms_result]
         return atoms_result
 
@@ -727,9 +599,7 @@ class Explorer:
         """
         write_trajectory_safely(atoms_list, output_file, format)
 
-    # =============================================================================
-    # Analysis Methods
-    # =============================================================================
+    # --- Analysis Methods ---
 
     def calculate_frequencies(
         self,
@@ -798,7 +668,6 @@ class Explorer:
             delta=delta,
             indices=indices,
         )
-        # Override method if force_finite_diff_hessian is True
         if self.force_finite_diff_hessian and method == "auto":
             method = "finite_differences"
         hessian = freq_analysis.calculate_hessian(method=method)

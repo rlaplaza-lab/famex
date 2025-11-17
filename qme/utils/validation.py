@@ -16,13 +16,11 @@ class QMEError(Exception):
     """Base exception for QME errors."""
 
     def __init__(self, message: str, suggestion: str | None = None) -> None:
-        """Initialize QME error with message and optional suggestion."""
         super().__init__(message)
         self.message = message
         self.suggestion = suggestion
 
     def __str__(self) -> str:
-        """Return formatted error message with optional suggestion."""
         if self.suggestion:
             return f"{self.message}\n\n💡 Suggestion: {self.suggestion}"
         return self.message
@@ -32,7 +30,6 @@ class BackendError(Exception):
     """Raised when backend is unavailable or incompatible."""
 
     def __init__(self, backend: str, available: list[str], operation: str) -> None:
-        """Initialize backend error with backend name and available alternatives."""
         if available:
             available_str = ", ".join(available)
             suggestion = f"Available backends: {available_str}"
@@ -52,7 +49,6 @@ class DependencyError(Exception):
     """Raised when required dependencies are missing."""
 
     def __init__(self, dependency: str, purpose: str, install_command: str) -> None:
-        """Initialize dependency error with dependency name and install command."""
         message = (
             f"Missing dependency '{dependency}' required for {purpose}. "
             f"Install with: {install_command}"
@@ -64,33 +60,14 @@ class DependencyError(Exception):
 
 
 def validate_atoms_compatibility(atoms1: Atoms, atoms2: Atoms, context: str = "operation") -> None:
-    """Validate that two Atoms objects are compatible for operations.
-
-    Parameters
-    ----------
-    atoms1, atoms2 : Atoms
-        The two structures to compare
-    context : str
-        Context for error messages
-
-    Raises
-    ------
-    ValueError
-        If atoms are incompatible
-
-    """
+    """Validate that two Atoms objects are compatible for operations."""
     if len(atoms1) != len(atoms2):
-        msg = (
+        raise ValueError(
             f"Incompatible atoms for {context}: different number of atoms "
-            f"({len(atoms1)} vs {len(atoms2)}). "
-            f"Both structures must have the same number of atoms for this operation."
+            f"({len(atoms1)} vs {len(atoms2)})"
         )
-        raise ValueError(msg)
-
     if list(atoms1.symbols) != list(atoms2.symbols):
-        msg = (
+        raise ValueError(
             f"Incompatible atoms for {context}: different atomic symbols "
-            f"({list(atoms1.symbols)} vs {list(atoms2.symbols)}). "
-            f"Both structures must have the same atomic composition for this operation."
+            f"({list(atoms1.symbols)} vs {list(atoms2.symbols)})"
         )
-        raise ValueError(msg)

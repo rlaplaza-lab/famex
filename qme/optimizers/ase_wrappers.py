@@ -27,70 +27,47 @@ class LoggingFile:
     """
 
     def __init__(self) -> None:
-        """Initialize the logging file.
-
-        The logger level is determined by the QME logging system's
-        verbosity configuration, so this will automatically respect
-        the current verbosity level.
-        """
+        """Initialize logging file."""
         import logging
         import sys
 
-        self.log_level = logging.INFO  # Use INFO level for optimizer steps
+        self.log_level = logging.INFO
         self.buffer = ""
-        # Check current logger level - if it's WARNING or above, suppress output
         self.should_output = logger.getEffectiveLevel() <= logging.INFO
         self.stdout: TextIO = sys.stdout
 
     def write(self, text: str) -> int:
-        """Write text to stdout, but only if verbosity allows it.
-
-        Parameters
-        ----------
-        text : str
-            Text to write
-
-        Returns
-        -------
-        int
-            Number of characters written
-        """
+        """Write text to stdout if verbosity allows."""
         if not text:
             return 0
 
-        # If verbosity is 0 (logger level is WARNING), suppress output
         if not self.should_output:
-            return len(text)  # Consume the text but don't output it
+            return len(text)
 
-        # At verbosity 1+, write directly to stdout (clean output, no logger prefix)
-        # Accumulate in buffer until we have a complete line
         self.buffer += text
 
-        # Process complete lines
         while "\n" in self.buffer:
             line, self.buffer = self.buffer.split("\n", 1)
-            if line.strip():  # Only output non-empty lines
+            if line.strip():
                 self.stdout.write(line.strip() + "\n")
 
         return len(text)
 
     def flush(self) -> None:
-        """Flush any remaining buffer content."""
+        """Flush buffer."""
         if self.should_output and self.buffer.strip():
             self.stdout.write(self.buffer.strip() + "\n")
             self.buffer = ""
             self.stdout.flush()
 
     def close(self) -> None:
-        """Close the file (flush remaining content)."""
+        """Close file."""
         self.flush()
 
     def __enter__(self) -> LoggingFile:
-        """Context manager entry."""
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Context manager exit."""
         self.close()
 
 
@@ -130,20 +107,13 @@ class ProfilerCalculatorWrapper(Calculator):
         """Calculate properties and track calls in profiler."""
         if properties is None:
             properties = ["energy"]
-        # Track energy calls
         if "energy" in properties:
             self.profiler.increment_call("energy")
-
-        # Track force calls
         if "forces" in properties:
             self.profiler.increment_call("forces")
-
-        # Track hessian calls
         if "hessian" in properties:
             self.profiler.increment_call("hessian")
 
-        # Delegate to wrapped calculator
-        # ASE calculators return Any (untyped), but we know the return type matches the protocol
         return self.calculator.calculate(atoms, properties, system_changes)  # type: ignore[no-any-return]
 
     @property
@@ -154,15 +124,13 @@ class ProfilerCalculatorWrapper(Calculator):
     def __getattr__(self, name: str) -> Any:
         """Delegate attribute access to wrapped calculator."""
         if name in ("calculator", "profiler", "_name"):
-            # Prevent recursion when accessing our own attributes
             return object.__getattribute__(self, name)
         return getattr(self.calculator, name)
 
     def get_property(
         self, name: str, atoms: Atoms | None = None, allow_calculation: bool = True
     ) -> Any:
-        """Get a property from the calculator and track calls in profiler."""
-        # Track the call in profiler
+        """Get property from calculator and track calls."""
         if name == "energy":
             self.profiler.increment_call("energy")
         elif name == "forces":
@@ -175,28 +143,23 @@ class ProfilerCalculatorWrapper(Calculator):
     def get_potential_energy(
         self, atoms: Atoms | None = None, force_consistent: bool = False
     ) -> float:
-        """Get potential energy and track call in profiler."""
+        """Get potential energy and track call."""
         self.profiler.increment_call("energy")
-        # ASE calculators return Any (untyped), but we know it's float
         return self.calculator.get_potential_energy(atoms, force_consistent)  # type: ignore[no-any-return]
 
     def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get forces and track call in profiler."""
+        """Get forces and track call."""
         self.profiler.increment_call("forces")
-        # ASE calculators return Any (untyped), but we know it's np.ndarray
         return self.calculator.get_forces(atoms)  # type: ignore[no-any-return]
 
     def get_stress(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get stress and track call in profiler."""
-        # Note: stress calls are not tracked separately, but could be added if needed
-        # ASE calculators return Any (untyped), but we know it's np.ndarray
+        """Get stress."""
         return self.calculator.get_stress(atoms)  # type: ignore[no-any-return]
 
     def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get Hessian and track call in profiler."""
+        """Get Hessian and track call."""
         self.profiler.increment_call("hessian")
         if hasattr(self.calculator, "get_hessian"):
-            # ASE calculators return Any (untyped), but we know it's np.ndarray
             return self.calculator.get_hessian(atoms)  # type: ignore[no-any-return]
         msg = f"Calculator {type(self.calculator).__name__} does not support Hessian calculation"
         raise AttributeError(
@@ -204,8 +167,7 @@ class ProfilerCalculatorWrapper(Calculator):
         )
 
     def check_state(self, atoms: Atoms, tol: float = 1e-15) -> bool:
-        """Check calculator state (delegate to wrapped calculator)."""
-        # ASE calculators return Any (untyped), but we know it's bool
+        """Check calculator state."""
         return self.calculator.check_state(atoms, tol)  # type: ignore[no-any-return]
 
 
@@ -280,23 +242,12 @@ class VerboseOptimizerWrapper(Optimizer):
             **kwargs,
         )
 
-        # Copy important attributes from wrapped optimizer
         self.atoms = self.wrapped_optimizer.atoms
         self.fmax = self.wrapped_optimizer.fmax
         self.nsteps = self.wrapped_optimizer.nsteps
         self.max_steps = self.wrapped_optimizer.max_steps
 
-        # Ensure calculator is properly attached to both atoms objects
-        if hasattr(atoms, "calc") and atoms.calc is not None:
-            # Wrap calculator with profiler if available
-            if self.profiler is not None:
-                self.atoms.calc = ProfilerCalculatorWrapper(atoms.calc, self.profiler)
-                self.wrapped_optimizer.atoms.calc = self.atoms.calc
-            else:
-                self.atoms.calc = atoms.calc
-                self.wrapped_optimizer.atoms.calc = atoms.calc
-        # If no calculator, try to get it from the original atoms
-        elif hasattr(atoms, "calc"):
+        if hasattr(atoms, "calc") and atoms.calc is not None or hasattr(atoms, "calc"):
             if self.profiler is not None:
                 self.atoms.calc = ProfilerCalculatorWrapper(atoms.calc, self.profiler)
                 self.wrapped_optimizer.atoms.calc = self.atoms.calc
@@ -308,7 +259,6 @@ class VerboseOptimizerWrapper(Optimizer):
             optimizer_name = wrapped_optimizer_class.__name__
             logger.info(f"Initialized {optimizer_name} optimizer with verbosity control")
 
-    # ASE Optimizer.run() signature varies by optimizer; this wrapper matches common signature
     def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:  # type: ignore[override]
         """Run the optimization with verbosity control."""
         if self.verbose >= 2:
@@ -316,13 +266,7 @@ class VerboseOptimizerWrapper(Optimizer):
             logger.info(f"Starting {optimizer_name} optimization")
             logger.info(f"Convergence criterion: fmax = {fmax} eV/Å")
             logger.info(f"Maximum steps: {steps}")
-
-        # Run the wrapped optimizer
-        # If we're using LoggingFile, redirect stdout to it to capture print() statements
-        # This prevents duplicate output from ASE optimizers
         if self._logging_file is not None:
-            # LoggingFile implements write() method required by redirect_stdout
-            # but doesn't implement full IO protocol, so we cast it
             with redirect_stdout(cast(TextIO, self._logging_file)):
                 result = self.wrapped_optimizer.run(fmax=fmax, steps=steps)
             self._logging_file.flush()
@@ -354,15 +298,15 @@ class VerboseOptimizerWrapper(Optimizer):
         return result  # type: ignore[no-any-return]
 
     def get_number_of_steps(self) -> int:
-        """Get the number of optimization steps taken."""
+        """Get number of optimization steps."""
         return self.wrapped_optimizer.get_number_of_steps()  # type: ignore[no-any-return]
 
     def converged(self, forces: np.ndarray) -> bool:
-        """Check if optimization has converged."""
+        """Check convergence."""
         return self.wrapped_optimizer.converged(forces)  # type: ignore[no-any-return]
 
     def log(self, forces: np.ndarray) -> None:
-        """Log optimization step."""
+        """Log step."""
         return self.wrapped_optimizer.log(forces)  # type: ignore[no-any-return]
 
     def call_observers(self) -> None:
@@ -370,11 +314,11 @@ class VerboseOptimizerWrapper(Optimizer):
         return self.wrapped_optimizer.call_observers()  # type: ignore[no-any-return]
 
     def dump(self, data: Any) -> None:
-        """Dump optimizer state."""
+        """Dump state."""
         return self.wrapped_optimizer.dump(data)  # type: ignore[no-any-return]
 
     def load(self) -> None:
-        """Load optimizer state."""
+        """Load state."""
         return self.wrapped_optimizer.load()  # type: ignore[no-any-return]
 
 

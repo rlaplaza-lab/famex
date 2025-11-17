@@ -199,11 +199,8 @@ class RFOTransitionState(Optimizer):
         """Convert atoms positions to 1D array."""
         if atoms is None:
             atoms = self.atoms
-        if atoms is None:  # Defensive check
-            # Mypy thinks this is unreachable after the assignment above, but it's defensive programming
-            # for cases where self.atoms might be None despite type hints
-            msg = "Atoms object is not initialized"  # type: ignore[unreachable]
-            raise RuntimeError(msg)
+        if atoms is None:  # type: ignore[unreachable]
+            raise RuntimeError("Atoms object is not initialized")
         return cast(np.ndarray, atoms.get_positions().ravel())
 
     def _x_to_positions(self, x: np.ndarray) -> np.ndarray:
@@ -331,10 +328,8 @@ class RFOTransitionState(Optimizer):
             if self.verbose >= 1:
                 logger.info(f"Reusing Hessian (computed {steps_since_full} steps ago)")
 
-        # Hessian should never be None at this point
         if self.hessian is None:
-            msg = "Hessian is None after update logic"
-            raise RuntimeError(msg)
+            raise RuntimeError("Hessian is None after update logic")
 
         return self.hessian
 
@@ -750,7 +745,6 @@ class RFOTransitionState(Optimizer):
         self.alpha = alpha
         return alpha
 
-    # ASE Optimizer.run() signature varies; RFO uses consistent signature for TS optimization
     def run(self, fmax: float = 0.05, steps: int = 100) -> bool:  # type: ignore[override]
         """Run the RFO optimization.
 
@@ -874,8 +868,6 @@ class RFOTransitionState(Optimizer):
                 self._adjust_trust_radius(step_quality, step_norm)
 
                 # Check if step should be rejected (very poor quality)
-                # For TS optimization, be more lenient - negative Q might be OK if we're far from TS
-                # Only reject if quality is extremely poor AND forces are increasing
                 should_reject = False
                 if step_quality < -1.0:  # Very poor prediction
                     # Additional check: are forces getting worse?

@@ -6,14 +6,11 @@ and application to atoms objects.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ase import Atoms
 
 from qme.constraints.parser import parse_constraints
-
-if TYPE_CHECKING:
-    pass
 
 
 class ConstraintManager:
@@ -46,35 +43,17 @@ class ConstraintManager:
         self._cached_atoms_hash: int | None = None
 
     def apply_constraints(self, atoms: Atoms) -> list[Any]:
-        """Parse and apply constraints to atoms if specified.
-
-        Returns the ASE constraints list after application.
-
-        Parameters
-        ----------
-        atoms : Atoms
-            Atoms object to apply constraints to
-
-        Returns
-        -------
-        list[Any]
-            List of ASE constraint objects
-        """
+        """Apply constraints to atoms with caching."""
         if self.constraints_spec is None:
             return []
 
-        # Use cached constraints if available and caching is enabled
         if self.cache_parsed and self._cached_constraints is not None:
-            # Check if atoms structure matches cached constraints
-            # (simple hash check - could be improved)
             atoms_hash = hash((len(atoms), tuple(atoms.get_chemical_symbols())))
             if atoms_hash == self._cached_atoms_hash:
                 return self._cached_constraints.copy()
 
-        # Parse constraints
         constraints = parse_constraints(self.constraints_spec, atoms, verbose=False)
 
-        # Cache if enabled
         if self.cache_parsed:
             self._cached_constraints = constraints.copy()
             atoms_hash = hash((len(atoms), tuple(atoms.get_chemical_symbols())))
@@ -83,17 +62,11 @@ class ConstraintManager:
         return constraints
 
     def clear_cache(self) -> None:
-        """Clear the cached constraints."""
+        """Clear cached constraints."""
         self._cached_constraints = None
         self._cached_atoms_hash = None
 
     def update_constraints(self, constraints_spec: str | list | dict | None) -> None:
-        """Update the constraint specification and clear cache.
-
-        Parameters
-        ----------
-        constraints_spec : str, list, dict, optional
-            New constraint specification
-        """
+        """Update constraint specification and clear cache."""
         self.constraints_spec = constraints_spec
         self.clear_cache()

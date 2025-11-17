@@ -28,42 +28,22 @@ logger = get_qme_logger(__name__)
 
 
 def parse_xyz_comment(comment: str) -> dict[str, Any]:
-    """Parse XYZ comment line for metadata.
-
-    Supports key=value pairs in comment lines, e.g.:
-    "charge=0 spin=1 energy=-123.45"
-    "charge=+1 spin=2"
-    "energy=-100.0"
-
-    Parameters
-    ----------
-    comment : str
-        Comment line from XYZ file
-
-    Returns
-    -------
-    dict[str, Any]
-        Parsed metadata with type conversion
-    """
+    """Parse XYZ comment line for metadata (supports key=value pairs)."""
     metadata: dict[str, Any] = {}
     if not comment or not comment.strip():
         return metadata
 
-    # Pattern to match key=value pairs
-    # Supports: charge=0, spin=1, energy=-123.45, etc.
     pattern = r"(\w+)=([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)"
     matches = re.findall(pattern, comment)
 
     for key, value in matches:
         key = key.lower()
         try:
-            # Try integer first, then float
             if "." in value or "e" in value.lower():
                 metadata[key] = float(value)
             else:
                 metadata[key] = int(value)
         except ValueError:
-            # Keep as string if conversion fails
             metadata[key] = value
 
     return metadata

@@ -16,29 +16,10 @@ def extract_charge_spin_from_atoms(
     default_charge: int = 0,
     default_spin: int = 1,
 ) -> tuple[int, int]:
-    """Extract charge and spin from atoms object.
-
-    Precedence: XYZ comment metadata > atoms.charge/atoms.mult > atoms.info['charge']/atoms.info['spin'] > defaults
-
-    Parameters
-    ----------
-    atoms : Atoms
-        The atoms object to extract charge/spin from
-    default_charge : int
-        Default charge if not found
-    default_spin : int
-        Default spin if not found
-
-    Returns
-    -------
-    tuple[int, int]
-        (charge, spin) tuple
-
-    """
+    """Extract charge and spin from atoms object."""
     charge = None
     spin = None
 
-    # Check XYZ comment line metadata first (highest priority)
     if hasattr(atoms, "info") and atoms.info is not None:
         comment = atoms.info.get("comment", "")
         if comment:
@@ -54,7 +35,6 @@ def extract_charge_spin_from_atoms(
                 except (ValueError, TypeError):
                     pass
 
-    # Check for attributes (high priority)
     if hasattr(atoms, "charge") and charge is None:
         try:
             charge = int(atoms.charge)
@@ -67,7 +47,6 @@ def extract_charge_spin_from_atoms(
         except (ValueError, TypeError):
             pass
 
-    # Check atoms.info (medium priority)
     if hasattr(atoms, "info") and atoms.info is not None:
         if charge is None and "charge" in atoms.info:
             try:
@@ -85,7 +64,6 @@ def extract_charge_spin_from_atoms(
             except (ValueError, TypeError):
                 pass
 
-    # Use defaults if still None
     if charge is None:
         charge = default_charge
     if spin is None:
@@ -95,27 +73,14 @@ def extract_charge_spin_from_atoms(
 
 
 def check_missing_charge_spin(atoms: Atoms) -> tuple[bool, bool]:
-    """Check if charge and/or spin are missing from atoms.
-
-    Parameters
-    ----------
-    atoms : Atoms
-        The atoms object to check
-
-    Returns
-    -------
-    tuple[bool, bool]
-        (charge_missing, spin_missing) indicating if each is missing
-
-    """
+    """Check if charge and/or spin are missing from atoms."""
     charge_missing = True
     spin_missing = True
 
-    # Check for attributes first (highest priority)
     if hasattr(atoms, "charge"):
         try:
             if atoms.charge is not None:
-                int(atoms.charge)  # Test conversion
+                int(atoms.charge)
                 charge_missing = False
         except (ValueError, TypeError):
             pass
@@ -123,12 +88,11 @@ def check_missing_charge_spin(atoms: Atoms) -> tuple[bool, bool]:
     if hasattr(atoms, "mult"):
         try:
             if atoms.mult is not None:
-                int(atoms.mult)  # Test conversion
+                int(atoms.mult)
                 spin_missing = False
         except (ValueError, TypeError):
             pass
 
-    # Check atoms.info (medium priority)
     if hasattr(atoms, "info") and atoms.info is not None:
         if "charge" in atoms.info:
             try:

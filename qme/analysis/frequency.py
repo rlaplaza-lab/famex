@@ -499,22 +499,12 @@ class FrequencyAnalysis:
         """
         frequencies = self.get_frequencies()
 
-        # Handle complex frequencies: check both negative real parts and significant imaginary parts
-        # Complex frequencies like 0+322j represent imaginary frequencies
-        # Negative real frequencies like -322+0j also represent imaginary frequencies
         real_freqs = np.real(frequencies)
         imag_freqs = np.imag(frequencies)
 
-        # Count frequencies with negative real part above threshold
-        # Count frequencies with significant imaginary part (imaginary frequency)
-        # Convert to negative real for consistency: imag_freq > threshold -> -imag_freq
-
-        # Combine both types of imaginary frequencies
-        # For complex frequencies, prefer the imaginary part if significant, otherwise use real part
         imaginary_freqs_list = []
         for i, _freq in enumerate(frequencies):
             if imag_freqs[i] > threshold:
-                # Significant imaginary part - this is an imaginary frequency
                 imaginary_freqs_list.append(-imag_freqs[i])  # Store as negative for convention
             elif real_freqs[i] < -threshold:
                 # Negative real part - also an imaginary frequency

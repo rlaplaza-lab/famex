@@ -119,7 +119,6 @@ class BaseStrategy(ABC):
             msg = "No atoms provided"
             raise ValueError(msg)
 
-        # Validate structure count matches strategy requirements
         if self.metadata.requires_multiple_structures and len(atoms_list) < 2:
             msg = (
                 f"Strategy '{self.metadata.name}' requires multiple structures "
@@ -127,28 +126,14 @@ class BaseStrategy(ABC):
             )
             raise ValueError(msg)
 
-        # Validate structure compatibility for multi-structure strategies
         if len(atoms_list) > 1:
             self._validate_structure_compatibility(atoms_list)
 
     def _validate_structure_compatibility(self, atoms_list: list[Atoms]) -> None:
-        """Validate that structures are compatible for multi-structure strategies.
-
-        Parameters
-        ----------
-        atoms_list : list[Atoms]
-            List of structures to validate
-
-        Raises
-        ------
-        ValueError
-            If structures are incompatible
-
-        """
+        """Validate structures are compatible for multi-structure strategies."""
         if not atoms_list:
             return
 
-        # Check that all structures have the same number of atoms
         n_atoms = len(atoms_list[0])
         for i, atoms in enumerate(atoms_list[1:], start=1):
             if len(atoms) != n_atoms:
@@ -158,7 +143,6 @@ class BaseStrategy(ABC):
                 )
                 raise ValueError(msg)
 
-        # Check that all structures have the same chemical composition
         symbols_0 = atoms_list[0].get_chemical_symbols()
         for i, atoms in enumerate(atoms_list[1:], start=1):
             symbols_i = atoms.get_chemical_symbols()
@@ -170,19 +154,7 @@ class BaseStrategy(ABC):
                 raise ValueError(msg)
 
     def _merge_profiler_results(self, result: dict[str, Any]) -> dict[str, Any]:
-        """Merge profiler results into strategy result if profiler is available.
-
-        Parameters
-        ----------
-        result : dict[str, Any]
-            Strategy result dictionary
-
-        Returns
-        -------
-        dict[str, Any]
-            Result dictionary with profiler data merged in
-
-        """
+        """Merge profiler results into strategy result if available."""
         if self.profiler is not None:
             result["performance"] = self.profiler.get_summary()
         return result
@@ -192,37 +164,15 @@ class BaseStrategy(ABC):
         optimized_atoms: Atoms | Sequence[Atoms],
         **metadata: Any,
     ) -> dict[str, Any]:
-        """Standardize result format.
-
-        Parameters
-        ----------
-        optimized_atoms : Atoms or list[Atoms]
-            Optimized structure(s) from strategy
-        **metadata : Any
-            Additional metadata to include in result
-
-        Returns
-        -------
-        dict[str, Atoms | list[Atoms] | bool | int | float | str]
-            Standardized result dictionary
-
-        Notes
-        -----
-        Non-standard types in metadata will be converted to strings with a warning.
-        This ensures compatibility but may lose information. Consider using
-        standard types (Atoms, list, bool, int, float, str) for better results.
-
-        """
+        """Standardize result format. Non-standard types in metadata converted to strings."""
         result: dict[str, Any] = {
             "optimized_atoms": optimized_atoms,
             "strategy": self.metadata.name,
         }
-        # Convert metadata values to the expected types
         for key, value in metadata.items():
             if isinstance(value, (Atoms, list, bool, int, float, str)):  # noqa: UP038
                 result[key] = value
             else:
-                # Warn about type conversion instead of silently converting
                 import warnings
 
                 warnings.warn(

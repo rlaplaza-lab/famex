@@ -29,15 +29,15 @@ class ExplorerProtocol(Protocol):
     atoms_list: list[Atoms]
 
     def _create_and_attach_calculator(self, atoms: Atoms) -> object:
-        """Create and attach calculator to atoms object."""
+        """Create and attach calculator to atoms."""
         ...
 
     def _apply_constraints(self, atoms: Atoms) -> list[object]:
-        """Apply constraints to atoms object."""
+        """Apply constraints to atoms."""
         ...
 
     def _get_effective_optimizer(self) -> str:
-        """Get the effective optimizer name."""
+        """Get effective optimizer name."""
         ...
 
     def calculate_frequencies(
@@ -58,31 +58,20 @@ class PerformanceProfilerProtocol(Protocol):
     """Protocol for performance profiler interface."""
 
     def get_summary(self) -> dict[str, object]:
-        """Get profiling summary dictionary."""
+        """Get profiling summary."""
         ...
 
     def snapshot_memory(self) -> object:
-        """Take a memory snapshot."""
+        """Take memory snapshot."""
         ...
 
     def profile_section(self, name: str, parent: str | None = None) -> Any:
-        """Context manager for timing a code section."""
+        """Context manager for timing code sections."""
         ...
 
 
-# TypedDict classes for strategy result dictionaries
-
-
 class BaseStrategyResult(TypedDict, total=False):
-    """Base TypedDict for strategy result dictionaries.
-
-    All strategy results must include at least:
-    - optimized_atoms: The optimized structure(s)
-    - strategy: The strategy name
-    - converged: Whether optimization converged
-
-    Additional fields are optional and strategy-specific.
-    """
+    """Base TypedDict for strategy result dictionaries."""
 
     optimized_atoms: Atoms | list[Atoms]
     strategy: str
