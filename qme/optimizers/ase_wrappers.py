@@ -1,8 +1,4 @@
-"""ASE optimizer wrappers with verbosity control for QME.
-
-This module provides wrapper classes for ASE optimizers (LBFGS, BFGS, FIRE)
-and Sella to add consistent verbosity control using QME's logging system.
-"""
+"""ASE optimizer wrappers with verbosity control for QME."""
 
 from __future__ import annotations
 
@@ -20,14 +16,7 @@ logger = get_qme_logger(__name__)
 
 
 class LoggingFile:
-    """File-like object that routes output to QME logger.
-
-    This allows ASE optimizer output to be captured and routed through
-    the QME logging system, respecting verbosity levels.
-    """
-
     def __init__(self) -> None:
-        """Initialize logging file."""
         import logging
         import sys
 
@@ -37,7 +26,6 @@ class LoggingFile:
         self.stdout: TextIO = sys.stdout
 
     def write(self, text: str) -> int:
-        """Write text to stdout if verbosity allows."""
         if not text:
             return 0
 
@@ -54,14 +42,12 @@ class LoggingFile:
         return len(text)
 
     def flush(self) -> None:
-        """Flush buffer."""
         if self.should_output and self.buffer.strip():
             self.stdout.write(self.buffer.strip() + "\n")
             self.buffer = ""
             self.stdout.flush()
 
     def close(self) -> None:
-        """Close file."""
         self.flush()
 
     def __enter__(self) -> LoggingFile:
@@ -72,26 +58,11 @@ class LoggingFile:
 
 
 class ProfilerCalculatorWrapper(Calculator):
-    """Wrapper for ASE calculators that tracks energy and force calls for profiling."""
-
     def __init__(self, calculator: Calculator, profiler: Any) -> None:
-        """Initialize the profiler calculator wrapper.
-
-        Parameters
-        ----------
-        calculator : Calculator
-            The ASE calculator to wrap
-        profiler : Any
-            Performance profiler instance
-
-        """
         super().__init__()
         self.calculator = calculator
         self.profiler = profiler
-
-        # Copy calculator properties to ensure proper delegation
         self._name = getattr(calculator, "name", "wrapped")
-        # Copy implemented_properties to ensure ASE property checks work correctly
         self.implemented_properties = getattr(
             calculator,
             "implemented_properties",
@@ -104,7 +75,6 @@ class ProfilerCalculatorWrapper(Calculator):
         properties: list[str] | None = None,
         system_changes: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Calculate properties and track calls in profiler."""
         if properties is None:
             properties = ["energy"]
         if "energy" in properties:
@@ -118,11 +88,9 @@ class ProfilerCalculatorWrapper(Calculator):
 
     @property
     def name(self) -> str:
-        """Get calculator name."""
         return self._name
 
     def __getattr__(self, name: str) -> Any:
-        """Delegate attribute access to wrapped calculator."""
         if name in ("calculator", "profiler", "_name"):
             return object.__getattribute__(self, name)
         return getattr(self.calculator, name)
@@ -130,7 +98,6 @@ class ProfilerCalculatorWrapper(Calculator):
     def get_property(
         self, name: str, atoms: Atoms | None = None, allow_calculation: bool = True
     ) -> Any:
-        """Get property from calculator and track calls."""
         if name == "energy":
             self.profiler.increment_call("energy")
         elif name == "forces":
@@ -143,21 +110,17 @@ class ProfilerCalculatorWrapper(Calculator):
     def get_potential_energy(
         self, atoms: Atoms | None = None, force_consistent: bool = False
     ) -> float:
-        """Get potential energy and track call."""
         self.profiler.increment_call("energy")
         return self.calculator.get_potential_energy(atoms, force_consistent)  # type: ignore[no-any-return]
 
     def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get forces and track call."""
         self.profiler.increment_call("forces")
         return self.calculator.get_forces(atoms)  # type: ignore[no-any-return]
 
     def get_stress(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get stress."""
         return self.calculator.get_stress(atoms)  # type: ignore[no-any-return]
 
     def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get Hessian and track call."""
         self.profiler.increment_call("hessian")
         if hasattr(self.calculator, "get_hessian"):
             return self.calculator.get_hessian(atoms)  # type: ignore[no-any-return]
@@ -167,18 +130,10 @@ class ProfilerCalculatorWrapper(Calculator):
         )
 
     def check_state(self, atoms: Atoms, tol: float = 1e-15) -> bool:
-        """Check calculator state."""
         return self.calculator.check_state(atoms, tol)  # type: ignore[no-any-return]
 
 
 class VerboseOptimizerWrapper(Optimizer):
-    """Base wrapper class for ASE optimizers with verbosity control.
-
-    This wrapper adds QME-style verbosity control to any ASE optimizer
-    by intercepting the logfile parameter and managing output based on
-    the verbose level.
-    """
-
     def __init__(
         self,
         atoms: Atoms,
@@ -189,51 +144,17 @@ class VerboseOptimizerWrapper(Optimizer):
         profiler: Any = None,
         **kwargs: Any,
     ) -> None:
-        """Initialize the verbose optimizer wrapper.
-
-        Parameters
-        ----------
-        atoms : Atoms
-            The Atoms object to optimize.
-        wrapped_optimizer_class : type[Optimizer]
-            The ASE optimizer class to wrap.
-        logfile : IO | str
-            File object or filename for logging. Use '-' for stdout.
-        trajectory : Optional[str]
-            Trajectory file to store optimization path.
-        verbose : int
-            Verbosity level for optimization output:
-            - 0: Quiet (minimal output)
-            - 1: Normal (default, shows progress)
-            - 2: Verbose (detailed information)
-        **kwargs
-            Additional arguments passed to the wrapped optimizer.
-
-        """
-        # Store verbosity level and profiler
         self.verbose = verbose
         self.profiler = profiler
-        self._logging_file = None  # Store reference to logging file for cleanup
+        self._logging_file = None
 
-        # Set up logging based on verbosity
-        # Route ASE optimizer output through our logging system
         if verbose == 0:
-            # Quiet mode: suppress ASE logging by using None logfile
             logfile = None
         elif verbose >= 1:
-            # Normal/verbose mode: route through logging system
-            # Create a logging file wrapper - it will use INFO level,
-            # which respects the logger's verbosity configuration
-            # (At verbosity 0, logger level is WARNING, so INFO won't print)
             logging_file = LoggingFile()
-            self._logging_file = logging_file  # Store for cleanup
-            # If user provided a specific logfile, use it; otherwise use our logger
+            self._logging_file = logging_file
             if logfile is None or logfile == "-":
                 logfile = logging_file  # type: ignore[assignment]
-            # If user provided a file path or file object, keep it as-is
-            # (but we could also wrap it to add logging - maybe in future)
-
-        # Initialize the wrapped optimizer
         self.wrapped_optimizer = wrapped_optimizer_class(
             atoms,
             restart=None,
@@ -260,7 +181,6 @@ class VerboseOptimizerWrapper(Optimizer):
             logger.info(f"Initialized {optimizer_name} optimizer with verbosity control")
 
     def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:  # type: ignore[override]
-        """Run the optimization with verbosity control."""
         if self.verbose >= 2:
             optimizer_name = self.wrapped_optimizer.__class__.__name__
             logger.info(f"Starting {optimizer_name} optimization")
@@ -278,7 +198,6 @@ class VerboseOptimizerWrapper(Optimizer):
                 logger.info("Optimization converged!")
             else:
                 actual_steps = self.wrapped_optimizer.get_number_of_steps()
-                # Get the actual stop reason from wrapped optimizer if available
                 scipy_reason = ""
                 if (
                     hasattr(self.wrapped_optimizer, "_scipy_result")
@@ -298,33 +217,25 @@ class VerboseOptimizerWrapper(Optimizer):
         return result  # type: ignore[no-any-return]
 
     def get_number_of_steps(self) -> int:
-        """Get number of optimization steps."""
         return self.wrapped_optimizer.get_number_of_steps()  # type: ignore[no-any-return]
 
     def converged(self, forces: np.ndarray) -> bool:
-        """Check convergence."""
         return self.wrapped_optimizer.converged(forces)  # type: ignore[no-any-return]
 
     def log(self, forces: np.ndarray) -> None:
-        """Log step."""
         return self.wrapped_optimizer.log(forces)  # type: ignore[no-any-return]
 
     def call_observers(self) -> None:
-        """Call observers."""
         return self.wrapped_optimizer.call_observers()  # type: ignore[no-any-return]
 
     def dump(self, data: Any) -> None:
-        """Dump state."""
         return self.wrapped_optimizer.dump(data)  # type: ignore[no-any-return]
 
     def load(self) -> None:
-        """Load state."""
         return self.wrapped_optimizer.load()  # type: ignore[no-any-return]
 
 
 class VerboseLBFGS(VerboseOptimizerWrapper):
-    """LBFGS optimizer with verbosity control."""
-
     def __init__(
         self,
         atoms: Atoms,
@@ -346,8 +257,6 @@ class VerboseLBFGS(VerboseOptimizerWrapper):
 
 
 class VerboseBFGS(VerboseOptimizerWrapper):
-    """BFGS optimizer with verbosity control."""
-
     def __init__(
         self,
         atoms: Atoms,
@@ -369,8 +278,6 @@ class VerboseBFGS(VerboseOptimizerWrapper):
 
 
 class VerboseFIRE(VerboseOptimizerWrapper):
-    """FIRE optimizer with verbosity control."""
-
     def __init__(
         self,
         atoms: Atoms,
@@ -392,8 +299,6 @@ class VerboseFIRE(VerboseOptimizerWrapper):
 
 
 class VerboseSella(VerboseOptimizerWrapper):
-    """Sella optimizer with verbosity control."""
-
     def __init__(
         self,
         atoms: Atoms,
@@ -405,9 +310,7 @@ class VerboseSella(VerboseOptimizerWrapper):
     ) -> None:
         from sella import Sella
 
-        # Add numerical stability parameters for Sella to prevent SVD failures
-        # Only set if not already provided by user
-        kwargs.setdefault("eta", 1e-4)  # Hessian regularization (prevents singular matrices)
+        kwargs.setdefault("eta", 1e-4)
 
         super().__init__(
             atoms=atoms,

@@ -1,11 +1,4 @@
-"""Custom XYZ file I/O with metadata preservation and validation.
-
-This module provides enhanced XYZ file reading and writing capabilities that:
-- Preserve charge and spin metadata in comment lines
-- Validate structure integrity
-- Handle multi-frame XYZ files consistently
-- Support extended XYZ format with key=value metadata
-"""
+"""Custom XYZ file I/O with metadata preservation and validation."""
 
 from __future__ import annotations
 
@@ -50,20 +43,6 @@ def parse_xyz_comment(comment: str) -> dict[str, Any]:
 
 
 def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
-    """Format comment line for XYZ file with metadata.
-
-    Parameters
-    ----------
-    atoms : Atoms
-        Structure to extract metadata from
-    energy : float, optional
-        Energy value to include in comment
-
-    Returns
-    -------
-    str
-        Formatted comment line
-    """
     parts = []
 
     charge = None
@@ -108,20 +87,6 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
 
 
 def validate_xyz_structure(atoms: Atoms, strict: bool = False) -> list[str]:
-    """Validate XYZ structure for common issues.
-
-    Parameters
-    ----------
-    atoms : Atoms
-        Structure to validate
-    strict : bool, default False
-        If True, perform additional strict checks
-
-    Returns
-    -------
-    list[str]
-        List of validation warnings/errors (empty if valid)
-    """
     issues = []
 
     if len(atoms) == 0:
@@ -174,35 +139,6 @@ def read_xyz_with_metadata(
     validate: bool = True,
     **kwargs: Any,
 ) -> Geometry | list[Geometry]:
-    """Read XYZ file with metadata parsing and validation.
-
-    Parameters
-    ----------
-    filename : str or Path
-        Path to XYZ file
-    frame : str or int, default "last"
-        Frame selection for multi-frame files:
-        - "first": Take first frame
-        - "last": Take last frame
-        - "all": Return all frames as list
-        - int: Take specific frame index (0-based)
-    validate : bool, default True
-        Whether to validate structure integrity
-    **kwargs
-        Additional arguments passed to ASE read
-
-    Returns
-    -------
-    Geometry or list[Geometry]
-        Loaded structure(s) with metadata preserved
-
-    Raises
-    ------
-    FileNotFoundError
-        If file doesn't exist
-    ValueError
-        If file format is invalid or validation fails
-    """
     filename = Path(filename)
     if not filename.exists():
         logger.error("XYZ file not found: %s", filename)
@@ -270,24 +206,6 @@ def write_xyz_with_metadata(
     energy: float | None = None,
     **kwargs: Any,
 ) -> None:
-    """Write XYZ file with metadata in comment line.
-
-    Parameters
-    ----------
-    atoms : Atoms or list[Atoms]
-        Structure(s) to write
-    filename : str or Path
-        Output filename
-    energy : float, optional
-        Energy value to include in comment
-    **kwargs
-        Additional arguments passed to ASE write
-
-    Raises
-    ------
-    OSError
-        If file cannot be written
-    """
     filename = Path(filename)
 
     filename.parent.mkdir(parents=True, exist_ok=True)

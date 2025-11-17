@@ -21,7 +21,6 @@ def validate_ts_structure(
     return_hessian: bool = False,
     verbose: int = 1,
 ) -> dict[str, Any] | tuple[dict[str, Any], Any]:
-    """Validate TS structure via frequency analysis."""
     from qme.analysis.frequency import FrequencyAnalysis
 
     if getattr(atoms, "calc", None) is None:
@@ -80,7 +79,6 @@ def validate_ts_structure(
 
 
 def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
-    """Validate TS optimization setup."""
     FORBIDDEN_BACKENDS_FOR_TS = {"mock"}
     FORBIDDEN_OPTIMIZERS_FOR_TS = {"lbfgs", "l-bfgs", "l_bfgs", "bfgs", "fire"}
 
@@ -105,7 +103,6 @@ def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
 
 
 def _get_local_optimizer_class(name: str) -> type[Any]:
-    """Get optimizer class by name."""
     name = (name or "").lower()
 
     if name == "sella":
@@ -158,7 +155,6 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
 def _calculate_free_energy_correction(
     frequency_result: dict[str, Any] | None, temperature: float
 ) -> float | None:
-    """Calculate free energy correction from frequency result."""
     if frequency_result is None:
         return None
     thermo = frequency_result.get("thermodynamic_properties", {})
@@ -326,7 +322,6 @@ def _run_local_optimization_common(
 def filter_interpolation_kwargs(
     kwargs: dict[str, Any], allowed_keys: set[str] | None = None
 ) -> dict[str, Any]:
-    """Filter kwargs for PathManager.interpolate."""
     if allowed_keys is None:
         allowed_keys = {"rmsd_threshold", "energy_threshold", "calculator"}
     return {k: v for k, v in kwargs.items() if k in allowed_keys}

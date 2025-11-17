@@ -41,37 +41,6 @@ class LocalTSStrategy(BaseStrategy):
         calculate_frequencies: bool = False,
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
-        """Run local transition state optimization.
-
-        Parameters
-        ----------
-        atoms_list : Sequence[Atoms]
-            List of structures to optimize
-        fmax : float, default=0.05
-            Force convergence threshold
-        steps : int, default=1000
-            Maximum optimization steps
-        validate_ts : bool, default=False
-            Whether to validate TS structure via basic frequency analysis
-        calculate_frequencies : bool, default=False
-            Whether to perform comprehensive frequency analysis after optimization
-        **kwargs : Any
-            Additional keyword arguments
-
-        Returns
-        -------
-        dict[str, Atoms | list[Atoms] | bool | int | float | str]
-            Standardized result dictionary containing:
-            - optimized_atoms: Optimized structure(s) (Atoms or list[Atoms])
-            - strategy: Strategy name (str)
-            - converged: Whether optimization converged (bool)
-            - steps_taken: Number of optimization steps (int)
-            - ts_validation: Transition state validation results (dict, optional)
-            - frequency_analysis: Frequency analysis results (dict, optional)
-            - is_ts: Whether structure is a transition state (bool, optional)
-            - free_energy_correction: Free energy correction in eV (float, optional)
-
-        """
         local_optimizer_name = kwargs.get("local_optimizer_name", "sella")
         verbose = kwargs.get("verbose", 1)
         temperature = kwargs.get("temperature", 298.15)
@@ -79,7 +48,6 @@ class LocalTSStrategy(BaseStrategy):
         _validate_ts_optimization_setup(self.explorer.backend, local_optimizer_name)
 
         def prepare_ts_optimizer_kwargs(optimizer_name: str, explorer: Any) -> dict[str, Any]:
-            """Prepare optimizer kwargs for TS optimization."""
             opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
             opt_kwargs = dict(opt_kwargs)
 
@@ -111,7 +79,6 @@ class LocalTSStrategy(BaseStrategy):
             return opt_kwargs
 
         def post_ts_optimization_hook(opt: Any, atoms: Atoms, opt_kwargs: dict[str, Any]) -> None:
-            """Post-optimization hook for TS diagnostics."""
             if hasattr(opt, "hessian_calls"):
                 if self.explorer.verbose >= 1:
                     logger.info(
@@ -121,7 +88,6 @@ class LocalTSStrategy(BaseStrategy):
                     )
 
         def ts_validation_hook(results: list[Atoms]) -> list[dict[str, Any] | None]:
-            """Validate TS structures."""
             validation_results: list[dict[str, Any] | None] = []
             for atoms_copy in results:
                 validation_result = validate_ts_structure(atoms_copy, self.explorer)
@@ -132,7 +98,6 @@ class LocalTSStrategy(BaseStrategy):
             return validation_results
 
         def prepare_ts_frequency_kwargs(atoms: Atoms) -> dict[str, Any]:
-            """Prepare frequency kwargs for TS."""
             freq_kwargs: dict[str, Any] = {}
             if getattr(self.explorer, "force_finite_diff_hessian", False):
                 freq_kwargs["method"] = "finite_differences"

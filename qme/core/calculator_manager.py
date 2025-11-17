@@ -23,7 +23,6 @@ class CalculatorManager:
         default_spin: int = 1,
         verbose: int = 1,
     ) -> None:
-        """Initialize CalculatorManager."""
         self.backend = backend
         self.model_name = model_name
         self.model_path = model_path
@@ -35,7 +34,6 @@ class CalculatorManager:
         self._warned_about_defaults = False
 
     def get_effective_model_name(self) -> str:
-        """Get effective model name with backend defaults applied."""
         if self.model_name is not None:
             return self.model_name
 
@@ -53,7 +51,6 @@ class CalculatorManager:
         return "default-model"
 
     def create_and_attach_calculator(self, atoms: Atoms) -> Any:
-        """Create and attach calculator to atoms."""
         charge, spin = extract_charge_spin_from_atoms(atoms, self.default_charge, self.default_spin)
         charge_missing, spin_missing = check_missing_charge_spin(atoms)
 

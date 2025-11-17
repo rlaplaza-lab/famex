@@ -9,8 +9,6 @@ if TYPE_CHECKING:
 
 
 class QMEError(Exception):
-    """Base exception for QME errors."""
-
     def __init__(self, message: str, suggestion: str | None = None) -> None:
         super().__init__(message)
         self.message = message
@@ -23,8 +21,6 @@ class QMEError(Exception):
 
 
 class BackendError(Exception):
-    """Raised when backend is unavailable or incompatible."""
-
     def __init__(self, backend: str, available: list[str], operation: str) -> None:
         if available:
             available_str = ", ".join(available)
@@ -42,8 +38,6 @@ class BackendError(Exception):
 
 
 class DependencyError(Exception):
-    """Raised when required dependencies are missing."""
-
     def __init__(self, dependency: str, purpose: str, install_command: str) -> None:
         message = (
             f"Missing dependency '{dependency}' required for {purpose}. "
@@ -56,7 +50,6 @@ class DependencyError(Exception):
 
 
 def validate_atoms_compatibility(atoms1: Atoms, atoms2: Atoms, context: str = "operation") -> None:
-    """Validate two Atoms objects are compatible."""
     if len(atoms1) != len(atoms2):
         raise ValueError(
             f"Incompatible atoms for {context}: different number of atoms "

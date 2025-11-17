@@ -8,7 +8,6 @@ from ase import Atoms
 
 
 def validate_indices(atoms: Atoms, indices: list[int] | None) -> list[int]:
-    """Validate and normalize atom indices."""
     if indices is None:
         return list(range(len(atoms)))
     if not isinstance(indices, list) or len(indices) == 0:
@@ -27,7 +26,6 @@ def get_calculator_property(
     atoms: Atoms | None = None,
     default: Any = None,
 ) -> Any:
-    """Get property from calculator."""
     if hasattr(calculator, "implemented_properties"):
         if property_name in calculator.implemented_properties:
             if hasattr(calculator, "get_property"):
@@ -56,7 +54,6 @@ def get_calculator_property(
 
 
 def has_calculator_property(calculator: Any, property_name: str) -> bool:
-    """Check if calculator supports property."""
     if hasattr(calculator, "implemented_properties"):
         if property_name in calculator.implemented_properties:
             return True

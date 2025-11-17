@@ -17,14 +17,12 @@ class ConstraintManager:
         constraints_spec: str | list | dict | None = None,
         cache_parsed: bool = True,
     ) -> None:
-        """Initialize ConstraintManager."""
         self.constraints_spec = constraints_spec
         self.cache_parsed = cache_parsed
         self._cached_constraints: list[Any] | None = None
         self._cached_atoms_hash: int | None = None
 
     def apply_constraints(self, atoms: Atoms) -> list[Any]:
-        """Apply constraints to atoms with caching."""
         if self.constraints_spec is None:
             return []
 
@@ -43,11 +41,9 @@ class ConstraintManager:
         return constraints
 
     def clear_cache(self) -> None:
-        """Clear cached constraints."""
         self._cached_constraints = None
         self._cached_atoms_hash = None
 
     def update_constraints(self, constraints_spec: str | list | dict | None) -> None:
-        """Update constraint specification and clear cache."""
         self.constraints_spec = constraints_spec
         self.clear_cache()

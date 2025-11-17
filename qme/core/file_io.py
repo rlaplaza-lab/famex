@@ -21,7 +21,6 @@ def validate_output_path(output_file: str | Path) -> Path:
 
 
 def _create_clean_atoms(atoms: Atoms) -> Atoms:
-    """Create a clean atoms object with only essential data."""
     clean_atoms = Atoms(
         symbols=atoms.symbols,
         positions=atoms.positions,
@@ -40,7 +39,6 @@ def write_atoms_safely(
     output_file: str | Path,
     format: str | None = None,
 ) -> None:
-    """Write atoms to file with error handling."""
     output_file = validate_output_path(output_file)
 
     if str(output_file).lower().endswith(".xyz"):
@@ -81,7 +79,6 @@ def write_trajectory_safely(
     output_file: str | Path,
     format: str | None = None,
 ) -> None:
-    """Write trajectory (multiple structures) to file with error handling."""
     output_file = validate_output_path(output_file)
 
     if str(output_file).lower().endswith(".xyz"):

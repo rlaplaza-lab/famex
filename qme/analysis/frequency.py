@@ -1,14 +1,4 @@
-"""Vibrational frequency analysis for QME.
-
-This module provides comprehensive vibrational frequency analysis capabilities including:
-- Hessian matrix calculations using finite differences or direct methods
-- Normal mode analysis and vibrational frequencies
-- Transition state verification
-- Thermodynamic property calculations
-
-Based on ASE's Vibrations class but extended for QME functionality with automatic
-method selection and enhanced calculator integration.
-"""
+"""Vibrational frequency analysis for QME."""
 
 from __future__ import annotations
 
@@ -31,12 +21,6 @@ logger = get_qme_logger(__name__)
 
 
 class FrequencyAnalysis:
-    """Vibrational frequency analysis with automatic Hessian method selection.
-
-    Supports both direct Hessian calculation (when available from calculator)
-    and finite difference Hessian calculation as fallback.
-    """
-
     def __init__(
         self,
         atoms: Atoms,
@@ -48,29 +32,6 @@ class FrequencyAnalysis:
         indices: list[int] | None = None,
         verbose: int = 1,
     ) -> None:
-        """Initialize frequency analysis.
-
-        Parameters
-        ----------
-        atoms : Atoms
-            ASE Atoms object for the structure
-        calculator : Calculator
-            QME calculator (UMA, SO3LR, AIMNET2, etc.)
-        delta : float
-            Displacement for finite differences (Å)
-        nfree : int, optional
-            Number of degrees of freedom to remove (3 for translation + 3 for rotation).
-            If None, automatically determined (6 for non-linear, 5 for linear molecules)
-        indices : List[int], optional
-            Indices of atoms to include in frequency analysis.
-            If None, all atoms are included.
-        verbose : int
-            Verbosity level for frequency analysis output:
-            - 0: Quiet (minimal output)
-            - 1: Normal (default, shows progress)
-            - 2: Verbose (detailed information)
-
-        """
         self.atoms = atoms
         self.calculator = calculator
         self.atoms.calc = calculator
@@ -88,23 +49,10 @@ class FrequencyAnalysis:
         self._normal_modes: np.ndarray | None = None
         self._zero_point_energy: float | None = None
         self._is_calculated = False
-        self._direct_frequencies: np.ndarray | None = None  # For direct frequency calculation
-        self._keep_indices: np.ndarray | None = None  # indices kept after removing trans/rot
+        self._direct_frequencies: np.ndarray | None = None
+        self._keep_indices: np.ndarray | None = None
 
     def calculate_hessian(self, method: str = "auto") -> np.ndarray:
-        """Calculate Hessian matrix using the most appropriate method.
-
-        Parameters
-        ----------
-        method : str
-            Method to use: 'auto', 'autoselect', 'direct_frequencies', 'direct', 'batch', or 'finite_differences'
-
-        Returns
-        -------
-        np.ndarray
-            Hessian matrix (3N x 3N for N atoms)
-
-        """
         if method == "autoselect":
             return self._calculate_hessian_autoselect()
 
@@ -175,11 +123,6 @@ class FrequencyAnalysis:
         return self._construct_hessian_from_batch(batch_results)
 
     def _generate_displaced_structures(self) -> list[Atoms]:
-        """Generate all displaced structures for finite differences.
-
-        Note: Currently only supports 3-point central difference scheme.
-        For 5-point or 7-point schemes, use non-batch methods.
-        """
         displaced_structures = []
 
         displaced_structures.append(self.atoms.copy())
@@ -200,11 +143,6 @@ class FrequencyAnalysis:
         return displaced_structures
 
     def _construct_hessian_from_batch(self, batch_results: list[dict[str, Any]]) -> np.ndarray:
-        """Construct Hessian matrix from batch calculation results.
-
-        Uses central difference scheme: H_ij = (F_i(-δj) - F_i(+δj)) / (2*δ)
-        where F_i are forces on atom i and δj is displacement of coordinate j.
-        """
         n_atoms = len(self.indices)
         n_coords = 3 * n_atoms
         hessian = np.zeros((n_coords, n_coords))
@@ -249,7 +187,6 @@ class FrequencyAnalysis:
         return cast(NDArray[np.float64], hessian)
 
     def _calculate_direct_frequencies(self) -> np.ndarray:
-        """Calculate frequencies directly from calculator (when supported)."""
         from qme.analysis.utils import get_calculator_property
 
         return cast(
@@ -258,7 +195,6 @@ class FrequencyAnalysis:
         )
 
     def _calculate_direct_hessian(self) -> np.ndarray:
-        """Calculate Hessian directly from calculator (when supported)."""
         from qme.analysis.utils import get_calculator_property
 
         return cast(
@@ -267,20 +203,6 @@ class FrequencyAnalysis:
         )
 
     def _calculate_hessian_autoselect(self) -> np.ndarray:
-        """Intelligent Hessian method selection based on capabilities and noise.
-
-        This method implements adaptive selection of the best Hessian computation
-        approach for optimal quality/cost balance. The selection order is:
-        1. Try analytical Hessian (if available)
-        2. If force noise is high (>1e-4 eV/Å), try energy-based FD
-        3. Fall back to 5-point + Richardson extrapolation (optimal balance)
-
-        Returns
-        -------
-        np.ndarray
-            Hessian matrix (3N x 3N)
-
-        """
         if self.verbose >= 1:
             logger.info("Hessian autoselect: choosing optimal method...")
 

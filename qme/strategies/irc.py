@@ -39,37 +39,6 @@ class LocalIRCStrategy(BaseStrategy):
         validate_ts: bool = True,
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
-        """Run IRC path calculation.
-
-        Parameters
-        ----------
-        atoms_list : Sequence[Atoms]
-            List of structures (typically single transition state)
-        fmax : float, default=0.05
-            Force convergence threshold for endpoint optimization
-        steps : int, default=100
-            Maximum number of IRC steps in each direction
-        step_size : float, default=0.1
-            Step size for IRC path following (in amu^1/2 * Angstrom)
-        direction : str, default="both"
-            Direction to follow: "forward", "backward", or "both"
-        validate_ts : bool, default=True
-            Whether to validate that the starting structure is a transition state
-        **kwargs : Any
-            Additional keyword arguments
-
-        Returns
-        -------
-        dict[str, Atoms | list[Atoms] | bool | int | float | str]
-            Standardized result dictionary containing:
-            - optimized_atoms: IRC path structures (list[Atoms])
-            - strategy: Strategy name (str)
-            - converged: Whether IRC calculation converged (bool)
-            - steps_taken: Number of IRC steps taken (int)
-            - direction: Direction followed (str)
-            - ts_validation: Transition state validation results (dict, optional)
-
-        """
         atoms_list = list(atoms_list)
         self.validate_inputs(atoms_list)
 
@@ -119,7 +88,6 @@ class LocalIRCStrategy(BaseStrategy):
             direction_sign: float,
             max_steps: int,
         ) -> list[Atoms]:
-            """Follow IRC in one direction."""
             path = []
             current = initial_atoms.copy()
             if current.calc is None:

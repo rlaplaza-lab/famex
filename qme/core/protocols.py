@@ -9,8 +9,6 @@ if TYPE_CHECKING:
 
 
 class ExplorerProtocol(Protocol):
-    """Protocol defining the interface that strategies expect from Explorer."""
-
     backend: str
     model_name: str | None
     model_path: str | None
@@ -20,17 +18,11 @@ class ExplorerProtocol(Protocol):
     verbose: int
     atoms_list: list[Atoms]
 
-    def _create_and_attach_calculator(self, atoms: Atoms) -> object:
-        """Create and attach calculator to atoms."""
-        ...
+    def _create_and_attach_calculator(self, atoms: Atoms) -> object: ...
 
-    def _apply_constraints(self, atoms: Atoms) -> list[object]:
-        """Apply constraints to atoms."""
-        ...
+    def _apply_constraints(self, atoms: Atoms) -> list[object]: ...
 
-    def _get_effective_optimizer(self) -> str:
-        """Get effective optimizer name."""
-        ...
+    def _get_effective_optimizer(self) -> str: ...
 
     def calculate_frequencies(
         self,
@@ -41,40 +33,26 @@ class ExplorerProtocol(Protocol):
         save_hessian: bool = True,
         indices: list[int] | None = None,
         **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Calculate vibrational frequencies and thermodynamic properties."""
-        ...
+    ) -> dict[str, Any]: ...
 
 
 class PerformanceProfilerProtocol(Protocol):
-    """Protocol for performance profiler."""
+    def get_summary(self) -> dict[str, object]: ...
 
-    def get_summary(self) -> dict[str, object]:
-        """Get profiling summary."""
-        ...
+    def snapshot_memory(self) -> object: ...
 
-    def snapshot_memory(self) -> object:
-        """Take memory snapshot."""
-        ...
-
-    def profile_section(self, name: str, parent: str | None = None) -> Any:
-        """Context manager for timing code sections."""
-        ...
+    def profile_section(self, name: str, parent: str | None = None) -> Any: ...
 
 
 class BaseStrategyResult(TypedDict, total=False):
-    """Base TypedDict for strategy result dictionaries."""
-
     optimized_atoms: Atoms | list[Atoms]
     strategy: str
     converged: bool
     steps_taken: int
-    performance: dict[str, object]  # Performance profiling data
+    performance: dict[str, object]
 
 
 class MinimaStrategyResult(TypedDict, total=False):
-    """TypedDict for minima optimization results."""
-
     optimized_atoms: Atoms | list[Atoms]
     strategy: str
     converged: bool
@@ -86,8 +64,6 @@ class MinimaStrategyResult(TypedDict, total=False):
 
 
 class TSStrategyResult(TypedDict, total=False):
-    """TypedDict for transition state optimization results."""
-
     optimized_atoms: Atoms | list[Atoms]
     strategy: str
     converged: bool
@@ -100,8 +76,6 @@ class TSStrategyResult(TypedDict, total=False):
 
 
 class PathStrategyResult(TypedDict, total=False):
-    """TypedDict for path optimization results (NEB, CI-NEB, IRC, etc.)."""
-
     optimized_atoms: Atoms | list[Atoms]
     strategy: str
     converged: bool
@@ -109,6 +83,6 @@ class PathStrategyResult(TypedDict, total=False):
     performance: dict[str, object]
     npoints: int
     method: str
-    climb: bool  # For NEB/CI-NEB
-    path_energies: list[float]  # Energy along the path
-    barrier_height: float  # Energy barrier (for TS paths)
+    climb: bool
+    path_energies: list[float]
+    barrier_height: float
