@@ -768,6 +768,54 @@ def assert_backend_calculator(calculator, backend="mock"):
         assert callable(calculator.get_potential_energy)
 
 
+def handle_backend_errors(
+    skip_on_not_suitable=True,
+    skip_on_not_available=True,
+    catch_exceptions=(ValueError, ImportError),
+):
+    """Standardize backend error handling in tests.
+
+    This decorator wraps test functions to handle common backend-related errors
+    by skipping tests when backends are not suitable or not available, while
+    re-raising unexpected errors.
+
+    Args:
+        skip_on_not_suitable: If True, skip test when error message contains "not suitable"
+        skip_on_not_available: If True, skip test when error message contains "not available"
+        catch_exceptions: Tuple of exception types to catch (default: ValueError, ImportError)
+
+    Returns
+    -------
+        Decorated test function that handles backend errors gracefully.
+
+    Example:
+        @handle_backend_errors()
+        def test_something(any_real_backend_explorer, water_molecule):
+            explorer = any_real_backend_explorer(water_molecule)
+            result = strategy.run(...)
+            assert result is not None
+    """
+    import functools
+
+    def decorator(test_func):
+        @functools.wraps(test_func)
+        def wrapper(*args, **kwargs):
+            try:
+                return test_func(*args, **kwargs)
+            except catch_exceptions as e:
+                error_msg = str(e).lower()
+                if skip_on_not_suitable and "not suitable" in error_msg:
+                    pytest.skip("Backend doesn't support TS optimization")
+                if skip_on_not_available and "not available" in error_msg:
+                    pytest.skip("Backend not available")
+                # Re-raise unexpected errors
+                raise
+
+        return wrapper
+
+    return decorator
+
+
 # ============================================================================
 # Shared Test Calculator Classes
 # ============================================================================
