@@ -65,7 +65,7 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 **A:** Try:
 - Increase steps: `--steps 2000`
 - Loosen convergence: `--fmax 0.1`
-- Change optimizer: `--optimizer bfgs`
+- Change optimizer: `--local-optimizer bfgs`
 - Check input structure quality
 
 ### Q: Forces too large or unrealistic energies?
@@ -78,7 +78,7 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 
 ### Q: CUDA out of memory?
 
-**A:** Use CPU (`--device cpu`), reduce system size, or use LBFGS optimizer (`--optimizer lbfgs`).
+**A:** Use CPU (`--device cpu`), reduce system size, or use LBFGS optimizer (`--local-optimizer lbfgs`).
 
 ### Q: Transition state validation issues?
 
