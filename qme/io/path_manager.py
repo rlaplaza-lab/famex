@@ -1,12 +1,4 @@
-"""PathManager class for handling reaction pathways and path operations.
-
-This module provides comprehensive path management including:
-- Multi-segment interpolation
-- Path analysis (TS finding, minima/maxima detection)
-- Structure filtering and redundancy detection
-- RMSD calculations and comparisons
-- Energy profile calculations
-"""
+"""PathManager class for handling reaction pathways and path operations."""
 
 from __future__ import annotations
 
@@ -75,9 +67,7 @@ class PathManager:
         """
         self.name = name or "PathManager"
 
-        # Normalize to list of Geometry objects
         if isinstance(structures, Atoms):
-            # Single Atoms object - convert to list
             structures_list = [structures]
         else:
             structures_list = list(structures)
@@ -86,7 +76,6 @@ class PathManager:
             msg = "PathManager requires at least 2 structures"
             raise ValueError(msg)
 
-        # Convert to Geometry objects if needed
         self.structures: list[Geometry] = []
         for struct in structures_list:
             if isinstance(struct, Atoms) and not isinstance(struct, Geometry):
@@ -95,7 +84,6 @@ class PathManager:
                 geom = struct
             self.structures.append(geom)
 
-        # Validate that structures are compatible
         for i in range(len(self.structures) - 1):
             validate_atoms_compatibility(
                 self.structures[i],
@@ -105,7 +93,6 @@ class PathManager:
 
         self.calculator = calculator
 
-        # Set calculator on geometries if provided
         if calculator is not None:
             for struct in self.structures:
                 struct.calc = calculator
@@ -163,7 +150,6 @@ class PathManager:
             msg = "Need at least 2 points for interpolation"
             raise ValueError(msg)
 
-        # Simple two-endpoint case
         if len(self.structures) == 2:
             return self._interpolate_segment(
                 self.reactant,
@@ -174,19 +160,16 @@ class PathManager:
                 calculator,
             )
 
-        # Multi-segment case: distribute frames across segments and stitch
         segments = len(self.structures) - 1
         total_intervals = npoints - 1
         base_intervals = total_intervals // segments
         remainder = total_intervals % segments
 
-        # Calculate points per segment
         per_segment_npoints = []
         for i in range(segments):
             intervals = base_intervals + (1 if i < remainder else 0)
             per_segment_npoints.append(intervals + 1)
 
-        # Interpolate each segment and stitch
         stitched_path = []
         for i in range(segments):
             start_struct = self.structures[i]
@@ -205,7 +188,6 @@ class PathManager:
             if i == 0:
                 stitched_path.extend(seg_path)
             else:
-                # Skip first point to avoid duplication
                 stitched_path.extend(seg_path[1:])
 
         return stitched_path
@@ -219,16 +201,13 @@ class PathManager:
         optimize_path: bool,
         calculator: Any | None,
     ) -> list[Geometry]:
-        """Interpolate a single segment between start and end structures."""
-        # Get coordinates
+        """Interpolate a single segment between start and end."""
         start_coords = start.coords3d
         end_coords = end.coords3d
 
-        # Use interpolation strategy
         interpolator = get_interpolation_strategy(method)
         path_coords = interpolator.interpolate(start_coords, end_coords, npoints)
 
-        # Create geometry objects
         path_geometries = []
         for coords in path_coords:
             geom = Geometry(
@@ -246,7 +225,6 @@ class PathManager:
                 geom.calc = self.calculator
             path_geometries.append(geom)
 
-        # Optionally optimize path with NEB-like forces
         if optimize_path:
             calc = calculator or self.calculator
             if calc is None:
@@ -259,25 +237,15 @@ class PathManager:
     def _optimize_path(
         self, path_geometries: list[Geometry], calculator: Any | None
     ) -> list[Geometry]:
-        """Optimize path using simplified NEB-like forces.
-
-        This is a basic implementation inspired by NEB methods.
-        Future improvements could include full NEB force calculations.
-        """
+        """Optimize path using simplified NEB-like forces."""
         logger.info("Note: Using simplified NEB-like algorithm for path optimization")
 
-        # Set calculators and calculate energies
         for geom in path_geometries:
             geom.calc = calculator
-            # Force energy calculation
             energy = geom.get_potential_energy()
             geom.energy = energy
 
         return path_geometries
-
-    # =========================================================================
-    # Static Path Analysis Methods
-    # =========================================================================
 
     @staticmethod
     def find_ts_guess(path: Sequence[Atoms]) -> tuple[Atoms, int]:
@@ -303,10 +271,8 @@ class PathManager:
                 energies.append(float("-inf"))  # Invalid energy
 
         if not energies or all(e == float("-inf") for e in energies):
-            # Fallback to middle structure
             ts_index = len(path) // 2
         else:
-            # Find highest energy structure
             ts_index = energies.index(max(energies))
 
         return path[ts_index], ts_index
@@ -328,7 +294,6 @@ class PathManager:
         """
         import math
 
-        # Compute energies
         energies = []
         for atoms in path:
             try:
@@ -337,7 +302,6 @@ class PathManager:
             except Exception:
                 energies.append(float("nan"))
 
-        # Find local minima indices: energy less than neighbours
         minima_idxs = []
         for i, e in enumerate(energies):
             if math.isnan(e):
@@ -347,7 +311,6 @@ class PathManager:
             if (not math.isnan(left) and e < left) and (not math.isnan(right) and e < right):
                 minima_idxs.append(i)
 
-        # If no strict local minima found, pick the global minimum
         if not minima_idxs:
             valid = [(i, e) for i, e in enumerate(energies) if not math.isnan(e)]
             if not valid:
@@ -375,7 +338,6 @@ class PathManager:
         """
         import math
 
-        # Compute energies
         energies = []
         for atoms in path:
             try:
@@ -384,7 +346,6 @@ class PathManager:
             except Exception:
                 energies.append(float("nan"))
 
-        # Find local maxima indices: energy greater than neighbours
         maxima_idxs = []
         for i, e in enumerate(energies):
             if math.isnan(e):
@@ -394,7 +355,6 @@ class PathManager:
             if (not math.isnan(left) and e > left) and (not math.isnan(right) and e > right):
                 maxima_idxs.append(i)
 
-        # If no strict local maxima found, pick the global maximum
         if not maxima_idxs:
             valid = [(i, e) for i, e in enumerate(energies) if not math.isnan(e)]
             if not valid:
@@ -404,10 +364,6 @@ class PathManager:
             maxima_idxs = [max_idx]
 
         return maxima_idxs
-
-    # =========================================================================
-    # Static RMSD and Structure Comparison Methods
-    # =========================================================================
 
     @staticmethod
     def calculate_rmsd(
@@ -437,41 +393,32 @@ class PathManager:
         if len(atoms1) != len(atoms2):
             return float("inf")
 
-        # Get positions
         pos1 = atoms1.get_positions()
         pos2 = atoms2.get_positions()
 
         if not align:
-            # Simple RMSD without alignment (for backwards compatibility or fast checks)
             diff = pos1 - pos2
             return float(np.sqrt(np.mean(np.sum(diff**2, axis=1))))
 
-        # Kabsch alignment for rotation-invariant RMSD
-        # Center both structures
         ref_cent = pos1.mean(axis=0)
         tar_cent = pos2.mean(axis=0)
         ref = pos1 - ref_cent
         tar = pos2 - tar_cent
 
-        # Handle edge case: single atom (no rotation needed)
         if len(pos1) == 1:
             diff = ref - tar
             return float(np.sqrt(np.mean(np.sum(diff**2, axis=1))))
 
-        # Kabsch algorithm: find optimal rotation matrix
         C = np.dot(tar.T, ref)
         try:
             V, _S, Wt = np.linalg.svd(C)
             d = np.sign(np.linalg.det(np.dot(V, Wt)))
             D = np.diag([1.0, 1.0, d])
             U = np.dot(np.dot(V, D), Wt)
-
-            # Apply rotation and calculate RMSD
             aligned = np.dot(tar, U.T)
             rmsd = np.sqrt(np.mean(np.sum((aligned - ref) ** 2, axis=1)))
             return float(rmsd)
         except np.linalg.LinAlgError:
-            # Fallback to unaligned RMSD if SVD fails
             diff = ref - tar
             return float(np.sqrt(np.mean(np.sum(diff**2, axis=1))))
 
@@ -510,7 +457,6 @@ class PathManager:
         """
         rmsd = PathManager.calculate_rmsd(atoms1, atoms2, align=align)
 
-        # Get energies if not provided
         if energy1 is None:
             try:
                 energy1 = atoms1.get_potential_energy()
@@ -523,7 +469,6 @@ class PathManager:
             except (RuntimeError, ValueError, AttributeError):
                 energy2 = None
 
-        # Calculate energy difference
         if energy1 is not None and energy2 is not None:
             energy_diff = abs(energy1 - energy2)
         else:
@@ -533,7 +478,6 @@ class PathManager:
         if energy_diff is not None:
             is_similar = is_similar and energy_diff < energy_threshold
         elif is_similar:
-            # Log when energy unavailable but RMSD suggests similarity
             logger.debug(
                 f"Structure similarity check: RMSD={rmsd:.3f} Å < threshold, "
                 "but energy unavailable for comparison",
@@ -597,7 +541,6 @@ class PathManager:
         removed_indices = []
         warning_messages = []
 
-        # Pre-compute all energies once
         energies: list[float | None] = []
         for i, atoms in enumerate(structures):
             try:
@@ -609,7 +552,6 @@ class PathManager:
 
         if input_structures is not None and input_structures:
             input_only = True
-            # Check first and last structures first (most common case)
             key_indices = [0, len(structures) - 1] if len(structures) > 1 else [0]
             for struct_idx in key_indices:
                 struct = structures[struct_idx]
@@ -621,7 +563,6 @@ class PathManager:
                 if not input_only:
                     break
 
-            # If first/last check didn't find differences, check all structures
             if input_only:
                 for struct in structures:
                     for input_struct in input_structures:
@@ -638,12 +579,9 @@ class PathManager:
                     f"No new optimized structures were discovered.",
                 )
 
-        # Cache for RMSD calculations to avoid recomputation
         rmsd_cache: dict[tuple[int, int], float] = {}
 
         def get_cached_rmsd(idx1: int, idx2: int) -> float:
-            """Get RMSD from cache or calculate and cache it."""
-            # Use sorted indices for cache key to avoid duplicate calculations
             key = (min(idx1, idx2), max(idx1, idx2))
             if key not in rmsd_cache:
                 rmsd_cache[key] = PathManager.calculate_rmsd(
@@ -653,8 +591,7 @@ class PathManager:
                 )
             return rmsd_cache[key]
 
-        # Filter structures with optimization: early termination and caching
-        kept_indices: list[int] = []  # Track kept indices for path continuity
+        kept_indices: list[int] = []
 
         for i, atoms in enumerate(structures):
             is_redundant = False
@@ -662,18 +599,14 @@ class PathManager:
             best_rmsd: float = float("inf")
             best_energy_diff: float | None = None
 
-            # Check against already filtered structures with early termination
             for _j, filtered_idx in enumerate(kept_indices):
-                # Early termination: if RMSD already exceeds threshold, skip energy check
                 rmsd = get_cached_rmsd(i, filtered_idx)
                 if rmsd >= rmsd_threshold:
                     continue
 
-                # Get energies for comparison
                 energy_i = energies[i]
                 energy_j = energies[filtered_idx]
 
-                # Check similarity with pre-computed energies
                 similarity = PathManager.calculate_structure_similarity(
                     atoms,
                     structures[filtered_idx],
@@ -689,9 +622,8 @@ class PathManager:
                     best_match_idx = filtered_idx
                     best_rmsd = similarity.rmsd
                     best_energy_diff = similarity.energy_diff
-                    break  # Early termination when match found
+                    break
 
-            # Path continuity preservation: check minimum spacing
             if preserve_path_continuity and not is_redundant and kept_indices:
                 last_kept = kept_indices[-1]
                 spacing = i - last_kept
@@ -702,7 +634,6 @@ class PathManager:
                         f"Warning: Removed structure {i + 1} to maintain path continuity "
                         f"(spacing: {spacing}, minimum: {min_spacing})",
                     )
-                    # Skip the rest of the redundant marking logic for path continuity
                     continue
 
             if is_redundant and best_match_idx is not None:
@@ -729,10 +660,6 @@ class PathManager:
 
         return filtered_structures, removed_indices, warning_messages
 
-    # =========================================================================
-    # Static Calculator Helper
-    # =========================================================================
-
     @staticmethod
     def attach_calculators(explorer: Any, structures: Sequence[Atoms] | Atoms) -> Any | None:
         """Attach calculators from explorer to structures.
@@ -750,28 +677,21 @@ class PathManager:
             The calculator instance that was attached
 
         """
-        # Normalize to list
         struct_list = [structures] if isinstance(structures, Atoms) else list(structures)
 
         if not struct_list:
             return None
 
-        # Ensure charge and spin info are set
         for struct in struct_list:
             if hasattr(struct, "info") and struct.info is not None:
                 struct.info.setdefault("charge", explorer.default_charge)
                 struct.info.setdefault("spin", explorer.default_spin)
 
-        # Attach calculators
         for struct in struct_list:
             explorer._create_and_attach_calculator(struct)
             explorer._apply_constraints(struct)
 
         return struct_list[0].calc if struct_list else None
-
-    # =========================================================================
-    # Instance Methods for Path Analysis
-    # =========================================================================
 
     def calculate_path_energies(self, path: list[Geometry] | list[Atoms]) -> list[float]:
         """Calculate and return energies for a given reaction path.
@@ -822,12 +742,8 @@ class PathManager:
 
         for geom in path_geometries:
             coords = geom.get_positions() if isinstance(geom, Atoms) else geom.coords3d
-
-            # RMSD from reactant
             rmsd_r = np.sqrt(np.mean((coords - reactant_coords) ** 2))
             rmsd_from_reactant.append(rmsd_r)
-
-            # RMSD from product
             rmsd_p = np.sqrt(np.mean((coords - product_coords) ** 2))
             rmsd_from_product.append(rmsd_p)
 
@@ -850,18 +766,13 @@ class PathManager:
         xyz_lines = []
 
         for i, geom in enumerate(path_geometries):
-            # Number of atoms
             xyz_lines.append(str(len(geom)))
-
-            # Comment line with energy if available
             try:
                 energy = geom.get_potential_energy()
                 comment = f"Frame {i}, Energy = {energy:.6f} eV"
             except Exception:
                 comment = f"Frame {i}"
             xyz_lines.append(comment)
-
-            # Atomic coordinates
             symbols = geom.get_chemical_symbols()
             coords = geom.get_positions()
 
@@ -913,7 +824,6 @@ class PathManager:
             "energy_range": (max(valid_energies) - min(valid_energies) if valid_energies else None),
         }
 
-        # Find TS and minima/maxima
         try:
             _, ts_idx = PathManager.find_ts_guess(path)
             stats["ts_index"] = ts_idx

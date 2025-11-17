@@ -66,13 +66,9 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
     """
     parts = []
 
-    # Import Geometry to avoid circular import
-
-    # Extract charge and spin
     charge = None
     spin = None
 
-    # Check Geometry attributes first
     if hasattr(atoms, "charge"):
         try:
             charge = int(atoms.charge)
@@ -85,7 +81,6 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
         except (ValueError, TypeError):
             pass
 
-    # Check atoms.info
     if hasattr(atoms, "info") and atoms.info:
         if charge is None and "charge" in atoms.info:
             try:
@@ -98,17 +93,14 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
             except (ValueError, TypeError):
                 pass
 
-    # Add charge and spin to comment
     if charge is not None:
         parts.append(f"charge={charge}")
     if spin is not None:
         parts.append(f"spin={spin}")
 
-    # Add energy if provided
     if energy is not None:
         parts.append(f"energy={energy:.6f}")
 
-    # Add default comment if no metadata
     if not parts:
         parts.append("QME structure")
 
@@ -132,52 +124,42 @@ def validate_xyz_structure(atoms: Atoms, strict: bool = False) -> list[str]:
     """
     issues = []
 
-    # Check atom count
     if len(atoms) == 0:
         issues.append("Structure has no atoms")
         return issues
 
-    # Check atomic symbols
     valid_symbols = set(atomic_numbers.keys())
     invalid_symbols = set(atoms.get_chemical_symbols()) - valid_symbols
     if invalid_symbols:
         issues.append(f"Invalid atomic symbols: {sorted(invalid_symbols)}")
 
-    # Check coordinates
     positions = atoms.get_positions()
     if positions.size == 0:
         issues.append("No atomic coordinates found")
         return issues
 
-    # Check for NaN or Inf coordinates
     if np.any(np.isnan(positions)):
         issues.append("NaN coordinates detected")
     if np.any(np.isinf(positions)):
         issues.append("Infinite coordinates detected")
 
-    # Check coordinate ranges
     if not np.any(np.isnan(positions)) and not np.any(np.isinf(positions)):
         max_distance = np.max(np.linalg.norm(positions, axis=1))
         if max_distance > 1000.0:
             issues.append(f"Very large coordinates detected (max distance: {max_distance:.1f} Å)")
 
-        # Check for atoms too close together
         if len(atoms) > 1:
             distances = atoms.get_all_distances()
-            # Remove diagonal (self-distances)
             np.fill_diagonal(distances, np.inf)
             min_distance = np.min(distances)
             if min_distance < 0.1:
                 issues.append(f"Atoms very close together (min distance: {min_distance:.3f} Å)")
 
-    # Strict validation
     if strict:
-        # Check charge/spin consistency if available
         if hasattr(atoms, "info") and atoms.info:
             charge = atoms.info.get("charge")
             spin = atoms.info.get("spin")
             if charge is not None and spin is not None:
-                # Basic spin-charge consistency check
                 if spin < 1:
                     issues.append(f"Invalid spin multiplicity: {spin} (must be >= 1)")
                 elif charge is not None and abs(charge) > 100:
@@ -226,14 +208,12 @@ def read_xyz_with_metadata(
         logger.error("XYZ file not found: %s", filename)
         raise FileNotFoundError(f"XYZ file not found: {filename}")
 
-    # Read with ASE - always read all frames for multi-frame support
     try:
         atoms_list = ase_read(str(filename), ":", **kwargs)
     except Exception as e:
         logger.exception("Failed to read XYZ file %s: %s", filename, e)
         raise ValueError(f"Failed to read XYZ file {filename}: {e}") from e
 
-    # Ensure we have a list
     if not isinstance(atoms_list, list):
         atoms_list = [atoms_list]
 
@@ -241,7 +221,6 @@ def read_xyz_with_metadata(
         logger.error("XYZ file %s contains no structures", filename)
         raise ValueError(f"XYZ file {filename} contains no structures")
 
-    # Select frame(s)
     if frame == "all":
         selected_frames = atoms_list
     elif frame == "first":
@@ -262,23 +241,15 @@ def read_xyz_with_metadata(
         logger.error("Invalid frame selection '%s' for file %s", frame, filename)
         raise ValueError(f"Invalid frame selection: {frame}")
 
-    # Convert to Geometry objects with metadata
     geometries = []
     for atoms in selected_frames:
-        # Import here to avoid circular import
         from qme.io.geometry import Geometry
 
-        # Create Geometry object
         geom = Geometry(ase_atoms=atoms)
 
-        # The Geometry constructor already extracts charge/spin from atoms.info
-        # No need to override it here
-
-        # Validate structure
         if validate:
             issues = validate_xyz_structure(geom)
             if issues:
-                # For now, just warn - could be made stricter
                 import warnings
 
                 warnings.warn(
@@ -288,7 +259,6 @@ def read_xyz_with_metadata(
 
         geometries.append(geom)
 
-    # Return single geometry or list
     if len(geometries) == 1 and frame != "all":
         return geometries[0]
     return geometries
@@ -320,39 +290,31 @@ def write_xyz_with_metadata(
     """
     filename = Path(filename)
 
-    # Ensure output directory exists
     filename.parent.mkdir(parents=True, exist_ok=True)
 
-    # Handle single structure
     if not isinstance(atoms, list):
         atoms_list = [atoms]
     else:
         atoms_list = atoms
 
-    # Prepare structures with metadata
     prepared_atoms = []
     for atom in atoms_list:
-        # Create copy to avoid modifying original
         atom_copy = atom.copy()
 
-        # Format comment line with metadata
         comment = format_xyz_comment(atom_copy, energy)
 
-        # Set comment in atoms.info
         if atom_copy.info is None:
             atom_copy.info = {}
         atom_copy.info["comment"] = comment
 
         prepared_atoms.append(atom_copy)
 
-    # Write with ASE
     try:
         if len(prepared_atoms) == 1:
             ase_write(str(filename), prepared_atoms[0], **kwargs)
         else:
             ase_write(str(filename), prepared_atoms, **kwargs)
     except OSError as e:
-        # File system errors (permissions, disk full, etc.)
         logger.exception("Failed to write XYZ file %s: file system error", filename)
         msg = (
             f"Failed to write XYZ file {filename}: {e}. "
@@ -361,7 +323,6 @@ def write_xyz_with_metadata(
         )
         raise OSError(msg) from e
     except (ValueError, TypeError, KeyError) as e:
-        # Data format errors (invalid structure data or unsupported format)
         logger.exception("Failed to write XYZ file %s: data format error", filename)
         msg = (
             f"Failed to write XYZ file {filename}: {e}. "

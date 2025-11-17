@@ -1,8 +1,4 @@
-"""Charge and spin extraction utilities for QME Explorer.
-
-This module provides consolidated charge/spin extraction logic to reduce
-code duplication and improve maintainability.
-"""
+"""Charge and spin extraction utilities for QME Explorer."""
 
 from __future__ import annotations
 

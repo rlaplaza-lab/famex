@@ -1,8 +1,4 @@
-"""Calculator management for QME Explorer.
-
-This module provides the CalculatorManager class for handling calculator creation,
-caching, and attachment to atoms objects.
-"""
+"""Calculator management for QME Explorer."""
 
 from __future__ import annotations
 
@@ -15,11 +11,7 @@ from qme.core.charge_spin import check_missing_charge_spin, extract_charge_spin_
 
 
 class CalculatorManager:
-    """Manages calculator creation and attachment for Explorer.
-
-    Handles calculator creation, caching, charge/spin extraction, and attachment
-    to atoms objects. Provides centralized calculator management logic.
-    """
+    """Manages calculator creation and attachment for Explorer."""
 
     def __init__(
         self,
@@ -31,25 +23,7 @@ class CalculatorManager:
         default_spin: int = 1,
         verbose: int = 1,
     ) -> None:
-        """Initialize CalculatorManager.
-
-        Parameters
-        ----------
-        backend : str
-            Calculator backend name
-        model_name : str, optional
-            Specific model name to use
-        model_path : str, optional
-            Path to local model file
-        device : str, optional
-            Device for computations ("cpu" or "cuda")
-        default_charge : int, default 0
-            Default charge when not specified in atoms
-        default_spin : int, default 1
-            Default spin multiplicity when not specified in atoms
-        verbose : int, default 1
-            Verbosity level for logging
-        """
+        """Initialize CalculatorManager."""
         self.backend = backend
         self.model_name = model_name
         self.model_path = model_path

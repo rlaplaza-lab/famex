@@ -1,8 +1,4 @@
-"""Shared utilities for analysis module.
-
-This module provides common validation and utility functions used across
-the analysis module to reduce code duplication and simplify logic.
-"""
+"""Shared utilities for analysis module."""
 
 from __future__ import annotations
 
@@ -31,7 +27,7 @@ def get_calculator_property(
     atoms: Atoms | None = None,
     default: Any = None,
 ) -> Any:
-    """Get a property from calculator using standard interfaces."""
+    """Get property from calculator."""
     if hasattr(calculator, "implemented_properties"):
         if property_name in calculator.implemented_properties:
             if hasattr(calculator, "get_property"):
@@ -60,7 +56,7 @@ def get_calculator_property(
 
 
 def has_calculator_property(calculator: Any, property_name: str) -> bool:
-    """Check if calculator supports a property."""
+    """Check if calculator supports property."""
     if hasattr(calculator, "implemented_properties"):
         if property_name in calculator.implemented_properties:
             return True

@@ -177,29 +177,7 @@ def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> 
 
 
 def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
-    """Read a Gaussian input file (.com or .gjf) and determine the intended calculation type.
-
-    Parses the route section to detect if it's a minimization or a transition state search
-    and extracts the molecular geometry.
-
-    Parameters
-    ----------
-    filename : str
-        Path to the Gaussian input file
-
-    Returns
-    -------
-    tuple[Geometry, str]
-        A tuple containing:
-        - Geometry object with the structure, charge, and multiplicity
-        - String indicating the job type ('minimize' or 'transition_state')
-
-    Raises
-    ------
-    ValueError
-        If the file cannot be parsed or the job type is unclear
-
-    """
+    """Read a Gaussian input file and determine calculation type."""
     with open(filename) as f:
         lines = f.readlines()
 
@@ -207,7 +185,6 @@ def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
     job_type = None
     charge_mult_line_index = -1
 
-    # Find the route line and the line number for charge/multiplicity
     for i, line in enumerate(lines):
         line_lower = line.strip().lower()
         if line_lower.startswith("#"):
@@ -219,7 +196,6 @@ def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
         msg = "Route section (starting with #) not found in Gaussian input."
         raise ValueError(msg)
 
-    # Determine job type from route line
     if "opt=ts" in route_line or "opt=saddle" in route_line:
         job_type = "transition_state"
     elif "opt" in route_line:
@@ -229,8 +205,6 @@ def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
         raise ValueError(msg)
 
     if charge_mult_line_index >= len(lines) or not lines[charge_mult_line_index].strip():
-        # This handles cases with no title or compact input
-        # Let's search for the charge/multiplicity line after the route line
         for i in range(charge_mult_line_index - 2, len(lines)):
             if len(lines[i].strip().split()) == 2 and all(
                 c.isdigit() or c == "-" for c in lines[i].strip().split()[0]
@@ -241,7 +215,6 @@ def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
             msg = "Could not find charge and multiplicity line."
             raise ValueError(msg)
 
-    # Extract charge and multiplicity
     try:
         parts = lines[charge_mult_line_index].strip().split()
         charge = int(parts[0])
@@ -262,10 +235,8 @@ def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
                 symbols.append(parts[0])
                 positions.append([float(p) for p in parts[1:]])
             except ValueError:
-                # Reached end of coordinate block
                 break
         elif len(parts) == 0:
-            # Empty line signifies end of coordinates
             break
 
     if not symbols:

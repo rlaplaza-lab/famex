@@ -13,25 +13,12 @@ _qme_log_level = logging.INFO
 
 
 def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
-    """Configure QME logging system.
-
-    Parameters
-    ----------
-    verbosity : int
-        Verbosity level:
-        - 0: WARNING and above (quiet)
-        - 1: INFO and above (normal, default)
-        - 2: DEBUG and above (verbose)
-    force : bool
-        Force reconfiguration even if already configured
-
-    """
+    """Configure QME logging system."""
     global _qme_logging_configured, _qme_log_level
 
     if _qme_logging_configured and not force:
         return
 
-    # Map verbosity to log level
     level_map = {
         0: logging.WARNING,
         1: logging.INFO,
@@ -40,25 +27,19 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
     log_level = level_map.get(verbosity, logging.INFO)
     _qme_log_level = log_level
 
-    # Configure root QME logger
     qme_logger = logging.getLogger("qme")
     qme_logger.setLevel(log_level)
 
-    # Remove existing handlers to avoid duplicates
     qme_logger.handlers.clear()
 
-    # Create console handler with custom formatting
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(log_level)
 
-    # Format: [QME] LEVEL: message
-    # For INFO: just the message (clean output)
-    # For DEBUG/WARNING/ERROR: include level
     class QMEFormatter(logging.Formatter):
-        """Custom formatter for QME logging with clean INFO output."""
+        """Custom formatter for QME logging."""
 
         def format(self, record: logging.LogRecord) -> str:
-            """Format log record with clean output for INFO level."""
+            """Format log record."""
             if record.levelno == logging.INFO:
                 return record.getMessage()
             if record.levelno == logging.DEBUG:
@@ -78,7 +59,7 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
 
 
 def get_qme_logger(name: str) -> logging.Logger:
-    """Get a QME logger for a specific module."""
+    """Get QME logger for module."""
     if not name.startswith("qme"):
         name = "qme" if name == "__main__" else f"qme.{name}"
 
@@ -86,19 +67,12 @@ def get_qme_logger(name: str) -> logging.Logger:
 
 
 def get_qme_log_level() -> int:
-    """Get current QME logging level."""
+    """Get current logging level."""
     return _qme_log_level
 
 
 def is_in_quiet_context() -> bool:
-    """Check if we're currently in a quiet_backend_loading context.
-
-    Returns
-    -------
-    bool
-        True if we're in a quiet context, False otherwise
-
-    """
+    """Check if in quiet context."""
     return getattr(_quiet_context_local, "in_quiet_context", False)
 
 
@@ -109,7 +83,7 @@ def print_model_info(
     device: str | None = None,
     verbose: int = 1,
 ) -> None:
-    """Print clean model information for the user."""
+    """Print model information."""
     if verbose == 0:
         return
 

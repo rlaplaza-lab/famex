@@ -1,8 +1,4 @@
-"""Protocol interfaces for type checking in QME core module.
-
-This module provides Protocol classes that define the interface contracts
-for components that interact with strategies and the Explorer.
-"""
+"""Protocol interfaces for type checking in QME core module."""
 
 from __future__ import annotations
 
@@ -13,11 +9,7 @@ if TYPE_CHECKING:
 
 
 class ExplorerProtocol(Protocol):
-    """Protocol defining the interface that strategies expect from Explorer.
-
-    This allows strategies to work with Explorer instances while maintaining
-    type safety and enabling testing with mock objects.
-    """
+    """Protocol defining the interface that strategies expect from Explorer."""
 
     backend: str
     model_name: str | None
@@ -55,7 +47,7 @@ class ExplorerProtocol(Protocol):
 
 
 class PerformanceProfilerProtocol(Protocol):
-    """Protocol for performance profiler interface."""
+    """Protocol for performance profiler."""
 
     def get_summary(self) -> dict[str, object]:
         """Get profiling summary."""

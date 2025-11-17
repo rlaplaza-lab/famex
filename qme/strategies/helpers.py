@@ -1,7 +1,4 @@
-"""Helper functions for local strategies.
-
-This module contains utility functions used by local optimization strategies.
-"""
+"""Helper functions for local strategies."""
 
 from __future__ import annotations
 
