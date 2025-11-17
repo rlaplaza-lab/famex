@@ -70,7 +70,7 @@ def load_atoms_from_xyz(path: str) -> Atoms:
     Returns
     -------
     Atoms
-        ASE Atoms object. If the file contains multiple frames,
+        ASE Atoms object (or Geometry subclass). If the file contains multiple frames,
         returns the last frame.
 
     Raises
@@ -87,17 +87,8 @@ def load_atoms_from_xyz(path: str) -> Atoms:
         # Handle case where read_xyz_with_metadata returns a list
         if isinstance(geom, list):
             geom = geom[-1]  # Take the last frame
-        # Convert Geometry to Atoms for CLI compatibility
-        atoms = Atoms(
-            symbols=geom.get_chemical_symbols(),
-            positions=geom.get_positions(),
-            cell=geom.get_cell(),
-            pbc=geom.get_pbc(),
-        )
-        # Copy over info including charge/spin
-        if hasattr(geom, "info") and geom.info:
-            atoms.info = dict(geom.info)
-        return atoms
+        # Geometry extends Atoms, so we can return it directly
+        return geom
 
     # Use ASE for non-XYZ files
     atoms_result = ase_read(path)
@@ -171,45 +162,15 @@ def load_path_structures(structures: tuple[str, ...]) -> list[Atoms]:
     if single_path.lower().endswith(".xyz"):
         try:
             # Try reading all frames
-            geom_list = read_xyz_with_metadata(single_path, frame="all")
-            if isinstance(geom_list, list) and len(geom_list) > 1:
-                # Multi-frame file: convert all frames to Atoms
-                for geom in geom_list:
-                    atoms = Atoms(
-                        symbols=geom.get_chemical_symbols(),
-                        positions=geom.get_positions(),
-                        cell=geom.get_cell(),
-                        pbc=geom.get_pbc(),
-                    )
-                    if hasattr(geom, "info") and geom.info:
-                        atoms.info = dict(geom.info)
-                    atoms_list.append(atoms)
-                return atoms_list
-            elif isinstance(geom_list, list) and len(geom_list) == 1:
-                # Single frame: convert to Atoms
-                geom = geom_list[0]
-                atoms = Atoms(
-                    symbols=geom.get_chemical_symbols(),
-                    positions=geom.get_positions(),
-                    cell=geom.get_cell(),
-                    pbc=geom.get_pbc(),
-                )
-                if hasattr(geom, "info") and geom.info:
-                    atoms.info = dict(geom.info)
-                atoms_list.append(atoms)
+            geom_result = read_xyz_with_metadata(single_path, frame="all")
+            # Handle list of geometries
+            if isinstance(geom_result, list):
+                # Geometry extends Atoms, so we can use them directly
+                atoms_list.extend(geom_result)
                 return atoms_list
             else:
                 # Single Geometry object
-                geom = geom_list
-                atoms = Atoms(
-                    symbols=geom.get_chemical_symbols(),
-                    positions=geom.get_positions(),
-                    cell=geom.get_cell(),
-                    pbc=geom.get_pbc(),
-                )
-                if hasattr(geom, "info") and geom.info:
-                    atoms.info = dict(geom.info)
-                atoms_list.append(atoms)
+                atoms_list.append(geom_result)
                 return atoms_list
         except Exception:
             # Fall back to regular loading if multi-frame read fails
@@ -505,6 +466,81 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
             click.echo(f"  Warning: Could not display frequencies: {e}", err=True)
 
 
+def _serialize_value(value: Any) -> Any:
+    """Convert a value to a JSON-serializable type.
+
+    Parameters
+    ----------
+    value : Any
+        Value to serialize
+
+    Returns
+    -------
+    Any
+        JSON-serializable value, or None if conversion fails
+    """
+    # Handle numpy arrays
+    if isinstance(value, np.ndarray) or hasattr(value, "tolist"):
+        try:
+            return value.tolist()
+        except (AttributeError, ValueError, TypeError):
+            pass
+
+    # Handle numpy scalars
+    if isinstance(value, np.integer | np.floating):
+        return float(value) if isinstance(value, np.floating) else int(value)
+
+    # Handle other types that might be serializable
+    try:
+        json.dumps(value)  # Test if already serializable
+        return value
+    except (TypeError, ValueError):
+        pass
+
+    # Fallback: convert to string
+    return str(value)
+
+
+def _serialize_frequency_analysis(freq_analysis: dict[str, Any]) -> dict[str, Any] | None:
+    """Serialize frequency analysis dictionary to JSON-compatible format.
+
+    Parameters
+    ----------
+    freq_analysis : dict[str, Any]
+        Frequency analysis dictionary
+
+    Returns
+    -------
+    dict[str, Any] | None
+        Serialized frequency analysis, or None if serialization fails
+    """
+    if not isinstance(freq_analysis, dict):
+        click.echo(
+            f"Warning: frequency_analysis is not a dict (got {type(freq_analysis)}), skipping",
+            err=True,
+        )
+        return None
+
+    # Validate frequency analysis using validation function
+    warnings = validate_frequency_analysis(freq_analysis)
+    if warnings:
+        click.echo(
+            "Warning: Frequency analysis validation issues before saving JSON:",
+            err=True,
+        )
+        for warning in warnings:
+            click.echo(f"  - {warning}", err=True)
+
+    # Serialize each value in the frequency analysis
+    freq_data: dict[str, Any] = {}
+    for k, v in freq_analysis.items():
+        serialized = _serialize_value(v)
+        if serialized is not None:
+            freq_data[k] = serialized
+
+    return freq_data
+
+
 def save_results_json(results: Any, output_path: str) -> None:
     """Save complete results dictionary to JSON file.
 
@@ -543,65 +579,17 @@ def save_results_json(results: Any, output_path: str) -> None:
         if key == "optimized_atoms":
             # Skip Atoms objects - they're saved separately as XYZ
             continue
+
         if key == "frequency_analysis" and value:
-            # Validate frequency analysis structure before serialization
-            if not isinstance(value, dict):
-                click.echo(
-                    f"Warning: frequency_analysis is not a dict (got {type(value)}), skipping",
-                    err=True,
-                )
-                continue
-
-            # Validate frequency analysis using validation function
-            warnings = validate_frequency_analysis(value)
-            if warnings:
-                click.echo(
-                    "Warning: Frequency analysis validation issues before saving JSON:",
-                    err=True,
-                )
-                for warning in warnings:
-                    click.echo(f"  - {warning}", err=True)
-
-            # Ensure frequency analysis is serializable
-            freq_data = dict(value)
-            # Convert numpy arrays to lists
-            for k, v in freq_data.items():
-                if hasattr(v, "tolist"):
-                    try:
-                        freq_data[k] = v.tolist()
-                    except (AttributeError, ValueError):
-                        # If tolist() fails, try converting to Python type
-                        try:
-                            if np.isscalar(v):
-                                # Type narrowing: v is a scalar, try to convert to float
-                                try:
-                                    freq_data[k] = float(v)  # type: ignore[arg-type]
-                                except (ValueError, TypeError):
-                                    freq_data[k] = str(v)
-                            else:
-                                freq_data[k] = str(v)
-                        except (ValueError, TypeError):
-                            freq_data[k] = str(v)
-                elif isinstance(v, np.ndarray):
-                    freq_data[k] = v.tolist()
-                elif isinstance(v, np.integer | np.floating):
-                    freq_data[k] = float(v) if isinstance(v, np.floating) else int(v)
-
-            serializable_results[key] = freq_data
+            # Handle frequency analysis specially
+            freq_data = _serialize_frequency_analysis(value)
+            if freq_data is not None:
+                serializable_results[key] = freq_data
         else:
-            # Try to make other values serializable
-            try:
-                if isinstance(value, np.ndarray) or hasattr(value, "tolist"):
-                    serializable_results[key] = value.tolist()
-                elif isinstance(value, np.integer | np.floating):
-                    serializable_results[key] = (
-                        float(value) if isinstance(value, np.floating) else int(value)
-                    )
-                else:
-                    serializable_results[key] = value
-            except (TypeError, AttributeError, ValueError):
-                # Skip non-serializable values
-                continue
+            # Try to serialize other values
+            serialized = _serialize_value(value)
+            if serialized is not None:
+                serializable_results[key] = serialized
 
     # Verify that frequency_analysis was included if it exists in results_dict
     if "frequency_analysis" in results_dict and "frequency_analysis" not in serializable_results:
