@@ -188,21 +188,20 @@ Generate and optimize reaction pathways.
 #### Usage
 
 ```bash
-qme path --strategy {interpolate,neb,cineb,irc} INPUT [OPTIONS]
+qme path --strategy {interpolate,neb,cineb,irc} STRUCTURES... [OPTIONS]
 ```
 
 #### Arguments
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `INPUT` | Path | Input XYZ file (required) |
+| `STRUCTURES...` | Path(s) | Structure file(s) (required). Can be:<br>- Multiple files: `reactant.xyz product.xyz [intermediate.xyz ...]`<br>- Single multi-frame XYZ: all frames used as path guess<br>- Single single-frame XYZ: for IRC strategy |
 
 #### Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--strategy` | `neb` | Path optimization strategy: interpolate\|neb\|cineb\|irc |
-| `--product` | `None` | Product XYZ for interpolate/neb/cineb strategies |
 | `--output` | Auto | Output trajectory XYZ path |
 | `--fmax` | `0.05` | Convergence threshold |
 | `--steps` | `1000` | Max optimization steps |
@@ -215,16 +214,19 @@ qme path --strategy {interpolate,neb,cineb,irc} INPUT [OPTIONS]
 #### Examples
 
 ```bash
-# Raw interpolation
-qme path --strategy interpolate reactant.xyz --product product.xyz
+# Raw interpolation (two structures)
+qme path --strategy interpolate reactant.xyz product.xyz
 
-# NEB path optimization
-qme path --strategy neb reactant.xyz --product product.xyz
+# NEB path optimization (two structures)
+qme path --strategy neb reactant.xyz product.xyz
+
+# NEB with multiple intermediate structures
+qme path --strategy neb reactant.xyz intermediate.xyz product.xyz --npoints 11
 
 # CI-NEB path optimization
-qme path --strategy cineb reactant.xyz --product product.xyz
+qme path --strategy cineb reactant.xyz product.xyz
 
-# IRC from transition state
+# IRC from transition state (single structure)
 qme path --strategy irc ts.xyz --direction both
 ```
 
@@ -319,7 +321,7 @@ conda activate qme-mace && pip install qme-ml mace-torch
 | `quadratic` | Quadratic curve fitting | Known transition region |
 | `spline` | Cubic spline interpolation | Smooth pathways |
 
-Usage: `qme path --strategy neb reactant.xyz --product product.xyz --interp idpp`
+Usage: `qme path --strategy neb reactant.xyz product.xyz --interp idpp`
 
 ---
 

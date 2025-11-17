@@ -111,7 +111,7 @@ qme minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.05
 qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 --freq
 
 # NEB path
-qme path --strategy neb reactant.xyz --product product.xyz --npoints 11
+qme path --strategy neb reactant.xyz product.xyz --npoints 11
 
 # IRC from TS
 qme path --strategy irc ts.xyz --direction both

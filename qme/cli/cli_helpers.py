@@ -109,6 +109,118 @@ def load_atoms_from_xyz(path: str) -> Atoms:
     return atoms
 
 
+def load_path_structures(structures: tuple[str, ...]) -> list[Atoms]:
+    """Load structures for path optimization from variadic file inputs.
+
+    Handles multiple input methods:
+    - Multiple positional arguments: load each file as a structure
+    - Single multi-frame XYZ: load all frames as structures
+    - Single single-frame XYZ: load as single structure
+
+    Parameters
+    ----------
+    structures : tuple[str, ...]
+        Tuple of file paths. Can be:
+        - Multiple files: each file becomes one structure
+        - Single file: if multi-frame XYZ, all frames become structures
+        - Single file: if single-frame XYZ, becomes one structure
+
+    Returns
+    -------
+    list[Atoms]
+        List of Atoms objects ready for path optimization
+
+    Raises
+    ------
+    FileNotFoundError
+        If any file doesn't exist
+    ValueError
+        If file format is invalid or no structures found
+
+    Examples
+    --------
+    >>> # Multiple files
+    >>> load_path_structures(("reactant.xyz", "product.xyz"))
+    [Atoms(...), Atoms(...)]
+
+    >>> # Single multi-frame file
+    >>> load_path_structures(("path_guess.xyz",))  # Contains 5 frames
+    [Atoms(...), Atoms(...), Atoms(...), Atoms(...), Atoms(...)]
+
+    >>> # Single single-frame file
+    >>> load_path_structures(("ts.xyz",))
+    [Atoms(...)]
+
+    """
+    if not structures:
+        raise ValueError("At least one structure file must be provided")
+
+    atoms_list: list[Atoms] = []
+
+    # If multiple files provided, load each as a structure
+    if len(structures) > 1:
+        for path in structures:
+            atoms = load_atoms_from_xyz(path)
+            atoms_list.append(atoms)
+        return atoms_list
+
+    # Single file: check if it's multi-frame
+    single_path = structures[0]
+
+    # Try to read as multi-frame first (for XYZ files)
+    if single_path.lower().endswith(".xyz"):
+        try:
+            # Try reading all frames
+            geom_list = read_xyz_with_metadata(single_path, frame="all")
+            if isinstance(geom_list, list) and len(geom_list) > 1:
+                # Multi-frame file: convert all frames to Atoms
+                for geom in geom_list:
+                    atoms = Atoms(
+                        symbols=geom.get_chemical_symbols(),
+                        positions=geom.get_positions(),
+                        cell=geom.get_cell(),
+                        pbc=geom.get_pbc(),
+                    )
+                    if hasattr(geom, "info") and geom.info:
+                        atoms.info = dict(geom.info)
+                    atoms_list.append(atoms)
+                return atoms_list
+            elif isinstance(geom_list, list) and len(geom_list) == 1:
+                # Single frame: convert to Atoms
+                geom = geom_list[0]
+                atoms = Atoms(
+                    symbols=geom.get_chemical_symbols(),
+                    positions=geom.get_positions(),
+                    cell=geom.get_cell(),
+                    pbc=geom.get_pbc(),
+                )
+                if hasattr(geom, "info") and geom.info:
+                    atoms.info = dict(geom.info)
+                atoms_list.append(atoms)
+                return atoms_list
+            else:
+                # Single Geometry object
+                geom = geom_list
+                atoms = Atoms(
+                    symbols=geom.get_chemical_symbols(),
+                    positions=geom.get_positions(),
+                    cell=geom.get_cell(),
+                    pbc=geom.get_pbc(),
+                )
+                if hasattr(geom, "info") and geom.info:
+                    atoms.info = dict(geom.info)
+                atoms_list.append(atoms)
+                return atoms_list
+        except Exception:
+            # Fall back to regular loading if multi-frame read fails
+            pass
+
+    # Fallback: use regular single-file loading
+    atoms = load_atoms_from_xyz(single_path)
+    atoms_list.append(atoms)
+    return atoms_list
+
+
 def _coerce_to_atoms(obj: Any) -> Atoms:
     """Best-effort conversion of various result shapes into an ASE Atoms.
 
@@ -513,6 +625,7 @@ def save_results_json(results: Any, output_path: str) -> None:
 
 __all__ = [
     "load_atoms_from_xyz",
+    "load_path_structures",
     "parse_kv_pairs",
     "print_frequency_summary",
     "save_results_json",
