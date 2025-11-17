@@ -81,31 +81,22 @@ class MultiStructureNEBStrategy(BaseStrategy):
         """
         self.validate_inputs(atoms_list)
 
-        # Determine climb parameter: use provided value, or default based on strategy name
         if climb is None:
             climb = self.metadata.name == "path:cineb"
 
-        # Determine method name for logging
         method_name = "CI-NEB" if climb else "NEB"
 
-        # Generate initial path using PathManager
         path_mgr = PathManager(atoms_list)
-        # Filter kwargs to only include parameters accepted by PathManager.interpolate
         interpolate_kwargs = filter_interpolation_kwargs(kwargs, allowed_keys={"calculator"})
         path = path_mgr.interpolate(
             npoints=npoints,
             method=method,
-            optimize_path=False,  # Don't optimize initially, we'll do NEB
+            optimize_path=False,
             explorer=self.explorer,
             **interpolate_kwargs,
         )
 
-        # Flatten nested segments if needed (defensive check)
-        # Note: path should already be flat, but handle edge cases where PathManager
-        # might return nested structures. The try/except handles runtime errors during
-        # flattening (e.g., if path structure is unexpected despite the condition check).
         if path and hasattr(path[0], "__iter__") and not isinstance(path[0], Atoms):
-            # If first element is iterable but not Atoms, might be nested
             try:  # type: ignore[unreachable]
                 flat = []
                 for seg in path:
@@ -115,7 +106,6 @@ class MultiStructureNEBStrategy(BaseStrategy):
                         flat.append(seg)
                 path = flat
             except (TypeError, AttributeError):
-                # If flattening fails, keep original path (defensive programming for malformed input)
                 pass
 
         if len(path) < 3:
@@ -127,7 +117,6 @@ class MultiStructureNEBStrategy(BaseStrategy):
             msg = f"{method_name} requires at least 3 images (npoints >= 3)"
             raise ValueError(msg)
 
-        # Attach calculators to all images using centralized helper and validate
         if self.explorer is not None:
             PathManager.attach_calculators(self.explorer, path)
             if any(getattr(img, "calc", None) is None for img in path):
@@ -140,7 +129,6 @@ class MultiStructureNEBStrategy(BaseStrategy):
                     "Check backend/model availability.",
                 )
 
-        # Use unified NEB optimizer
         neb_opt = NEBOptimizer(
             images=path,
             spring_constant=spring_constant,
@@ -152,9 +140,7 @@ class MultiStructureNEBStrategy(BaseStrategy):
 
         optimized_path = neb_opt.optimize()
 
-        # Filter redundant structures and issue warnings
         if optimized_path:
-            # Convert atoms_list to list for comparison
             input_atoms = list(atoms_list)
 
             filtered_path, _removed_indices, warnings_list = (
@@ -167,7 +153,6 @@ class MultiStructureNEBStrategy(BaseStrategy):
                 )
             )
 
-            # Issue warnings
             for warning_msg in warnings_list:
                 warnings.warn(warning_msg, stacklevel=2)
 
@@ -198,6 +183,5 @@ class MultiStructureCINEBStrategy(MultiStructureNEBStrategy):
     )
 
 
-# Register both strategies
 REGISTRY.register(MultiStructureNEBStrategy)
 REGISTRY.register(MultiStructureCINEBStrategy)

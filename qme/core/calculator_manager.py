@@ -6,15 +6,12 @@ caching, and attachment to atoms objects.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ase import Atoms
 
 from qme.backends.registry import create_calculator
 from qme.core.charge_spin import check_missing_charge_spin, extract_charge_spin_from_atoms
-
-if TYPE_CHECKING:
-    pass
 
 
 class CalculatorManager:
@@ -64,19 +61,10 @@ class CalculatorManager:
         self._warned_about_defaults = False
 
     def get_effective_model_name(self) -> str:
-        """Get the effective model name that will actually be used by the backend.
-
-        Returns the model name that will be used after applying backend-specific defaults.
-
-        Returns
-        -------
-        str
-            Effective model name
-        """
+        """Get effective model name with backend defaults applied."""
         if self.model_name is not None:
             return self.model_name
 
-        # Apply backend-specific defaults
         backend_lower = self.backend.lower()
         if backend_lower == "uma":
             return "uma-s-1p1"
@@ -85,32 +73,14 @@ class CalculatorManager:
         if backend_lower == "mace":
             return "mace-omol-0"
         if backend_lower == "so3lr":
-            # SO3LR requires a model_path, not model_name
             return self.model_path or "so3lr-model"
         if backend_lower == "mock":
             return "mock-model"
         return "default-model"
 
     def create_and_attach_calculator(self, atoms: Atoms) -> Any:
-        """Create and attach an ASE calculator to atoms.
-
-        Prefers explicit charge/spin found on Geometry-like objects or
-        in atoms.info. Falls back to defaults otherwise.
-
-        Parameters
-        ----------
-        atoms : Atoms
-            Atoms object to attach calculator to
-
-        Returns
-        -------
-        Any
-            The created calculator object
-        """
-        # Extract charge and spin using helper function
+        """Create and attach calculator to atoms."""
         charge, spin = extract_charge_spin_from_atoms(atoms, self.default_charge, self.default_spin)
-
-        # Check if we're using defaults and warn once
         charge_missing, spin_missing = check_missing_charge_spin(atoms)
 
         if (charge_missing or spin_missing) and not self._warned_about_defaults:
@@ -124,26 +94,17 @@ class CalculatorManager:
             if spin_missing:
                 missing_parts.append(f"spin={spin}")
 
-            # Use debug level instead of warning since defaults are reasonable
-            # and charge/spin are often not critical for neutral closed-shell systems
             if self.verbose >= 2:
                 logger.debug(
                     f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
                 )
-            else:
-                # Only warn at verbose level 1 if it's a charged or open-shell system
-                # (charge != 0 or spin != 1), otherwise it's just informational
-                if charge != 0 or spin != 1:
-                    logger.warning(
-                        f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
-                    )
-                # For neutral closed-shell (charge=0, spin=1), don't warn at all
+            elif charge != 0 or spin != 1:
+                logger.warning(
+                    f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
+                )
             self._warned_about_defaults = True
 
-        # Ensure atoms.info contains values so calculators that read
-        # atoms.info (UMA, SO3LR, etc.) see the intended settings.
         if getattr(atoms, "info", None) is not None:
-            # Coerce to built-in int types to satisfy backends that enforce strict typing
             try:
                 atoms.info["charge"] = int(atoms.info.get("charge", charge))
             except (ValueError, TypeError):
@@ -153,11 +114,9 @@ class CalculatorManager:
             except (ValueError, TypeError):
                 atoms.info["spin"] = int(spin)
 
-        # Show model initialization info when creating the first calculator
         if not self._calculator_created:
             from qme.utils.logging import print_model_info
 
-            # Get the effective model name that will actually be used
             effective_model_name = self.get_effective_model_name()
             print_model_info(
                 self.backend,

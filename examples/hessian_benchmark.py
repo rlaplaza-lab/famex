@@ -681,7 +681,7 @@ def main() -> int:
     requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
     backend, available_backends = interface.select_backend(
         requested_backends=requested,
-        preferred_backends=["uma", "mace"],
+        preferred_backends=["uma"],
         verbose=args.verbose,
     )
 

@@ -35,35 +35,20 @@ def validate_output_path(output_file: str | Path) -> Path:
     """
     output_file = Path(output_file)
 
-    # SECURITY: Validate path doesn't contain traversal patterns
     if ".." in str(output_file) or "\x00" in str(output_file):
-        msg = f"Unsafe output path detected: {output_file}"
-        raise ValueError(msg)
+        raise ValueError(f"Unsafe output path detected: {output_file}")
 
     return output_file
 
 
 def _create_clean_atoms(atoms: Atoms) -> Atoms:
-    """Create a clean atoms object with only essential data.
-
-    Parameters
-    ----------
-    atoms : Atoms
-        Original atoms object
-
-    Returns
-    -------
-    Atoms
-        Clean atoms object with essential data only
-
-    """
+    """Create a clean atoms object with only essential data."""
     clean_atoms = Atoms(
         symbols=atoms.symbols,
         positions=atoms.positions,
         cell=atoms.cell,
         pbc=atoms.pbc,
     )
-    # Copy over essential info
     if hasattr(atoms, "info") and atoms.info:
         for key in ["charge", "spin"]:
             if key in atoms.info:
@@ -97,35 +82,21 @@ def write_atoms_safely(
     """
     output_file = validate_output_path(output_file)
 
-    # Use custom XYZ writer for .xyz files to preserve metadata
     if str(output_file).lower().endswith(".xyz"):
         try:
             write_xyz_with_metadata(atoms, str(output_file))
             return
         except OSError as e:
-            # File system errors (permissions, disk full, etc.)
-            msg = (
-                f"Failed to save XYZ structure to {output_file}: {e}. "
-                f"This may be due to file system permissions, insufficient disk space, "
-                f"or an invalid file path."
-            )
-            raise RuntimeError(msg) from e
+            raise RuntimeError(f"Failed to save XYZ structure to {output_file}: {e}") from e
         except (ValueError, TypeError) as e:
-            # Data format errors (invalid structure data)
-            msg = (
-                f"Failed to save XYZ structure to {output_file}: {e}. "
-                f"This may indicate invalid or corrupted structure data."
-            )
-            raise RuntimeError(msg) from e
+            raise RuntimeError(f"Failed to save XYZ structure to {output_file}: {e}") from e
 
-    # Use ASE for other formats
     try:
         if format is not None:
             write(output_file, atoms, format=format)
         else:
             write(output_file, atoms)
     except OSError as e:
-        # File system errors - try with cleaned atoms object
         try:
             clean_atoms = _create_clean_atoms(atoms)
             if format is not None:
@@ -133,29 +104,15 @@ def write_atoms_safely(
             else:
                 write(output_file, clean_atoms)
         except OSError as e2:
-            msg = (
-                f"Failed to save structure to {output_file}: {e}. "
-                f"Clean attempt also failed: {e2}. "
-                f"This may be due to file system permissions, insufficient disk space, "
-                f"or an invalid file path."
-            )
-            raise RuntimeError(msg) from e2
+            raise RuntimeError(
+                f"Failed to save structure to {output_file}: {e}. Clean attempt also failed: {e2}"
+            ) from e2
         except (ValueError, TypeError, KeyError) as e2:
-            # Data or format errors even with cleaned atoms
-            msg = (
-                f"Failed to save structure to {output_file}: {e}. "
-                f"Clean attempt also failed: {e2}. "
-                f"This may indicate an unsupported format or corrupted structure data."
-            )
-            raise RuntimeError(msg) from e2
+            raise RuntimeError(
+                f"Failed to save structure to {output_file}: {e}. Clean attempt also failed: {e2}"
+            ) from e2
     except (ValueError, TypeError, KeyError) as e:
-        # Data format errors (invalid structure data or unsupported format)
-        msg = (
-            f"Failed to save structure to {output_file}: {e}. "
-            f"This may indicate an unsupported format, invalid structure data, "
-            f"or missing format-specific requirements."
-        )
-        raise RuntimeError(msg) from e
+        raise RuntimeError(f"Failed to save structure to {output_file}: {e}") from e
 
 
 def write_trajectory_safely(
@@ -184,35 +141,21 @@ def write_trajectory_safely(
     """
     output_file = validate_output_path(output_file)
 
-    # Use custom XYZ writer for .xyz files to preserve metadata
     if str(output_file).lower().endswith(".xyz"):
         try:
             write_xyz_with_metadata(atoms_list, str(output_file))
             return
         except OSError as e:
-            # File system errors (permissions, disk full, etc.)
-            msg = (
-                f"Failed to save XYZ trajectory to {output_file}: {e}. "
-                f"This may be due to file system permissions, insufficient disk space, "
-                f"or an invalid file path."
-            )
-            raise RuntimeError(msg) from e
+            raise RuntimeError(f"Failed to save XYZ trajectory to {output_file}: {e}") from e
         except (ValueError, TypeError) as e:
-            # Data format errors (invalid structure data)
-            msg = (
-                f"Failed to save XYZ trajectory to {output_file}: {e}. "
-                f"This may indicate invalid or corrupted structure data in the trajectory."
-            )
-            raise RuntimeError(msg) from e
+            raise RuntimeError(f"Failed to save XYZ trajectory to {output_file}: {e}") from e
 
-    # Use ASE for other formats
     try:
         if format is not None:
             write(output_file, atoms_list, format=format)
         else:
             write(output_file, atoms_list)
     except OSError as e:
-        # File system errors - try with cleaned atoms objects
         try:
             clean_atoms_list = [_create_clean_atoms(atoms) for atoms in atoms_list]
             if format is not None:
@@ -220,26 +163,12 @@ def write_trajectory_safely(
             else:
                 write(output_file, clean_atoms_list)
         except OSError as e2:
-            msg = (
-                f"Failed to save trajectory to {output_file}: {e}. "
-                f"Clean attempt also failed: {e2}. "
-                f"This may be due to file system permissions, insufficient disk space, "
-                f"or an invalid file path."
-            )
-            raise RuntimeError(msg) from e2
+            raise RuntimeError(
+                f"Failed to save trajectory to {output_file}: {e}. Clean attempt also failed: {e2}"
+            ) from e2
         except (ValueError, TypeError, KeyError) as e2:
-            # Data or format errors even with cleaned atoms
-            msg = (
-                f"Failed to save trajectory to {output_file}: {e}. "
-                f"Clean attempt also failed: {e2}. "
-                f"This may indicate an unsupported format or corrupted structure data."
-            )
-            raise RuntimeError(msg) from e2
+            raise RuntimeError(
+                f"Failed to save trajectory to {output_file}: {e}. Clean attempt also failed: {e2}"
+            ) from e2
     except (ValueError, TypeError, KeyError) as e:
-        # Data format errors (invalid structure data or unsupported format)
-        msg = (
-            f"Failed to save trajectory to {output_file}: {e}. "
-            f"This may indicate an unsupported format, invalid structure data, "
-            f"or missing format-specific requirements."
-        )
-        raise RuntimeError(msg) from e
+        raise RuntimeError(f"Failed to save trajectory to {output_file}: {e}") from e

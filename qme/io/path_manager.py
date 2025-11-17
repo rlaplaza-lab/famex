@@ -238,7 +238,6 @@ class PathManager:
                 mult=start.mult,
             )
 
-            # Set charge and spin in atoms.info to prevent UMA backend warnings
             if hasattr(geom, "info") and geom.info is not None:
                 geom.info.setdefault("charge", start.charge)
                 geom.info.setdefault("spin", start.mult)
@@ -530,10 +529,6 @@ class PathManager:
         else:
             energy_diff = None
 
-        # Similarity criteria:
-        # - Must have low RMSD
-        # - If both energies available: must also have similar energy
-        # - If energy unavailable: rely on RMSD only (but log warning)
         is_similar = rmsd < rmsd_threshold
         if energy_diff is not None:
             is_similar = is_similar and energy_diff < energy_threshold
@@ -612,7 +607,6 @@ class PathManager:
                 energies.append(None)
                 logger.debug(f"Energy unavailable for structure {i + 1}")
 
-        # Check if we only have input structures (optimized: check first/last points first)
         if input_structures is not None and input_structures:
             input_only = True
             # Check first and last structures first (most common case)
@@ -702,7 +696,6 @@ class PathManager:
                 last_kept = kept_indices[-1]
                 spacing = i - last_kept
                 if spacing < min_spacing:
-                    # Too close to last kept structure, skip this one
                     is_redundant = True
                     removed_indices.append(i)
                     warning_messages.append(
@@ -727,7 +720,6 @@ class PathManager:
                 filtered_structures.append(atoms)
                 kept_indices.append(i)
 
-        # Add general redundancy warnings
         if removed_indices:
             warning_messages.insert(
                 0,

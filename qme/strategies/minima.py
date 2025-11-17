@@ -68,17 +68,13 @@ class LocalMinimaStrategy(BaseStrategy):
         temperature = kwargs.get("temperature", 298.15)
 
         def prepare_minima_optimizer_kwargs(optimizer_name: str, explorer: Any) -> dict[str, Any]:
-            """Prepare optimizer kwargs for minima optimization."""
+            """Prepare optimizer kwargs for minima."""
             opt_kwargs = getattr(explorer, "optimizer_kwargs", {}) or {}
             opt_kwargs = dict(opt_kwargs)
 
             if optimizer_name.lower() == "sella":
-                # Sella-specific kwargs for minima search
                 opt_kwargs.setdefault("internal", True)
                 opt_kwargs.setdefault("order", 0)
-                # Note: SELLA computes its own Hessian internally and doesn't accept
-                # an initial Hessian as a keyword argument. The initial_hessian from
-                # explorer is not used for SELLA.
 
             return opt_kwargs
 
@@ -99,5 +95,4 @@ class LocalMinimaStrategy(BaseStrategy):
         )
 
 
-# Register the strategy
 REGISTRY.register(LocalMinimaStrategy)

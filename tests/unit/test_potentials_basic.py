@@ -1,6 +1,76 @@
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
+from ase import Atoms
+
+from qme.potentials.base_potential import BasePotential
+
+
+class TestBasePotential:
+    """Test BasePotential class."""
+
+    def test_get_logger_with_import_error(self):
+        """Test _get_logger() with ImportError fallback (lines 23-31)."""
+        from qme.potentials.base_potential import _get_logger
+
+        with patch("qme.utils.logging.get_qme_logger", side_effect=ImportError("No module")):
+            logger = _get_logger()
+            # Should fallback to standard logging
+            assert logger is not None
+
+    def test_init_implemented_properties_from_kwargs(self):
+        """Test initialization with implemented_properties from kwargs when not hasattr (line 83)."""
+        potential = BasePotential(implemented_properties=["energy", "forces"])
+        assert potential.implemented_properties == ["energy", "forces"]
+
+    def test_calculate_with_none_atoms(self):
+        """Test calculate() method with atoms=None (lines 102-105)."""
+        potential = BasePotential()
+        # Should not raise error
+        potential.calculate(atoms=None)
+        assert potential.atoms is None
+
+    def test_calculate_with_none_properties(self):
+        """Test calculate() method with properties=None."""
+        potential = BasePotential(implemented_properties=["energy"])
+        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        potential.calculate(atoms=atoms, properties=None)
+        # Should use implemented_properties
+        assert potential.atoms == atoms
+
+    def test_ensure_loaded_with_load_calculator(self):
+        """Test ensure_loaded() with _load_calculator method (lines 148-151)."""
+        potential = BasePotential()
+        # Create a mock potential with _load_calculator
+        potential._calc = None
+        call_count = 0
+
+        def mock_load():
+            nonlocal call_count
+            call_count += 1
+            potential._calc = "mock_calculator"
+
+        potential._load_calculator = mock_load
+        result = potential.ensure_loaded()
+        assert result == "mock_calculator"
+        assert call_count == 1
+
+    def test_ensure_loaded_without_load_calculator(self):
+        """Test ensure_loaded() without _load_calculator method."""
+        potential = BasePotential()
+        potential._calc = None
+        # Should return None if no _load_calculator
+        result = potential.ensure_loaded()
+        assert result is None
+
+    def test_ensure_loaded_already_loaded(self):
+        """Test ensure_loaded() when calculator is already loaded."""
+        potential = BasePotential()
+        potential._calc = "existing_calculator"
+        result = potential.ensure_loaded()
+        assert result == "existing_calculator"
 
 
 class TestPotentialsInitBasic:

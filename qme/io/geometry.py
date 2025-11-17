@@ -12,12 +12,7 @@ from qme.io.xyz_io import read_xyz_with_metadata, write_xyz_with_metadata
 
 
 class Geometry(Atoms):
-    """Represents a molecular geometry with atomic positions, types, and properties.
-
-    This class provides a high-level interface for molecular structures,
-    wrapping ASE Atoms objects with additional convenience methods for
-    reaction pathway analysis and geometry manipulation.
-    """
+    """Molecular geometry with atomic positions, types, and properties."""
 
     def __init__(
         self,
@@ -29,28 +24,8 @@ class Geometry(Atoms):
         ase_atoms: Atoms | None = None,
         **kwargs: Any,
     ) -> None:
-        """Initialize a Geometry object.
-
-        Parameters
-        ----------
-        atoms : str, list of str, optional
-            Atomic symbols (e.g., ['H', 'H'] or 'HH')
-        coords : np.ndarray, optional
-            Flat array of coordinates [x1, y1, z1, x2, y2, z2, ...]
-        positions : np.ndarray, optional
-            Array of shape (n_atoms, 3) with atomic positions
-        charge : int, default 0
-            Total charge of the system
-        mult : int, default 1
-            Spin multiplicity (2S + 1)
-        ase_atoms : Atoms, optional
-            Pre-constructed ASE Atoms object
-        **kwargs
-            Additional arguments passed to ASE Atoms constructor
-
-        """
+        """Initialize a Geometry object."""
         if ase_atoms is not None:
-            # Initialize from existing Atoms object
             super().__init__(
                 symbols=ase_atoms.get_chemical_symbols(),
                 positions=ase_atoms.get_positions(),
@@ -58,40 +33,31 @@ class Geometry(Atoms):
                 pbc=ase_atoms.get_pbc(),
                 **kwargs,
             )
-            # Copy calculator and other properties if they exist
             if ase_atoms.calc is not None:
                 self.calc = ase_atoms.calc
-            # Copy info dictionary
             if hasattr(ase_atoms, "info") and ase_atoms.info:
                 self.info = dict(ase_atoms.info)
 
-            # Extract charge and spin from ASE atoms if available
             if hasattr(ase_atoms, "info") and ase_atoms.info:
                 if "charge" in ase_atoms.info:
                     charge = ase_atoms.info["charge"]
                 if "spin" in ase_atoms.info:
                     mult = ase_atoms.info["spin"]
         elif atoms is not None:
-            # Convert atomic symbols to list if string
             symbols = list(atoms) if isinstance(atoms, str) else atoms
 
-            # Handle coordinates
             if coords is not None:
                 coords = np.array(coords)
                 positions = coords.reshape(-1, 3) if coords.ndim == 1 else coords
             elif positions is not None:
                 positions = np.array(positions)
             else:
-                msg = "Must provide either 'coords' or 'positions'"
-                raise ValueError(msg)
+                raise ValueError("Must provide either 'coords' or 'positions'")
 
-            # Initialize ASE Atoms object
             super().__init__(symbols=symbols, positions=positions, **kwargs)
         else:
-            # Create empty geometry for default instantiation
             super().__init__(**kwargs)
 
-        # Store additional properties
         self.charge = charge
         self.mult = mult
         self._energy: float | None = None
@@ -165,46 +131,15 @@ class Geometry(Atoms):
         return np.array(super().get_all_distances())
 
     def get_angle_degrees(self, atom1: int, atom2: int, atom3: int) -> float:
-        """Get angle between three atoms in degrees.
-
-        Parameters
-        ----------
-        atom1, atom2, atom3 : int
-            Atom indices (atom2 is the center atom)
-
-        Returns
-        -------
-        float
-            Angle in degrees
-
-        """
+        """Get angle between three atoms in degrees (atom2 is the center atom)."""
         return float(self.get_angle(atom1, atom2, atom3) * 180.0 / np.pi)
 
     def get_dihedral_degrees(self, atom1: int, atom2: int, atom3: int, atom4: int) -> float:
-        """Get dihedral angle between four atoms in degrees.
-
-        Parameters
-        ----------
-        atom1, atom2, atom3, atom4 : int
-            Atom indices
-
-        Returns
-        -------
-        float
-            Dihedral angle in degrees
-
-        """
+        """Get dihedral angle between four atoms in degrees."""
         return float(self.get_dihedral(atom1, atom2, atom3, atom4) * 180.0 / np.pi)
 
     def center_of_mass(self) -> np.ndarray:
-        """Get center of mass coordinates.
-
-        Returns
-        -------
-        np.ndarray
-            Center of mass coordinates (x, y, z)
-
-        """
+        """Get center of mass coordinates."""
         return np.array(self.get_center_of_mass())
 
     def __str__(self) -> str:
@@ -216,33 +151,13 @@ class Geometry(Atoms):
 
 
 def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
-    """Read geometry from file using ASE or custom XYZ reader.
-
-    For XYZ files, uses custom reader that preserves charge/spin metadata.
-    For other formats, falls back to ASE reader.
-
-    Parameters
-    ----------
-    filename : str
-        Path to geometry file
-    **kwargs : Any
-        Additional arguments passed to reader
-
-    Returns
-    -------
-    Geometry or list[Geometry]
-        QME Geometry object(s) with loaded structure(s)
-
-    """
+    """Read geometry from file using ASE or custom XYZ reader."""
     filename_str = str(filename)
 
-    # Use custom XYZ reader for .xyz files
     if filename_str.lower().endswith(".xyz"):
-        # Default to "first" frame for Explorer.from_file() compatibility
         frame = kwargs.pop("frame", "first")
         return read_xyz_with_metadata(filename_str, frame=frame, **kwargs)
 
-    # Use ASE for other formats
     atoms = read(filename, **kwargs)
     if isinstance(atoms, list):
         return [Geometry(ase_atoms=atom) for atom in atoms]
@@ -250,38 +165,15 @@ def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
 
 
 def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> None:
-    """Write geometry to file using ASE or custom XYZ writer.
-
-    For XYZ files, uses custom writer that preserves charge/spin metadata.
-    For other formats, falls back to ASE writer.
-
-    Parameters
-    ----------
-    geometry : Geometry or Atoms
-        Geometry to write (can be Geometry object or ASE Atoms object)
-    filename : str
-        Output filename
-    **kwargs : Any
-        Additional arguments passed to writer
-
-    """
+    """Write geometry to file using ASE or custom XYZ writer."""
     filename_str = str(filename)
 
-    # Use custom XYZ writer for .xyz files
     if filename_str.lower().endswith(".xyz"):
         energy = kwargs.pop("energy", None)
         write_xyz_with_metadata(geometry, filename_str, energy=energy, **kwargs)
         return
 
-    # Use ASE for other formats
-    # Handle both Geometry objects (which inherit from Atoms) and plain ASE Atoms
-    # objects
-    if isinstance(geometry, Geometry):
-        # It's a Geometry object (which is also an Atoms object)
-        write(filename, geometry, **kwargs)
-    else:
-        # Assume it's a plain ASE Atoms object
-        write(filename, geometry, **kwargs)
+    write(filename, geometry, **kwargs)
 
 
 def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
@@ -320,7 +212,6 @@ def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
         line_lower = line.strip().lower()
         if line_lower.startswith("#"):
             route_line = line_lower
-            # The title is next, then a blank line, then charge/multiplicity
             charge_mult_line_index = i + 3
             break
 
@@ -361,7 +252,6 @@ def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
             msg,
         )
 
-    # Extract coordinates
     coord_lines = lines[charge_mult_line_index + 1 :]
     symbols = []
     positions = []

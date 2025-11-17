@@ -1,17 +1,4 @@
-"""Core logging configuration for QME.
-
-Logging is initialized automatically when an Explorer instance is created,
-or can be manually initialized by calling setup_qme_logging().
-
-Initialization order:
-1. Explorer.__init__() calls setup_qme_logging() with verbosity parameter
-2. setup_qme_logging() configures the root 'qme' logger
-3. Individual modules use get_qme_logger(__name__) to get module-specific loggers
-4. All child loggers inherit configuration from the root 'qme' logger
-
-This ensures logging is available throughout the codebase before any modules
-attempt to use it.
-"""
+"""Core logging configuration for QME."""
 
 from __future__ import annotations
 
@@ -19,10 +6,8 @@ import logging
 import sys
 import threading
 
-# Thread-local storage to track if we're already in a quiet_backend_loading context
 _quiet_context_local = threading.local()
 
-# QME logger configuration
 _qme_logging_configured = False
 _qme_log_level = logging.INFO
 
@@ -87,29 +72,13 @@ def setup_qme_logging(verbosity: int = 1, force: bool = False) -> None:
     handler.setFormatter(QMEFormatter())
     qme_logger.addHandler(handler)
 
-    # Disable propagation to root logger to prevent duplicate warnings
-    # Child loggers (e.g., qme.optimizers.scipy_optimizers) will still use
-    # the qme logger's handler with nice formatting
     qme_logger.propagate = False
 
     _qme_logging_configured = True
 
 
 def get_qme_logger(name: str) -> logging.Logger:
-    """Get a QME logger for a specific module.
-
-    Parameters
-    ----------
-    name : str
-        Logger name, typically __name__ from the calling module
-
-    Returns
-    -------
-    logging.Logger
-        Configured logger instance
-
-    """
-    # Ensure name starts with 'qme.'
+    """Get a QME logger for a specific module."""
     if not name.startswith("qme"):
         name = "qme" if name == "__main__" else f"qme.{name}"
 
@@ -140,23 +109,7 @@ def print_model_info(
     device: str | None = None,
     verbose: int = 1,
 ) -> None:
-    """Print clean model information for the user.
-
-    Parameters
-    ----------
-    backend : str
-        Name of the ML backend
-    model_name : str, optional
-        Name of the model being used
-    model_path : str, optional
-        Path to model file (for local models)
-    device : str, optional
-        Device being used (cpu/cuda)
-    verbose : int, default=1
-        Verbosity level. Only prints if verbose >= 1.
-
-    """
-    # Only print at verbosity >= 1
+    """Print clean model information for the user."""
     if verbose == 0:
         return
 

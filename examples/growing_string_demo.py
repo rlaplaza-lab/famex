@@ -110,11 +110,11 @@ def main() -> int:
     requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
     backend, available_backends = interface.select_backend(
         requested_backends=requested,
-        preferred_backends=["uma", "mace"],
+        preferred_backends=["uma"],
         verbose=args.verbose,
     )
     if backend is None:
-        interface.print_error("No suitable backend available (need UMA or MACE)")
+        interface.print_error("No suitable backend available (UMA preferred)")
         return 1
 
     interface.print_backend_summary([backend], "Using Backend")

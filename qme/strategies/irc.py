@@ -70,18 +70,15 @@ class LocalIRCStrategy(BaseStrategy):
             - ts_validation: Transition state validation results (dict, optional)
 
         """
-        # Convert Sequence to list for validation
         atoms_list = list(atoms_list)
         self.validate_inputs(atoms_list)
 
         local_optimizer_name = kwargs.get("local_optimizer_name", "bfgs")
         verbose = kwargs.get("verbose", 1)
 
-        # Start profiling if available
         if self.profiler is not None:
             self.profiler.snapshot_memory()
 
-        # Handle single Atoms or list input
         if len(atoms_list) != 1:
             msg = (
                 "IRC runner expects a single structure (transition state), "
@@ -92,15 +89,12 @@ class LocalIRCStrategy(BaseStrategy):
             )
         atoms_input = atoms_list[0]
 
-        # Create a copy to avoid modifying the original
         ts_atoms = atoms_input.copy()
 
-        # Attach calculator and constraints
         with self.profiler.profile_section("calculator_setup") if self.profiler else nullcontext():
             self.explorer._create_and_attach_calculator(ts_atoms)
             self.explorer._apply_constraints(ts_atoms)
 
-        # Validate that the starting structure is a transition state (optional)
         hessian = None
         if validate_ts:
             with self.profiler.profile_section("ts_validation") if self.profiler else nullcontext():
@@ -112,13 +106,11 @@ class LocalIRCStrategy(BaseStrategy):
                     verbose=verbose,
                 )
 
-        # Log IRC calculation start
         if verbose >= 1:
             logger.info("Starting IRC calculation from transition state")
             logger.info(f"Direction: {direction}, Max steps: {steps}, Step size: {step_size}")
             logger.info(f"Force threshold: {fmax} eV/Å")
 
-        # Initialize paths (empty initially, TS will be added when constructing final trajectory)
         forward_path = []
         backward_path = []
 
@@ -130,20 +122,16 @@ class LocalIRCStrategy(BaseStrategy):
             """Follow IRC in one direction."""
             path = []
             current = initial_atoms.copy()
-            # Make sure calculator is attached
             if current.calc is None:
                 self.explorer._create_and_attach_calculator(current)
                 self.explorer._apply_constraints(current)
 
             for _step in range(max_steps):
-                # Get current forces
                 current_forces = current.get_forces()
                 current_masses = current.get_masses()
 
-                # Check if we've converged (near a minimum)
                 max_force = np.max(np.abs(current_forces))
                 if max_force < fmax:
-                    # Optimize to local minimum
                     if verbose >= 2:
                         logger.debug(
                             f"IRC converged to minimum (max force: {max_force:.6f} eV/Å), optimizing endpoint",
@@ -157,15 +145,12 @@ class LocalIRCStrategy(BaseStrategy):
                     path.append(opt_copy)
                     break
 
-                # Mass-weighted step
                 mw_forces = current_forces / np.sqrt(current_masses[:, np.newaxis])
                 mw_forces_norm = np.linalg.norm(mw_forces)
 
                 if mw_forces_norm < 1e-10:
-                    # Forces too small, stop
                     break
 
-                # Normalize and take step
                 step_direction = mw_forces / mw_forces_norm
                 displacement = (
                     direction_sign
@@ -174,12 +159,10 @@ class LocalIRCStrategy(BaseStrategy):
                     * np.sqrt(current_masses[:, np.newaxis])
                 )
 
-                # Create new structure
                 next_atoms = current.copy()
                 new_positions = current.get_positions() + displacement
                 next_atoms.set_positions(new_positions)
 
-                # Attach calculator to new structure
                 self.explorer._create_and_attach_calculator(next_atoms)
                 self.explorer._apply_constraints(next_atoms)
 
@@ -188,7 +171,6 @@ class LocalIRCStrategy(BaseStrategy):
 
             return path
 
-        # Follow IRC in requested direction(s)
         with self.profiler.profile_section("irc_calculation") if self.profiler else nullcontext():
             if direction.lower() in ("forward", "both"):
                 if verbose >= 2:
@@ -200,7 +182,6 @@ class LocalIRCStrategy(BaseStrategy):
                     logger.debug("Following IRC in backward direction")
                 backward_path = follow_irc_direction(ts_atoms, -1.0, steps)
 
-        # Combine paths: backward (reversed) + ts + forward
         if direction.lower() == "both":
             trajectory = [
                 *list(reversed(backward_path)),
@@ -217,7 +198,6 @@ class LocalIRCStrategy(BaseStrategy):
                 msg,
             )
 
-        # Log completion
         if verbose >= 1:
             logger.info(f"IRC calculation completed: {len(trajectory)} images generated")
             logger.info(
@@ -232,7 +212,6 @@ class LocalIRCStrategy(BaseStrategy):
             backward_path=backward_path,
         )
 
-        # Add information about Hessian computation
         if validate_ts and hessian is not None:
             result["hessian_computed"] = True
             result["hessian"] = hessian
@@ -242,5 +221,4 @@ class LocalIRCStrategy(BaseStrategy):
         return self._merge_profiler_results(result)
 
 
-# Register the strategy
 REGISTRY.register(LocalIRCStrategy)

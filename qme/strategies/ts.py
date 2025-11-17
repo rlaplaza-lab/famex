@@ -76,7 +76,6 @@ class LocalTSStrategy(BaseStrategy):
         verbose = kwargs.get("verbose", 1)
         temperature = kwargs.get("temperature", 298.15)
 
-        # Validate TS optimization setup - hardcoded restrictions
         _validate_ts_optimization_setup(self.explorer.backend, local_optimizer_name)
 
         def prepare_ts_optimizer_kwargs(optimizer_name: str, explorer: Any) -> dict[str, Any]:
@@ -86,29 +85,20 @@ class LocalTSStrategy(BaseStrategy):
 
             normalized_name = optimizer_name.lower()
             if normalized_name == "sella":
-                # Sella-specific kwargs for TS search
                 opt_kwargs.setdefault("internal", True)
                 opt_kwargs.setdefault("order", 1)
-                # Remove hessian_method if present (Sella doesn't accept it)
                 opt_kwargs.pop("hessian_method", None)
-                # Note: SELLA computes its own Hessian internally and doesn't accept
-                # an initial Hessian as a keyword argument. The initial_hessian from
-                # explorer is not used for SELLA.
             elif normalized_name in (
                 "rfo",
                 "rfo-ts",
                 "rational-function",
                 "rational_function",
             ):
-                # RFO optimizer: recompute Hessian every 10 steps for better convergence
-                # TS optimization needs accurate Hessian information
                 opt_kwargs.setdefault("hessian_update_freq", 10)
                 opt_kwargs.setdefault("hessian_method", "auto")
-                # Use slightly larger trust radius initially for better convergence
-                opt_kwargs.setdefault("trust_radius", 0.02)  # Double the default
-                opt_kwargs.setdefault("max_trust_radius", 0.06)  # Double the default
+                opt_kwargs.setdefault("trust_radius", 0.02)
+                opt_kwargs.setdefault("max_trust_radius", 0.06)
 
-            # Force finite difference hessian if flag is set
             if getattr(explorer, "force_finite_diff_hessian", False):
                 if normalized_name in {
                     "rfo",
@@ -121,8 +111,7 @@ class LocalTSStrategy(BaseStrategy):
             return opt_kwargs
 
         def post_ts_optimization_hook(opt: Any, atoms: Atoms, opt_kwargs: dict[str, Any]) -> None:
-            """Post-optimization hook for TS-specific diagnostic logging."""
-            # Diagnostic: log Hessian call count for rfo
+            """Post-optimization hook for TS diagnostics."""
             if hasattr(opt, "hessian_calls"):
                 if self.explorer.verbose >= 1:
                     logger.info(
@@ -132,23 +121,19 @@ class LocalTSStrategy(BaseStrategy):
                     )
 
         def ts_validation_hook(results: list[Atoms]) -> list[dict[str, Any] | None]:
-            """TS validation hook."""
+            """Validate TS structures."""
             validation_results: list[dict[str, Any] | None] = []
             for atoms_copy in results:
                 validation_result = validate_ts_structure(atoms_copy, self.explorer)
-                # Handle tuple return (validation_result, hessian) or dict return
-                # validate_ts_structure returns dict[str, Any] | tuple[dict[str, Any], Any]
                 if isinstance(validation_result, tuple):
                     validation_results.append(validation_result[0])
                 else:
-                    # Must be dict[str, Any] based on return type
                     validation_results.append(validation_result)
             return validation_results
 
         def prepare_ts_frequency_kwargs(atoms: Atoms) -> dict[str, Any]:
-            """Prepare frequency analysis kwargs for TS (supports finite difference override)."""
+            """Prepare frequency kwargs for TS."""
             freq_kwargs: dict[str, Any] = {}
-            # Pass method="finite_differences" if force_finite_diff_hessian is True
             if getattr(self.explorer, "force_finite_diff_hessian", False):
                 freq_kwargs["method"] = "finite_differences"
             return freq_kwargs
@@ -171,5 +156,4 @@ class LocalTSStrategy(BaseStrategy):
         )
 
 
-# Register the strategy
 REGISTRY.register(LocalTSStrategy)

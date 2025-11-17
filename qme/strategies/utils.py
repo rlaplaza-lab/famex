@@ -21,46 +21,18 @@ class StrategyUtils:
 
     @staticmethod
     def ensure_charge_spin_info(atoms: Atoms, charge: int = 0, spin: int = 1) -> None:
-        """Ensure atoms.info has charge and spin information.
-
-        This prevents warnings from backends that expect this information.
-
-        Parameters
-        ----------
-        atoms : Atoms
-            Structure to update
-        charge : int, default=0
-            Default charge if not present
-        spin : int, default=1
-            Default spin if not present
-
-        """
+        """Ensure atoms.info has charge and spin."""
         if hasattr(atoms, "info") and atoms.info is not None:
             atoms.info.setdefault("charge", charge)
             atoms.info.setdefault("spin", spin)
 
     @staticmethod
     def get_step_count(optimizer: Any) -> int | None:
-        """Extract step count from various optimizer types.
-
-        Parameters
-        ----------
-        optimizer : Any
-            The optimizer instance
-
-        Returns
-        -------
-        int or None
-            Number of steps taken, or None if not available
-
-        """
-        # For optimizers, prioritize step_count attribute over get_number_of_steps()
-        # because get_number_of_steps() returns 0 by default from ASE Optimizer base class
+        """Get step count from optimizer."""
         if hasattr(optimizer, "step_count") and optimizer.step_count is not None:
             step_count = optimizer.step_count
             return int(step_count) if isinstance(step_count, int | float) else None
 
-        # Fallback to ASE's get_number_of_steps() for other optimizers
         if hasattr(optimizer, "get_number_of_steps"):
             steps = optimizer.get_number_of_steps()
             return int(steps) if isinstance(steps, int | float) else None
@@ -69,21 +41,7 @@ class StrategyUtils:
 
     @staticmethod
     def get_convergence_status(optimizer: Any, atoms: Atoms) -> bool:
-        """Extract convergence status from various optimizer types.
-
-        Parameters
-        ----------
-        optimizer : Any
-            The optimizer instance
-        atoms : Atoms
-            ASE Atoms object
-
-        Returns
-        -------
-        bool
-            True if converged, False otherwise
-
-        """
+        """Get convergence status from optimizer."""
         converged_attr = getattr(optimizer, "converged", None)
 
         if callable(converged_attr):
@@ -91,7 +49,6 @@ class StrategyUtils:
                 result = converged_attr()
                 return bool(result)
             except TypeError:
-                # Some optimizers need gradient argument
                 forces = atoms.get_forces()
                 result = converged_attr(forces.flatten())
                 return bool(result)
@@ -100,19 +57,7 @@ class StrategyUtils:
 
     @staticmethod
     def check_batch_support(calculator: Any) -> bool:
-        """Check if calculator supports batch evaluation.
-
-        Parameters
-        ----------
-        calculator : Any
-            Calculator to check
-
-        Returns
-        -------
-        bool
-            True if calculator supports batch evaluation
-
-        """
+        """Check if calculator supports batch evaluation."""
         return (
             calculator is not None
             and hasattr(calculator, "calculate_batch")
@@ -126,28 +71,11 @@ class StrategyUtils:
         calculator: Any,
         supports_batch: bool,
     ) -> tuple[list[float], list[np.ndarray]]:
-        """Calculate energies and forces for all images in the path.
-
-        Parameters
-        ----------
-        path : list[Atoms]
-            List of structures
-        calculator : Any
-            Calculator for energy/force calculations
-        supports_batch : bool
-            Whether calculator supports batch evaluation
-
-        Returns
-        -------
-        tuple[list[float], list[np.ndarray]]
-            Energies and forces for all structures
-
-        """
+        """Calculate energies and forces for path images."""
         energies = []
         forces_list = []
 
         if supports_batch:
-            # Use batch evaluation for better performance
             try:
                 batch_results = calculator.calculate_batch(path, properties=["energy", "forces"])
 
@@ -159,10 +87,9 @@ class StrategyUtils:
                 logger.warning(
                     f"Batch evaluation failed, falling back to individual calculations: {e}",
                 )
-                supports_batch = False  # Disable batch for future iterations
+                supports_batch = False
 
         if not supports_batch:
-            # Fallback to individual calculations
             for atoms in path:
                 try:
                     energy = atoms.get_potential_energy()
@@ -178,23 +105,7 @@ class StrategyUtils:
 
     @staticmethod
     def check_convergence(forces_list: list[np.ndarray], fmax: float, step: int) -> bool:
-        """Check if optimization has converged.
-
-        Parameters
-        ----------
-        forces_list : list[np.ndarray]
-            Forces for all structures
-        fmax : float
-            Force convergence threshold
-        step : int
-            Current step number
-
-        Returns
-        -------
-        bool
-            True if converged
-
-        """
+        """Check if optimization has converged."""
         max_force = max(np.linalg.norm(forces, axis=1).max() for forces in forces_list)
         if max_force < fmax:
             logger.info(
