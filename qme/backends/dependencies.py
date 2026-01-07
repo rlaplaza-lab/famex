@@ -205,7 +205,8 @@ class DependencyManager:
         package_mapping = {
             "torch": "torch",
             "sella": "sella",
-            BACKEND_AIMNET2: "torch_cluster",  # AIMNet2 needs torch_cluster (which implies torch)
+            # AIMNet2 is bundled; torch is sufficient (neighbor list has NumPy fallback)
+            BACKEND_AIMNET2: "torch",
             "fairchem": "fairchem.core",
             BACKEND_UMA: "fairchem.core",  # UMA uses fairchem-core
             BACKEND_SO3LR: "so3lr",
@@ -216,10 +217,6 @@ class DependencyManager:
         }
 
         package_name = package_mapping.get(name.lower(), name.lower())
-
-        # Special case for aimnet2 - check torch_cluster availability
-        if name.lower() == BACKEND_AIMNET2:
-            return self._check_availability_lazy("torch_cluster")
 
         return self._check_availability_lazy(package_name)
 
@@ -248,7 +245,7 @@ class DependencyManager:
         commands = {
             "torch": "torch",
             "sella": "sella",
-            BACKEND_AIMNET2: "torch torch-cluster",  # AIMNet2 needs both torch and torch-cluster
+            BACKEND_AIMNET2: "torch",
             "fairchem": "fairchem-core",
             BACKEND_SO3LR: "so3lr",
             BACKEND_MACE: "mace-torch",

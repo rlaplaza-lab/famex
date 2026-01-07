@@ -19,7 +19,7 @@ Install a backend separately:
 
 | Backend | Installation | Notes |
 |---------|--------------|-------|
-| `aimnet2` | `pip install torch torch-cluster` | Recommended for beginners, no conflicts |
+| `aimnet2` | `pip install torch` | Recommended for beginners, no conflicts |
 | `uma` | `pip install fairchem-core` | Materials science |
 | `mace` | `pip install mace-torch` | High accuracy, conflicts with UMA |
 | `orb` | `pip install orb-models` | Universal forcefield |

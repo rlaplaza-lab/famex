@@ -14,7 +14,7 @@ Common questions about QME usage, installation, and troubleshooting.
 
 ### Q: Which backend should I choose?
 
-**A:** See [README](../README.md) for backend recommendations. Start with AIMNet2 for beginners (`pip install torch torch-cluster`).
+**A:** See [README](../README.md) for backend recommendations. Start with AIMNet2 for beginners (`pip install torch`).
 
 ### Q: Can I install multiple backends?
 

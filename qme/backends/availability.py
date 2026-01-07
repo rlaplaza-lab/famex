@@ -75,7 +75,9 @@ class BackendAvailabilityChecker:
         # Centralized requirements mapping
         self._requirements = {
             BACKEND_MOCK: [],
-            BACKEND_AIMNET2: ["aimnet2"],  # Use backend name, deps.has() will handle the mapping
+            # AIMNet2 is bundled (TorchScript model in repo). It only requires torch.
+            # Neighbor list generation has a NumPy fallback, so torch-cluster is optional.
+            BACKEND_AIMNET2: ["torch"],
             BACKEND_UMA: ["fairchem", "torch"],
             BACKEND_SO3LR: ["so3lr"],
             BACKEND_MACE: ["mace", "torch"],
@@ -85,7 +87,7 @@ class BackendAvailabilityChecker:
 
         # Human-readable package names for error messages
         self._package_names = {
-            BACKEND_AIMNET2: ["torch", "torch-cluster"],
+            BACKEND_AIMNET2: ["torch"],
             BACKEND_UMA: ["fairchem-core", "torch"],
             BACKEND_SO3LR: ["so3lr"],
             BACKEND_MACE: ["mace-torch", "torch"],
@@ -237,7 +239,7 @@ def get_backend_error_message(backend: str) -> str:
     reason = get_availability_reason(backend)
 
     install_commands = {
-        BACKEND_AIMNET2: "pip install torch torch-cluster",
+        BACKEND_AIMNET2: "pip install torch",
         BACKEND_UMA: "pip install fairchem-core",
         BACKEND_MACE: "pip install mace-torch",
         BACKEND_SO3LR: "pip install so3lr",
@@ -372,7 +374,7 @@ def require_ml_backends(min_count: int = 1) -> list[str]:
         logger.info("Please install additional ML backends:")
         logger.info("  - UMA: pip install fairchem-core")
         logger.info("  - MACE: pip install mace-torch")
-        logger.info("  - AIMNet2: pip install aimnet2")
+        logger.info("  - AIMNet2: pip install torch")
         logger.info("  - SO3LR: pip install so3lr")
         sys.exit(1)
 

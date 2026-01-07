@@ -289,7 +289,7 @@ explorer.save_trajectory(trajectory_list, "path.xyz")
 
 | Backend | Installation | Best For | Notes |
 |---------|--------------|----------|-------|
-| `aimnet2` | `pip install torch torch-cluster` | Beginners, molecules | No conflicts, fast |
+| `aimnet2` | `pip install torch` | Beginners, molecules | No conflicts, fast |
 | `uma` | `pip install fairchem-core` | Materials science | Conflicts with MACE |
 | `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA |
 | `orb` | `pip install orb-models` | Universal coverage | Molecules and materials |
