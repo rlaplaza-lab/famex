@@ -105,7 +105,7 @@ def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
         error_messages = {
             "uma": f"Failed to import UMA backend: {e}. This may be due to missing FairChem dependencies or version conflicts. Try: pip install qme-ml[uma]",
             "so3lr": f"Failed to import SO3LR backend: {e}. SO3LR requires JAX and must be installed separately from source. See the QME documentation for SO3LR installation instructions.",
-            "aimnet2": f"Failed to import AIMNet2 backend: {e}. AIMNet2 requires PyTorch and torch-cluster. Try: pip install qme-ml[aimnet2]",
+            "aimnet2": f"Failed to import AIMNet2 backend: {e}. AIMNet2 requires PyTorch. Try: pip install qme-ml[aimnet2]",
             "mace": f"Failed to import MACE backend: {e}. MACE requires PyTorch and mace-torch. Note: MACE cannot be installed with UMA due to e3nn version conflicts. Try: pip install qme-ml[mace]",
             "orb": f"Failed to import Orb backend: {e}. Orb requires orb-models and PyTorch. Note: orb-models is a large package and may have compatibility issues. Try: pip install qme-ml[orb]",
             "tblite": f"Failed to import TBLite backend: {e}. TBLite requires the tblite package. Try: pip install qme-ml[tblite]",

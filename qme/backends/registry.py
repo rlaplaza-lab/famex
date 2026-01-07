@@ -222,8 +222,14 @@ class CalculatorRegistry:
         # Build arguments based on what the factory function accepts
         factory_kwargs = kwargs.copy()
 
-        if model_name is not None:
+        # Special handling for tblite: model_name becomes method parameter
+        from qme.backends.constants import BACKEND_TBLITE
+
+        if backend.lower() == BACKEND_TBLITE and model_name is not None:
+            factory_kwargs["method"] = model_name
+        elif model_name is not None:
             factory_kwargs["model_name"] = model_name
+
         if model_path is not None:
             factory_kwargs["model_path"] = model_path
         if device is not None:

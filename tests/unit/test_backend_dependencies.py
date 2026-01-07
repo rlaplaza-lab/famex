@@ -68,7 +68,8 @@ class TestDependencyManager:
 
         # Test various backend commands
         cmd_aimnet2 = manager._get_install_command(BACKEND_AIMNET2)
-        assert "torch" in cmd_aimnet2 or "torch-cluster" in cmd_aimnet2
+        assert "torch" in cmd_aimnet2
+        # torch-cluster is optional, so we don't require it in install command
 
         cmd_mace = manager._get_install_command(BACKEND_MACE)
         assert "mace" in cmd_mace.lower()

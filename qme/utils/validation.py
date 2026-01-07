@@ -28,7 +28,7 @@ class BackendError(Exception):
         else:
             suggestion = (
                 "No backends are currently available. "
-                "Install at least one backend (e.g., pip install torch torch-cluster for aimnet2)."
+                "Install at least one backend (e.g., pip install torch for aimnet2)."
             )
         message = f"Backend '{backend}' is not available for {operation}. {suggestion}"
         super().__init__(message)

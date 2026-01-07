@@ -14,7 +14,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import requests
 from ase.calculators.calculator import all_changes
-from torch_cluster import radius_graph
+
+try:
+    # Optional dependency. We can fall back to a NumPy neighbor list when
+    # torch_cluster is unavailable or its CUDA kernels are incompatible.
+    from torch_cluster import radius_graph  # type: ignore
+except Exception:  # pragma: no cover
+    radius_graph = None
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
@@ -193,6 +199,8 @@ def sparse_nb_to_dense_half(idx: np.ndarray, natom: int, max_nb: int) -> np.ndar
 
 def nblist_torch_cluster(coord: Any, cutoff: float, mol_idx: Any = None, max_nb: int = 256) -> Any:
     """Generate neighbor list using torch_cluster (from aimnet2calc)."""
+    if radius_graph is None:
+        raise ImportError("torch_cluster is not available")
     device = coord.device
     assert coord.ndim == 2, f"Expected 2D tensor for coord, got {coord.ndim}D"
     assert coord.shape[0] < 2147483646, "Too many atoms, max supported is 2147483646"
@@ -248,6 +256,8 @@ def generate_neighbor_list_torch_cluster(
     coord: Any, cutoff: float, mol_idx: Any = None, max_nb: int = 256
 ) -> Any:
     """Generate neighbor list using torch_cluster radius_graph."""
+    if radius_graph is None:
+        raise ImportError("torch_cluster is not available")
     device = coord.device
     max_num_neighbors = 0
 
@@ -340,6 +350,7 @@ class NativeAIMNet2Calculator:
         # State variables
         self._batch = None
         self._saved_for_grad: dict[str, Any] | None = None
+        self._warned_nbmat_fallback = False
 
     def to_input_tensors(self, data: dict[str, Any]) -> dict[str, Any]:
         """Convert input data to PyTorch tensors."""
@@ -370,23 +381,38 @@ class NativeAIMNet2Calculator:
 
     def make_nbmat(self, data: dict[str, Any]) -> dict[str, Any]:
         """Generate neighbor lists following AIMNet2 repo logic."""
-        # No PBC support in our implementation, so always use torch_cluster
+        # No PBC support in our implementation.
+        #
+        # IMPORTANT: AIMNet2 must work on very new GPUs where optional CUDA extensions
+        # (e.g., torch_cluster) may not ship compatible kernels yet. To keep the backend
+        # robust, we default to a pure-NumPy neighbor list (O(N^2), but small molecules
+        # make this fine for BH28). If torch_cluster is available and working, users can
+        # still benefit elsewhere, but we won't require it for correctness.
         if "nbmat" not in data:
-            data["nbmat"] = generate_neighbor_list_torch_cluster(
-                data["coord"],
-                self.cutoff,
-                data.get("mol_idx"),
-                max_nb=128,
+            coord_cpu = data["coord"].detach().cpu().numpy()
+            nbmat_np = generate_neighbor_list_numpy(
+                coord_cpu,
+                float(self.cutoff),
+                max_neighbors=128,
+            )
+            data["nbmat"] = torch.as_tensor(
+                nbmat_np,
+                device=self.device,
+                dtype=torch.int32,
             )
 
             # Generate long-range neighbor list if model has long-range capabilities
             if self.lr:
                 if "nbmat_lr" not in data:
-                    data["nbmat_lr"] = generate_neighbor_list_torch_cluster(
-                        data["coord"],
-                        self.cutoff_lr,
-                        data.get("mol_idx"),
-                        max_nb=1024,
+                    nbmat_lr_np = generate_neighbor_list_numpy(
+                        coord_cpu,
+                        float(self.cutoff_lr),
+                        max_neighbors=1024,
+                    )
+                    data["nbmat_lr"] = torch.as_tensor(
+                        nbmat_lr_np,
+                        device=self.device,
+                        dtype=torch.int32,
                     )
                 data["cutoff_lr"] = torch.tensor(self.cutoff_lr, device=self.device)
 
@@ -592,7 +618,7 @@ class AIMNet2Potential(BasePotential):
             # Missing dependencies
             msg = (
                 f"Failed to load AIMNET2 model '{self.model_name}': missing required dependencies. "
-                f"Error: {e}. Install torch and torch-cluster, and ensure all dependencies are available."
+                f"Error: {e}. Install torch and ensure all dependencies are available."
             )
             raise ImportError(msg) from e
         except (ValueError, TypeError, KeyError) as e:
