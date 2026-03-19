@@ -138,7 +138,7 @@ def uma_backend():
 
     import qme
 
-    calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+    calc = qme.get_uma_calculator(model_name="uma-s-1p2")
     calc.ensure_loaded()
     return calc
 

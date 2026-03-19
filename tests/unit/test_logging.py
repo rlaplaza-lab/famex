@@ -170,7 +170,7 @@ class TestPrintModelInfo:
     def test_print_model_info_basic(self):
         # This function uses click.echo, so we test that it doesn't raise
         try:
-            print_model_info("uma", model_name="uma-s-1p1", device="cpu")
+            print_model_info("uma", model_name="uma-s-1p2", device="cpu")
         except Exception:
             # If click is not available or there's an import error, that's okay
             # We're just testing the function structure
