@@ -39,7 +39,7 @@ class CalculatorManager:
 
         backend_lower = self.backend.lower()
         if backend_lower == "uma":
-            return "uma-s-1p1"
+            return "uma-s-1p2"
         if backend_lower == "aimnet2":
             return "aimnet2"
         if backend_lower == "mace":

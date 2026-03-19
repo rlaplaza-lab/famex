@@ -203,7 +203,7 @@ class TestAutoselectMethod:
     @requires_backend("uma")
     def test_autoselect_uma_integration(self, water_molecule):
         atoms = water_molecule.copy()
-        atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p1")
+        atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p2")
         atoms.calc.ensure_loaded()
 
         freq_analysis = FrequencyAnalysis(atoms, atoms.calc, verbose=0)

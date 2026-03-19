@@ -412,8 +412,8 @@ class TestExplorerFromFile:
     @pytest.mark.parametrize(
         ("kwargs", "assertions"),
         [
-            ({}, lambda e: (len(e.atoms_list) == 1 and len(e.atoms_list[0]) == 3)),
-            ({"target": "ts"}, lambda e: (e.backend == "mock" and e.target == "ts")),
+            ({}, lambda e: len(e.atoms_list) == 1 and len(e.atoms_list[0]) == 3),
+            ({"target": "ts"}, lambda e: e.backend == "mock" and e.target == "ts"),
         ],
         ids=["basic", "custom_target"],
     )

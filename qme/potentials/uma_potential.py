@@ -33,7 +33,7 @@ class UMAPotential(BasePotential):
 
     Parameters
     ----------
-    model_name : str, default "uma-s-1p1"
+    model_name : str, default "uma-s-1p2"
         Name of the UMA model to load
     device : str, optional
         Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
@@ -50,7 +50,7 @@ class UMAPotential(BasePotential):
 
     def __init__(
         self,
-        model_name: str = "uma-s-1p1",
+        model_name: str = "uma-s-1p2",
         device: str | None = None,
         default_charge: int = 0,
         default_spin: int = 1,
@@ -60,7 +60,7 @@ class UMAPotential(BasePotential):
 
         Parameters
         ----------
-        model_name : str, default "uma-s-1p1"
+        model_name : str, default "uma-s-1p2"
             Name of the UMA model to load
         device : str, optional
             Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
@@ -140,7 +140,7 @@ class UMAPotential(BasePotential):
                         msg,
                     )  # Load UMA model using v2 API
                 # Ensure model_name is not None
-                model_name = self.model_name or "uma-s-1p1"
+                model_name = self.model_name or "uma-s-1p2"
 
                 # Ensure device is compatible
                 device_param = "cuda" if self.device == "cuda" else "cpu"
@@ -774,12 +774,12 @@ class UMAPotential(BasePotential):
             raise KeyError(msg)
 
 
-def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs: Any) -> UMAPotential:
+def get_uma_calculator(model_name: str = "uma-s-1p2", **kwargs: Any) -> UMAPotential:
     """Get UMA calculator.
 
     Parameters
     ----------
-    model_name : str, default "uma-s-1p1"
+    model_name : str, default "uma-s-1p2"
         Name of UMA model to use
     **kwargs : Any
         Additional arguments passed to UMAPotential
@@ -795,7 +795,7 @@ def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs: Any) -> UMAPoten
     >>> calc = get_uma_calculator()
 
     >>> # Get specific model
-    >>> calc = get_uma_calculator("uma-s-1p1", device="cuda")
+    >>> calc = get_uma_calculator("uma-s-1p2", device="cuda")
 
     """
     return UMAPotential(model_name=model_name, **kwargs)

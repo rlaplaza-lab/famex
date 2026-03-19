@@ -33,6 +33,7 @@ dependencies = [
 [project.optional-dependencies]
 # Development dependencies only
 # ML backends must be installed separately - see README for details
+uma = ["fairchem-core>=2.18.0"]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
