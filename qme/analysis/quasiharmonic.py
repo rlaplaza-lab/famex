@@ -8,9 +8,15 @@ behave more like free rotors at typical reaction temperatures.
 from __future__ import annotations
 
 import math
+from typing import cast
 
 import numpy as np
 from ase import units
+from numpy.typing import NDArray
+
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 __all__ = [
     "QuasiHarmonicHandler",
@@ -47,13 +53,14 @@ def calculate_damping_function(
     alpha : float
         Damping parameter (default: 4)
 
-    Returns:
+    Returns
     -------
     np.ndarray
         Damping factors (0 to 1)
     """
     # Avoid division by zero for zero frequencies
-    frequencies_safe = np.where(frequencies > 0, frequencies, 1e-10)
+    # Handle complex frequencies by taking real part for comparison
+    frequencies_safe = np.where(np.real(frequencies) > 0, np.real(frequencies), 1e-10)
     damp = 1.0 / (1.0 + (freq_cutoff / frequencies_safe) ** alpha)
     return damp
 
@@ -76,7 +83,7 @@ def calculate_rrho_entropy(
     freq_scale_factor : float
         Frequency scaling factor (default: 1.0)
 
-    Returns:
+    Returns
     -------
     np.ndarray
         RRHO entropy in J/(mol·K) for each mode
@@ -117,7 +124,7 @@ def calculate_rrho_energy(
     freq_scale_factor : float
         Frequency scaling factor (default: 1.0)
 
-    Returns:
+    Returns
     -------
     np.ndarray
         RRHO energy in J/mol for each mode
@@ -162,7 +169,7 @@ def calculate_free_rotor_entropy(
     average_moment_of_inertia : float
         Average moment of inertia in kg·m² (default: 1e-44 from Grimme)
 
-    Returns:
+    Returns
     -------
     np.ndarray
         Free rotor entropy in J/(mol·K) for each mode
@@ -180,7 +187,7 @@ def calculate_free_rotor_entropy(
     factor = 8 * math.pi**3 * mu_primed * BOLTZMANN_CONSTANT * temperature / PLANCK_CONSTANT**2
     entropy = (0.5 + np.log(np.sqrt(factor))) * GAS_CONSTANT
 
-    return entropy
+    return cast(NDArray[np.float64], entropy)
 
 
 def calculate_qRRHO_entropy(  # noqa: N802
@@ -205,7 +212,7 @@ def calculate_qRRHO_entropy(  # noqa: N802
     freq_scale_factor : float
         Frequency scaling factor (default: 1.0)
 
-    Returns:
+    Returns
     -------
     np.ndarray
         Quasi-RRHO entropy in J/(mol·K) for each mode
@@ -245,12 +252,12 @@ def calculate_qRRHO_energy(  # noqa: N802
     freq_scale_factor : float
         Frequency scaling factor (default: 1.0)
 
-    Returns:
+    Returns
     -------
     np.ndarray
         Quasi-RRHO energy in J/mol for each mode
 
-    Notes:
+    Notes
     -----
     The freq_cutoff parameter is included for API consistency but is not
     used in this qRRHO energy formulation.
@@ -301,6 +308,7 @@ class QuasiHarmonicHandler:
         """
         if method not in ["rrho", "grimme", "truhlar"]:
             msg = f"Unknown method: {method}. Must be 'rrho', 'grimme', or 'truhlar'"
+            logger.error(msg)
             raise ValueError(msg)
 
         self.method = method
@@ -323,13 +331,17 @@ class QuasiHarmonicHandler:
         temperature : float
             Temperature in Kelvin
 
-        Returns:
+        Returns
         -------
         tuple[float, np.ndarray]
             Total entropy and per-mode entropies in J/(mol·K)
         """
         # Remove zero or negative frequencies
-        real_freqs = frequencies[frequencies > 0]
+        # Handle complex frequencies (imaginary frequencies for TS)
+        # Take real part and filter out non-positive values
+        real_freqs = frequencies[np.real(frequencies) > 0]
+        # Ensure we have real values (take real part if complex)
+        real_freqs = np.real(real_freqs)
 
         if self.method == "rrho":
             per_mode_entropy = calculate_rrho_entropy(
@@ -362,6 +374,7 @@ class QuasiHarmonicHandler:
             )
         else:
             msg = f"Unknown method: {self.method}"
+            logger.error(msg)
             raise RuntimeError(msg)
 
         total_entropy = float(np.sum(per_mode_entropy))
@@ -382,13 +395,17 @@ class QuasiHarmonicHandler:
         temperature : float
             Temperature in Kelvin
 
-        Returns:
+        Returns
         -------
         tuple[float, np.ndarray]
             Total energy and per-mode energies in J/mol
         """
         # Remove zero or negative frequencies
-        real_freqs = frequencies[frequencies > 0]
+        # Handle complex frequencies (imaginary frequencies for TS)
+        # Take real part and filter out non-positive values
+        real_freqs = frequencies[np.real(frequencies) > 0]
+        # Ensure we have real values (take real part if complex)
+        real_freqs = np.real(real_freqs)
 
         if self.method == "grimme":
             # Use qRRHO energy with Grimme's damping
@@ -429,7 +446,7 @@ class QuasiHarmonicHandler:
         temperature : float
             Temperature in Kelvin
 
-        Returns:
+        Returns
         -------
         tuple[float, np.ndarray]
             Total energy and per-mode energies in J/mol
@@ -444,7 +461,7 @@ class QuasiHarmonicHandler:
         return total_energy, per_mode_energy
 
     def __repr__(self) -> str:
-        """String representation."""
+        """Return string representation."""
         return (
             f"QuasiHarmonicHandler(method='{self.method}', freq_cutoff={self.freq_cutoff:.1f} cm⁻¹)"
         )

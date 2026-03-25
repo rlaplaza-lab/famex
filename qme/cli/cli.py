@@ -4,8 +4,10 @@ This module provides the main CLI interface for QME (Quick Mechanistic Explorati
 allowing users to perform molecular optimization tasks from the command line.
 """
 
+from __future__ import annotations
+
 import os
-from contextlib import nullcontext
+from contextlib import AbstractContextManager, nullcontext
 from typing import Any
 
 import click
@@ -13,6 +15,7 @@ import click
 from qme.cli.cache_commands import cache
 from qme.cli.cli_helpers import (
     load_atoms_from_xyz,
+    load_path_structures,
     parse_kv_pairs,
     print_frequency_summary,
     save_results_json,
@@ -21,9 +24,308 @@ from qme.cli.cli_helpers import (
 from qme.core.explorer import Explorer
 from qme.utils.ml_warnings import quiet_backend_loading
 
-# Disable matplotlib and ASE GUI before importing ASE
-# This prevents unwanted popup windows during CLI operations
 os.environ.setdefault("MPLBACKEND", "Agg")
+
+
+def _validate_temperature(ctx: Any, param: Any, value: float) -> float:
+    if value is not None and value <= 0:
+        msg = f"Temperature must be positive, got {value} K"
+        raise click.BadParameter(msg)
+    return value
+
+
+def _handle_frequency_results(
+    results: dict[str, Any],
+    output_path: str,
+    target: str,
+    calculate_frequencies: bool,
+) -> None:
+    if not calculate_frequencies:
+        return
+
+    if "frequency_analysis" not in results:
+        click.echo(
+            "Warning: Frequency analysis was requested (--freq) but not found in results. "
+            "This may indicate:\n"
+            "  - The optimization failed before frequency calculation\n"
+            "  - Frequency calculation encountered an error\n"
+            "  - The strategy does not support frequency analysis",
+            err=True,
+        )
+        return
+
+    freq_analysis = results["frequency_analysis"]
+    if not isinstance(freq_analysis, dict):
+        click.echo(
+            f"Warning: Frequency analysis result has unexpected type {type(freq_analysis)}. "
+            "Expected a dictionary.",
+            err=True,
+        )
+        return
+
+    # Type narrowing: freq_analysis is now dict[str, Any]
+    freq_dict: dict[str, Any] = freq_analysis
+
+    try:
+        print_frequency_summary(freq_dict, target=target)
+        save_results_json(results, output_path)
+    except KeyError as e:
+        click.echo(
+            f"Error: Frequency analysis result is missing required key: {e}. "
+            "The frequency calculation may have been incomplete.",
+            err=True,
+        )
+    except Exception as e:
+        click.echo(
+            f"Error: Failed to process frequency analysis results: {e}\n"
+            "The optimization completed successfully, but frequency analysis output could not be processed. "
+            "Check the error message above for details.",
+            err=True,
+        )
+
+
+def _validate_strategy_requirements(
+    strategy: str,
+    target: str,
+    product: str | None,
+    structures_count: int = 1,
+) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if target != "path" and strategy in ["interpolate", "growing_string"]:
+        if product is None:
+            errors.append(f"--product is required for {strategy} strategy")
+
+    # Strategies that don't use product file
+    if strategy == "local" and product is not None:
+        warnings.append("--product ignored for local strategy")
+
+    # Path-specific validations
+    if target == "path":
+        if strategy in ["interpolate", "neb", "cineb"]:
+            if structures_count < 2:
+                errors.append(
+                    f"{strategy} strategy requires at least 2 structures, got {structures_count}"
+                )
+        elif strategy == "irc":
+            if structures_count > 1:
+                warnings.append(
+                    f"IRC strategy uses only the first structure, "
+                    f"ignoring {structures_count - 1} additional structure(s)"
+                )
+
+    return errors, warnings
+
+
+def _create_explorer(
+    atoms: Any,
+    target: str,
+    strategy: str,
+    backend: str,
+    model_name: str | None,
+    model_path: str | None,
+    device: str | None,
+    default_charge: int,
+    default_spin: int,
+    local_optimizer: str,
+    optimizer_kwargs: dict[str, Any],
+    ts_kwargs: dict[str, Any],
+    constraints: str | None,
+    verbose: int,
+    force_finite_diff_hessian: bool,
+    dry_run: bool,
+) -> tuple[Explorer, AbstractContextManager[list[str]]]:
+    verbosity = max(0, verbose - 1)
+
+    ctx: AbstractContextManager[list[str]]
+    if verbosity == 0:
+        ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
+    else:
+        ctx = nullcontext([])
+
+    atoms_for_explorer = atoms[0] if isinstance(atoms, list) and len(atoms) == 1 else atoms
+
+    exp = Explorer(
+        atoms=atoms_for_explorer,
+        backend=backend,
+        model_name=model_name,
+        model_path=model_path,
+        device=device,
+        default_charge=default_charge,
+        default_spin=default_spin,
+        local_optimizer=local_optimizer,
+        optimizer_kwargs=optimizer_kwargs,
+        target=target,
+        strategy=strategy,
+        ts_kwargs=ts_kwargs,
+        constraints=constraints,
+        verbose=verbosity,
+        force_finite_diff_hessian=force_finite_diff_hessian,
+    )
+
+    return exp, ctx
+
+
+def _handle_dry_run(exp: Explorer) -> None:
+    """Handle dry-run mode by printing analysis and exiting.
+
+    Parameters
+    ----------
+    exp : Explorer
+        Explorer instance
+    """
+    explanation = exp.explain_run()
+    click.echo("🔍 Dry-run analysis:")
+    click.echo(f"   Target: {explanation['target']}")
+    click.echo(f"   Strategy: {explanation['strategy']}")
+    click.echo(f"   Runner: {explanation['runner']}")
+    click.echo(f"   Valid: {explanation['valid']}")
+    click.echo(f"   Notes: {explanation['notes']}")
+
+
+def _generate_output_path(input_path: str, strategy: str, target: str) -> str:
+    """Generate default output path based on strategy and target.
+
+    Parameters
+    ----------
+    input_path : str
+        Input file path
+    strategy : str
+        Strategy name
+    target : str
+        Target type ("minima", "ts", or "path")
+
+    Returns
+    -------
+    str
+        Default output path
+    """
+    base = os.path.splitext(input_path)[0]
+    if target == "minima":
+        suffix = ".opt.local.xyz" if strategy == "local" else ".opt.interpolate.xyz"
+    elif target == "ts":
+        if strategy == "local":
+            suffix = ".ts.local.xyz"
+        elif strategy == "interpolate":
+            suffix = ".ts.interpolate.xyz"
+        else:  # growing_string
+            suffix = ".ts.gsm.xyz"
+    else:  # path
+        if strategy == "interpolate":
+            suffix = ".path.interpolate.xyz"
+        elif strategy == "neb":
+            suffix = ".path.neb.xyz"
+        elif strategy == "cineb":
+            suffix = ".path.cineb.xyz"
+        else:  # irc
+            suffix = ".path.irc.xyz"
+    return base + suffix
+
+
+def _extract_result_atoms(results: dict[str, Any], target: str) -> Any:
+    if target == "path":
+        if "trajectory" in results:
+            return results["trajectory"]
+        return results.get("optimized_atoms", [])
+    else:
+        return results["optimized_atoms"]
+
+
+def _run_optimization(
+    exp: Explorer,
+    strategy: str,
+    target: str,
+    fmax: float,
+    steps: int,
+    calculate_frequencies: bool,
+    temperature: float,
+    npoints: int | None = None,
+    interp: str | None = None,
+    max_images: int | None = None,
+    distance_threshold: float | None = None,
+    step_size: float | None = None,
+    spring_constant: float | None = None,
+    direction: str | None = None,
+    climb: bool = False,
+) -> dict[str, Any]:
+    run_kwargs: dict[str, Any] = {
+        "calculate_frequencies": calculate_frequencies,
+        "temperature": temperature,
+    }
+
+    if target == "path":
+        if strategy == "interpolate":
+            run_kwargs.update(
+                {"npoints": npoints, "method": interp.lower() if interp else "geodesic"}
+            )
+        elif strategy == "neb":
+            run_kwargs.update(
+                {
+                    "npoints": npoints,
+                    "method": interp.lower() if interp else "geodesic",
+                    "fmax": fmax,
+                    "steps": steps,
+                    "spring_constant": spring_constant,
+                }
+            )
+        elif strategy == "cineb":
+            run_kwargs.update(
+                {
+                    "npoints": npoints,
+                    "method": interp.lower() if interp else "geodesic",
+                    "fmax": fmax,
+                    "steps": steps,
+                    "spring_constant": spring_constant,
+                    "climb": climb,
+                }
+            )
+        elif strategy == "irc":
+            run_kwargs.update(
+                {
+                    "fmax": fmax,
+                    "steps": steps,
+                    "step_size": step_size,
+                    "direction": direction.lower() if direction else "both",
+                }
+            )
+    elif target == "ts":
+        if strategy == "local":
+            run_kwargs.update({"fmax": fmax, "steps": steps})
+        elif strategy == "interpolate":
+            run_kwargs.update(
+                {
+                    "npoints": npoints,
+                    "method": interp.lower() if interp else "geodesic",
+                    "fmax": fmax,
+                    "steps": steps,
+                }
+            )
+        elif strategy == "growing_string":
+            run_kwargs.update(
+                {
+                    "npoints": npoints,
+                    "max_images": max_images,
+                    "distance_threshold": distance_threshold,
+                    "step_size": step_size,
+                    "fmax": fmax,
+                    "steps": steps,
+                }
+            )
+    else:  # minima
+        if strategy == "local":
+            run_kwargs.update({"fmax": fmax, "steps": steps})
+        else:  # interpolate
+            run_kwargs.update(
+                {
+                    "npoints": npoints,
+                    "method": interp.lower() if interp else "geodesic",
+                    "fmax": fmax,
+                    "steps": steps,
+                }
+            )
+
+    return exp.run(**run_kwargs)
 
 
 def _common_explorer_options(f: Any) -> Any:
@@ -32,7 +334,7 @@ def _common_explorer_options(f: Any) -> Any:
             "--backend",
             default="uma",
             show_default=True,
-            help="Backend: uma|aimnet2|mace|orb|so3lr|tblite|torchsim_mace|torchsim_uma|mock",
+            help="Backend: uma|aimnet2|mace|orb|so3lr|tblite|mock",
         ),
         click.option("--model-name", default=None, help="Model name for backend"),
         click.option("--model-path", default=None, help="Path to model file (if applicable)"),
@@ -57,8 +359,8 @@ def _common_explorer_options(f: Any) -> Any:
             default="default",
             show_default=True,
             help=(
-                "Local optimizer: default|lbfgs|bfgs|fire|sella|trust-krylov|trust-krylov-ts|"
-                "trust-ncg|trust-exact|newton-cg (default=auto-select based on target)"
+                "Local optimizer: default|lbfgs|bfgs|fire|sella|trust-krylov|"
+                "trust-ncg|trust-exact|newton-cg|rfo (default=auto-select based on target)"
             ),
         ),
         click.option(
@@ -102,7 +404,15 @@ def _common_explorer_options(f: Any) -> Any:
             type=float,
             default=298.15,
             show_default=True,
-            help="Temperature in Kelvin for thermodynamic calculations",
+            callback=lambda ctx, param, value: _validate_temperature(ctx, param, value),
+            help="Temperature in Kelvin for thermodynamic calculations (must be > 0)",
+        ),
+        click.option(
+            "--force-finite-diff-hessian",
+            "force_finite_diff_hessian",
+            is_flag=True,
+            default=False,
+            help="Force use of finite difference hessians for TS optimizers and frequency calculations",
         ),
     ]
     for opt in reversed(opts):
@@ -111,11 +421,11 @@ def _common_explorer_options(f: Any) -> Any:
 
 
 @click.group(
-    help="QME CLI: Quick mechanistic exploration with ML potentials.\n\n\b\nCommands:\n  qme minima : Minima optimization (outputs single structure)\n  qme ts     : Transition state optimization (outputs single TS)\n  qme path   : Reaction path optimization (outputs trajectories)\n  qme cache  : Manage model cache\n\n\b\nExamples:\n  # Minima optimization (outputs single structure)\n  qme minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  qme minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  qme ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  qme ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  qme ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  qme ts --strategy local ts_guess.xyz --local-optimizer trust-krylov-ts --fmax 0.02\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  qme path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  qme path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  qme path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  qme path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  qme minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  qme cache info  # Show cache information\n  qme cache clear # Clear model cache",
+    help="QME CLI: Quick mechanistic exploration with ML potentials.\n\n\b\nCommands:\n  qme minima : Minima optimization (outputs single structure)\n  qme ts     : Transition state optimization (outputs single TS)\n  qme path   : Reaction path optimization (outputs trajectories)\n  qme cache  : Manage model cache\n\n\b\nExamples:\n  # Minima optimization (outputs single structure)\n  qme minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  qme minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  qme ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  qme ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  qme ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  qme ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02  # RFO TS optimizer\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  qme path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  qme path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  qme path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  qme path --strategy neb r.xyz intermediate.xyz p.xyz --npoints 11  # Multiple structures\n  qme path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  qme minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  qme cache info  # Show cache information\n  qme cache clear # Clear model cache",
 )
 @click.version_option()
 def main() -> None:
-    """Main CLI entry point."""
+    """Provide main CLI entry point."""
 
 
 @main.command()
@@ -179,15 +489,17 @@ def minima(
     dry_run: bool,
     calculate_frequencies: bool,
     temperature: float,
+    force_finite_diff_hessian: bool,
 ) -> None:
     """Minima optimization using various strategies."""
     # Validate strategy-specific requirements
-    if strategy == "interpolate" and product is None:
-        msg = "--product is required for interpolate strategy"
-        raise click.BadParameter(msg)
-
-    if strategy == "local" and product is not None:
-        click.echo("Warning: --product ignored for local strategy")
+    errors, warnings = _validate_strategy_requirements(
+        strategy=strategy, target="minima", product=product, structures_count=1
+    )
+    for error in errors:
+        raise click.BadParameter(error)
+    for warning in warnings:
+        click.echo(f"Warning: {warning}")
 
     # Load structures
     atoms = load_atoms_from_xyz(input)
@@ -203,73 +515,57 @@ def minima(
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
 
-    # Set up explorer
-    verbosity = max(0, verbose - 1)
-
-    if verbosity == 0:
-        ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
-    else:
-        ctx = nullcontext()  # type: ignore[assignment]
+    # Create explorer
+    exp, ctx = _create_explorer(
+        atoms=atoms_list,
+        target="minima",
+        strategy=strategy,
+        backend=backend,
+        model_name=model_name,
+        model_path=model_path,
+        device=device,
+        default_charge=default_charge,
+        default_spin=default_spin,
+        local_optimizer=local_optimizer,
+        optimizer_kwargs=optimizer_kwargs,
+        ts_kwargs=ts_kwargs,
+        constraints=constraints,
+        verbose=verbose,
+        force_finite_diff_hessian=force_finite_diff_hessian,
+        dry_run=dry_run,
+    )
 
     with ctx:
-        exp = Explorer(
-            atoms=atoms_list[0] if len(atoms_list) == 1 else atoms_list,
-            backend=backend,
-            model_name=model_name,
-            model_path=model_path,
-            device=device,
-            default_charge=default_charge,
-            default_spin=default_spin,
-            local_optimizer=local_optimizer,
-            optimizer_kwargs=optimizer_kwargs,
-            target="minima",
-            strategy=strategy,
-            ts_kwargs=ts_kwargs,
-            constraints=constraints,
-            verbose=verbosity,
-        )
-
         if dry_run:
-            explanation = exp.explain_run()
-            click.echo("🔍 Dry-run analysis:")
-            click.echo(f"   Target: {explanation['target']}")
-            click.echo(f"   Strategy: {explanation['strategy']}")
-            click.echo(f"   Runner: {explanation['runner']}")
-            click.echo(f"   Valid: {explanation['valid']}")
-            click.echo(f"   Notes: {explanation['notes']}")
+            _handle_dry_run(exp)
             return
 
         # Run optimization
-        if strategy == "local":
-            results = exp.run(
-                fmax=fmax,
-                steps=steps,
-                calculate_frequencies=calculate_frequencies,
-                temperature=temperature,
-            )
-            result_atoms = results["optimized_atoms"]
-            out_default = os.path.splitext(input)[0] + ".opt.local.xyz"
-        else:  # interpolate
-            results = exp.run(
-                npoints=npoints,
-                method=interp.lower(),
-                fmax=fmax,
-                steps=steps,
-                calculate_frequencies=calculate_frequencies,
-                temperature=temperature,
-            )
-            result_atoms = results["optimized_atoms"]
-            out_default = os.path.splitext(input)[0] + ".opt.interpolate.xyz"
+        results = _run_optimization(
+            exp=exp,
+            strategy=strategy,
+            target="minima",
+            fmax=fmax,
+            steps=steps,
+            calculate_frequencies=calculate_frequencies,
+            temperature=temperature,
+            npoints=npoints if strategy == "interpolate" else None,
+            interp=interp if strategy == "interpolate" else None,
+        )
+
+        # Extract results and generate output path
+        result_atoms = _extract_result_atoms(results, target="minima")
+        out_default = _generate_output_path(input, strategy, "minima")
 
     # Save results
     out = output or out_default
     write_atoms(result_atoms, out)  # type: ignore[arg-type]
     click.echo(f"Minima optimization completed. Saved: {out}")
 
-    # Print frequency analysis summary and save JSON if requested
-    if calculate_frequencies and "frequency_analysis" in results:
-        print_frequency_summary(results["frequency_analysis"], target="minima")  # type: ignore[arg-type]
-        save_results_json(results, out)
+    # Handle frequency analysis results (chained after optimization)
+    _handle_frequency_results(
+        results, out, target="minima", calculate_frequencies=calculate_frequencies
+    )
 
 
 @main.command()
@@ -330,6 +626,13 @@ def minima(
     show_default=True,
     help="Step size for growing string method (growing_string strategy only)",
 )
+@click.option(
+    "--require-ts/--allow-ts",
+    "require_ts",
+    default=False,
+    show_default=True,
+    help="If set, fail when the TS strategy does not yield a validated first-order saddle.",
+)
 @_common_explorer_options
 def ts(
     strategy: str,
@@ -343,6 +646,7 @@ def ts(
     max_images: int,
     distance_threshold: float,
     step_size: float,
+    require_ts: bool,
     backend: str,
     model_name: str | None,
     model_path: str | None,
@@ -357,15 +661,17 @@ def ts(
     dry_run: bool,
     calculate_frequencies: bool,
     temperature: float,
+    force_finite_diff_hessian: bool,
 ) -> None:
     """Transition state optimization using various strategies."""
     # Validate strategy-specific requirements
-    if strategy in ["interpolate", "growing_string"] and product is None:
-        msg = f"--product is required for {strategy} strategy"
-        raise click.BadParameter(msg)
-
-    if strategy == "local" and product is not None:
-        click.echo("Warning: --product ignored for local strategy")
+    errors, warnings = _validate_strategy_requirements(
+        strategy=strategy, target="ts", product=product, structures_count=1
+    )
+    for error in errors:
+        raise click.BadParameter(error)
+    for warning in warnings:
+        click.echo(f"Warning: {warning}")
 
     # Load structures
     atoms = load_atoms_from_xyz(input)
@@ -380,90 +686,65 @@ def ts(
     # Parse kwargs
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
+    if require_ts:
+        ts_kwargs["require_ts"] = True
 
-    # Set up explorer
-    verbosity = max(0, verbose - 1)
-
-    if verbosity == 0:
-        ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
-    else:
-        ctx = nullcontext()  # type: ignore[assignment]
+    # Create explorer
+    exp, ctx = _create_explorer(
+        atoms=atoms_list,
+        target="ts",
+        strategy=strategy,
+        backend=backend,
+        model_name=model_name,
+        model_path=model_path,
+        device=device,
+        default_charge=default_charge,
+        default_spin=default_spin,
+        local_optimizer=local_optimizer,
+        optimizer_kwargs=optimizer_kwargs,
+        ts_kwargs=ts_kwargs,
+        constraints=constraints,
+        verbose=verbose,
+        force_finite_diff_hessian=force_finite_diff_hessian,
+        dry_run=dry_run,
+    )
 
     with ctx:
-        exp = Explorer(
-            atoms=atoms_list[0] if len(atoms_list) == 1 else atoms_list,
-            backend=backend,
-            model_name=model_name,
-            model_path=model_path,
-            device=device,
-            default_charge=default_charge,
-            default_spin=default_spin,
-            local_optimizer=local_optimizer,
-            optimizer_kwargs=optimizer_kwargs,
-            target="ts",
-            strategy=strategy,
-            ts_kwargs=ts_kwargs,
-            constraints=constraints,
-            verbose=verbosity,
-        )
-
         if dry_run:
-            explanation = exp.explain_run()
-            click.echo("🔍 Dry-run analysis:")
-            click.echo(f"   Target: {explanation['target']}")
-            click.echo(f"   Strategy: {explanation['strategy']}")
-            click.echo(f"   Runner: {explanation['runner']}")
-            click.echo(f"   Valid: {explanation['valid']}")
-            click.echo(f"   Notes: {explanation['notes']}")
+            _handle_dry_run(exp)
             return
 
         # Run optimization
-        if strategy == "local":
-            results = exp.run(
-                fmax=fmax,
-                steps=steps,
-                calculate_frequencies=calculate_frequencies,
-                temperature=temperature,
-            )
-            result_atoms = results["optimized_atoms"]
-            out_default = os.path.splitext(input)[0] + ".ts.local.xyz"
-        elif strategy == "interpolate":
-            results = exp.run(
-                npoints=npoints,
-                method=interp.lower(),
-                fmax=fmax,
-                steps=steps,
-                calculate_frequencies=calculate_frequencies,
-                temperature=temperature,
-            )
-            result_atoms = results["optimized_atoms"]
-            out_default = os.path.splitext(input)[0] + ".ts.interpolate.xyz"
-        else:  # growing_string
-            results = exp.run(
-                npoints=npoints,
-                max_images=max_images,
-                distance_threshold=distance_threshold,
-                step_size=step_size,
-                fmax=fmax,
-                steps=steps,
-                calculate_frequencies=calculate_frequencies,
-                temperature=temperature,
-            )
-            result_atoms = results["optimized_atoms"]
-            out_default = os.path.splitext(input)[0] + ".ts.gsm.xyz"
+        results = _run_optimization(
+            exp=exp,
+            strategy=strategy,
+            target="ts",
+            fmax=fmax,
+            steps=steps,
+            calculate_frequencies=calculate_frequencies,
+            temperature=temperature,
+            npoints=npoints if strategy in ["interpolate", "growing_string"] else None,
+            interp=interp if strategy == "interpolate" else None,
+            max_images=max_images if strategy == "growing_string" else None,
+            distance_threshold=distance_threshold if strategy == "growing_string" else None,
+            step_size=step_size if strategy == "growing_string" else None,
+        )
+
+        # Extract results and generate output path
+        result_atoms = _extract_result_atoms(results, target="ts")
+        out_default = _generate_output_path(input, strategy, "ts")
 
     # Save results
     out = output or out_default
     write_atoms(result_atoms, out)  # type: ignore[arg-type]
     click.echo(f"Transition state optimization completed. Saved: {out}")
 
-    # Print frequency analysis summary and save JSON if requested
-    if calculate_frequencies and "frequency_analysis" in results:
-        print_frequency_summary(results["frequency_analysis"], target="ts")  # type: ignore[arg-type]
-        save_results_json(results, out)
+    # Handle frequency analysis results (chained after optimization)
+    _handle_frequency_results(
+        results, out, target="ts", calculate_frequencies=calculate_frequencies
+    )
 
 
-# Add cache commands
 main.add_command(cache)
 
 
@@ -475,13 +756,7 @@ main.add_command(cache)
     show_default=True,
     help="Path optimization strategy",
 )
-@click.argument("input", type=click.Path(exists=True, dir_okay=False))
-@click.option(
-    "--product",
-    type=click.Path(exists=True, dir_okay=False),
-    default=None,
-    help="Product structure (required for interpolate, neb, cineb strategies)",
-)
+@click.argument("structures", nargs=-1, type=click.Path(exists=True, dir_okay=False), required=True)
 @click.option(
     "--output",
     type=click.Path(dir_okay=False),
@@ -528,8 +803,7 @@ main.add_command(cache)
 @_common_explorer_options
 def path(
     strategy: str,
-    input: str,
-    product: str | None,
+    structures: tuple[str, ...],
     output: str | None,
     fmax: float,
     steps: int,
@@ -552,6 +826,7 @@ def path(
     dry_run: bool,
     calculate_frequencies: bool,
     temperature: float,
+    force_finite_diff_hessian: bool,
 ) -> None:
     """Reaction path optimization using various strategies.
 
@@ -561,127 +836,87 @@ def path(
     - cineb: Climbing Image NEB path optimization
     - irc: IRC path from transition state
 
-    For interpolate, neb, and cineb: provide reactant and product structures.
-    For irc: provide only the transition state structure.
+    Input structures can be provided as:
+    - Multiple files: qme path reactant.xyz product.xyz [intermediate.xyz ...]
+    - Single multi-frame XYZ: qme path path_guess.xyz (all frames used)
+    - Single single-frame XYZ: qme path ts.xyz (for IRC strategy)
+
+    For interpolate, neb, and cineb: provide at least 2 structures.
+    For irc: provide 1 structure (transition state).
     """
+    # Load structures from variadic inputs
+    atoms_list = load_path_structures(structures)
+
     # Validate strategy-specific requirements
-    if strategy in ["interpolate", "neb", "cineb"] and product is None:
-        msg = f"--product is required for {strategy} strategy"
-        raise click.BadParameter(msg)
-
-    if strategy == "irc" and product is not None:
-        click.echo("Warning: --product ignored for irc strategy")
-
-    # Load structures
-    atoms = load_atoms_from_xyz(input)
-    atoms_list = [atoms]
-
-    if strategy in ["interpolate", "neb", "cineb"]:
-        if product is None:
-            raise ValueError("Product file is required for interpolate/neb/cineb strategy")
-        atoms_product = load_atoms_from_xyz(product)
-        atoms_list = [atoms, atoms_product]
+    errors, warnings = _validate_strategy_requirements(
+        strategy=strategy, target="path", product=None, structures_count=len(atoms_list)
+    )
+    for error in errors:
+        raise click.BadParameter(error)
+    for warning in warnings:
+        click.echo(f"Warning: {warning}")
+        # Handle IRC warning by using only first structure
+        if strategy == "irc" and len(atoms_list) > 1:
+            atoms_list = [atoms_list[0]]
 
     # Parse kwargs
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
 
-    # Set up explorer
-    verbosity = max(0, verbose - 1)
+    # Create explorer
+    exp, ctx = _create_explorer(
+        atoms=atoms_list,
+        target="path",
+        strategy=strategy,
+        backend=backend,
+        model_name=model_name,
+        model_path=model_path,
+        device=device,
+        default_charge=default_charge,
+        default_spin=default_spin,
+        local_optimizer=local_optimizer,
+        optimizer_kwargs=optimizer_kwargs,
+        ts_kwargs=ts_kwargs,
+        constraints=constraints,
+        verbose=verbose,
+        force_finite_diff_hessian=force_finite_diff_hessian,
+        dry_run=dry_run,
+    )
 
-    if verbosity == 0:
-        ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
-    else:
-        ctx = nullcontext()  # type: ignore[assignment]
+    # Use first structure file for default output naming
+    first_file = structures[0]
 
     with ctx:
-        exp = Explorer(
-            atoms=atoms_list[0] if len(atoms_list) == 1 else atoms_list,
-            backend=backend,
-            model_name=model_name,
-            model_path=model_path,
-            device=device,
-            default_charge=default_charge,
-            default_spin=default_spin,
-            local_optimizer=local_optimizer,
-            optimizer_kwargs=optimizer_kwargs,
-            target="path",
-            strategy=strategy,
-            ts_kwargs=ts_kwargs,
-            constraints=constraints,
-            verbose=verbosity,
-        )
-
         if dry_run:
-            explanation = exp.explain_run()
-            click.echo("🔍 Dry-run analysis:")
-            click.echo(f"   Target: {explanation['target']}")
-            click.echo(f"   Strategy: {explanation['strategy']}")
-            click.echo(f"   Runner: {explanation['runner']}")
-            click.echo(f"   Valid: {explanation['valid']}")
-            click.echo(f"   Notes: {explanation['notes']}")
+            _handle_dry_run(exp)
             return
 
-        # Run path optimization
-        if strategy == "interpolate":
-            result = exp.run(
-                npoints=npoints,
-                method=interp.lower(),
-                calculate_frequencies=calculate_frequencies,
-                temperature=temperature,
-            )
-            out_default = os.path.splitext(input)[0] + ".path.interpolate.xyz"
-        elif strategy == "neb":
-            result = exp.run(
-                npoints=npoints,
-                method=interp.lower(),
-                fmax=fmax,
-                steps=steps,
-                spring_constant=spring_constant,
-                calculate_frequencies=calculate_frequencies,
-                temperature=temperature,
-            )
-            out_default = os.path.splitext(input)[0] + ".path.neb.xyz"
-        elif strategy == "cineb":
-            result = exp.run(
-                npoints=npoints,
-                method=interp.lower(),
-                fmax=fmax,
-                steps=steps,
-                spring_constant=spring_constant,
-                climb=True,
-                calculate_frequencies=calculate_frequencies,
-                temperature=temperature,
-            )
-            out_default = os.path.splitext(input)[0] + ".path.cineb.xyz"
-        elif strategy == "irc":
-            result = exp.run(
-                fmax=fmax,
-                steps=steps,
-                step_size=step_size,
-                direction=direction.lower(),
-                calculate_frequencies=calculate_frequencies,
-                temperature=temperature,
-            )
-            out_default = os.path.splitext(input)[0] + ".path.irc.xyz"
+        result = _run_optimization(
+            exp=exp,
+            strategy=strategy,
+            target="path",
+            fmax=fmax,
+            steps=steps,
+            calculate_frequencies=calculate_frequencies,
+            temperature=temperature,
+            npoints=npoints if strategy in ["interpolate", "neb", "cineb"] else None,
+            interp=interp if strategy in ["interpolate", "neb", "cineb"] else None,
+            spring_constant=spring_constant if strategy in ["neb", "cineb"] else None,
+            step_size=step_size if strategy == "irc" else None,
+            direction=direction if strategy == "irc" else None,
+            climb=(strategy == "cineb"),
+        )
 
-        # Extract trajectory from result
-        if isinstance(result, dict) and "trajectory" in result:
-            trajectory = result["trajectory"]
-        else:
-            # For path strategies, the result should contain trajectory
-            trajectory = result.get("optimized_atoms", [])
+        trajectory = _extract_result_atoms(result, target="path")
+        out_default = _generate_output_path(first_file, strategy, "path")
 
-    # Save results
     out = output or out_default
     write_atoms(trajectory, out)  # type: ignore[arg-type]
     click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")  # type: ignore[arg-type]
 
-    # Print frequency analysis summary and save JSON if requested
-    if calculate_frequencies and "frequency_analysis" in result:
-        # For path strategies, we might have frequency analysis on the final structure
-        print_frequency_summary(result["frequency_analysis"], target="path")  # type: ignore[arg-type]
-        save_results_json(result, out)
+    _handle_frequency_results(
+        result, out, target="path", calculate_frequencies=calculate_frequencies
+    )
 
 
 __all__ = ["main", "minima", "path", "ts"]

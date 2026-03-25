@@ -18,6 +18,20 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
+# Lazy logger import to avoid circular dependencies
+def _get_logger() -> Any:
+    """Get logger for this module, with lazy import to avoid circular dependencies."""
+    try:
+        from qme.utils.logging import get_qme_logger
+
+        return get_qme_logger(__name__)
+    except ImportError:
+        # Fallback for when logging isn't available yet
+        import logging
+
+        return logging.getLogger(__name__)
+
+
 class CalculatorRegistry:
     """Registry for calculator creation functions with lazy loading.
 
@@ -34,7 +48,8 @@ class CalculatorRegistry:
         class LazyBackend:
             """Typed helper for lazy backend registry entries.
 
-            Attributes:
+            Attributes
+            ----------
                 module: module path to import (str)
                 function: attribute name (factory function or class) to look up
                 is_class: whether the attribute is a class that should be
@@ -54,8 +69,6 @@ class CalculatorRegistry:
             BACKEND_ORB,
             BACKEND_SO3LR,
             BACKEND_TBLITE,
-            BACKEND_TORCHSIM_MACE,
-            BACKEND_TORCHSIM_UMA,
             BACKEND_UMA,
         )
 
@@ -66,14 +79,6 @@ class CalculatorRegistry:
                 module="qme.potentials", function="get_aimnet2_calculator"
             ),
             BACKEND_MACE: LazyBackend(module="qme.potentials", function="get_mace_calculator"),
-            BACKEND_TORCHSIM_MACE: LazyBackend(
-                module="qme.potentials",
-                function="get_torchsim_mace_calculator",
-            ),
-            BACKEND_TORCHSIM_UMA: LazyBackend(
-                module="qme.potentials",
-                function="get_torchsim_uma_calculator",
-            ),
             BACKEND_ORB: LazyBackend(module="qme.potentials", function="get_orb_calculator"),
             BACKEND_TBLITE: LazyBackend(module="qme.potentials", function="get_tblite_calculator"),
             BACKEND_MOCK: LazyBackend(
@@ -85,6 +90,8 @@ class CalculatorRegistry:
 
     def _load_backend(self, backend_name: str) -> None:
         """Lazy load a backend when first accessed."""
+        logger = _get_logger()
+
         if backend_name in self._registry:
             return  # Already loaded
 
@@ -95,6 +102,7 @@ class CalculatorRegistry:
         function_name = backend_info.function
 
         try:
+            logger.debug("Loading backend '%s' from module '%s'", backend_name, module_name)
             module = importlib.import_module(module_name)
             func_or_class = getattr(module, function_name)
 
@@ -105,15 +113,42 @@ class CalculatorRegistry:
             else:
                 # Regular function
                 self._registry[backend_name] = func_or_class
+            logger.debug("Successfully loaded backend '%s'", backend_name)
 
-        except ImportError:
+        except ImportError as e:
             # Backend not available, this is expected for optional dependencies
-            pass
-        except Exception as e:
-            # Other errors should be logged but not break the system
+            # ImportError is logged at debug level since it's expected for optional backends
+            logger.debug("Backend '%s' not available (ImportError): %s", backend_name, e)
+        except AttributeError as e:
+            # AttributeError means the function/class doesn't exist in the module
+            # This indicates a broken backend implementation, not just missing dependency
             import warnings
 
-            warnings.warn(f"Failed to load backend {backend_name}: {e}", stacklevel=2)
+            error_msg = (
+                f"Failed to load backend '{backend_name}': function/class '{function_name}' "
+                f"not found in module '{module_name}'. Error: {e}. "
+                f"This may indicate a broken backend installation."
+            )
+            logger.error(error_msg)
+            warnings.warn(
+                error_msg,
+                stacklevel=2,
+            )
+        except (RuntimeError, ValueError, TypeError) as e:
+            # Runtime errors during import/initialization should be logged
+            # These could indicate configuration issues, version conflicts, etc.
+            import warnings
+
+            error_msg = (
+                f"Failed to load backend '{backend_name}' from module '{module_name}': {e}. "
+                f"This may indicate a configuration issue or version conflict. "
+                f"Check backend installation and compatibility."
+            )
+            logger.error(error_msg, exc_info=True)
+            warnings.warn(
+                error_msg,
+                stacklevel=2,
+            )
 
     def register(self, backend_name: str, factory_func: Callable[..., Any]) -> None:
         """Register a new calculator factory function.
@@ -157,17 +192,19 @@ class CalculatorRegistry:
         **kwargs
             Additional arguments passed to calculator
 
-        Returns:
+        Returns
         -------
         Calculator
             Configured calculator instance
 
-        Raises:
+        Raises
         ------
         BackendError
             If backend is not registered or available
 
         """
+        logger = _get_logger()
+
         # Lazy load the backend
         self._load_backend(backend)
         if backend not in self._registry:
@@ -176,6 +213,8 @@ class CalculatorRegistry:
             from qme.backends.availability import get_available_backends
 
             available = get_available_backends(include_mock=False)
+            error_msg = f"Backend '{backend}' is not available for calculator creation. Available: {available}"
+            logger.error(error_msg)
             raise BackendError(backend, available, "calculator creation")
 
         factory_func = self._registry[backend]
@@ -183,8 +222,14 @@ class CalculatorRegistry:
         # Build arguments based on what the factory function accepts
         factory_kwargs = kwargs.copy()
 
-        if model_name is not None:
+        # Special handling for tblite: model_name becomes method parameter
+        from qme.backends.constants import BACKEND_TBLITE
+
+        if backend.lower() == BACKEND_TBLITE and model_name is not None:
+            factory_kwargs["method"] = model_name
+        elif model_name is not None:
             factory_kwargs["model_name"] = model_name
+
         if model_path is not None:
             factory_kwargs["model_path"] = model_path
         if device is not None:
@@ -210,7 +255,7 @@ class CalculatorRegistry:
         backend : str
             Backend name to check
 
-        Returns:
+        Returns
         -------
         bool
             True if backend is available and can create real calculators,
@@ -261,19 +306,19 @@ def create_calculator(
     verbose : int, default 1
         Verbosity level for calculator creation (0=quiet, 1=normal, 2=verbose)
 
-    Returns:
+    Returns
     -------
     Calculator
         Configured calculator instance
 
-    Raises:
+    Raises
     ------
     BackendError
         If backend is not available or cannot create calculator
     ValueError
         If parameters are invalid
 
-    Notes:
+    Notes
     -----
     New parameters `charge` and `mult` (optional) are forwarded to
     backends that accept explicit molecular charge / multiplicity

@@ -1,16 +1,19 @@
-"""Test growing string method implementation."""
+from __future__ import annotations
 
 import pytest
 from ase import Atoms
 
 from qme.core.explorer import Explorer
+from tests.test_constants import (
+    COMPREHENSIVE_STEPS,
+    DEFAULT_STEPS,
+    QUICK_STEPS_EXTENDED,
+    VERY_LOOSE_FMAX,
+)
 
 
 class TestGrowingStringMethod:
-    """Test suite for growing string method."""
-
-    def test_growing_string_basic(self) -> None:
-        """Test basic growing string functionality with mock backend."""
+    def test_growing_string_basic(self):
         # Create simple reactant and product structures (H2 molecule)
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
@@ -26,8 +29,8 @@ class TestGrowingStringMethod:
         # Run growing string method
         result = explorer.run(
             npoints=10,
-            fmax=0.5,
-            steps=20,
+            fmax=VERY_LOOSE_FMAX,
+            steps=DEFAULT_STEPS,
             step_size=0.1,
             optimize_endpoints=False,  # Skip endpoint optimization for speed
             refine_ts=False,  # Skip TS refinement for speed
@@ -58,16 +61,17 @@ class TestGrowingStringMethod:
         # Verify optimized_atoms is an Atoms object
         assert isinstance(result["optimized_atoms"], Atoms)
 
-    def test_growing_string_requires_two_atoms(self) -> None:
-        """Test that growing string requires exactly two Atoms objects."""
+    def test_growing_string_requires_two_atoms(self):
         single_atoms = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         explorer = Explorer(single_atoms, backend="mock", target="ts", strategy="growing_string")
 
         # Should raise ValueError for single Atoms
-        with pytest.raises(ValueError, match="exactly 2 Atoms objects"):
+        # BaseStrategy validates first, so error message is from BaseStrategy
+        with pytest.raises(ValueError, match=r"requires multiple structures.*at least 2"):
             explorer.run()
 
         # Should raise ValueError for more than two Atoms
+        # Growing string strategy validates for exactly 2 after BaseStrategy check passes
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
         intermediate = Atoms("H2", positions=[(0, 0, 0), (1.0, 0, 0)])
@@ -78,11 +82,11 @@ class TestGrowingStringMethod:
             target="ts",
             strategy="growing_string",
         )
+        # With 3 atoms, BaseStrategy check passes, so we get the specific growing_string error
         with pytest.raises(ValueError, match="exactly 2 Atoms objects"):
             explorer_multi.run()
 
-    def test_growing_string_with_ts_refinement_fails(self) -> None:
-        """Test growing string with TS refinement fails with mock backend."""
+    def test_growing_string_with_ts_refinement_fails(self):
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
@@ -97,14 +101,13 @@ class TestGrowingStringMethod:
         with pytest.raises(ValueError, match="not suitable for transition state"):
             explorer.run(
                 npoints=8,
-                fmax=0.5,
-                steps=10,
+                fmax=VERY_LOOSE_FMAX,
+                steps=QUICK_STEPS_EXTENDED,
                 optimize_endpoints=False,
                 refine_ts=True,  # This will fail with mock backend
             )
 
-    def test_growing_string_strategy_registration(self) -> None:
-        """Test that growing string strategy is properly registered with correct metadata."""
+    def test_growing_string_strategy_registration(self):
         # Create reactant and product
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
@@ -121,8 +124,7 @@ class TestGrowingStringMethod:
         assert all_strategies["ts:growing_string"]["type"] == "multi-structure"
         assert "growing string" in all_strategies["ts:growing_string"]["description"].lower()
 
-    def test_growing_string_limits_and_thresholds(self) -> None:
-        """Test that growing string respects limits and uses thresholds correctly."""
+    def test_growing_string_limits_and_thresholds(self):
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
 
@@ -134,8 +136,8 @@ class TestGrowingStringMethod:
         )
         result = explorer.run(
             npoints=10,
-            fmax=0.5,
-            steps=50,
+            fmax=VERY_LOOSE_FMAX,
+            steps=COMPREHENSIVE_STEPS,
             optimize_endpoints=False,
             refine_ts=False,
         )

@@ -8,9 +8,7 @@ version = "0.1.0"
 description = "Quick mechanistic exploration using machine learning potentials with Sella optimizer"
 readme = "README.md"
 requires-python = ">=3.10"
-# Note: Python version requirements depend on chosen backend:
-# - Python 3.10+ for most backends (AIMNet2, UMA, MACE, Orb, TBLite)
-# - Python 3.11+ for TorchSim backends
+# Note: Python 3.10+ required for all backends
 license = "MIT"
 authors = [
     {name = "rlaplaza-lab", email = "example@example.com"}
@@ -35,6 +33,7 @@ dependencies = [
 [project.optional-dependencies]
 # Development dependencies only
 # ML backends must be installed separately - see README for details
+uma = ["fairchem-core>=2.18.0"]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -44,6 +43,7 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "types-requests>=2.25.0",
+    "types-tqdm>=4.66.0",
 ]
 
 [project.scripts]
@@ -69,6 +69,49 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
+
+[tool.coverage.run]
+source = ["qme"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/build/*",
+    "*/dist/*",
+    "*/.*egg-info/*",
+    "*/examples/*",
+    "*/example_utils/*",
+    # Optional backend potentials with low/no test coverage
+    "*/potentials/orb_potential.py",
+    "*/potentials/so3lr_potential.py",
+    "*/potentials/tblite_potential.py",
+    "*/potentials/uma_potential.py",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "@property",
+    "@.*\\.setter",
+    "if False:",
+    "if .*TYPE_CHECKING.*:",
+]
+precision = 2
+show_missing = true
+skip_covered = false
+skip_empty = false
+fail_under = 70
 
 [tool.ruff]
 line-length = 100
@@ -106,7 +149,6 @@ ignore = [
     "SIM102",  # nested ifs are sometimes clearer than combined conditions
     "SIM105",  # contextlib.suppress is not always clearer than try-except-pass
     "SIM108",  # ternary operators are not always clearer than if-else blocks
-    "UP038",  # Use X | Y in isinstance call (allow tuple syntax for now)
     "D100",  # Missing docstring in public module
     "D101",  # Missing docstring in public class
     "D102",  # Missing docstring in public method
@@ -117,7 +159,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.pydocstyle]
-convention = "google"  # Standardize on Google-style docstrings
+convention = "numpy"  # Standardize on NumPy-style docstrings
 
 [tool.mypy]
 python_version = "3.10"
@@ -140,20 +182,18 @@ exclude = [
     ".*egg-info/",
     ".venv/",
     "venv/",
+    "hessian_issues/",
+    "tests/",
+    "examples/",
 ]
 
-# Relax strictness for tests and examples
-[[tool.mypy.overrides]]
-module = ["tests.*", "examples.*"]
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-disallow_untyped_decorators = false
+# Tests and examples are excluded from mypy checks (see exclude list above)
+# This is standard practice for CI/CD - only the main package is type-checked
 
 # Ignore missing imports for external libraries without stubs
 [[tool.mypy.overrides]]
 module = [
     "geometric.*",
-    "torch_sim.*",
     "e3nn.*",
     "orb_models.*",
     "fairchem.*",

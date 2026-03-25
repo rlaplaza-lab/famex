@@ -1,6 +1,6 @@
 # QME User Guide
 
-Complete guide to using QME for molecular geometry optimization and transition state searches.
+Reference for CLI, Python API, and backends.
 
 ## Table of Contents
 
@@ -11,9 +11,7 @@ Complete guide to using QME for molecular geometry optimization and transition s
 
 ## Core Concepts
 
-QME uses a semantic interface with two key concepts:
-
-- **Target**: What you want to obtain (`minima`, `ts`, `path`)
+- **Target**: What you want (`minima`, `ts`, `path`)
 - **Strategy**: How to get there (`local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string`)
 
 ### Target/Strategy Matrix
@@ -34,11 +32,9 @@ QME uses a semantic interface with two key concepts:
 
 See [README.md](../README.md) for installation instructions.
 
-> **Note**: Python 3.10+ required for most backends, 3.11+ for TorchSim. Some backends conflict (e.g., UMA vs MACE) - use separate environments.
+> **Note**: Python 3.10+ required. Some backends conflict (e.g., UMA vs MACE) - use separate environments.
 
 ## Command Line Interface
-
-QME provides a structured command-line interface organized into three main commands:
 
 - `qme minima` - Minima optimization (outputs single structure)
 - `qme ts` - Transition state optimization (outputs single TS)
@@ -51,13 +47,13 @@ All commands support these common options:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--backend` | `uma` | Backend: uma\|aimnet2\|mace\|orb\|so3lr\|tblite\|torchsim_mace\|torchsim_uma\|mock |
+| `--backend` | `uma` | Backend: uma\|aimnet2\|mace\|orb\|so3lr\|tblite\|mock |
 | `--model-name` | `None` | Model name for backend |
 | `--model-path` | `None` | Path to model file (if applicable) |
 | `--device` | `None` | Device: cpu\|cuda |
 | `--default-charge` | `0` | Default molecular charge |
 | `--default-spin` | `1` | Default spin multiplicity |
-| `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-krylov-ts\|trust-ncg\|trust-exact\|newton-cg (default=auto-select based on target) |
+| `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-ncg\|trust-exact\|newton-cg\|rfo (default=auto-select based on target) |
 | `--optimizer-kw` | `None` | Optimizer kwargs as key=value, repeatable |
 | `--ts-kw` | `None` | TS optimizer kwargs as key=value, repeatable |
 | `--constraints` | `None` | Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0' |
@@ -65,6 +61,7 @@ All commands support these common options:
 | `--temperature` | `298.15` | Temperature in Kelvin for thermodynamic calculations |
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
 | `--freq`, `--frequencies` | `False` | Perform frequency analysis after optimization (includes thermodynamic properties) |
+| `--force-finite-diff-hessian` | `False` | Force use of finite difference hessians for TS optimizers and frequency calculations |
 
 ### qme minima - Minima Optimization
 
@@ -148,6 +145,7 @@ qme ts --strategy {local,interpolate,growing_string} INPUT [OPTIONS]
 | `--max-images` | `100` | Maximum number of images (growing_string strategy only) |
 | `--distance-threshold` | `0.1` | Distance threshold for convergence (growing_string strategy only) |
 | `--step-size` | `0.1` | Step size for growing string method (growing_string strategy only) |
+| `--require-ts/--allow-ts` | `--allow-ts` | Require a validated first-order saddle (raises an error if GSM/refinement fails) |
 
 #### Examples
 
@@ -159,7 +157,7 @@ qme ts --strategy local ts_guess.xyz
 qme ts --strategy local ts_guess.xyz --freq
 
 # With custom optimizer
-qme ts --strategy local ts_guess.xyz --optimizer trust-krylov-ts --fmax 0.02
+qme ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02
 
 # TS from interpolation
 qme ts --strategy interpolate reactant.xyz --product product.xyz
@@ -169,6 +167,9 @@ qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 --
 
 # Growing string method
 qme ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
+
+# Strict validation (raises if the TS is not first-order)
+qme ts --strategy growing_string reactant.xyz --product product.xyz --require-ts
 
 # With frequency analysis
 qme ts --strategy interpolate reactant.xyz --product product.xyz --freq
@@ -187,21 +188,20 @@ Generate and optimize reaction pathways.
 #### Usage
 
 ```bash
-qme path --strategy {interpolate,neb,cineb,irc} INPUT [OPTIONS]
+qme path --strategy {interpolate,neb,cineb,irc} STRUCTURES... [OPTIONS]
 ```
 
 #### Arguments
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `INPUT` | Path | Input XYZ file (required) |
+| `STRUCTURES...` | Path(s) | Structure file(s) (required). Can be:<br>- Multiple files: `reactant.xyz product.xyz [intermediate.xyz ...]`<br>- Single multi-frame XYZ: all frames used as path guess<br>- Single single-frame XYZ: for IRC strategy |
 
 #### Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--strategy` | `neb` | Path optimization strategy: interpolate\|neb\|cineb\|irc |
-| `--product` | `None` | Product XYZ for interpolate/neb/cineb strategies |
 | `--output` | Auto | Output trajectory XYZ path |
 | `--fmax` | `0.05` | Convergence threshold |
 | `--steps` | `1000` | Max optimization steps |
@@ -214,16 +214,19 @@ qme path --strategy {interpolate,neb,cineb,irc} INPUT [OPTIONS]
 #### Examples
 
 ```bash
-# Raw interpolation
-qme path --strategy interpolate reactant.xyz --product product.xyz
+# Raw interpolation (two structures)
+qme path --strategy interpolate reactant.xyz product.xyz
 
-# NEB path optimization
-qme path --strategy neb reactant.xyz --product product.xyz
+# NEB path optimization (two structures)
+qme path --strategy neb reactant.xyz product.xyz
+
+# NEB with multiple intermediate structures
+qme path --strategy neb reactant.xyz intermediate.xyz product.xyz --npoints 11
 
 # CI-NEB path optimization
-qme path --strategy cineb reactant.xyz --product product.xyz
+qme path --strategy cineb reactant.xyz product.xyz
 
-# IRC from transition state
+# IRC from transition state (single structure)
 qme path --strategy irc ts.xyz --direction both
 ```
 
@@ -263,7 +266,7 @@ explorer = Explorer(
 
 **Strategies:** `local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string` (see [Target/Strategy Matrix](#targetstrategy-matrix))
 
-**Optimizers:** First-order (`lbfgs`, `bfgs`, `fire`), second-order (`sella`, `trust-krylov`, etc.), or `default` (auto-selects)
+**Optimizers:** `default` (auto-selects), first-order (`lbfgs`, `bfgs`, `fire`), second-order (`sella`, `trust-krylov`, `trust-ncg`, `trust-exact`, `newton-cg`, `rfo`)
 
 ### Key Methods
 
@@ -286,12 +289,10 @@ explorer.save_trajectory(trajectory_list, "path.xyz")
 
 | Backend | Installation | Best For | Notes |
 |---------|--------------|----------|-------|
-| `aimnet2` | `pip install torch torch-cluster` | Beginners, molecules | No conflicts, fast |
+| `aimnet2` | `pip install torch` | Beginners, molecules | No conflicts, fast |
 | `uma` | `pip install fairchem-core` | Materials science | Conflicts with MACE |
 | `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA |
 | `orb` | `pip install orb-models` | Universal coverage | Molecules and materials |
-| `torchsim_mace` | `pip install torch-sim-atomistic` | Maximum performance | Requires Python 3.11+ |
-| `torchsim_uma` | `pip install torch-sim-atomistic` | Maximum performance | Requires Python 3.11+ |
 | `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations |
 | `so3lr` | `pip install so3lr` | Research | Custom models |
 | `mock` | Built-in | Testing | Development only |
@@ -320,7 +321,7 @@ conda activate qme-mace && pip install qme-ml mace-torch
 | `quadratic` | Quadratic curve fitting | Known transition region |
 | `spline` | Cubic spline interpolation | Smooth pathways |
 
-Usage: `qme path --strategy neb reactant.xyz --product product.xyz --interp idpp`
+Usage: `qme path --strategy neb reactant.xyz product.xyz --interp idpp`
 
 ---
 

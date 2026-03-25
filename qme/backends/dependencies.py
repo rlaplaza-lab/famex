@@ -54,7 +54,7 @@ class DependencyManager:
         package_name : str
             Name of the package to check
 
-        Returns:
+        Returns
         -------
         bool
             True if package is available, False otherwise
@@ -78,7 +78,7 @@ class DependencyManager:
         fallback_value : Any, optional
             Value to return if import fails
 
-        Returns:
+        Returns
         -------
         Any
             The loaded module or fallback value
@@ -102,10 +102,6 @@ class DependencyManager:
                     import mace.calculators
 
                     self._cache["mace"] = mace.calculators
-                elif name == "torch_sim":
-                    import torch_sim as ts
-
-                    self._cache["torch_sim"] = ts
                 elif name == "tblite":
                     import tblite.ase
 
@@ -144,13 +140,13 @@ class DependencyManager:
         purpose : str, default "this functionality"
             Description of what the dependencies are needed for
 
-        Returns:
+        Returns
         -------
         dict or module
             If one dependency, returns the module directly.
             If multiple, returns dict mapping name -> module.
 
-        Raises:
+        Raises
         ------
         DependencyError
             If any required dependencies are missing
@@ -209,22 +205,18 @@ class DependencyManager:
         package_mapping = {
             "torch": "torch",
             "sella": "sella",
-            BACKEND_AIMNET2: "torch_cluster",  # AIMNet2 needs torch_cluster (which implies torch)
+            # AIMNet2 is bundled; torch is sufficient (neighbor list has NumPy fallback)
+            BACKEND_AIMNET2: "torch",
             "fairchem": "fairchem.core",
             BACKEND_UMA: "fairchem.core",  # UMA uses fairchem-core
             BACKEND_SO3LR: "so3lr",
             BACKEND_MACE: "mace.calculators",
             "orb_models": "orb_models",
             BACKEND_ORB: "orb_models",  # Orb uses orb-models package
-            "torch_sim": "torch_sim",
             BACKEND_TBLITE: "tblite",
         }
 
         package_name = package_mapping.get(name.lower(), name.lower())
-
-        # Special case for aimnet2 - check torch_cluster availability
-        if name.lower() == BACKEND_AIMNET2:
-            return self._check_availability_lazy("torch_cluster")
 
         return self._check_availability_lazy(package_name)
 
@@ -253,13 +245,12 @@ class DependencyManager:
         commands = {
             "torch": "torch",
             "sella": "sella",
-            BACKEND_AIMNET2: "torch torch-cluster",  # AIMNet2 needs both torch and torch-cluster
+            BACKEND_AIMNET2: "torch",
             "fairchem": "fairchem-core",
             BACKEND_SO3LR: "so3lr",
             BACKEND_MACE: "mace-torch",
             "orb_models": "orb-models",
             BACKEND_ORB: "orb-models",  # Orb uses orb-models package
-            "torch_sim": "torch-sim-atomistic",
             BACKEND_TBLITE: "tblite",
         }
         return commands.get(name.lower(), name.lower())
@@ -286,8 +277,6 @@ def __getattr__(name: str) -> Any:
         return deps.has(BACKEND_SO3LR)
     if name == "HAS_MACE":
         return deps.has(BACKEND_MACE)
-    if name == "HAS_TORCH_SIM":
-        return deps.has("torch_sim")
     if name == "HAS_TBLITE":
         return deps.has(BACKEND_TBLITE)
     if name == "torch":

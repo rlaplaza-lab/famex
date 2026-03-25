@@ -19,15 +19,14 @@ Install a backend separately:
 
 | Backend | Installation | Notes |
 |---------|--------------|-------|
-| `aimnet2` | `pip install torch torch-cluster` | Recommended for beginners, no conflicts |
+| `aimnet2` | `pip install torch` | Recommended for beginners, no conflicts |
 | `uma` | `pip install fairchem-core` | Materials science |
 | `mace` | `pip install mace-torch` | High accuracy, conflicts with UMA |
-| `torchsim_mace` | `pip install torch-sim-atomistic` | Maximum performance, requires Python 3.11+ |
-| `torchsim_uma` | `pip install torch-sim-atomistic` | Maximum performance, requires Python 3.11+ |
 | `orb` | `pip install orb-models` | Universal forcefield |
+| `so3lr` | `pip install so3lr` | Research, custom models |
 | `tblite` | `pip install tblite` | Fast semi-empirical |
 
-> **Note**: Python 3.10+ for most backends, 3.11+ for TorchSim. MACE and UMA conflict - use separate environments.
+> **Note**: Python 3.10+ required. MACE and UMA conflict - use separate environments.
 
 ### Your First Optimization
 
@@ -54,12 +53,12 @@ result = explorer.run(fmax=0.05, steps=1000)
 
 # Save results
 explorer.save_structure(result["optimized_atoms"], "water_optimized.xyz")
-print(f"Final energy: {result['final_energy']:.6f} eV")
+print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV")
 ```
 
 ## Key Features
 
-- Multiple ML backends (UMA, AIMNet2, MACE, SO3LR, TorchSim, Orb, TBLite)
+- Multiple ML backends (UMA, AIMNet2, MACE, SO3LR, Orb, TBLite)
 - GPU acceleration with CUDA support
 - Semantic target/strategy interface (minima, ts, path)
 - Advanced methods (NEB, CI-NEB, IRC, growing string)
@@ -80,7 +79,7 @@ print(f"Final energy: {result['final_energy']:.6f} eV")
 qme ts --strategy interpolate reactant.xyz --product product.xyz
 
 # NEB reaction path
-qme path --strategy neb reactant.xyz --product product.xyz --npoints 11
+qme path --strategy neb reactant.xyz product.xyz --npoints 11
 
 # IRC from transition state
 qme path --strategy irc ts.xyz --direction both

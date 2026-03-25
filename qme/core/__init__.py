@@ -7,7 +7,18 @@ core package. New exports should be added here so users can import from
 
 # Import strategy modules to register them
 import qme.strategies  # noqa: F401
+from qme.core.exceptions import (
+    InvalidInputError,
+    InvalidStrategyError,
+    StrategyError,
+    StrategyNotFoundError,
+)
 from qme.core.explorer import Explorer
-from qme.optimizers.scipy_optimizers import TrustKrylovTS
 
-__all__ = ["Explorer", "TrustKrylovTS"]
+__all__ = [
+    "Explorer",
+    "StrategyError",
+    "StrategyNotFoundError",
+    "InvalidStrategyError",
+    "InvalidInputError",
+]

@@ -1,5 +1,8 @@
 """Unified NEB optimizer for both regular NEB and CI-NEB."""
 
+from __future__ import annotations
+
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -20,7 +23,7 @@ class NEBOptimizer:
 
     def __init__(
         self,
-        images: list[Atoms],
+        images: Sequence[Atoms],
         spring_constant: float = 5.0,
         climb: bool = False,
         fmax: float = 0.05,
@@ -57,7 +60,7 @@ class NEBOptimizer:
         self.fmax = fmax
         self.steps = steps
         self.kwargs = kwargs
-        self.climbing_image = None
+        self.climbing_image: int | None = None
 
         # Ensure charge and spin info are set and attach calculator to all images
         for atoms in self.images:
@@ -157,14 +160,21 @@ class NEBOptimizer:
         """Calculate spring forces for image i."""
         if i == 0:
             # First image: spring to next
-            return self.spring_constant * (self.images[i + 1].positions - self.images[i].positions)
+            result = self.spring_constant * (
+                self.images[i + 1].positions - self.images[i].positions
+            )
+            return np.asarray(result)
         if i == len(self.images) - 1:
             # Last image: spring to previous
-            return self.spring_constant * (self.images[i - 1].positions - self.images[i].positions)
+            result = self.spring_constant * (
+                self.images[i - 1].positions - self.images[i].positions
+            )
+            return np.asarray(result)
         # Middle images: spring to both neighbors
         f_prev = self.spring_constant * (self.images[i - 1].positions - self.images[i].positions)
         f_next = self.spring_constant * (self.images[i + 1].positions - self.images[i].positions)
-        return f_prev + f_next
+        result = f_prev + f_next
+        return np.asarray(result)
 
     def _nudge_forces(self, forces: np.ndarray, spring_forces: np.ndarray) -> np.ndarray:
         """Apply nudging to forces (project out parallel component)."""
@@ -179,7 +189,8 @@ class NEBOptimizer:
         parallel_component = np.sum(forces * tangent) * tangent
         perpendicular_forces = forces - parallel_component
 
-        return perpendicular_forces + spring_forces
+        result = perpendicular_forces + spring_forces
+        return np.asarray(result)
 
     def _apply_climbing_forces(
         self,
@@ -199,7 +210,8 @@ class NEBOptimizer:
         parallel_component = parallel_component.reshape(-1, 3)
 
         # Invert parallel component for climbing (make it point uphill)
-        return forces - 2 * parallel_component + spring_forces
+        result = forces - 2 * parallel_component + spring_forces
+        return np.asarray(result)
 
     def _calculate_tangent_for_climbing(self, index: int) -> np.ndarray | None:
         """Calculate tangent vector for climbing image."""
@@ -230,7 +242,8 @@ class NEBOptimizer:
         # Normalize
         norm = np.linalg.norm(tangent)
         if norm > 1e-10:
-            return tangent.flatten() / norm
+            result = tangent.flatten() / norm
+            return np.asarray(result)
         return None
 
     def _update_positions(self, forces: list[np.ndarray], step_size: float = 0.01) -> None:

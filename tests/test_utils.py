@@ -1,30 +1,26 @@
-"""Standardized test utilities for QME test suite.
-
-This module provides common utilities, fixtures, and patterns used across
-all test modules to ensure consistency and reduce duplication.
-"""
+from __future__ import annotations
 
 import os
 import tempfile
 import warnings
-from collections.abc import Callable
 
+import numpy as np
 import pytest
 from ase import Atoms
 from ase.build import molecule
 from ase.io import write
 
+from tests.test_constants import DEFAULT_FMAX, HARMONIC_TOL
+
 
 class TestMoleculeFactory:
-    """Factory for creating standardized test molecules."""
-
     @staticmethod
-    def get_h2_stretched() -> Atoms:
+    def get_h2_stretched():
         """H2 molecule with stretched bond (equilibrium ~0.74 Å)."""
         return Atoms(["H", "H"], positions=[[0, 0, 0], [2.0, 0, 0]])
 
     @staticmethod
-    def get_water_distorted() -> Atoms:
+    def get_water_distorted():
         """Water molecule with distorted geometry."""
         return Atoms(
             ["O", "H", "H"],
@@ -36,26 +32,31 @@ class TestMoleculeFactory:
         )
 
     @staticmethod
-    def get_methane_distorted() -> Atoms:
-        """Methane molecule with distorted tetrahedral geometry."""
+    def get_methane_distorted():
+        """Methane molecule with realistic equilibrium tetrahedral geometry (C-H ~1.087 Å).
+
+        Note: Despite the method name 'distorted', this now uses a realistic equilibrium
+        geometry to ensure accurate Hessian calculations. The name is kept for backward
+        compatibility with existing tests.
+        """
         return Atoms(
             ["C", "H", "H", "H", "H"],
             positions=[
-                [0.0, 0.0, 0.0],  # C
-                [1.5, 0.0, 0.0],  # H (stretched)
-                [0.0, 1.5, 0.0],  # H (stretched)
-                [0.0, 0.0, 1.5],  # H (stretched)
-                [-1.0, -1.0, -1.0],  # H (displaced)
+                [0.0000000000, 0.0000000000, 0.0000000000],  # C
+                [1.0870000000, 0.0000000000, 0.0000000000],  # H
+                [-0.3623333220, -1.0248334322, -0.0000000000],  # H
+                [-0.3623333220, 0.5124167161, -0.8875317869],  # H
+                [-0.3623333220, 0.5124167161, 0.8875317869],  # H
             ],
         )
 
     @staticmethod
-    def get_benzene() -> Atoms:
+    def get_benzene():
         """Benzene molecule for testing."""
         return molecule("C6H6")
 
     @staticmethod
-    def get_ethylene_twisted_ts_guess() -> Atoms:
+    def get_ethylene_twisted_ts_guess():
         """Ethylene twisted TS guess (90-degree rotation around C=C bond)."""
         return Atoms(
             ["C", "C", "H", "H", "H", "H"],
@@ -70,7 +71,7 @@ class TestMoleculeFactory:
         )
 
     @staticmethod
-    def get_water_dissociation_ts_guess() -> Atoms:
+    def get_water_dissociation_ts_guess():
         """Water dissociation TS guess (H2O -> H + OH)."""
         return Atoms(
             "H2O",
@@ -82,8 +83,8 @@ class TestMoleculeFactory:
         )
 
     @staticmethod
-    def get_sn2_like_ts_guess() -> Atoms:
-        """Simple SN2-like transition state guess (F- + CH3Cl -> FCH3 + Cl-)."""
+    def get_sn2_like_ts_guess():
+        """Return simple SN2-like transition state guess (F- + CH3Cl -> FCH3 + Cl-)."""
         return Atoms(
             "CH3FCl",
             positions=[
@@ -97,19 +98,19 @@ class TestMoleculeFactory:
         )
 
     @staticmethod
-    def get_h2_equilibrium() -> Atoms:
+    def get_h2_equilibrium():
         """H2 molecule at equilibrium geometry (bond length ~0.74 Å)."""
         return Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
 
     @staticmethod
-    def get_h2o_equilibrium() -> Atoms:
+    def get_h2o_equilibrium():
         """Water molecule at equilibrium geometry (from ase.build)."""
         from ase.build import molecule
 
         return molecule("H2O")
 
     @staticmethod
-    def get_perturbed_molecule(base: Atoms, seed: int = 42, magnitude: float = 0.05) -> Atoms:
+    def get_perturbed_molecule(base, seed=42, magnitude=0.05):
         """Create a perturbed version of a molecule for optimization tests.
 
         Args:
@@ -126,10 +127,8 @@ class TestMoleculeFactory:
 
 
 class TestFileManager:
-    """Utility for managing test files and temporary directories."""
-
     @staticmethod
-    def create_temp_xyz(atoms: Atoms, filename: str = "test.xyz") -> tuple[str, str]:
+    def create_temp_xyz(atoms, filename="test.xyz"):
         """Create a temporary XYZ file and return (filepath, tempdir)."""
         tempdir = tempfile.mkdtemp()
         filepath = os.path.join(tempdir, filename)
@@ -137,14 +136,14 @@ class TestFileManager:
         return filepath, tempdir
 
     @staticmethod
-    def cleanup_temp_dir(tempdir: str) -> None:
+    def cleanup_temp_dir(tempdir):
         """Clean up temporary directory."""
         import shutil
 
         shutil.rmtree(tempdir, ignore_errors=True)
 
 
-def get_available_backends(include_mock: bool = False) -> list[str]:
+def get_available_backends(include_mock=False):
     """Get list of backends that are actually available for testing."""
     # Use the centralized backend availability system
     from qme.backends.availability import get_available_backends as get_qme_backends
@@ -152,7 +151,7 @@ def get_available_backends(include_mock: bool = False) -> list[str]:
     return get_qme_backends(include_mock=include_mock)
 
 
-def check_backend_availability(backend: str) -> bool:
+def check_backend_availability(backend):
     """Check if a backend is truly available for testing."""
     if backend == "mock":
         return True
@@ -165,42 +164,38 @@ def check_backend_availability(backend: str) -> bool:
 
 
 class BackendTestMixin:
-    """Mixin class providing common backend testing functionality."""
-
     @staticmethod
-    def check_backend_availability(backend: str) -> bool:
+    def check_backend_availability(backend):
         """Check if a backend is truly available for testing."""
         return check_backend_availability(backend)
 
     @staticmethod
-    def get_available_backends() -> list[str]:
+    def get_available_backends():
         """Get list of backends that are actually available for testing."""
         return get_available_backends()
 
     @staticmethod
-    def require_backend(backend: str) -> None:
+    def require_backend(backend):
         """Skip test if backend is not available."""
         if not check_backend_availability(backend):
             pytest.skip(f"Backend {backend} not available")
 
 
 class TestResultHandler:
-    """Utility class for handling test results consistently."""
-
     @staticmethod
-    def normalize_result(result) -> dict:
+    def normalize_result(result):
         """Normalize optimization result to standard dictionary format."""
         # Handle list return format from run() method
         return result[0] if isinstance(result, list) and len(result) > 0 else result
 
     @staticmethod
-    def extract_atoms(result) -> Atoms:
+    def extract_atoms(result):
         """Extract Atoms object from optimization result."""
         normalized_result = TestResultHandler.normalize_result(result)
         return normalized_result["optimized_atoms"]
 
     @staticmethod
-    def process_result(result, backend: str) -> dict:
+    def process_result(result, backend):
         """Process optimization result and return standardized dictionary with atoms and metadata.
 
         This method handles multiple return formats from QME optimization strategies:
@@ -219,11 +214,16 @@ class TestResultHandler:
             result: Raw result from optimization strategy (dict, list of dicts, or list of atoms)
             backend: Backend name for error reporting
 
-        Returns:
-            Standardized dictionary with keys: optimized_atoms, steps_taken, converged, strategy
+        Returns
+        -------
+        dict
+            Standardized dictionary with keys: optimized_atoms, steps_taken, converged, strategy.
 
-        Raises:
-            AssertionError: If result format is unexpected or missing required keys
+        Raises
+        ------
+        AssertionError
+            If result format is unexpected or missing required keys.
+
 
         """
         # Handle list return format from run() method
@@ -252,10 +252,8 @@ class TestResultHandler:
 
 
 class StandardTestAssertions:
-    """Standardized assertion methods for common test patterns."""
-
     @staticmethod
-    def assert_optimization_result(result: dict, expected_keys: list[str] | None = None) -> None:
+    def assert_optimization_result(result, expected_keys=None):
         """Assert that optimization result has expected structure."""
         assert isinstance(result, dict), "Result should be a dict"
 
@@ -265,11 +263,12 @@ class StandardTestAssertions:
         for key in expected_keys:
             assert key in result, f"Missing key '{key}' in optimization result"
 
-        # Check converged is boolean-like
-        converged = result["converged"]
-        assert isinstance(converged, (bool, list)) or converged in (True, False), (
-            "converged should be boolean"
-        )
+        # Check converged is boolean-like (only if converged is in expected_keys)
+        if "converged" in expected_keys:
+            converged = result["converged"]
+            assert isinstance(converged, bool | list) or converged in (True, False), (
+                "converged should be boolean"
+            )
 
         # Handle optimized_atoms - can be single Atoms or list of Atoms
         optimized_atoms = result["optimized_atoms"]
@@ -292,14 +291,10 @@ class StandardTestAssertions:
                     assert steps_taken >= 0, "steps_taken should be non-negative"
 
     @staticmethod
-    def assert_reasonable_geometry(atoms, backend: str = "mock") -> None:
+    def assert_reasonable_geometry(atoms, backend="mock"):
         """Assert that molecular geometry is physically reasonable."""
         # Handle both single atoms and list of atoms (trajectory)
-        if isinstance(atoms, list):
-            # For trajectory, check the first and last frames
-            atoms_to_check = [atoms[0], atoms[-1]]
-        else:
-            atoms_to_check = [atoms]
+        atoms_to_check = [atoms[0], atoms[-1]] if isinstance(atoms, list) else [atoms]
 
         for atoms_frame in atoms_to_check:
             # Check for overlapping atoms
@@ -321,7 +316,7 @@ class StandardTestAssertions:
                 assert min_distance > 0.5, f"Atoms too close: {min_distance:.3f} Å"
 
     @staticmethod
-    def assert_energy_reasonable(energy: float, backend: str = "mock") -> None:
+    def assert_energy_reasonable(energy, backend="mock"):
         """Assert that energy is reasonable."""
         assert energy == energy, "Energy should not be NaN"
         assert energy != float("inf"), "Energy should not be infinite"
@@ -332,7 +327,7 @@ class StandardTestAssertions:
             assert -1000 < energy < 1000, f"Energy out of reasonable range: {energy:.3f} eV"
 
     @staticmethod
-    def assert_forces_reasonable(forces, backend: str = "mock") -> None:
+    def assert_forces_reasonable(forces, backend="mock"):
         """Assert that forces are reasonable."""
         assert not (forces != forces).any(), "Forces should not contain NaN"
         assert not (forces == float("inf")).any(), "Forces should not contain infinity"
@@ -344,7 +339,7 @@ class StandardTestAssertions:
             assert max_force < 100, f"Maximum force too large: {max_force:.3f} eV/Å"
 
     @staticmethod
-    def assert_hessian_valid(hessian, expected_shape: tuple[int, ...] | None = None) -> None:
+    def assert_hessian_valid(hessian, expected_shape=None):
         """Assert that Hessian matrix is valid.
 
         Args:
@@ -366,14 +361,16 @@ class StandardTestAssertions:
             )
 
         # Check symmetry (allowing small numerical noise)
-        assert np.allclose(hessian, hessian.T, rtol=1e-6, atol=1e-6), "Hessian should be symmetric"
+        assert np.allclose(hessian, hessian.T, rtol=HARMONIC_TOL[0], atol=HARMONIC_TOL[1]), (
+            "Hessian should be symmetric"
+        )
 
         # Check no NaN or inf
         assert not np.any(np.isnan(hessian)), "Hessian should not contain NaN"
         assert not np.any(np.isinf(hessian)), "Hessian should not contain infinity"
 
     @staticmethod
-    def assert_frequencies_valid(frequencies, expected_count: int | None = None) -> None:
+    def assert_frequencies_valid(frequencies, expected_count=None):
         """Assert that frequency array is valid.
 
         Args:
@@ -395,7 +392,7 @@ class StandardTestAssertions:
         assert not np.any(np.isinf(frequencies)), "Frequencies should not contain infinity"
 
     @staticmethod
-    def assert_convergence_quality(atoms, fmax: float = 0.05) -> None:
+    def assert_convergence_quality(atoms, fmax=DEFAULT_FMAX):
         """Assert that optimization converged with reasonable quality.
 
         Args:
@@ -415,10 +412,28 @@ class StandardTestAssertions:
         )
 
 
+def assert_error_contains(error, text):
+    """Assert that error message contains expected text.
+
+    Args:
+        error: Exception instance or error message string
+        text: Expected text to find in error message (case-insensitive)
+
+    Example:
+        with pytest.raises(ValueError) as exc_info:
+            # Code that raises error
+            pass
+        assert_error_contains(exc_info.value, "expected error message")
+    """
+    error_msg = str(error) if not isinstance(error, str) else error
+    assert text.lower() in error_msg.lower(), (
+        f"Expected error message to contain '{text}', but got: {error_msg}"
+    )
+
+
 # Pytest fixtures for common test patterns
 @pytest.fixture
 def test_molecules():
-    """Provide standard test molecules."""
     return {
         "h2": TestMoleculeFactory.get_h2_stretched(),
         "water": TestMoleculeFactory.get_water_distorted(),
@@ -443,15 +458,15 @@ def temp_xyz_file():
 
 
 class BackendTestWarning(UserWarning):
-    """Warning raised when a backend test fails but should not fail the entire test."""
+    pass
 
 
 def backend_test_with_warnings(
-    backends: list[str] | None = None,
-    include_mock: bool = False,
-    test_name_suffix: str = "",
-) -> Callable:
-    """Decorator to run a test across multiple backends with graceful failure handling.
+    backends=None,
+    include_mock=False,
+    test_name_suffix="",
+):
+    """Run a test across multiple backends with graceful failure handling.
 
     When a backend fails, it logs a warning but continues testing other backends.
     The test only fails if ALL backends fail.
@@ -461,13 +476,15 @@ def backend_test_with_warnings(
         include_mock: Whether to include the mock backend in testing.
         test_name_suffix: Suffix to add to test names for backend identification.
 
-    Returns:
+    Returns
+    -------
+    callable
         Decorated test function that handles backend failures gracefully.
 
     """
     import functools
 
-    def decorator(test_func: Callable) -> Callable:
+    def decorator(test_func):
         @functools.wraps(test_func)
         def wrapper(*args, **kwargs):
             if backends is None:
@@ -520,8 +537,6 @@ def backend_test_with_warnings(
 
 
 class BackendTestRunner:
-    """Utility class for running tests across multiple backends with graceful failure handling."""
-
     @staticmethod
     def run_with_warnings(test_func, backends=None, include_mock=False, **test_kwargs):
         """Run a test function across multiple backends with warning-based error handling.
@@ -532,8 +547,11 @@ class BackendTestRunner:
             include_mock: Whether to include the mock backend in testing.
             **test_kwargs: Additional keyword arguments to pass to the test function.
 
-        Returns:
+        Returns
+        -------
+        dict
             Dictionary mapping backend names to their test results.
+
         """
         if backends is None:
             available_backends = get_available_backends(include_mock=include_mock)
@@ -581,3 +599,344 @@ class BackendTestRunner:
                 warnings.warn(warning_msg, UserWarning, stacklevel=2)
 
         return successful, failed
+
+
+def parametrize_backends(
+    backends=None,
+    include_mock=False,
+    ids=None,
+):
+    """Create a pytest parametrize marker for backend testing.
+
+    This helper reduces redundancy in backend testing by providing a standardized
+    way to parametrize tests across multiple backends.
+
+    Args:
+        backends: List of specific backends to test. If None, uses all available.
+        include_mock: Whether to include mock backend.
+        ids: Custom test IDs. If None, uses backend names.
+
+    Returns
+    -------
+    pytest.mark.parametrize
+        pytest.mark.parametrize marker.
+
+    Examples
+    --------
+        @parametrize_backends(include_mock=True)
+        def test_something(backend):
+            # Test code here
+            pass
+    """
+    if backends is None:
+        backends = get_available_backends(include_mock=include_mock)
+
+    if ids is None:
+        ids = backends
+
+    return pytest.mark.parametrize("backend", backends, ids=ids)
+
+
+def requires_backend(backend_name):
+    """Create a pytest marker to skip test if backend is not available.
+
+    This is a convenience wrapper around pytest.mark.skipif that uses the
+    standardized backend availability checking.
+
+    Args:
+        backend_name: Name of the backend to require (e.g., 'uma', 'mace')
+
+    Returns
+    -------
+    pytest.mark.skipif
+        pytest.mark.skipif marker.
+
+    Examples
+    --------
+        @requires_backend("uma")
+        def test_uma_specific_feature():
+            # Test code here
+            pass
+    """
+    from qme.backends.availability import is_backend_available
+
+    return pytest.mark.skipif(
+        not is_backend_available(backend_name),
+        reason=f"{backend_name} backend not available",
+    )
+
+
+@pytest.fixture
+def backend_test_fixture():
+    """Fixture providing backend testing utilities and common patterns.
+
+    This fixture provides a namespace with:
+    - get_backends(): Get available backends
+    - require_backend(backend): Skip if backend unavailable
+    - run_with_all_backends(func): Run function with all backends
+
+    Example:
+        def test_something(backend_test_fixture):
+            backends = backend_test_fixture.get_backends()
+            for backend in backends:
+                # test code
+    """
+
+    class BackendTestFixture:
+        def __init__(self):
+            self._available_backends = get_available_backends(include_mock=False)
+
+        def get_backends(self, include_mock=False):
+            """Get list of available backends."""
+            return get_available_backends(include_mock=include_mock)
+
+        def require_backend(self, backend):
+            """Skip test if backend is not available."""
+            if not check_backend_availability(backend):
+                pytest.skip(f"Backend {backend} not available")
+
+        def run_with_all_backends(self, test_func, include_mock=False, **kwargs):
+            """Run test function with all available backends."""
+            return BackendTestRunner.run_with_warnings(
+                test_func, backends=None, include_mock=include_mock, **kwargs
+            )
+
+    return BackendTestFixture()
+
+
+def create_backend_test_atoms(backend):
+    """Create appropriate test atoms for a given backend.
+
+    Some backends have limitations on supported elements or system sizes.
+    This helper selects appropriate test molecules.
+
+    Args:
+        backend: Backend name
+
+    Returns
+    -------
+    Atoms
+        Atoms object suitable for testing with the backend.
+
+    """
+    # Most backends support small molecules
+    return TestMoleculeFactory.get_water_distorted()
+
+
+def setup_atoms_with_calculator(atoms, calculator):
+    """Set up atoms with a calculator (common test pattern).
+
+    This reduces repetition of the pattern:
+        atoms = molecule.copy()
+        atoms.calc = calculator
+
+    Args:
+        atoms: Atoms object (will be copied)
+        calculator: Calculator to attach
+
+    Returns
+    -------
+    Atoms
+        Copy of atoms with calculator attached.
+
+    Examples
+    --------
+        atoms = setup_atoms_with_calculator(h2o_molecule, mock_backend)
+        # Equivalent to:
+        # atoms = h2o_molecule.copy()
+        # atoms.calc = mock_backend
+    """
+    atoms_copy = atoms.copy()
+    atoms_copy.calc = calculator
+    return atoms_copy
+
+
+def assert_backend_calculator(calculator, backend="mock"):
+    """Assert that a calculator has the expected interface.
+
+    Args:
+        calculator: Calculator instance to check
+        backend: Backend name for context
+    """
+    assert calculator is not None, f"Calculator should not be None for backend {backend}"
+
+    # Check that calculator has basic methods
+    # Note: We don't enforce these strictly as different backends may have different APIs
+    if hasattr(calculator, "calculate"):
+        assert callable(calculator.calculate)
+    elif hasattr(calculator, "get_potential_energy"):
+        assert callable(calculator.get_potential_energy)
+
+
+def handle_backend_errors(
+    skip_on_not_suitable=True,
+    skip_on_not_available=True,
+    catch_exceptions=(ValueError, ImportError),
+):
+    """Standardize backend error handling in tests.
+
+    This decorator wraps test functions to handle common backend-related errors
+    by skipping tests when backends are not suitable or not available, while
+    re-raising unexpected errors.
+
+    Args:
+        skip_on_not_suitable: If True, skip test when error message contains "not suitable"
+        skip_on_not_available: If True, skip test when error message contains "not available"
+        catch_exceptions: Tuple of exception types to catch (default: ValueError, ImportError)
+
+    Returns
+    -------
+        Decorated test function that handles backend errors gracefully.
+
+    Example:
+        @handle_backend_errors()
+        def test_something(any_real_backend_explorer, water_molecule):
+            explorer = any_real_backend_explorer(water_molecule)
+            result = strategy.run(...)
+            assert result is not None
+    """
+    import functools
+
+    def decorator(test_func):
+        @functools.wraps(test_func)
+        def wrapper(*args, **kwargs):
+            try:
+                return test_func(*args, **kwargs)
+            except catch_exceptions as e:
+                error_msg = str(e).lower()
+                if skip_on_not_suitable and "not suitable" in error_msg:
+                    pytest.skip("Backend doesn't support TS optimization")
+                if skip_on_not_available and "not available" in error_msg:
+                    pytest.skip("Backend not available")
+                # Re-raise unexpected errors
+                raise
+
+        return wrapper
+
+    return decorator
+
+
+# ============================================================================
+# Shared Test Calculator Classes
+# ============================================================================
+
+
+class NoisyCalculator:
+    def __init__(self, noise_level=0.0):
+        """Initialize with specified noise level.
+
+        Args:
+            noise_level: Standard deviation of noise to add to forces
+        """
+        self.noise_level = noise_level
+
+    def get_forces(self, atoms=None):
+        """Compute forces with added noise.
+
+        Args:
+            atoms: Atoms object (optional, uses self.atoms if None)
+
+        Returns
+        -------
+        np.ndarray
+            Forces array with added noise.
+
+        """
+        if atoms is None:
+            atoms = self.atoms
+
+        # Simple harmonic forces
+        positions = atoms.positions
+        forces = -1.0 * positions
+
+        # Add noise
+        if self.noise_level > 0:
+            noise = np.random.normal(0, self.noise_level, forces.shape)
+            forces += noise
+
+        return forces
+
+    def get_potential_energy(self, atoms=None, force_consistent=False):
+        """Compute potential energy.
+
+        Args:
+            atoms: Atoms object (optional, uses self.atoms if None)
+            force_consistent: Whether to use force-consistent energy (ignored)
+
+        Returns
+        -------
+        float
+            Potential energy.
+
+        """
+        if atoms is None:
+            atoms = self.atoms
+
+        # Simple harmonic energy
+        positions = atoms.positions
+        energy = 0.5 * np.sum(positions**2)
+        return float(energy)
+
+
+class HarmonicCalculator:
+    def __init__(self, k=1.0):
+        """Initialize with force constant k.
+
+        Args:
+            k: Force constant (default: 1.0)
+        """
+        self.k = k
+
+    def get_forces(self, atoms):
+        """Compute harmonic forces: F = -k * r.
+
+        Args:
+            atoms: Atoms object with positions
+
+        Returns
+        -------
+        np.ndarray
+            Forces array.
+
+        """
+        forces = -self.k * atoms.positions
+        return forces
+
+    def get_hessian(self, atoms=None):
+        """Compute analytical harmonic Hessian: H = k * I.
+
+        Args:
+            atoms: Atoms object (optional, uses self.atoms if None)
+
+        Returns
+        -------
+        np.ndarray
+            Analytical Hessian matrix.
+
+        """
+        if atoms is None:
+            atoms = self.atoms
+        n_atoms = len(atoms)
+        n_coords = 3 * n_atoms
+        hessian = self.k * np.eye(n_coords)
+        return hessian
+
+    def get_potential_energy(self, atoms=None, force_consistent=False):
+        """Compute harmonic potential energy.
+
+        Args:
+            atoms: Atoms object (optional, uses self.atoms if None)
+            force_consistent: Whether to use force-consistent energy (ignored)
+
+        Returns
+        -------
+        float
+            Potential energy.
+
+        """
+        if atoms is None:
+            atoms = self.atoms
+
+        positions = atoms.positions
+        energy = 0.5 * self.k * np.sum(positions**2)
+        return float(energy)

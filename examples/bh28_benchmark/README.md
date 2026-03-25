@@ -96,7 +96,7 @@ bh28_benchmark/
 
 - QME package installed
 - At least one ML backend (see [README](../../README.md))
-- SELLA optimizer recommended (`pip install sella`)
+- SELLA optimizer is included with QME (core dependency)
 - Python 3.10+
 
 ## Understanding Results

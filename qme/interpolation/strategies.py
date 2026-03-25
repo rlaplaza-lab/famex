@@ -13,8 +13,10 @@ Available strategies:
 """
 
 from abc import ABC, abstractmethod
+from typing import cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from qme.utils.logging import get_qme_logger
 
@@ -42,7 +44,7 @@ class InterpolationStrategy(ABC):
         npoints : int
             Number of interpolation points (including endpoints)
 
-        Returns:
+        Returns
         -------
         list[np.ndarray]
             List of interpolated coordinate arrays
@@ -293,7 +295,7 @@ class QuadraticInterpolation(InterpolationStrategy):
         # where offset creates a smooth curve
         linear = start + t * (end - start)
         offset = 0.1 * (end - start)  # Small offset for curvature
-        return linear + t * (1 - t) * offset
+        return cast(NDArray[np.floating], linear + t * (1 - t) * offset)
 
 
 class CubicSplineInterpolation(InterpolationStrategy):
@@ -354,7 +356,7 @@ class CubicSplineInterpolation(InterpolationStrategy):
 
 
 # Registry of available interpolation strategies
-INTERPOLATION_REGISTRY = {
+INTERPOLATION_REGISTRY: dict[str, type[InterpolationStrategy]] = {
     "linear": LinearInterpolation,
     "geodesic": GeodesicInterpolation,
     "idpp": IDPPInterpolation,
@@ -371,12 +373,12 @@ def get_interpolation_strategy(method: str) -> InterpolationStrategy:
     method : str
         Name of the interpolation method
 
-    Returns:
+    Returns
     -------
     InterpolationStrategy
         Interpolation strategy instance
 
-    Raises:
+    Raises
     ------
     ValueError
         If method is not recognized
@@ -391,6 +393,7 @@ def get_interpolation_strategy(method: str) -> InterpolationStrategy:
             msg,
         )
 
+    # All classes in registry are concrete implementations
     strategy_class = INTERPOLATION_REGISTRY[method_lower]
     return strategy_class()
 
@@ -398,7 +401,7 @@ def get_interpolation_strategy(method: str) -> InterpolationStrategy:
 def list_interpolation_methods() -> dict[str, str]:
     """List available interpolation methods and their descriptions.
 
-    Returns:
+    Returns
     -------
     dict[str, str]
         Dictionary mapping method names to descriptions

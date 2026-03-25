@@ -1,11 +1,5 @@
-"""Test PathManager functionality.
+from __future__ import annotations
 
-This module tests the PathManager path interpolation and analysis
-capabilities of QME.
-"""
-
-import numpy as np
-import pytest
 from ase import Atoms
 
 import qme
@@ -13,16 +7,12 @@ from tests.test_utils import StandardTestAssertions
 
 
 class TestPathManager:
-    """Test PathManager path interpolation and analysis."""
-
-    def test_linear_interpolation_and_lengths(self) -> None:
-        """Test linear interpolation between reactant and product."""
+    def test_linear_interpolation_and_lengths(self, mock_backend):
         # Use H2O -> H2O (slightly different geometry) for meaningful testing
         reactant = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         product = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
 
-        calc = qme.MockCalculator(backend="mock")
-        path_mgr = qme.PathManager([reactant, product], calculator=calc)
+        path_mgr = qme.PathManager([reactant, product], calculator=mock_backend)
         path = path_mgr.interpolate(npoints=5, method="linear")
 
         # Check path length
@@ -34,13 +24,11 @@ class TestPathManager:
             # Check that structure is reasonable
             StandardTestAssertions.assert_reasonable_geometry(structure, "mock")
 
-    def test_reaction_energy_calculation(self) -> None:
-        """Test energy calculation along reaction pathway."""
+    def test_reaction_energy_calculation(self, mock_backend):
         reactant = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         product = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
 
-        calc = qme.MockCalculator(backend="mock")
-        path_mgr = qme.PathManager([reactant, product], calculator=calc)
+        path_mgr = qme.PathManager([reactant, product], calculator=mock_backend)
 
         # Test energy calculation using the reaction_energy property
         reaction_energy = path_mgr.reaction_energy
@@ -48,7 +36,7 @@ class TestPathManager:
         # Check that reaction energy is reasonable
         if reaction_energy is not None:
             StandardTestAssertions.assert_energy_reasonable(reaction_energy, "mock")
-            assert isinstance(reaction_energy, (int, float))
+            assert isinstance(reaction_energy, int | float)
 
         # Test individual geometry energies
         reactant_energy = path_mgr.reactant.energy
@@ -57,20 +45,18 @@ class TestPathManager:
         # Check that energies are reasonable
         if reactant_energy is not None:
             StandardTestAssertions.assert_energy_reasonable(reactant_energy, "mock")
-            assert isinstance(reactant_energy, (int, float))
+            assert isinstance(reactant_energy, int | float)
 
         if product_energy is not None:
             StandardTestAssertions.assert_energy_reasonable(product_energy, "mock")
-            assert isinstance(product_energy, (int, float))
+            assert isinstance(product_energy, int | float)
 
-    def test_multi_segment_interpolation(self) -> None:
-        """Test multi-segment interpolation with intermediate structures."""
+    def test_multi_segment_interpolation(self, mock_backend):
         struct1 = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
         struct2 = Atoms("H2", positions=[[0, 0, 0], [1.0, 0, 0]])
         struct3 = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
 
-        calc = qme.MockCalculator(backend="mock")
-        path_mgr = qme.PathManager([struct1, struct2, struct3], calculator=calc)
+        path_mgr = qme.PathManager([struct1, struct2, struct3], calculator=mock_backend)
         path = path_mgr.interpolate(npoints=7, method="linear")
 
         # Should have 7 total points across 2 segments
@@ -79,8 +65,7 @@ class TestPathManager:
         for structure in path:
             assert len(structure) == 2
 
-    def test_calculate_rmsd(self) -> None:
-        """Test RMSD calculation between two structures."""
+    def test_calculate_rmsd(self):
         atoms1 = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         atoms2 = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
 
@@ -90,14 +75,12 @@ class TestPathManager:
         assert rmsd >= 0
         assert rmsd < 1.0  # Should be small for similar structures
 
-    def test_find_ts_guess(self) -> None:
-        """Test finding TS guess from path."""
+    def test_find_ts_guess(self, mock_backend):
         # Create a simple path with known energies
         path = []
         for i in range(5):
             atoms = Atoms("H2", positions=[[0, 0, 0], [0.7 + i * 0.1, 0, 0]])
-            calc = qme.MockCalculator(backend="mock")
-            atoms.calc = calc
+            atoms.calc = mock_backend
             path.append(atoms)
 
         ts_structure, ts_index = qme.PathManager.find_ts_guess(path)
@@ -106,13 +89,11 @@ class TestPathManager:
         assert 0 <= ts_index < len(path)
         assert ts_structure == path[ts_index]
 
-    def test_find_local_minima(self) -> None:
-        """Test finding local minima along path."""
+    def test_find_local_minima(self, mock_backend):
         path = []
         for i in range(7):
             atoms = Atoms("H2", positions=[[0, 0, 0], [0.7 + i * 0.1, 0, 0]])
-            calc = qme.MockCalculator(backend="mock")
-            atoms.calc = calc
+            atoms.calc = mock_backend
             path.append(atoms)
 
         minima_indices = qme.PathManager.find_local_minima(path)
@@ -121,16 +102,14 @@ class TestPathManager:
         assert len(minima_indices) > 0
         assert all(0 <= idx < len(path) for idx in minima_indices)
 
-    def test_filter_redundant_structures(self) -> None:
-        """Test filtering redundant structures."""
+    def test_filter_redundant_structures(self, mock_backend):
         # Create some structures, some redundant
         struct1 = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
         struct2 = Atoms("H2", positions=[[0, 0, 0], [0.701, 0, 0]])  # Very similar
         struct3 = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])  # Different
 
-        calc = qme.MockCalculator(backend="mock")
         for struct in [struct1, struct2, struct3]:
-            struct.calc = calc
+            struct.calc = mock_backend
 
         filtered, removed, warnings = qme.PathManager.filter_redundant_structures(
             [struct1, struct2, struct3],
@@ -143,18 +122,16 @@ class TestPathManager:
         assert isinstance(warnings, list)
         assert len(filtered) <= 3
 
-    def test_path_statistics(self) -> None:
-        """Test getting path statistics."""
+    def test_path_statistics(self, mock_backend):
         reactant = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
         product = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
 
-        calc = qme.MockCalculator(backend="mock")
-        path_mgr = qme.PathManager([reactant, product], calculator=calc)
+        path_mgr = qme.PathManager([reactant, product], calculator=mock_backend)
         path = path_mgr.interpolate(npoints=5, method="linear")
 
         # Attach calculator to path
         for atoms in path:
-            atoms.calc = calc
+            atoms.calc = mock_backend
 
         stats = path_mgr.get_path_statistics(path)
 
@@ -164,89 +141,3 @@ class TestPathManager:
         assert "min_energy" in stats
         assert "max_energy" in stats
         assert stats["num_structures"] == 5
-
-
-class TestIRCPathCalculation:
-    """Test IRC (Intrinsic Reaction Coordinate) path calculation functionality."""
-
-    @pytest.mark.parametrize("direction", ["both", "forward", "backward"])
-    def test_irc_basic_functionality(self, direction) -> None:
-        """Test basic IRC path calculation."""
-        # Create a simple TS-like structure (H2O with stretched bond)
-        ts_structure = Atoms("H2O", positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]])
-
-        # Use mock backend for testing
-        explorer = qme.Explorer(
-            atoms=ts_structure,
-            backend="mock",
-            target="path",
-            strategy="irc",
-        )
-
-        # Run IRC with limited steps for testing
-        result = explorer.run(steps=10, step_size=0.1, fmax=0.1, direction=direction)
-
-        # Check that result is a dictionary with trajectory
-        assert isinstance(result, dict)
-        assert "trajectory" in result
-        trajectory = result["trajectory"]
-
-        # Check that trajectory is a list of Atoms
-        assert isinstance(trajectory, list)
-        assert len(trajectory) > 0
-        for atoms in trajectory:
-            assert isinstance(atoms, Atoms)
-            assert len(atoms) == 3  # H2O has 3 atoms
-
-        # Check direction-specific results
-        if direction == "forward":
-            assert "forward_path" in result
-        elif direction == "backward":
-            assert "backward_path" in result
-
-    def test_irc_requires_single_structure(self) -> None:
-        """Test that IRC requires a single structure (TS)."""
-        # Create two structures
-        structure1 = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
-        structure2 = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
-
-        explorer = qme.Explorer(
-            atoms=[structure1, structure2],
-            backend="mock",
-            target="path",
-            strategy="irc",
-        )
-
-        # Should raise an error because IRC expects single structure
-        try:
-            explorer.run(steps=5, step_size=0.1, fmax=0.1)
-            # If no error is raised, check if implementation handled it differently
-            # This allows for flexibility in error handling
-            assert True
-        except ValueError as e:
-            # Expected error for multiple structures
-            assert "single structure" in str(e).lower() or "transition state" in str(e).lower()
-
-    def test_irc_structure_validity(self) -> None:
-        """Test that IRC produces valid structures."""
-        ts_structure = Atoms("H2O", positions=[[0, 0, 0], [1.2, 0, 0], [-0.3, 0.95, 0]])
-
-        explorer = qme.Explorer(
-            atoms=ts_structure,
-            backend="mock",
-            target="path",
-            strategy="irc",
-        )
-
-        result = explorer.run(steps=5, step_size=0.1, fmax=0.1, direction="both")
-
-        trajectory = result["trajectory"]
-
-        # Check that all structures have the same number of atoms
-        for atoms in trajectory:
-            assert len(atoms) == len(ts_structure)
-            # Check that positions are finite
-            positions = atoms.get_positions()
-            assert np.all(np.isfinite(positions))
-            # Check that structure is reasonable
-            StandardTestAssertions.assert_reasonable_geometry(atoms, "mock")

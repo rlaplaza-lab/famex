@@ -1,5 +1,7 @@
 """Multi-structure TS guess strategy via interpolation with local TS refinement."""
 
+from __future__ import annotations
+
 from typing import Any
 
 from ase import Atoms
@@ -7,8 +9,11 @@ from ase import Atoms
 from qme.core.base_strategy import BaseStrategy, StrategyMetadata
 from qme.core.registry import REGISTRY
 from qme.io.path_manager import PathManager
-from qme.strategies.helpers import validate_ts_structure
+from qme.strategies.helpers import filter_interpolation_kwargs, validate_ts_structure
 from qme.strategies.ts import LocalTSStrategy
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 class MultiStructureTSGuessStrategy(BaseStrategy):
@@ -32,7 +37,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         steps: int = 1000,
         validate_ts: bool = False,
         calculate_frequencies: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """Run multi-structure TS guess via interpolation.
 
@@ -55,7 +60,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         **kwargs
             Additional keyword arguments
 
-        Returns:
+        Returns
         -------
         dict[str, Any]
             Standardized result dictionary
@@ -68,11 +73,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         # Generate interpolated path using PathManager
         path_mgr = PathManager(atoms_list)
         # Filter kwargs to only include parameters accepted by PathManager.interpolate
-        interpolate_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k in ["calculator"]  # Only pass calculator if present
-        }
+        interpolate_kwargs = filter_interpolation_kwargs(kwargs, allowed_keys={"calculator"})
         path = path_mgr.interpolate(
             npoints=npoints,
             method=method,
@@ -93,7 +94,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         # Remove local_optimizer_name from kwargs to avoid duplicate argument
         ts_kwargs = {k: v for k, v in kwargs.items() if k != "local_optimizer_name"}
         ts_result = ts_strategy.run(
-            ts_guess,
+            [ts_guess],  # LocalTSStrategy expects list[Atoms]
             fmax=fmax,
             steps=steps,
             local_optimizer_name=local_optimizer_name,
@@ -103,15 +104,36 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
 
         # Validate TS structure if requested
         validation_result = None
+        optimized_atoms = ts_result["optimized_atoms"]
         if validate_ts:
-            validation_result = validate_ts_structure(ts_result["optimized_atoms"], self.explorer)
+            # Type narrowing: validate_ts_structure expects Atoms
+            if isinstance(optimized_atoms, Atoms):
+                validation_result = validate_ts_structure(optimized_atoms, self.explorer)
 
         # Return single TS structure
-        result = self.prepare_result(
-            ts_result["optimized_atoms"],
-            steps_taken=ts_result["steps_taken"],
-            converged=ts_result["converged"],
-        )
+        # Type narrowing: prepare_result expects Atoms | Sequence[Atoms]
+        if isinstance(optimized_atoms, Atoms) or (
+            isinstance(optimized_atoms, list) and all(isinstance(a, Atoms) for a in optimized_atoms)
+        ):
+            result = self.prepare_result(
+                optimized_atoms,
+                steps_taken=ts_result["steps_taken"],
+                converged=ts_result["converged"],
+            )
+        else:
+            # Fallback: create result with original structure
+            from qme.core.base_strategy import BaseStrategy
+
+            result = BaseStrategy.prepare_result(
+                self,
+                (
+                    optimized_atoms
+                    if isinstance(optimized_atoms, Atoms | list)
+                    else self.explorer.atoms_list[0]
+                ),
+                steps_taken=ts_result["steps_taken"],
+                converged=ts_result["converged"],
+            )
         if validation_result is not None:
             result["ts_validation"] = validation_result
         # Pass through frequency analysis results if available

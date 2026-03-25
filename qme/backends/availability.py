@@ -9,7 +9,7 @@ convenience functions for logging and user-friendly interfaces.
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from qme.backends.constants import (
     ALL_BACKENDS,
@@ -17,16 +17,10 @@ from qme.backends.constants import (
     BACKEND_MACE,
     BACKEND_MOCK,
     BACKEND_SO3LR,
-    BACKEND_TORCHSIM_MACE,
-    BACKEND_TORCHSIM_UMA,
     BACKEND_UMA,
     ML_BACKENDS,
-    TORCHSIM_BACKENDS,
 )
 from qme.backends.dependencies import deps
-
-if TYPE_CHECKING:
-    pass
 
 
 # Import logger only when needed to avoid circular imports
@@ -45,7 +39,8 @@ def _get_logger() -> Any:
 def _check_e3nn_conflict() -> str | None:
     """Check for e3nn version conflicts between MACE and FairChem.
 
-    Returns:
+    Returns
+    -------
         Error message if conflict detected, None otherwise
 
     """
@@ -69,38 +64,6 @@ def _check_e3nn_conflict() -> str | None:
     return None
 
 
-def _check_torchsim_fairchem_conflict() -> str | None:
-    """Check for TorchSim-FairChem API compatibility.
-
-    Returns:
-        Error message if conflict detected, None otherwise
-
-    """
-    if not (deps.has("torch_sim") and deps.has("fairchem")):
-        return None
-
-    # Fast check: TorchSim expects load_config/update_config in fairchem.core.common.utils
-    # These functions were removed in FairChem 2.x, so if we have FairChem 2.x, there's a conflict
-    try:
-        import fairchem.core
-
-        version = getattr(fairchem.core, "__version__", "0.0.0")
-        if version.startswith("2."):
-            return (
-                "TorchSim-FairChem API incompatibility: TorchSim expects "
-                "load_config/update_config functions not available in FairChem 2.x"
-            )
-        # If it's not version 2.x, assume it's compatible (avoid expensive checks)
-        return None
-    except (ImportError, AttributeError):
-        # If we can't determine the version, assume there's a conflict
-        # (this is safer and avoids expensive imports)
-        return (
-            "TorchSim-FairChem API incompatibility: Cannot determine FairChem version, "
-            "likely missing load_config/update_config functions"
-        )
-
-
 class BackendAvailabilityChecker:
     """Fast, dependency-based backend availability checker."""
 
@@ -112,26 +75,24 @@ class BackendAvailabilityChecker:
         # Centralized requirements mapping
         self._requirements = {
             BACKEND_MOCK: [],
-            BACKEND_AIMNET2: ["aimnet2"],  # Use backend name, deps.has() will handle the mapping
+            # AIMNet2 is bundled (TorchScript model in repo). It only requires torch.
+            # Neighbor list generation has a NumPy fallback, so torch-cluster is optional.
+            BACKEND_AIMNET2: ["torch"],
             BACKEND_UMA: ["fairchem", "torch"],
             BACKEND_SO3LR: ["so3lr"],
             BACKEND_MACE: ["mace", "torch"],
             "orb": ["orb_models", "torch"],
             "tblite": ["tblite"],
-            BACKEND_TORCHSIM_MACE: ["torch_sim", "torch"],
-            BACKEND_TORCHSIM_UMA: ["torch_sim", "torch", "fairchem"],
         }
 
         # Human-readable package names for error messages
         self._package_names = {
-            BACKEND_AIMNET2: ["torch", "torch-cluster"],
+            BACKEND_AIMNET2: ["torch"],
             BACKEND_UMA: ["fairchem-core", "torch"],
             BACKEND_SO3LR: ["so3lr"],
             BACKEND_MACE: ["mace-torch", "torch"],
             "orb": ["orb-models", "torch"],
             "tblite": ["tblite"],
-            BACKEND_TORCHSIM_MACE: ["torch-sim-atomistic", "torch"],
-            BACKEND_TORCHSIM_UMA: ["torch-sim-atomistic", "torch", "fairchem-core"],
         }
 
     def _check_basic_dependencies(self, backend: str) -> bool:
@@ -156,11 +117,6 @@ class BackendAvailabilityChecker:
                 import mace.calculators  # noqa: F401
 
                 return None
-            if backend in [BACKEND_TORCHSIM_MACE, BACKEND_TORCHSIM_UMA]:
-                # Check TorchSim imports
-                import torch_sim  # noqa: F401
-
-                return None
             return None  # No import error
         except ImportError as e:
             return f"Import error: {e}"
@@ -172,10 +128,8 @@ class BackendAvailabilityChecker:
 
         conflict = None
 
-        if backend in [BACKEND_MACE, BACKEND_TORCHSIM_MACE]:
+        if backend == BACKEND_MACE:
             conflict = _check_e3nn_conflict()
-        elif backend == BACKEND_TORCHSIM_UMA:
-            conflict = _check_torchsim_fairchem_conflict()
 
         self._conflict_cache[backend] = conflict
         return conflict
@@ -277,21 +231,20 @@ def get_backend_error_message(backend: str) -> str:
     Args:
         backend: Backend name
 
-    Returns:
+    Returns
+    -------
         str: Human-readable error message with installation instructions
 
     """
     reason = get_availability_reason(backend)
 
     install_commands = {
-        BACKEND_AIMNET2: "pip install torch torch-cluster",
+        BACKEND_AIMNET2: "pip install torch",
         BACKEND_UMA: "pip install fairchem-core",
         BACKEND_MACE: "pip install mace-torch",
         BACKEND_SO3LR: "pip install so3lr",
         "orb": "pip install orb-models",
         "tblite": "pip install tblite",
-        BACKEND_TORCHSIM_MACE: "pip install torch-sim-atomistic",
-        BACKEND_TORCHSIM_UMA: "pip install torch-sim-atomistic",
     }
 
     cmd = install_commands.get(backend, f"pip install {backend}")
@@ -302,30 +255,24 @@ def get_backend_error_message(backend: str) -> str:
 # Extended convenience functions with logging (from utils/backend_utils.py)
 def get_available_backends_with_logging(
     include_mock: bool = True,
-    include_torchsim: bool = True,
     verbose: bool = False,
 ) -> list[str]:
     """Get list of backends that are actually available in the current environment.
 
     Args:
         include_mock: Whether to include the mock backend
-        include_torchsim: Whether to include TorchSim backends
         verbose: Whether to print availability status for each backend
 
-    Returns:
+    Returns
+    -------
         List of available backend names
 
     """
     available = get_available_backends(include_mock=include_mock)
 
-    if not include_torchsim:
-        available = [b for b in available if b not in TORCHSIM_BACKENDS]
-
     if verbose:
         logger = _get_logger()
         backends_to_check = ALL_BACKENDS if include_mock else ML_BACKENDS
-        if not include_torchsim:
-            backends_to_check = [b for b in backends_to_check if b not in TORCHSIM_BACKENDS]
 
         for backend in backends_to_check:
             is_available = backend in available
@@ -338,28 +285,12 @@ def get_available_backends_with_logging(
     return available
 
 
-def get_available_ml_backends(include_torchsim: bool = True, verbose: bool = False) -> list[str]:
+def get_available_ml_backends(verbose: bool = False) -> list[str]:
     """Get list of ML backends that are available (excludes mock)."""
     return get_available_backends_with_logging(
         include_mock=False,
-        include_torchsim=include_torchsim,
         verbose=verbose,
     )
-
-
-def get_available_torchsim_backends(verbose: bool = False) -> list[str]:
-    """Get list of TorchSim backends that are available."""
-    available = []
-    logger = _get_logger()
-
-    for backend in TORCHSIM_BACKENDS:
-        if is_backend_available(backend):
-            available.append(backend)
-            if verbose:
-                logger.info("  ✅ %s", backend)
-        elif verbose:
-            logger.info("  ❌ %s (dependencies missing or incompatible)", backend)
-    return available
 
 
 def filter_available_backends(requested_backends: list[str], verbose: bool = False) -> list[str]:
@@ -369,7 +300,8 @@ def filter_available_backends(requested_backends: list[str], verbose: bool = Fal
         requested_backends: List of backend names to check
         verbose: Whether to print status messages
 
-    Returns:
+    Returns
+    -------
         List of available backends from the requested list
 
     """
@@ -398,7 +330,8 @@ def validate_backends(requested_backends: list[str]) -> tuple[list[str], list[st
     Args:
         requested_backends: List of backend names to validate
 
-    Returns:
+    Returns
+    -------
         Tuple of (available_backends, invalid_backends)
 
     """
@@ -422,10 +355,12 @@ def require_ml_backends(min_count: int = 1) -> list[str]:
     Args:
         min_count: Minimum number of ML backends required
 
-    Returns:
+    Returns
+    -------
         List of available ML backends
 
-    Raises:
+    Raises
+    ------
         SystemExit: If insufficient ML backends are available
 
     """
@@ -439,9 +374,8 @@ def require_ml_backends(min_count: int = 1) -> list[str]:
         logger.info("Please install additional ML backends:")
         logger.info("  - UMA: pip install fairchem-core")
         logger.info("  - MACE: pip install mace-torch")
-        logger.info("  - AIMNet2: pip install aimnet2")
+        logger.info("  - AIMNet2: pip install torch")
         logger.info("  - SO3LR: pip install so3lr")
-        logger.info("  - TorchSim: pip install torch-sim-atomistic (Python 3.11+)")
         sys.exit(1)
 
     return available
@@ -459,15 +393,12 @@ def print_backend_summary(backends: list[str], title: str = "Backend Summary") -
 
     # Categorize backends
     mock_backends = [b for b in backends if b == "mock"]
-    ml_backends = [b for b in backends if b in ML_BACKENDS and b not in TORCHSIM_BACKENDS]
-    torchsim_backends = [b for b in backends if b in TORCHSIM_BACKENDS]
+    ml_backends = [b for b in backends if b in ML_BACKENDS]
 
     if mock_backends:
         logger.info("Mock: %s", ", ".join(mock_backends))
     if ml_backends:
         logger.info("ML: %s", ", ".join(ml_backends))
-    if torchsim_backends:
-        logger.info("TorchSim: %s", ", ".join(torchsim_backends))
 
     logger.info("Total: %d backend(s)", len(backends))
 
@@ -522,21 +453,13 @@ def require_any_backend(backends: list[str]) -> list[str] | None:
 
 
 def get_backend_pairs() -> list[tuple[str, str]]:
-    """Get pairs of (regular_backend, torchsim_backend) for comparison testing.
+    """Get pairs of backends for comparison testing.
 
-    Returns:
-        List of tuples like [("mace", "torchsim_mace"), ("uma", "torchsim_uma")]
-        Only includes pairs where both backends are available.
+    Returns
+    -------
+        List of tuples of (backend1, backend2) pairs where both backends are available.
+        Currently returns an empty list as there are no defined pairs.
 
     """
-    pairs = []
-
-    # Check MACE pair
-    if is_backend_available(BACKEND_MACE) and is_backend_available(BACKEND_TORCHSIM_MACE):
-        pairs.append((BACKEND_MACE, BACKEND_TORCHSIM_MACE))
-
-    # Check UMA pair
-    if is_backend_available(BACKEND_UMA) and is_backend_available(BACKEND_TORCHSIM_UMA):
-        pairs.append((BACKEND_UMA, BACKEND_TORCHSIM_UMA))
-
-    return pairs
+    # No backend pairs defined currently
+    return []

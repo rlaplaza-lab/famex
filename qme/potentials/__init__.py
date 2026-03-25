@@ -19,9 +19,6 @@ __all__ = [
     "get_orb_calculator",
     "get_so3lr_calculator",
     "get_tblite_calculator",
-    "get_torchsim_calculator",
-    "get_torchsim_mace_calculator",
-    "get_torchsim_uma_calculator",
     "get_uma_calculator",
 ]
 
@@ -53,8 +50,6 @@ from qme.backends.constants import (
     BACKEND_ORB,
     BACKEND_SO3LR,
     BACKEND_TBLITE,
-    BACKEND_TORCHSIM_MACE,
-    BACKEND_TORCHSIM_UMA,
     BACKEND_UMA,
 )
 
@@ -65,13 +60,11 @@ _BACKEND_MODULES = {
     BACKEND_MACE: ("qme.potentials.mace_potential", "MACEPotential"),
     BACKEND_ORB: ("qme.potentials.orb_potential", "OrbPotential"),
     BACKEND_TBLITE: ("qme.potentials.tblite_potential", "TBLitePotential"),
-    BACKEND_TORCHSIM_MACE: ("qme.potentials.torchsim_potential", "get_torchsim_mace_calculator"),
-    BACKEND_TORCHSIM_UMA: ("qme.potentials.torchsim_potential", "get_torchsim_uma_calculator"),
 }
 
 
 def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
-    """Generic calculator factory function.
+    """Create a generic calculator factory function.
 
     Parameters
     ----------
@@ -80,11 +73,11 @@ def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
     **kwargs
         Arguments passed to the calculator constructor
 
-    Returns:
+    Returns
     -------
     Calculator instance
 
-    Raises:
+    Raises
     ------
     ImportError
         If backend is not available or cannot be imported
@@ -110,14 +103,12 @@ def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
     except ImportError as e:
         # Provide helpful error messages for common backends
         error_messages = {
-            "uma": f"Failed to import UMA backend: {e}. This may be due to missing FairChem dependencies or version conflicts. Try: pip install qme-ml[uma]",
+            "uma": f"Failed to import UMA backend: {e}. This may be due to missing FairChem dependencies or version conflicts. Try: pip install fairchem-core",
             "so3lr": f"Failed to import SO3LR backend: {e}. SO3LR requires JAX and must be installed separately from source. See the QME documentation for SO3LR installation instructions.",
-            "aimnet2": f"Failed to import AIMNet2 backend: {e}. AIMNet2 requires PyTorch and torch-cluster. Try: pip install qme-ml[aimnet2]",
-            "mace": f"Failed to import MACE backend: {e}. MACE requires PyTorch and mace-torch. Note: MACE cannot be installed with UMA due to e3nn version conflicts. Try: pip install qme-ml[mace]",
-            "orb": f"Failed to import Orb backend: {e}. Orb requires orb-models and PyTorch. Note: orb-models is a large package and may have compatibility issues. Try: pip install qme-ml[orb]",
-            "tblite": f"Failed to import TBLite backend: {e}. TBLite requires the tblite package. Try: pip install qme-ml[tblite]",
-            "torchsim_mace": f"Failed to import TorchSim MACE calculator: {e}. TorchSim MACE requires both MACE and TorchSim to be available. Try: pip install qme-ml[torchsim] (note: MACE conflicts with UMA)",
-            "torchsim_uma": f"Failed to import TorchSim UMA calculator: {e}. TorchSim UMA requires both UMA and TorchSim to be available. Try: pip install qme-ml[torchsim,uma]",
+            "aimnet2": f"Failed to import AIMNet2 backend: {e}. AIMNet2 requires PyTorch. Try: pip install torch",
+            "mace": f"Failed to import MACE backend: {e}. MACE requires PyTorch and mace-torch. Note: MACE cannot be installed with UMA due to e3nn version conflicts. Try: pip install mace-torch",
+            "orb": f"Failed to import Orb backend: {e}. Orb requires orb-models and PyTorch. Note: orb-models is a large package and may have compatibility issues. Try: pip install orb-models",
+            "tblite": f"Failed to import TBLite backend: {e}. TBLite requires the tblite package. Try: pip install tblite",
         }
 
         msg = error_messages.get(backend, f"Failed to import {backend} backend: {e}")
@@ -153,18 +144,3 @@ def get_orb_calculator(**kwargs: Any) -> Any:
 def get_tblite_calculator(**kwargs: Any) -> Any:
     """Get TBLite calculator."""
     return _get_calculator_generic("tblite", **kwargs)
-
-
-def get_torchsim_calculator(**kwargs: Any) -> Any:
-    """Get TorchSim calculator (default MACE backend)."""
-    return _get_calculator_generic("torchsim_mace", **kwargs)
-
-
-def get_torchsim_mace_calculator(**kwargs: Any) -> Any:
-    """Get TorchSim calculator with MACE backend."""
-    return _get_calculator_generic("torchsim_mace", **kwargs)
-
-
-def get_torchsim_uma_calculator(**kwargs: Any) -> Any:
-    """Get TorchSim calculator with UMA backend."""
-    return _get_calculator_generic("torchsim_uma", **kwargs)

@@ -13,11 +13,14 @@ from ase.calculators.calculator import all_changes
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+from qme.utils.logging import get_qme_logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from ase import Atoms
+
+logger = get_qme_logger(__name__)
 
 
 class SO3LRPotential(BasePotential):
@@ -64,7 +67,7 @@ class SO3LRPotential(BasePotential):
 
         # SO3LR-specific attributes
         # Standard backend attribute used by BasePotential helpers
-        self._calc = None
+        self._calc: Any | None = None
 
         # Initialize base class (this will call _load_calculator)
         super().__init__(model_name=model_name, device=device, **kwargs)
@@ -72,8 +75,9 @@ class SO3LRPotential(BasePotential):
     def _load_calculator(self) -> None:
         """Load the SO3LR ASE calculator."""
         # Skip if already loaded
-        if hasattr(self, "_calc") and self._calc is not None:
+        if self._calc is not None:
             return
+        # After this point, we know _calc is None, so we need to load it
 
         from qme.utils.ml_warnings import quiet_backend_loading
 
@@ -88,6 +92,7 @@ class SO3LRPotential(BasePotential):
             # Get SO3LR module
             so3lr = deps.get("so3lr")
             if so3lr is None:
+                logger.error("SO3LR module not available")
                 msg = "SO3LR module not available"
                 raise RuntimeError(msg)
 
@@ -120,21 +125,25 @@ class SO3LRPotential(BasePotential):
         # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
-
-        # Use the underlying calculator directly
+        # After _load_calculator() returns without exception, _calc is guaranteed to be set
+        assert self._calc is not None
+        # External library call can raise exceptions even with valid object:
+        # RuntimeError may occur due to calculation failures (convergence, numerical issues, etc.)
         self._calc.calculate(atoms, properties, system_changes)
 
         # Extract results from the underlying calculator
         if properties is not None and "energy" in properties:
-            try:
-                self.results["energy"] = self._calc.results["energy"]
-            except Exception:
+            results = getattr(self._calc, "results", None)
+            if isinstance(results, dict):
+                self.results["energy"] = results.get("energy", self.results.get("energy"))
+            else:
                 self.results["energy"] = self.results.get("energy")
 
         if properties is not None and "forces" in properties:
-            try:
-                self.results["forces"] = self._calc.results["forces"]
-            except Exception:
+            results = getattr(self._calc, "results", None)
+            if isinstance(results, dict):
+                self.results["forces"] = results.get("forces", self.results.get("forces"))
+            else:
                 self.results["forces"] = self.results.get("forces")
 
     def get_potential_energy(
@@ -166,7 +175,7 @@ def get_so3lr_calculator(
     device: str | None = None,
     **kwargs: Any,
 ) -> SO3LRPotential:
-    """Convenience function to get SO3LR calculator.
+    """Get SO3LR calculator.
 
     Parameters
     ----------
@@ -179,7 +188,7 @@ def get_so3lr_calculator(
     **kwargs :
         Additional arguments passed to SO3LRPotential
 
-    Returns:
+    Returns
     -------
     SO3LRPotential
         Configured SO3LR calculator

@@ -12,7 +12,6 @@ from qme.backends.availability import (
     get_available_backends,
     get_available_backends_with_logging,
     get_available_ml_backends,
-    get_available_torchsim_backends,
     get_backend_error_message,
     get_backend_pairs,
     is_backend_available,
@@ -38,12 +37,9 @@ from qme.backends.constants import (
     BACKEND_ORB,
     BACKEND_SO3LR,
     BACKEND_TBLITE,
-    BACKEND_TORCHSIM_MACE,
-    BACKEND_TORCHSIM_UMA,
     BACKEND_UMA,
     ML_BACKENDS,
     REGULAR_BACKENDS,
-    TORCHSIM_BACKENDS,
 )
 from qme.backends.dependencies import deps
 from qme.backends.registry import CalculatorRegistry, calculator_registry, create_calculator
@@ -54,7 +50,6 @@ __all__ = [
     "get_available_backends",
     "get_available_backends_with_logging",
     "get_available_ml_backends",
-    "get_available_torchsim_backends",
     "get_availability_reason",
     "get_backend_error_message",
     "clear_availability_cache",
@@ -81,7 +76,6 @@ __all__ = [
     # Constants
     "ALL_BACKENDS",
     "ML_BACKENDS",
-    "TORCHSIM_BACKENDS",
     "REGULAR_BACKENDS",
     "BACKEND_MOCK",
     "BACKEND_AIMNET2",
@@ -90,6 +84,4 @@ __all__ = [
     "BACKEND_SO3LR",
     "BACKEND_ORB",
     "BACKEND_TBLITE",
-    "BACKEND_TORCHSIM_MACE",
-    "BACKEND_TORCHSIM_UMA",
 ]

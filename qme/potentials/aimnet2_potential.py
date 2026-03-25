@@ -7,16 +7,28 @@ based on the AIMNet2 repository implementation.
 from __future__ import annotations
 
 import os
-from typing import Any
+from collections.abc import Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import requests
 from ase.calculators.calculator import all_changes
-from torch_cluster import radius_graph
+
+try:
+    # Optional dependency. We can fall back to a NumPy neighbor list when
+    # torch_cluster is unavailable or its CUDA kernels are incompatible.
+    from torch_cluster import radius_graph  # type: ignore
+except Exception:  # pragma: no cover
+    radius_graph = None
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
 from qme.utils.logging import get_qme_logger
+from qme.utils.path_security import PathSecurityError, is_safe_relative_path, validate_safe_path
+
+if TYPE_CHECKING:
+    from ase import Atoms
 
 logger = get_qme_logger(__name__)
 
@@ -60,20 +72,33 @@ def get_model_path(model_name: str) -> str:
     model_name : str
         Name of the model or path to model file
 
-    Returns:
+    Returns
     -------
     str
         Path to the model file
 
-    Notes:
+    Notes
     -----
     If model_name is a file path, returns it directly. Otherwise, looks up
     the model in the registry and downloads it if necessary.
 
     """
-    from qme.potentials.model_cache import (
-        download_and_cache_model,  # type: ignore[import-not-found]
-    )
+    try:
+        from qme.potentials.model_cache import (  # type: ignore[import-not-found]
+            download_and_cache_model,
+        )
+    except ImportError:
+        download_and_cache_model = None
+
+    # Security check: reject path traversal attempts and absolute paths
+    if not is_safe_relative_path(model_name):
+        if os.path.isabs(model_name):
+            msg = f"Absolute paths not allowed for model: {model_name}"
+            raise PathSecurityError(msg)
+        # Check for path traversal patterns
+        if ".." in model_name or "~" in model_name:
+            msg = f"Unsafe model path detected (path traversal attempt): {model_name}"
+            raise PathSecurityError(msg)
 
     # Direct file path
     if os.path.isfile(model_name):
@@ -88,44 +113,74 @@ def get_model_path(model_name: str) -> str:
         model_path = model_path + ".jpt"
 
     # Try to use cached model first
-    try:
-        model_url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
-        cached_path = download_and_cache_model(model_name, model_url)
-        return str(cached_path)
-    except Exception as e:
-        # Fallback to old behavior if caching fails
-        logger.debug(f"Model caching failed, using fallback: {e}")
-
-        # Create local assets directory
-        assets_dir = os.path.join(os.path.dirname(__file__), "assets")
-        model_dir = os.path.dirname(model_path)
-        if model_dir:
-            os.makedirs(os.path.join(assets_dir, model_dir), exist_ok=True)
-
-        local_path = os.path.join(assets_dir, model_path)
-
-        if os.path.isfile(local_path):
-            logger.info(f"Found model file: {local_path}")
-            return local_path
-
-        # Download from model zoo
-        url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
-        logger.info(f"Downloading model from {url}")
-
+    if download_and_cache_model is not None:
         try:
-            response = requests.get(url)
-            response.raise_for_status()
+            model_url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
+            cached_path = download_and_cache_model(model_name, model_url)
+            return str(cached_path)
+        except (OSError, ValueError, TypeError) as e:
+            # File system/cache errors during caching - fallback to old behavior
+            logger.debug(f"Model caching failed, using fallback: {e}")
 
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            with open(local_path, "wb") as f:
-                f.write(response.content)
+    # Create local assets directory (fallback behavior)
+    assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+    assets_dir_path = Path(assets_dir)
 
-            logger.info(f"Saved to {local_path}")
-            return local_path
+    # SECURITY: Validate model_path doesn't escape assets directory
+    # Resolve relative to assets_dir to prevent path traversal
+    try:
+        local_path = validate_safe_path(
+            assets_dir_path / model_path,
+            base_dir=assets_dir_path,
+            must_exist=False,
+            allow_absolute=False,
+        )
+    except Exception as e:
+        msg = f"Invalid model path {model_path}: {e}"
+        raise RuntimeError(msg) from e
 
-        except Exception as e:
-            msg = f"Failed to download model {model_name}: {e}"
-            raise RuntimeError(msg)
+    # Create parent directory if needed
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if local_path.is_file():
+        logger.info(f"Found model file: {local_path}")
+        return str(local_path)
+
+    # Download from model zoo
+    url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
+    logger.info(f"Downloading model from {url}")
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+
+        with open(local_path, "wb") as f:
+            f.write(response.content)
+
+        logger.info(f"Saved to {local_path}")
+        return str(local_path)
+
+    except requests.RequestException as e:
+        # Network errors (connection, timeout, HTTP errors)
+        msg = (
+            f"Failed to download model {model_name}: network error. "
+            f"Error: {e}. Check your internet connection and the model URL."
+        )
+        raise RuntimeError(msg) from e
+    except OSError as e:
+        # File system errors (permissions, disk space, etc.)
+        msg = (
+            f"Failed to download model {model_name}: file system error. "
+            f"Error: {e}. Check file permissions and available disk space."
+        )
+        raise RuntimeError(msg) from e
+    except (ValueError, TypeError) as e:
+        # Data format or configuration errors
+        msg = (
+            f"Failed to download model {model_name}: invalid data format. "
+            f"Error: {e}. The downloaded model may be corrupted."
+        )
+        raise RuntimeError(msg) from e
 
 
 def sparse_nb_to_dense_half(idx: np.ndarray, natom: int, max_nb: int) -> np.ndarray:
@@ -144,6 +199,8 @@ def sparse_nb_to_dense_half(idx: np.ndarray, natom: int, max_nb: int) -> np.ndar
 
 def nblist_torch_cluster(coord: Any, cutoff: float, mol_idx: Any = None, max_nb: int = 256) -> Any:
     """Generate neighbor list using torch_cluster (from aimnet2calc)."""
+    if radius_graph is None:
+        raise ImportError("torch_cluster is not available")
     device = coord.device
     assert coord.ndim == 2, f"Expected 2D tensor for coord, got {coord.ndim}D"
     assert coord.shape[0] < 2147483646, "Too many atoms, max supported is 2147483646"
@@ -199,6 +256,8 @@ def generate_neighbor_list_torch_cluster(
     coord: Any, cutoff: float, mol_idx: Any = None, max_nb: int = 256
 ) -> Any:
     """Generate neighbor list using torch_cluster radius_graph."""
+    if radius_graph is None:
+        raise ImportError("torch_cluster is not available")
     device = coord.device
     max_num_neighbors = 0
 
@@ -226,7 +285,9 @@ def generate_neighbor_list_torch_cluster(
     return torch.as_tensor(dense_nb, device=device)
 
 
-def generate_neighbor_list_numpy(positions: np.ndarray, cutoff: float, max_neighbors: int = 128):
+def generate_neighbor_list_numpy(
+    positions: np.ndarray, cutoff: float, max_neighbors: int = 128
+) -> np.ndarray:
     """Fallback neighbor list generation using numpy."""
     n_atoms = len(positions)
 
@@ -289,6 +350,7 @@ class NativeAIMNet2Calculator:
         # State variables
         self._batch = None
         self._saved_for_grad: dict[str, Any] | None = None
+        self._warned_nbmat_fallback = False
 
     def to_input_tensors(self, data: dict[str, Any]) -> dict[str, Any]:
         """Convert input data to PyTorch tensors."""
@@ -319,23 +381,38 @@ class NativeAIMNet2Calculator:
 
     def make_nbmat(self, data: dict[str, Any]) -> dict[str, Any]:
         """Generate neighbor lists following AIMNet2 repo logic."""
-        # No PBC support in our implementation, so always use torch_cluster
+        # No PBC support in our implementation.
+        #
+        # IMPORTANT: AIMNet2 must work on very new GPUs where optional CUDA extensions
+        # (e.g., torch_cluster) may not ship compatible kernels yet. To keep the backend
+        # robust, we default to a pure-NumPy neighbor list (O(N^2), but small molecules
+        # make this fine for BH28). If torch_cluster is available and working, users can
+        # still benefit elsewhere, but we won't require it for correctness.
         if "nbmat" not in data:
-            data["nbmat"] = generate_neighbor_list_torch_cluster(
-                data["coord"],
-                self.cutoff,
-                data.get("mol_idx"),
-                max_nb=128,
+            coord_cpu = data["coord"].detach().cpu().numpy()
+            nbmat_np = generate_neighbor_list_numpy(
+                coord_cpu,
+                float(self.cutoff),
+                max_neighbors=128,
+            )
+            data["nbmat"] = torch.as_tensor(
+                nbmat_np,
+                device=self.device,
+                dtype=torch.int32,
             )
 
             # Generate long-range neighbor list if model has long-range capabilities
             if self.lr:
                 if "nbmat_lr" not in data:
-                    data["nbmat_lr"] = generate_neighbor_list_torch_cluster(
-                        data["coord"],
-                        self.cutoff_lr,
-                        data.get("mol_idx"),
-                        max_nb=1024,
+                    nbmat_lr_np = generate_neighbor_list_numpy(
+                        coord_cpu,
+                        float(self.cutoff_lr),
+                        max_neighbors=1024,
+                    )
+                    data["nbmat_lr"] = torch.as_tensor(
+                        nbmat_lr_np,
+                        device=self.device,
+                        dtype=torch.int32,
                     )
                 data["cutoff_lr"] = torch.tensor(self.cutoff_lr, device=self.device)
 
@@ -395,7 +472,7 @@ class NativeAIMNet2Calculator:
         forces : bool
             Whether to calculate forces
 
-        Returns:
+        Returns
         -------
         dict
             Results with 'energy' and optionally 'forces'
@@ -468,7 +545,7 @@ class AIMNet2Potential(BasePotential):
         device: str | None = None,
         charge: int = 0,
         mult: int = 1,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Initialize AIMNET2 potential calculator.
 
@@ -537,19 +614,39 @@ class AIMNet2Potential(BasePotential):
             ):
                 self._calc = NativeAIMNet2Calculator(model_path, device=self.device)
 
-        except Exception as e:
+        except ImportError as e:
+            # Missing dependencies
             msg = (
-                f"Failed to load AIMNET2 model '{self.model_name}'. "
-                f"Error: {e}. Please check the model name or installation."
+                f"Failed to load AIMNET2 model '{self.model_name}': missing required dependencies. "
+                f"Error: {e}. Install torch and ensure all dependencies are available."
             )
-            raise RuntimeError(
-                msg,
+            raise ImportError(msg) from e
+        except (ValueError, TypeError, KeyError) as e:
+            # Configuration or model format errors
+            msg = (
+                f"Failed to load AIMNET2 model '{self.model_name}': invalid model configuration. "
+                f"Error: {e}. Check that the model name is correct and the model format is valid."
             )
+            raise ValueError(msg) from e
+        except OSError as e:
+            # File system errors
+            msg = (
+                f"Failed to load AIMNET2 model '{self.model_name}': file access error. "
+                f"Error: {e}. Check file permissions and ensure model files are accessible."
+            )
+            raise RuntimeError(msg) from e
+        except RuntimeError as e:
+            # Runtime errors from PyTorch/backend
+            msg = (
+                f"Failed to load AIMNET2 model '{self.model_name}': runtime error. "
+                f"Error: {e}. This may indicate a device/GPU issue or model incompatibility."
+            )
+            raise RuntimeError(msg) from e
 
     def calculate(
         self,
-        atoms: Any = None,
-        properties: list[str] | None = None,
+        atoms: Atoms | None = None,
+        properties: Sequence[str] | None = None,
         system_changes: Any = all_changes,
     ) -> None:
         """Calculate properties using AIMNET2 potential."""
@@ -576,7 +673,9 @@ class AIMNet2Potential(BasePotential):
         # Calculate with forces if requested
         # Ensure backend loaded
         if self._calc is None:
-            self._load_calculator()
+            self._load_calculator()  # type: ignore[unreachable]
+        # After _load_calculator() returns without exception, _calc is guaranteed to be set
+        assert self._calc is not None
 
         forces_needed = "forces" in properties
         results = self._calc(data, forces=forces_needed)
@@ -612,12 +711,20 @@ class AIMNet2Potential(BasePotential):
         # Ensure calculator is loaded
         return super().get_potential_energy(atoms, force_consistent)
 
-    def get_forces(self, atoms: Any = None) -> np.ndarray:
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get forces (ASE-compatible)."""
+        from typing import cast
+
+        import numpy as np
+
         if atoms is not None:
             self.atoms = atoms
 
-        return super().get_forces(atoms)
+        forces = super().get_forces(atoms)
+        if forces is None:
+            msg = "Forces calculation returned None"
+            raise RuntimeError(msg)
+        return cast(np.ndarray, forces)
 
 
 def get_aimnet2_calculator(
@@ -627,7 +734,7 @@ def get_aimnet2_calculator(
     mult: int = 1,
     **kwargs: Any,
 ) -> AIMNet2Potential:
-    """Convenience function to get AIMNET2 calculator.
+    """Get AIMNET2 calculator.
 
     Parameters
     ----------
@@ -642,7 +749,7 @@ def get_aimnet2_calculator(
     **kwargs :
         Additional arguments passed to AIMNet2Potential
 
-    Returns:
+    Returns
     -------
     AIMNet2Potential
         Configured AIMNET2 calculator

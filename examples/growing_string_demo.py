@@ -1,49 +1,36 @@
 #!/usr/bin/env python3
-"""QME Growing String Method Demo - Transition State Search.
+"""QME Growing String Method Demo - Transition State Search."""
 
-This example demonstrates the growing string method (DE-GSM) for finding
-transition states between a reactant and product configuration. The growing
-string method dynamically grows a string of images between the endpoints to
-locate the transition state.
-
-Features:
-    - Growing string method (DE-GSM) for TS search
-    - Dynamic image addition between reactant and product
-    - Optional endpoint optimization before growing
-    - Optional TS refinement after finding
-    - Configurable step size and convergence criteria
-    - Saves complete reaction pathway
-"""
-
-import os
 import sys
 from pathlib import Path
 
-from ase import Atoms
 from ase.io import read, write
 
-# Disable ASE GUI to prevent popup windows
-os.environ["DISPLAY"] = ""
-os.environ["MPLBACKEND"] = "Agg"
-
 import qme
-from qme.example_utils import QMEExampleInterface, create_standard_epilog
+from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
+
+DEFAULT_REACTANT = "A_C_A_B_A_C_reactant.xyz"
+DEFAULT_PRODUCT = "A_C_A_B_A_C_product.xyz"
 
 
-def create_h2_reaction():
-    """Create a simple H2 dissociation reaction for demo purposes.
+def load_default_reaction() -> tuple:
+    """Load the ACAB example reaction from the bundled example files."""
+    examples_dir = Path(__file__).parent / "example_files"
+    reactant_path = examples_dir / DEFAULT_REACTANT
+    product_path = examples_dir / DEFAULT_PRODUCT
 
-    Returns reactant (compressed H2) and product (stretched H2).
-    """
-    # Reactant: Compressed H2
-    reactant = Atoms("H2", positions=[(0, 0, 0), (0.6, 0, 0)])
+    if not reactant_path.exists() or not product_path.exists():
+        missing = [str(path) for path in (reactant_path, product_path) if not path.exists()]
+        raise FileNotFoundError(
+            f"Default example structures not found. Missing file(s): {', '.join(missing)}"
+        )
 
-    # Product: Stretched H2
-    product = Atoms("H2", positions=[(0, 0, 0), (2.0, 0, 0)])
-
+    reactant = read(reactant_path)
+    product = read(product_path)
     return reactant, product
 
 
+@setup_example_environment
 def main() -> int:
     """Run growing string method demo."""
     # Create standardized interface
@@ -58,11 +45,19 @@ def main() -> int:
     # Add demo-specific arguments
     parser.add_argument(
         "--reactant",
-        help="Path to reactant XYZ file (optional, uses H2 dissociation if not provided)",
+        help=(
+            "Path to reactant XYZ file "
+            "(optional, defaults to examples/example_files/"
+            f"{DEFAULT_REACTANT})"
+        ),
     )
     parser.add_argument(
         "--product",
-        help="Path to product XYZ file (optional, uses H2 dissociation if not provided)",
+        help=(
+            "Path to product XYZ file "
+            "(optional, defaults to examples/example_files/"
+            f"{DEFAULT_PRODUCT})"
+        ),
     )
     parser.add_argument(
         "--npoints",
@@ -73,8 +68,8 @@ def main() -> int:
     parser.add_argument(
         "--steps",
         type=int,
-        default=50,
-        help="Maximum growing iterations (default: 50)",
+        default=200,
+        help="Maximum growing iterations (default: 200)",
     )
     parser.add_argument(
         "--step-size",
@@ -85,8 +80,8 @@ def main() -> int:
     parser.add_argument(
         "--fmax",
         type=float,
-        default=0.5,
-        help="Force convergence threshold (default: 0.5)",
+        default=0.05,
+        help="Force convergence threshold for growing string optimization (default: 0.05)",
     )
     parser.add_argument(
         "--optimize-endpoints",
@@ -96,32 +91,30 @@ def main() -> int:
     parser.add_argument(
         "--refine-ts",
         action="store_true",
-        help="Refine TS with local optimization after finding it (default: False)",
+        default=True,
+        help="Refine TS with local optimization after finding it (default: True)",
+    )
+    parser.add_argument(
+        "--no-refine-ts",
+        dest="refine_ts",
+        action="store_false",
+        help="Skip TS refinement (use raw highest-energy image as TS)",
     )
 
     args = parser.parse_args()
 
-    # Set default output if not provided
-    if args.output is None:
-        args.output = "growing_string_result.xyz"
-
     interface.print_header()
     interface.setup_logging(args.verbose)
 
-    # Parse backends if provided
-    backend = "uma"  # Default
-    if args.backends:
-        backends_list = [b.strip() for b in args.backends.split(",")]
-        if backends_list:
-            backend = backends_list[0]
-            if len(backends_list) > 1:
-                interface.print_warning(f"Multiple backends specified, using first: {backend}")
-
-    # Check backend availability
-    from qme.backends.availability import is_backend_available
-
-    if not is_backend_available(backend):
-        interface.print_error(f"Backend '{backend}' not available")
+    # Backend handling
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    backend, available_backends = interface.select_backend(
+        requested_backends=requested,
+        preferred_backends=["uma"],
+        verbose=args.verbose,
+    )
+    if backend is None:
+        interface.print_error("No suitable backend available (UMA preferred)")
         return 1
 
     interface.print_backend_summary([backend], "Using Backend")
@@ -129,10 +122,13 @@ def main() -> int:
     # Get device info
     device = interface.get_device_info(args.device)
 
+    # Set default output if not provided
+    output_file = args.output or "growing_string_result.xyz"
+
     config = {
         "Backend": backend,
         "Device": device,
-        "Output": args.output,
+        "Output": output_file,
         "Verbose": args.verbose,
     }
     interface.print_configuration(config)
@@ -146,8 +142,11 @@ def main() -> int:
             print(f"  Reactant: {args.reactant}")
             print(f"  Product: {args.product}")
         else:
-            reactant, product = create_h2_reaction()
-            print("\nUsing default H2 dissociation reaction")
+            reactant, product = load_default_reaction()
+            default_dir = Path(__file__).parent / "example_files"
+            print("\nUsing default ACAB reaction from example_files/")
+            print(f"  Reactant: {default_dir / DEFAULT_REACTANT}")
+            print(f"  Product:  {default_dir / DEFAULT_PRODUCT}")
 
         # Setup Explorer
         print("\nSetting up Explorer with growing string method...")
@@ -181,7 +180,7 @@ def main() -> int:
 
         # Calculate energies along path
         energies = []
-        for _i, atoms in enumerate(trajectory):
+        for atoms in trajectory:
             try:
                 energy = atoms.get_potential_energy()
                 energies.append(energy)
@@ -200,7 +199,7 @@ def main() -> int:
                 print(f"  TS found at image: {ts_idx + 1}/{len(trajectory)}")
 
         # Save trajectory
-        output_path = Path(args.output)
+        output_path = Path(output_file)
         write(str(output_path), trajectory)
         print(f"\n✓ Saved trajectory to: {output_path}")
 
@@ -208,6 +207,36 @@ def main() -> int:
         ts_path = output_path.parent / f"{output_path.stem}_ts.xyz"
         write(str(ts_path), result["optimized_atoms"])
         print(f"✓ Saved TS structure to: {ts_path}")
+
+        # Validate TS with frequency analysis
+        frequency_analysis = result.get("frequency_analysis")
+        if frequency_analysis:
+            ts_analysis = frequency_analysis.get("ts_analysis", {})
+            n_imaginary = ts_analysis.get("n_imaginary_frequencies", 0)
+            imaginary_freqs = ts_analysis.get("imaginary_frequencies", [])
+
+            print("\n" + "=" * 60)
+            print("Transition State Frequency Validation")
+            print("=" * 60)
+
+            if n_imaginary == 1:
+                print(f"✓ Valid transition state: {n_imaginary} imaginary frequency found")
+                if imaginary_freqs:
+                    print(f"  Imaginary frequency: {imaginary_freqs[0]:.2f} cm⁻¹")
+            else:
+                print(f"✗ Invalid transition state: {n_imaginary} imaginary frequencies found")
+                if imaginary_freqs:
+                    freq_str = ", ".join(f"{f:.2f}" for f in imaginary_freqs)
+                    print(f"  Imaginary frequencies: {freq_str} cm⁻¹")
+                else:
+                    print("  No imaginary frequencies found")
+                interface.print_error(
+                    f"TS validation failed: expected 1 imaginary frequency, found {n_imaginary}"
+                )
+                return 1
+        else:
+            print("\n⚠ Warning: Frequency analysis not available for TS validation")
+            print("  TS structure saved but not validated")
 
         interface.print_success()
         return 0

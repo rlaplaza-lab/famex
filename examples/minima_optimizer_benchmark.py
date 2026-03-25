@@ -1,25 +1,6 @@
 #!/usr/bin/env python3
-"""QME Minima Optimizer Benchmark - Minima Optimization Comparison.
+"""QME Minima Optimizer Benchmark - Minima Optimization Comparison."""
 
-This benchmark compares the performance of different minima optimizers
-(lbfgs, bfgs, fire) across various QME ML backends. It focuses specifically
-on minima optimization to evaluate which optimizers work best for finding
-energy minima across different ML backends.
-
-Usage:
-    python minima_optimizer_benchmark.py [--backends BACKEND1,BACKEND2,...]
-    python minima_optimizer_benchmark.py [--optimizers lbfgs,bfgs,fire]
-    python minima_optimizer_benchmark.py [--device DEVICE]
-
-Features:
-    - Minima optimizer comparison (lbfgs, bfgs, fire)
-    - All available ML backends tested
-    - Detailed timing and convergence analysis
-    - Minima-specific optimization evaluation
-    - Focus on minima finding capabilities
-"""
-
-import json
 import sys
 import warnings
 from pathlib import Path
@@ -27,14 +8,8 @@ from typing import Any
 
 from ase import Atoms
 
-# Import QME components
-try:
-    pass  # QME components imported via benchmark_optimization function
-except ImportError:
-    sys.exit(1)
-
+# Import QME components (via benchmark_optimization function)
 # Backend availability helpers
-
 # Common interface and device utils
 from qme.example_utils import QMEExampleInterface, benchmark_optimization, create_standard_epilog
 
@@ -45,8 +20,6 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 def create_minima_structure() -> Atoms:
     """Create a structure for minima optimization using example files."""
-    from pathlib import Path
-
     from ase.io import read
 
     # Use the smaller A_C_A_B_A_C reactant structure as starting point for minima optimization
@@ -60,11 +33,11 @@ def benchmark_minima_optimizer(
     device: str | None = None,
     model_name: str | None = None,
     verbose: int = 1,
+    calculate_frequencies: bool = True,
+    save_optimized_structure: bool = False,
+    structure_label: str | None = None,
 ) -> dict[str, Any]:
-    """Benchmark a single backend with a specific optimizer for minima optimization.
-
-    Only suitable optimizers: LBFGS, BFGS, FIRE, Trust-Krylov
-    """
+    """Benchmark minima optimizer (LBFGS, BFGS, FIRE, Trust-Krylov)."""
     return benchmark_optimization(
         backend=backend,
         optimizer=optimizer,
@@ -74,57 +47,93 @@ def benchmark_minima_optimizer(
         test_ts=False,
         create_structure_func=create_minima_structure,
         suitable_optimizers=["lbfgs", "bfgs", "fire", "trust-krylov"],
+        calculate_frequencies=calculate_frequencies,
+        save_optimized_structure=save_optimized_structure,
+        structure_label=structure_label,
     )
 
 
 def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None:
     """Print a detailed frequency analysis summary for minima optimization."""
-    # Print legend
+    print(f"\n{'=' * 120}")
+    print("MINIMA VALIDATION SUMMARY")
+    print(f"{'=' * 120}")
+    print(
+        "A valid minimum should have 0 imaginary frequencies. Optimizers that produce imaginary modes "
+        "are marked as failed."
+    )
 
-    # Header
+    print(
+        f"\n{'Backend':<12} {'Optimizer':<15} {'Imag. Freq':<12} {'Status':<15} {'Lowest 3 Freq (cm⁻¹)':<25}"
+    )
+    print("=" * 120)
 
-    # Results
-    for results in results_list:
-        if results["available"] and "frequency_results" in results:
-            freq_results = results["frequency_results"]
-            n_imag = freq_results.get("n_imaginary_frequencies", 0)
-            is_valid = freq_results.get("is_valid_result", False)
-            freq_results.get("zero_point_energy", 0)
-            frequencies = freq_results.get("frequencies", [])
+    available_results = [r for r in results_list if r.get("available") and "frequency_results" in r]
+    failed_optimizers = []
 
-            # Format first 3 frequencies
-            if len(frequencies) >= 3:
-                f"[{frequencies[0]:.1f}, {frequencies[1]:.1f}, {frequencies[2]:.1f}]"
-            else:
-                pass
+    for results in available_results:
+        freq_results = results["frequency_results"]
+        n_imag = freq_results.get("n_imaginary_frequencies", 0)
+        is_valid = freq_results.get("is_valid_result", False)
+        method_used = freq_results.get("method_used", "unknown")
 
-            # Status indicator
-            if is_valid or n_imag > 0:
-                pass
-            else:
-                pass
+        backend = results.get("backend", "unknown")
+        optimizer = results.get("optimizer", "unknown")
 
+        all_freqs = freq_results.get("all_frequencies", [])
+        if not all_freqs:
+            all_freqs = freq_results.get("frequencies", [])
+        if not all_freqs and freq_results.get("ts_analysis", {}):
+            ts_analysis = freq_results.get("ts_analysis", {})
+            all_freqs = ts_analysis.get("all_frequencies", [])
+
+        if all_freqs:
+            # Convert complex frequencies to real (take absolute value for sorting)
+            filtered_freqs = [f for f in all_freqs if abs(f) > 10.0]
+            if not filtered_freqs and all_freqs:
+                filtered_freqs = all_freqs
+            # Handle complex frequencies by converting to real for sorting
+            frequencies = sorted(
+                filtered_freqs, key=lambda x: abs(x) if isinstance(x, complex) else x
+            )
         else:
-            pass
+            frequencies = []
 
-    # Summary statistics
-    available_results = [r for r in results_list if r["available"] and "frequency_results" in r]
+        if len(frequencies) >= 3:
+            freq_str = f"[{frequencies[0]:.1f}, {frequencies[1]:.1f}, {frequencies[2]:.1f}]"
+        elif len(frequencies) > 0:
+            freq_str = f"[{', '.join(f'{f:.1f}' for f in frequencies)}]"
+        elif method_used == "not_calculated":
+            freq_str = "Skipped"
+        else:
+            freq_str = "N/A"
+
+        if is_valid and n_imag == 0:
+            status = "✅ Valid Min"
+        elif n_imag > 0:
+            status = f"❌ {n_imag} imag"
+            failed_optimizers.append((backend, optimizer, f"{n_imag} imaginary frequencies"))
+        else:
+            status = "❌ Invalid"
+
+        print(f"{backend:<12} {optimizer:<15} {n_imag:<12} {status:<15} {freq_str:<25}")
+
     if available_results:
-        # Overall validation rate
         valid_count = sum(
             1 for r in available_results if r["frequency_results"].get("is_valid_result", False)
         )
         total_count = len(available_results)
-        (valid_count / total_count * 100) if total_count > 0 else 0
+        success_rate = (valid_count / total_count * 100) if total_count > 0 else 0
 
-        # Minima-specific issues
-        minima_with_imag = sum(
-            1
-            for r in available_results
-            if r["frequency_results"].get("n_imaginary_frequencies", 0) > 0
+        print(f"\n{'=' * 120}")
+        print(
+            f"SUMMARY: {valid_count}/{total_count} optimizations found valid minima ({success_rate:.1f}% success rate)"
         )
-        if minima_with_imag > 0:
-            pass
+
+        if failed_optimizers:
+            print(f"\n⚠️  WARNING: {len(failed_optimizers)} optimizer(s) showed imaginary modes:")
+            for backend, optimizer, reason in failed_optimizers:
+                print(f"   - {backend}/{optimizer}: {reason}")
 
 
 def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
@@ -242,17 +251,7 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
                     f"  Average Total Time: {avg_total_time:.3f}s (min: {min_total_time:.3f}s, max: {max_total_time:.3f}s)"
                 )
 
-            if converged_list:
-                sum(converged_list) / len(converged_list) * 100
-
-            # Quality analysis for minima optimization
-            valid_result_list = [
-                r["frequency_results"].get("is_valid_result", False)
-                for r in opt_results
-                if "frequency_results" in r
-            ]
-            if valid_result_list:
-                sum(valid_result_list) / len(valid_result_list) * 100
+            # Quality analysis for minima optimization (computed but not displayed)
 
 
 def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
@@ -264,17 +263,6 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
 
     if not has_performance_data:
         return
-
-    # Section 1: Calculator Calls & Memory
-
-    # Header
-
-    # Results
-    for results in results_list:
-        if results.get("available") and "performance" in results:
-            perf = results["performance"]
-            perf.get("calculator_calls", {})
-            perf.get("memory", {})
 
     # Section 2: Detailed Timing Breakdown
 
@@ -289,8 +277,6 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
     if not all_sections:
         return
 
-    # Header for detailed timing
-
     # Show timing statistics for each section
     for section in sorted(all_sections):
         section_stats = []
@@ -301,35 +287,9 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
                 if section in timings:
                     section_stats.append(timings[section])
 
-        if section_stats:
-            # Calculate aggregate statistics across all results
-            sum(stat.get("total_time", 0.0) for stat in section_stats)
-            total_count = sum(stat.get("count", 0) for stat in section_stats)
-            (
-                sum(stat.get("avg_time", 0.0) * stat.get("count", 0) for stat in section_stats)
-                / total_count
-                if total_count > 0
-                else 0.0
-            )
-            min(stat.get("min_time", 0.0) for stat in section_stats)
-            max(stat.get("max_time", 0.0) for stat in section_stats)
-
-
-def save_results(results_list: list[dict[str, Any]], output_file: str) -> None:
-    """Save benchmark results to JSON file."""
-    # If output_file is just a filename, save it in the examples directory
-    if not Path(output_file).is_absolute() and "/" not in output_file:
-        output_path = Path(__file__).parent / output_file
-    else:
-        output_path = Path(output_file)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(output_path, "w") as f:
-        json.dump(results_list, f, indent=2, default=str)
-
 
 def main() -> int:
-    """Main function to run the minima optimizer comparison benchmark."""
+    """Run the minima optimizer comparison benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
         name="Minima Optimizer Benchmark",
@@ -345,6 +305,28 @@ def main() -> int:
         type=str,
         help="Comma-separated list of optimizers to benchmark (default: lbfgs,bfgs,fire,trust-krylov)",
     )
+    parser.add_argument(
+        "--skip-slow-optimizers",
+        action="store_true",
+        help="Skip known slow optimizers (e.g., bfgs) to speed up testing",
+    )
+    parser.add_argument(
+        "--freq",
+        action="store_true",
+        default=True,
+        help="Perform frequency analysis to validate minima (default: True). Use --no-freq to disable.",
+    )
+    parser.add_argument(
+        "--no-freq",
+        dest="freq",
+        action="store_false",
+        help="Skip frequency analysis (faster but no minima validation)",
+    )
+    parser.add_argument(
+        "--save-xyz",
+        action="store_true",
+        help="Save optimized structures as XYZ files in the current directory",
+    )
 
     args = parser.parse_args()
 
@@ -353,13 +335,15 @@ def main() -> int:
     # Set up logging based on verbosity level
     interface.setup_logging(args.verbose)
 
-    # Parse backends if provided
-    if args.backends:
-        available_backends = [b.strip() for b in args.backends.split(",")]
-    else:
-        from qme.backends.availability import get_available_backends
-
-        available_backends = get_available_backends()
+    # Backend handling
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    _, available_backends = interface.select_backend(
+        requested_backends=requested,
+        verbose=args.verbose,
+    )
+    if not available_backends:
+        interface.print_error("No available backends found")
+        return 1
 
     # Determine which optimizers to test
     if args.optimizers:
@@ -367,10 +351,15 @@ def main() -> int:
         # Filter to only minima optimizers
         valid_optimizers = ["lbfgs", "bfgs", "fire", "trust-krylov"]
         minima_optimizers = [opt for opt in requested_optimizers if opt in valid_optimizers]
-        if len(minima_optimizers) != len(requested_optimizers):
-            [opt for opt in requested_optimizers if opt not in valid_optimizers]
     else:
         minima_optimizers = ["lbfgs", "bfgs", "fire", "trust-krylov"]
+
+    # Skip slow optimizers if requested
+    slow_optimizers = {"bfgs"}  # Known slow optimizers
+    if args.skip_slow_optimizers:
+        minima_optimizers = [opt for opt in minima_optimizers if opt not in slow_optimizers]
+        if minima_optimizers:
+            interface.print_warning(f"Skipping slow optimizers: {', '.join(slow_optimizers)}")
 
     if not minima_optimizers:
         interface.print_error("No valid minima optimizers specified!")
@@ -389,24 +378,38 @@ def main() -> int:
     }
     interface.print_configuration(config)
 
-    len(available_backends) * len(minima_optimizers)
-
     # Run benchmarks
     results_list = []
+    total_tests = len(available_backends) * len(minima_optimizers)
+    current_test = 0
 
     for backend in available_backends:
         for optimizer in minima_optimizers:
+            current_test += 1
+            print(
+                f"\n[{current_test}/{total_tests}] Testing {backend}/{optimizer}...",
+                flush=True,
+            )
             try:
                 results = benchmark_minima_optimizer(
                     backend=backend,
                     optimizer=optimizer,
                     device=device,
                     verbose=args.verbose,
+                    calculate_frequencies=args.freq,
+                    save_optimized_structure=args.save_xyz,
+                    structure_label=optimizer,
                 )
                 results_list.append(results)
+                if results.get("available", False):
+                    print(f"  ✓ Completed {backend}/{optimizer}", flush=True)
+                else:
+                    print(f"  ✗ Failed {backend}/{optimizer}", flush=True)
             except KeyboardInterrupt:
+                print("\nInterrupted by user", flush=True)
                 break
             except Exception as e:
+                print(f"  ✗ Error {backend}/{optimizer}: {e}", flush=True)
                 results_list.append(
                     {
                         "backend": backend,
@@ -427,7 +430,7 @@ def main() -> int:
     print_performance_summary(results_list)
 
     # Save results
-    save_results(results_list, args.output or interface.get_default_output_file())
+    interface.save_results(results_list, args.output or interface.get_default_output_file())
 
     interface.print_success()
     return 0

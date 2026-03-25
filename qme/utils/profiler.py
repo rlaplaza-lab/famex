@@ -11,9 +11,27 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any
+from types import ModuleType
+from typing import Any, cast
 
-import psutil
+# psutil is optional - import lazily when needed
+_psutil: ModuleType | bool | None = None
+
+
+def _get_psutil() -> ModuleType | None:
+    """Get psutil module, importing it lazily."""
+    global _psutil
+    if _psutil is None:
+        try:
+            import psutil
+
+            _psutil = psutil
+        except ImportError:
+            _psutil = False  # Mark as unavailable
+    if _psutil is False or _psutil is None:
+        return None
+    # At this point, _psutil must be ModuleType
+    return cast(ModuleType, _psutil)
 
 
 @dataclass
@@ -90,6 +108,11 @@ class PerformanceProfiler:
 
     def _get_memory_info(self) -> MemoryInfo:
         """Get current memory usage information."""
+        psutil = _get_psutil()
+        if psutil is None:
+            # psutil not available, return minimal info
+            return MemoryInfo(ram_mb=0.0, gpu_mb=None, ram_percent=0.0, gpu_percent=None)
+
         process = psutil.Process(os.getpid())
         ram_info = process.memory_info()
         ram_mb = ram_info.rss / 1024 / 1024  # Convert to MB
@@ -245,6 +268,11 @@ class PerformanceProfiler:
 
     def _calculate_resource_stats(self) -> dict[str, Any]:
         """Calculate resource utilization statistics."""
+        psutil = _get_psutil()
+        if psutil is None:
+            # psutil not available, return minimal stats
+            return {"error": "psutil not available"}
+
         try:
             process = psutil.Process(os.getpid())
             cpu_percent = process.cpu_percent()
@@ -290,7 +318,7 @@ class PerformanceProfiler:
 
 
 def profile_call(func: Any) -> Any:
-    """Decorator to profile individual function calls."""
+    """Profile individual function calls."""
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -310,7 +338,7 @@ def profile_call(func: Any) -> Any:
 
 
 def profile_optimizer_step(func: Any) -> Any:
-    """Decorator specifically for optimizer step functions."""
+    """Profile optimizer step functions."""
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:

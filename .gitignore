@@ -164,6 +164,8 @@ zimmermann93_benchmark_results.json
 # Test output files
 test_*.xyz
 test_*.json
+*test_results.md
+example_test_results.md
 
 # Temporary files
 tmp/
@@ -179,6 +181,9 @@ temp/
 
 # ASE trajectory files
 *.traj
+
+# ASE Vibrations cache files
+vib/
 
 # Output files from optimizations
 *.opt.*
@@ -211,3 +216,6 @@ coverage.xml
 # Local configuration files
 .env.local
 .env.*.local
+
+# Internal development directories
+hessian_issues/

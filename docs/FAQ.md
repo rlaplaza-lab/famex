@@ -14,7 +14,7 @@ Common questions about QME usage, installation, and troubleshooting.
 
 ### Q: Which backend should I choose?
 
-**A:** See [README](../README.md) for backend recommendations. Start with AIMNet2 for beginners (`pip install torch torch-cluster`).
+**A:** See [README](../README.md) for backend recommendations. Start with AIMNet2 for beginners (`pip install torch`).
 
 ### Q: Can I install multiple backends?
 
@@ -27,7 +27,7 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 
 ### Q: What Python version do I need?
 
-**A:** Python 3.10+ for most backends, 3.11+ for TorchSim.
+**A:** Python 3.10+ required.
 
 ### Q: Backend not available after installation?
 
@@ -65,7 +65,7 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 **A:** Try:
 - Increase steps: `--steps 2000`
 - Loosen convergence: `--fmax 0.1`
-- Change optimizer: `--optimizer bfgs`
+- Change optimizer: `--local-optimizer bfgs`
 - Check input structure quality
 
 ### Q: Forces too large or unrealistic energies?
@@ -78,7 +78,7 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 
 ### Q: CUDA out of memory?
 
-**A:** Use CPU (`--device cpu`), reduce system size, or use LBFGS optimizer (`--optimizer lbfgs`).
+**A:** Use CPU (`--device cpu`), reduce system size, or use LBFGS optimizer (`--local-optimizer lbfgs`).
 
 ### Q: Transition state validation issues?
 
@@ -90,11 +90,11 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 
 ### Q: How do I speed up calculations?
 
-**A:** Use GPU (`--device cuda`), TorchSim backends, or reduce convergence criteria for testing.
+**A:** Use GPU (`--device cuda`) or reduce convergence criteria for testing.
 
 ### Q: Which backend is fastest?
 
-**A:** TorchSim backends (GPU) > AIMNet2 > UMA > MACE > Mock (testing only)
+**A:** AIMNet2 > UMA > MACE > Mock (testing only). GPU acceleration (`--device cuda`) speeds up all backends.
 
 ## Getting Help
 

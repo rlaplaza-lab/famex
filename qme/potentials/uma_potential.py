@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
+import numpy as np
 from ase.calculators.calculator import all_changes
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+from qme.utils.logging import get_qme_logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    import numpy as np
     import torch
     from ase import Atoms
+else:
+    torch = None  # type: ignore[assignment, misc]
+
+logger = get_qme_logger(__name__)
 
 
 class UMAPotential(BasePotential):
@@ -28,7 +33,7 @@ class UMAPotential(BasePotential):
 
     Parameters
     ----------
-    model_name : str, default "uma-s-1p1"
+    model_name : str, default "uma-s-1p2"
         Name of the UMA model to load
     device : str, optional
         Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
@@ -45,7 +50,7 @@ class UMAPotential(BasePotential):
 
     def __init__(
         self,
-        model_name: str = "uma-s-1p1",
+        model_name: str = "uma-s-1p2",
         device: str | None = None,
         default_charge: int = 0,
         default_spin: int = 1,
@@ -55,7 +60,7 @@ class UMAPotential(BasePotential):
 
         Parameters
         ----------
-        model_name : str, default "uma-s-1p1"
+        model_name : str, default "uma-s-1p2"
             Name of the UMA model to load
         device : str, optional
             Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
@@ -73,8 +78,8 @@ class UMAPotential(BasePotential):
             device = "cpu"  # Default device, will be auto-detected later if needed
 
         # Initialize UMA-specific attributes first
-        self.predictor = None
-        self._calc = None
+        self.predictor: Any = None
+        self._calc: Any = None
         self.default_charge = default_charge
         self.default_spin = default_spin
 
@@ -89,18 +94,20 @@ class UMAPotential(BasePotential):
         precision : str
             Precision to set ('float32' or 'double')
         """
-        if self.predictor is not None and hasattr(self.predictor, "model"):
-            model = self.predictor.model
-            if precision == "float32" and hasattr(model, "float"):
-                model.float()
-            elif precision == "double" and hasattr(model, "double"):
-                model.double()
+        if self.predictor is not None:
+            if hasattr(self.predictor, "model"):
+                model = self.predictor.model
+                if precision == "float32" and hasattr(model, "float"):
+                    model.float()
+                elif precision == "double" and hasattr(model, "double"):
+                    model.double()
 
     def _load_calculator(self) -> None:
         """Load the UMA model from fairchem v2 API."""
         # Skip if already loaded
-        if hasattr(self, "_calc") and self._calc is not None:
-            return
+        if hasattr(self, "_calc"):
+            if self._calc is not None:
+                return
 
         from qme.utils.ml_warnings import quiet_backend_loading
 
@@ -133,7 +140,7 @@ class UMAPotential(BasePotential):
                         msg,
                     )  # Load UMA model using v2 API
                 # Ensure model_name is not None
-                model_name = self.model_name or "uma-s-1p1"
+                model_name = self.model_name or "uma-s-1p2"
 
                 # Ensure device is compatible
                 device_param = "cuda" if self.device == "cuda" else "cpu"
@@ -147,15 +154,54 @@ class UMAPotential(BasePotential):
                 # Default to 'omol' task for molecular systems
                 self._calc = FAIRChemCalculator(self.predictor, task_name="omol")
 
-            except Exception as e:
-                # If anything goes wrong while initializing the UMA model, raise a clear error
+            except ImportError as e:
+                # Missing dependencies
+                logger.error(
+                    "Failed to load UMA model '%s': missing required dependencies. Error: %s",
+                    self.model_name,
+                    e,
+                )
                 msg = (
-                    f"Failed to load UMA model '{self.model_name}'. Error: {e}. "
-                    f"Make sure fairchem-core is properly installed and the model is available."
+                    f"Failed to load UMA model '{self.model_name}': missing required dependencies. "
+                    f"Error: {e}. Install fairchem-core and ensure all dependencies are available."
                 )
-                raise RuntimeError(
-                    msg,
+                raise ImportError(msg) from e
+            except (ValueError, TypeError, KeyError) as e:
+                # Configuration or model format errors
+                logger.error(
+                    "Failed to load UMA model '%s': invalid model configuration. Error: %s",
+                    self.model_name,
+                    e,
                 )
+                msg = (
+                    f"Failed to load UMA model '{self.model_name}': invalid model configuration. "
+                    f"Error: {e}. Check that the model name is correct and the model format is valid."
+                )
+                raise ValueError(msg) from e
+            except OSError as e:
+                # File system errors
+                logger.error(
+                    "Failed to load UMA model '%s': file access error. Error: %s",
+                    self.model_name,
+                    e,
+                )
+                msg = (
+                    f"Failed to load UMA model '{self.model_name}': file access error. "
+                    f"Error: {e}. Check file permissions and ensure model files are accessible."
+                )
+                raise RuntimeError(msg) from e
+            except RuntimeError as e:
+                # Runtime errors from PyTorch/backend
+                logger.error(
+                    "Failed to load UMA model '%s': runtime error. Error: %s",
+                    self.model_name,
+                    e,
+                )
+                msg = (
+                    f"Failed to load UMA model '{self.model_name}': runtime error. "
+                    f"Error: {e}. This may indicate a device/GPU issue or model incompatibility."
+                )
+                raise RuntimeError(msg) from e
 
     def calculate(
         self,
@@ -183,10 +229,11 @@ class UMAPotential(BasePotential):
         # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
-
-        if self._calc is None:
-            msg = "Failed to load UMA calculator"
-            raise RuntimeError(msg)
+            # After loading, _calc should be set (or exception was raised)
+            if self._calc is None:
+                logger.error("Failed to load UMA calculator")
+                msg = "Failed to load UMA calculator"
+                raise RuntimeError(msg)
 
         # Use the underlying calculator directly
         try:
@@ -195,6 +242,7 @@ class UMAPotential(BasePotential):
             if "expected scalar type Double but found Float" in str(
                 e,
             ) or "mat1 and mat2 must have the same dtype, but got Double and Float" in str(e):
+                logger.debug("UMA dtype mismatch detected, adjusting precision and retrying")
                 # Try to set model to use consistent precision
                 if "expected scalar type Double but found Float" in str(e):
                     self._set_model_precision("double")
@@ -204,14 +252,16 @@ class UMAPotential(BasePotential):
                 # Retry calculation
                 self._calc.calculate(atoms, properties, system_changes)
             else:
+                logger.exception("Unexpected error during UMA calculation")
                 raise
 
         # Extract results from the underlying calculator
-        if "energy" in properties:
-            self.results["energy"] = self._calc.results["energy"]
+        if properties is not None:
+            if "energy" in properties:
+                self.results["energy"] = self._calc.results["energy"]
 
-        if "forces" in properties:
-            self.results["forces"] = self._calc.results["forces"]
+            if "forces" in properties:
+                self.results["forces"] = self._calc.results["forces"]
 
     def _get_backend_name(self) -> str:
         """Get the backend name for UMA."""
@@ -249,12 +299,14 @@ class UMAPotential(BasePotential):
             Method to use for Hessian computation:
             - 'vmap': Vector-Jacobian products with vectorization (original MACE-style)
             - 'double_backward': Direct double-backward from energy
+            - 'fairchem' / 'fairchem_vmap': Match FairChem PR #1361 implementation (vmap variant)
+            - 'fairchem_loop': FairChem PR style but without vmap
             - 'auto': Automatically select best method (currently 'double_backward')
         symmetrize : bool, default True
             Whether to symmetrize the Hessian by averaging with its transpose.
             The Hessian must be symmetric by definition, so this can reduce numerical noise.
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix of shape (3N, 3N) in eV/Å² units where N is the number of atoms
@@ -265,12 +317,15 @@ class UMAPotential(BasePotential):
         # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
-
-        if self._calc is None:
-            msg = "Failed to load UMA calculator"
-            raise RuntimeError(msg)
+            # After loading, _calc should be set (or exception was raised)
+            if self._calc is None:
+                logger.error("Failed to load UMA calculator for Hessian calculation")
+                msg = "Failed to load UMA calculator"
+                raise RuntimeError(msg)
 
         # Set default charge and spin if not already set (ensure Python integers)
+        # BasePotential.calculate sets self.atoms, so it should not be None here
+        assert self.atoms is not None, "atoms should be set by base class calculate method"
         if self.atoms is not None:
             if "charge" not in self.atoms.info:
                 self.atoms.info["charge"] = int(self.default_charge)
@@ -294,6 +349,10 @@ class UMAPotential(BasePotential):
             # Get device from predictor
             device = next(self.predictor.model.parameters()).device
 
+            # Select method after handling 'auto'
+            if method == "auto":
+                method = "double_backward"  # Default to double_backward for better stability
+
             # Create AtomicData from current atoms
             atoms_copy = self.atoms.copy()
             atoms_copy.info["charge"] = int(self.atoms.info.get("charge", self.default_charge))
@@ -311,26 +370,34 @@ class UMAPotential(BasePotential):
             batch = data_list_collater([data], otf_graph=True).to(device)
 
             # Enable gradients on positions - this is the key step
-            batch.pos = batch.pos.detach().clone().requires_grad_(True)
+            # Note: otf_graph=True doesn't automatically set this, it's required for autograd
+            # Do NOT detach/clone as that breaks the computation graph connection
+            batch.pos.requires_grad_(True)
 
-            # Set model to training mode for Hessian calculation
-            self.predictor.model.train()
-
-            # Disable dropout layers
-            for module in self.predictor.model.modules():
-                if hasattr(module, "p") and hasattr(module, "training"):
-                    module.p = 0.0
+            # Match FairChem's approach: only set head.training = True
+            # Do NOT set model.train() or manually disable dropout
+            # This preserves the computation graph and matches the reference implementation
+            # Match standalone helper exactly: direct access pattern
+            model_module = self.predictor.model.module
+            energy_wrapper = model_module.output_heads["energyandforcehead"]
+            prev_head_training = energy_wrapper.head.training
+            # Match standalone helper: set training=True for all methods
+            # This ensures forces are computed with computation graph when needed
+            # For double_backward, we'll compute forces ourselves from energy
+            energy_wrapper.head.training = True
 
             # Compute energy and forces
             result = self.predictor.predict(batch)
             energy = result["energy"]
 
-            # Select computation method
-            if method == "auto":
-                method = "double_backward"  # Default to double_backward for better stability
-
+            # For double_backward, we need energy with computation graph
+            # When head.training=True, predict() computes forces which might consume the graph
+            # So we need to ensure we can still use the energy graph
+            # The key is that we don't access result["forces"] for double_backward
             if method == "double_backward":
                 # Direct double-backward approach
+                # Energy should still have computation graph even if forces were computed
+                # because we're not accessing result["forces"], so the graph isn't consumed
                 hessian_tensor = self._compute_hessian_double_backward(energy, batch.pos)
             elif method == "vmap":
                 # VJP approach (original)
@@ -342,12 +409,27 @@ class UMAPotential(BasePotential):
                     retain_graph=True,
                 )[0]
                 hessian_tensor = self._compute_hessian_vmap(forces, batch.pos)
+            elif method in {"fairchem", "fairchem_vmap"}:
+                hessian_tensor = self._compute_hessian_fairchem_style(
+                    result["forces"],
+                    batch.pos,
+                    use_vmap=True,
+                )
+            elif method == "fairchem_loop":
+                hessian_tensor = self._compute_hessian_fairchem_style(
+                    result["forces"],
+                    batch.pos,
+                    use_vmap=False,
+                )
             else:
-                msg = f"Unknown Hessian computation method: {method}. Use 'vmap', 'double_backward', or 'auto'"
+                msg = (
+                    "Unknown Hessian computation method: "
+                    f"{method}. Use 'vmap', 'double_backward', 'fairchem', 'fairchem_loop', or 'auto'"
+                )
                 raise ValueError(msg)
 
-            # Set model back to eval mode
-            self.predictor.model.eval()
+            # Restore head training state (we only modified head.training, not model.train())
+            energy_wrapper.head.training = prev_head_training
 
             n_atoms = len(self.atoms)
             expected_shape = (3 * n_atoms, 3 * n_atoms)
@@ -399,9 +481,69 @@ class UMAPotential(BasePotential):
         except ImportError as e:
             msg = f"PyTorch is required for analytical Hessian calculation. Install PyTorch: {e}"
             raise ImportError(msg) from e
-        except Exception as e:
-            msg = f"Failed to calculate UMA analytical Hessian: {e}"
+        except (ValueError, RuntimeError) as e:
+            # Computation errors (invalid shapes, device mismatches, etc.)
+            msg = (
+                f"Failed to calculate UMA analytical Hessian: {e}. "
+                f"This may indicate a device mismatch, invalid structure data, or computational error."
+            )
             raise RuntimeError(msg) from e
+        except TypeError as e:
+            # Type errors (wrong tensor types, etc.)
+            msg = (
+                f"Failed to calculate UMA analytical Hessian: {e}. "
+                f"This may indicate a type mismatch in tensor operations."
+            )
+            raise TypeError(msg) from e
+
+    def _compute_hessian_fairchem_style(
+        self,
+        forces: torch.Tensor,
+        positions: torch.Tensor,
+        *,
+        use_vmap: bool,
+    ) -> torch.Tensor:
+        """Replicate FairChem PR #1361 Hessian logic using PyTorch autograd."""
+        import torch
+
+        forces_flat = forces.view(-1)
+        num_dofs = forces_flat.shape[0]
+        dtype = forces_flat.dtype
+        device = forces_flat.device
+
+        def grad_wrt_positions(vec: torch.Tensor) -> torch.Tensor:
+            grad_pos = torch.autograd.grad(
+                -forces_flat,
+                positions,
+                grad_outputs=vec,
+                retain_graph=True,
+                allow_unused=False,
+                create_graph=False,
+            )[0]
+            return grad_pos.reshape(-1)
+
+        identity = torch.eye(num_dofs, dtype=dtype, device=device)
+
+        if use_vmap and hasattr(torch, "vmap"):
+            try:
+                chunk_size = 1 if num_dofs < 64 else 16
+                hessian = torch.vmap(
+                    grad_wrt_positions,
+                    in_dims=0,
+                    out_dims=0,
+                    chunk_size=chunk_size,
+                )(identity)
+            except RuntimeError:
+                use_vmap = False
+
+        if not use_vmap:
+            rows = []
+            for idx in range(num_dofs):
+                vec = identity[idx]
+                rows.append(grad_wrt_positions(vec))
+            hessian = torch.stack(rows, dim=0)
+
+        return cast(torch.Tensor, hessian)
 
     def _compute_hessian_vmap(self, forces: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
         """Compute Hessian using vector-Jacobian products (VJP) with vectorization.
@@ -415,12 +557,12 @@ class UMAPotential(BasePotential):
         positions : torch.Tensor
             Positions array of shape (N, 3) where N is number of atoms
 
-        Returns:
+        Returns
         -------
         torch.Tensor
             Hessian matrix of shape (3N, 3N)
 
-        Raises:
+        Raises
         ------
         RuntimeError
             If computation fails
@@ -433,7 +575,7 @@ class UMAPotential(BasePotential):
         num_elements = forces_flatten.shape[0]
         n_atoms = forces.shape[0]
 
-        def get_vjp(v):
+        def get_vjp(v: torch.Tensor) -> torch.Tensor:
             """Compute vector-Jacobian product for a single unit vector."""
             grad_output = torch.autograd.grad(
                 -1 * forces_flatten,
@@ -464,7 +606,12 @@ class UMAPotential(BasePotential):
                 device=forces.device,
             )
 
-        return hessian
+        # mypy doesn't understand that torch.vmap returns the same type as the function
+        # Since get_vjp returns torch.Tensor and _compute_hessian_loop returns torch.Tensor,
+        # hessian is guaranteed to be torch.Tensor here
+        from typing import cast
+
+        return cast(torch.Tensor, hessian)
 
     def _compute_hessian_loop(self, forces: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
         """Compute Hessian using loop-based VJP (fallback for large systems).
@@ -476,7 +623,7 @@ class UMAPotential(BasePotential):
         positions : torch.Tensor
             Positions array of shape (N, 3)
 
-        Returns:
+        Returns
         -------
         torch.Tensor
             Hessian matrix of shape (3N, 3N)
@@ -501,13 +648,10 @@ class UMAPotential(BasePotential):
                 create_graph=False,
                 allow_unused=False,
             )[0]
+            # torch.autograd.grad with allow_unused=False should not return None
             hess_row = hess_row.detach()
-
-            if hess_row is None:
-                hessian.append(torch.zeros(num_elements, dtype=forces.dtype, device=forces.device))
-            else:
-                # Flatten to (3N,)
-                hessian.append(hess_row.view(-1))
+            # Flatten to (3N,)
+            hessian.append(hess_row.view(-1))
 
         return torch.stack(hessian)
 
@@ -522,12 +666,14 @@ class UMAPotential(BasePotential):
         hessian : np.ndarray
             Hessian matrix of shape (3N, 3N)
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Symmetrized Hessian matrix of shape (3N, 3N)
         """
-        return 0.5 * (hessian + hessian.T)
+        from typing import cast
+
+        return cast(np.ndarray, 0.5 * (hessian + hessian.T))
 
     def _compute_hessian_double_backward(
         self,
@@ -548,12 +694,12 @@ class UMAPotential(BasePotential):
         positions : torch.Tensor
             Positions tensor of shape (N, 3) with gradients enabled
 
-        Returns:
+        Returns
         -------
         torch.Tensor
             Hessian matrix of shape (3N, 3N)
 
-        Raises:
+        Raises
         ------
         RuntimeError
             If computation fails
@@ -587,19 +733,17 @@ class UMAPotential(BasePotential):
                 create_graph=False,
                 allow_unused=False,
             )[0]
-            if hess_row is not None:
-                # Negative sign: Hessian = -∂forces/∂positions
-                hessian_list.append((-hess_row).view(-1))
-            else:
-                hessian_list.append(
-                    torch.zeros(num_elements, dtype=forces.dtype, device=forces.device)
-                )
+            # torch.autograd.grad with allow_unused=False should not return None
+            # Negative sign: Hessian = -∂forces/∂positions
+            hessian_list.append((-hess_row).view(-1))
 
         hessian = torch.stack(hessian_list)
 
         return hessian
 
-    def get_property(self, prop: str, atoms: Atoms | None = None) -> Any:
+    def get_property(
+        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
         """Get a specific property from the calculator.
 
         This method is used by ASE's property system and frequency analysis.
@@ -611,7 +755,7 @@ class UMAPotential(BasePotential):
         atoms : Atoms, optional
             Atoms object to calculate property for
 
-        Returns:
+        Returns
         -------
         Any
             The requested property
@@ -630,28 +774,28 @@ class UMAPotential(BasePotential):
             raise KeyError(msg)
 
 
-def get_uma_calculator(model_name: str = "uma-s-1p1", **kwargs: Any) -> UMAPotential:
-    """Convenience function to get UMA calculator.
+def get_uma_calculator(model_name: str = "uma-s-1p2", **kwargs: Any) -> UMAPotential:
+    """Get UMA calculator.
 
     Parameters
     ----------
-    model_name : str, default "uma-s-1p1"
+    model_name : str, default "uma-s-1p2"
         Name of UMA model to use
     **kwargs : Any
         Additional arguments passed to UMAPotential
 
-    Returns:
+    Returns
     -------
     UMAPotential
         Configured UMA calculator
 
-    Examples:
+    Examples
     --------
     >>> # Get default UMA calculator
     >>> calc = get_uma_calculator()
 
     >>> # Get specific model
-    >>> calc = get_uma_calculator("uma-s-1p1", device="cuda")
+    >>> calc = get_uma_calculator("uma-s-1p2", device="cuda")
 
     """
     return UMAPotential(model_name=model_name, **kwargs)

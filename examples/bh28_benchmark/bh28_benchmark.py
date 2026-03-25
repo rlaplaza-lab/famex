@@ -35,13 +35,11 @@ from ase import Atoms
 from ase.io import read
 
 # Import QME components
-try:
-    from qme import Explorer, calculator_registry
-except ImportError:
-    sys.exit(1)
+from qme import Explorer, calculator_registry
 
 # Import common interface
-from qme.example_utils import QMEExampleInterface, create_standard_epilog
+from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
+from qme.io.path_manager import PathManager
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -84,16 +82,28 @@ class BH28Benchmark:
         output_dir: str = "benchmark_results",
         minima_optimizer: str = "LBFGS",
         ts_optimizer: str = "SELLA",
+        device: str | None = None,
     ) -> None:
         """Initialize comprehensive benchmark."""
-        self.dataset_dir = Path(dataset_dir)
+        # If dataset_dir is relative, try to resolve it relative to script location
+        dataset_path = Path(dataset_dir)
+        if not dataset_path.is_absolute():
+            # Try relative to script directory first
+            script_dir = Path(__file__).parent
+            script_relative_path = script_dir / dataset_dir
+            if script_relative_path.exists():
+                dataset_path = script_relative_path
+            # Otherwise use as-is (current working directory)
+
+        self.dataset_dir = dataset_path
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         self.minima_optimizer = minima_optimizer
         self.ts_optimizer = ts_optimizer
+        self.device = device
 
         if not self.dataset_dir.exists():
-            msg = f"BH28 dataset directory not found: {dataset_dir}"
+            msg = f"BH28 dataset directory not found: {self.dataset_dir}. Tried: {dataset_dir}"
             raise FileNotFoundError(msg)
 
         # Load reference barrier heights from JSON
@@ -181,23 +191,55 @@ class BH28Benchmark:
 
     def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
         """Print a formatted summary of backends."""
-        for _i, _backend in enumerate(backends, 1):
-            pass
 
     def optimize_structures(
         self,
         reactions: list[str],
         backends: list[str],
         verbose: bool = False,
+        backend_models: dict[str, str] | None = None,
     ) -> dict:
-        """Optimize all structures (minima and TS) for given reactions and backends."""
+        """Optimize all structures (minima and TS) for given reactions and backends.
+
+        Parameters
+        ----------
+        reactions : list[str]
+            List of reaction names to process
+        backends : list[str]
+            List of backend names (can include backend:model format)
+        verbose : bool
+            Verbosity flag
+        backend_models : dict[str, str] | None
+            Mapping of backend -> model_name. If None, extracted from backends list
+            if they use backend:model format, otherwise uses defaults.
+        """
         results = {}
 
-        for backend in backends:
-            backend_results = {}
+        # Parse backend:model format if backend_models not provided
+        if backend_models is None:
+            backend_models = {}
+            parsed_backends = []
+            for backend in backends:
+                if ":" in backend:
+                    parts = backend.split(":", 1)
+                    parsed_backends.append(parts[0])
+                    backend_models[parts[0]] = parts[1]
+                else:
+                    parsed_backends.append(backend)
+            backends = parsed_backends
 
-            # Get default model for backend (use None for auto-detection)
-            model_name = None
+        for backend in backends:
+            # Create a result key that includes model info if present
+            model_name = backend_models.get(backend)
+            result_key = backend
+            if model_name:
+                # For tblite, model_name is the method (e.g., GFN2-xTB)
+                if backend.lower() == "tblite":
+                    result_key = f"{backend}:{model_name}"
+                else:
+                    result_key = f"{backend}:{model_name}"
+
+            backend_results = {}
 
             try:
                 for reaction in reactions:
@@ -208,11 +250,17 @@ class BH28Benchmark:
                     }
 
                     try:
-                        # Load reactants
-                        load_start = time.perf_counter()
+                        # Load reactants (not timed - file I/O, not backend-dependent)
                         reactants = self.get_reactants(reaction)
-                        load_time = time.perf_counter() - load_start
-                        reaction_data["timings"]["structure_loading"] = load_time
+
+                        # Store reaction metadata
+                        reaction_data["reaction_metadata"] = {
+                            "reaction_name": reaction,
+                            "n_reactants": len(reactants),
+                            "reactant_formulas": [r.get_chemical_formula() for r in reactants],
+                            "reactant_n_atoms": [len(r) for r in reactants],
+                            "total_reactant_atoms": sum(len(r) for r in reactants),
+                        }
 
                         # Brief molecular information
                         reactant_info = [r.get_chemical_formula() for r in reactants]
@@ -226,22 +274,35 @@ class BH28Benchmark:
                         optimized_reactants = []
                         reactant_energies = []
                         minima_steps_total = 0
+                        reactant_timings = []  # Per-reactant timings
 
                         for i, reactant in enumerate(reactants):
+                            reactant_start = time.perf_counter()
+
+                            # Calculator initialization timing
+                            calc_init_start = time.perf_counter()
                             with suppress_verbose_output():
                                 optimizer = Explorer(
                                     atoms=reactant,
                                     backend=backend,
                                     model_name=model_name,
+                                    device=self.device,
                                     local_optimizer=self.minima_optimizer.lower(),
                                     target="minima",
                                     strategy="local",
                                     verbose=0,  # Suppress output for consistency with suppress_verbose_output
                                 )
+                            calc_init_time = time.perf_counter() - calc_init_start
+
+                            # Optimization timing
+                            opt_start = time.perf_counter()
+                            with suppress_verbose_output():
                                 result = optimizer.run(
                                     steps=500,
                                     fmax=0.01,
                                 )
+                            opt_time = time.perf_counter() - opt_start
+
                             # Handle result from Explorer.run() method
                             # The run() method returns a dictionary with standardized results
                             if isinstance(result, dict):
@@ -255,16 +316,33 @@ class BH28Benchmark:
                             if steps_taken:
                                 minima_steps_total += steps_taken
 
-                            # Compute energy from atoms to avoid relying on dict keys
+                            # Energy calculation timing
+                            energy_start = time.perf_counter()
                             try:
                                 energy_val = float(optimized.get_potential_energy())
                             except Exception:
                                 # Attach calculator if missing and retry
                                 optimizer._create_and_attach_calculator(optimized)
                                 energy_val = float(optimized.get_potential_energy())
+                            energy_time = time.perf_counter() - energy_start
 
                             optimized_reactants.append(optimized)
                             reactant_energies.append(energy_val)
+                            reactant_total_time = time.perf_counter() - reactant_start
+
+                            # Store per-reactant timing details
+                            reactant_timings.append(
+                                {
+                                    "reactant_index": i,
+                                    "formula": reactant.get_chemical_formula(),
+                                    "n_atoms": len(reactant),
+                                    "calculator_init": calc_init_time,
+                                    "optimization": opt_time,
+                                    "energy_calculation": energy_time,
+                                    "steps": steps_taken,
+                                    "total": reactant_total_time,
+                                }
+                            )
 
                             (f"reactant_{i + 1}" if len(reactants) > 1 else "reactant")
                             if verbose and steps_taken:
@@ -273,35 +351,73 @@ class BH28Benchmark:
                         total_reactant_energy = sum(reactant_energies)
                         minima_time = time.perf_counter() - minima_start
 
+                        # Calculate RMSDs for optimized reactants vs reference structures (not timed - geometry only)
+                        reactant_rmsds = []
+                        for ref_reactant, opt_reactant in zip(
+                            reactants, optimized_reactants, strict=False
+                        ):
+                            try:
+                                rmsd = PathManager.calculate_rmsd(
+                                    ref_reactant, opt_reactant, align=True
+                                )
+                                reactant_rmsds.append(float(rmsd))
+                            except Exception:
+                                # If RMSD calculation fails, store None
+                                reactant_rmsds.append(None)
+                                if verbose:
+                                    pass
+
                         reaction_data["timings"]["minima_optimization"] = minima_time
+                        reaction_data["timings"]["reactant_timings"] = reactant_timings
                         reaction_data["optimization_results"].update(
                             {
                                 "minima_converged": True,
                                 "minima_steps": minima_steps_total,
                                 "total_reactant_energy": total_reactant_energy,
                                 "reactant_energies": reactant_energies,
+                                "reactant_rmsds": reactant_rmsds,
                             },
                         )
 
                         # 2. Optimize transition state
                         try:
+                            # Load TS structure (not timed - file I/O, not backend-dependent)
                             ts_atoms = self.get_transition_state(reaction)
+
+                            # Add TS metadata
+                            if "reaction_metadata" in reaction_data:
+                                reaction_data["reaction_metadata"].update(
+                                    {
+                                        "ts_formula": ts_atoms.get_chemical_formula(),
+                                        "ts_n_atoms": len(ts_atoms),
+                                    }
+                                )
+
                             ts_start = time.perf_counter()
 
+                            # TS calculator initialization timing
+                            ts_calc_init_start = time.perf_counter()
                             with suppress_verbose_output():
                                 ts_optimizer = Explorer(
                                     atoms=ts_atoms,
                                     backend=backend,
                                     model_name=model_name,
+                                    device=self.device,
                                     local_optimizer=self.ts_optimizer.lower(),
                                     target="ts",
                                     strategy="local",
                                     verbose=0,  # Suppress output for consistency with suppress_verbose_output
                                 )
+                            ts_calc_init_time = time.perf_counter() - ts_calc_init_start
+
+                            # TS optimization timing
+                            ts_opt_start = time.perf_counter()
+                            with suppress_verbose_output():
                                 ts_result = ts_optimizer.run(
                                     steps=500,
                                     fmax=0.01,
                                 )
+                            ts_opt_time = time.perf_counter() - ts_opt_start
 
                             ts_time = time.perf_counter() - ts_start
 
@@ -316,20 +432,47 @@ class BH28Benchmark:
                                 ts_steps = None
                                 ts_conv = True
 
-                            # Compute energy
+                            # TS energy calculation timing (backend-dependent)
+                            ts_energy_start = time.perf_counter()
                             try:
                                 ts_energy_val = float(ts_atoms_opt.get_potential_energy())
                             except Exception:
                                 ts_optimizer._create_and_attach_calculator(ts_atoms_opt)
                                 ts_energy_val = float(ts_atoms_opt.get_potential_energy())
+                            ts_energy_time = time.perf_counter() - ts_energy_start
+
+                            # Calculate RMSD for optimized TS vs reference TS (not timed - geometry only)
+                            try:
+                                ts_rmsd = PathManager.calculate_rmsd(
+                                    ts_atoms, ts_atoms_opt, align=True
+                                )
+                                ts_rmsd = float(ts_rmsd)
+                            except Exception:
+                                # If RMSD calculation fails, store None
+                                ts_rmsd = None
+                                if verbose:
+                                    pass
 
                             reaction_data["timings"]["ts_optimization"] = ts_time
+                            reaction_data["timings"]["ts_calculator_init"] = ts_calc_init_time
+                            reaction_data["timings"]["ts_optimization_only"] = ts_opt_time
+                            reaction_data["timings"]["ts_energy_calculation"] = ts_energy_time
+                            reaction_data["timings"]["ts_details"] = {
+                                "formula": ts_atoms.get_chemical_formula(),
+                                "n_atoms": len(ts_atoms),
+                                "calculator_init": ts_calc_init_time,
+                                "optimization": ts_opt_time,
+                                "energy_calculation": ts_energy_time,
+                                "steps": ts_steps,
+                                "total": ts_time,
+                            }
                             reaction_data["optimization_results"].update(
                                 {
                                     "ts_converged": ts_conv,
                                     "ts_steps": ts_steps,
                                     "ts_energy": ts_energy_val,
                                     "optimized_ts": ts_atoms_opt,
+                                    "ts_rmsd": ts_rmsd,
                                 },
                             )
 
@@ -337,6 +480,8 @@ class BH28Benchmark:
                             if ts_atoms_opt is not None and ts_conv:
                                 freq_start = time.perf_counter()
                                 try:
+                                    # Hessian calculation timing
+                                    hessian_start = time.perf_counter()
                                     with suppress_verbose_output():
                                         freq_results = ts_optimizer.calculate_frequencies(
                                             delta=0.01,
@@ -344,8 +489,10 @@ class BH28Benchmark:
                                             temperature=298.15,
                                             save_hessian=False,
                                         )
+                                    hessian_time = time.perf_counter() - hessian_start
                                     freq_time = time.perf_counter() - freq_start
                                     reaction_data["timings"]["frequency_analysis"] = freq_time
+                                    reaction_data["timings"]["hessian_calculation"] = hessian_time
                                     reaction_data["frequency_results"] = {
                                         "n_frequencies": len(freq_results["frequencies"]),
                                         "frequencies": freq_results["frequencies"][
@@ -388,7 +535,7 @@ class BH28Benchmark:
                                 "skipped": "TS optimization failed",
                             }
 
-                        # 3. Calculate barrier height from optimized structures
+                        # 3. Calculate barrier height from optimized structures (not timed - arithmetic only)
                         opt_results = reaction_data["optimization_results"]
                         if opt_results.get("ts_converged") and opt_results.get("minima_converged"):
                             barrier_height = (
@@ -410,9 +557,14 @@ class BH28Benchmark:
                                 },
                             )
 
-                        # Calculate total time
+                        # Calculate total time (sum of all backend-dependent timings)
                         total_time = sum(
-                            v for v in reaction_data["timings"].values() if v is not None
+                            v
+                            for v in reaction_data["timings"].values()
+                            if v is not None
+                            and isinstance(v, int | float)
+                            and not isinstance(v, dict)
+                            and not isinstance(v, list)
                         )
                         reaction_data["timings"]["total"] = total_time
                         reaction_data["success"] = True
@@ -442,7 +594,7 @@ class BH28Benchmark:
             except Exception as e:
                 backend_results = {"backend_error": str(e)}
 
-            results[backend] = backend_results
+            results[result_key] = backend_results
 
         self.results = results
         return results
@@ -610,7 +762,7 @@ class BH28Benchmark:
             return [self._convert_to_serializable(item) for item in obj]
         if isinstance(obj, np.ndarray):
             return obj.tolist()
-        if isinstance(obj, (np.integer, np.floating)):
+        if isinstance(obj, np.integer | np.floating):
             return obj.item()
         if hasattr(obj, "get_chemical_formula"):  # ASE Atoms object
             return {
@@ -618,7 +770,7 @@ class BH28Benchmark:
                 "positions": obj.positions.tolist(),
                 "symbols": obj.get_chemical_symbols(),
             }
-        if isinstance(obj, (int, float, str, bool)) or obj is None:
+        if isinstance(obj, int | float | str | bool) or obj is None:
             return obj
         return str(obj)
 
@@ -630,12 +782,20 @@ class BH28Benchmark:
         with open(output_file, "w") as f:
             json.dump(serializable_results, f, indent=2)
 
-    def run_benchmark(self, backends: list[str], reactions: list[str], verbose: bool = False):
+    def run_benchmark(
+        self,
+        backends: list[str],
+        reactions: list[str],
+        verbose: bool = False,
+        backend_models: dict[str, str] | None = None,
+    ):
         """Run the complete benchmark suite."""
         start_time = time.time()
 
         # Optimize all structures and calculate barriers
-        self.optimize_structures(reactions, backends, verbose=verbose)
+        self.optimize_structures(
+            reactions, backends, verbose=verbose, backend_models=backend_models
+        )
 
         # Analyze performance
         self.analyze_performance(backends)
@@ -648,8 +808,9 @@ class BH28Benchmark:
         return self.results
 
 
+@setup_example_environment
 def main() -> int:
-    """Main entry point for the benchmark."""
+    """Run the benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
         name="BH28 Benchmark",
@@ -694,11 +855,14 @@ def main() -> int:
     parser.add_argument(
         "--ts-optimizer",
         default="SELLA",
-        choices=["SELLA", "trust-krylov-ts"],
+        choices=["SELLA", "rfo"],
         help="Transition state optimizer to use (default: SELLA)",
     )
 
     args = parser.parse_args()
+
+    # Get device from args (provided by QMEExampleInterface)
+    device = getattr(args, "device", None)
 
     # Set up logging based on verbosity level
     interface.setup_logging(args.verbose)
@@ -708,22 +872,20 @@ def main() -> int:
         output_dir=args.output_dir,
         minima_optimizer=args.minima_optimizer,
         ts_optimizer=args.ts_optimizer,
+        device=device,
     )
 
     interface.print_header("Chemical Accuracy Evaluation")
 
     # Determine backends to test
-    if args.backends:
-        requested_backends = [b.strip() for b in args.backends.split(",")]
-        backends = interface.filter_available_backends(requested_backends, verbose=args.verbose)
-        if not backends:
-            interface.print_error("No requested backends are available!")
-            return 1
-    else:
-        backends = interface.get_available_ml_backends()
-        if not backends:
-            interface.print_error("No ML backends available!")
-            return 1
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    _backend, backends = interface.select_backend(
+        requested_backends=requested,
+        verbose=args.verbose,
+    )
+    if not backends:
+        interface.print_error("No ML backends available!")
+        return 1
 
     interface.print_backend_summary(backends, "Benchmarking Backends")
 
@@ -762,8 +924,21 @@ def main() -> int:
             interface.print_error(f"No existing results found at {results_file}")
             return 1
     else:
+        # Parse backend:model format
+        backend_models = {}
+        parsed_backends = []
+        for backend in backends:
+            if ":" in backend:
+                parts = backend.split(":", 1)
+                parsed_backends.append(parts[0])
+                backend_models[parts[0]] = parts[1]
+            else:
+                parsed_backends.append(backend)
+
         # Run full benchmark
-        benchmark.run_benchmark(backends, reactions, verbose=args.verbose)
+        benchmark.run_benchmark(
+            parsed_backends, reactions, verbose=args.verbose, backend_models=backend_models
+        )
 
     interface.print_success()
     return 0

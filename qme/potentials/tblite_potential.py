@@ -4,6 +4,8 @@ This module implements a TBLite calculator integration using the TBLite library
 for semi-empirical quantum chemistry calculations with xTB methods.
 """
 
+from __future__ import annotations
+
 import contextlib
 import os
 import sys
@@ -15,10 +17,13 @@ from ase import Atoms
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 @contextlib.contextmanager
-def suppress_tblite_output():
+def suppress_tblite_output() -> Any:
     """Context manager to suppress TBLite verbose output when QME verbosity < 3.
 
     This redirects stdout and stderr at the file descriptor level using os.dup2()
@@ -146,14 +151,14 @@ class TBLitePotential(BasePotential):
         self.verbosity = verbosity
 
         # Placeholder for the underlying calculator implementation
-        self._calc = None
+        self._calc: Any | None = None
 
         super().__init__(backend="tblite", **kwargs)
 
     def _load_calculator(self) -> None:
         """Load the TBLite calculator implementation."""
         # Skip if already loaded
-        if hasattr(self, "_calc") and self._calc is not None:
+        if self._calc is not None:
             return
 
         from qme.utils.ml_warnings import quiet_backend_loading
@@ -202,9 +207,11 @@ class TBLitePotential(BasePotential):
                 self._calc = TBLite(**calc_kwargs)
 
             except ImportError as e:
+                logger.error("TBLite not available: %s. Install with: pip install tblite", e)
                 msg = f"TBLite not available ({e}). Install with: pip install tblite"
                 raise ImportError(msg)
             except (ValueError, AttributeError, RuntimeError) as e:
+                logger.error("Failed to initialize TBLite calculator: %s", e)
                 msg = f"Failed to initialize TBLite calculator: {e}"
                 raise RuntimeError(msg)
 
@@ -224,9 +231,10 @@ class TBLitePotential(BasePotential):
             return
 
         # Try to set verbosity using the tblite Calculator.set() API
-        if hasattr(self._calc, "set"):
+        set_method = getattr(self._calc, "set", None)
+        if set_method is not None:
             try:
-                self._calc.set("verbosity", verbosity)
+                set_method("verbosity", verbosity)
                 return
             except (AttributeError, ValueError, RuntimeError):
                 pass
@@ -255,18 +263,20 @@ class TBLitePotential(BasePotential):
         # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
-
-        if self._calc is None:
-            msg = "Failed to load TBLite calculator"
-            raise RuntimeError(msg)
+        # After _load_calculator() returns without exception, _calc is guaranteed to be set
+        assert self._calc is not None
 
         # Delegate to the underlying TBLite calculator
         # Suppress verbose output unless QME verbosity is 3 or higher
         # Note: verbosity is set once during calculator initialization, not here
+        # External library call can raise exceptions even with valid object:
+        # - RuntimeError: Calculation failures (convergence, numerical issues, etc.)
+        # - AttributeError: Method might not exist (though unlikely after initialization)
         try:
             with suppress_tblite_output():
                 self._calc.calculate(self.atoms, properties, system_changes)
         except (AttributeError, RuntimeError) as e:
+            logger.exception("TBLite calculation failed: %s", e)
             msg = f"TBLite calculation failed: {e}"
             raise RuntimeError(msg)
 
@@ -284,56 +294,75 @@ class TBLitePotential(BasePotential):
                     # Try .get() as fallback, but this shouldn't happen for valid calculations
                     self.results[prop] = self._calc.results.get(prop, None)
 
-    def get_potential_energy(self, atoms=None, force_consistent=False):
+    def get_potential_energy(
+        self, atoms: Atoms | None = None, force_consistent: bool = False
+    ) -> float:
         """Get potential energy."""
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
         return super().get_potential_energy(atoms, force_consistent)
 
-    def get_forces(self, atoms=None):
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get forces on atoms."""
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
-        return super().get_forces(atoms)
+        forces = super().get_forces(atoms)
+        if forces is None:
+            # Calculate forces if not already calculated
+            self.calculate(atoms, properties=["forces"], system_changes=None)
+            forces = self.results.get("forces")
+            if forces is None:
+                msg = "Failed to calculate forces"
+                raise RuntimeError(msg)
+        # Ensure we return a numpy array
+        if not isinstance(forces, np.ndarray):
+            forces = np.asarray(forces)
+        return forces
 
-    def get_charges(self, atoms=None):
+    def get_charges(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get Mulliken charges (if supported)."""
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
-
-        if self._calc is not None and hasattr(self._calc, "get_charges"):
-            return self._calc.get_charges(atoms)
+        assert self._calc is not None
+        get_charges = getattr(self._calc, "get_charges", None)
+        if get_charges is not None:
+            # TBLite calculator methods return Any (untyped), but we know it's np.ndarray
+            return get_charges(atoms)  # type: ignore[no-any-return]
         msg = "Charge calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
 
-    def get_dipole_moment(self, atoms=None):
+    def get_dipole_moment(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get dipole moment (if supported)."""
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
-
-        if self._calc is not None and hasattr(self._calc, "get_dipole_moment"):
-            return self._calc.get_dipole_moment(atoms)
+        assert self._calc is not None
+        get_dipole_moment = getattr(self._calc, "get_dipole_moment", None)
+        if get_dipole_moment is not None:
+            # TBLite calculator methods return Any (untyped), but we know it's np.ndarray
+            return get_dipole_moment(atoms)  # type: ignore[no-any-return]
         msg = "Dipole moment calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
 
-    def get_stress(self, atoms=None):
+    def get_stress(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get stress tensor (if supported)."""
         if atoms is not None:
             self.atoms = atoms
         # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
-
-        if self._calc is not None and hasattr(self._calc, "get_stress"):
-            return self._calc.get_stress(atoms)
+        assert self._calc is not None
+        get_stress = getattr(self._calc, "get_stress", None)
+        if get_stress is not None:
+            # TBLite calculator methods return Any (untyped), but we know it's np.ndarray
+            return get_stress(atoms)  # type: ignore[no-any-return]
         msg = "Stress calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
 
@@ -350,7 +379,7 @@ class TBLitePotential(BasePotential):
         atoms : Atoms, optional
             Atoms object to calculate Hessian for
 
-        Returns:
+        Returns
         -------
         np.ndarray
             Hessian matrix of shape (3N, 3N) in eV/Å² units
@@ -394,7 +423,7 @@ class TBLitePotential(BasePotential):
         allow_calculation : bool, default True
             Whether to allow calculation if property not cached
 
-        Returns:
+        Returns
         -------
         Any
             The requested property
@@ -413,8 +442,10 @@ class TBLitePotential(BasePotential):
             return self.get_stress(atoms)
 
         # For standard properties, check if calculator has it
-        if self._calc is not None and hasattr(self._calc, "get_property"):
-            return self._calc.get_property(name, atoms, allow_calculation)
+        if self._calc is not None:
+            get_property = getattr(self._calc, "get_property", None)
+            if get_property is not None:
+                return get_property(name, atoms, allow_calculation)
 
         # Fallback: check results
         if hasattr(self, "results") and name in self.results:
@@ -430,7 +461,7 @@ def get_tblite_calculator(
     multiplicity: int | None = None,
     **kwargs: Any,
 ) -> TBLitePotential:
-    """Factory function to create TBLite calculator.
+    """Create TBLite calculator.
 
     Parameters
     ----------
@@ -443,12 +474,12 @@ def get_tblite_calculator(
     **kwargs
         Additional arguments passed to TBLitePotential
 
-    Returns:
+    Returns
     -------
     TBLitePotential
         Configured TBLite calculator instance
 
-    Examples:
+    Examples
     --------
     >>> calc = get_tblite_calculator()  # Uses GFN2-xTB
     >>> calc = get_tblite_calculator(method="GFN1-xTB")

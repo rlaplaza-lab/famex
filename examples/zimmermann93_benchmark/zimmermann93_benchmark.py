@@ -30,13 +30,10 @@ from ase import Atoms
 from ase.io import read
 
 # Import QME components
-try:
-    from qme import Explorer, calculator_registry
-except ImportError:
-    sys.exit(1)
+from qme import Explorer, calculator_registry
 
 # Import common interface
-from qme.example_utils import QMEExampleInterface, create_standard_epilog
+from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -163,8 +160,6 @@ class Zimmermann93Benchmark:
 
     def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
         """Print a formatted summary of backends."""
-        for _i, _backend in enumerate(backends, 1):
-            pass
 
     def run_benchmark(
         self,
@@ -176,12 +171,22 @@ class Zimmermann93Benchmark:
         verbose: bool = False,
     ) -> dict:
         results: dict[str, dict] = {}
+        total_tests = len(backends) * len(reactions)
+        current_test = 0
 
         for backend in backends:
             backend_results: dict[str, dict] = {}
+            print(f"\n{'=' * 80}", flush=True)
+            print(f"Testing backend: {backend}", flush=True)
+            print(f"{'=' * 80}", flush=True)
 
             try:
                 for reaction in reactions:
+                    current_test += 1
+                    print(
+                        f"\n[{current_test}/{total_tests}] Testing {backend}/{reaction}...",
+                        flush=True,
+                    )
                     reaction_data: dict = {
                         "timings": {},
                         "optimization_results": {},
@@ -298,14 +303,52 @@ class Zimmermann93Benchmark:
                         except Exception:
                             rmsd = float("nan")
 
+                        validation_errors: list[str] = []
+                        strings_met_flag = True
+                        if isinstance(ts_result, dict):
+                            strings_met_flag = bool(ts_result.get("strings_met", True))
+                            if not strings_met_flag:
+                                validation_errors.append("growing_string_never_converged")
+
+                        if not ts_success:
+                            validation_errors.append("ts_refinement_not_converged")
+
+                        freq_info = reaction_data.get("frequency_results", {})
+                        if isinstance(freq_info, dict):
+                            if freq_info.get("skipped"):
+                                validation_errors.append("frequency_analysis_skipped")
+                            elif freq_info.get("error"):
+                                validation_errors.append("frequency_analysis_failed")
+                            else:
+                                is_ts_flag = freq_info.get("is_transition_state")
+                                ts_analysis = freq_info.get("ts_analysis")
+                                if is_ts_flag is False:
+                                    validation_errors.append(
+                                        "frequency_reports_not_transition_state"
+                                    )
+                                imaginary_modes = None
+                                if isinstance(ts_analysis, dict):
+                                    imaginary_modes = ts_analysis.get("n_imaginary_frequencies")
+                                if imaginary_modes is not None and imaginary_modes != 1:
+                                    validation_errors.append(
+                                        f"unexpected_imaginary_mode_count={imaginary_modes}"
+                                    )
+
+                        validation_success = len(validation_errors) == 0
+
                         reaction_data.update(
                             {
                                 "ts_result": ts_result,
-                                "ts_success": ts_success,
+                                "ts_success": ts_success and validation_success,
                                 "ts_rmsd_to_reference": rmsd,
-                                "success": True,
+                                "success": validation_success,
+                                "validation_errors": validation_errors
+                                if validation_errors
+                                else None,
+                                "strings_met": strings_met_flag,
                             },
                         )
+                        print(f"  ✓ Completed {backend}/{reaction}", flush=True)
 
                         # Calculate total time
                         total_time = sum(
@@ -331,6 +374,7 @@ class Zimmermann93Benchmark:
                             "optimization_results": {},
                             "frequency_results": {},
                         }
+                        print(f"  ✗ Failed {backend}/{reaction}: {e}", flush=True)
 
                     backend_results[reaction] = reaction_data
 
@@ -485,10 +529,16 @@ class Zimmermann93Benchmark:
                 except Exception:
                     pass
 
+            # Handle complex numbers first (before numpy arrays)
+            if isinstance(obj, complex):
+                return {"real": float(obj.real), "imag": float(obj.imag), "_type": "complex"}
+            if isinstance(obj, np.complexfloating):
+                return {"real": float(obj.real), "imag": float(obj.imag), "_type": "complex"}
             # Handle numpy arrays and scalars
             if isinstance(obj, np.ndarray):
-                return obj.tolist()
-            if isinstance(obj, (np.integer, np.floating)):
+                # Convert to list and recursively handle complex numbers
+                return [convert(item) for item in obj.tolist()]
+            if isinstance(obj, np.integer | np.floating):
                 return float(obj)
 
             # Handle numpy boolean scalars
@@ -517,8 +567,9 @@ class Zimmermann93Benchmark:
             json.dump(serializable, f, indent=2)
 
 
+@setup_example_environment
 def main() -> int:
-    """Main entry point for the benchmark."""
+    """Run the benchmark."""
     # Create standardized interface
     interface = QMEExampleInterface(
         name="Zimmermann-93 Benchmark",
@@ -579,17 +630,14 @@ def main() -> int:
     interface.print_header("Two-Ended Transition State Search")
 
     # Determine backends to test
-    if args.backends:
-        requested_backends = [b.strip() for b in args.backends.split(",")]
-        backends = interface.filter_available_backends(requested_backends, verbose=args.verbose)
-        if not backends:
-            interface.print_error("No requested backends are available!")
-            return 1
-    else:
-        backends = interface.get_available_ml_backends()
-        if not backends:
-            interface.print_error("No ML backends available!")
-            return 1
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    _backend, backends = interface.select_backend(
+        requested_backends=requested,
+        verbose=args.verbose,
+    )
+    if not backends:
+        interface.print_error("No ML backends available!")
+        return 1
 
     interface.print_backend_summary(backends, "Benchmarking Backends")
 

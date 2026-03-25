@@ -88,7 +88,7 @@ zimmermann93_benchmark/
 
 - QME package installed
 - At least one ML backend (see [README](../../README.md))
-- SELLA optimizer recommended (`pip install sella`)
+- SELLA optimizer is included with QME (core dependency)
 - Python 3.10+
 
 ## Understanding Results
@@ -115,5 +115,5 @@ This benchmark complements the BH28 benchmark by focusing on:
 ## Notes
 
 - Focuses on geometric accuracy (RMSD) vs BH28's energetic accuracy
-- SELLA optimizer strongly recommended for reliable TS optimization
+- SELLA optimizer (included with QME) is used by default for TS optimization
 - Results may vary with interpolation quality and initial TS guesses

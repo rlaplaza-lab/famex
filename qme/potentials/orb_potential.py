@@ -4,6 +4,8 @@ This module implements integration with Orbital Materials' Orb models,
 providing universal forcefields for molecular and materials calculations.
 """
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from typing import Any
 
@@ -13,6 +15,9 @@ from ase.calculators.calculator import all_changes
 
 from qme.backends.dependencies import deps
 from qme.potentials.base_potential import BasePotential
+from qme.utils.logging import get_qme_logger
+
+logger = get_qme_logger(__name__)
 
 
 class OrbPotential(BasePotential):
@@ -152,14 +157,54 @@ class OrbPotential(BasePotential):
                 if hasattr(torch._dynamo, "config"):
                     torch._dynamo.config.disable = True
 
-        except Exception as e:
+        except ImportError as e:
+            # Missing dependencies
+            logger.error(
+                "Failed to load Orb model '%s': missing required dependencies. Error: %s",
+                self.model_name,
+                e,
+            )
             msg = (
-                f"Failed to load Orb model '{self.model_name}'. "
-                f"Error: {e}. Please check the model name or installation."
+                f"Failed to load Orb model '{self.model_name}': missing required dependencies. "
+                f"Error: {e}. Install orb-models and ensure all dependencies are available."
             )
-            raise RuntimeError(
-                msg,
+            raise ImportError(msg) from e
+        except (ValueError, TypeError, KeyError) as e:
+            # Configuration or model format errors
+            logger.error(
+                "Failed to load Orb model '%s': invalid model configuration. Error: %s",
+                self.model_name,
+                e,
             )
+            msg = (
+                f"Failed to load Orb model '{self.model_name}': invalid model configuration. "
+                f"Error: {e}. Check that the model name is correct and the model format is valid."
+            )
+            raise ValueError(msg) from e
+        except OSError as e:
+            # File system errors
+            logger.error(
+                "Failed to load Orb model '%s': file access error. Error: %s",
+                self.model_name,
+                e,
+            )
+            msg = (
+                f"Failed to load Orb model '{self.model_name}': file access error. "
+                f"Error: {e}. Check file permissions and ensure model files are accessible."
+            )
+            raise RuntimeError(msg) from e
+        except RuntimeError as e:
+            # Runtime errors from backend
+            logger.error(
+                "Failed to load Orb model '%s': runtime error. Error: %s",
+                self.model_name,
+                e,
+            )
+            msg = (
+                f"Failed to load Orb model '{self.model_name}': runtime error. "
+                f"Error: {e}. This may indicate a device/GPU issue or model incompatibility."
+            )
+            raise RuntimeError(msg) from e
 
     def calculate(
         self,
@@ -246,7 +291,7 @@ def get_orb_calculator(
     spin: int = 1,
     **kwargs: Any,
 ) -> OrbPotential:
-    """Convenience function to get Orb calculator.
+    """Get Orb calculator.
 
     Parameters
     ----------
@@ -261,7 +306,7 @@ def get_orb_calculator(
     **kwargs :
         Additional arguments passed to OrbPotential
 
-    Returns:
+    Returns
     -------
     OrbPotential
         Configured Orb calculator

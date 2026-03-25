@@ -1,5 +1,3 @@
-"""Unit tests for thermochemistry modules."""
-
 from __future__ import annotations
 
 import numpy as np
@@ -24,10 +22,7 @@ from qme.analysis.symmetry import SymmetryHandler, get_point_group_symmetry_numb
 
 
 class TestQuasiHarmonic:
-    """Test quasi-harmonic corrections."""
-
     def test_rrho_entropy(self):
-        """Test RRHO entropy calculation."""
         frequencies = np.array([100, 500, 1000])  # cm^-1
         temperature = 298.15  # K
         entropy = calculate_rrho_entropy(frequencies, temperature)
@@ -39,7 +34,6 @@ class TestQuasiHarmonic:
         assert entropy[2] < entropy[1] < entropy[0]
 
     def test_damping_function(self):
-        """Test damping function for Grimme method."""
         frequencies = np.array([50, 100, 500, 1000])  # cm^-1
         freq_cutoff = 100.0  # cm^-1
         damp = calculate_damping_function(frequencies, freq_cutoff)
@@ -49,7 +43,6 @@ class TestQuasiHarmonic:
         assert damp[3] > damp[2] > damp[1] > damp[0]  # Higher freq -> more damping (closer to RRHO)
 
     def test_quasi_harmonic_handler(self):
-        """Test QuasiHarmonicHandler."""
         handler = QuasiHarmonicHandler(method="grimme", freq_cutoff=100.0)
 
         frequencies = np.array([50, 100, 500, 1000])  # cm^-1
@@ -65,10 +58,7 @@ class TestQuasiHarmonic:
 
 
 class TestStatisticalThermodynamics:
-    """Test statistical thermodynamics contributions."""
-
     def test_translational_energy(self):
-        """Test translational energy calculation."""
         temperature = 298.15  # K
         energy = calculate_translational_energy(temperature)
 
@@ -77,7 +67,6 @@ class TestStatisticalThermodynamics:
         assert abs(energy - expected) < 0.002  # Slight tolerance for constant precision differences
 
     def test_translational_entropy(self):
-        """Test translational entropy calculation."""
         molecular_mass = 18.0  # H2O
         temperature = 298.15
         entropy = calculate_translational_entropy(molecular_mass, temperature)
@@ -85,7 +74,6 @@ class TestStatisticalThermodynamics:
         assert entropy > 0
 
     def test_rotational_energy(self):
-        """Test rotational energy calculation."""
         temperature = 298.15
 
         # Linear molecule
@@ -105,7 +93,6 @@ class TestStatisticalThermodynamics:
         assert abs(energy_atom) < 1e-10
 
     def test_rotational_entropy(self):
-        """Test rotational entropy calculation."""
         temperature = 298.15
         symmetry_number = 1
 
@@ -130,7 +117,6 @@ class TestStatisticalThermodynamics:
         assert abs(entropy_atom) < 1e-10
 
     def test_electronic_entropy(self):
-        """Test electronic entropy calculation."""
         # Singlet (multiplicity = 1)
         entropy = calculate_electronic_entropy(1)
         assert abs(entropy) < 1e-10
@@ -141,7 +127,6 @@ class TestStatisticalThermodynamics:
         assert abs(entropy_triplet - expected) < 1e-5  # Tolerance for constant precision
 
     def test_statistical_thermodynamics(self):
-        """Test StatisticalThermodynamics class."""
         atoms = Atoms("H2O", positions=[[0, 0, 0], [0, 0, 0.96], [0.82, 0, -0.26]])
 
         stat_thermo = StatisticalThermodynamics(atoms)
@@ -154,10 +139,7 @@ class TestStatisticalThermodynamics:
 
 
 class TestSolvation:
-    """Test solvation corrections."""
-
     def test_get_free_space(self):
-        """Test free space calculation for different solvents."""
         # Gas phase
         free_space_gas = get_free_space("none")
         assert abs(free_space_gas - 1000.0) < 0.1
@@ -171,8 +153,22 @@ class TestSolvation:
         with pytest.raises(ValueError):
             get_free_space("unknown_solvent")
 
+    def test_get_free_space_invalid_solvent(self):
+        """Test get_free_space with invalid solvent raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown solvent"):
+            get_free_space("invalid_solvent_name")
+
+    def test_get_free_space_all_supported_solvents(self):
+        """Test get_free_space with all supported solvents."""
+        supported = ["none", "H2O", "toluene", "DMF", "AcOH", "chloroform"]
+        for solvent in supported:
+            free_space = get_free_space(solvent)
+            assert free_space > 0
+            # Gas phase should have maximum free space
+            if solvent == "none":
+                assert abs(free_space - 1000.0) < 0.1
+
     def test_solvation_handler(self):
-        """Test SolvationHandler."""
         handler = SolvationHandler(solvent="H2O", concentration=1.0)
         assert not handler.is_gas_phase()
         assert handler.concentration == 1.0
@@ -180,12 +176,44 @@ class TestSolvation:
         handler_gas = SolvationHandler(solvent="none")
         assert handler_gas.is_gas_phase()
 
+    def test_solvation_handler_effective_concentration_gas_phase(self):
+        """Test effective_concentration for gas phase (should equal nominal)."""
+        handler = SolvationHandler(solvent="none", concentration=1.0)
+        assert handler.is_gas_phase()
+        effective = handler.effective_concentration()
+        assert abs(effective - 1.0) < 1e-10
+
+    def test_solvation_handler_effective_concentration_solution(self):
+        """Test effective_concentration for solution phase."""
+        handler = SolvationHandler(solvent="H2O", concentration=1.0)
+        assert not handler.is_gas_phase()
+        effective = handler.effective_concentration()
+        # Effective concentration should be higher than nominal in solution
+        # due to reduced accessible volume
+        assert effective > 1.0
+
+    def test_solvation_handler_effective_concentration_different_concentrations(self):
+        """Test effective_concentration with different nominal concentrations."""
+        for concentration in [0.1, 0.5, 1.0, 2.0]:
+            handler = SolvationHandler(solvent="H2O", concentration=concentration)
+            effective = handler.effective_concentration()
+            # Effective should be proportionally higher
+            assert effective > concentration
+
+    def test_solvation_handler_is_gas_phase(self):
+        """Test is_gas_phase() method with different solvents."""
+        handler_none = SolvationHandler(solvent="none")
+        assert handler_none.is_gas_phase()
+
+        handler_water = SolvationHandler(solvent="H2O")
+        assert not handler_water.is_gas_phase()
+
+        handler_toluene = SolvationHandler(solvent="toluene")
+        assert not handler_toluene.is_gas_phase()
+
 
 class TestSymmetry:
-    """Test symmetry handling."""
-
     def test_get_point_group_symmetry_number(self):
-        """Test symmetry number lookup."""
         assert get_point_group_symmetry_number("C1") == 1
         assert get_point_group_symmetry_number("C2v") == 2
         assert get_point_group_symmetry_number("Td") == 12
@@ -196,25 +224,21 @@ class TestSymmetry:
             get_point_group_symmetry_number("unknown")
 
     def test_symmetry_handler_default(self):
-        """Test SymmetryHandler with default C1 assumption."""
         with pytest.warns(UserWarning, match="C1 symmetry"):
             handler = SymmetryHandler()
         assert handler.symmetry_number == 1
         assert handler.point_group == "C1"
 
     def test_symmetry_handler_explicit(self):
-        """Test SymmetryHandler with explicit symmetry number."""
         handler = SymmetryHandler(symmetry_number=12)
         assert handler.symmetry_number == 12
 
     def test_symmetry_handler_point_group(self):
-        """Test SymmetryHandler with point group."""
         handler = SymmetryHandler(point_group="C2v")
         assert handler.symmetry_number == 2
         assert handler.point_group == "C2v"
 
     def test_rotational_symmetry_number(self):
-        """Test rotational symmetry number for linear vs non-linear."""
         handler_linear = SymmetryHandler(symmetry_number=2)
         assert handler_linear.get_rotational_symmetry_number(linear=True) == 1
 
@@ -224,15 +248,11 @@ class TestSymmetry:
 
 @pytest.fixture
 def simple_molecule():
-    """Create a simple water molecule for testing."""
     return Atoms("H2O", positions=[[0, 0, 0], [0, 0, 0.96], [0.82, 0, -0.26]])
 
 
 class TestCompleteThermodynamics:
-    """Test complete thermodynamics calculations."""
-
     def test_basic_thermodynamics(self, simple_molecule):
-        """Test basic vibrational thermodynamics."""
         from qme.analysis.thermodynamics import ThermodynamicProperties
 
         # Simple frequencies for water (approximate)
@@ -247,7 +267,6 @@ class TestCompleteThermodynamics:
         assert entropy > 0
 
     def test_complete_thermodynamics_gas_phase(self, simple_molecule):
-        """Test complete thermodynamics in gas phase."""
         from qme.analysis.thermodynamics import ThermodynamicProperties
 
         frequencies = np.array([1000, 1650, 3650])
@@ -290,7 +309,6 @@ class TestCompleteThermodynamics:
         assert results["temperature"] == 298.15
 
     def test_quasi_harmonic_methods(self, simple_molecule):
-        """Test different quasi-harmonic methods."""
         from qme.analysis.thermodynamics import ThermodynamicProperties
 
         frequencies = np.array([50, 100, 500, 1000, 1650, 3650])
