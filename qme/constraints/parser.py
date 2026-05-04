@@ -23,9 +23,10 @@ def parse_constraints(
 ) -> list[FixConstraint]:
     """Parse constraint specifications and return ASE-compatible constraints.
 
-    Supports simplified constraint parsing with two core types:
+    Supports simplified constraint parsing with three core types:
     1. Fixed Atoms: Exactly fix atom positions
     2. Harmonic Constraints: Soft constraints based on initial geometry
+    3. FixInternals: Select target values for bonds, angles, and dihedrals
 
     Parameters
     ----------
@@ -48,9 +49,12 @@ def parse_constraints(
     - "harmonic_position 5,6 k=10.0": Harmonic position constraint for atoms 5,6
     - "harmonic_bond 0,1 k=5.0": Harmonic bond constraint between atoms 0,1
     - "harmonic_angle 0,1,2 k=2.0": Harmonic angle constraint for atoms 0,1,2
+    - "fixinternals_bond 0,1 value=1.25": Fix bond length with ASE FixInternals
+    - "fixinternals_angle 0,1,2 value=109.5": Fix angle in degrees
+    - "fixinternals_dihedral 0,1,2,3 value=180.0": Fix dihedral in degrees
 
     Multiple constraints can be separated by semicolons:
-    - "fix 0,1; harmonic_bond 2,3 k=5.0"
+    - "fix 0,1; harmonic_bond 2,3 k=5.0; fixinternals_bond 4,5"
 
     """
     # Handle different input formats
@@ -60,7 +64,9 @@ def parse_constraints(
         # Handle list of pre-made ASE constraints
         if all(callable(c) or hasattr(c, "adjust_positions") for c in constraint_specs):
             # Already ASE constraints - cast to ensure type safety
-            return cast(list[FixConstraint], constraint_specs)
+            constraints = cast(list[FixConstraint], constraint_specs)
+            atoms.set_constraint(constraints)
+            return constraints
         # List of constraint specifications to parse
         constraint_strings: list[str] = []
         for spec in constraint_specs:
@@ -92,6 +98,13 @@ def parse_constraints(
                 hc["atoms"],
                 hc["force_constant"],
                 hc["reference_value"],
+            )
+        for fic in info["fixinternals_constraints"]:
+            logger.info(
+                "  FixInternals %s: atoms %s, value=%s",
+                fic["type"],
+                fic["atoms"],
+                fic["target_value"],
             )
 
     # atoms.constraints is a list of FixConstraint objects

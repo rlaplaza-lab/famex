@@ -376,7 +376,10 @@ def _common_explorer_options(f: Any) -> Any:
         click.option(
             "--constraints",
             default=None,
-            help="Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0'",
+            help=(
+                "Constraints spec string; e.g., "
+                "'fix 0,1; harmonic_bond 2,3 k=5.0; fixinternals_bond 4,5 value=1.25'"
+            ),
         ),
         click.option(
             "--verbose",
