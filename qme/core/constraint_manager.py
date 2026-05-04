@@ -22,18 +22,31 @@ class ConstraintManager:
         self._cached_constraints: list[Any] | None = None
         self._cached_atoms_hash: int | None = None
 
+    def _can_cache_constraints(self) -> bool:
+        if not self.cache_parsed or not isinstance(self.constraints_spec, list):
+            return False
+
+        return all(
+            callable(constraint) or hasattr(constraint, "adjust_positions")
+            for constraint in self.constraints_spec
+        )
+
     def apply_constraints(self, atoms: Atoms) -> list[Any]:
         if self.constraints_spec is None:
             return []
 
-        if self.cache_parsed and self._cached_constraints is not None:
+        can_cache = self._can_cache_constraints()
+
+        if can_cache and self._cached_constraints is not None:
             atoms_hash = hash((len(atoms), tuple(atoms.get_chemical_symbols())))
             if atoms_hash == self._cached_atoms_hash:
-                return self._cached_constraints.copy()
+                constraints = self._cached_constraints.copy()
+                atoms.set_constraint(constraints)
+                return constraints
 
         constraints = parse_constraints(self.constraints_spec, atoms, verbose=False)
 
-        if self.cache_parsed:
+        if can_cache:
             self._cached_constraints = constraints.copy()
             atoms_hash = hash((len(atoms), tuple(atoms.get_chemical_symbols())))
             self._cached_atoms_hash = atoms_hash
