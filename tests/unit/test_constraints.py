@@ -3,8 +3,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from ase.constraints import FixInternals
 from qme.constraints.constraints import (
     FixedAtomsConstraint,
+    FixInternalsConstraint,
     HarmonicAngleConstraint,
     HarmonicBondConstraint,
     QMEConstraintManager,
@@ -62,6 +64,27 @@ class TestConstraintManager:
         assert len(constraint_manager.constraints) == 1
         assert isinstance(constraint_manager.constraints[0], HarmonicAngleConstraint)
 
+    @pytest.mark.parametrize(
+        ("constraint_type", "atoms", "target_value"),
+        [("bond", [0, 1], 1.2),("angle", [1, 0, 2], 104.5),("dihedral", [0, 1, 2, 3], 180.0),
+        ]
+    )
+    def test_add_fixinternals_constraint(
+        self,
+        constraint_manager: QMEConstraintManager,
+        constraint_type,
+        atoms,
+        target_value,
+    ):
+        constraint_manager.add_fixinternals_constraint(constraint_type, atoms, target_value)
+        assert len(constraint_manager.constraints) == 1
+        assert isinstance(constraint_manager.constraints[0], FixInternalsConstraint)
+        info = constraint_manager.get_constraint_info()
+        assert len(info["fixinternals_constraints"]) == 1
+        assert info["fixinternals_constraints"][0]["type"] == constraint_type
+        assert info["fixinternals_constraints"][0]["atoms"] == atoms
+        assert info["fixinternals_constraints"][0]["target_value"] == target_value
+
     def test_invalid_constraint_type(self, constraint_manager: QMEConstraintManager):
         with pytest.raises(ValueError):
             constraint_manager.add_harmonic_constraint("invalid", [0, 1])
@@ -88,9 +111,20 @@ class TestConstraintParsing:
             assert hc["atoms"] == expected_atoms
             assert hc["force_constant"] == expected_k
 
-    def test_parse_invalid(self, h2o_molecule):
-        with pytest.raises(ValueError):
-            parse_constraint_string("invalid 0,1", h2o_molecule)
+    def test_parse_fixinternals_constraints(self, h2o_molecule):
+        test_cases = [
+            ("fixinternals_bond 0,1 value=1.2", "bond", [0, 1], 1.2),
+            ("fixinternals_angle 1,0,2 value=104.5", "angle", [1, 0, 2], 104.5),
+            ("fixinternals_dihedral 0,1,2,3 value=180.0", "dihedral", [0, 1, 2, 3], 180.0),
+        ]
+        for constraint_string, expected_type, expected_atoms, expected_val in test_cases:
+            cm = parse_constraint_string(constraint_string, h2o_molecule)
+            info = cm.get_constraint_info()
+            assert len(info["fixinternals_constraints"]) == 1
+            parsed = info["fixinternals_constraints"][0]
+            assert parsed["type"] == expected_type
+            assert parsed["atoms"] == expected_atoms
+            assert parsed["target_value"] == expected_val
 
 
 class TestConstraintValidation:
@@ -121,6 +155,46 @@ class TestHarmonicConstraintInternals:
     def test_angle_reference_validation(self, h2o_molecule):
         with pytest.raises(ValueError):
             HarmonicAngleConstraint([0, 1], h2o_molecule, 2.0)
+
+
+class TestFixInternalsConstraint:
+    def test_initialization_valid(self):
+        constraint = FixInternalsConstraint("bond", [0, 1], 1.5)
+        assert constraint.constraint_type == "bond"
+        assert constraint.atom_indices == [0, 1]
+        assert constraint.target_value == 1.5
+
+    def test_initialization_invalid_type(self):
+        with pytest.raises(ValueError, match="Unknown FixInternals constraint type"):
+            FixInternalsConstraint("invalid_type", [0, 1], 1.0)
+
+    @pytest.mark.parametrize(
+        ("ctype", "indices"),
+        [
+            ("bond", [0, 1, 2]),
+            ("angle", [0, 1]),
+            ("dihedral", [0, 1, 2]),
+        ]
+    )
+    def test_initialization_invalid_atom_count(self, ctype, indices):
+        with pytest.raises(ValueError, match="requires exactly"):
+            FixInternalsConstraint(ctype, indices, 1.0)
+
+    def test_to_ase_constraints_bond(self):
+        constraint = FixInternalsConstraint("bond", [0, 1], 1.2)
+        ase_constraints = constraint.to_ase_constraints()
+        assert len(ase_constraints) == 1
+        assert isinstance(ase_constraints[0], FixInternals)
+
+    def test_to_ase_constraints_angle(self):
+        constraint = FixInternalsConstraint("angle", [0, 1, 2], 104.5)
+        ase_constraints = constraint.to_ase_constraints()
+        assert len(ase_constraints) == 1
+        assert isinstance(ase_constraints[0], FixInternals)
+
+    def test_parse_invalid(self, h2o_molecule):
+        with pytest.raises(ValueError):
+            parse_constraint_string("invalid 0,1", h2o_molecule)
 
 
 class TestParseConstraintsFunction:
