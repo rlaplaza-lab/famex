@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from ase.constraints import FixInternals
+
 from qme.constraints.constraints import (
     FixedAtomsConstraint,
     FixInternalsConstraint,
