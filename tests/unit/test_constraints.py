@@ -66,8 +66,11 @@ class TestConstraintManager:
 
     @pytest.mark.parametrize(
         ("constraint_type", "atoms", "target_value"),
-        [("bond", [0, 1], 1.2),("angle", [1, 0, 2], 104.5),("dihedral", [0, 1, 2, 3], 180.0),
-        ]
+        [
+            ("bond", [0, 1], 1.2),
+            ("angle", [1, 0, 2], 104.5),
+            ("dihedral", [0, 1, 2, 3], 180.0),
+        ],
     )
     def test_add_fixinternals_constraint(
         self,
@@ -174,7 +177,7 @@ class TestFixInternalsConstraint:
             ("bond", [0, 1, 2]),
             ("angle", [0, 1]),
             ("dihedral", [0, 1, 2]),
-        ]
+        ],
     )
     def test_initialization_invalid_atom_count(self, ctype, indices):
         with pytest.raises(ValueError, match="requires exactly"):
