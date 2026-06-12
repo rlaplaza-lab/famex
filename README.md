@@ -20,7 +20,7 @@ Install a backend separately:
 | Backend | Installation | Notes |
 |---------|--------------|-------|
 | `aimnet2` | `pip install torch` | Recommended for beginners, no conflicts |
-| `uma` | `pip install fairchem-core` | Materials science |
+| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install qme-ml[uma]` | Materials science (default model: uma-s-1p2) |
 | `mace` | `pip install mace-torch` | High accuracy, conflicts with UMA |
 | `orb` | `pip install orb-models` | Universal forcefield |
 | `so3lr` | `pip install so3lr` | Research, custom models |
@@ -39,8 +39,9 @@ O 0.0 0.0 0.0
 H 0.0 0.0 1.0
 H 0.0 1.0 0.0" > water.xyz
 
-# Optimize it
-qme minima --strategy local water.xyz --backend aimnet2
+# Optimize it (default backend is uma; use aimnet2 for torch-only install)
+qme minima --strategy local water.xyz
+# qme minima --strategy local water.xyz --backend aimnet2
 ```
 
 **Python API:**
@@ -68,6 +69,7 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 
 ## Documentation
 
+- **[Documentation index](docs/README.md)** - Overview and defaults
 - **[User Guide](docs/USER_GUIDE.md)** - Complete reference for CLI, Python API, and backends
 - **[Tutorials](docs/TUTORIALS.md)** - Hands-on guides for optimization and transition states
 - **[FAQ](docs/FAQ.md)** - Troubleshooting and common questions
@@ -94,10 +96,10 @@ qme path --strategy irc ts.xyz --direction both
 ## Citation
 
 ```bibtex
-@software{qme2025,
+@software{qme2026,
   title={QME: Quick Mechanistic Exploration},
   author={QME Development Team},
-  year={2025},
+  year={2026},
   url={https://github.com/rlaplaza-lab/qme}
 }
 ```

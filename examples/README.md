@@ -104,4 +104,4 @@ python hessian_benchmark.py --quick  # Quick test with water only
 
 **CUDA not available:** Install PyTorch with CUDA or use `--device cpu`
 
-See [Main Documentation](../docs/) for more information.
+See [User Guide](../docs/USER_GUIDE.md), [Tutorials](../docs/TUTORIALS.md), and [FAQ](../docs/FAQ.md).

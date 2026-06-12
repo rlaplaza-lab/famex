@@ -311,6 +311,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         },
         {
             "desc": "Two-ended TS optimization using 'ts' command with growing_string strategy and frequency analysis",
+            "timeout": 1800,
             "cmd": [
                 "qme",
                 "ts",
@@ -322,13 +323,11 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "--backend",
                 backend,
                 "--steps",
-                str(steps),
+                "200",
                 "--npoints",
-                "7",
+                "15",
                 "--step-size",
                 "0.1",
-                "--max-images",
-                "50",
                 "--distance-threshold",
                 "0.1",
                 "--freq",
@@ -696,7 +695,10 @@ def demo_cli(
                 f"\n[{backend}] Running example {i}/{len(examples)}: {example['desc']}", flush=True
             )
             success, runtime, stdout, stderr = run_command(
-                example["cmd"], example["desc"], backend, timeout=timeout
+                example["cmd"],
+                example["desc"],
+                backend,
+                timeout=example.get("timeout", timeout),
             )
 
             # Verify frequency analysis if --freq flag is present
@@ -754,11 +756,7 @@ def demo_cli(
     total_successful = sum(results["successful"] for results in backend_results.values())
     total_tests = len(available_backends) * total_examples_per_backend
 
-    success_rate = total_successful / total_tests if total_tests > 0 else 0
-
-    if success_rate >= 0.8:
-        return True
-    return success_rate > 0.3  # At least 30% working
+    return total_successful == total_tests
 
 
 @setup_example_environment

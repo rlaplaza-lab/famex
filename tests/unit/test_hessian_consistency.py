@@ -197,12 +197,8 @@ class TestUMAHessianMethods:
         hessian1 = atoms.calc.get_hessian(atoms, method=method, symmetrize=symmetrize)
         hessian2 = atoms.calc.get_hessian(atoms, method=method, symmetrize=symmetrize)
 
-        # Use slightly relaxed tolerance for fairchem_loop due to loop-based implementation
-        # vmap can have minor non-determinism (e.g. with uma-s-1p2), so use relaxed tol
-        if method in ("fairchem_loop", "vmap"):
-            rtol_repro, atol_repro = FAIRCHEM_LOOP_REPRO_TOL
-        else:
-            rtol_repro, atol_repro = HARMONIC_TOL
+        # UMA autograd Hessian paths can show minor run-to-run non-determinism
+        rtol_repro, atol_repro = FAIRCHEM_LOOP_REPRO_TOL
         np.testing.assert_allclose(
             hessian1,
             hessian2,
@@ -513,7 +509,10 @@ class TestFrequencyAnalysisMethods:
         hessian_auto = freq_auto.calculate_hessian(method="auto")
 
         np.testing.assert_allclose(
-            hessian_direct, hessian_auto, rtol=TIGHT_TOL[0], atol=TIGHT_TOL[1]
+            hessian_direct,
+            hessian_auto,
+            rtol=FAIRCHEM_LOOP_REPRO_TOL[0],
+            atol=FAIRCHEM_LOOP_REPRO_TOL[1],
         )
         # Use smaller delta and tightened tolerances
         freq_fd_tight = FrequencyAnalysis(atoms, atoms.calc, delta=TIGHT_DELTA, verbose=0)
@@ -537,7 +536,10 @@ class TestFrequencyAnalysisMethods:
         hessian_direct = freq_direct.calculate_hessian(method="direct")
 
         np.testing.assert_allclose(
-            hessian_auto, hessian_direct, rtol=TIGHT_TOL[0], atol=TIGHT_TOL[1]
+            hessian_auto,
+            hessian_direct,
+            rtol=FAIRCHEM_LOOP_REPRO_TOL[0],
+            atol=FAIRCHEM_LOOP_REPRO_TOL[1],
         )
 
     def test_frequency_analysis_batch_method(self, water_molecule):

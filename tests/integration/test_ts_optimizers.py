@@ -13,7 +13,7 @@ import pytest
 from ase.io import read
 
 from qme.optimizers.rfo_optimizer import RFOTransitionState
-from qme.potentials.uma_potential import get_uma_calculator
+from qme.potentials import get_uma_calculator
 from tests.test_constants import DEFAULT_FMAX, LONG_STEPS
 from tests.test_utils import requires_backend
 

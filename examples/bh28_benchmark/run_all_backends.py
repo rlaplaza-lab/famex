@@ -421,10 +421,16 @@ class MultiBackendBenchmarkRunner:
         # Get all backends to run
         all_backends = self.get_all_backends()
 
-        # Filter if specific backends requested
+        # Filter if specific backends requested (match full name or base backend)
         if requested_backends:
             requested_set = {b.lower() for b in requested_backends}
-            all_backends = [b for b in all_backends if b.lower() in requested_set]
+
+            def _matches_requested(backend_name: str) -> bool:
+                backend_lower = backend_name.lower()
+                base_backend = backend_lower.split(":")[0]
+                return backend_lower in requested_set or base_backend in requested_set
+
+            all_backends = [b for b in all_backends if _matches_requested(b)]
 
         result_files: dict[str, Path | None] = {}
 

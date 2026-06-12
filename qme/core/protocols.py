@@ -1,4 +1,4 @@
-"""Protocol interfaces for type checking in QME core module."""
+"""Protocol interfaces for type checking in QME."""
 
 from __future__ import annotations
 
@@ -6,6 +6,18 @@ from typing import TYPE_CHECKING, Any, Protocol, TypedDict
 
 if TYPE_CHECKING:
     from ase import Atoms
+
+
+class CalculatorProtocol(Protocol):
+    """Minimal calculator interface for Hessian and frequency analysis."""
+
+    def get_forces(self, atoms: Atoms | None = None) -> Any: ...
+
+    def get_potential_energy(
+        self,
+        atoms: Atoms | None = None,
+        force_consistent: bool = False,
+    ) -> float: ...
 
 
 class ExplorerProtocol(Protocol):

@@ -5,9 +5,11 @@ Reference for CLI, Python API, and backends.
 ## Table of Contents
 
 1. [Core Concepts](#core-concepts)
-2. [Command Line Interface](#command-line-interface)
-3. [Python API](#python-api)
-4. [Backend Guide](#backend-guide)
+2. [Installation](#installation)
+3. [Command Line Interface](#command-line-interface)
+4. [Python API](#python-api)
+5. [Backend Guide](#backend-guide)
+6. [Examples](#examples)
 
 ## Core Concepts
 
@@ -30,9 +32,24 @@ Reference for CLI, Python API, and backends.
 
 ## Installation
 
-See [README.md](../README.md) for installation instructions.
+```bash
+pip install qme-ml
+# Or from source:
+git clone https://github.com/rlaplaza-lab/qme.git && cd qme && pip install -e .
 
-> **Note**: Python 3.10+ required. Some backends conflict (e.g., UMA vs MACE) - use separate environments.
+# UMA backend (recommended default):
+pip install qme-ml[uma]
+# equivalent to: pip install "fairchem-core>=2.21.0"
+
+# Development / testing:
+pip install -e ".[dev,uma]"
+```
+
+See [README.md](../README.md) for the full backend table.
+
+> **Note**: Python 3.10+ required. UMA and MACE conflict on `e3nn` versions — use separate conda environments.
+
+> **Default backend**: CLI and `Explorer` default to `uma` with model `uma-s-1p2`. For a conflict-free quick start, pass `--backend aimnet2` or install only `torch`.
 
 ## Command Line Interface
 
@@ -48,7 +65,7 @@ All commands support these common options:
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--backend` | `uma` | Backend: uma\|aimnet2\|mace\|orb\|so3lr\|tblite\|mock |
-| `--model-name` | `None` | Model name for backend |
+| `--model-name` | backend default | Override model (see [Default models](#default-models) when omitted) |
 | `--model-path` | `None` | Path to model file (if applicable) |
 | `--device` | `None` | Device: cpu\|cuda |
 | `--default-charge` | `0` | Default molecular charge |
@@ -56,7 +73,7 @@ All commands support these common options:
 | `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-ncg\|trust-exact\|newton-cg\|rfo (default=auto-select based on target) |
 | `--optimizer-kw` | `None` | Optimizer kwargs as key=value, repeatable |
 | `--ts-kw` | `None` | TS optimizer kwargs as key=value, repeatable |
-| `--constraints` | `None` | Constraints spec string; e.g., 'fix 0,1; harmonic_bond 2,3 k=5.0' |
+| `--constraints` | `None` | Constraints spec string; e.g., `'fix 0,1; harmonic_bond 2,3 k=5.0; fixinternals_bond 4,5 value=1.25'` |
 | `--verbose`, `-v` | `1` | Verbosity level: -v=quiet, -vv=normal, -vvv=debug |
 | `--temperature` | `298.15` | Temperature in Kelvin for thermodynamic calculations |
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
@@ -239,9 +256,14 @@ qme path --strategy irc ts.xyz --direction both
 
 ### qme cache - Cache Management
 
+Manages the on-disk model cache (primarily AIMNet2 downloads). Calculator instances are cached separately in memory during a session.
+
 ```bash
-qme cache info   # Display cache information
-qme cache clear  # Clear the model cache
+qme cache info              # Show cache directory, size, and cached models
+qme cache verify            # Checksum-verify cached model files
+qme cache clear             # Clear entire cache (prompts for confirmation)
+qme cache clear --model M   # Clear one model entry
+qme cache clear --yes       # Skip confirmation prompt
 ```
 
 ## Python API
@@ -258,7 +280,8 @@ explorer = Explorer(
     strategy="local",         # Strategy: local|neb|cineb|interpolate|growing_string|irc
     device=None,              # Device: cpu|cuda (auto-detected if None)
     local_optimizer="default", # Optimizer (auto-selects based on target)
-    # ... see Python API documentation for full parameter list
+    default_charge=0,
+    default_spin=1,
 )
 ```
 
@@ -275,22 +298,50 @@ explorer = Explorer(
 result = explorer.run(fmax=0.05, steps=1000, calculate_frequencies=False)
 
 # Load from file
-explorer = Explorer.from_file("molecule.xyz", backend="aimnet2", target="minima")
+explorer = Explorer.from_file("molecule.xyz", backend="uma", target="minima")
 
-# Calculate frequencies
+# Calculate frequencies (after optimization or on any structure)
 freq_result = explorer.calculate_frequencies(atoms=None, delta=0.01, method="auto")
+# TS check: freq_result["is_ts"] or freq_result["ts_analysis"]["n_imaginary_frequencies"] == 1
 
 # Save results
 explorer.save_structure(result["optimized_atoms"], "output.xyz")
-explorer.save_trajectory(trajectory_list, "path.xyz")
+path = result.get("trajectory", result["optimized_atoms"])
+explorer.save_trajectory(path, "path.xyz")
 ```
+
+### Run result keys
+
+Strategy results always include `optimized_atoms` and `strategy`. Common optional keys:
+
+| Key | When present |
+|-----|----------------|
+| `optimized_atoms` | Single `Atoms` (minima/TS) or `list[Atoms]` (path) |
+| `trajectory` | Path strategies (`neb`, `cineb`, `irc`, `interpolate`, `growing_string`) |
+| `converged`, `steps_taken` | After optimization |
+| `frequency_analysis`, `ts_validation` | When `calculate_frequencies=True` or `--freq` |
+
+### Default models
+
+When `--model-name` / `model_name` is omitted:
+
+| Backend | Default model |
+|---------|---------------|
+| `uma` | `uma-s-1p2` |
+| `aimnet2` | `aimnet2` |
+| `mace` | `mace-omol-0` |
+| `mock` | `mock-model` |
+
+For **TBLite**, pass the xTB method via `--model-name` (e.g. `--model-name GFN2-xTB`); the registry maps this to the calculator `method` parameter.
+
+Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin` (or `Explorer` kwargs). UMA and related backends read `atoms.info["charge"]` and `atoms.info["spin"]` when set.
 
 ## Backend Guide
 
 | Backend | Installation | Best For | Notes |
 |---------|--------------|----------|-------|
 | `aimnet2` | `pip install torch` | Beginners, molecules | No conflicts, fast |
-| `uma` | `pip install fairchem-core` | Materials science | Conflicts with MACE |
+| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install qme-ml[uma]` | Materials science (default: uma-s-1p2) | Conflicts with MACE |
 | `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA |
 | `orb` | `pip install orb-models` | Universal coverage | Molecules and materials |
 | `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations |
@@ -304,7 +355,7 @@ UMA and MACE conflict due to incompatible `e3nn` versions. Use separate environm
 ```bash
 # UMA environment
 conda create -n qme-uma python=3.12
-conda activate qme-uma && pip install qme-ml fairchem-core
+conda activate qme-uma && pip install qme-ml[uma]
 
 # MACE environment
 conda create -n qme-mace python=3.12
@@ -323,6 +374,10 @@ conda activate qme-mace && pip install qme-ml mace-torch
 
 Usage: `qme path --strategy neb reactant.xyz product.xyz --interp idpp`
 
+## Examples
+
+Runnable scripts and benchmarks live in [`examples/`](../examples/README.md) (`cli_demo.py`, `irc_demo.py`, `growing_string_demo.py`, `thermochemistry_demo.py`, and backend benchmarks).
+
 ---
 
-*Last updated: January 2025*
+*Last updated: June 2026*

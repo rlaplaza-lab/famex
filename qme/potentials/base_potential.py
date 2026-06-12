@@ -17,18 +17,9 @@ if TYPE_CHECKING:
     from ase import Atoms
 
 
-# Lazy logger import to avoid circular dependencies
-def _get_logger() -> Any:
-    """Get logger for this module, with lazy import to avoid circular dependencies."""
-    try:
-        from qme.utils.logging import get_qme_logger
+from qme.utils.lazy_imports import get_module_logger
 
-        return get_qme_logger(__name__)
-    except ImportError:
-        # Fallback for when logging isn't available yet
-        import logging
-
-        return logging.getLogger(__name__)
+logger = get_module_logger(__name__)
 
 
 class BasePotential:
@@ -150,29 +141,17 @@ class BasePotential:
 
         return self._backend_obj()
 
-    def _ensure_calculator_loaded(self) -> Any | None:
-        """Ensure calculator is loaded and return it, raising RuntimeError if failed.
-
-        This is a convenience method that combines ensure_loaded() with error handling.
-        Use this in methods that require a loaded calculator.
-
-        Returns
-        -------
-        Any
-            The loaded backend calculator object
-
-        Raises
-        ------
-        RuntimeError
-            If calculator loading fails
-        """
-        logger = _get_logger()
-        backend = self.ensure_loaded()
-        if backend is None:
-            msg = f"Failed to load {self.__class__.__name__} calculator"
-            logger.error("%s (backend: %s, model_name: %s)", msg, self.backend, self.model_name)
-            raise RuntimeError(msg)
-        return backend
+    @staticmethod
+    def _set_atoms_charge_spin(atoms: Atoms, charge: int, spin: int) -> None:
+        """Ensure ``atoms.info`` contains integer charge and spin values."""
+        if "charge" not in atoms.info:
+            atoms.info["charge"] = int(charge)
+        else:
+            atoms.info["charge"] = int(atoms.info["charge"])
+        if "spin" not in atoms.info:
+            atoms.info["spin"] = int(spin)
+        else:
+            atoms.info["spin"] = int(atoms.info["spin"])
 
     def get_potential_energy(
         self,

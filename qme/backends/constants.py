@@ -13,6 +13,9 @@ BACKEND_SO3LR = "so3lr"
 BACKEND_ORB = "orb"
 BACKEND_TBLITE = "tblite"
 
+DEFAULT_UMA_MODEL = "uma-s-1p2"
+FAIRCHEM_INSTALL = "fairchem-core>=2.21.0"
+
 # Backend categorization constants
 ALL_BACKENDS = [
     BACKEND_MOCK,

@@ -12,11 +12,11 @@ class TestBasePotential:
     """Test BasePotential class."""
 
     def test_get_logger_with_import_error(self):
-        """Test _get_logger() with ImportError fallback (lines 23-31)."""
-        from qme.potentials.base_potential import _get_logger
+        """Test get_module_logger() with ImportError fallback."""
+        from qme.utils.lazy_imports import get_module_logger
 
         with patch("qme.utils.logging.get_qme_logger", side_effect=ImportError("No module")):
-            logger = _get_logger()
+            logger = get_module_logger("test.module")
             # Should fallback to standard logging
             assert logger is not None
 

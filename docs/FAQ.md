@@ -14,14 +14,14 @@ Common questions about QME usage, installation, and troubleshooting.
 
 ### Q: Which backend should I choose?
 
-**A:** See [README](../README.md) for backend recommendations. Start with AIMNet2 for beginners (`pip install torch`).
+**A:** QME defaults to **UMA** (`uma-s-1p2`) via `fairchem-core>=2.21.0`. For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`) and pass `--backend aimnet2`. See the [backend table](USER_GUIDE.md#backend-guide) in the User Guide.
 
 ### Q: Can I install multiple backends?
 
 **A:** Some backends conflict (UMA vs MACE). Use separate environments:
 
 ```bash
-conda create -n qme-uma python=3.12 && conda activate qme-uma && pip install qme-ml fairchem-core
+conda create -n qme-uma python=3.12 && conda activate qme-uma && pip install qme-ml[uma]
 conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install qme-ml mace-torch
 ```
 
@@ -31,13 +31,13 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 
 ### Q: Backend not available after installation?
 
-**A:** Install backend dependencies. See [README](../README.md) for installation commands.
+**A:** Install backend dependencies. UMA: `pip install qme-ml[uma]` or `pip install "fairchem-core>=2.21.0"`. Other backends: see [README](../README.md) and [User Guide](USER_GUIDE.md#backend-guide).
 
 ## Using QME
 
 ### Q: What's the difference between target and strategy?
 
-**A:** See [Core Concepts](USER_GUIDE.md#core-concepts) in the User Guide. Target (`minima`, `ts`, `path`) is what you want, strategy (`local`, `interpolate`, `neb`, etc.) is how to get there.
+**A:** See [Core Concepts](USER_GUIDE.md#core-concepts). Target (`minima`, `ts`, `path`) is what you want; strategy (`local`, `interpolate`, `neb`, etc.) is how to get there.
 
 ### Q: How do I choose convergence criteria?
 
@@ -48,15 +48,22 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 
 ### Q: What file formats are supported?
 
-**A:** All ASE-compatible formats (XYZ, CIF, PDB, VASP).
+**A:** All ASE-compatible formats (XYZ, CIF, PDB, VASP, and others supported by ASE I/O).
 
 ### Q: How do I specify charge and spin?
 
-**A:** Use `--default-charge` and `--default-spin` options or Python API parameters.
+**A:** CLI: `--default-charge` and `--default-spin`. Python: `Explorer(..., default_charge=0, default_spin=1)`. Values are written to `atoms.info` when missing. Required for consistent UMA/MACE/Orb results on charged or open-shell systems.
 
 ### Q: How do I use constraints?
 
-**A:** Use `--constraints` option: `qme minima --strategy local molecule.xyz --constraints "fix 0,1,2"`
+**A:** `--constraints` accepts semicolon-separated specs, for example:
+
+```bash
+qme minima --strategy local molecule.xyz --constraints "fix 0,1,2"
+qme minima --strategy local molecule.xyz --constraints "fix 0,1; harmonic_bond 2,3 k=5.0"
+```
+
+Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_angle`, and `fixinternals_bond` / `fixinternals_angle` / `fixinternals_dihedral`. See the User Guide global options table.
 
 ## Troubleshooting
 
@@ -83,33 +90,38 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 ### Q: Transition state validation issues?
 
 **A:**
-- Multiple imaginary frequencies: Poor TS guess - try interpolation or different optimizer
-- No imaginary frequencies: Structure might be a minimum - verify TS guess
+- Multiple imaginary frequencies: poor TS guess — try interpolation, growing string, or `rfo` / `sella`
+- No imaginary frequencies: structure may be a minimum — verify the TS guess
+- Use `--freq` or `calculate_frequencies()`; check `ts_analysis["n_imaginary_frequencies"]`
+
+### Q: UMA and MACE both installed but one fails?
+
+**A:** They require incompatible `e3nn` versions. Use separate conda environments (see [Dependency Conflicts](USER_GUIDE.md#dependency-conflicts)).
 
 ## Performance
 
 ### Q: How do I speed up calculations?
 
-**A:** Use GPU (`--device cuda`) or reduce convergence criteria for testing.
+**A:** Use GPU (`--device cuda`) when available, or relax `--fmax` / `--steps` while prototyping.
 
 ### Q: Which backend is fastest?
 
-**A:** AIMNet2 > UMA > MACE > Mock (testing only). GPU acceleration (`--device cuda`) speeds up all backends.
+**A:** Depends on system size, hardware, and task. AIMNet2 is typically fast for small organic molecules; UMA is the default general-purpose MLIP. Profile your workload with [`examples/timing_benchmark.py`](../examples/timing_benchmark.py).
 
 ## Getting Help
 
 ### Q: Where can I get help?
 
-**A:** Check [User Guide](USER_GUIDE.md), [Tutorials](TUTORIALS.md), or GitHub Issues.
+**A:** [User Guide](USER_GUIDE.md), [Tutorials](TUTORIALS.md), [examples](../examples/README.md), or [GitHub Issues](https://github.com/rlaplaza-lab/qme/issues).
 
 ### Q: How do I report a bug?
 
-**A:** Include QME version (`qme --version`), Python version, OS, backend, error message, and minimal reproducing example.
+**A:** Include `qme --version`, Python version, OS, backend and model name, full error message, and a minimal reproducing example.
 
 ### Q: Where can I find examples?
 
-**A:** See the `examples/` directory. Run: `python examples/cli_demo.py`
+**A:** See [`examples/README.md`](../examples/README.md). Quick start: `python examples/cli_demo.py` from the repo root.
 
 ---
 
-*Last updated: January 2025*
+*Last updated: June 2026*

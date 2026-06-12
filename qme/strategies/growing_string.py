@@ -540,6 +540,150 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
         return reparametrized
 
+    def _collect_path_energies(self, full_path: list[Atoms]) -> list[float]:
+        """Return potential energies for each image in the path."""
+        energies: list[float] = []
+        for atoms in full_path:
+            try:
+                energies.append(atoms.get_potential_energy())
+            except Exception:
+                energies.append(float("-inf"))
+        return energies
+
+    def _rank_ts_guess_candidates(
+        self,
+        full_path: list[Atoms],
+        energies: list[float],
+    ) -> list[tuple[int, float]]:
+        """Rank interior images by energy for TS refinement (highest first)."""
+        nimages = len(full_path)
+        if not energies or all(e == float("-inf") for e in energies):
+            midpoint = nimages // 2
+            logger.warning("Could not calculate energies, using middle image as TS guess")
+            return [(midpoint, 0.0)]
+
+        margin = max(2, nimages // 5)
+        search_start = margin
+        search_end = nimages - margin
+        if search_start >= search_end:
+            search_start = 1 if nimages > 2 else 0
+            search_end = nimages - 1 if nimages > 2 else nimages
+
+        valid_energies = [
+            (i, energies[i])
+            for i in range(search_start, search_end)
+            if energies[i] != float("-inf")
+        ]
+        if not valid_energies:
+            midpoint = nimages // 2
+            logger.warning("No valid interior energies, using middle image as TS guess")
+            return [(midpoint, energies[midpoint] if midpoint < len(energies) else 0.0)]
+
+        valid_energies.sort(key=lambda x: x[1], reverse=True)
+        best_index, best_energy = valid_energies[0]
+        logger.info(
+            f"Growing String: Selected TS guess at image {best_index} "
+            f"(E = {best_energy:.6f} eV, search range {search_start}-{search_end - 1})"
+        )
+        return valid_energies
+
+    def _ts_has_one_imaginary_mode(self, freq_analysis: dict[str, Any] | None) -> bool:
+        """Return True when frequency analysis confirms a first-order saddle."""
+        if not freq_analysis:
+            return False
+        ts_info = freq_analysis.get("ts_analysis") or {}
+        n_imaginary = (
+            freq_analysis.get("n_imaginary_frequencies")
+            or freq_analysis.get("num_imaginary_modes")
+            or freq_analysis.get("n_imaginary_modes")
+            or (ts_info.get("n_imaginary_frequencies") if isinstance(ts_info, dict) else None)
+        )
+        if n_imaginary == 1:
+            return True
+        if freq_analysis.get("is_ts") is True:
+            return True
+        return isinstance(ts_info, dict) and ts_info.get("is_transition_state") is True
+
+    def _refine_ts_candidates(
+        self,
+        ts_candidates: list[tuple[int, float]],
+        full_path: list[Atoms],
+        *,
+        local_optimizer_name: str,
+        kwargs: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, Atoms, bool]:
+        """Refine TS guesses, trying fallbacks when refinement lands on a minimum."""
+        logger.info("Growing String: Refining TS with local optimization...")
+        ts_strategy = LocalTSStrategy(explorer=self.explorer)
+        ts_refinement_fmax = kwargs.get("ts_refinement_fmax", 0.01)
+        ts_refinement_steps = kwargs.get("ts_refinement_steps", 500)
+        max_candidates = kwargs.get("ts_refinement_candidates", 3)
+        ts_refinement_optimizer = local_optimizer_name
+        if ts_refinement_optimizer.lower() == "sella":
+            ts_refinement_optimizer = "rfo"
+
+        ts_call_kwargs = {
+            k: v
+            for k, v in kwargs.items()
+            if k
+            not in {
+                "fmax",
+                "steps",
+                "explorer",
+                "local_optimizer_name",
+                "ts_refinement_fmax",
+                "ts_refinement_steps",
+                "ts_refinement_candidates",
+            }
+        }
+        ts_call_kwargs.pop("require_ts", None)
+
+        best_result: dict[str, Any] | None = None
+        best_structure: Atoms | None = None
+        best_converged = False
+
+        for rank, (candidate_index, candidate_energy) in enumerate(ts_candidates[:max_candidates]):
+            ts_guess = full_path[candidate_index]
+            if rank > 0:
+                logger.info(
+                    f"Growing String: Trying fallback TS guess at image {candidate_index} "
+                    f"(E = {candidate_energy:.6f} eV)"
+                )
+
+            ts_result = ts_strategy.run(
+                [ts_guess],
+                fmax=ts_refinement_fmax,
+                steps=ts_refinement_steps,
+                local_optimizer_name=ts_refinement_optimizer,
+                calculate_frequencies=True,
+                **ts_call_kwargs,
+            )
+            ts_structure = ensure_atoms(ts_result["optimized_atoms"], "TS refinement")
+            ts_converged = bool(ts_result.get("converged", False))
+            freq_analysis_val = ts_result.get("frequency_analysis")
+            freq_analysis = freq_analysis_val if isinstance(freq_analysis_val, dict) else None
+
+            if best_result is None:
+                best_result = ts_result
+                best_structure = ts_structure
+                best_converged = ts_converged
+
+            if self._ts_has_one_imaginary_mode(freq_analysis):
+                logger.info(
+                    f"Growing String: Valid TS found from image {candidate_index} after refinement"
+                )
+                return ts_result, ts_structure, ts_converged
+
+        if best_result is not None and best_structure is not None:
+            logger.warning(
+                "Growing String: TS refinement did not yield a first-order saddle; "
+                "returning best-effort refined structure"
+            )
+            return best_result, best_structure, best_converged
+
+        midpoint = full_path[len(full_path) // 2]
+        return None, ensure_atoms(midpoint, "TS fallback"), False
+
     def optimize_perpendicular(self, fmax: float, max_steps: int = 20) -> None:
         """Optimize images perpendicular to the path using adaptive steepest descent.
 
@@ -670,7 +814,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
         kwargs.pop("require_ts", None)
 
-        self.max_nodes = kwargs.get("npoints", 15)
+        self.max_nodes = kwargs.get("max_images") or kwargs.get("npoints", 15)
         fmax = kwargs.get("fmax", 0.05)
         max_steps = kwargs.get("steps", 200)
         # Use more lenient threshold for growth - allow growth if forces are improving
@@ -864,70 +1008,20 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         # Filter redundant structures for consistency with other path strategies
         # For GSM we retain all images to avoid collapsing back onto endpoints
 
-        # Find TS as highest energy image
-        # Try to find a structure with imaginary frequencies if possible
-        energies = []
-        for atoms in full_path:
-            try:
-                energy = atoms.get_potential_energy()
-                energies.append(energy)
-            except Exception:
-                energies.append(float("-inf"))
-
-        if not energies or all(e == float("-inf") for e in energies):
-            ts_index = len(full_path) // 2
-            logger.warning("Could not calculate energies, using middle image as TS guess")
-        else:
-            # Find highest energy (avoid endpoints)
-            search_start = 1 if len(full_path) > 2 else 0
-            search_end = len(full_path) - 1 if len(full_path) > 2 else len(full_path)
-            search_range = range(search_start, search_end)
-
-            valid_energies = [
-                (i, energies[i]) for i in search_range if energies[i] != float("-inf")
-            ]
-            if not valid_energies:
-                ts_index = len(full_path) // 2
-            else:
-                # Select highest energy image as TS guess
-                # (Checking frequencies for all candidates is too expensive)
-                valid_energies.sort(key=lambda x: x[1], reverse=True)
-                ts_index = valid_energies[0][0]
-                logger.info(
-                    f"Growing String: Selected TS guess at image {ts_index} "
-                    f"(E = {energies[ts_index]:.6f} eV)"
-                )
-
+        energies = self._collect_path_energies(full_path)
+        ts_candidates = self._rank_ts_guess_candidates(full_path, energies)
+        ts_index = ts_candidates[0][0]
         ts_guess = full_path[ts_index]
 
         # Refine TS if requested
         ts_result = None
         if refine_ts:
-            logger.info("Growing String: Refining TS with local optimization...")
-            ts_strategy = LocalTSStrategy(explorer=self.explorer)
-            ts_refinement_fmax = 0.005
-            ts_refinement_steps = 2000
-            ts_refinement_optimizer = local_optimizer_name
-            if ts_refinement_optimizer.lower() == "sella":
-                ts_refinement_optimizer = "rfo"
-
-            ts_call_kwargs = {
-                k: v
-                for k, v in kwargs.items()
-                if k not in {"fmax", "steps", "explorer", "local_optimizer_name"}
-            }
-
-            ts_call_kwargs.pop("require_ts", None)
-            ts_result = ts_strategy.run(
-                [ts_guess],  # LocalTSStrategy expects Sequence[Atoms]
-                fmax=ts_refinement_fmax,
-                steps=ts_refinement_steps,
-                local_optimizer_name=ts_refinement_optimizer,
-                calculate_frequencies=True,
-                **ts_call_kwargs,
+            ts_result, ts_structure, ts_converged = self._refine_ts_candidates(
+                ts_candidates,
+                full_path,
+                local_optimizer_name=local_optimizer_name,
+                kwargs=kwargs,
             )
-            ts_structure = ensure_atoms(ts_result["optimized_atoms"], "TS refinement")
-            ts_converged = ts_result["converged"]
         else:
             ts_structure = ts_guess
             ts_converged = strings_met

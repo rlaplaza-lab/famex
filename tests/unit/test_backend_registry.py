@@ -16,7 +16,7 @@ from qme.backends.availability import (
 )
 from qme.backends.cache import CalculatorCache, ModelCache, UnifiedCache
 from qme.backends.constants import BACKEND_MOCK
-from qme.backends.registry import CalculatorRegistry, create_calculator
+from qme.backends.registry import _BACKEND_CLASSES, CalculatorRegistry, create_calculator
 from qme.utils.validation import BackendError
 
 
@@ -24,7 +24,7 @@ class TestCalculatorRegistry:
     def test_registry_initialization(self):
         registry = CalculatorRegistry()
         assert len(registry._registry) == 0
-        assert len(registry._lazy_registry) > 0  # Should have lazy backends
+        assert len(_BACKEND_CLASSES) > 0
 
     def test_get_registered_backends(self):
         registry = CalculatorRegistry()
@@ -95,7 +95,7 @@ class TestCalculatorRegistry:
 class TestRegistryLazyLoading:
     def test_load_backend_lazy(self):
         registry = CalculatorRegistry()
-        assert BACKEND_MOCK in registry._lazy_registry
+        assert BACKEND_MOCK in _BACKEND_CLASSES
 
         registry._load_backend(BACKEND_MOCK)
         assert BACKEND_MOCK in registry._registry
@@ -119,44 +119,30 @@ class TestRegistryLazyLoading:
     def test_load_with_import_error(self):
         registry = CalculatorRegistry()
 
-        registry._lazy_registry["test_fail"] = type(
-            "LazyBackend",
-            (),
-            {
-                "module": "nonexistent.module.path",
-                "function": "nonexistent_function",
-                "is_class": False,
-            },
-        )()
-
-        registry._load_backend("test_fail")
-        assert "test_fail" not in registry._registry
+        with patch.dict(_BACKEND_CLASSES, {"test_fail": ("nonexistent.module.path", "Missing")}):
+            registry._load_backend("test_fail")
+            assert "test_fail" not in registry._registry
 
     def test_load_with_attribute_error(self):
         registry = CalculatorRegistry()
 
-        registry._lazy_registry["test_attr_fail"] = type(
-            "LazyBackend",
-            (),
-            {
-                "module": "qme.backends.registry",
-                "function": "nonexistent_attribute",
-                "is_class": False,
-            },
-        )()
+        with patch.dict(
+            _BACKEND_CLASSES,
+            {"test_attr_fail": ("qme.backends.registry", "nonexistent_attribute")},
+        ):
+            with pytest.warns(UserWarning, match="Failed to load backend"):
+                registry._load_backend("test_attr_fail")
 
-        with pytest.warns(UserWarning, match="Failed to load backend"):
-            registry._load_backend("test_attr_fail")
-
-        assert "test_attr_fail" not in registry._registry
+            assert "test_attr_fail" not in registry._registry
 
     @patch("qme.backends.registry.importlib.import_module")
     def test_load_backend_import_error(self, mock_import):
         registry = CalculatorRegistry()
         mock_import.side_effect = ImportError("Module not found")
 
-        registry._load_backend("test_backend")
-        assert "test_backend" not in registry._registry
+        with patch.dict(_BACKEND_CLASSES, {"test_backend": ("fake.module", "FakeClass")}):
+            registry._load_backend("test_backend")
+            assert "test_backend" not in registry._registry
 
 
 class TestCreateCalculatorFunction:
