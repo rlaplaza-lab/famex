@@ -4,7 +4,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from qme.utils.device import get_device_info, get_optimal_device, print_device_info, validate_device
+from famex.utils.device import (
+    get_device_info,
+    get_optimal_device,
+    print_device_info,
+    validate_device,
+)
 
 
 class TestDeviceUtilities:
@@ -13,7 +18,7 @@ class TestDeviceUtilities:
         assert get_optimal_device("CUDA") == "cuda"  # Should lowercase
         assert get_optimal_device("cuda") == "cuda"
 
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.backends.dependencies.deps")
     def test_get_optimal_device_auto_detect_cuda(self, mock_deps):
         mock_torch = MagicMock()
         mock_torch.cuda.is_available.return_value = True
@@ -26,7 +31,7 @@ class TestDeviceUtilities:
         mock_deps.has.assert_called_with("torch")
         mock_deps.get.assert_called_with("torch")
 
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.backends.dependencies.deps")
     def test_get_optimal_device_auto_detect_cpu(self, mock_deps):
         mock_torch = MagicMock()
         mock_torch.cuda.is_available.return_value = False
@@ -37,7 +42,7 @@ class TestDeviceUtilities:
 
         assert device == "cpu"
 
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.backends.dependencies.deps")
     def test_get_optimal_device_no_torch(self, mock_deps):
         mock_deps.has.return_value = False
 
@@ -45,7 +50,7 @@ class TestDeviceUtilities:
 
         assert device == "cpu"
 
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.backends.dependencies.deps")
     def test_get_optimal_device_import_error(self, mock_deps):
         mock_deps.has.side_effect = ImportError("No module named torch")
 
@@ -54,7 +59,7 @@ class TestDeviceUtilities:
         assert device == "cpu"
 
     def test_validate_device_none(self):
-        with patch("qme.utils.device.get_optimal_device", return_value="cpu"):
+        with patch("famex.utils.device.get_optimal_device", return_value="cpu"):
             device = validate_device(None)
             assert device == "cpu"
 
@@ -63,7 +68,7 @@ class TestDeviceUtilities:
         assert device == "cpu"
 
     def test_validate_device_cuda(self):
-        with patch("qme.backends.dependencies.deps") as mock_deps:
+        with patch("famex.backends.dependencies.deps") as mock_deps:
             mock_torch = MagicMock()
             mock_torch.cuda.is_available.return_value = True
             mock_deps.has.return_value = True
@@ -73,7 +78,7 @@ class TestDeviceUtilities:
             assert device == "cuda"
 
     def test_validate_device_gpu_alias(self):
-        with patch("qme.backends.dependencies.deps") as mock_deps:
+        with patch("famex.backends.dependencies.deps") as mock_deps:
             mock_torch = MagicMock()
             mock_torch.cuda.is_available.return_value = True
             mock_deps.has.return_value = True
@@ -87,7 +92,7 @@ class TestDeviceUtilities:
             validate_device("invalid_device")
 
     def test_validate_device_cuda_not_available(self):
-        with patch("qme.backends.dependencies.deps") as mock_deps:
+        with patch("famex.backends.dependencies.deps") as mock_deps:
             mock_torch = MagicMock()
             mock_torch.cuda.is_available.return_value = False
             mock_deps.has.return_value = True
@@ -97,7 +102,7 @@ class TestDeviceUtilities:
                 validate_device("cuda")
 
     def test_validate_device_cuda_no_torch(self):
-        with patch("qme.backends.dependencies.deps") as mock_deps:
+        with patch("famex.backends.dependencies.deps") as mock_deps:
             mock_deps.has.return_value = False
 
             with pytest.raises(ValueError, match="PyTorch not available"):
@@ -105,13 +110,13 @@ class TestDeviceUtilities:
 
     def test_validate_device_cuda_import_error(self):
         """Test validate_device when ImportError occurs during CUDA check."""
-        with patch("qme.backends.dependencies.deps") as mock_deps:
+        with patch("famex.backends.dependencies.deps") as mock_deps:
             mock_deps.has.side_effect = ImportError("No module named torch")
 
             with pytest.raises(ValueError, match="PyTorch not available"):
                 validate_device("cuda")
 
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.backends.dependencies.deps")
     def test_get_device_info_cpu(self, mock_deps):
         info = get_device_info("cpu")
 
@@ -120,7 +125,7 @@ class TestDeviceUtilities:
         assert info["gpu_name"] is None
         assert info["gpu_memory"] is None
 
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.backends.dependencies.deps")
     def test_get_device_info_cuda_available(self, mock_deps):
         mock_torch = MagicMock()
         mock_torch.cuda.is_available.return_value = True
@@ -138,7 +143,7 @@ class TestDeviceUtilities:
         assert info["gpu_name"] == "Test GPU"
         assert info["gpu_memory"] == 8 * 1024**3
 
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.backends.dependencies.deps")
     def test_get_device_info_cuda_not_available(self, mock_deps):
         mock_torch = MagicMock()
         mock_torch.cuda.is_available.return_value = False
@@ -152,7 +157,7 @@ class TestDeviceUtilities:
         assert info["gpu_name"] is None
         assert info["gpu_memory"] is None
 
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.backends.dependencies.deps")
     def test_get_device_info_import_error(self, mock_deps):
         mock_deps.has.side_effect = ImportError("No module")
 
@@ -163,15 +168,15 @@ class TestDeviceUtilities:
         assert info["gpu_name"] is None
         assert info["gpu_memory"] is None
 
-    @patch("qme.utils.device.logger")
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.utils.device.logger")
+    @patch("famex.backends.dependencies.deps")
     def test_print_device_info_cpu(self, mock_deps, mock_logger):
         print_device_info("cpu")
 
         mock_logger.info.assert_called_with("💻 Using CPU device")
 
-    @patch("qme.utils.device.logger")
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.utils.device.logger")
+    @patch("famex.backends.dependencies.deps")
     def test_print_device_info_cuda_available(
         self,
         mock_deps,
@@ -190,8 +195,8 @@ class TestDeviceUtilities:
         call_args = str(mock_logger.info.call_args)
         assert "CUDA" in call_args or "Test GPU" in call_args
 
-    @patch("qme.utils.device.logger")
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.utils.device.logger")
+    @patch("famex.backends.dependencies.deps")
     def test_print_device_info_cuda_not_available(
         self,
         mock_deps,
@@ -209,8 +214,8 @@ class TestDeviceUtilities:
         call_args = str(mock_logger.warning.call_args)
         assert "CUDA" in call_args or "not available" in call_args
 
-    @patch("qme.utils.device.logger")
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.utils.device.logger")
+    @patch("famex.backends.dependencies.deps")
     def test_print_device_info_no_torch(
         self,
         mock_deps,
@@ -225,8 +230,8 @@ class TestDeviceUtilities:
         call_args = str(mock_logger.warning.call_args)
         assert "PyTorch" in call_args or "not available" in call_args
 
-    @patch("qme.utils.device.logger")
-    @patch("qme.backends.dependencies.deps")
+    @patch("famex.utils.device.logger")
+    @patch("famex.backends.dependencies.deps")
     def test_print_device_info_import_error(
         self,
         mock_deps,

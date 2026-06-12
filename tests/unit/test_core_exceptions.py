@@ -1,8 +1,8 @@
-"""Tests for QME core exceptions."""
+"""Tests for FAMEX core exceptions."""
 
 from __future__ import annotations
 
-from qme.core.exceptions import (
+from famex.core.exceptions import (
     InvalidInputError,
     InvalidStrategyError,
     StrategyError,

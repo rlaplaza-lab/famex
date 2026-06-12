@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qme.optimizers.rfo_optimizer import ConvergedError, RFOTransitionState
+from famex.optimizers.rfo_optimizer import ConvergedError, RFOTransitionState
 from tests.test_constants import LOOSE_FMAX, QUICK_STEPS, QUICK_STEPS_EXTENDED, TIGHT_FMAX
 
 

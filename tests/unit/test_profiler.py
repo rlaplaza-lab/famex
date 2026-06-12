@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from qme.utils.profiler import (
+from famex.utils.profiler import (
     MemoryInfo,
     PerformanceProfiler,
     TimingEntry,

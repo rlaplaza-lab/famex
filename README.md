@@ -1,6 +1,6 @@
-# QME: Quick Mechanistic Exploration
+# FAMEX: Fast Mechanistic Explorer
 
-**QME** provides a unified interface for molecular geometry optimization using machine learning potentials. It supports minima optimization, transition state searches, and reaction path calculations through both a command-line interface and Python API.
+**FAMEX** provides a unified interface for molecular geometry optimization using machine learning potentials. It supports minima optimization, transition state searches, and reaction path calculations through both a command-line interface and Python API.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -10,9 +10,9 @@
 ### Installation
 
 ```bash
-pip install qme-ml
+pip install famex
 # Or from source:
-git clone https://github.com/rlaplaza-lab/qme.git && cd qme && pip install -e .
+git clone https://github.com/rlaplaza-lab/famex.git && cd famex && pip install -e .
 ```
 
 Install a backend separately:
@@ -20,7 +20,7 @@ Install a backend separately:
 | Backend | Installation | Notes |
 |---------|--------------|-------|
 | `aimnet2` | `pip install torch` | Recommended for beginners, no conflicts |
-| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install qme-ml[uma]` | Materials science (default model: uma-s-1p2) |
+| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install famex[uma]` | Materials science (default model: uma-s-1p2) |
 | `mace` | `pip install mace-torch` | High accuracy, conflicts with UMA |
 | `orb` | `pip install orb-models` | Universal forcefield |
 | `so3lr` | `pip install so3lr` | Research, custom models |
@@ -40,16 +40,16 @@ H 0.0 0.0 1.0
 H 0.0 1.0 0.0" > water.xyz
 
 # Optimize it (default backend is uma; use aimnet2 for torch-only install)
-qme minima --strategy local water.xyz
-# qme minima --strategy local water.xyz --backend aimnet2
+famex minima --strategy local water.xyz
+# famex minima --strategy local water.xyz --backend aimnet2
 ```
 
 **Python API:**
 ```python
-import qme
+import famex
 
 # Load and optimize
-explorer = qme.Explorer.from_file("water.xyz", backend="aimnet2", target="minima", strategy="local")
+explorer = famex.Explorer.from_file("water.xyz", backend="aimnet2", target="minima", strategy="local")
 result = explorer.run(fmax=0.05, steps=1000)
 
 # Save results
@@ -78,28 +78,38 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 
 ```bash
 # Transition state search
-qme ts --strategy interpolate reactant.xyz --product product.xyz
+famex ts --strategy interpolate reactant.xyz --product product.xyz
 
 # NEB reaction path
-qme path --strategy neb reactant.xyz product.xyz --npoints 11
+famex path --strategy neb reactant.xyz product.xyz --npoints 11
 
 # IRC from transition state
-qme path --strategy irc ts.xyz --direction both
+famex path --strategy irc ts.xyz --direction both
 ```
+
+## Migrating from qme
+
+The project was renamed from **qme** / **qme-ml** to **famex** in v0.2.0. There are no compatibility shims.
+
+- Uninstall the old package: `pip uninstall qme-ml`
+- Install the new package: `pip install famex`
+- CLI: `qme` → `famex` (e.g. `famex minima …`)
+- Python: `import qme` → `import famex`
+- Optional: preserve cached models with `mv ~/.qme ~/.famex`
 
 ## Community and Support
 
-- **GitHub Repository**: [https://github.com/rlaplaza-lab/qme](https://github.com/rlaplaza-lab/qme)
-- **Issues**: [Report bugs and request features](https://github.com/rlaplaza-lab/qme/issues)
+- **GitHub Repository**: [https://github.com/rlaplaza-lab/famex](https://github.com/rlaplaza-lab/famex)
+- **Issues**: [Report bugs and request features](https://github.com/rlaplaza-lab/famex/issues)
 - **License**: MIT License
 
 ## Citation
 
 ```bibtex
-@software{qme2026,
-  title={QME: Quick Mechanistic Exploration},
-  author={QME Development Team},
+@software{famex2026,
+  title={FAMEX: Fast Mechanistic Explorer},
+  author={FAMEX Development Team},
   year={2026},
-  url={https://github.com/rlaplaza-lab/qme}
+  url={https://github.com/rlaplaza-lab/famex}
 }
 ```

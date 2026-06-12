@@ -4,13 +4,13 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from qme.analysis.quasiharmonic import (
+from famex.analysis.quasiharmonic import (
     QuasiHarmonicHandler,
     calculate_damping_function,
     calculate_rrho_entropy,
 )
-from qme.analysis.solvation import SolvationHandler, get_free_space
-from qme.analysis.statistical_thermo import (
+from famex.analysis.solvation import SolvationHandler, get_free_space
+from famex.analysis.statistical_thermo import (
     StatisticalThermodynamics,
     calculate_electronic_entropy,
     calculate_rotational_energy,
@@ -18,7 +18,7 @@ from qme.analysis.statistical_thermo import (
     calculate_translational_energy,
     calculate_translational_entropy,
 )
-from qme.analysis.symmetry import SymmetryHandler, get_point_group_symmetry_number
+from famex.analysis.symmetry import SymmetryHandler, get_point_group_symmetry_number
 
 
 class TestQuasiHarmonic:
@@ -253,7 +253,7 @@ def simple_molecule():
 
 class TestCompleteThermodynamics:
     def test_basic_thermodynamics(self, simple_molecule):
-        from qme.analysis.thermodynamics import ThermodynamicProperties
+        from famex.analysis.thermodynamics import ThermodynamicProperties
 
         # Simple frequencies for water (approximate)
         frequencies = np.array([1000, 1650, 3650])
@@ -267,7 +267,7 @@ class TestCompleteThermodynamics:
         assert entropy > 0
 
     def test_complete_thermodynamics_gas_phase(self, simple_molecule):
-        from qme.analysis.thermodynamics import ThermodynamicProperties
+        from famex.analysis.thermodynamics import ThermodynamicProperties
 
         frequencies = np.array([1000, 1650, 3650])
 
@@ -309,7 +309,7 @@ class TestCompleteThermodynamics:
         assert results["temperature"] == 298.15
 
     def test_quasi_harmonic_methods(self, simple_molecule):
-        from qme.analysis.thermodynamics import ThermodynamicProperties
+        from famex.analysis.thermodynamics import ThermodynamicProperties
 
         frequencies = np.array([50, 100, 500, 1000, 1650, 3650])
 

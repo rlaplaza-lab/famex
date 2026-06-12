@@ -4,10 +4,10 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-import qme
-from qme.analysis.frequency import FrequencyAnalysis, HessianCalculator
-from qme.analysis.utils import has_calculator_property
-from qme.backends.availability import is_backend_available
+import famex
+from famex.analysis.frequency import FrequencyAnalysis, HessianCalculator
+from famex.analysis.utils import has_calculator_property
+from famex.backends.availability import is_backend_available
 from tests.test_constants import (
     DEFAULT_DELTA,
     EXTRA_TIGHT_TOL,
@@ -53,9 +53,9 @@ def get_backend_calculator_with_hessian(backend_name: str, model_name: str | Non
 
     # Create calculator
     if backend_name == "mace":
-        calc = qme.get_mace_calculator(model_name=model_name or "mace-omol-0")
+        calc = famex.get_mace_calculator(model_name=model_name or "mace-omol-0")
     elif backend_name == "uma":
-        calc = qme.get_uma_calculator(model_name=model_name or "uma-s-1p2")
+        calc = famex.get_uma_calculator(model_name=model_name or "uma-s-1p2")
     else:
         pytest.skip(f"Unknown backend: {backend_name}")
 

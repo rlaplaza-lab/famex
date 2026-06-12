@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from qme.utils.path_security import (
+from famex.utils.path_security import (
     PathSecurityError,
     is_safe_relative_path,
     sanitize_filename,

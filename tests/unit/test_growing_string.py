@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from ase import Atoms
 
-from qme.core.explorer import Explorer
+from famex.core.explorer import Explorer
 from tests.test_constants import (
     COMPREHENSIVE_STEPS,
     DEFAULT_STEPS,

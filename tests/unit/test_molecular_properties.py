@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from ase import Atoms
 
-from qme.analysis.molecular_properties import determine_degrees_of_freedom, is_linear_molecule
+from famex.analysis.molecular_properties import determine_degrees_of_freedom, is_linear_molecule
 
 
 class TestIsLinearMolecule:

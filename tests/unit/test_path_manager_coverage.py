@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from ase import Atoms
 
-from qme.io.path_manager import PathManager
+from famex.io.path_manager import PathManager
 
 
 class TestPathManagerErrorHandling:

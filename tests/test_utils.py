@@ -146,9 +146,9 @@ class TestFileManager:
 def get_available_backends(include_mock=False):
     """Get list of backends that are actually available for testing."""
     # Use the centralized backend availability system
-    from qme.backends.availability import get_available_backends as get_qme_backends
+    from famex.backends.availability import get_available_backends as get_famex_backends
 
-    return get_qme_backends(include_mock=include_mock)
+    return get_famex_backends(include_mock=include_mock)
 
 
 def check_backend_availability(backend):
@@ -158,7 +158,7 @@ def check_backend_availability(backend):
 
     # Use the sophisticated backend availability checker
     # which handles dependency conflicts and version issues
-    from qme.backends.availability import is_backend_available
+    from famex.backends.availability import is_backend_available
 
     return is_backend_available(backend)
 
@@ -198,7 +198,7 @@ class TestResultHandler:
     def process_result(result, backend):
         """Process optimization result and return standardized dictionary with atoms and metadata.
 
-        This method handles multiple return formats from QME optimization strategies:
+        This method handles multiple return formats from FAMEX optimization strategies:
 
         1. **Dict format**: Direct dictionary from local strategies (minima, TS)
            - Contains: optimized_atoms, steps_taken, converged, strategy
@@ -658,7 +658,7 @@ def requires_backend(backend_name):
             # Test code here
             pass
     """
-    from qme.backends.availability import is_backend_available
+    from famex.backends.availability import is_backend_available
 
     return pytest.mark.skipif(
         not is_backend_available(backend_name),

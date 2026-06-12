@@ -5,14 +5,14 @@ import pytest
 from ase import Atoms
 from ase.vibrations import Vibrations
 
-from qme.analysis.frequency import FrequencyAnalysis
-from qme.analysis.hessian import HessianCalculator
-from qme.analysis.molecular_properties import determine_degrees_of_freedom
-from qme.potentials.mock_potential import MockCalculator
+from famex.analysis.frequency import FrequencyAnalysis
+from famex.analysis.hessian import HessianCalculator
+from famex.analysis.molecular_properties import determine_degrees_of_freedom
+from famex.potentials.mock_potential import MockCalculator
 from tests.test_constants import ASE_COMPARISON_TOL, FREQUENCY_COMPARE_TOL, TIGHT_TOL
 
 
-class TestQMEvsASEHessian:
+class TestFAMEXvsASEHessian:
     @pytest.mark.parametrize("delta", [0.01])
     def test_hessian_and_frequencies(self, tmp_path, delta):
         # Build a small molecule (water-like geometry)
@@ -28,8 +28,8 @@ class TestQMEvsASEHessian:
 
         indices = list(range(len(atoms)))
 
-        # QME: numerical Hessian (central differences)
-        qme_hess = HessianCalculator(
+        # FAMEX: numerical Hessian (central differences)
+        famex_hess = HessianCalculator(
             atoms=atoms,
             calculator=atoms.calc,
             delta=delta,
@@ -45,26 +45,26 @@ class TestQMEvsASEHessian:
         ase_hessian = vib.H.copy()  # 2D Hessian array in eV/Å^2
 
         # Compare Hessians (allowing small numerical tolerance)
-        assert qme_hess.shape == ase_hessian.shape == (3 * len(indices), 3 * len(indices))
+        assert famex_hess.shape == ase_hessian.shape == (3 * len(indices), 3 * len(indices))
         # Symmetry checks
-        np.testing.assert_allclose(qme_hess, qme_hess.T, rtol=TIGHT_TOL[0], atol=TIGHT_TOL[1])
+        np.testing.assert_allclose(famex_hess, famex_hess.T, rtol=TIGHT_TOL[0], atol=TIGHT_TOL[1])
         np.testing.assert_allclose(ase_hessian, ase_hessian.T, rtol=TIGHT_TOL[0], atol=TIGHT_TOL[1])
         # Element-wise closeness
         np.testing.assert_allclose(
-            qme_hess, ase_hessian, rtol=ASE_COMPARISON_TOL[0], atol=ASE_COMPARISON_TOL[1]
+            famex_hess, ase_hessian, rtol=ASE_COMPARISON_TOL[0], atol=ASE_COMPARISON_TOL[1]
         )
 
-        # QME: frequencies via FrequencyAnalysis
-        qme_freq = FrequencyAnalysis(
+        # FAMEX: frequencies via FrequencyAnalysis
+        famex_freq = FrequencyAnalysis(
             atoms=atoms,
             calculator=atoms.calc,
             delta=delta,
             indices=indices,
             verbose=0,
         )
-        qme_freq.calculate_hessian(method="finite_differences")
-        qme_freq.diagonalize_hessian()
-        fq_qme = qme_freq.get_frequencies(unit="cm-1")
+        famex_freq.calculate_hessian(method="finite_differences")
+        famex_freq.diagonalize_hessian()
+        fq_famex = famex_freq.get_frequencies(unit="cm-1")
 
         # ASE: frequencies (cm^-1)
         fq_ase_all = vib.get_frequencies()
@@ -75,9 +75,9 @@ class TestQMEvsASEHessian:
         fq_ase = fq_ase_all[idx_sorted[nfree:]]
 
         # Compare vibrational frequencies (signs: imaginary modes negative)
-        assert fq_qme.shape == fq_ase.shape
+        assert fq_famex.shape == fq_ase.shape
         np.testing.assert_allclose(
-            fq_qme, fq_ase, rtol=FREQUENCY_COMPARE_TOL[0], atol=FREQUENCY_COMPARE_TOL[1]
+            fq_famex, fq_ase, rtol=FREQUENCY_COMPARE_TOL[0], atol=FREQUENCY_COMPARE_TOL[1]
         )
 
         # Clean up ASE vibrations files

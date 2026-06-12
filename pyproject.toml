@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "qme-ml"
-version = "0.1.0"
-description = "Quick mechanistic exploration using machine learning potentials with Sella optimizer"
+name = "famex"
+version = "0.2.0"
+description = "Fast mechanistic explorer using machine learning potentials with Sella optimizer"
 readme = "README.md"
 requires-python = ">=3.10"
 # Note: Python 3.10+ required for all backends
@@ -44,17 +44,17 @@ dev = [
 ]
 
 [project.scripts]
-qme = "qme.cli:main"
+famex = "famex.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/rlaplaza-lab/qme"
-Repository = "https://github.com/rlaplaza-lab/qme"
+Homepage = "https://github.com/rlaplaza-lab/famex"
+Repository = "https://github.com/rlaplaza-lab/famex"
 
 [tool.setuptools.packages.find]
-include = ["qme*"]
+include = ["famex*"]
 
 [tool.setuptools.package-data]
-qme = ["*.yml", "*.yaml", "*.json"]
+famex = ["*.yml", "*.yaml", "*.json"]
 
 [tool.isort]
 profile = "black"
@@ -72,7 +72,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["qme"]
+source = ["famex"]
 omit = [
     "*/tests/*",
     "*/test_*.py",

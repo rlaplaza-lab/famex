@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from click.testing import CliRunner
 
-import qme
-from qme.cli import main
+import famex
+from famex.cli import main
 from tests.test_constants import COMPREHENSIVE_STEPS, DEFAULT_FMAX, LOOSE_FMAX, QUICK_STEPS
 from tests.test_utils import BackendTestRunner, StandardTestAssertions, TestResultHandler
 
@@ -448,7 +448,7 @@ class TestBackendMinimaIntegration:
     def test_h2_minima_across_backends(self, h2_molecule):
         def _run_minima(backend):
             atoms = h2_molecule.copy()
-            explorer = qme.Explorer(
+            explorer = famex.Explorer(
                 atoms=atoms,
                 backend=backend,
                 target="minima",
@@ -475,11 +475,11 @@ class TestBackendMinimaIntegration:
 class TestBackendTransitionStateIntegration:
     @pytest.mark.slow
     @pytest.mark.integration
-    @pytest.mark.skipif(not qme.deps.has("sella"), reason="Sella is required for TS optimization")
+    @pytest.mark.skipif(not famex.deps.has("sella"), reason="Sella is required for TS optimization")
     def test_water_ts_smoke(self, water_dissociation_ts_guess):
         def _run_ts(backend):
             atoms = water_dissociation_ts_guess.copy()
-            explorer = qme.Explorer(atoms=atoms, backend=backend, target="ts", strategy="local")
+            explorer = famex.Explorer(atoms=atoms, backend=backend, target="ts", strategy="local")
             result = explorer.run(fmax=LOOSE_FMAX, steps=COMPREHENSIVE_STEPS)
             processed = TestResultHandler.process_result(result, backend)
             StandardTestAssertions.assert_optimization_result(processed)
@@ -510,7 +510,7 @@ class TestBackendPathIntegration:
         product = water_molecule.copy()
         product.positions[2] += (1.5, 0.0, 0.0)
 
-        explorer = qme.Explorer(
+        explorer = famex.Explorer(
             atoms=reactant,
             backend="mock",
             target="path",

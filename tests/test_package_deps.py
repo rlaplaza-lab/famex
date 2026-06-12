@@ -10,9 +10,9 @@ class TestPackageDependencies:
         import requests  # noqa: F401
         import sella  # noqa: F401
 
-    def test_qme_package_importable(self):
-        import qme  # noqa: F401
+    def test_famex_package_importable(self):
+        import famex  # noqa: F401
 
         # Verify basic package attributes exist
-        assert hasattr(qme, "__version__")
-        assert hasattr(qme, "Explorer")
+        assert hasattr(famex, "__version__")
+        assert hasattr(famex, "Explorer")

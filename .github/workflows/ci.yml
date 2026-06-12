@@ -31,15 +31,15 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          ruff check qme/ tests/ examples/
-          ruff format --check qme/ tests/ examples/
+          ruff check famex/ tests/ examples/
+          ruff format --check famex/ tests/ examples/
 
       - name: Type check with mypy
         continue-on-error: true
-        run: mypy qme/
+        run: mypy famex/
 
       - name: Run tests
-        run: pytest tests/ -v --cov=qme --cov-report=term-missing --cov-report=html --cov-report=xml --cov-fail-under=70
+        run: pytest tests/ -v --cov=famex --cov-report=term-missing --cov-report=html --cov-report=xml --cov-fail-under=70
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.10'

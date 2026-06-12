@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""QME CLI Demo - Comprehensive Backend Comparison."""
+"""FAMEX CLI Demo - Comprehensive Backend Comparison."""
 
 import json
 import os
@@ -9,7 +9,11 @@ import time
 from pathlib import Path
 
 # Import common interface
-from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
+from famex.example_utils import (
+    FAMEXExampleInterface,
+    create_standard_epilog,
+    setup_example_environment,
+)
 
 
 def verify_frequency_output(
@@ -191,7 +195,7 @@ def run_command(
             capture_output=True,
             text=True,
             timeout=timeout,
-            cwd=Path(__file__).parent.parent,  # Run from qme root
+            cwd=Path(__file__).parent.parent,  # Run from famex root
             env=env,  # Pass the modified environment
         )
         end_time = time.time()
@@ -232,7 +236,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "Structure optimization using 'minima' command with frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "minima",
                 "--strategy",
                 "local",
@@ -249,7 +253,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "Transition state optimization using 'ts' command with local strategy and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "ts",
                 "--strategy",
                 "local",
@@ -266,7 +270,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "Two-ended minima optimization using 'minima' command with interpolate strategy and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "minima",
                 "--strategy",
                 "interpolate",
@@ -289,7 +293,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "Two-ended TS optimization using 'ts' command with interpolate strategy and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "ts",
                 "--strategy",
                 "interpolate",
@@ -313,7 +317,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
             "desc": "Two-ended TS optimization using 'ts' command with growing_string strategy and frequency analysis",
             "timeout": 1800,
             "cmd": [
-                "qme",
+                "famex",
                 "ts",
                 "--strategy",
                 "growing_string",
@@ -338,7 +342,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "Raw interpolation path generation using 'path' command with interpolate strategy",
             "cmd": [
-                "qme",
+                "famex",
                 "path",
                 "--strategy",
                 "interpolate",
@@ -357,7 +361,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "NEB path optimization (saves complete reaction pathway) using 'path' command with neb strategy and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "path",
                 "--strategy",
                 "neb",
@@ -379,7 +383,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "CI-NEB path optimization (saves complete reaction pathway) using 'path' command with cineb strategy and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "path",
                 "--strategy",
                 "cineb",
@@ -401,7 +405,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "IRC path from transition state using 'path' command with irc strategy and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "path",
                 "--strategy",
                 "irc",
@@ -422,7 +426,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "TS optimization with RFO optimizer and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "ts",
                 "--strategy",
                 "local",
@@ -441,7 +445,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "Minima optimization with force-finite-diff-hessian flag and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "minima",
                 "--strategy",
                 "local",
@@ -459,7 +463,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "TS optimization with force-finite-diff-hessian flag and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "ts",
                 "--strategy",
                 "local",
@@ -477,7 +481,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "Minima optimization with custom temperature (500 K) and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "minima",
                 "--strategy",
                 "local",
@@ -496,7 +500,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "TS optimization with constraints and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "ts",
                 "--strategy",
                 "local",
@@ -515,7 +519,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         {
             "desc": "Minima optimization with constraints and frequency analysis",
             "cmd": [
-                "qme",
+                "famex",
                 "minima",
                 "--strategy",
                 "local",
@@ -549,15 +553,15 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
 
 def demo_cli(
     backends: list[str] | None = None,
-    interface: QMEExampleInterface | None = None,
+    interface: FAMEXExampleInterface | None = None,
     timeout: int = 600,
     skip_slow_backends: bool = False,
     command_indices: list[int] | None = None,
     command_pattern: str | None = None,
 ) -> bool:
-    """Demonstrate QME CLI with commands using default settings."""
+    """Demonstrate FAMEX CLI with commands using default settings."""
     if interface is None:
-        interface = QMEExampleInterface("CLI Demo", "Comprehensive Backend Comparison")
+        interface = FAMEXExampleInterface("CLI Demo", "Comprehensive Backend Comparison")
 
     interface.print_header("Testing: opt, tsopt, two-ended, GSM, NEB, CI-NEB, and IRC commands")
 
@@ -571,7 +575,7 @@ def demo_cli(
             verbose=interface.verbose if hasattr(interface, "verbose") else 1,
         )
         if not available_backends:
-            from qme.backends.availability import get_available_backends
+            from famex.backends.availability import get_available_backends
 
             available_backends = get_available_backends()
 
@@ -763,7 +767,7 @@ def demo_cli(
 def main() -> int | None:
     """Parse arguments and run CLI demo."""
     # Create standardized interface
-    interface = QMEExampleInterface(
+    interface = FAMEXExampleInterface(
         name="CLI Demo",
         description="Comprehensive Backend Comparison",
         epilog=create_standard_epilog("demo"),

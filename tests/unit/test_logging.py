@@ -5,21 +5,21 @@ from io import StringIO
 
 import pytest
 
-from qme.utils.logging import (
-    get_qme_log_level,
-    get_qme_logger,
+from famex.utils.logging import (
+    get_famex_log_level,
+    get_famex_logger,
     is_in_quiet_context,
     print_model_info,
-    setup_qme_logging,
+    setup_famex_logging,
 )
 
 
-class TestSetupQmeLogging:
-    def test_setup_logging_default(self, clear_qme_logger):
-        setup_qme_logging(verbosity=1, force=True)
+class TestSetupFamexLogging:
+    def test_setup_logging_default(self, clear_famex_logger):
+        setup_famex_logging(verbosity=1, force=True)
 
-        assert clear_qme_logger.level == logging.INFO
-        assert len(clear_qme_logger.handlers) > 0
+        assert clear_famex_logger.level == logging.INFO
+        assert len(clear_famex_logger.handlers) > 0
 
     @pytest.mark.parametrize(
         ("verbosity", "expected_level"),
@@ -29,134 +29,134 @@ class TestSetupQmeLogging:
             (2, logging.DEBUG),
         ],
     )
-    def test_setup_logging_verbosity(self, clear_qme_logger, verbosity, expected_level):
-        setup_qme_logging(verbosity=verbosity, force=True)
+    def test_setup_logging_verbosity(self, clear_famex_logger, verbosity, expected_level):
+        setup_famex_logging(verbosity=verbosity, force=True)
 
-        assert clear_qme_logger.level == expected_level
+        assert clear_famex_logger.level == expected_level
 
-    def test_setup_logging_no_force(self, clear_qme_logger):
+    def test_setup_logging_no_force(self, clear_famex_logger):
         # First setup
-        setup_qme_logging(verbosity=1, force=True)
-        initial_handler_count = len(clear_qme_logger.handlers)
+        setup_famex_logging(verbosity=1, force=True)
+        initial_handler_count = len(clear_famex_logger.handlers)
 
         # Second setup without force
-        setup_qme_logging(verbosity=2, force=False)
+        setup_famex_logging(verbosity=2, force=False)
 
         # Should not reconfigure
-        assert clear_qme_logger.level == logging.INFO  # Should remain INFO
+        assert clear_famex_logger.level == logging.INFO  # Should remain INFO
         # Handler count might stay same or be different depending on implementation
-        assert len(clear_qme_logger.handlers) == initial_handler_count
+        assert len(clear_famex_logger.handlers) == initial_handler_count
 
-    def test_setup_logging_with_force(self, clear_qme_logger):
+    def test_setup_logging_with_force(self, clear_famex_logger):
         # First setup
-        setup_qme_logging(verbosity=1, force=True)
+        setup_famex_logging(verbosity=1, force=True)
 
         # Second setup with force
-        setup_qme_logging(verbosity=2, force=True)
+        setup_famex_logging(verbosity=2, force=True)
 
-        assert clear_qme_logger.level == logging.DEBUG  # Should be updated
+        assert clear_famex_logger.level == logging.DEBUG  # Should be updated
 
-    def test_logging_formatter_info_level(self, clear_qme_logger):
-        setup_qme_logging(verbosity=2, force=True)
+    def test_logging_formatter_info_level(self, clear_famex_logger):
+        setup_famex_logging(verbosity=2, force=True)
 
         # Capture output
         stream = StringIO()
         handler = logging.StreamHandler(stream)
-        handler.setFormatter(clear_qme_logger.handlers[0].formatter)
-        clear_qme_logger.addHandler(handler)
+        handler.setFormatter(clear_famex_logger.handlers[0].formatter)
+        clear_famex_logger.addHandler(handler)
 
-        clear_qme_logger.info("Test message")
+        clear_famex_logger.info("Test message")
 
         output = stream.getvalue()
         # INFO messages should not have level prefix
         assert "Test message" in output
         assert "[INFO]" not in output
 
-    def test_logging_formatter_warning_level(self, clear_qme_logger):
-        setup_qme_logging(verbosity=1, force=True)
+    def test_logging_formatter_warning_level(self, clear_famex_logger):
+        setup_famex_logging(verbosity=1, force=True)
 
         # Capture output
         stream = StringIO()
         handler = logging.StreamHandler(stream)
-        handler.setFormatter(clear_qme_logger.handlers[0].formatter)
-        clear_qme_logger.addHandler(handler)
+        handler.setFormatter(clear_famex_logger.handlers[0].formatter)
+        clear_famex_logger.addHandler(handler)
 
-        clear_qme_logger.warning("Test warning")
+        clear_famex_logger.warning("Test warning")
 
         output = stream.getvalue()
         assert "⚠️" in output or "WARNING" in output or "Test warning" in output
 
-    def test_logging_formatter_error_level(self, clear_qme_logger):
-        setup_qme_logging(verbosity=1, force=True)
+    def test_logging_formatter_error_level(self, clear_famex_logger):
+        setup_famex_logging(verbosity=1, force=True)
 
         # Capture output
         stream = StringIO()
         handler = logging.StreamHandler(stream)
-        handler.setFormatter(clear_qme_logger.handlers[0].formatter)
-        clear_qme_logger.addHandler(handler)
+        handler.setFormatter(clear_famex_logger.handlers[0].formatter)
+        clear_famex_logger.addHandler(handler)
 
-        clear_qme_logger.error("Test error")
+        clear_famex_logger.error("Test error")
 
         output = stream.getvalue()
         assert "❌" in output or "ERROR" in output or "Test error" in output
 
-    def test_logging_formatter_debug_level(self, clear_qme_logger):
-        setup_qme_logging(verbosity=2, force=True)
+    def test_logging_formatter_debug_level(self, clear_famex_logger):
+        setup_famex_logging(verbosity=2, force=True)
 
         # Capture output
         stream = StringIO()
         handler = logging.StreamHandler(stream)
-        handler.setFormatter(clear_qme_logger.handlers[0].formatter)
-        clear_qme_logger.addHandler(handler)
+        handler.setFormatter(clear_famex_logger.handlers[0].formatter)
+        clear_famex_logger.addHandler(handler)
 
-        clear_qme_logger.debug("Test debug")
+        clear_famex_logger.debug("Test debug")
 
         output = stream.getvalue()
         assert "[DEBUG]" in output or "Test debug" in output
 
 
-class TestGetQmeLogger:
-    def test_get_logger_with_qme_prefix(self):
-        logger = get_qme_logger("qme.test_module")
+class TestGetFamexLogger:
+    def test_get_logger_with_famex_prefix(self):
+        logger = get_famex_logger("famex.test_module")
 
         assert isinstance(logger, logging.Logger)
-        assert logger.name == "qme.test_module"
+        assert logger.name == "famex.test_module"
 
     def test_get_logger_without_prefix(self):
-        logger = get_qme_logger("test_module")
+        logger = get_famex_logger("test_module")
 
         assert isinstance(logger, logging.Logger)
-        assert logger.name == "qme.test_module"
+        assert logger.name == "famex.test_module"
 
     def test_get_logger_main(self):
-        logger = get_qme_logger("__main__")
+        logger = get_famex_logger("__main__")
 
         assert isinstance(logger, logging.Logger)
-        assert logger.name == "qme"
+        assert logger.name == "famex"
 
     def test_get_logger_uses_hierarchy(self):
-        parent_logger = get_qme_logger("qme")
-        child_logger = get_qme_logger("qme.submodule")
+        parent_logger = get_famex_logger("famex")
+        child_logger = get_famex_logger("famex.submodule")
 
-        assert child_logger.parent == parent_logger or child_logger.name.startswith("qme")
+        assert child_logger.parent == parent_logger or child_logger.name.startswith("famex")
 
 
-class TestGetQmeLogLevel:
-    def test_get_log_level_after_setup(self, clear_qme_logger):
-        setup_qme_logging(verbosity=1, force=True)
+class TestGetFamexLogLevel:
+    def test_get_log_level_after_setup(self, clear_famex_logger):
+        setup_famex_logging(verbosity=1, force=True)
 
-        level = get_qme_log_level()
+        level = get_famex_log_level()
         assert level == logging.INFO
 
-    def test_get_log_level_different_verbosities(self, clear_qme_logger):
-        setup_qme_logging(verbosity=0, force=True)
-        assert get_qme_log_level() == logging.WARNING
+    def test_get_log_level_different_verbosities(self, clear_famex_logger):
+        setup_famex_logging(verbosity=0, force=True)
+        assert get_famex_log_level() == logging.WARNING
 
-        setup_qme_logging(verbosity=1, force=True)
-        assert get_qme_log_level() == logging.INFO
+        setup_famex_logging(verbosity=1, force=True)
+        assert get_famex_log_level() == logging.INFO
 
-        setup_qme_logging(verbosity=2, force=True)
-        assert get_qme_log_level() == logging.DEBUG
+        setup_famex_logging(verbosity=2, force=True)
+        assert get_famex_log_level() == logging.DEBUG
 
 
 class TestQuietContext:
@@ -196,8 +196,8 @@ class TestPrintModelInfo:
 
 
 class TestLoggingIntegration:
-    def test_logger_used_in_code(self, clear_qme_logger):
-        logger = get_qme_logger("qme.test")
+    def test_logger_used_in_code(self, clear_famex_logger):
+        logger = get_famex_logger("famex.test")
 
         # Should not raise
         logger.info("Test message")
@@ -205,18 +205,18 @@ class TestLoggingIntegration:
         logger.warning("Warning message")
         logger.error("Error message")
 
-    def test_multiple_loggers_same_module(self, clear_qme_logger):
-        logger1 = get_qme_logger("qme.test")
-        logger2 = get_qme_logger("qme.test")
+    def test_multiple_loggers_same_module(self, clear_famex_logger):
+        logger1 = get_famex_logger("famex.test")
+        logger2 = get_famex_logger("famex.test")
 
         # Should return same logger instance (logging.getLogger is cached)
         assert logger1 is logger2
 
-    def test_logger_propagation(self, clear_qme_logger):
-        setup_qme_logging(verbosity=1, force=True)
+    def test_logger_propagation(self, clear_famex_logger):
+        setup_famex_logging(verbosity=1, force=True)
 
-        parent = logging.getLogger("qme")
-        child = get_qme_logger("qme.child")
+        parent = logging.getLogger("famex")
+        child = get_famex_logger("famex.child")
 
         # Child should inherit from parent
-        assert child.parent == parent or child.name.startswith("qme")
+        assert child.parent == parent or child.name.startswith("famex")

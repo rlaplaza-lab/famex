@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from ase import Atoms
 
-from qme.core.base_strategy import BaseStrategy, StrategyMetadata
+from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from tests.test_utils import StandardTestAssertions
 
 

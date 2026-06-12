@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from qme.optimizers.scipy_optimizers import (
+from famex.optimizers.scipy_optimizers import (
     ConvergedError,
     NewtonCG,
     TrustExact,
@@ -343,7 +343,7 @@ class TestOptimizerErrors:
         atoms = h2o_molecule_with_mock
 
         with pytest.raises(ValueError, match="Invalid method"):
-            from qme.optimizers.scipy_optimizers import SciPyHessianOptimizer
+            from famex.optimizers.scipy_optimizers import SciPyHessianOptimizer
 
             SciPyHessianOptimizer(atoms, method="invalid-method", logfile=None)
 

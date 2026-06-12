@@ -1,1 +1,1 @@
-"""QME test package."""
+"""FAMEX test package."""

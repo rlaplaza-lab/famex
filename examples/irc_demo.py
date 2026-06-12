@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
-"""QME IRC Demo - Intrinsic Reaction Coordinate Calculation."""
+"""FAMEX IRC Demo - Intrinsic Reaction Coordinate Calculation."""
 
 import sys
 from pathlib import Path
 
 from ase.io import read, write
 
-import qme
-from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
+import famex
+from famex.example_utils import (
+    FAMEXExampleInterface,
+    create_standard_epilog,
+    setup_example_environment,
+)
 
 
 @setup_example_environment
 def main() -> int:
     """Run IRC calculation demo."""
     # Create standardized interface
-    interface = QMEExampleInterface(
+    interface = FAMEXExampleInterface(
         name="IRC Demo",
         description="Intrinsic Reaction Coordinate Calculation",
         epilog=create_standard_epilog("demo"),
@@ -104,7 +108,7 @@ def main() -> int:
 
         # Setup Explorer for IRC calculation
         print("\nSetting up Explorer for IRC calculation...")
-        explorer = qme.Explorer(
+        explorer = famex.Explorer(
             atoms=ts_atoms,
             backend=backend,
             target="path",

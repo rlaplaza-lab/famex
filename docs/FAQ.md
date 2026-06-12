@@ -1,11 +1,11 @@
-# QME FAQ and Troubleshooting
+# FAMEX FAQ and Troubleshooting
 
-Common questions about QME usage, installation, and troubleshooting.
+Common questions about FAMEX usage, installation, and troubleshooting.
 
 ## Table of Contents
 
 1. [Installation and Setup](#installation-and-setup)
-2. [Using QME](#using-qme)
+2. [Using FAMEX](#using-famex)
 3. [Troubleshooting](#troubleshooting)
 4. [Performance](#performance)
 5. [Getting Help](#getting-help)
@@ -14,15 +14,15 @@ Common questions about QME usage, installation, and troubleshooting.
 
 ### Q: Which backend should I choose?
 
-**A:** QME defaults to **UMA** (`uma-s-1p2`) via `fairchem-core>=2.21.0`. For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`) and pass `--backend aimnet2`. See the [backend table](USER_GUIDE.md#backend-guide) in the User Guide.
+**A:** FAMEX defaults to **UMA** (`uma-s-1p2`) via `fairchem-core>=2.21.0`. For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`) and pass `--backend aimnet2`. See the [backend table](USER_GUIDE.md#backend-guide) in the User Guide.
 
 ### Q: Can I install multiple backends?
 
 **A:** Some backends conflict (UMA vs MACE). Use separate environments:
 
 ```bash
-conda create -n qme-uma python=3.12 && conda activate qme-uma && pip install qme-ml[uma]
-conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install qme-ml mace-torch
+conda create -n famex-uma python=3.12 && conda activate famex-uma && pip install famex[uma]
+conda create -n famex-mace python=3.12 && conda activate famex-mace && pip install famex mace-torch
 ```
 
 ### Q: What Python version do I need?
@@ -31,9 +31,9 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 
 ### Q: Backend not available after installation?
 
-**A:** Install backend dependencies. UMA: `pip install qme-ml[uma]` or `pip install "fairchem-core>=2.21.0"`. Other backends: see [README](../README.md) and [User Guide](USER_GUIDE.md#backend-guide).
+**A:** Install backend dependencies. UMA: `pip install famex[uma]` or `pip install "fairchem-core>=2.21.0"`. Other backends: see [README](../README.md) and [User Guide](USER_GUIDE.md#backend-guide).
 
-## Using QME
+## Using FAMEX
 
 ### Q: What's the difference between target and strategy?
 
@@ -59,8 +59,8 @@ conda create -n qme-mace python=3.12 && conda activate qme-mace && pip install q
 **A:** `--constraints` accepts semicolon-separated specs, for example:
 
 ```bash
-qme minima --strategy local molecule.xyz --constraints "fix 0,1,2"
-qme minima --strategy local molecule.xyz --constraints "fix 0,1; harmonic_bond 2,3 k=5.0"
+famex minima --strategy local molecule.xyz --constraints "fix 0,1,2"
+famex minima --strategy local molecule.xyz --constraints "fix 0,1; harmonic_bond 2,3 k=5.0"
 ```
 
 Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_angle`, and `fixinternals_bond` / `fixinternals_angle` / `fixinternals_dihedral`. See the User Guide global options table.
@@ -112,11 +112,11 @@ Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_a
 
 ### Q: Where can I get help?
 
-**A:** [User Guide](USER_GUIDE.md), [Tutorials](TUTORIALS.md), [examples](../examples/README.md), or [GitHub Issues](https://github.com/rlaplaza-lab/qme/issues).
+**A:** [User Guide](USER_GUIDE.md), [Tutorials](TUTORIALS.md), [examples](../examples/README.md), or [GitHub Issues](https://github.com/rlaplaza-lab/famex/issues).
 
 ### Q: How do I report a bug?
 
-**A:** Include `qme --version`, Python version, OS, backend and model name, full error message, and a minimal reproducing example.
+**A:** Include `famex --version`, Python version, OS, backend and model name, full error message, and a minimal reproducing example.
 
 ### Q: Where can I find examples?
 

@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from qme.io.geometry import Geometry, read_gaussian_input, read_geometry, write_geometry
+from famex.io.geometry import Geometry, read_gaussian_input, read_geometry, write_geometry
 
 
 class TestGeometryInitialization:

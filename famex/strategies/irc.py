@@ -1,0 +1,192 @@
+"""IRC (Intrinsic Reaction Coordinate) path calculation strategy."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from contextlib import nullcontext
+from typing import Any
+
+import numpy as np
+from ase import Atoms
+
+from famex.core.base_strategy import BaseStrategy, StrategyMetadata
+from famex.core.registry import REGISTRY
+from famex.strategies.helpers import _get_local_optimizer_class, validate_ts_structure
+from famex.utils.logging import get_famex_logger
+
+logger = get_famex_logger(__name__)
+
+
+class LocalIRCStrategy(BaseStrategy):
+    """IRC (Intrinsic Reaction Coordinate) path calculation strategy."""
+
+    metadata = StrategyMetadata(
+        name="path:irc",
+        target="path",
+        strategy="irc",
+        description="IRC (Intrinsic Reaction Coordinate) path from transition state",
+        aliases=["irc", "local:irc", "local-irc"],
+        requires_multiple_structures=False,
+    )
+
+    def run(
+        self,
+        atoms_list: Sequence[Atoms],
+        fmax: float = 0.05,
+        steps: int = 100,
+        step_size: float = 0.1,
+        direction: str = "both",
+        validate_ts: bool = True,
+        **kwargs: Any,
+    ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
+        atoms_list = list(atoms_list)
+        self.validate_inputs(atoms_list)
+
+        local_optimizer_name = kwargs.get("local_optimizer_name", "bfgs")
+        verbose = kwargs.get("verbose", 1)
+
+        if self.profiler is not None:
+            self.profiler.snapshot_memory()
+
+        if len(atoms_list) != 1:
+            msg = (
+                "IRC runner expects a single structure (transition state), "
+                f"got {len(atoms_list)} structures"
+            )
+            raise ValueError(
+                msg,
+            )
+        atoms_input = atoms_list[0]
+
+        ts_atoms = atoms_input.copy()
+
+        with self.profiler.profile_section("calculator_setup") if self.profiler else nullcontext():
+            self.explorer._create_and_attach_calculator(ts_atoms)
+            self.explorer._apply_constraints(ts_atoms)
+
+        hessian = None
+        if validate_ts:
+            with self.profiler.profile_section("ts_validation") if self.profiler else nullcontext():
+                _validation_result, hessian = validate_ts_structure(
+                    ts_atoms,
+                    self.explorer,
+                    threshold=50.0,
+                    return_hessian=True,
+                    verbose=verbose,
+                )
+
+        if verbose >= 1:
+            logger.info("Starting IRC calculation from transition state")
+            logger.info(f"Direction: {direction}, Max steps: {steps}, Step size: {step_size}")
+            logger.info(f"Force threshold: {fmax} eV/Å")
+
+        forward_path = []
+        backward_path = []
+
+        def follow_irc_direction(
+            initial_atoms: Atoms,
+            direction_sign: float,
+            max_steps: int,
+        ) -> list[Atoms]:
+            path = []
+            current = initial_atoms.copy()
+            if current.calc is None:
+                self.explorer._create_and_attach_calculator(current)
+                self.explorer._apply_constraints(current)
+
+            for _step in range(max_steps):
+                current_forces = current.get_forces()
+                current_masses = current.get_masses()
+
+                max_force = np.max(np.abs(current_forces))
+                if max_force < fmax:
+                    if verbose >= 2:
+                        logger.debug(
+                            f"IRC converged to minimum (max force: {max_force:.6f} eV/Å), optimizing endpoint",
+                        )
+                    opt_class = _get_local_optimizer_class(local_optimizer_name)
+                    opt_copy = current.copy()
+                    self.explorer._create_and_attach_calculator(opt_copy)
+                    self.explorer._apply_constraints(opt_copy)
+                    opt = opt_class(opt_copy)
+                    opt.run(fmax=fmax, steps=100)
+                    path.append(opt_copy)
+                    break
+
+                mw_forces = current_forces / np.sqrt(current_masses[:, np.newaxis])
+                mw_forces_norm = np.linalg.norm(mw_forces)
+
+                if mw_forces_norm < 1e-10:
+                    break
+
+                step_direction = mw_forces / mw_forces_norm
+                displacement = (
+                    direction_sign
+                    * step_size
+                    * step_direction
+                    * np.sqrt(current_masses[:, np.newaxis])
+                )
+
+                next_atoms = current.copy()
+                new_positions = current.get_positions() + displacement
+                next_atoms.set_positions(new_positions)
+
+                self.explorer._create_and_attach_calculator(next_atoms)
+                self.explorer._apply_constraints(next_atoms)
+
+                path.append(next_atoms.copy())
+                current = next_atoms
+
+            return path
+
+        with self.profiler.profile_section("irc_calculation") if self.profiler else nullcontext():
+            if direction.lower() in ("forward", "both"):
+                if verbose >= 2:
+                    logger.debug("Following IRC in forward direction")
+                forward_path = follow_irc_direction(ts_atoms, 1.0, steps)
+
+            if direction.lower() in ("backward", "both"):
+                if verbose >= 2:
+                    logger.debug("Following IRC in backward direction")
+                backward_path = follow_irc_direction(ts_atoms, -1.0, steps)
+
+        if direction.lower() == "both":
+            trajectory = [
+                *list(reversed(backward_path)),
+                ts_atoms.copy(),
+                *forward_path,
+            ]
+        elif direction.lower() == "forward":
+            trajectory = [ts_atoms.copy(), *forward_path]
+        elif direction.lower() == "backward":
+            trajectory = [*list(reversed(backward_path)), ts_atoms.copy()]
+        else:
+            msg = f"Invalid direction: {direction}. Must be 'forward', 'backward', or 'both'"
+            raise ValueError(
+                msg,
+            )
+
+        if verbose >= 1:
+            logger.info(f"IRC calculation completed: {len(trajectory)} images generated")
+            logger.info(
+                f"Forward path: {len(forward_path)} images, Backward path: {len(backward_path)} images",
+            )
+
+        result = self.prepare_result(
+            trajectory,
+            converged=True,
+            trajectory=trajectory,
+            forward_path=forward_path,
+            backward_path=backward_path,
+        )
+
+        if validate_ts and hessian is not None:
+            result["hessian_computed"] = True
+            result["hessian"] = hessian
+        else:
+            result["hessian_computed"] = False
+
+        return self._merge_profiler_results(result)
+
+
+REGISTRY.register(LocalIRCStrategy)

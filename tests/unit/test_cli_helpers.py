@@ -8,8 +8,8 @@ import pytest
 from ase import Atoms
 from click.testing import CliRunner
 
-from qme.cli.cache_commands import cache
-from qme.cli.cli_helpers import (
+from famex.cli.cache_commands import cache
+from famex.cli.cli_helpers import (
     load_atoms_from_xyz,
     parse_kv_pairs,
     print_frequency_summary,
@@ -252,7 +252,7 @@ class TestCacheCommands:
         result = runner.invoke(cache, ["info"])
 
         assert result.exit_code == 0
-        assert "QME Model Cache" in result.output
+        assert "FAMEX Model Cache" in result.output
 
     def test_cache_verify_command(self):
         runner = CliRunner()
@@ -318,7 +318,7 @@ class TestCacheCommands:
         mock_cache._verify_checksum.return_value = False  # Simulate corrupted
 
         # Patch get_model_cache to return our mock
-        monkeypatch.setattr("qme.cli.cache_commands.get_model_cache", lambda: mock_cache)
+        monkeypatch.setattr("famex.cli.cache_commands.get_model_cache", lambda: mock_cache)
 
         runner = CliRunner()
         result = runner.invoke(cache, ["verify"])
@@ -346,7 +346,7 @@ class TestCacheCommands:
         }
 
         # Patch get_model_cache to return our mock
-        monkeypatch.setattr("qme.cli.cache_commands.get_model_cache", lambda: mock_cache)
+        monkeypatch.setattr("famex.cli.cache_commands.get_model_cache", lambda: mock_cache)
 
         runner = CliRunner()
         result = runner.invoke(cache, ["info"])
@@ -388,7 +388,7 @@ H  0.0  0.0  1.6
 
 class TestCoerceToAtoms:
     def test_coerce_atoms_tuple(self):
-        from qme.cli.cli_helpers import _coerce_to_atoms
+        from famex.cli.cli_helpers import _coerce_to_atoms
 
         atoms1 = Atoms("H2")
         atoms2 = Atoms("O")
@@ -397,14 +397,14 @@ class TestCoerceToAtoms:
         assert result == atoms1  # First one
 
     def test_coerce_atoms_dict(self):
-        from qme.cli.cli_helpers import _coerce_to_atoms
+        from famex.cli.cli_helpers import _coerce_to_atoms
 
         atoms = Atoms("H2O")
         result = _coerce_to_atoms({"optimized_atoms": atoms})
         assert result == atoms
 
     def test_coerce_atoms_path(self):
-        from qme.cli.cli_helpers import _coerce_to_atoms
+        from famex.cli.cli_helpers import _coerce_to_atoms
 
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
 
@@ -419,7 +419,7 @@ class TestCoerceToAtoms:
             Path(temp_file).unlink(missing_ok=True)
 
     def test_coerce_atoms_invalid(self):
-        from qme.cli.cli_helpers import _coerce_to_atoms
+        from famex.cli.cli_helpers import _coerce_to_atoms
 
         with pytest.raises(TypeError):
             _coerce_to_atoms(123)

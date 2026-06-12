@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from ase import Atoms
 
-from qme.analysis.utils import get_calculator_property, has_calculator_property, validate_indices
+from famex.analysis.utils import get_calculator_property, has_calculator_property, validate_indices
 
 
 class TestValidateIndices:

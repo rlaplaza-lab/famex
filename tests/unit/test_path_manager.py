@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ase import Atoms
 
-import qme
+import famex
 from tests.test_utils import StandardTestAssertions
 
 
@@ -12,7 +12,7 @@ class TestPathManager:
         reactant = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         product = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
 
-        path_mgr = qme.PathManager([reactant, product], calculator=mock_backend)
+        path_mgr = famex.PathManager([reactant, product], calculator=mock_backend)
         path = path_mgr.interpolate(npoints=5, method="linear")
 
         # Check path length
@@ -28,7 +28,7 @@ class TestPathManager:
         reactant = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         product = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
 
-        path_mgr = qme.PathManager([reactant, product], calculator=mock_backend)
+        path_mgr = famex.PathManager([reactant, product], calculator=mock_backend)
 
         # Test energy calculation using the reaction_energy property
         reaction_energy = path_mgr.reaction_energy
@@ -56,7 +56,7 @@ class TestPathManager:
         struct2 = Atoms("H2", positions=[[0, 0, 0], [1.0, 0, 0]])
         struct3 = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
 
-        path_mgr = qme.PathManager([struct1, struct2, struct3], calculator=mock_backend)
+        path_mgr = famex.PathManager([struct1, struct2, struct3], calculator=mock_backend)
         path = path_mgr.interpolate(npoints=7, method="linear")
 
         # Should have 7 total points across 2 segments
@@ -69,7 +69,7 @@ class TestPathManager:
         atoms1 = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         atoms2 = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
 
-        rmsd = qme.PathManager.calculate_rmsd(atoms1, atoms2)
+        rmsd = famex.PathManager.calculate_rmsd(atoms1, atoms2)
 
         assert isinstance(rmsd, float)
         assert rmsd >= 0
@@ -83,7 +83,7 @@ class TestPathManager:
             atoms.calc = mock_backend
             path.append(atoms)
 
-        ts_structure, ts_index = qme.PathManager.find_ts_guess(path)
+        ts_structure, ts_index = famex.PathManager.find_ts_guess(path)
 
         assert ts_structure is not None
         assert 0 <= ts_index < len(path)
@@ -96,7 +96,7 @@ class TestPathManager:
             atoms.calc = mock_backend
             path.append(atoms)
 
-        minima_indices = qme.PathManager.find_local_minima(path)
+        minima_indices = famex.PathManager.find_local_minima(path)
 
         assert isinstance(minima_indices, list)
         assert len(minima_indices) > 0
@@ -111,7 +111,7 @@ class TestPathManager:
         for struct in [struct1, struct2, struct3]:
             struct.calc = mock_backend
 
-        filtered, removed, warnings = qme.PathManager.filter_redundant_structures(
+        filtered, removed, warnings = famex.PathManager.filter_redundant_structures(
             [struct1, struct2, struct3],
             rmsd_threshold=0.05,
             energy_threshold=0.01,
@@ -126,7 +126,7 @@ class TestPathManager:
         reactant = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
         product = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
 
-        path_mgr = qme.PathManager([reactant, product], calculator=mock_backend)
+        path_mgr = famex.PathManager([reactant, product], calculator=mock_backend)
         path = path_mgr.interpolate(npoints=5, method="linear")
 
         # Attach calculator to path

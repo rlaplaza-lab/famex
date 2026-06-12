@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from qme.core.explorer import Explorer
-from qme.strategies.ts import LocalTSStrategy
+from famex.core.explorer import Explorer
+from famex.strategies.ts import LocalTSStrategy
 from tests.test_constants import LOOSE_FMAX, QUICK_STEPS_EXTENDED
 from tests.test_utils import StandardTestAssertions, handle_backend_errors
 

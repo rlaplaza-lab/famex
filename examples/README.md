@@ -1,18 +1,18 @@
-# QME Examples
+# FAMEX Examples
 
-Examples and benchmarks demonstrating QME capabilities.
+Examples and benchmarks demonstrating FAMEX capabilities.
 
 ## Available Examples
 
 ### Demos (User-Facing Examples)
 
-These examples demonstrate how to use QME's Python API and CLI interface:
+These examples demonstrate how to use FAMEX's Python API and CLI interface:
 
 | Example | Description | API Usage | Notes |
 |---------|-------------|-----------|-------|
 | `cli_demo.py` | CLI interface demo with backend comparison | CLI commands | Comprehensive CLI testing |
-| `irc_demo.py` | IRC path calculation from transition state | `qme.Explorer` API | Uses `target="path"`, `strategy="irc"` |
-| `growing_string_demo.py` | Growing string method (DE-GSM) for TS search | `qme.Explorer` API | Uses `target="ts"`, `strategy="growing_string"` |
+| `irc_demo.py` | IRC path calculation from transition state | `famex.Explorer` API | Uses `target="path"`, `strategy="irc"` |
+| `growing_string_demo.py` | Growing string method (DE-GSM) for TS search | `famex.Explorer` API | Uses `target="ts"`, `strategy="growing_string"` |
 | `thermochemistry_demo.py` | Thermochemistry capabilities (quasi-harmonic, solvation, etc.) | Analysis modules | Demonstrates analysis features |
 
 ### Benchmarks (Performance & Comparison)
@@ -82,13 +82,13 @@ python hessian_benchmark.py --quick  # Quick test with water only
 
 **Note:**
 - `hessian_benchmark.py` consolidates all Hessian comparison functionality (FD schemes, backend methods, adaptive features) into a single benchmark-style script following the pattern of other benchmarks.
-- All examples use the updated `qme.Explorer` API with the `target`/`strategy` paradigm where appropriate (CLI and analysis demos are exceptions by design).
+- All examples use the updated `famex.Explorer` API with the `target`/`strategy` paradigm where appropriate (CLI and analysis demos are exceptions by design).
 
 ## Requirements
 
-- QME package installed
+- FAMEX package installed
 - At least one ML backend (see [README](../README.md))
-- SELLA optimizer is included with QME (core dependency)
+- SELLA optimizer is included with FAMEX (core dependency)
 
 ## Supporting Files
 

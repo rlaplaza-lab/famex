@@ -1,1 +1,1 @@
-"""Security tests for QME."""
+"""Security tests for FAMEX."""

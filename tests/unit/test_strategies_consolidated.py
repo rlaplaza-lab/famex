@@ -6,15 +6,15 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-import qme
-from qme.core.explorer import Explorer
-from qme.strategies.irc import LocalIRCStrategy
-from qme.strategies.minima import LocalMinimaStrategy
-from qme.strategies.minima_interpolate import MultiStructureMinimaInterpolateStrategy
-from qme.strategies.neb import MultiStructureCINEBStrategy, MultiStructureNEBStrategy
-from qme.strategies.path_interpolate import PathInterpolateStrategy
-from qme.strategies.ts import LocalTSStrategy
-from qme.strategies.ts_interpolate import MultiStructureTSGuessStrategy
+import famex
+from famex.core.explorer import Explorer
+from famex.strategies.irc import LocalIRCStrategy
+from famex.strategies.minima import LocalMinimaStrategy
+from famex.strategies.minima_interpolate import MultiStructureMinimaInterpolateStrategy
+from famex.strategies.neb import MultiStructureCINEBStrategy, MultiStructureNEBStrategy
+from famex.strategies.path_interpolate import PathInterpolateStrategy
+from famex.strategies.ts import LocalTSStrategy
+from famex.strategies.ts_interpolate import MultiStructureTSGuessStrategy
 from tests.test_constants import (
     LOOSE_FMAX,
     QUICK_STEPS,
@@ -102,7 +102,7 @@ class TestSingleStructureStrategies:
         expected_strategy_name,
         skip_if_no_sella,
     ):
-        if skip_if_no_sella and not qme.deps.has("sella"):
+        if skip_if_no_sella and not famex.deps.has("sella"):
             pytest.skip("Sella required for TS optimization")
 
         atoms = request.getfixturevalue(atoms_fixture)
@@ -133,7 +133,7 @@ class TestSingleStructureStrategies:
     def test_strategy_run_with_frequencies(
         self, request, strategy_class, atoms_fixture, skip_if_no_sella
     ):
-        if skip_if_no_sella and not qme.deps.has("sella"):
+        if skip_if_no_sella and not famex.deps.has("sella"):
             pytest.skip("Sella required for TS optimization")
 
         atoms = request.getfixturevalue(atoms_fixture)
@@ -297,8 +297,8 @@ class TestMultiStructureStrategies:
     @pytest.mark.parametrize(
         ("strategy_class", "patch_module"),
         [
-            (MultiStructureNEBStrategy, "qme.io.path_manager.PathManager.attach_calculators"),
-            (MultiStructureCINEBStrategy, "qme.io.path_manager.PathManager.attach_calculators"),
+            (MultiStructureNEBStrategy, "famex.io.path_manager.PathManager.attach_calculators"),
+            (MultiStructureCINEBStrategy, "famex.io.path_manager.PathManager.attach_calculators"),
         ],
         ids=["neb", "cineb"],
     )
@@ -398,7 +398,7 @@ class TestLocalMinimaStrategy:
 
 
 class TestLocalTSStrategy:
-    @pytest.mark.skipif(not qme.deps.has("sella"), reason="Sella required for TS optimization")
+    @pytest.mark.skipif(not famex.deps.has("sella"), reason="Sella required for TS optimization")
     def test_run_with_validation(self, water_dissociation_ts_guess):
         atoms = water_dissociation_ts_guess.copy()
         explorer = Explorer(atoms, backend="mock")
@@ -546,7 +546,7 @@ class TestMultiStructureInterpolateStrategies:
         # Create a path that could appear nested
         flat_path = [reactant, product, reactant]  # 3+ atoms for valid path
 
-        with patch("qme.strategies.neb.PathManager.interpolate") as mock_interpolate:
+        with patch("famex.strategies.neb.PathManager.interpolate") as mock_interpolate:
             mock_interpolate.return_value = flat_path
 
             # Should handle the path structure
@@ -563,7 +563,7 @@ class TestMultiStructureInterpolateStrategies:
         explorer = Explorer([reactant, product], backend="mock")
         strategy = MultiStructureNEBStrategy(explorer)
 
-        with patch("qme.strategies.neb.PathManager.attach_calculators") as mock_attach:
+        with patch("famex.strategies.neb.PathManager.attach_calculators") as mock_attach:
             # Simulate attachment that doesn't attach calculators
             def mock_attach_func(explorer, path):
                 # Don't attach calculators - leave calc as None

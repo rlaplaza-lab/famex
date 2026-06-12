@@ -1,10 +1,10 @@
 # BH28 Benchmark
 
-Comprehensive evaluation of QME backends on the BH28 database of chemical reaction barrier heights.
+Comprehensive evaluation of FAMEX backends on the BH28 database of chemical reaction barrier heights.
 
 ## Overview
 
-Evaluates QME backends on the BH28 database (28 chemical reactions) to test ML potential accuracy for predicting reaction barrier heights.
+Evaluates FAMEX backends on the BH28 database (28 chemical reactions) to test ML potential accuracy for predicting reaction barrier heights.
 
 **Methodology:**
 1. Optimizes reactant minima
@@ -94,9 +94,9 @@ bh28_benchmark/
 
 ## Requirements
 
-- QME package installed
+- FAMEX package installed
 - At least one ML backend (see [README](../../README.md))
-- SELLA optimizer is included with QME (core dependency)
+- SELLA optimizer is included with FAMEX (core dependency)
 - Python 3.10+
 
 ## Understanding Results

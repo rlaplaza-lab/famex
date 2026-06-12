@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""QME BH28 Benchmark - Chemical Accuracy Evaluation.
+"""FAMEX BH28 Benchmark - Chemical Accuracy Evaluation.
 
-This benchmark evaluates QME backends on the BH28 database of 28 diverse
+This benchmark evaluates FAMEX backends on the BH28 database of 28 diverse
 chemical reaction barrier heights with reference values from high-level quantum
 chemistry calculations (CCSDT(Q)/CBS level).
 
@@ -11,7 +11,7 @@ Usage:
     python bh28_benchmark.py --analyze
 
 Features:
-    - Optimizes reactant minima using various QME backends
+    - Optimizes reactant minima using various FAMEX backends
     - Optimizes transition states (when SELLA is available)
     - Calculates barrier heights from optimized structures
     - Compares accuracy against reference values
@@ -34,12 +34,16 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-# Import QME components
-from qme import Explorer, calculator_registry
+# Import FAMEX components
+from famex import Explorer, calculator_registry
 
 # Import common interface
-from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
-from qme.io.path_manager import PathManager
+from famex.example_utils import (
+    FAMEXExampleInterface,
+    create_standard_epilog,
+    setup_example_environment,
+)
+from famex.io.path_manager import PathManager
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -74,7 +78,7 @@ def suppress_verbose_output():
 
 
 class BH28Benchmark:
-    """Comprehensive benchmark suite for QME on the BH28 database."""
+    """Comprehensive benchmark suite for FAMEX on the BH28 database."""
 
     def __init__(
         self,
@@ -169,9 +173,9 @@ class BH28Benchmark:
         return self.load_structure(ts_file)
 
     def get_available_backends(self) -> list[str]:
-        """Get list of available QME backends (excluding mock)."""
+        """Get list of available FAMEX backends (excluding mock)."""
         # Use the centralized backend availability system
-        from qme.backends.availability import get_available_ml_backends
+        from famex.backends.availability import get_available_ml_backends
 
         return get_available_ml_backends()
 
@@ -812,7 +816,7 @@ class BH28Benchmark:
 def main() -> int:
     """Run the benchmark."""
     # Create standardized interface
-    interface = QMEExampleInterface(
+    interface = FAMEXExampleInterface(
         name="BH28 Benchmark",
         description="Chemical Accuracy Evaluation",
         epilog=create_standard_epilog("benchmark_quick"),
@@ -861,7 +865,7 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    # Get device from args (provided by QMEExampleInterface)
+    # Get device from args (provided by FAMEXExampleInterface)
     device = getattr(args, "device", None)
 
     # Set up logging based on verbosity level

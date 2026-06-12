@@ -3,24 +3,24 @@ from __future__ import annotations
 import pytest
 from ase import Atoms
 
-from qme.utils.validation import (
+from famex.utils.validation import (
     BackendError,
     DependencyError,
-    QMEError,
+    FAMEXError,
     validate_atoms_compatibility,
 )
 from tests.test_utils import assert_error_contains
 
 
-class TestQMEError:
-    def test_qme_error_basic(self):
-        error = QMEError("Test error")
+class TestFAMEXError:
+    def test_famex_error_basic(self):
+        error = FAMEXError("Test error")
         assert str(error) == "Test error"
         assert error.message == "Test error"
         assert error.suggestion is None
 
-    def test_qme_error_with_suggestion(self):
-        error = QMEError("Test error", "Try this instead")
+    def test_famex_error_with_suggestion(self):
+        error = FAMEXError("Test error", "Try this instead")
         expected = "Test error\n\n💡 Suggestion: Try this instead"
         assert str(error) == expected
         assert error.message == "Test error"

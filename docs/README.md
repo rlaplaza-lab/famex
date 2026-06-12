@@ -1,4 +1,4 @@
-# QME Documentation
+# FAMEX Documentation
 
 | Document | Description |
 |----------|-------------|
@@ -6,6 +6,6 @@
 | [Tutorials](TUTORIALS.md) | Step-by-step minima, TS, and path workflows |
 | [FAQ](FAQ.md) | Installation, troubleshooting, performance |
 
-**Defaults:** `backend=uma`, model `uma-s-1p2`, `fairchem-core>=2.21.0` via `pip install qme-ml[uma]`.
+**Defaults:** `backend=uma`, model `uma-s-1p2`, `fairchem-core>=2.21.0` via `pip install famex[uma]`.
 
 Examples: [`../examples/README.md`](../examples/README.md).

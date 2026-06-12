@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""QME Timing Benchmark - ML Backend Performance Analysis."""
+"""FAMEX Timing Benchmark - ML Backend Performance Analysis."""
 
 import sys
 import time
@@ -10,21 +10,21 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 
-# Use consolidated backend availability from qme.backend_availability
-# Import QME components
-from qme.backends.registry import calculator_registry
-from qme.core.explorer import Explorer
+# Use consolidated backend availability from famex.backend_availability
+# Import FAMEX components
+from famex.backends.registry import calculator_registry
+from famex.core.explorer import Explorer
 
 # Import common interface
-from qme.example_utils import QMEExampleInterface, create_standard_epilog
-from qme.utils.device import get_optimal_device, print_device_info
+from famex.example_utils import FAMEXExampleInterface, create_standard_epilog
+from famex.utils.device import get_optimal_device, print_device_info
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 
-# QMEExampleInterface already imported above
+# FAMEXExampleInterface already imported above
 
 
 def create_benchmark_molecule() -> Atoms:
@@ -81,7 +81,7 @@ def benchmark_backend(
         # Create benchmark molecule
         molecule = create_benchmark_molecule()
 
-        # Initialize QME optimizer
+        # Initialize FAMEX optimizer
         init_start = time.perf_counter()
 
         explorer = Explorer(
@@ -370,7 +370,7 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
 def main() -> int:
     """Run the timing benchmark."""
     # Create standardized interface
-    interface = QMEExampleInterface(
+    interface = FAMEXExampleInterface(
         name="Timing Benchmark",
         description="Performance Analysis",
         epilog=create_standard_epilog("timing"),

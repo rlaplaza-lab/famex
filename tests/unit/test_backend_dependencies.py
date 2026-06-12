@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from qme.backends.dependencies import DependencyManager
-from qme.utils.validation import DependencyError
+from famex.backends.dependencies import DependencyManager
+from famex.utils.validation import DependencyError
 
 
 class TestDependencyManager:
@@ -64,7 +64,7 @@ class TestDependencyManager:
     def test_get_install_command_backends(self):
         """Test _get_install_command for various backends."""
         manager = DependencyManager()
-        from qme.backends.constants import BACKEND_AIMNET2, BACKEND_MACE
+        from famex.backends.constants import BACKEND_AIMNET2, BACKEND_MACE
 
         # Test various backend commands
         cmd_aimnet2 = manager._get_install_command(BACKEND_AIMNET2)
@@ -231,7 +231,7 @@ class TestDependencyManagerErrorHandling:
     def test_has_with_backend_mapping(self):
         """Test has() with backend name mapping."""
         manager = DependencyManager()
-        from qme.backends.constants import BACKEND_AIMNET2
+        from famex.backends.constants import BACKEND_AIMNET2
 
         # Should map backend name to package name
         result = manager.has(BACKEND_AIMNET2)

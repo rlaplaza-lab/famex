@@ -1,4 +1,4 @@
-# QME User Guide
+# FAMEX User Guide
 
 Reference for CLI, Python API, and backends.
 
@@ -33,12 +33,12 @@ Reference for CLI, Python API, and backends.
 ## Installation
 
 ```bash
-pip install qme-ml
+pip install famex
 # Or from source:
-git clone https://github.com/rlaplaza-lab/qme.git && cd qme && pip install -e .
+git clone https://github.com/rlaplaza-lab/famex.git && cd famex && pip install -e .
 
 # UMA backend (recommended default):
-pip install qme-ml[uma]
+pip install famex[uma]
 # equivalent to: pip install "fairchem-core>=2.21.0"
 
 # Development / testing:
@@ -53,10 +53,10 @@ See [README.md](../README.md) for the full backend table.
 
 ## Command Line Interface
 
-- `qme minima` - Minima optimization (outputs single structure)
-- `qme ts` - Transition state optimization (outputs single TS)
-- `qme path` - Reaction path optimization (outputs trajectories)
-- `qme cache` - Cache management
+- `famex minima` - Minima optimization (outputs single structure)
+- `famex ts` - Transition state optimization (outputs single TS)
+- `famex path` - Reaction path optimization (outputs trajectories)
+- `famex cache` - Cache management
 
 ### Global Options
 
@@ -80,14 +80,14 @@ All commands support these common options:
 | `--freq`, `--frequencies` | `False` | Perform frequency analysis after optimization (includes thermodynamic properties) |
 | `--force-finite-diff-hessian` | `False` | Force use of finite difference hessians for TS optimizers and frequency calculations |
 
-### qme minima - Minima Optimization
+### famex minima - Minima Optimization
 
 Optimize molecular structures to find energy minima.
 
 #### Usage
 
 ```bash
-qme minima --strategy {local,interpolate} INPUT [OPTIONS]
+famex minima --strategy {local,interpolate} INPUT [OPTIONS]
 ```
 
 #### Arguments
@@ -112,19 +112,19 @@ qme minima --strategy {local,interpolate} INPUT [OPTIONS]
 
 ```bash
 # Basic local optimization
-qme minima --strategy local molecule.xyz
+famex minima --strategy local molecule.xyz
 
 # With specific backend and convergence
-qme minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.01
+famex minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.01
 
 # Two-ended minima search via interpolation
-qme minima --strategy interpolate reactant.xyz --product product.xyz --npoints 21
+famex minima --strategy interpolate reactant.xyz --product product.xyz --npoints 21
 
 # With constraints
-qme minima --strategy local molecule.xyz --constraints "fix 0,1,2"
+famex minima --strategy local molecule.xyz --constraints "fix 0,1,2"
 
 # Dry run to check strategy selection
-qme minima --strategy local molecule.xyz --dry-run
+famex minima --strategy local molecule.xyz --dry-run
 ```
 
 #### Output Files
@@ -132,14 +132,14 @@ qme minima --strategy local molecule.xyz --dry-run
 - Local optimization: `{input}.opt.local.xyz`
 - Interpolate optimization: `{input}.opt.interpolate.xyz`
 
-### qme ts - Transition State Optimization
+### famex ts - Transition State Optimization
 
 Find and optimize transition state structures.
 
 #### Usage
 
 ```bash
-qme ts --strategy {local,interpolate,growing_string} INPUT [OPTIONS]
+famex ts --strategy {local,interpolate,growing_string} INPUT [OPTIONS]
 ```
 
 #### Arguments
@@ -168,28 +168,28 @@ qme ts --strategy {local,interpolate,growing_string} INPUT [OPTIONS]
 
 ```bash
 # Basic local TS optimization
-qme ts --strategy local ts_guess.xyz
+famex ts --strategy local ts_guess.xyz
 
 # With frequency analysis
-qme ts --strategy local ts_guess.xyz --freq
+famex ts --strategy local ts_guess.xyz --freq
 
 # With custom optimizer
-qme ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02
+famex ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02
 
 # TS from interpolation
-qme ts --strategy interpolate reactant.xyz --product product.xyz
+famex ts --strategy interpolate reactant.xyz --product product.xyz
 
 # With custom settings
-qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 --interp idpp
+famex ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 --interp idpp
 
 # Growing string method
-qme ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
+famex ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
 
 # Strict validation (raises if the TS is not first-order)
-qme ts --strategy growing_string reactant.xyz --product product.xyz --require-ts
+famex ts --strategy growing_string reactant.xyz --product product.xyz --require-ts
 
 # With frequency analysis
-qme ts --strategy interpolate reactant.xyz --product product.xyz --freq
+famex ts --strategy interpolate reactant.xyz --product product.xyz --freq
 ```
 
 #### Output Files
@@ -198,14 +198,14 @@ qme ts --strategy interpolate reactant.xyz --product product.xyz --freq
 - Interpolated TS: `{input}.ts.interpolate.xyz`
 - Growing string TS: `{input}.ts.gsm.xyz`
 
-### qme path - Reaction Path Optimization
+### famex path - Reaction Path Optimization
 
 Generate and optimize reaction pathways.
 
 #### Usage
 
 ```bash
-qme path --strategy {interpolate,neb,cineb,irc} STRUCTURES... [OPTIONS]
+famex path --strategy {interpolate,neb,cineb,irc} STRUCTURES... [OPTIONS]
 ```
 
 #### Arguments
@@ -232,19 +232,19 @@ qme path --strategy {interpolate,neb,cineb,irc} STRUCTURES... [OPTIONS]
 
 ```bash
 # Raw interpolation (two structures)
-qme path --strategy interpolate reactant.xyz product.xyz
+famex path --strategy interpolate reactant.xyz product.xyz
 
 # NEB path optimization (two structures)
-qme path --strategy neb reactant.xyz product.xyz
+famex path --strategy neb reactant.xyz product.xyz
 
 # NEB with multiple intermediate structures
-qme path --strategy neb reactant.xyz intermediate.xyz product.xyz --npoints 11
+famex path --strategy neb reactant.xyz intermediate.xyz product.xyz --npoints 11
 
 # CI-NEB path optimization
-qme path --strategy cineb reactant.xyz product.xyz
+famex path --strategy cineb reactant.xyz product.xyz
 
 # IRC from transition state (single structure)
-qme path --strategy irc ts.xyz --direction both
+famex path --strategy irc ts.xyz --direction both
 ```
 
 #### Output Files
@@ -254,16 +254,16 @@ qme path --strategy irc ts.xyz --direction both
 - CI-NEB: `{input}.path.cineb.xyz`
 - IRC: `{input}.path.irc.xyz`
 
-### qme cache - Cache Management
+### famex cache - Cache Management
 
 Manages the on-disk model cache (primarily AIMNet2 downloads). Calculator instances are cached separately in memory during a session.
 
 ```bash
-qme cache info              # Show cache directory, size, and cached models
-qme cache verify            # Checksum-verify cached model files
-qme cache clear             # Clear entire cache (prompts for confirmation)
-qme cache clear --model M   # Clear one model entry
-qme cache clear --yes       # Skip confirmation prompt
+famex cache info              # Show cache directory, size, and cached models
+famex cache verify            # Checksum-verify cached model files
+famex cache clear             # Clear entire cache (prompts for confirmation)
+famex cache clear --model M   # Clear one model entry
+famex cache clear --yes       # Skip confirmation prompt
 ```
 
 ## Python API
@@ -271,7 +271,7 @@ qme cache clear --yes       # Skip confirmation prompt
 ### Explorer Class
 
 ```python
-from qme import Explorer
+from famex import Explorer
 
 explorer = Explorer(
     atoms,                    # Atoms or Sequence[Atoms]
@@ -341,7 +341,7 @@ Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin`
 | Backend | Installation | Best For | Notes |
 |---------|--------------|----------|-------|
 | `aimnet2` | `pip install torch` | Beginners, molecules | No conflicts, fast |
-| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install qme-ml[uma]` | Materials science (default: uma-s-1p2) | Conflicts with MACE |
+| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install famex[uma]` | Materials science (default: uma-s-1p2) | Conflicts with MACE |
 | `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA |
 | `orb` | `pip install orb-models` | Universal coverage | Molecules and materials |
 | `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations |
@@ -354,12 +354,12 @@ UMA and MACE conflict due to incompatible `e3nn` versions. Use separate environm
 
 ```bash
 # UMA environment
-conda create -n qme-uma python=3.12
-conda activate qme-uma && pip install qme-ml[uma]
+conda create -n famex-uma python=3.12
+conda activate famex-uma && pip install famex[uma]
 
 # MACE environment
-conda create -n qme-mace python=3.12
-conda activate qme-mace && pip install qme-ml mace-torch
+conda create -n famex-mace python=3.12
+conda activate famex-mace && pip install famex mace-torch
 ```
 
 ### Interpolation Methods
@@ -372,7 +372,7 @@ conda activate qme-mace && pip install qme-ml mace-torch
 | `quadratic` | Quadratic curve fitting | Known transition region |
 | `spline` | Cubic spline interpolation | Smooth pathways |
 
-Usage: `qme path --strategy neb reactant.xyz product.xyz --interp idpp`
+Usage: `famex path --strategy neb reactant.xyz product.xyz --interp idpp`
 
 ## Examples
 

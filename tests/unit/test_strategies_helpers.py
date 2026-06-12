@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from qme.core.explorer import Explorer
-from qme.strategies.helpers import (
+from famex.core.explorer import Explorer
+from famex.strategies.helpers import (
     _get_local_optimizer_class,
     _validate_ts_optimization_setup,
     validate_ts_structure,

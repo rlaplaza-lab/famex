@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from ase import Atoms
 
-from qme.potentials.base_potential import BasePotential
+from famex.potentials.base_potential import BasePotential
 
 
 class TestBasePotential:
@@ -13,9 +13,9 @@ class TestBasePotential:
 
     def test_get_logger_with_import_error(self):
         """Test get_module_logger() with ImportError fallback."""
-        from qme.utils.lazy_imports import get_module_logger
+        from famex.utils.lazy_imports import get_module_logger
 
-        with patch("qme.utils.logging.get_qme_logger", side_effect=ImportError("No module")):
+        with patch("famex.utils.logging.get_famex_logger", side_effect=ImportError("No module")):
             logger = get_module_logger("test.module")
             # Should fallback to standard logging
             assert logger is not None
@@ -79,7 +79,7 @@ class TestPotentialsInitBasic:
         ["BasePotential", "MockCalculator"],
     )
     def test_basic_imports(self, class_name):
-        module = __import__("qme.potentials", fromlist=[class_name])
+        module = __import__("famex.potentials", fromlist=[class_name])
         cls = getattr(module, class_name)
         assert cls is not None
 
@@ -95,7 +95,7 @@ class TestPotentialsInitBasic:
         ],
     )
     def test_calculator_factory_functions_exist(self, factory_name):
-        module = __import__("qme.potentials", fromlist=[factory_name])
+        module = __import__("famex.potentials", fromlist=[factory_name])
         factory_func = getattr(module, factory_name)
         assert callable(factory_func)
 
@@ -104,7 +104,7 @@ class TestPotentialsInitBasic:
         ["definitely_unavailable_backend_xyz", "unknown_backend_not_in_mapping"],
     )
     def test_get_calculator_generic_with_invalid_backend(self, backend):
-        from qme.potentials import _get_calculator_generic
+        from famex.potentials import _get_calculator_generic
 
         with pytest.raises(ImportError):
             _get_calculator_generic(backend)

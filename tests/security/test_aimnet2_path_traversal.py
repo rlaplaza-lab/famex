@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from qme.utils.path_security import PathSecurityError
+from famex.utils.path_security import PathSecurityError
 from tests.security.test_utils import EVIL_PATHS
 
 
@@ -11,7 +11,7 @@ class TestAIMNet2PathTraversal:
     def test_aimnet2_model_path_traversal(self, evil_name):
         # Import here to avoid test failures if aimnet2 isn't available
         try:
-            from qme.potentials.aimnet2_potential import get_model_path
+            from famex.potentials.aimnet2_potential import get_model_path
         except (ImportError, ModuleNotFoundError):
             pytest.skip("AIMNet2 not available")
 
@@ -25,7 +25,7 @@ class TestAIMNet2PathTraversal:
     def test_aimnet2_fallback_path_validation(self):
         # Import here to avoid test failures if aimnet2 isn't available
         try:
-            from qme.potentials import aimnet2_potential
+            from famex.potentials import aimnet2_potential
         except ImportError:
             pytest.skip("AIMNet2 not available")
 

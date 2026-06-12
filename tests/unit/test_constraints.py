@@ -4,12 +4,12 @@ import numpy as np
 import pytest
 from ase.constraints import FixInternals
 
-from qme.constraints.constraints import (
+from famex.constraints.constraints import (
+    FAMEXConstraintManager,
     FixedAtomsConstraint,
     FixInternalsConstraint,
     HarmonicAngleConstraint,
     HarmonicBondConstraint,
-    QMEConstraintManager,
     parse_constraint_string,
     validate_atom_indices,
 )
@@ -17,15 +17,15 @@ from qme.constraints.constraints import (
 
 @pytest.fixture
 def constraint_manager(h2o_molecule):
-    return QMEConstraintManager(h2o_molecule)
+    return FAMEXConstraintManager(h2o_molecule)
 
 
 class TestConstraintManager:
-    def test_initialization(self, constraint_manager: QMEConstraintManager):
+    def test_initialization(self, constraint_manager: FAMEXConstraintManager):
         assert len(constraint_manager.constraints) == 0
 
     @pytest.mark.parametrize("atom_indices", [[0], [1], [2], [0, 2]])
-    def test_add_fixed_atoms(self, constraint_manager: QMEConstraintManager, atom_indices):
+    def test_add_fixed_atoms(self, constraint_manager: FAMEXConstraintManager, atom_indices):
         constraint_manager.add_fixed_atoms(atom_indices)
         assert len(constraint_manager.constraints) == 1
         assert isinstance(constraint_manager.constraints[0], FixedAtomsConstraint)
@@ -38,7 +38,7 @@ class TestConstraintManager:
     )
     def test_add_harmonic_bond_constraint(
         self,
-        constraint_manager: QMEConstraintManager,
+        constraint_manager: FAMEXConstraintManager,
         atoms,
         force_constant,
     ):
@@ -56,7 +56,7 @@ class TestConstraintManager:
     @pytest.mark.parametrize(("atoms", "force_constant"), [([1, 0, 2], 2.0), ([0, 1, 2], 1.5)])
     def test_add_harmonic_angle_constraint(
         self,
-        constraint_manager: QMEConstraintManager,
+        constraint_manager: FAMEXConstraintManager,
         atoms,
         force_constant,
     ):
@@ -74,7 +74,7 @@ class TestConstraintManager:
     )
     def test_add_fixinternals_constraint(
         self,
-        constraint_manager: QMEConstraintManager,
+        constraint_manager: FAMEXConstraintManager,
         constraint_type,
         atoms,
         target_value,
@@ -88,7 +88,7 @@ class TestConstraintManager:
         assert info["fixinternals_constraints"][0]["atoms"] == atoms
         assert info["fixinternals_constraints"][0]["target_value"] == target_value
 
-    def test_invalid_constraint_type(self, constraint_manager: QMEConstraintManager):
+    def test_invalid_constraint_type(self, constraint_manager: FAMEXConstraintManager):
         with pytest.raises(ValueError):
             constraint_manager.add_harmonic_constraint("invalid", [0, 1])
 
@@ -201,18 +201,18 @@ class TestFixInternalsConstraint:
 
 
 class TestParseConstraintsFunction:
-    """Tests for qme.constraints.parser.parse_constraints()."""
+    """Tests for famex.constraints.parser.parse_constraints()."""
 
     def test_parse_constraints_string(self, h2o_molecule):
         """Test string input (works via parse_constraint_string)."""
-        from qme.constraints.parser import parse_constraints
+        from famex.constraints.parser import parse_constraints
 
         constraints = parse_constraints("fix 0", h2o_molecule)
         assert len(constraints) == 1
 
     def test_parse_constraints_list_of_strings(self, h2o_molecule):
         """Test list of constraint strings."""
-        from qme.constraints.parser import parse_constraints
+        from famex.constraints.parser import parse_constraints
 
         constraints = parse_constraints(["fix 0", "harmonic_bond 1,2 k=5.0"], h2o_molecule)
         # Should combine and parse both constraints
@@ -222,7 +222,7 @@ class TestParseConstraintsFunction:
         """Test passing pre-made ASE constraints."""
         from ase.constraints import FixAtoms
 
-        from qme.constraints.parser import parse_constraints
+        from famex.constraints.parser import parse_constraints
 
         ase_constraints = [FixAtoms(indices=[0, 1])]
         result = parse_constraints(ase_constraints, h2o_molecule)
@@ -232,21 +232,21 @@ class TestParseConstraintsFunction:
 
     def test_parse_constraints_invalid_list_item(self, h2o_molecule):
         """Test error for unsupported list items."""
-        from qme.constraints.parser import parse_constraints
+        from famex.constraints.parser import parse_constraints
 
         with pytest.raises(ValueError, match="Unsupported constraint specification"):
             parse_constraints([123, "fix 0"], h2o_molecule)
 
     def test_parse_constraints_dict_not_implemented(self, h2o_molecule):
         """Test that dict input raises NotImplementedError."""
-        from qme.constraints.parser import parse_constraints
+        from famex.constraints.parser import parse_constraints
 
         with pytest.raises(NotImplementedError, match="not yet implemented"):
             parse_constraints({"fix": [0, 1]}, h2o_molecule)
 
     def test_parse_constraints_verbose_output(self, h2o_molecule, caplog):
         """Test verbose logging."""
-        from qme.constraints.parser import parse_constraints
+        from famex.constraints.parser import parse_constraints
 
         with caplog.at_level("INFO"):
             parse_constraints("fix 0; harmonic_bond 1,2 k=5.0", h2o_molecule, verbose=1)
@@ -257,7 +257,7 @@ class TestParseConstraintsFunction:
 
     def test_parse_constraints_quiet_mode(self, h2o_molecule, caplog):
         """Test that verbose=0 doesn't log."""
-        from qme.constraints.parser import parse_constraints
+        from famex.constraints.parser import parse_constraints
 
         parse_constraints("fix 0", h2o_molecule, verbose=0)
         assert "Applied constraints" not in caplog.text

@@ -1,4 +1,4 @@
-"""Tests for QME core protocols.
+"""Tests for FAMEX core protocols.
 
 Protocols are type-checking interfaces, but we can test that they exist
 and that classes implementing them work correctly.
@@ -7,7 +7,7 @@ and that classes implementing them work correctly.
 from __future__ import annotations
 
 # Import protocols to ensure they're defined
-from qme.core.protocols import (
+from famex.core.protocols import (
     BaseStrategyResult,
     ExplorerProtocol,
     MinimaStrategyResult,
@@ -137,7 +137,7 @@ class TestProtocolImplementation:
         """Test that Explorer implements ExplorerProtocol."""
         from ase import Atoms
 
-        from qme.core.explorer import Explorer
+        from famex.core.explorer import Explorer
 
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         explorer = Explorer(atoms, backend="mock")
@@ -151,7 +151,7 @@ class TestProtocolImplementation:
 
     def test_profiler_implements_protocol(self):
         """Test that PerformanceProfiler implements PerformanceProfilerProtocol."""
-        from qme.utils.profiler import PerformanceProfiler
+        from famex.utils.profiler import PerformanceProfiler
 
         profiler = PerformanceProfiler()
 

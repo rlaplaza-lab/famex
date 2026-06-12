@@ -1,10 +1,10 @@
 # Zimmermann-93 NEB / Two-ended TS Benchmark
 
-Comprehensive evaluation of QME backends for two-ended transition state searches using the Zimmermann-93 dataset.
+Comprehensive evaluation of FAMEX backends for two-ended transition state searches using the Zimmermann-93 dataset.
 
 ## Overview
 
-Tests QME backends on two-ended (reactant→product) transition state searches, evaluating how well ML potentials locate TS when given both reactant and product structures.
+Tests FAMEX backends on two-ended (reactant→product) transition state searches, evaluating how well ML potentials locate TS when given both reactant and product structures.
 
 **Methodology:**
 1. Interpolates reaction paths (geodesic)
@@ -86,9 +86,9 @@ zimmermann93_benchmark/
 
 ## Requirements
 
-- QME package installed
+- FAMEX package installed
 - At least one ML backend (see [README](../../README.md))
-- SELLA optimizer is included with QME (core dependency)
+- SELLA optimizer is included with FAMEX (core dependency)
 - Python 3.10+
 
 ## Understanding Results
@@ -115,5 +115,5 @@ This benchmark complements the BH28 benchmark by focusing on:
 ## Notes
 
 - Focuses on geometric accuracy (RMSD) vs BH28's energetic accuracy
-- SELLA optimizer (included with QME) is used by default for TS optimization
+- SELLA optimizer (included with FAMEX) is used by default for TS optimization
 - Results may vary with interpolation quality and initial TS guesses

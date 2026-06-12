@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from qme.core.explorer import Explorer
-from qme.strategies.ts_interpolate import MultiStructureTSGuessStrategy
+from famex.core.explorer import Explorer
+from famex.strategies.ts_interpolate import MultiStructureTSGuessStrategy
 from tests.test_constants import DEFAULT_STEPS, VERY_LOOSE_FMAX
 
 

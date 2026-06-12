@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from qme.io.geometry import Geometry
-from qme.io.xyz_io import (
+from famex.io.geometry import Geometry
+from famex.io.xyz_io import (
     format_xyz_comment,
     parse_xyz_comment,
     read_xyz_with_metadata,
@@ -50,7 +50,7 @@ class TestFormatXYZComment:
                 "charge=1 spin=2 energy=-123.450000",
             ),
             ("geometry", None, 0, 1, None, "charge=0 spin=1"),
-            ("atoms", {}, None, None, None, "QME structure"),
+            ("atoms", {}, None, None, None, "FAMEX structure"),
             (
                 "atoms",
                 {"charge": 0, "spin": 1},
@@ -299,7 +299,7 @@ class TestWriteXYZWithMetadata:
                 content = f.read()
 
             lines = content.strip().split("\n")
-            assert "QME structure" in lines[1]
+            assert "FAMEX structure" in lines[1]
         finally:
             Path(temp_file).unlink()
 

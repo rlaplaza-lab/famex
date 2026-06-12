@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""QME Growing String Method Demo - Transition State Search."""
+"""FAMEX Growing String Method Demo - Transition State Search."""
 
 import sys
 from pathlib import Path
 
 from ase.io import read, write
 
-import qme
-from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
+import famex
+from famex.example_utils import (
+    FAMEXExampleInterface,
+    create_standard_epilog,
+    setup_example_environment,
+)
 
 DEFAULT_REACTANT = "A_C_A_B_A_C_reactant.xyz"
 DEFAULT_PRODUCT = "A_C_A_B_A_C_product.xyz"
@@ -34,7 +38,7 @@ def load_default_reaction() -> tuple:
 def main() -> int:
     """Run growing string method demo."""
     # Create standardized interface
-    interface = QMEExampleInterface(
+    interface = FAMEXExampleInterface(
         name="Growing String Method Demo",
         description="Transition State Search with Growing String Method",
         epilog=create_standard_epilog("demo"),
@@ -168,7 +172,7 @@ def main() -> int:
 
         # Setup Explorer
         print("\nSetting up Explorer with growing string method...")
-        explorer = qme.Explorer(
+        explorer = famex.Explorer(
             atoms=[reactant, product],
             backend=backend,
             target="ts",

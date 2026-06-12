@@ -54,7 +54,7 @@ class MultiBackendBenchmarkRunner:
         self.results_dir = self.benchmark_dir / "benchmark_results"
         self.results_dir.mkdir(exist_ok=True)
 
-        # Find qme package root (assume we're in examples/bh28_benchmark)
+        # Find famex package root (assume we're in examples/bh28_benchmark)
         # Go up to repo root
         self.repo_root = self.benchmark_dir.parent.parent
 
@@ -106,11 +106,11 @@ class MultiBackendBenchmarkRunner:
         Returns
         -------
         str
-            Environment name like "qme-benchmark-orb" or "qme-benchmark-uma-s-1p1"
+            Environment name like "famex-benchmark-orb" or "famex-benchmark-uma-s-1p1"
         """
         # Normalize backend name for env name (no colons, lowercase, replace special chars)
         env_name = backend.lower().replace(":", "-").replace("_", "-")
-        return f"qme-benchmark-{env_name}"
+        return f"famex-benchmark-{env_name}"
 
     def filter_available_backends(self, backends: list[str]) -> list[str]:
         """Filter backends to only those that should be tested.
@@ -180,8 +180,8 @@ class MultiBackendBenchmarkRunner:
             logger.error(result.stderr)
             return False
 
-        # Install qme-ml in editable mode
-        logger.info(f"Installing qme-ml in {env_name}...")
+        # Install famex in editable mode
+        logger.info(f"Installing famex in {env_name}...")
         install_commands = [
             ["conda", "run", "-n", env_name, "pip", "install", "-e", str(self.repo_root)],
         ]

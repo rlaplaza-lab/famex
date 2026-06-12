@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from qme.analysis.noise_estimation import (
+from famex.analysis.noise_estimation import (
     estimate_force_noise,
     estimate_optimal_delta,
     estimate_richardson_noise,
@@ -198,7 +198,7 @@ class TestEstimateForceNoise:
 class TestEstimateOptimalDelta:
     """Tests for estimate_optimal_delta function."""
 
-    @patch("qme.analysis.noise_estimation._compute_hessian_at_delta")
+    @patch("famex.analysis.noise_estimation._compute_hessian_at_delta")
     def test_basic_functionality(self, mock_compute_hessian):
         """Test basic functionality with mock Hessian calculations."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
@@ -257,7 +257,7 @@ class TestEstimateOptimalDelta:
         with pytest.raises(ValueError, match="Unknown method"):
             estimate_optimal_delta(atoms, calculator, method="invalid_method", max_iterations=1)
 
-    @patch("qme.analysis.noise_estimation._compute_hessian_at_delta")
+    @patch("famex.analysis.noise_estimation._compute_hessian_at_delta")
     def test_convergence_to_target(self, mock_compute_hessian):
         """Test that function converges when target noise is reached."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
@@ -282,7 +282,7 @@ class TestEstimateOptimalDelta:
         assert delta > 0
         assert noise >= 0
 
-    @patch("qme.analysis.noise_estimation._compute_hessian_at_delta")
+    @patch("famex.analysis.noise_estimation._compute_hessian_at_delta")
     def test_handles_calculation_failures(self, mock_compute_hessian):
         """Test that function handles calculation failures gracefully."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
@@ -316,7 +316,7 @@ class TestEstimateOptimalDelta:
         atoms = Atoms("H2O", positions=[[0, 0, 0], [0.96, 0, 0], [0.24, 0.93, 0]])
         calculator = MagicMock()
 
-        with patch("qme.analysis.noise_estimation._compute_hessian_at_delta") as mock_compute:
+        with patch("famex.analysis.noise_estimation._compute_hessian_at_delta") as mock_compute:
             mock_compute.return_value = np.eye(9)  # 3 atoms
 
             delta, noise = estimate_optimal_delta(
@@ -331,7 +331,7 @@ class TestEstimateOptimalDelta:
             # Check that indices were passed to the compute function
             assert mock_compute.called
 
-    @patch("qme.analysis.noise_estimation._compute_hessian_at_delta")
+    @patch("famex.analysis.noise_estimation._compute_hessian_at_delta")
     def test_method_selection(self, mock_compute_hessian):
         """Test that correct method is selected."""
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])

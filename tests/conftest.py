@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-# Add the parent directory to Python path so tests can import qme modules
+# Add the parent directory to Python path so tests can import famex modules
 root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
 
@@ -131,14 +131,14 @@ def ethylene_twisted_ts_guess():
 @pytest.fixture
 def uma_backend():
     """UMA backend calculator fixture."""
-    from qme.backends.availability import is_backend_available
+    from famex.backends.availability import is_backend_available
 
     if not is_backend_available("uma"):
         pytest.skip("UMA backend not available")
 
-    import qme
+    import famex
 
-    calc = qme.get_uma_calculator(model_name="uma-s-1p2")
+    calc = famex.get_uma_calculator(model_name="uma-s-1p2")
     calc.ensure_loaded()
     return calc
 
@@ -146,14 +146,14 @@ def uma_backend():
 @pytest.fixture
 def mace_backend():
     """MACE backend calculator fixture."""
-    from qme.backends.availability import is_backend_available
+    from famex.backends.availability import is_backend_available
 
     if not is_backend_available("mace"):
         pytest.skip("MACE backend not available")
 
-    import qme
+    import famex
 
-    calc = qme.get_mace_calculator(model_name="mace-omol-0")
+    calc = famex.get_mace_calculator(model_name="mace-omol-0")
     calc.ensure_loaded()
     return calc
 
@@ -161,9 +161,9 @@ def mace_backend():
 @pytest.fixture
 def mock_backend():
     """Mock backend calculator fixture."""
-    import qme
+    import famex
 
-    return qme.MockCalculator(backend="mock")
+    return famex.MockCalculator(backend="mock")
 
 
 @pytest.fixture
@@ -183,9 +183,9 @@ def any_real_backend_explorer(request):
             explorer = any_real_backend_explorer([reactant, product])
             # Use explorer...
     """
-    from qme.backends.availability import is_backend_available
-    from qme.core.explorer import Explorer
-    from qme.utils.validation import BackendError
+    from famex.backends.availability import is_backend_available
+    from famex.core.explorer import Explorer
+    from famex.utils.validation import BackendError
 
     def _create_explorer(atoms, skip_message="No real backend available"):
         """Create explorer with any available real backend.
@@ -282,11 +282,11 @@ def test_config():
 
 
 @pytest.fixture
-def clear_qme_logger():
-    """Clear QME logger handlers before test, restore after."""
+def clear_famex_logger():
+    """Clear FAMEX logger handlers before test, restore after."""
     import logging
 
-    logger = logging.getLogger("qme")
+    logger = logging.getLogger("famex")
     original_handlers = logger.handlers[:]
     original_level = logger.level
 

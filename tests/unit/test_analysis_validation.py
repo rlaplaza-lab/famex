@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from qme.analysis.validation import validate_hessian
+from famex.analysis.validation import validate_hessian
 
 
 class TestValidateHessian:
@@ -133,7 +133,7 @@ class TestValidateHessian:
         hessian = np.eye(n)
         hessian[0, 1] = 0.1  # Asymmetric
 
-        with patch("qme.analysis.validation.logger") as mock_logger:
+        with patch("famex.analysis.validation.logger") as mock_logger:
             results = validate_hessian(hessian, tolerance_symmetry=1e-3, warn_on_issues=True)
 
             # Should have logged warnings for asymmetry
@@ -145,7 +145,7 @@ class TestValidateHessian:
         n = 9
         hessian = np.eye(n) * 2.0
 
-        with patch("qme.analysis.validation.logger") as mock_logger:
+        with patch("famex.analysis.validation.logger") as mock_logger:
             validate_hessian(hessian, warn_on_issues=False)
 
             # Should not have logged warnings
@@ -156,7 +156,7 @@ class TestValidateHessian:
         n = 9
         hessian = np.eye(n) * 2.0
 
-        with patch("qme.analysis.validation.logger") as mock_logger:
+        with patch("famex.analysis.validation.logger") as mock_logger:
             validate_hessian(
                 hessian,
                 estimated_noise=0.02,  # Above HIGH_NOISE_THRESHOLD (0.01)
@@ -171,7 +171,7 @@ class TestValidateHessian:
         n = 9
         hessian = np.eye(n) * 2.0
 
-        with patch("qme.analysis.validation.logger") as mock_logger:
+        with patch("famex.analysis.validation.logger") as mock_logger:
             validate_hessian(
                 hessian,
                 force_noise_estimate=0.002,  # Above HIGH_FORCE_NOISE_THRESHOLD (1e-3)

@@ -1,4 +1,4 @@
-"""Tests for qme.core.file_io module."""
+"""Tests for famex.core.file_io module."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from qme.core.file_io import (
+from famex.core.file_io import (
     _create_clean_atoms,
     validate_output_path,
     write_atoms_safely,
@@ -94,7 +94,7 @@ class TestWriteAtomsSafely:
         output_file = tmp_path / "test.xyz"
         with (
             patch(
-                "qme.core.file_io.write_xyz_with_metadata",
+                "famex.core.file_io.write_xyz_with_metadata",
                 side_effect=exception_class(exception_msg),
             ),
             pytest.raises(RuntimeError, match="Failed to save XYZ structure"),
@@ -119,7 +119,7 @@ class TestWriteAtomsSafely:
                 raise OSError("First attempt failed")
             # Second attempt succeeds
 
-        with patch("qme.core.file_io.write", side_effect=mock_write):
+        with patch("famex.core.file_io.write", side_effect=mock_write):
             write_atoms_safely(water_molecule, output_file, format="cif")
         assert call_count == 2
 
@@ -127,7 +127,7 @@ class TestWriteAtomsSafely:
         """Test ASE write with OSError where both attempts fail."""
         output_file = tmp_path / "test.cif"
         with (
-            patch("qme.core.file_io.write", side_effect=OSError("Permission denied")),
+            patch("famex.core.file_io.write", side_effect=OSError("Permission denied")),
             pytest.raises(RuntimeError, match="Clean attempt also failed"),
         ):
             write_atoms_safely(water_molecule, output_file, format="cif")
@@ -155,7 +155,7 @@ class TestWriteAtomsSafely:
             raise exception_class(exception_msg)
 
         with (
-            patch("qme.core.file_io.write", side_effect=mock_write),
+            patch("famex.core.file_io.write", side_effect=mock_write),
             pytest.raises(RuntimeError, match="Clean attempt also failed"),
         ):
             write_atoms_safely(water_molecule, output_file, format="cif")
@@ -174,7 +174,7 @@ class TestWriteAtomsSafely:
         """Test ASE write with errors on first attempt."""
         output_file = tmp_path / "test.cif"
         with (
-            patch("qme.core.file_io.write", side_effect=exception_class(exception_msg)),
+            patch("famex.core.file_io.write", side_effect=exception_class(exception_msg)),
             pytest.raises(RuntimeError, match="Failed to save structure"),
         ):
             write_atoms_safely(water_molecule, output_file, format="cif")
@@ -206,7 +206,7 @@ class TestWriteTrajectorySafely:
         trajectory = [water_molecule.copy()]
         with (
             patch(
-                "qme.core.file_io.write_xyz_with_metadata",
+                "famex.core.file_io.write_xyz_with_metadata",
                 side_effect=exception_class(exception_msg),
             ),
             pytest.raises(RuntimeError, match="Failed to save XYZ trajectory"),
@@ -218,7 +218,7 @@ class TestWriteTrajectorySafely:
         output_file = tmp_path / "trajectory.cif"
         trajectory = [water_molecule.copy()]
         with (
-            patch("qme.core.file_io.write", side_effect=OSError("Permission denied")),
+            patch("famex.core.file_io.write", side_effect=OSError("Permission denied")),
             pytest.raises(RuntimeError, match="Clean attempt also failed"),
         ):
             write_trajectory_safely(trajectory, output_file, format="cif")
@@ -247,7 +247,7 @@ class TestWriteTrajectorySafely:
             raise exception_class(exception_msg)
 
         with (
-            patch("qme.core.file_io.write", side_effect=mock_write),
+            patch("famex.core.file_io.write", side_effect=mock_write),
             pytest.raises(RuntimeError, match="Clean attempt also failed"),
         ):
             write_trajectory_safely(trajectory, output_file, format="cif")
@@ -267,7 +267,7 @@ class TestWriteTrajectorySafely:
         output_file = tmp_path / "trajectory.cif"
         trajectory = [water_molecule.copy()]
         with (
-            patch("qme.core.file_io.write", side_effect=exception_class(exception_msg)),
+            patch("famex.core.file_io.write", side_effect=exception_class(exception_msg)),
             pytest.raises(RuntimeError, match="Failed to save trajectory"),
         ):
             write_trajectory_safely(trajectory, output_file, format="cif")

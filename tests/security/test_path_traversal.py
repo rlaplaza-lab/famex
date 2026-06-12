@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from qme.backends.cache import ModelCache
-from qme.utils.path_security import (
+from famex.backends.cache import ModelCache
+from famex.utils.path_security import (
     PathSecurityError,
     is_safe_relative_path,
     sanitize_filename,

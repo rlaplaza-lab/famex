@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from qme.analysis.finite_differences import (
+from famex.analysis.finite_differences import (
     CentralDifferenceScheme,
     FivePointCentralDifferenceScheme,
     ForwardDifferenceScheme,

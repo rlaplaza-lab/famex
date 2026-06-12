@@ -153,13 +153,17 @@ cython_debug/
 *.log
 
 # Benchmark results - should not be tracked
+**/benchmark_results/
+**/benchmark_results_backup_*/
 *benchmark_results*.json
 *_benchmark_results.json
+unified_bh28_results*.json
 timing_benchmark_results.json
 minima_optimizer_benchmark_results.json
 ts_optimizer_benchmark_results.json
 bh28_benchmark_results.json
 zimmermann93_benchmark_results.json
+optimizer_comparison_benchmark_results.json
 
 # Test output files
 test_*.xyz

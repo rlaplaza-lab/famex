@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from qme.cli.cli_helpers import write_atoms
+from famex.cli.cli_helpers import write_atoms
 from tests.security.test_utils import EVIL_PATHS, NULL_BYTE_PATHS, SAFE_PATHS
 
 

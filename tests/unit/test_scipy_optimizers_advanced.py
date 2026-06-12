@@ -7,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from qme.optimizers.scipy_optimizers import NewtonCG, TrustExact, TrustKrylov, TrustNCG
+from famex.optimizers.scipy_optimizers import NewtonCG, TrustExact, TrustKrylov, TrustNCG
 from tests.test_constants import LOOSE_FMAX, QUICK_STEPS
 
 

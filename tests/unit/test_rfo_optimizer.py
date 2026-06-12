@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from qme.optimizers.rfo_optimizer import RFOTransitionState
+from famex.optimizers.rfo_optimizer import RFOTransitionState
 from tests.test_constants import (
     DEFAULT_FMAX,
     DEFAULT_STEPS,

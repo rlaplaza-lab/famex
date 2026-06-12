@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from qme.interpolation.strategies import (
+from famex.interpolation.strategies import (
     CubicSplineInterpolation,
     GeodesicInterpolation,
     IDPPInterpolation,

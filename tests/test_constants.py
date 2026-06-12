@@ -1,4 +1,4 @@
-"""Standard test constants for the QME test suite.
+"""Standard test constants for the FAMEX test suite.
 
 This module provides standardized constants for test parameters, tolerances,
 and thresholds to reduce duplication and improve maintainability.

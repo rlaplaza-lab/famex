@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from qme.backends.cache import (
+from famex.backends.cache import (
     CalculatorCache,
     ModelCache,
     UnifiedCache,
@@ -362,7 +362,7 @@ class TestGlobalCacheFunctions:
             model_data = b"cached model data"
             cache.cache_model("test_model", "http://example.com/model", model_data)
 
-            with patch("qme.backends.cache._get_model_cache", return_value=cache):
+            with patch("famex.backends.cache._get_model_cache", return_value=cache):
                 # Should return cached model without downloading
                 result = download_and_cache_model("test_model", "http://example.com/model")
 
@@ -376,8 +376,8 @@ class TestGlobalCacheFunctions:
             model_data = b"downloaded model data"
 
             with (
-                patch("qme.backends.cache._get_model_cache", return_value=cache),
-                patch("qme.backends.cache.requests.get") as mock_get,
+                patch("famex.backends.cache._get_model_cache", return_value=cache),
+                patch("famex.backends.cache.requests.get") as mock_get,
             ):
                 mock_response = MagicMock()
                 mock_response.content = model_data
@@ -395,8 +395,8 @@ class TestGlobalCacheFunctions:
             cache = ModelCache(cache_dir=tmpdir)
 
             with (
-                patch("qme.backends.cache._get_model_cache", return_value=cache),
-                patch("qme.backends.cache.requests.get") as mock_get,
+                patch("famex.backends.cache._get_model_cache", return_value=cache),
+                patch("famex.backends.cache.requests.get") as mock_get,
             ):
                 import requests
 

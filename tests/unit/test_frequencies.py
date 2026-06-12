@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import qme
-from qme.analysis.frequency import FrequencyAnalysis, HessianCalculator
+import famex
+from famex.analysis.frequency import FrequencyAnalysis, HessianCalculator
 from tests.test_constants import DEFAULT_DELTA
 from tests.test_utils import StandardTestAssertions
 
@@ -82,7 +82,7 @@ class TestFrequencyAnalysis:
         # Test with different calculator (create a new mock calculator instance)
         # Note: Intentionally creating a new instance (not using mock_backend fixture)
         # to test that FrequencyAnalysis can replace atoms.calc with a different calculator instance
-        different_calc = qme.MockCalculator(backend="mock")
+        different_calc = famex.MockCalculator(backend="mock")
         FrequencyAnalysis(atoms, different_calc)
 
         # Calculator should be updated to different one

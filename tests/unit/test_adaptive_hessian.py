@@ -4,11 +4,11 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-import qme
-from qme.analysis.frequency import FrequencyAnalysis
-from qme.analysis.hessian import HessianCalculator
-from qme.analysis.hessian_energy import EnergyBasedHessianCalculator
-from qme.analysis.noise_estimation import (
+import famex
+from famex.analysis.frequency import FrequencyAnalysis
+from famex.analysis.hessian import HessianCalculator
+from famex.analysis.hessian_energy import EnergyBasedHessianCalculator
+from famex.analysis.noise_estimation import (
     estimate_force_noise,
     estimate_optimal_delta,
     estimate_richardson_noise,
@@ -203,7 +203,7 @@ class TestAutoselectMethod:
     @requires_backend("uma")
     def test_autoselect_uma_integration(self, water_molecule):
         atoms = water_molecule.copy()
-        atoms.calc = qme.get_uma_calculator(model_name="uma-s-1p2")
+        atoms.calc = famex.get_uma_calculator(model_name="uma-s-1p2")
         atoms.calc.ensure_loaded()
 
         freq_analysis = FrequencyAnalysis(atoms, atoms.calc, verbose=0)

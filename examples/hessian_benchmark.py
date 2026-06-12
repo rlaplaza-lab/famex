@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""QME Hessian Benchmark - Hessian Method Comparison and Analysis.
+"""FAMEX Hessian Benchmark - Hessian Method Comparison and Analysis.
 
 This benchmark consolidates functionality from:
 - hessian_comparison.py (FD schemes and backend method comparison)
@@ -20,11 +20,11 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 
-from qme.analysis.frequency import FrequencyAnalysis, HessianCalculator
-from qme.analysis.hessian_energy import EnergyBasedHessianCalculator
-from qme.analysis.noise_estimation import estimate_force_noise, estimate_optimal_delta
-from qme.example_utils import (
-    QMEExampleInterface,
+from famex.analysis.frequency import FrequencyAnalysis, HessianCalculator
+from famex.analysis.hessian_energy import EnergyBasedHessianCalculator
+from famex.analysis.noise_estimation import estimate_force_noise, estimate_optimal_delta
+from famex.example_utils import (
+    FAMEXExampleInterface,
     create_methane_molecule,
     create_standard_epilog,
     create_water_molecule,
@@ -648,7 +648,7 @@ def benchmark_hessian(
 def main() -> int:
     """Run the Hessian benchmark."""
     # Create standardized interface
-    interface = QMEExampleInterface(
+    interface = FAMEXExampleInterface(
         name="Hessian Benchmark",
         description="Hessian Method Comparison and Analysis",
         epilog=create_standard_epilog("benchmark"),

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from qme.backends.availability import (
+from famex.backends.availability import (
     BackendAvailabilityChecker,
     clear_availability_cache,
     get_availability_reason,
@@ -14,10 +14,10 @@ from qme.backends.availability import (
     get_backend_error_message,
     is_backend_available,
 )
-from qme.backends.cache import CalculatorCache, ModelCache, UnifiedCache
-from qme.backends.constants import BACKEND_MOCK
-from qme.backends.registry import _BACKEND_CLASSES, CalculatorRegistry, create_calculator
-from qme.utils.validation import BackendError
+from famex.backends.cache import CalculatorCache, ModelCache, UnifiedCache
+from famex.backends.constants import BACKEND_MOCK
+from famex.backends.registry import _BACKEND_CLASSES, CalculatorRegistry, create_calculator
+from famex.utils.validation import BackendError
 
 
 class TestCalculatorRegistry:
@@ -82,7 +82,7 @@ class TestCalculatorRegistry:
         registry = CalculatorRegistry()
         assert registry.is_backend_available(BACKEND_MOCK) is True
 
-    @patch("qme.backends.registry.is_backend_available")
+    @patch("famex.backends.registry.is_backend_available")
     def test_is_backend_available_delegation(self, mock_available):
         registry = CalculatorRegistry()
         mock_available.return_value = True
@@ -128,14 +128,14 @@ class TestRegistryLazyLoading:
 
         with patch.dict(
             _BACKEND_CLASSES,
-            {"test_attr_fail": ("qme.backends.registry", "nonexistent_attribute")},
+            {"test_attr_fail": ("famex.backends.registry", "nonexistent_attribute")},
         ):
             with pytest.warns(UserWarning, match="Failed to load backend"):
                 registry._load_backend("test_attr_fail")
 
             assert "test_attr_fail" not in registry._registry
 
-    @patch("qme.backends.registry.importlib.import_module")
+    @patch("famex.backends.registry.importlib.import_module")
     def test_load_backend_import_error(self, mock_import):
         registry = CalculatorRegistry()
         mock_import.side_effect = ImportError("Module not found")
@@ -211,8 +211,8 @@ class TestCreateCalculatorFunction:
         mock_cached_calc = MagicMock()
 
         with (
-            patch("qme.backends.cache.get_cached_calculator", return_value=mock_cached_calc),
-            patch("qme.backends.registry.calculator_registry.create_calculator") as mock_create,
+            patch("famex.backends.cache.get_cached_calculator", return_value=mock_cached_calc),
+            patch("famex.backends.registry.calculator_registry.create_calculator") as mock_create,
         ):
             calc = create_calculator(
                 backend=BACKEND_MOCK,
@@ -228,12 +228,12 @@ class TestCreateCalculatorFunction:
             mock_create.assert_not_called()
 
     def test_create_calculator_handles_cache_errors(self):
-        with patch("qme.backends.registry.calculator_registry.create_calculator") as mock_create:
+        with patch("famex.backends.registry.calculator_registry.create_calculator") as mock_create:
             mock_calc = MagicMock()
             mock_create.return_value = mock_calc
 
             # Test cache import error
-            with patch("qme.backends.cache.get_cached_calculator", side_effect=ImportError):
+            with patch("famex.backends.cache.get_cached_calculator", side_effect=ImportError):
                 calc = create_calculator(
                     backend=BACKEND_MOCK,
                     model_name=None,
@@ -247,8 +247,8 @@ class TestCreateCalculatorFunction:
 
             # Test cache calculator error
             with (
-                patch("qme.backends.cache.get_cached_calculator", return_value=None),
-                patch("qme.backends.cache.cache_calculator", side_effect=ImportError),
+                patch("famex.backends.cache.get_cached_calculator", return_value=None),
+                patch("famex.backends.cache.cache_calculator", side_effect=ImportError),
             ):
                 calc = create_calculator(
                     backend=BACKEND_MOCK,
@@ -316,7 +316,7 @@ class TestBackendAvailability:
         result = checker._check_basic_dependencies(BACKEND_MOCK)
         assert result is True
 
-    @patch("qme.backends.availability.deps")
+    @patch("famex.backends.availability.deps")
     def test_check_basic_dependencies_missing(self, mock_deps):
         checker = BackendAvailabilityChecker()
         mock_deps.has.return_value = False
@@ -501,20 +501,20 @@ class TestUnifiedCache:
 
 class TestDependencyManager:
     def test_dependency_manager_has(self):
-        from qme.backends.dependencies import deps
+        from famex.backends.dependencies import deps
 
         result = deps.has("nonexistent_package")
         assert isinstance(result, bool)
 
     def test_dependency_manager_get(self):
-        from qme.backends.dependencies import deps
+        from famex.backends.dependencies import deps
 
         if deps.has("numpy"):
             result = deps.get("numpy")
             assert result is not None
 
     def test_dependency_manager_structure(self):
-        from qme.backends.dependencies import deps
+        from famex.backends.dependencies import deps
 
         assert hasattr(deps, "has")
         assert hasattr(deps, "get")

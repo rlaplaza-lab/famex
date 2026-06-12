@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from qme.strategies.ts_interpolate import MultiStructureTSGuessStrategy
+from famex.strategies.ts_interpolate import MultiStructureTSGuessStrategy
 from tests.test_constants import QUICK_STEPS_EXTENDED, VERY_LOOSE_FMAX
 from tests.test_utils import StandardTestAssertions, handle_backend_errors
 
@@ -172,7 +172,7 @@ class TestTSInterpolateEdgeCases:
         # Mock validate_ts_structure to return tuple
         mock_validation = ({"is_ts": True, "imaginary_frequencies": 1}, "mock_hessian")
         with patch(
-            "qme.strategies.ts_interpolate.validate_ts_structure", return_value=mock_validation
+            "famex.strategies.ts_interpolate.validate_ts_structure", return_value=mock_validation
         ):
             result = strategy.run(
                 [reactant, product],

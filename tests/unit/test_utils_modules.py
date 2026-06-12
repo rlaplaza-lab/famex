@@ -6,10 +6,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import qme
-from qme.utils.logging import print_model_info
-from qme.utils.ml_warnings import VerboseFilter, quiet_backend_loading, suppress_ml_warnings
-from qme.utils.profiler import (
+import famex
+from famex.utils.logging import print_model_info
+from famex.utils.ml_warnings import VerboseFilter, quiet_backend_loading, suppress_ml_warnings
+from famex.utils.profiler import (
     MemoryInfo,
     PerformanceProfiler,
     TimingEntry,
@@ -23,7 +23,7 @@ class TestLogging:
     # Only keeping print_model_info tests here as they use mocks and test different aspects
 
     @patch("click.echo")
-    @patch("qme.utils.device.get_device_info")
+    @patch("famex.utils.device.get_device_info")
     def test_print_model_info_minimal(self, mock_get_device_info, mock_echo):
         print_model_info("test_backend")
 
@@ -33,7 +33,7 @@ class TestLogging:
         assert any("test_backend" in arg.upper() or "TEST_BACKEND" in arg for arg in call_args)
 
     @patch("click.echo")
-    @patch("qme.utils.device.get_device_info")
+    @patch("famex.utils.device.get_device_info")
     def test_print_model_info_full(self, mock_get_device_info, mock_echo):
         mock_get_device_info.return_value = {"gpu_name": "Test GPU", "cuda_available": True}
 
@@ -52,7 +52,7 @@ class TestLogging:
         assert any("cuda" in arg.lower() for arg in call_args)
 
     @patch("click.echo")
-    @patch("qme.utils.device.get_device_info")
+    @patch("famex.utils.device.get_device_info")
     def test_print_model_info_device_error_handling(
         self,
         mock_get_device_info,
@@ -279,11 +279,11 @@ class TestMLWarnings:
     def test_verbose_filter_normal_message(self):
         filter_obj = VerboseFilter()
         record = logging.LogRecord(
-            name="qme.some.module",
+            name="famex.some.module",
             level=logging.INFO,
             pathname="",
             lineno=0,
-            msg="Normal QME message",
+            msg="Normal FAMEX message",
             args=(),
             exc_info=None,
         )
@@ -317,8 +317,8 @@ class TestMLWarnings:
         # Should still restore stderr
         assert sys.stderr == original_stderr
 
-    @patch("qme.utils.logging.print_model_info")
-    @patch("qme.utils.ml_warnings.suppress_ml_warnings")
+    @patch("famex.utils.logging.print_model_info")
+    @patch("famex.utils.ml_warnings.suppress_ml_warnings")
     def test_quiet_backend_loading_basic(
         self,
         mock_suppress,
@@ -335,8 +335,8 @@ class TestMLWarnings:
         # Should call print_model_info by default
         assert mock_print_info.called
 
-    @patch("qme.utils.logging.print_model_info")
-    @patch("qme.utils.ml_warnings.suppress_ml_warnings")
+    @patch("famex.utils.logging.print_model_info")
+    @patch("famex.utils.ml_warnings.suppress_ml_warnings")
     def test_quiet_backend_loading_no_info(
         self,
         mock_suppress,
@@ -353,9 +353,9 @@ class TestMLWarnings:
         # Should NOT call print_model_info
         assert not mock_print_info.called
 
-    @patch("qme.utils.logging.is_in_quiet_context")
-    @patch("qme.utils.logging.print_model_info")
-    @patch("qme.utils.ml_warnings.suppress_ml_warnings")
+    @patch("famex.utils.logging.is_in_quiet_context")
+    @patch("famex.utils.logging.print_model_info")
+    @patch("famex.utils.ml_warnings.suppress_ml_warnings")
     def test_quiet_backend_loading_nested_context(
         self,
         mock_suppress,
@@ -375,27 +375,27 @@ class TestMLWarnings:
         assert not mock_print_info.called
 
 
-class TestQMEInitModule:
+class TestFAMEXInitModule:
     def test_explorer_lazy_import(self):
-        from qme import Explorer
+        from famex import Explorer
 
         assert Explorer is not None
 
     def test_profiler_lazy_import(self):
-        from qme import PerformanceProfiler
+        from famex import PerformanceProfiler
 
         assert PerformanceProfiler is not None
 
     def test_deps_lazy_import(self):
-        from qme import deps
+        from famex import deps
 
         assert deps is not None
 
     def test_geometry_lazy_import(self):
-        from qme import Geometry
+        from famex import Geometry
 
         assert Geometry is not None
 
     def test_invalid_attribute_error(self):
         with pytest.raises(AttributeError, match="has no attribute 'invalid_attr_xyz'"):
-            _ = qme.invalid_attr_xyz  # noqa: F841
+            _ = famex.invalid_attr_xyz  # noqa: F841

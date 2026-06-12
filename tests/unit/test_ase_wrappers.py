@@ -1,10 +1,10 @@
-"""Tests for qme.optimizers.ase_wrappers module."""
+"""Tests for famex.optimizers.ase_wrappers module."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from qme.optimizers.ase_wrappers import (
+from famex.optimizers.ase_wrappers import (
     LoggingFile,
     ProfilerCalculatorWrapper,
     VerboseOptimizerWrapper,
@@ -17,7 +17,7 @@ class TestLoggingFile:
 
     def test_write_with_newlines(self):
         """Test write() method with newlines in text (lines 67-75)."""
-        with patch("qme.optimizers.ase_wrappers.logger") as mock_logger:
+        with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
             mock_logger.getEffectiveLevel.return_value = 10  # INFO level
             logging_file = LoggingFile()
             # Write text with newlines
@@ -28,7 +28,7 @@ class TestLoggingFile:
 
     def test_write_multiple_lines(self):
         """Test write() method with multiple complete lines."""
-        with patch("qme.optimizers.ase_wrappers.logger") as mock_logger:
+        with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
             mock_logger.getEffectiveLevel.return_value = 10  # INFO level
             logging_file = LoggingFile()
             logging_file.write("line1\nline2\n")
@@ -37,7 +37,7 @@ class TestLoggingFile:
 
     def test_write_partial_line(self):
         """Test write() method with partial line (no newline)."""
-        with patch("qme.optimizers.ase_wrappers.logger") as mock_logger:
+        with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
             mock_logger.getEffectiveLevel.return_value = 10  # INFO level
             logging_file = LoggingFile()
             logging_file.write("partial line")
@@ -220,7 +220,7 @@ class TestVerboseOptimizerWrapper:
         """Test initialization with profiler."""
         from ase.optimize import BFGS
 
-        from qme.utils.profiler import PerformanceProfiler
+        from famex.utils.profiler import PerformanceProfiler
 
         water_molecule.calc = mock_backend
         profiler = PerformanceProfiler()
@@ -238,7 +238,7 @@ class TestVerboseOptimizerWrapper:
         from ase.optimize import BFGS
 
         water_molecule.calc = mock_backend
-        with patch("qme.optimizers.ase_wrappers.logger") as mock_logger:
+        with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
             mock_logger.info = MagicMock()  # Make it callable
             mock_logger.getEffectiveLevel = MagicMock(return_value=10)  # INFO level
             VerboseOptimizerWrapper(
@@ -259,7 +259,7 @@ class TestVerboseOptimizerWrapper:
             BFGS,
             verbose=2,
         )
-        with patch("qme.optimizers.ase_wrappers.logger") as mock_logger:
+        with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
             wrapper.run(fmax=LOOSE_FMAX, steps=QUICK_STEPS)
             # Should log optimization start
             mock_logger.info.assert_called()
@@ -283,7 +283,7 @@ class TestVerboseOptimizerWrapper:
         mock_scipy_result.message = "Test reason"
         wrapper.wrapped_optimizer._scipy_result = mock_scipy_result
 
-        with patch("qme.optimizers.ase_wrappers.logger") as mock_logger:
+        with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
             wrapper.run(fmax=LOOSE_FMAX, steps=QUICK_STEPS)
             # Should log warning about non-convergence
             mock_logger.warning.assert_called()

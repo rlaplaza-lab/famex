@@ -12,8 +12,8 @@ import numpy as np
 import pytest
 from ase.io import read
 
-from qme.optimizers.rfo_optimizer import RFOTransitionState
-from qme.potentials import get_uma_calculator
+from famex.optimizers.rfo_optimizer import RFOTransitionState
+from famex.potentials import get_uma_calculator
 from tests.test_constants import DEFAULT_FMAX, LONG_STEPS
 from tests.test_utils import requires_backend
 
@@ -129,7 +129,7 @@ class TestRFOTSOptimizer:
             optimizer = RFOTransitionState(
                 atoms,
                 hessian_update_freq=5,  # Less frequent updates for efficiency
-                hessian_method="auto",  # Let QME choose best method
+                hessian_method="auto",  # Let FAMEX choose best method
                 trust_radius=0.02,
                 max_trust_radius=0.1,  # Larger max trust radius for better exploration
             )

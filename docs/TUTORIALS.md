@@ -1,6 +1,6 @@
-# QME Tutorials
+# FAMEX Tutorials
 
-Hands-on tutorials for molecular geometry optimization and transition state searches using QME.
+Hands-on tutorials for molecular geometry optimization and transition state searches using FAMEX.
 
 > **Defaults:** CLI and `Explorer` use `backend="uma"` and model `uma-s-1p2`. Tutorials below often show `--backend aimnet2` for a minimal `torch`-only install; omit it when using UMA.
 
@@ -20,17 +20,17 @@ Hands-on tutorials for molecular geometry optimization and transition state sear
 **Command line:**
 
 ```bash
-qme minima --strategy local molecule.xyz --fmax 0.05
+famex minima --strategy local molecule.xyz --fmax 0.05
 # conflict-free backend:
-qme minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.05
+famex minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.05
 ```
 
 **Python API:**
 
 ```python
-import qme
+import famex
 
-explorer = qme.Explorer.from_file("molecule.xyz", target="minima", strategy="local")
+explorer = famex.Explorer.from_file("molecule.xyz", target="minima", strategy="local")
 result = explorer.run(fmax=0.05, steps=1000)
 explorer.save_structure(result["optimized_atoms"], "optimized.xyz")
 ```
@@ -54,19 +54,19 @@ explorer.save_structure(result["optimized_atoms"], "optimized.xyz")
 
 ```bash
 # Quick testing
-qme minima --strategy local molecule.xyz --fmax 0.1 --steps 100
+famex minima --strategy local molecule.xyz --fmax 0.1 --steps 100
 
 # Standard (default)
-qme minima --strategy local molecule.xyz --fmax 0.05 --steps 1000
+famex minima --strategy local molecule.xyz --fmax 0.05 --steps 1000
 
 # High precision
-qme minima --strategy local molecule.xyz --fmax 0.01 --steps 2000
+famex minima --strategy local molecule.xyz --fmax 0.01 --steps 2000
 ```
 
 ### Two-Ended Optimization
 
 ```bash
-qme minima --strategy interpolate reactant.xyz --product product.xyz --npoints 11
+famex minima --strategy interpolate reactant.xyz --product product.xyz --npoints 11
 ```
 
 ## Transition State Search
@@ -74,18 +74,18 @@ qme minima --strategy interpolate reactant.xyz --product product.xyz --npoints 1
 ### Local TS Optimization
 
 ```bash
-qme ts --strategy local ts_guess.xyz --freq
+famex ts --strategy local ts_guess.xyz --freq
 ```
 
 ```python
-explorer = qme.Explorer.from_file("ts_guess.xyz", target="ts", strategy="local")
+explorer = famex.Explorer.from_file("ts_guess.xyz", target="ts", strategy="local")
 result = explorer.run(fmax=0.01, calculate_frequencies=True)
 ```
 
 ### TS from Interpolation
 
 ```bash
-qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 --freq
+famex ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 --freq
 ```
 
 ```python
@@ -93,15 +93,15 @@ from ase.io import read
 
 reactant = read("reactant.xyz")
 product = read("product.xyz")
-explorer = qme.Explorer([reactant, product], target="ts", strategy="interpolate")
+explorer = famex.Explorer([reactant, product], target="ts", strategy="interpolate")
 result = explorer.run(npoints=15)
 ```
 
 ### Growing String (DE-GSM)
 
 ```bash
-qme ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
-qme ts --strategy growing_string reactant.xyz --product product.xyz --require-ts --freq
+famex ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
+famex ts --strategy growing_string reactant.xyz --product product.xyz --require-ts --freq
 ```
 
 See also `examples/growing_string_demo.py`.
@@ -111,7 +111,7 @@ See also `examples/growing_string_demo.py`.
 A valid TS has exactly one significant imaginary frequency:
 
 ```bash
-qme ts --strategy local ts_guess.xyz --freq
+famex ts --strategy local ts_guess.xyz --freq
 ```
 
 ```python
@@ -127,12 +127,12 @@ n_imag = freq_result["ts_analysis"]["n_imaginary_frequencies"]
 ### NEB / CI-NEB
 
 ```bash
-qme path --strategy neb reactant.xyz product.xyz --npoints 11
-qme path --strategy cineb reactant.xyz product.xyz --spring-constant 5.0
+famex path --strategy neb reactant.xyz product.xyz --npoints 11
+famex path --strategy cineb reactant.xyz product.xyz --spring-constant 5.0
 ```
 
 ```python
-explorer = qme.Explorer([reactant, product], target="path", strategy="neb")
+explorer = famex.Explorer([reactant, product], target="path", strategy="neb")
 result = explorer.run(npoints=11, fmax=0.05)
 path = result.get("trajectory", result["optimized_atoms"])
 explorer.save_trajectory(path, "neb_path.xyz")
@@ -141,7 +141,7 @@ explorer.save_trajectory(path, "neb_path.xyz")
 ### IRC from a transition state
 
 ```bash
-qme path --strategy irc ts.xyz --direction both
+famex path --strategy irc ts.xyz --direction both
 ```
 
 See `examples/irc_demo.py`.
@@ -149,7 +149,7 @@ See `examples/irc_demo.py`.
 ### Interpolation only (no optimization)
 
 ```bash
-qme path --strategy interpolate reactant.xyz product.xyz --npoints 15 --interp idpp
+famex path --strategy interpolate reactant.xyz product.xyz --npoints 15 --interp idpp
 ```
 
 ## Quick Reference
@@ -158,39 +158,39 @@ qme path --strategy interpolate reactant.xyz product.xyz --npoints 15 --interp i
 
 ```bash
 # Minima
-qme minima --strategy local molecule.xyz --fmax 0.05
+famex minima --strategy local molecule.xyz --fmax 0.05
 
 # Transition state
-qme ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 --freq
+famex ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 --freq
 
 # NEB path
-qme path --strategy neb reactant.xyz product.xyz --npoints 11
+famex path --strategy neb reactant.xyz product.xyz --npoints 11
 
 # IRC from TS
-qme path --strategy irc ts.xyz --direction both
+famex path --strategy irc ts.xyz --direction both
 
 # Cache (AIMNet2 model downloads)
-qme cache info
+famex cache info
 ```
 
 ### Python API
 
 ```python
-import qme
+import famex
 from ase.io import read
 
 # Minima
-explorer = qme.Explorer.from_file("molecule.xyz", target="minima")
+explorer = famex.Explorer.from_file("molecule.xyz", target="minima")
 result = explorer.run(fmax=0.05)
 explorer.save_structure(result["optimized_atoms"], "optimized.xyz")
 
 # TS from two structures
 r, p = read("reactant.xyz"), read("product.xyz")
-explorer = qme.Explorer([r, p], target="ts", strategy="interpolate")
+explorer = famex.Explorer([r, p], target="ts", strategy="interpolate")
 result = explorer.run(npoints=15)
 
 # NEB path
-explorer = qme.Explorer([r, p], target="path", strategy="neb")
+explorer = famex.Explorer([r, p], target="path", strategy="neb")
 result = explorer.run(npoints=11)
 explorer.save_trajectory(result.get("trajectory", result["optimized_atoms"]), "neb_path.xyz")
 ```

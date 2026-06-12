@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""QME Zimmermann-93 Benchmark - Two-Ended Transition State Search.
+"""FAMEX Zimmermann-93 Benchmark - Two-Ended Transition State Search.
 
 This benchmark runs two-ended (reactant → product) transition state searches
-across available ML backends in QME using the standardized Explorer API.
+across available ML backends in FAMEX using the standardized Explorer API.
 
 Usage:
     python zimmermann93_benchmark.py [--quick|--quicker]
@@ -29,11 +29,15 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-# Import QME components
-from qme import Explorer, calculator_registry
+# Import FAMEX components
+from famex import Explorer, calculator_registry
 
 # Import common interface
-from qme.example_utils import QMEExampleInterface, create_standard_epilog, setup_example_environment
+from famex.example_utils import (
+    FAMEXExampleInterface,
+    create_standard_epilog,
+    setup_example_environment,
+)
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -140,7 +144,7 @@ class Zimmermann93Benchmark:
     def get_available_backends(self) -> list[str]:
         """Get list of available ML backends (excluding mock)."""
         # Use the centralized backend availability system
-        from qme.backends.availability import get_available_ml_backends
+        from famex.backends.availability import get_available_ml_backends
 
         return get_available_ml_backends()
 
@@ -571,7 +575,7 @@ class Zimmermann93Benchmark:
 def main() -> int:
     """Run the benchmark."""
     # Create standardized interface
-    interface = QMEExampleInterface(
+    interface = FAMEXExampleInterface(
         name="Zimmermann-93 Benchmark",
         description="Two-Ended Transition State Search",
         epilog=create_standard_epilog("benchmark_quick"),

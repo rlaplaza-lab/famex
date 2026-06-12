@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from qme.core.base_strategy import BaseStrategy, StrategyMetadata
-from qme.core.registry import REGISTRY, StrategyRegistry
+from famex.core.base_strategy import BaseStrategy, StrategyMetadata
+from famex.core.registry import REGISTRY, StrategyRegistry
 
 
 class TestStrategyRegistry:
@@ -137,7 +137,7 @@ class TestStrategyRegistry:
         assert retrieved == TestStrategy
 
     def test_get_strategy_not_found(self):
-        from qme.core.exceptions import StrategyNotFoundError
+        from famex.core.exceptions import StrategyNotFoundError
 
         registry = StrategyRegistry()
 
@@ -165,7 +165,7 @@ class TestStrategyRegistry:
         assert retrieved == TestStrategy
 
     def test_get_by_target_strategy_not_found(self):
-        from qme.core.exceptions import StrategyNotFoundError
+        from famex.core.exceptions import StrategyNotFoundError
 
         registry = StrategyRegistry()
 
@@ -324,7 +324,7 @@ class TestGlobalRegistry:
 
     def test_global_registry_has_registered_strategies(self):
         # Import strategies to trigger registration
-        import qme.strategies  # noqa: F401
+        import famex.strategies  # noqa: F401
 
         strategies = REGISTRY.list_strategies()
 

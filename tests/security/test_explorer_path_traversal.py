@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from qme import Explorer
+from famex import Explorer
 from tests.security.test_utils import EVIL_PATHS, NULL_BYTE_PATHS, SAFE_PATHS
 
 

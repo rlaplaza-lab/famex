@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from qme.backends.availability import (
+from famex.backends.availability import (
     BackendAvailabilityChecker,
     clear_availability_cache,
     get_availability_reason,
@@ -12,7 +12,7 @@ from qme.backends.availability import (
     get_backend_error_message,
     is_backend_available,
 )
-from qme.backends.constants import BACKEND_MOCK
+from famex.backends.constants import BACKEND_MOCK
 
 
 class TestBackendAvailabilityChecker:
@@ -34,7 +34,7 @@ class TestBackendAvailabilityChecker:
     def test_check_basic_dependencies_missing(self):
         checker = BackendAvailabilityChecker()
 
-        with patch("qme.backends.availability.deps") as mock_deps:
+        with patch("famex.backends.availability.deps") as mock_deps:
             mock_deps.has.return_value = False
 
             result = checker._check_basic_dependencies("uma")
@@ -43,7 +43,7 @@ class TestBackendAvailabilityChecker:
     def test_check_basic_dependencies_present(self):
         checker = BackendAvailabilityChecker()
 
-        with patch("qme.backends.availability.deps") as mock_deps:
+        with patch("famex.backends.availability.deps") as mock_deps:
             mock_deps.has.return_value = True
 
             result = checker._check_basic_dependencies("uma")
@@ -59,7 +59,7 @@ class TestBackendAvailabilityChecker:
         checker = BackendAvailabilityChecker()
 
         # First call should check and cache
-        with patch("qme.backends.availability._check_e3nn_conflict") as mock_check:
+        with patch("famex.backends.availability._check_e3nn_conflict") as mock_check:
             mock_check.return_value = None
             result1 = checker._check_known_conflicts("mace")
 
@@ -217,8 +217,10 @@ class TestConvenienceFunctions:
 
     def test_get_backend_error_message_unavailable(self):
         with (
-            patch("qme.backends.availability.is_backend_available", return_value=False),
-            patch("qme.backends.availability.get_availability_reason", return_value="Missing deps"),
+            patch("famex.backends.availability.is_backend_available", return_value=False),
+            patch(
+                "famex.backends.availability.get_availability_reason", return_value="Missing deps"
+            ),
         ):
             message = get_backend_error_message("nonexistent")
 
@@ -232,7 +234,7 @@ class TestConvenienceFunctions:
         assert BACKEND_MOCK in backends
 
     def test_get_available_backends_with_logging_verbose(self):
-        with patch("qme.backends.availability._get_logger") as mock_logger:
+        with patch("famex.backends.availability._get_logger") as mock_logger:
             mock_log = MagicMock()
             mock_logger.return_value = mock_log
 
@@ -251,9 +253,9 @@ class TestConvenienceFunctions:
 
 class TestConflictChecking:
     def test_e3nn_conflict_detection_not_applicable(self):
-        from qme.backends.availability import _check_e3nn_conflict
+        from famex.backends.availability import _check_e3nn_conflict
 
-        with patch("qme.backends.availability.deps") as mock_deps:
+        with patch("famex.backends.availability.deps") as mock_deps:
             mock_deps.has.return_value = False
             result = _check_e3nn_conflict()
             assert result is None

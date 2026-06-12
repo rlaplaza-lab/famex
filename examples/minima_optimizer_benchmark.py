@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""QME Minima Optimizer Benchmark - Minima Optimization Comparison."""
+"""FAMEX Minima Optimizer Benchmark - Minima Optimization Comparison."""
 
 import sys
 import warnings
@@ -8,10 +8,14 @@ from typing import Any
 
 from ase import Atoms
 
-# Import QME components (via benchmark_optimization function)
+# Import FAMEX components (via benchmark_optimization function)
 # Backend availability helpers
 # Common interface and device utils
-from qme.example_utils import QMEExampleInterface, benchmark_optimization, create_standard_epilog
+from famex.example_utils import (
+    FAMEXExampleInterface,
+    benchmark_optimization,
+    create_standard_epilog,
+)
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -291,7 +295,7 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
 def main() -> int:
     """Run the minima optimizer comparison benchmark."""
     # Create standardized interface
-    interface = QMEExampleInterface(
+    interface = FAMEXExampleInterface(
         name="Minima Optimizer Benchmark",
         description="Minima Optimization Comparison",
         epilog=create_standard_epilog("benchmark"),

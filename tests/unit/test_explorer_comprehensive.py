@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 import pytest
 
-import qme
-from qme.core.charge_spin import extract_charge_spin_from_atoms as _extract_charge_spin
-from qme.core.explorer import Explorer
-from qme.utils.validation import BackendError
+import famex
+from famex.core.charge_spin import extract_charge_spin_from_atoms as _extract_charge_spin
+from famex.core.explorer import Explorer
+from famex.utils.validation import BackendError
 from tests.test_constants import LOOSE_FMAX, QUICK_STEPS, VERY_LOOSE_FMAX
 from tests.test_utils import StandardTestAssertions
 
@@ -393,7 +393,7 @@ class TestExplorerRun:
         explorer = Explorer(atoms, backend="mock", target="minima", strategy="local")
 
         # Frequency calculation might fail but optimization should still complete
-        with patch("qme.analysis.frequency.FrequencyAnalysis") as mock_freq:
+        with patch("famex.analysis.frequency.FrequencyAnalysis") as mock_freq:
             mock_freq.side_effect = Exception("Frequency calc failed")
             # This will raise, but the test verifies error handling exists
             with pytest.raises(Exception, match="Frequency calc failed"):
@@ -443,7 +443,7 @@ class TestExplorerFromFile:
 
         try:
             # Mock read_geometry to return a list
-            with patch("qme.core.explorer.read_geometry", return_value=[atoms, atoms]):
+            with patch("famex.core.explorer.read_geometry", return_value=[atoms, atoms]):
                 explorer = Explorer.from_file(temp_path, backend="mock")
 
                 assert len(explorer.atoms_list) == 1
@@ -521,7 +521,7 @@ class TestExplorerLoadStructure:
             atoms.write(temp_path)
 
         try:
-            with patch("qme.core.explorer.read_geometry", return_value=[atoms, atoms]):
+            with patch("famex.core.explorer.read_geometry", return_value=[atoms, atoms]):
                 loaded = explorer.load_structure(temp_path)
 
                 assert loaded == atoms
@@ -621,7 +621,7 @@ class TestExplorerSaveMethods:
 
             assert Path(temp_path).exists()
             if suffix == ".xyz" and method_name == "save_structure":
-                loaded = qme.read_geometry(temp_path)
+                loaded = famex.read_geometry(temp_path)
                 assert len(loaded) == len(test_data)
         finally:
             Path(temp_path).unlink(missing_ok=True)
@@ -631,8 +631,8 @@ class TestExplorerSaveMethods:
         [
             # Patch where write_xyz_with_metadata is imported in file_io module
             # so error handling still works and converts OSError to RuntimeError
-            ("save_structure", "qme.core.file_io.write_xyz_with_metadata"),
-            ("save_trajectory", "qme.core.file_io.write_xyz_with_metadata"),
+            ("save_structure", "famex.core.file_io.write_xyz_with_metadata"),
+            ("save_trajectory", "famex.core.file_io.write_xyz_with_metadata"),
         ],
         ids=["structure_error", "trajectory_error"],
     )
@@ -678,7 +678,7 @@ class TestExplorerSaveMethods:
 
             # Patch ase.io.write where it's imported in file_io module
             # The write_trajectory_safely function catches OSError and retries with cleaned atoms
-            with patch("qme.core.file_io.write", side_effect=failing_write):
+            with patch("famex.core.file_io.write", side_effect=failing_write):
                 explorer.save_trajectory([atoms], temp_path, format="json")
 
             # Should have tried twice (original + clean)

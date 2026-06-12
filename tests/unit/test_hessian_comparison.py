@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from qme.analysis.hessian_comparison import (
+from famex.analysis.hessian_comparison import (
     HessianComparisonReport,
     _compute_quality_metrics,
     _generate_recommendations,

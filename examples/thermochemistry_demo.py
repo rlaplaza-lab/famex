@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Demonstration of enhanced thermochemistry capabilities in QME."""
+"""Demonstration of enhanced thermochemistry capabilities in FAMEX."""
 
 import sys
 
 import numpy as np
 
-from qme.analysis import (
+from famex.analysis import (
     QuasiHarmonicHandler,
     SolvationHandler,
     StatisticalThermodynamics,
     SymmetryHandler,
     ThermodynamicProperties,
 )
-from qme.example_utils import (
-    QMEExampleInterface,
+from famex.example_utils import (
+    FAMEXExampleInterface,
     create_standard_epilog,
     create_water_molecule,
     setup_example_environment,
@@ -65,7 +65,7 @@ def print_thermochemistry_results(results: dict[str, float]) -> None:
 def main() -> int:
     """Run thermochemistry demonstrations."""
     # Create standardized interface
-    interface = QMEExampleInterface(
+    interface = FAMEXExampleInterface(
         name="Thermochemistry Demo",
         description="Enhanced Thermochemistry Capabilities Demonstration",
         epilog=create_standard_epilog("demo"),

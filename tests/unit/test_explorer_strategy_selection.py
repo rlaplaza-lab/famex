@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from ase import Atoms
 
-from qme.core.explorer import Explorer
-from qme.core.registry import REGISTRY
+from famex.core.explorer import Explorer
+from famex.core.registry import REGISTRY
 from tests.test_constants import QUICK_STEPS
 
 
@@ -32,7 +32,7 @@ class TestExplorerStrategySelection:
         expected_requires_multiple,
     ):
         # Ensure strategy modules are imported to trigger registration
-        import qme.strategies  # noqa: F401
+        import famex.strategies  # noqa: F401
 
         strategy_class = REGISTRY.get(strategy_name)
         metadata = strategy_class.metadata
