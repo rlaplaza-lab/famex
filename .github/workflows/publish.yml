@@ -26,3 +26,6 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Uses OIDC trusted publishing when PYPI_API_TOKEN is unset.
+          password: ${{ secrets.PYPI_API_TOKEN }}
