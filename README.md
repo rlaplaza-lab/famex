@@ -3,6 +3,7 @@
 **FAMEX** provides a unified interface for molecular geometry optimization using machine learning potentials. It supports minima optimization, transition state searches, and reaction path calculations through both a command-line interface and Python API.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/famex.svg)](https://pypi.org/project/famex/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Quick Start
@@ -101,6 +102,7 @@ The project was renamed from **qme** / **qme-ml** to **famex** in v0.2.0. There 
 
 - **GitHub Repository**: [https://github.com/rlaplaza-lab/famex](https://github.com/rlaplaza-lab/famex)
 - **Issues**: [Report bugs and request features](https://github.com/rlaplaza-lab/famex/issues)
+- **Security**: [Report vulnerabilities](https://github.com/rlaplaza-lab/famex/security/policy)
 - **License**: MIT License
 
 ## Citation
