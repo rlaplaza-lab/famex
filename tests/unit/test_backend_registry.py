@@ -15,7 +15,7 @@ from famex.backends.availability import (
     is_backend_available,
 )
 from famex.backends.cache import CalculatorCache, ModelCache, UnifiedCache
-from famex.backends.constants import BACKEND_MOCK
+from famex.backends.constants import BACKEND_MOCK, BACKEND_PET
 from famex.backends.registry import _BACKEND_CLASSES, CalculatorRegistry, create_calculator
 from famex.utils.validation import BackendError
 
@@ -93,6 +93,12 @@ class TestCalculatorRegistry:
 
 
 class TestRegistryLazyLoading:
+    def test_pet_backend_registered(self):
+        assert BACKEND_PET in _BACKEND_CLASSES
+        module_name, class_name = _BACKEND_CLASSES[BACKEND_PET]
+        assert module_name == "famex.potentials.pet_potential"
+        assert class_name == "PETPotential"
+
     def test_load_backend_lazy(self):
         registry = CalculatorRegistry()
         assert BACKEND_MOCK in _BACKEND_CLASSES

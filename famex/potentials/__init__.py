@@ -17,6 +17,7 @@ __all__ = [
     "get_aimnet2_calculator",
     "get_mace_calculator",
     "get_orb_calculator",
+    "get_pet_calculator",
     "get_so3lr_calculator",
     "get_tblite_calculator",
     "get_uma_calculator",
@@ -48,6 +49,7 @@ from famex.backends.constants import (
     BACKEND_AIMNET2,
     BACKEND_MACE,
     BACKEND_ORB,
+    BACKEND_PET,
     BACKEND_SO3LR,
     BACKEND_TBLITE,
     BACKEND_UMA,
@@ -60,6 +62,7 @@ _BACKEND_MODULES = {
     BACKEND_MACE: ("famex.potentials.mace_potential", "MACEPotential"),
     BACKEND_ORB: ("famex.potentials.orb_potential", "OrbPotential"),
     BACKEND_TBLITE: ("famex.potentials.tblite_potential", "TBLitePotential"),
+    BACKEND_PET: ("famex.potentials.pet_potential", "PETPotential"),
 }
 
 
@@ -109,6 +112,7 @@ def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
             "mace": f"Failed to import MACE backend: {e}. MACE requires PyTorch and mace-torch. Note: MACE cannot be installed with UMA due to e3nn version conflicts. Try: pip install mace-torch",
             "orb": f"Failed to import Orb backend: {e}. Orb requires orb-models and PyTorch. Note: orb-models is a large package and may have compatibility issues. Try: pip install orb-models",
             "tblite": f"Failed to import TBLite backend: {e}. TBLite requires the tblite package. Try: pip install tblite",
+            "pet": f"Failed to import PET backend: {e}. PET requires upet and PyTorch (Python 3.11+). Try: pip install upet",
         }
 
         msg = error_messages.get(backend, f"Failed to import {backend} backend: {e}")
@@ -144,3 +148,8 @@ def get_orb_calculator(**kwargs: Any) -> Any:
 def get_tblite_calculator(**kwargs: Any) -> Any:
     """Get TBLite calculator."""
     return _get_calculator_generic("tblite", **kwargs)
+
+
+def get_pet_calculator(**kwargs: Any) -> Any:
+    """Get PET (UPET) calculator."""
+    return _get_calculator_generic("pet", **kwargs)

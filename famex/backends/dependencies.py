@@ -197,6 +197,7 @@ class DependencyManager:
             BACKEND_AIMNET2,
             BACKEND_MACE,
             BACKEND_ORB,
+            BACKEND_PET,
             BACKEND_SO3LR,
             BACKEND_TBLITE,
             BACKEND_UMA,
@@ -214,6 +215,8 @@ class DependencyManager:
             "orb_models": "orb_models",
             BACKEND_ORB: "orb_models",  # Orb uses orb-models package
             BACKEND_TBLITE: "tblite",
+            "upet": "upet",
+            BACKEND_PET: "upet",
         }
 
         package_name = package_mapping.get(name.lower(), name.lower())
@@ -238,6 +241,7 @@ class DependencyManager:
             BACKEND_AIMNET2,
             BACKEND_MACE,
             BACKEND_ORB,
+            BACKEND_PET,
             BACKEND_SO3LR,
             BACKEND_TBLITE,
         )
@@ -252,6 +256,8 @@ class DependencyManager:
             "orb_models": "orb-models",
             BACKEND_ORB: "orb-models",  # Orb uses orb-models package
             BACKEND_TBLITE: "tblite",
+            "upet": "upet",
+            BACKEND_PET: "upet",
         }
         return commands.get(name.lower(), name.lower())
 

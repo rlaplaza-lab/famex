@@ -46,6 +46,8 @@ class CalculatorManager:
             return "mace-omol-0"
         if backend_lower == "so3lr":
             return self.model_path or "so3lr-model"
+        if backend_lower == "pet":
+            return "pet-mad-s"
         if backend_lower == "mock":
             return "mock-model"
         return "default-model"

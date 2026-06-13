@@ -12,7 +12,7 @@ from famex.backends.availability import (
     get_backend_error_message,
     is_backend_available,
 )
-from famex.backends.constants import BACKEND_MOCK
+from famex.backends.constants import BACKEND_MOCK, BACKEND_PET
 
 
 class TestBackendAvailabilityChecker:
@@ -30,6 +30,22 @@ class TestBackendAvailabilityChecker:
 
         result = checker._check_basic_dependencies(BACKEND_MOCK)
         assert result is True  # Mock has no dependencies
+
+    def test_pet_backend_requirements_mapping(self):
+        checker = BackendAvailabilityChecker()
+
+        assert BACKEND_PET in checker._requirements
+        assert checker._requirements[BACKEND_PET] == ["upet", "torch"]
+        assert checker._package_names[BACKEND_PET] == ["upet", "torch"]
+
+    def test_pet_python_version_check(self):
+        checker = BackendAvailabilityChecker()
+
+        with patch("famex.backends.availability.sys.version_info", (3, 10, 0)):
+            assert checker._check_python_version(BACKEND_PET) is False
+
+        with patch("famex.backends.availability.sys.version_info", (3, 11, 0)):
+            assert checker._check_python_version(BACKEND_PET) is True
 
     def test_check_basic_dependencies_missing(self):
         checker = BackendAvailabilityChecker()

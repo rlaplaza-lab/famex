@@ -87,6 +87,8 @@ def __getattr__(name: str) -> Any:
         "get_aimnet2_calculator": (f"{__name__}.potentials", "get_aimnet2_calculator"),
         "MACEPotential": (f"{__name__}.potentials", "MACEPotential"),
         "get_mace_calculator": (f"{__name__}.potentials", "get_mace_calculator"),
+        "PETPotential": (f"{__name__}.potentials", "PETPotential"),
+        "get_pet_calculator": (f"{__name__}.potentials", "get_pet_calculator"),
         # errors
         "FAMEXError": (f"{__name__}.utils.validation", "FAMEXError"),
         "DependencyError": (f"{__name__}.utils.validation", "DependencyError"),
@@ -118,6 +120,7 @@ __all__ = [
     "Geometry",
     "HessianCalculator",
     "MACEPotential",
+    "PETPotential",
     # Mock calculators
     "MockCalculator",
     "PerformanceProfiler",
@@ -136,6 +139,7 @@ __all__ = [
     "get_available_backends",
     "get_aimnet2_calculator",
     "get_mace_calculator",
+    "get_pet_calculator",
     "get_so3lr_calculator",
     "get_uma_calculator",
     # I/O functions

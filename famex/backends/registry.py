@@ -11,6 +11,7 @@ from famex.backends.constants import (
     BACKEND_MACE,
     BACKEND_MOCK,
     BACKEND_ORB,
+    BACKEND_PET,
     BACKEND_SO3LR,
     BACKEND_TBLITE,
     BACKEND_UMA,
@@ -30,6 +31,7 @@ _BACKEND_CLASSES: dict[str, tuple[str, str]] = {
     BACKEND_MACE: ("famex.potentials.mace_potential", "MACEPotential"),
     BACKEND_ORB: ("famex.potentials.orb_potential", "OrbPotential"),
     BACKEND_TBLITE: ("famex.potentials.tblite_potential", "TBLitePotential"),
+    BACKEND_PET: ("famex.potentials.pet_potential", "PETPotential"),
     BACKEND_MOCK: ("famex.potentials.mock_potential", "MockCalculator"),
 }
 

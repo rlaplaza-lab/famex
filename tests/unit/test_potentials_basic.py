@@ -91,6 +91,7 @@ class TestPotentialsInitBasic:
             "get_aimnet2_calculator",
             "get_mace_calculator",
             "get_orb_calculator",
+            "get_pet_calculator",
             "get_tblite_calculator",
         ],
     )
@@ -108,3 +109,83 @@ class TestPotentialsInitBasic:
 
         with pytest.raises(ImportError):
             _get_calculator_generic(backend)
+
+
+class TestPETPotentialParsing:
+    @pytest.mark.parametrize(
+        ("model_name", "expected_model", "expected_version"),
+        [
+            (None, "pet-mad-s", "latest"),
+            ("pet-mad-s", "pet-mad-s", "latest"),
+            ("pet-mad-s@1.5.0", "pet-mad-s", "1.5.0"),
+            ("pet-oam-xl@1.0.0", "pet-oam-xl", "1.0.0"),
+        ],
+    )
+    def test_parse_pet_model_name(self, model_name, expected_model, expected_version):
+        from famex.potentials.pet_potential import parse_pet_model_name
+
+        model, version = parse_pet_model_name(model_name)
+        assert model == expected_model
+        assert version == expected_version
+
+    def test_pet_potential_parses_version_suffix(self):
+        from famex.potentials.pet_potential import PETPotential
+
+        potential = PETPotential(model_name="pet-mad-s@1.5.0")
+        assert potential.pet_model == "pet-mad-s"
+        assert potential.pet_version == "1.5.0"
+
+    def test_pet_load_calculator_uses_model_and_version(self):
+        import sys
+        from unittest.mock import MagicMock
+
+        from famex.potentials.pet_potential import PETPotential
+
+        mock_upet_calc = MagicMock()
+        mock_calculator_module = MagicMock()
+        mock_calculator_module.UPETCalculator = mock_upet_calc
+        mock_upet_module = MagicMock()
+        mock_upet_module.calculator = mock_calculator_module
+
+        with (
+            patch("famex.potentials.pet_potential.deps") as mock_deps,
+            patch.dict(
+                sys.modules, {"upet": mock_upet_module, "upet.calculator": mock_calculator_module}
+            ),
+        ):
+            mock_deps.has.return_value = True
+            potential = PETPotential(model_name="pet-mad-s@1.5.0", device="cpu")
+            potential._load_calculator()
+
+        mock_upet_calc.assert_called_once_with(
+            model="pet-mad-s",
+            version="1.5.0",
+            device="cpu",
+        )
+
+    def test_pet_load_calculator_uses_checkpoint_path(self):
+        import sys
+        from unittest.mock import MagicMock
+
+        from famex.potentials.pet_potential import PETPotential
+
+        mock_upet_calc = MagicMock()
+        mock_calculator_module = MagicMock()
+        mock_calculator_module.UPETCalculator = mock_upet_calc
+        mock_upet_module = MagicMock()
+        mock_upet_module.calculator = mock_calculator_module
+
+        with (
+            patch("famex.potentials.pet_potential.deps") as mock_deps,
+            patch.dict(
+                sys.modules, {"upet": mock_upet_module, "upet.calculator": mock_calculator_module}
+            ),
+        ):
+            mock_deps.has.return_value = True
+            potential = PETPotential(model_path="/path/to/model.ckpt", device="cpu")
+            potential._load_calculator()
+
+        mock_upet_calc.assert_called_once_with(
+            checkpoint_path="/path/to/model.ckpt",
+            device="cpu",
+        )

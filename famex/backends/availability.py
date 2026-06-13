@@ -16,6 +16,7 @@ from famex.backends.constants import (
     BACKEND_AIMNET2,
     BACKEND_MACE,
     BACKEND_MOCK,
+    BACKEND_PET,
     BACKEND_SO3LR,
     BACKEND_UMA,
     ML_BACKENDS,
@@ -83,6 +84,7 @@ class BackendAvailabilityChecker:
             BACKEND_MACE: ["mace", "torch"],
             "orb": ["orb_models", "torch"],
             "tblite": ["tblite"],
+            BACKEND_PET: ["upet", "torch"],
         }
 
         # Human-readable package names for error messages
@@ -93,7 +95,14 @@ class BackendAvailabilityChecker:
             BACKEND_MACE: ["mace-torch", "torch"],
             "orb": ["orb-models", "torch"],
             "tblite": ["tblite"],
+            BACKEND_PET: ["upet", "torch"],
         }
+
+    def _check_python_version(self, backend: str) -> bool:
+        """Check Python version requirements for a backend."""
+        if backend == BACKEND_PET:
+            return sys.version_info >= (3, 11)
+        return True
 
     def _check_basic_dependencies(self, backend: str) -> bool:
         """Check basic package dependencies for a backend."""
@@ -148,6 +157,11 @@ class BackendAvailabilityChecker:
             self._cache[backend] = True
             return True
 
+        # Check Python version requirements (fast)
+        if not self._check_python_version(backend):
+            self._cache[backend] = False
+            return False
+
         # Check basic dependencies first (fastest)
         if not self._check_basic_dependencies(backend):
             self._cache[backend] = False
@@ -171,6 +185,9 @@ class BackendAvailabilityChecker:
         """Get detailed reason why a backend is or isn't available."""
         if backend == BACKEND_MOCK:
             return "Always available"
+
+        if not self._check_python_version(backend):
+            return "Requires Python 3.11+ (UPET requirement)"
 
         if not self._check_basic_dependencies(backend):
             required = self._package_names.get(backend, [])
@@ -243,6 +260,7 @@ def get_backend_error_message(backend: str) -> str:
         BACKEND_UMA: "pip install fairchem-core",
         BACKEND_MACE: "pip install mace-torch",
         BACKEND_SO3LR: "pip install so3lr",
+        BACKEND_PET: "pip install upet",
         "orb": "pip install orb-models",
         "tblite": "pip install tblite",
     }

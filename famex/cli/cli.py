@@ -334,7 +334,7 @@ def _common_explorer_options(f: Any) -> Any:
             "--backend",
             default="uma",
             show_default=True,
-            help="Backend: uma|aimnet2|mace|orb|so3lr|tblite|mock",
+            help="Backend: uma|aimnet2|mace|orb|so3lr|tblite|pet|mock",
         ),
         click.option("--model-name", default=None, help="Model name for backend"),
         click.option("--model-path", default=None, help="Path to model file (if applicable)"),

@@ -231,11 +231,25 @@ class TestDependencyManagerErrorHandling:
     def test_has_with_backend_mapping(self):
         """Test has() with backend name mapping."""
         manager = DependencyManager()
-        from famex.backends.constants import BACKEND_AIMNET2
+        from famex.backends.constants import BACKEND_AIMNET2, BACKEND_PET
 
         # Should map backend name to package name
         result = manager.has(BACKEND_AIMNET2)
         assert isinstance(result, bool)
+
+        pet_result = manager.has(BACKEND_PET)
+        assert isinstance(pet_result, bool)
+
+    def test_get_install_command_pet(self):
+        """Test _get_install_command for PET backend."""
+        manager = DependencyManager()
+        from famex.backends.constants import BACKEND_PET
+
+        cmd = manager._get_install_command(BACKEND_PET)
+        assert cmd == "upet"
+
+        cmd_upet = manager._get_install_command("upet")
+        assert cmd_upet == "upet"
 
     def test_get_with_lowercase(self):
         """Test that get() behavior - note that get() doesn't normalize case."""

@@ -26,6 +26,7 @@ Install a backend separately:
 | `orb` | `pip install orb-models` | Universal forcefield |
 | `so3lr` | `pip install so3lr` | Research, custom models |
 | `tblite` | `pip install tblite` | Fast semi-empirical |
+| `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential (Python 3.11+) |
 
 > **Note**: Python 3.10+ required. MACE and UMA conflict - use separate environments.
 
@@ -60,7 +61,7 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 
 ## Key Features
 
-- Multiple ML backends (UMA, AIMNet2, MACE, SO3LR, Orb, TBLite)
+- Multiple ML backends (UMA, AIMNet2, MACE, SO3LR, Orb, TBLite, PET)
 - GPU acceleration with CUDA support
 - Semantic target/strategy interface (minima, ts, path)
 - Advanced methods (NEB, CI-NEB, IRC, growing string)
