@@ -190,8 +190,8 @@ exclude = [
     "examples/",
 ]
 
-# Tests and examples are excluded from mypy checks (see exclude list above)
-# This is standard practice for CI/CD - only the main package is type-checked
+# Type checking runs on Python 3.12 (see lint job in CI and pre-commit hook).
+# Mypy is configured for python_version = "3.10" syntax but executed with 3.12+ runtime.
 
 # Ignore missing imports for external libraries without stubs
 [[tool.mypy.overrides]]
