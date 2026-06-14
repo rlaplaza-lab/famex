@@ -219,7 +219,9 @@ class VerboseOptimizerWrapper(Optimizer):
     def get_number_of_steps(self) -> int:
         return self.wrapped_optimizer.get_number_of_steps()  # type: ignore[no-any-return]
 
-    def converged(self, forces: np.ndarray) -> bool:
+    def converged(self, forces: Any = None, *, gradient: Any = None) -> bool:  # type: ignore[override]
+        if gradient is not None:
+            return bool(self.wrapped_optimizer.converged(gradient))
         return bool(self.wrapped_optimizer.converged(forces))
 
     def log(self, forces: np.ndarray) -> None:
