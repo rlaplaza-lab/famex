@@ -88,14 +88,14 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
 
         for atoms in initial_path:
             try:
-                result = local_minima_strategy.run(
+                run_result = local_minima_strategy.run(
                     atoms_list=[atoms],
                     fmax=fmax,
                     steps=steps,
                     calculate_frequencies=calculate_frequencies,
                     **kwargs,
                 )
-                optimized_atoms = result["optimized_atoms"]
+                optimized_atoms = run_result["optimized_atoms"]
                 # Ensure optimized_atoms is Atoms or list[Atoms]
                 if isinstance(optimized_atoms, Atoms | list):
                     optimized_structures.append(optimized_atoms)
@@ -103,8 +103,8 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
                     # Fallback to original atoms if type is unexpected
                     optimized_structures.append(atoms)
                 # Type narrowing for result dict values
-                converged = result.get("converged", True)
-                steps_val = result.get("steps_taken", 0)
+                converged = run_result.get("converged", True)
+                steps_val = run_result.get("steps_taken", 0)
                 converged_flags.append(
                     bool(converged) if isinstance(converged, bool | int) else True
                 )
@@ -114,12 +114,10 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
                 else:
                     steps_taken.append(0)
                 # Collect frequency analysis results if available
-                if calculate_frequencies and "frequency_analysis" in result:
-                    freq_result = result["frequency_analysis"]
-                    # Type narrowing: frequency_analysis should be a dict
-                    # Use isinstance check to narrow the type
-                    if isinstance(freq_result, dict):  # type: ignore[unreachable]
-                        frequency_results.append(cast(dict[str, Any], freq_result))  # type: ignore[unreachable]
+                if calculate_frequencies and "frequency_analysis" in run_result:
+                    freq_result: Any = run_result["frequency_analysis"]
+                    if isinstance(freq_result, dict):
+                        frequency_results.append(freq_result)
                     else:
                         frequency_results.append(None)
                 else:
@@ -142,7 +140,7 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
             atoms_for_result = first_item
         else:
             atoms_for_result = self.explorer.atoms_list[0]
-        result = self.prepare_result(
+        result: dict[str, Any] = self.prepare_result(
             optimized_atoms=atoms_for_result,
             trajectory=optimized_structures,
             converged=converged_flags,
@@ -154,8 +152,7 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
         if calculate_frequencies and any(f is not None for f in frequency_results):
             # prepare_result converts non-standard types to strings, but we want to keep the list
             # So we'll add it after prepare_result
-            # Type ignore needed because prepare_result limits result dict to specific types
-            result["frequency_analysis"] = frequency_results  # type: ignore[assignment]
+            result["frequency_analysis"] = frequency_results
             # For multistructure, we'll use the first valid frequency analysis for summary
             first_valid_freq = next((f for f in frequency_results if f is not None), None)
             if isinstance(first_valid_freq, dict):

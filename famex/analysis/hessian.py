@@ -32,12 +32,12 @@ from famex.utils.logging import get_famex_logger
 # Optional progress bar support
 HAS_TQDM: bool
 if TYPE_CHECKING:
-    from tqdm import tqdm  # type: ignore[import-untyped]
+    from tqdm import tqdm
 
     HAS_TQDM = True
 else:
     try:
-        from tqdm import tqdm  # type: ignore[import-untyped]
+        from tqdm import tqdm
 
         HAS_TQDM = True
     except ImportError:

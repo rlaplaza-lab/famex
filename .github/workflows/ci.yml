@@ -35,7 +35,6 @@ jobs:
           ruff format --check famex/ tests/ examples/
 
       - name: Type check with mypy
-        continue-on-error: true
         run: mypy famex/
 
       - name: Run tests

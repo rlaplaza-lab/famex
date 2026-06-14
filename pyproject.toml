@@ -41,8 +41,10 @@ dev = [
     "pytest-cov>=4.0.0",
     "ruff~=0.14.5",
     "mypy>=1.0.0",
+    "scipy-stubs>=1.14.0",
     "types-requests>=2.25.0",
     "types-tqdm>=4.66.0",
+    "types-psutil>=5.9.0",
 ]
 
 [project.scripts]
@@ -194,7 +196,6 @@ exclude = [
 # Ignore missing imports for external libraries without stubs
 [[tool.mypy.overrides]]
 module = [
-    "geometric.*",
     "e3nn.*",
     "orb_models.*",
     "fairchem.*",
@@ -203,5 +204,11 @@ module = [
     "sella.*",
     "tblite.*",
     "torch_cluster.*",
+    "upet.*",
+    "tqdm.*",
+    "torch.*",
+    "scipy.*",
+    "psutil.*",
+    "pytest.*",
 ]
 ignore_missing_imports = true

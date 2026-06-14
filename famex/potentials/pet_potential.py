@@ -102,7 +102,7 @@ class PETPotential(BasePotential):
             show_model_info=False,
         ):
             try:
-                from upet.calculator import UPETCalculator  # type: ignore[import-not-found]
+                from upet.calculator import UPETCalculator
 
                 device = self.device or "cpu"
                 if self.model_path is not None:

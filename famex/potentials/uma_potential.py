@@ -240,7 +240,7 @@ class UMAPotential(BasePotential):
                     )
                 hessian_np = cast(np.ndarray, 0.5 * (hessian_np + hessian_np.T))
 
-            return hessian_np
+            return np.asarray(hessian_np, dtype=np.float64)
 
         except ImportError as exc:
             raise ImportError(

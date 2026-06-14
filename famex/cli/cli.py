@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import os
 from contextlib import AbstractContextManager, nullcontext
-from typing import Any
+from typing import Any, cast
 
 import click
+from ase import Atoms
 
 from famex.cli.cache_commands import cache
 from famex.cli.cli_helpers import (
@@ -223,13 +224,12 @@ def _generate_output_path(input_path: str, strategy: str, target: str) -> str:
     return base + suffix
 
 
-def _extract_result_atoms(results: dict[str, Any], target: str) -> Any:
+def _extract_result_atoms(results: dict[str, Any], target: str) -> Atoms | list[Atoms]:
     if target == "path":
         if "trajectory" in results:
-            return results["trajectory"]
-        return results.get("optimized_atoms", [])
-    else:
-        return results["optimized_atoms"]
+            return cast(Atoms | list[Atoms], results["trajectory"])
+        return cast(Atoms | list[Atoms], results.get("optimized_atoms", []))
+    return cast(Atoms, results["optimized_atoms"])
 
 
 def _run_optimization(
@@ -562,7 +562,7 @@ def minima(
 
     # Save results
     out = output or out_default
-    write_atoms(result_atoms, out)  # type: ignore[arg-type]
+    write_atoms(result_atoms, out)
     click.echo(f"Minima optimization completed. Saved: {out}")
 
     # Handle frequency analysis results (chained after optimization)
@@ -739,7 +739,7 @@ def ts(
 
     # Save results
     out = output or out_default
-    write_atoms(result_atoms, out)  # type: ignore[arg-type]
+    write_atoms(result_atoms, out)
     click.echo(f"Transition state optimization completed. Saved: {out}")
 
     # Handle frequency analysis results (chained after optimization)
@@ -914,8 +914,8 @@ def path(
         out_default = _generate_output_path(first_file, strategy, "path")
 
     out = output or out_default
-    write_atoms(trajectory, out)  # type: ignore[arg-type]
-    click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")  # type: ignore[arg-type]
+    write_atoms(trajectory, out)
+    click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")
 
     _handle_frequency_results(
         result, out, target="path", calculate_frequencies=calculate_frequencies

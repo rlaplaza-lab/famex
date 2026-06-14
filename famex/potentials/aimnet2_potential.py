@@ -18,7 +18,7 @@ from ase.calculators.calculator import all_changes
 try:
     # Optional dependency. We can fall back to a NumPy neighbor list when
     # torch_cluster is unavailable or its CUDA kernels are incompatible.
-    from torch_cluster import radius_graph  # type: ignore
+    from torch_cluster import radius_graph
 except Exception:  # pragma: no cover
     radius_graph = None
 

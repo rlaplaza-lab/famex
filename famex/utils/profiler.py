@@ -102,7 +102,7 @@ class PerformanceProfiler:
         try:
             import torch
 
-            return torch.cuda.is_available()
+            return bool(torch.cuda.is_available())
         except ImportError:
             return False
 

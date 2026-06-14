@@ -296,7 +296,7 @@ def _serialize_value(value: Any) -> Any:
     return str(value)
 
 
-def _serialize_frequency_analysis(freq_analysis: dict[str, Any]) -> dict[str, Any] | None:
+def _serialize_frequency_analysis(freq_analysis: Any) -> dict[str, Any] | None:
     """Serialize frequency analysis dictionary to JSON-compatible format."""
     if not isinstance(freq_analysis, dict):
         click.echo(

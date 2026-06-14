@@ -103,7 +103,7 @@ def calculate_rrho_entropy(
         GAS_CONSTANT * factor / (np.exp(factor) - 1),  # High frequency limit
     )
 
-    return entropy
+    return cast(NDArray[np.float64], entropy)
 
 
 def calculate_rrho_energy(
@@ -187,7 +187,7 @@ def calculate_free_rotor_entropy(
     factor = 8 * math.pi**3 * mu_primed * BOLTZMANN_CONSTANT * temperature / PLANCK_CONSTANT**2
     entropy = (0.5 + np.log(np.sqrt(factor))) * GAS_CONSTANT
 
-    return cast(NDArray[np.float64], entropy)
+    return np.asarray(entropy, dtype=np.float64)
 
 
 def calculate_qRRHO_entropy(  # noqa: N802

@@ -17,4 +17,4 @@ import famex.strategies.path_interpolate
 import famex.strategies.ts
 import famex.strategies.ts_interpolate  # noqa: F401
 
-__all__ = []
+__all__: list[str] = []

@@ -220,7 +220,7 @@ class VerboseOptimizerWrapper(Optimizer):
         return self.wrapped_optimizer.get_number_of_steps()  # type: ignore[no-any-return]
 
     def converged(self, forces: np.ndarray) -> bool:
-        return self.wrapped_optimizer.converged(forces)  # type: ignore[no-any-return]
+        return bool(self.wrapped_optimizer.converged(forces))
 
     def log(self, forces: np.ndarray) -> None:
         return self.wrapped_optimizer.log(forces)  # type: ignore[no-any-return]

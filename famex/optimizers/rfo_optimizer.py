@@ -199,7 +199,7 @@ class RFOTransitionState(Optimizer):
         """Convert atoms positions to 1D array."""
         if atoms is None:
             atoms = self.atoms
-        if atoms is None:  # type: ignore[unreachable]
+        if atoms is None:
             raise RuntimeError("Atoms object is not initialized")
         return cast(np.ndarray, atoms.get_positions().ravel())
 

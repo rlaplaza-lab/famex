@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from ase import Atoms
@@ -120,7 +120,7 @@ def hessian_via_ase(
     # Ensure calculator is attached
     atoms.calc = calculator
 
-    # Use temporary directory for ASE's cache
+    hessian: NDArray[np.float64]
     with tempfile.TemporaryDirectory() as tmpdir:
         vib = Vibrations(
             atoms,
@@ -139,10 +139,11 @@ def hessian_via_ase(
         vib.read()
 
         # Extract Hessian
-        if vib.H is None:
+        hessian_raw: Any = vib.H
+        if hessian_raw is None:
             msg = "ASE Vibrations failed to compute Hessian"
             raise RuntimeError(msg)
-        hessian = vib.H.copy()
+        hessian = cast(NDArray[np.float64], np.asarray(hessian_raw).copy())
 
         # Clean up (though tempdir will be cleaned automatically)
         vib.clean()
@@ -150,7 +151,7 @@ def hessian_via_ase(
     if verbose >= 2:
         logger.debug(f"Hessian computed via ASE: shape {hessian.shape}")
 
-    return cast(NDArray[np.float64], hessian)
+    return hessian
 
 
 def frequencies_via_ase(
