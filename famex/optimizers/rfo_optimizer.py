@@ -532,7 +532,7 @@ class RFOTransitionState(Optimizer):
 
         # Step 4: Transform back from eigenbasis to Cartesian coordinates
         # y = sum_k w_k * y~_k
-        step = np.zeros(n)
+        step: np.ndarray = np.zeros(n)
         for k in range(n):
             step += hessian_eigenvectors[:, k] * y_tilde_all[k]
 
@@ -745,7 +745,7 @@ class RFOTransitionState(Optimizer):
         self.alpha = alpha
         return alpha
 
-    def run(self, fmax: float = 0.05, steps: int = 100) -> bool:  # type: ignore[override]
+    def run(self, fmax: float = 0.05, steps: int = 100) -> bool:
         """Run the RFO optimization.
 
         Parameters

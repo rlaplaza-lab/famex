@@ -212,3 +212,10 @@ module = [
     "pytest.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "famex.optimizers.ase_wrappers",
+    "famex.optimizers.rfo_optimizer",
+]
+disable_error_code = ["override"]

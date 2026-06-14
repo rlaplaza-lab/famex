@@ -1060,7 +1060,7 @@ class HessianCalculator:
 
         # Symmetrize Hessian: H_sym = (H + H^T) / 2
         HESSIAN_SYMMETRIZATION_FACTOR = 0.5
-        hessian = HESSIAN_SYMMETRIZATION_FACTOR * (hessian + hessian.T)
+        hessian = cast(NDArray[np.float64], HESSIAN_SYMMETRIZATION_FACTOR * (hessian + hessian.T))
 
         if self.verbose >= 1:
             elapsed = time.time() - (start_time or 0) if start_time else 0

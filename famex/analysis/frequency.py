@@ -179,7 +179,7 @@ class FrequencyAnalysis:
                             neg_forces[atom_k, coord] - pos_forces[atom_k, coord]
                         ) / (2 * self.delta)
 
-        hessian = 0.5 * (hessian + hessian.T)
+        hessian = cast(NDArray[np.float64], 0.5 * (hessian + hessian.T))
 
         if self.verbose >= 2:
             logger.debug("Hessian constructed from batch results")

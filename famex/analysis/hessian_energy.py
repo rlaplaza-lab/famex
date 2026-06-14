@@ -203,7 +203,7 @@ class EnergyBasedHessianCalculator:
                 hessian[j, i] = hessian[i, j]
 
         # Final symmetrization for numerical stability
-        hessian = 0.5 * (hessian + hessian.T)
+        hessian = cast(NDArray[np.float64], 0.5 * (hessian + hessian.T))
 
         if self.verbose >= 2:
             logger.info("Energy-based Hessian calculation completed")

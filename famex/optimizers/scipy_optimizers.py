@@ -79,8 +79,8 @@ class SciPyHessianOptimizer(Optimizer):
         self._last_hessian_step = -1
         self._last_full_hessian_step = -1
         self.bfgs_updates = 0
-        self._last_positions = None
-        self._last_gradient = None
+        self._last_positions: np.ndarray | None = None
+        self._last_gradient: np.ndarray | None = None
         self._previous_fmax = None
         self.max_steps: int = 0
         self._scipy_result = None
@@ -207,9 +207,9 @@ class SciPyHessianOptimizer(Optimizer):
         elif (
             self.use_bfgs_update
             and self._last_positions is not None
-            and self._last_gradient is not None  # type: ignore[unreachable]
+            and self._last_gradient is not None
         ):
-            self._last_hessian_step = self.nsteps  # type: ignore[unreachable]
+            self._last_hessian_step = self.nsteps
 
             current_gradient = self.gradient(x)
             s = current_positions - self._last_positions

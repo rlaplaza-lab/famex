@@ -180,7 +180,7 @@ class VerboseOptimizerWrapper(Optimizer):
             optimizer_name = wrapped_optimizer_class.__name__
             logger.info(f"Initialized {optimizer_name} optimizer with verbosity control")
 
-    def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:  # type: ignore[override]
+    def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:
         if self.verbose >= 2:
             optimizer_name = self.wrapped_optimizer.__class__.__name__
             logger.info(f"Starting {optimizer_name} optimization")
@@ -219,7 +219,7 @@ class VerboseOptimizerWrapper(Optimizer):
     def get_number_of_steps(self) -> int:
         return self.wrapped_optimizer.get_number_of_steps()  # type: ignore[no-any-return]
 
-    def converged(self, forces: Any = None, *, gradient: Any = None) -> bool:  # type: ignore[override]
+    def converged(self, forces: Any = None, *, gradient: Any = None) -> bool:
         if gradient is not None:
             return bool(self.wrapped_optimizer.converged(gradient))
         return bool(self.wrapped_optimizer.converged(forces))
