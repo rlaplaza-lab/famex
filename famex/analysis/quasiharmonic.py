@@ -11,9 +11,15 @@ import math
 from typing import cast
 
 import numpy as np
-from ase import units
 from numpy.typing import NDArray
 
+from famex.analysis.physics_constants import (
+    BOLTZMANN_CONSTANT,
+    GAS_CONSTANT,
+    PLANCK_CONSTANT,
+    SPEED_OF_LIGHT,
+    filter_positive_frequencies,
+)
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
@@ -27,12 +33,6 @@ __all__ = [
     "calculate_qRRHO_entropy",
     "calculate_qRRHO_energy",
 ]
-
-# Physical constants from ASE units where available
-GAS_CONSTANT = units.kB * units._Nav / units.J  # J/(mol·K) = R (gas constant)
-PLANCK_CONSTANT = 6.62606957e-34  # J·s (not in ASE, keep manual)
-BOLTZMANN_CONSTANT = units.kB / units.J  # J/K = kB in SI units
-SPEED_OF_LIGHT = 2.99792458e10  # cm/s (not in ASE, keep manual)
 
 
 def calculate_damping_function(
@@ -339,9 +339,7 @@ class QuasiHarmonicHandler:
         # Remove zero or negative frequencies
         # Handle complex frequencies (imaginary frequencies for TS)
         # Take real part and filter out non-positive values
-        real_freqs = frequencies[np.real(frequencies) > 0]
-        # Ensure we have real values (take real part if complex)
-        real_freqs = np.real(real_freqs)
+        real_freqs = filter_positive_frequencies(frequencies)
 
         if self.method == "rrho":
             per_mode_entropy = calculate_rrho_entropy(
@@ -403,9 +401,7 @@ class QuasiHarmonicHandler:
         # Remove zero or negative frequencies
         # Handle complex frequencies (imaginary frequencies for TS)
         # Take real part and filter out non-positive values
-        real_freqs = frequencies[np.real(frequencies) > 0]
-        # Ensure we have real values (take real part if complex)
-        real_freqs = np.real(real_freqs)
+        real_freqs = filter_positive_frequencies(frequencies)
 
         if self.method == "grimme":
             # Use qRRHO energy with Grimme's damping

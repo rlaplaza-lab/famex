@@ -68,10 +68,11 @@ def __getattr__(name: str) -> Any:
         "Geometry": (f"{__name__}.io.geometry", "Geometry"),
         "read_geometry": (f"{__name__}.io.geometry", "read_geometry"),
         "write_geometry": (f"{__name__}.io.geometry", "write_geometry"),
+        "read_gaussian_input": (f"{__name__}.io.geometry", "read_gaussian_input"),
         "PathManager": (f"{__name__}.io.path_manager", "PathManager"),
         # frequency analysis
         "FrequencyAnalysis": (f"{__name__}.analysis.frequency", "FrequencyAnalysis"),
-        "HessianCalculator": (f"{__name__}.analysis.frequency", "HessianCalculator"),
+        "HessianCalculator": (f"{__name__}.analysis.hessian", "HessianCalculator"),
         "ThermodynamicProperties": (
             f"{__name__}.analysis.frequency",
             "ThermodynamicProperties",
@@ -123,6 +124,7 @@ __all__ = [
     "PETPotential",
     # Mock calculators
     "MockCalculator",
+    "PathManager",
     "PerformanceProfiler",
     # Error classes
     "FAMEXError",
@@ -144,6 +146,7 @@ __all__ = [
     "get_uma_calculator",
     # I/O functions
     "read_geometry",
+    "read_gaussian_input",
     "write_geometry",
 ]
 

@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 from famex.analysis.hessian import HessianCalculator
 from famex.analysis.molecular_properties import determine_degrees_of_freedom
 from famex.analysis.normal_modes import convert_frequency_unit, diagonalize_mass_weighted_hessian
+from famex.analysis.physics_constants import filter_positive_frequencies
 from famex.analysis.thermodynamics import ThermodynamicProperties
 from famex.analysis.utils import has_calculator_property, validate_indices
 from famex.analysis.validation import validate_hessian
@@ -555,8 +556,7 @@ class FrequencyAnalysis:
             return self._zero_point_energy
 
         frequencies = self.get_frequencies()
-        real_frequencies = frequencies[np.real(frequencies) > 0]
-        real_frequencies = np.real(real_frequencies)
+        real_frequencies = filter_positive_frequencies(frequencies)
 
         freq_eV = real_frequencies * units.invcm
         zpe = float(0.5 * np.sum(freq_eV))  # ZPE in eV, ensure float type
@@ -626,8 +626,7 @@ class FrequencyAnalysis:
 
         """
         frequencies = self.get_frequencies()
-        real_frequencies = frequencies[np.real(frequencies) > 0]
-        real_frequencies = np.real(real_frequencies)
+        real_frequencies = filter_positive_frequencies(frequencies)
 
         thermo_props = ThermodynamicProperties(
             real_frequencies,

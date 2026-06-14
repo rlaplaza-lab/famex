@@ -10,7 +10,13 @@ from __future__ import annotations
 import numpy as np
 from ase import Atoms
 
-__all__ = ["determine_degrees_of_freedom", "is_linear_molecule"]
+from famex.analysis.physics_constants import AMU_TO_KG, BOLTZMANN_CONSTANT, HBAR
+
+__all__ = [
+    "determine_degrees_of_freedom",
+    "is_linear_molecule",
+    "rotational_temperatures_from_atoms",
+]
 
 
 def is_linear_molecule(atoms: Atoms, indices: list[int]) -> bool:
@@ -107,3 +113,31 @@ def determine_degrees_of_freedom(atoms: Atoms, indices: list[int]) -> int:
     if is_linear_molecule(atoms, indices):
         return 5  # 3 translation + 2 rotation for linear molecules
     return 6  # 3 translation + 3 rotation for non-linear molecules
+
+
+def rotational_temperatures_from_atoms(atoms: Atoms, linear: bool) -> np.ndarray:
+    """Compute rotational temperatures (K) from principal moments of inertia."""
+    if len(atoms) == 1:
+        return np.array([0.0, 0.0, 0.0])
+
+    moments_amu_ang2 = np.sort(atoms.get_moments_of_inertia(vectors=False))
+    moments_kg_m2 = moments_amu_ang2 * AMU_TO_KG * 1e-20
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        thetas = (HBAR**2) / (2 * moments_kg_m2 * BOLTZMANN_CONSTANT)
+
+    thetas = np.where(moments_kg_m2 > 1e-46, thetas, 0.0)
+    positive_thetas = thetas[thetas > 1e-6]
+
+    if linear:
+        if len(positive_thetas) == 0:
+            return np.array([0.0])
+        return np.array([positive_thetas[-1]])
+
+    if len(positive_thetas) >= 3:
+        return positive_thetas[-3:]
+    if len(positive_thetas) == 2:
+        return positive_thetas
+    if len(positive_thetas) == 1:
+        return positive_thetas
+    return np.array([0.0, 0.0, 0.0])

@@ -89,16 +89,6 @@ famex path --strategy neb reactant.xyz product.xyz --npoints 11
 famex path --strategy irc ts.xyz --direction both
 ```
 
-## Migrating from qme
-
-The project was renamed from **qme** / **qme-ml** to **famex** in v0.2.0. There are no compatibility shims.
-
-- Uninstall the old package: `pip uninstall qme-ml`
-- Install the new package: `pip install famex`
-- CLI: `qme` → `famex` (e.g. `famex minima …`)
-- Python: `import qme` → `import famex`
-- Optional: preserve cached models with `mv ~/.qme ~/.famex`
-
 ## Community and Support
 
 - **GitHub Repository**: [https://github.com/rlaplaza-lab/famex](https://github.com/rlaplaza-lab/famex)

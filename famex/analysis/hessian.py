@@ -1073,10 +1073,4 @@ class HessianCalculator:
 __all__ = [
     "CalculatorProtocol",
     "HessianCalculator",
-    # Re-export FD schemes for backward compatibility
-    "FiniteDifferenceScheme",
-    "CentralDifferenceScheme",
-    "ForwardDifferenceScheme",
-    "FivePointCentralDifferenceScheme",
-    "SevenPointCentralDifferenceScheme",
 ]

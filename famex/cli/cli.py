@@ -7,6 +7,7 @@ allowing users to perform molecular optimization tasks from the command line.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 from typing import Any, cast
 
@@ -135,7 +136,6 @@ def _create_explorer(
     constraints: str | None,
     verbose: int,
     force_finite_diff_hessian: bool,
-    dry_run: bool,
 ) -> tuple[Explorer, AbstractContextManager[list[str]]]:
     verbosity = max(0, verbose - 1)
 
@@ -328,99 +328,115 @@ def _run_optimization(
     return exp.run(**run_kwargs)
 
 
-def _common_explorer_options(f: Any) -> Any:
-    opts = [
-        click.option(
-            "--backend",
-            default="uma",
-            show_default=True,
-            help="Backend: uma|aimnet2|mace|orb|so3lr|tblite|pet|mock",
-        ),
-        click.option("--model-name", default=None, help="Model name for backend"),
-        click.option("--model-path", default=None, help="Path to model file (if applicable)"),
-        click.option("--device", default=None, help="Device: cpu|cuda"),
-        click.option(
-            "--default-charge",
-            type=int,
-            default=0,
-            show_default=True,
-            help="Default molecular charge",
-        ),
-        click.option(
-            "--default-spin",
-            type=int,
-            default=1,
-            show_default=True,
-            help="Default spin multiplicity",
-        ),
-        click.option(
-            "--local-optimizer",
-            "local_optimizer",
-            default="default",
-            show_default=True,
-            help=(
-                "Local optimizer: default|lbfgs|bfgs|fire|sella|trust-krylov|"
-                "trust-ncg|trust-exact|newton-cg|rfo (default=auto-select based on target)"
+def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], Any]:
+    def decorator(f: Any) -> Any:
+        opts: list[Any] = [
+            click.option(
+                "--backend",
+                default="uma",
+                show_default=True,
+                help="Backend: uma|aimnet2|mace|orb|so3lr|tblite|pet|mock",
             ),
-        ),
-        click.option(
-            "--optimizer-kw",
-            multiple=True,
-            help="Optimizer kwargs as key=value, repeatable",
-        ),
-        click.option(
-            "--ts-kw",
-            multiple=True,
-            help="TS optimizer kwargs as key=value, repeatable",
-        ),
-        click.option(
-            "--constraints",
-            default=None,
-            help=(
-                "Constraints spec string; e.g., "
-                "'fix 0,1; harmonic_bond 2,3 k=5.0; fixinternals_bond 4,5 value=1.25'"
+            click.option("--model-name", default=None, help="Model name for backend"),
+            click.option("--model-path", default=None, help="Path to model file (if applicable)"),
+            click.option("--device", default=None, help="Device: cpu|cuda"),
+            click.option(
+                "--default-charge",
+                type=int,
+                default=0,
+                show_default=True,
+                help="Default molecular charge",
             ),
-        ),
-        click.option(
-            "--verbose",
-            "-v",
-            count=True,
-            default=1,
-            help="Verbosity level: -v=quiet, -vv=normal, -vvv=debug",
-        ),
-        click.option(
-            "--dry-run",
-            is_flag=True,
-            default=False,
-            help="Validate inputs and show strategy selection without running",
-        ),
-        click.option(
-            "--freq",
-            "--frequencies",
-            "calculate_frequencies",
-            is_flag=True,
-            default=False,
-            help="Perform frequency analysis after optimization (includes thermodynamic properties)",
-        ),
-        click.option(
-            "--temperature",
-            type=float,
-            default=298.15,
-            show_default=True,
-            callback=lambda ctx, param, value: _validate_temperature(ctx, param, value),
-            help="Temperature in Kelvin for thermodynamic calculations (must be > 0)",
-        ),
-        click.option(
-            "--force-finite-diff-hessian",
-            "force_finite_diff_hessian",
-            is_flag=True,
-            default=False,
-            help="Force use of finite difference hessians for TS optimizers and frequency calculations",
-        ),
-    ]
-    for opt in reversed(opts):
-        f = opt(f)
-    return f
+            click.option(
+                "--default-spin",
+                type=int,
+                default=1,
+                show_default=True,
+                help="Default spin multiplicity",
+            ),
+            click.option(
+                "--local-optimizer",
+                "local_optimizer",
+                default="default",
+                show_default=True,
+                help=(
+                    "Local optimizer: default|lbfgs|bfgs|fire|sella|trust-krylov|"
+                    "trust-ncg|trust-exact|newton-cg|rfo (default=auto-select based on target)"
+                ),
+            ),
+            click.option(
+                "--optimizer-kw",
+                multiple=True,
+                help="Optimizer kwargs as key=value, repeatable",
+            ),
+            click.option(
+                "--ts-kw",
+                multiple=True,
+                help="TS optimizer kwargs as key=value, repeatable",
+            ),
+            click.option(
+                "--constraints",
+                default=None,
+                help=(
+                    "Constraints spec string; e.g., "
+                    "'fix 0,1; harmonic_bond 2,3 k=5.0; fixinternals_bond 4,5 value=1.25'"
+                ),
+            ),
+            click.option(
+                "--verbose",
+                "-v",
+                count=True,
+                default=1,
+                help="Verbosity level: -v=quiet, -vv=normal, -vvv=debug",
+            ),
+            click.option(
+                "--dry-run",
+                is_flag=True,
+                default=False,
+                help="Validate inputs and show strategy selection without running",
+            ),
+        ]
+        if include_freq:
+            opts.extend(
+                [
+                    click.option(
+                        "--freq",
+                        "--frequencies",
+                        "calculate_frequencies",
+                        is_flag=True,
+                        default=False,
+                        help=(
+                            "Perform frequency analysis after optimization "
+                            "(includes thermodynamic properties)"
+                        ),
+                    ),
+                    click.option(
+                        "--temperature",
+                        type=float,
+                        default=298.15,
+                        show_default=True,
+                        callback=lambda ctx, param, value: _validate_temperature(ctx, param, value),
+                        help="Temperature in Kelvin for thermodynamic calculations (must be > 0)",
+                    ),
+                ]
+            )
+        opts.append(
+            click.option(
+                "--force-finite-diff-hessian",
+                "force_finite_diff_hessian",
+                is_flag=True,
+                default=False,
+                help=(
+                    "Force use of finite difference hessians for TS optimizers "
+                    "and frequency calculations"
+                ),
+            )
+        )
+        for opt in reversed(opts):
+            f = opt(f)
+        return f
+
+    return decorator
 
 
 @click.group(
@@ -468,7 +484,7 @@ def main() -> None:
     show_default=True,
     help="Interpolation method (interpolate strategy only)",
 )
-@_common_explorer_options
+@_common_explorer_options()
 def minima(
     strategy: str,
     input: str,
@@ -535,7 +551,6 @@ def minima(
         constraints=constraints,
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
-        dry_run=dry_run,
     )
 
     with ctx:
@@ -636,7 +651,7 @@ def minima(
     show_default=True,
     help="If set, fail when the TS strategy does not yield a validated first-order saddle.",
 )
-@_common_explorer_options
+@_common_explorer_options()
 def ts(
     strategy: str,
     input: str,
@@ -709,7 +724,6 @@ def ts(
         constraints=constraints,
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
-        dry_run=dry_run,
     )
 
     with ctx:
@@ -803,7 +817,7 @@ main.add_command(cache)
     show_default=True,
     help="Direction to follow from TS (IRC strategy only)",
 )
-@_common_explorer_options
+@_common_explorer_options(include_freq=False)
 def path(
     strategy: str,
     structures: tuple[str, ...],
@@ -827,8 +841,6 @@ def path(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
-    calculate_frequencies: bool,
-    temperature: float,
     force_finite_diff_hessian: bool,
 ) -> None:
     """Reaction path optimization using various strategies.
@@ -883,7 +895,6 @@ def path(
         constraints=constraints,
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
-        dry_run=dry_run,
     )
 
     # Use first structure file for default output naming
@@ -900,8 +911,8 @@ def path(
             target="path",
             fmax=fmax,
             steps=steps,
-            calculate_frequencies=calculate_frequencies,
-            temperature=temperature,
+            calculate_frequencies=False,
+            temperature=298.15,
             npoints=npoints if strategy in ["interpolate", "neb", "cineb"] else None,
             interp=interp if strategy in ["interpolate", "neb", "cineb"] else None,
             spring_constant=spring_constant if strategy in ["neb", "cineb"] else None,
@@ -916,10 +927,6 @@ def path(
     out = output or out_default
     write_atoms(trajectory, out)
     click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")
-
-    _handle_frequency_results(
-        result, out, target="path", calculate_frequencies=calculate_frequencies
-    )
 
 
 __all__ = ["main", "minima", "path", "ts"]

@@ -37,8 +37,6 @@ class Geometry(Atoms):
                 self.calc = ase_atoms.calc
             if hasattr(ase_atoms, "info") and ase_atoms.info:
                 self.info = dict(ase_atoms.info)
-
-            if hasattr(ase_atoms, "info") and ase_atoms.info:
                 if "charge" in ase_atoms.info:
                     charge = ase_atoms.info["charge"]
                 if "spin" in ase_atoms.info:

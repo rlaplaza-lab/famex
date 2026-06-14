@@ -77,7 +77,12 @@ class PETPotential(BasePotential):
         self.pet_model = parsed_model
         self.pet_version = version
 
-        super().__init__(model_name=model_name or DEFAULT_PET_MODEL, device=device, **kwargs)
+        super().__init__(
+            backend="pet",
+            model_name=model_name or DEFAULT_PET_MODEL,
+            device=device,
+            **kwargs,
+        )
 
     def _load_calculator(self) -> None:
         """Load the UPET calculator implementation."""
@@ -118,10 +123,6 @@ class PETPotential(BasePotential):
                 msg = f"UPET not available ({exc}). Install with: pip install upet"
                 raise ImportError(msg) from exc
 
-    def _get_backend_name(self) -> str:
-        """Get the backend name for this calculator."""
-        return "pet"
-
     def calculate(
         self,
         atoms: Atoms | None = None,
@@ -131,42 +132,9 @@ class PETPotential(BasePotential):
         """Calculate properties using the UPET calculator."""
         super().calculate(atoms, properties, system_changes)
 
-        if self._calc is None:
-            self._load_calculator()
-
-        if self._calc is None:
-            logger.error("Failed to load PET calculator")
-            msg = "Failed to load PET calculator"
-            raise RuntimeError(msg)
-
-        self._calc.calculate(self.atoms, properties, system_changes)
-        self.results = self._calc.results.copy()
-
-    def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
-    ) -> float:
-        """Get potential energy."""
-        if atoms is not None:
-            self.atoms = atoms
-        return super().get_potential_energy(atoms, force_consistent)
-
-    def get_forces(self, atoms: Atoms | None = None) -> Any | None:
-        """Get forces on atoms."""
-        if atoms is not None:
-            self.atoms = atoms
-        return super().get_forces(atoms)
-
-    def get_stress(self, atoms: Atoms | None = None) -> Any:
-        """Get stress tensor if supported by the underlying UPET model."""
-        if atoms is not None:
-            self.atoms = atoms
-        if self._calc is None:
-            self._load_calculator()
-
-        if self._calc is not None and hasattr(self._calc, "get_stress"):
-            return self._calc.get_stress(atoms)
-        msg = "Stress calculation not supported by this PET model"
-        raise NotImplementedError(msg)
+        calc = self._require_calc()
+        calc.calculate(self.atoms, properties, system_changes)
+        self.results = calc.results.copy()
 
 
 def get_pet_calculator(

@@ -9,7 +9,19 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from ase import Atoms, units
+from ase import Atoms
+
+from famex.analysis.molecular_properties import (
+    is_linear_molecule,
+    rotational_temperatures_from_atoms,
+)
+from famex.analysis.physics_constants import (
+    AMU_TO_KG,
+    AVOGADRO_CONSTANT,
+    BOLTZMANN_CONSTANT,
+    GAS_CONSTANT,
+    PLANCK_CONSTANT,
+)
 
 __all__ = [
     "StatisticalThermodynamics",
@@ -20,12 +32,8 @@ __all__ = [
     "calculate_electronic_entropy",
 ]
 
-# Physical constants from ASE units where available
-GAS_CONSTANT = units.kB * units._Nav / units.J  # J/(mol·K) = R (gas constant)
-PLANCK_CONSTANT = 6.62606957e-34  # J·s (not in ASE, keep manual)
-BOLTZMANN_CONSTANT = units.kB / units.J  # J/K = kB in SI units
-AVOGADRO_CONSTANT = units._Nav  # 1/mol
-AMU_to_KG = 1.66053886e-27  # kg/amu (not in ASE, keep manual)
+# Re-export for callers that imported constants from this module.
+AMU_to_KG = AMU_TO_KG
 
 
 def calculate_translational_energy(temperature: float) -> float:
@@ -241,7 +249,7 @@ class StatisticalThermodynamics:
 
         # Determine linearity if not specified
         if linear is None:
-            self.linear = self._check_linearity()
+            self.linear = is_linear_molecule(atoms, list(range(len(atoms))))
         else:
             self.linear = linear
 
@@ -253,28 +261,6 @@ class StatisticalThermodynamics:
             rotational_temperatures,
             rotational_constants,
         )
-
-    def _check_linearity(self) -> bool:
-        """Check if molecule is linear using moment of inertia."""
-        if len(self.atoms) <= 2:
-            return True
-
-        # Calculate moment of inertia tensor
-        positions = self.atoms.positions
-        masses = self.atoms.get_masses()
-        com = self.atoms.get_center_of_mass()
-        positions_centered = positions - com
-
-        inertia_tensor = np.zeros((3, 3))
-        for pos, mass in zip(positions_centered, masses, strict=False):
-            inertia_tensor += mass * (np.dot(pos, pos) * np.eye(3) - np.outer(pos, pos))
-
-        # Eigenvalues of moment of inertia tensor
-        eigenvalues = np.linalg.eigvals(inertia_tensor)
-        eigenvalues = np.sort(eigenvalues)
-
-        # Linear if smallest eigenvalue is essentially zero
-        return bool(eigenvalues[0] < 1e-6)
 
     def _process_rotational_data(
         self,
@@ -312,12 +298,7 @@ class StatisticalThermodynamics:
             )
             return rotational_temps
 
-        # Default: try to calculate from geometry
-        if self.is_atom or len(self.atoms) == 1:
-            return np.array([0.0, 0.0, 0.0])
-
-        # For small molecules, calculate from moment of inertia
-        return np.array([1.0, 1.0, 1.0])  # Placeholder - could implement calculation
+        return rotational_temperatures_from_atoms(self.atoms, self.linear)
 
     def translational_energy(self, temperature: float) -> float:
         """Calculate translational energy.

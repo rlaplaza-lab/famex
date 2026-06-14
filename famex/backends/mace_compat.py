@@ -22,7 +22,12 @@ def is_mace_e3nn_error(exc: BaseException) -> bool:
     )
 
 
-def format_mace_e3nn_conflict_message(exc: BaseException) -> str:
+def format_mace_e3nn_conflict_message(exc: BaseException, *, hessian: bool = False) -> str:
+    option2 = (
+        "\n2. Use finite difference Hessians (automatic fallback)"
+        if hessian
+        else "\n2. Use UMA backend instead (compatible with current e3nn)"
+    )
     return (
         f"MACE compatibility issue with e3nn versions. "
         f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn "
@@ -30,7 +35,7 @@ def format_mace_e3nn_conflict_message(exc: BaseException) -> str:
         f"This causes serialization format incompatibilities. "
         f"\n\nWorkaround options:"
         f"\n1. Use a separate environment with e3nn==0.4.4 for MACE"
-        f"\n2. Use UMA backend instead (compatible with current e3nn)"
+        f"{option2}"
         f"\n3. Wait for MACE update compatible with e3nn 0.5+"
         f"\n\nOriginal error: {exc}"
     )

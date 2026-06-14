@@ -406,10 +406,10 @@ def benchmark_optimization(
                     charge = structure.info["charge"]
                 charge = charge if charge is not None else 0
 
-                spin = getattr(structure, "spin", None)
-                if spin is None and hasattr(structure, "info") and "spin" in structure.info:
-                    spin = structure.info["spin"]
-                spin = spin if spin is not None else 1
+                multiplicity = getattr(structure, "spin", None)
+                if multiplicity is None and hasattr(structure, "info") and "spin" in structure.info:
+                    multiplicity = structure.info["spin"]
+                multiplicity = multiplicity if multiplicity is not None else 1
 
                 temp_calc = create_calculator(
                     backend=backend,
@@ -417,9 +417,9 @@ def benchmark_optimization(
                     model_path=None,
                     device=device,
                     default_charge=charge,
-                    default_spin=spin,
+                    default_spin=multiplicity,
                     charge=charge,
-                    mult=spin,  # mult = 2*spin + 1, but for now pass spin as mult
+                    mult=multiplicity,
                 )
                 structure.calc = temp_calc
 

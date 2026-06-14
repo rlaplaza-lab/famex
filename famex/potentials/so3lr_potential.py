@@ -66,11 +66,14 @@ class SO3LRPotential(BasePotential):
         self.model_path = model_path
 
         # SO3LR-specific attributes
-        # Standard backend attribute used by BasePotential helpers
         self._calc: Any | None = None
 
-        # Initialize base class (this will call _load_calculator)
-        super().__init__(model_name=model_name, device=device, **kwargs)
+        super().__init__(
+            backend="so3lr",
+            model_name=model_name,
+            device=device,
+            **kwargs,
+        )
 
     def _load_calculator(self) -> None:
         """Load the SO3LR ASE calculator."""
@@ -145,28 +148,6 @@ class SO3LRPotential(BasePotential):
                 self.results["forces"] = results.get("forces", self.results.get("forces"))
             else:
                 self.results["forces"] = self.results.get("forces")
-
-    def get_potential_energy(
-        self,
-        atoms: Atoms | None = None,
-        force_consistent: bool = False,
-    ) -> float:
-        """Get potential energy (ASE-compatible)."""
-        if atoms is not None:
-            self.atoms = atoms
-
-        return super().get_potential_energy(atoms, force_consistent)
-
-    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray | None:
-        """Get forces (ASE-compatible)."""
-        if atoms is not None:
-            self.atoms = atoms
-
-        return super().get_forces(atoms)
-
-    def _get_backend_name(self) -> str:
-        """Get the backend name for SO3LR."""
-        return "so3lr"
 
 
 def get_so3lr_calculator(

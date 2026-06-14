@@ -10,6 +10,8 @@ import importlib
 from typing import Any
 
 from famex.backends.availability import get_backend_error_message, is_backend_available
+from famex.backends.constants import BACKEND_MOCK
+from famex.backends.registry import BACKEND_CLASSES
 
 __all__ = [
     "BasePotential",
@@ -43,48 +45,11 @@ except ImportError:  # pragma: no cover - tests expect MockCalculator
     MockCalculator = _MissingMock  # type: ignore[assignment,misc]
 
 
-# Backend module mapping for generic factory
-# Import constants to avoid hardcoded strings
-from famex.backends.constants import (
-    BACKEND_AIMNET2,
-    BACKEND_MACE,
-    BACKEND_ORB,
-    BACKEND_PET,
-    BACKEND_SO3LR,
-    BACKEND_TBLITE,
-    BACKEND_UMA,
-)
-
-_BACKEND_MODULES = {
-    BACKEND_UMA: ("famex.potentials.uma_potential", "UMAPotential"),
-    BACKEND_SO3LR: ("famex.potentials.so3lr_potential", "SO3LRPotential"),
-    BACKEND_AIMNET2: ("famex.potentials.aimnet2_potential", "AIMNet2Potential"),
-    BACKEND_MACE: ("famex.potentials.mace_potential", "MACEPotential"),
-    BACKEND_ORB: ("famex.potentials.orb_potential", "OrbPotential"),
-    BACKEND_TBLITE: ("famex.potentials.tblite_potential", "TBLitePotential"),
-    BACKEND_PET: ("famex.potentials.pet_potential", "PETPotential"),
-}
+_BACKEND_MODULES = {name: spec for name, spec in BACKEND_CLASSES.items() if name != BACKEND_MOCK}
 
 
 def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
-    """Create a generic calculator factory function.
-
-    Parameters
-    ----------
-    backend : str
-        Backend name
-    **kwargs
-        Arguments passed to the calculator constructor
-
-    Returns
-    -------
-    Calculator instance
-
-    Raises
-    ------
-    ImportError
-        If backend is not available or cannot be imported
-    """
+    """Create a calculator instance for the given backend."""
     if not is_backend_available(backend):
         raise ImportError(get_backend_error_message(backend))
 
@@ -97,29 +62,14 @@ def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
         module = importlib.import_module(module_name)
         class_or_func = getattr(module, class_or_func_name)
 
-        # Handle both classes and functions
         if callable(class_or_func):
             return class_or_func(**kwargs)
-        else:
-            raise ImportError(f"Expected callable, got {type(class_or_func)}")
+        raise ImportError(f"Expected callable, got {type(class_or_func)}")
 
     except ImportError as e:
-        # Provide helpful error messages for common backends
-        error_messages = {
-            "uma": f"Failed to import UMA backend: {e}. This may be due to missing FairChem dependencies or version conflicts. Try: pip install fairchem-core",
-            "so3lr": f"Failed to import SO3LR backend: {e}. SO3LR requires JAX and must be installed separately from source. See the FAMEX documentation for SO3LR installation instructions.",
-            "aimnet2": f"Failed to import AIMNet2 backend: {e}. AIMNet2 requires PyTorch. Try: pip install torch",
-            "mace": f"Failed to import MACE backend: {e}. MACE requires PyTorch and mace-torch. Note: MACE cannot be installed with UMA due to e3nn version conflicts. Try: pip install mace-torch",
-            "orb": f"Failed to import Orb backend: {e}. Orb requires orb-models and PyTorch. Note: orb-models is a large package and may have compatibility issues. Try: pip install orb-models",
-            "tblite": f"Failed to import TBLite backend: {e}. TBLite requires the tblite package. Try: pip install tblite",
-            "pet": f"Failed to import PET backend: {e}. PET requires upet and PyTorch (Python 3.11+). Try: pip install upet",
-        }
-
-        msg = error_messages.get(backend, f"Failed to import {backend} backend: {e}")
-        raise ImportError(msg)
+        raise ImportError(get_backend_error_message(backend)) from e
 
 
-# Individual calculator factory functions (thin wrappers for backward compatibility)
 def get_uma_calculator(**kwargs: Any) -> Any:
     """Get UMA (Universal Materials Architecture) calculator."""
     return _get_calculator_generic("uma", **kwargs)

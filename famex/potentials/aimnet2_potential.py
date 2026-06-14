@@ -15,14 +15,8 @@ import numpy as np
 import requests
 from ase.calculators.calculator import all_changes
 
-try:
-    # Optional dependency. We can fall back to a NumPy neighbor list when
-    # torch_cluster is unavailable or its CUDA kernels are incompatible.
-    from torch_cluster import radius_graph
-except Exception:  # pragma: no cover
-    radius_graph = None
-
 from famex.backends.dependencies import deps
+from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
 from famex.utils.logging import get_famex_logger
 from famex.utils.path_security import PathSecurityError, is_safe_relative_path, validate_safe_path
@@ -83,13 +77,6 @@ def get_model_path(model_name: str) -> str:
     the model in the registry and downloads it if necessary.
 
     """
-    try:
-        from famex.potentials.model_cache import (  # type: ignore[import-not-found]
-            download_and_cache_model,
-        )
-    except ImportError:
-        download_and_cache_model = None
-
     # Security check: reject path traversal attempts and absolute paths
     if not is_safe_relative_path(model_name):
         if os.path.isabs(model_name):
@@ -112,17 +99,7 @@ def get_model_path(model_name: str) -> str:
     if not model_path.endswith(".jpt"):
         model_path = model_path + ".jpt"
 
-    # Try to use cached model first
-    if download_and_cache_model is not None:
-        try:
-            model_url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
-            cached_path = download_and_cache_model(model_name, model_url)
-            return str(cached_path)
-        except (OSError, ValueError, TypeError) as e:
-            # File system/cache errors during caching - fallback to old behavior
-            logger.debug(f"Model caching failed, using fallback: {e}")
-
-    # Create local assets directory (fallback behavior)
+    # Create local assets directory
     assets_dir = os.path.join(os.path.dirname(__file__), "assets")
     assets_dir_path = Path(assets_dir)
 
@@ -197,37 +174,6 @@ def sparse_nb_to_dense_half(idx: np.ndarray, natom: int, max_nb: int) -> np.ndar
     return dense_nb
 
 
-def nblist_torch_cluster(coord: Any, cutoff: float, mol_idx: Any = None, max_nb: int = 256) -> Any:
-    """Generate neighbor list using torch_cluster (from aimnet2calc)."""
-    if radius_graph is None:
-        raise ImportError("torch_cluster is not available")
-    device = coord.device
-    assert coord.ndim == 2, f"Expected 2D tensor for coord, got {coord.ndim}D"
-    assert coord.shape[0] < 2147483646, "Too many atoms, max supported is 2147483646"
-
-    max_num_neighbors = max_nb
-    while True:
-        sparse_nb = radius_graph(coord, batch=mol_idx, r=cutoff, max_num_neighbors=max_nb).to(
-            torch.int32,
-        )
-        nnb = torch.unique(sparse_nb[0], return_counts=True)[1]
-        if nnb.numel() == 0:
-            break
-        max_num_neighbors = nnb.max().item()
-        if max_num_neighbors < max_nb:
-            break
-        max_nb *= 2
-
-    # Convert to dense format
-    sparse_nb_half = sparse_nb[:, sparse_nb[0] > sparse_nb[1]]
-    dense_nb = sparse_nb_to_dense_half(
-        sparse_nb_half.mT.cpu().numpy(),
-        coord.shape[0],
-        max_num_neighbors,
-    )
-    return torch.as_tensor(dense_nb, device=device)
-
-
 def maybe_pad_dim0(a: Any, n: int, value: float = 0.0) -> Any:
     """Pad tensor in dimension 0 if needed (from aimnet2calc)."""
     _shape_diff = n - a.shape[0]
@@ -250,39 +196,6 @@ def maybe_unpad_dim0(a: Any, n: int) -> Any:
     if _shape_diff == 1:
         a = a[:-1]
     return a
-
-
-def generate_neighbor_list_torch_cluster(
-    coord: Any, cutoff: float, mol_idx: Any = None, max_nb: int = 256
-) -> Any:
-    """Generate neighbor list using torch_cluster radius_graph."""
-    if radius_graph is None:
-        raise ImportError("torch_cluster is not available")
-    device = coord.device
-    max_num_neighbors = 0
-
-    # Generate sparse neighbor list using torch_cluster
-    while True:
-        sparse_nb = radius_graph(coord, batch=mol_idx, r=cutoff, max_num_neighbors=max_nb).to(
-            torch.int32,
-        )
-        nnb = torch.unique(sparse_nb[0], return_counts=True)[1]
-        if nnb.numel() == 0:
-            max_num_neighbors = 0
-            break
-        max_num_neighbors = nnb.max().item()
-        if max_num_neighbors < max_nb:
-            break
-        max_nb *= 2
-
-    # Convert to dense format using the half neighbor list
-    sparse_nb_half = sparse_nb[:, sparse_nb[0] > sparse_nb[1]]
-    dense_nb = sparse_nb_to_dense_half(
-        sparse_nb_half.mT.cpu().numpy(),
-        coord.shape[0],
-        max_num_neighbors,
-    )
-    return torch.as_tensor(dense_nb, device=device)
 
 
 def generate_neighbor_list_numpy(
@@ -350,7 +263,6 @@ class NativeAIMNet2Calculator:
         # State variables
         self._batch = None
         self._saved_for_grad: dict[str, Any] | None = None
-        self._warned_nbmat_fallback = False
 
     def to_input_tensors(self, data: dict[str, Any]) -> dict[str, Any]:
         """Convert input data to PyTorch tensors."""
@@ -577,14 +489,16 @@ class AIMNet2Potential(BasePotential):
             device = get_optimal_device()
 
         # Initialize base class
-        super().__init__(model_name=model_name, device=device, **kwargs)
-
-        # AIMNet2-specific attributes
+        self._calc: Any | None = None
         self.charge = charge
         self.mult = mult
 
-        # Ensure results dict exists for ASE-style API
-        self.results = {}
+        super().__init__(
+            backend="aimnet2",
+            model_name=model_name,
+            device=device,
+            **kwargs,
+        )
 
     # ASE-compatible properties (class attribute like other potentials)
     implemented_properties = ["energy", "forces"]
@@ -594,17 +508,14 @@ class AIMNet2Potential(BasePotential):
         from famex.utils.ml_warnings import quiet_backend_loading
 
         try:
-            # Ensure model_name is not None
             if self.model_name is None:
                 self.model_name = "aimnet2"
 
-            # Ensure device is not None
             if self.device is None:
                 self.device = "cpu"
 
             model_path = get_model_path(self.model_name)
 
-            # Don't show model info - let the outer context handle it
             with quiet_backend_loading(
                 "aimnet2",
                 self.model_name,
@@ -614,34 +525,8 @@ class AIMNet2Potential(BasePotential):
             ):
                 self._calc = NativeAIMNet2Calculator(model_path, device=self.device)
 
-        except ImportError as e:
-            # Missing dependencies
-            msg = (
-                f"Failed to load AIMNET2 model '{self.model_name}': missing required dependencies. "
-                f"Error: {e}. Install torch and ensure all dependencies are available."
-            )
-            raise ImportError(msg) from e
-        except (ValueError, TypeError, KeyError) as e:
-            # Configuration or model format errors
-            msg = (
-                f"Failed to load AIMNET2 model '{self.model_name}': invalid model configuration. "
-                f"Error: {e}. Check that the model name is correct and the model format is valid."
-            )
-            raise ValueError(msg) from e
-        except OSError as e:
-            # File system errors
-            msg = (
-                f"Failed to load AIMNET2 model '{self.model_name}': file access error. "
-                f"Error: {e}. Check file permissions and ensure model files are accessible."
-            )
-            raise RuntimeError(msg) from e
-        except RuntimeError as e:
-            # Runtime errors from PyTorch/backend
-            msg = (
-                f"Failed to load AIMNET2 model '{self.model_name}': runtime error. "
-                f"Error: {e}. This may indicate a device/GPU issue or model incompatibility."
-            )
-            raise RuntimeError(msg) from e
+        except (ImportError, ValueError, TypeError, KeyError, OSError, RuntimeError) as exc:
+            raise_backend_load_error("aimnet2", self.model_name, exc)
 
     def calculate(
         self,
@@ -671,14 +556,9 @@ class AIMNet2Potential(BasePotential):
         }
 
         # Calculate with forces if requested
-        # Ensure backend loaded
-        if self._calc is None:
-            self._load_calculator()  # type: ignore[unreachable]
-        # After _load_calculator() returns without exception, _calc is guaranteed to be set
-        assert self._calc is not None
-
         forces_needed = "forces" in properties
-        results = self._calc(data, forces=forces_needed)
+        calc = self._require_calc()
+        results = calc(data, forces=forces_needed)
 
         # Convert results to numpy arrays and store
         if "energy" in properties:
@@ -699,32 +579,13 @@ class AIMNet2Potential(BasePotential):
         """Set spin multiplicity."""
         self.mult = mult
 
-    def _get_backend_name(self) -> str:
-        """Get the backend name for AIMNet2."""
-        return "aimnet2"
-
-    def get_potential_energy(self, atoms: Any = None, force_consistent: bool = False) -> float:
-        """Get potential energy (ASE-compatible)."""
-        if atoms is not None:
-            self.atoms = atoms
-
-        # Ensure calculator is loaded
-        return super().get_potential_energy(atoms, force_consistent)
-
     def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get forces (ASE-compatible)."""
-        from typing import cast
-
-        import numpy as np
-
-        if atoms is not None:
-            self.atoms = atoms
-
+        """Get forces."""
         forces = super().get_forces(atoms)
         if forces is None:
             msg = "Forces calculation returned None"
             raise RuntimeError(msg)
-        return cast(np.ndarray, forces)
+        return np.asarray(forces)
 
 
 def get_aimnet2_calculator(

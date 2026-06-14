@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 logger = get_module_logger(__name__)
 
-_BACKEND_CLASSES: dict[str, tuple[str, str]] = {
+BACKEND_CLASSES: dict[str, tuple[str, str]] = {
     BACKEND_UMA: ("famex.potentials.uma_potential", "UMAPotential"),
     BACKEND_SO3LR: ("famex.potentials.so3lr_potential", "SO3LRPotential"),
     BACKEND_AIMNET2: ("famex.potentials.aimnet2_potential", "AIMNet2Potential"),
@@ -43,10 +43,10 @@ class CalculatorRegistry:
         self._registry: dict[str, Callable[..., Any]] = {}
 
     def _load_backend(self, backend_name: str) -> None:
-        if backend_name in self._registry or backend_name not in _BACKEND_CLASSES:
+        if backend_name in self._registry or backend_name not in BACKEND_CLASSES:
             return
 
-        module_name, class_name = _BACKEND_CLASSES[backend_name]
+        module_name, class_name = BACKEND_CLASSES[backend_name]
         try:
             logger.debug("Loading backend '%s' from %s.%s", backend_name, module_name, class_name)
             module = importlib.import_module(module_name)
@@ -77,7 +77,7 @@ class CalculatorRegistry:
         self._registry[backend_name] = factory_func
 
     def get_registered_backends(self) -> list[str]:
-        return list(_BACKEND_CLASSES.keys())
+        return list(BACKEND_CLASSES.keys())
 
     def create_calculator(
         self,

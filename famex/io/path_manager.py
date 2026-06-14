@@ -400,16 +400,6 @@ class PathManager:
                     break
 
             if input_only:
-                for struct in structures:
-                    for input_struct in input_structures:
-                        rmsd = PathManager.calculate_rmsd(struct, input_struct, align=align_rmsd)
-                        if rmsd > rmsd_threshold:
-                            input_only = False
-                            break
-                    if not input_only:
-                        break
-
-            if input_only:
                 warning_messages.append(
                     f"Warning: {strategy_name} only found input structures. "
                     f"No new optimized structures were discovered.",

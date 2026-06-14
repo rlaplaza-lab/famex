@@ -69,6 +69,11 @@ def is_in_quiet_context() -> bool:
     return getattr(_quiet_context_local, "in_quiet_context", False)
 
 
+def set_quiet_context(active: bool) -> None:
+    """Mark whether the current thread is inside a quiet-backend-loading context."""
+    _quiet_context_local.in_quiet_context = active
+
+
 def print_model_info(
     backend: str,
     model_name: str | None = None,

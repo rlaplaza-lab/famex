@@ -215,41 +215,6 @@ class TBLitePotential(BasePotential):
                 msg = f"Failed to initialize TBLite calculator: {e}"
                 raise RuntimeError(msg)
 
-    def _get_backend_name(self) -> str:
-        """Get the backend name for this calculator."""
-        return "tblite"
-
-    def _set_tblite_verbosity(self, verbosity: int) -> None:
-        """Set verbosity on the underlying tblite calculator.
-
-        Parameters
-        ----------
-        verbosity : int
-            Verbosity level (0=quiet, 1=normal, 2=verbose)
-        """
-        if self._calc is None:
-            return
-
-        # Try to set verbosity using the tblite Calculator.set() API
-        set_method = getattr(self._calc, "set", None)
-        if set_method is not None:
-            try:
-                set_method("verbosity", verbosity)
-                return
-            except (AttributeError, ValueError, RuntimeError):
-                pass
-
-        # Fallback: try accessing underlying calculator if available
-        for attr_name in ["_calc", "calculator"]:
-            if hasattr(self._calc, attr_name):
-                calc_obj = getattr(self._calc, attr_name)
-                if hasattr(calc_obj, "set"):
-                    try:
-                        calc_obj.set("verbosity", verbosity)
-                        return
-                    except (AttributeError, ValueError, RuntimeError):
-                        pass
-
     def calculate(
         self,
         atoms: Atoms | None = None,
@@ -293,15 +258,6 @@ class TBLitePotential(BasePotential):
                 except (KeyError, AttributeError):
                     # Try .get() as fallback, but this shouldn't happen for valid calculations
                     self.results[prop] = self._calc.results.get(prop, None)
-
-    def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
-    ) -> float:
-        """Get potential energy."""
-        if atoms is not None:
-            self.atoms = atoms
-        # Ensure calculator is loaded
-        return super().get_potential_energy(atoms, force_consistent)
 
     def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get forces on atoms."""

@@ -141,6 +141,16 @@ class BasePotential:
 
         return self._backend_obj()
 
+    def _require_calc(self) -> Any:
+        """Return the loaded backend calculator or raise ``RuntimeError``."""
+        calc = self.ensure_loaded()
+        if calc is None:
+            label = self.backend or self.__class__.__name__
+            msg = f"Failed to load {label} calculator"
+            logger.error(msg)
+            raise RuntimeError(msg)
+        return calc
+
     @staticmethod
     def _set_atoms_charge_spin(atoms: Atoms, charge: int, spin: int) -> None:
         """Ensure ``atoms.info`` contains integer charge and spin values."""
@@ -195,6 +205,15 @@ class BasePotential:
 
         self.calculate(self.atoms, properties=["forces"], system_changes=None)
         return self.results.get("forces")
+
+    def get_stress(self, atoms: Atoms | None = None) -> Any:
+        """Get stress tensor by delegating to the underlying backend."""
+        backend = self._prepare_calculation(atoms)
+        if backend is not None and hasattr(backend, "get_stress"):
+            return backend.get_stress(self.atoms)
+        label = self.backend or self.__class__.__name__
+        msg = f"Stress calculation not supported by {label}"
+        raise NotImplementedError(msg)
 
     @property
     def supports_batch_evaluation(self) -> bool:

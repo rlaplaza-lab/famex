@@ -6,6 +6,7 @@ from typing import Any
 
 from ase import Atoms
 
+from famex.backends.constants import DEFAULT_MACE_MODEL, DEFAULT_PET_MODEL, DEFAULT_UMA_MODEL
 from famex.backends.registry import create_calculator
 from famex.core.charge_spin import check_missing_charge_spin, extract_charge_spin_from_atoms
 
@@ -39,15 +40,15 @@ class CalculatorManager:
 
         backend_lower = self.backend.lower()
         if backend_lower == "uma":
-            return "uma-s-1p2"
+            return DEFAULT_UMA_MODEL
         if backend_lower == "aimnet2":
             return "aimnet2"
         if backend_lower == "mace":
-            return "mace-omol-0"
+            return DEFAULT_MACE_MODEL
         if backend_lower == "so3lr":
             return self.model_path or "so3lr-model"
         if backend_lower == "pet":
-            return "pet-mad-s"
+            return DEFAULT_PET_MODEL
         if backend_lower == "mock":
             return "mock-model"
         return "default-model"
@@ -88,16 +89,17 @@ class CalculatorManager:
                 atoms.info["spin"] = int(spin)
 
         if not self._calculator_created:
-            from famex.utils.logging import print_model_info
+            from famex.utils.logging import is_in_quiet_context, print_model_info
 
-            effective_model_name = self.get_effective_model_name()
-            print_model_info(
-                self.backend,
-                effective_model_name,
-                self.model_path,
-                self.device,
-                verbose=self.verbose,
-            )
+            if not is_in_quiet_context():
+                effective_model_name = self.get_effective_model_name()
+                print_model_info(
+                    self.backend,
+                    effective_model_name,
+                    self.model_path,
+                    self.device,
+                    verbose=self.verbose,
+                )
             self._calculator_created = True
 
         calc = create_calculator(

@@ -307,16 +307,6 @@ class EnergyBasedHessianCalculator:
             raise RuntimeError(msg)
         return cast(float, energy)
 
-    def _get_energy_at_ref(self) -> float:
-        """Get energy at reference geometry.
-
-        Returns
-        -------
-        float
-            Reference energy in eV
-        """
-        return cast(float, self.atoms.get_potential_energy())
-
 
 __all__ = [
     "EnergyBasedHessianCalculator",

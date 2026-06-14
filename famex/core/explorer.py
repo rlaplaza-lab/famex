@@ -88,8 +88,6 @@ class Explorer:
         - Dict: {"fix": [0, 1, 2]}
     initial_hessian : np.ndarray, optional
         Initial Hessian matrix for optimization (3N x 3N).
-    auto_register : bool, default True
-        If True, registers package default strategies automatically.
     verbose : int, default 1
         Verbosity level (0=quiet, 1=normal, 2=verbose).
 
@@ -164,7 +162,6 @@ class Explorer:
         ts_kwargs: dict[str, Any] | None = None,
         constraints: str | list | dict | None = None,
         initial_hessian: np.ndarray | None = None,
-        auto_register: bool = True,
         verbose: int = 1,
         profile: bool = False,
         force_finite_diff_hessian: bool = False,
@@ -201,8 +198,6 @@ class Explorer:
             Geometric constraints
         initial_hessian : np.ndarray | None, default None
             Initial Hessian matrix
-        auto_register : bool, default True
-            Whether to auto-register strategies
         verbose : int, default 1
             Verbosity level
         profile : bool, default False
@@ -257,9 +252,6 @@ class Explorer:
             constraints_spec=constraints,
             cache_parsed=True,
         )
-
-        if auto_register:
-            pass
 
     # --- Calculator & Constraints Management ---
 
