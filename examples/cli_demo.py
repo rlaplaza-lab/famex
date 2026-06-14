@@ -359,7 +359,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
             ],
         },
         {
-            "desc": "NEB path optimization (saves complete reaction pathway) using 'path' command with neb strategy and frequency analysis",
+            "desc": "NEB path optimization (saves complete reaction pathway) using 'path' command with neb strategy",
             "cmd": [
                 "famex",
                 "path",
@@ -375,13 +375,12 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "3",
                 "--spring-constant",
                 "0.5",  # Lower spring constant for better convergence
-                "--freq",
                 "--output",
                 f"test_neb_{backend}.xyz",
             ],
         },
         {
-            "desc": "CI-NEB path optimization (saves complete reaction pathway) using 'path' command with cineb strategy and frequency analysis",
+            "desc": "CI-NEB path optimization (saves complete reaction pathway) using 'path' command with cineb strategy",
             "cmd": [
                 "famex",
                 "path",
@@ -397,13 +396,12 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "3",
                 "--spring-constant",
                 "0.5",  # Lower spring constant for better convergence
-                "--freq",
                 "--output",
                 f"test_cineb_{backend}.xyz",
             ],
         },
         {
-            "desc": "IRC path from transition state using 'path' command with irc strategy and frequency analysis",
+            "desc": "IRC path from transition state using 'path' command with irc strategy",
             "cmd": [
                 "famex",
                 "path",
@@ -418,7 +416,6 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "0.1",
                 "--direction",
                 "both",
-                "--freq",
                 "--output",
                 f"test_irc_{backend}.xyz",
             ],
