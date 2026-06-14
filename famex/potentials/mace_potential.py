@@ -241,34 +241,3 @@ class MACEPotential(BasePotential):
             return self.get_hessian(atoms)
         msg = f"Property '{prop}' not supported by MACEPotential"
         raise KeyError(msg)
-
-
-def get_mace_calculator(
-    model_name: str | None = None,
-    device: str | None = None,
-    **kwargs: Any,
-) -> MACEPotential:
-    """Create MACE calculator.
-
-    Parameters
-    ----------
-    model_name : str, optional
-        MACE model to use. Defaults to ``DEFAULT_MACE_MODEL``.
-    device : str, optional
-        Device for computations ('cpu', 'cuda'). Auto-detected if None.
-    **kwargs : dict
-        Additional arguments passed to MACEPotential
-
-    Returns
-    -------
-    MACEPotential
-        Configured MACE calculator instance
-
-    Examples
-    --------
-    >>> calc = get_mace_calculator()  # Uses MACE-OMOL-0
-    >>> calc = get_mace_calculator(model_name="mace-mp-medium")
-    >>> calc = get_mace_calculator(model_name="mace-off-large", device="cuda")
-
-    """
-    return MACEPotential(model_name=model_name, device=device, **kwargs)

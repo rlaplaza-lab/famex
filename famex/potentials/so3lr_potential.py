@@ -148,31 +148,3 @@ class SO3LRPotential(BasePotential):
                 self.results["forces"] = results.get("forces", self.results.get("forces"))
             else:
                 self.results["forces"] = self.results.get("forces")
-
-
-def get_so3lr_calculator(
-    model_path: str | None = None,
-    model_name: str = "so3lr-small",
-    device: str | None = None,
-    **kwargs: Any,
-) -> SO3LRPotential:
-    """Get SO3LR calculator.
-
-    Parameters
-    ----------
-    model_path : str, optional
-        Path to trained SO3LR model file (currently not used by SO3LR)
-    model_name : str
-        Name of pre-trained SO3LR model (currently not used by SO3LR)
-    device : str, optional
-        Device preference ('cpu', 'cuda')
-    **kwargs :
-        Additional arguments passed to SO3LRPotential
-
-    Returns
-    -------
-    SO3LRPotential
-        Configured SO3LR calculator
-
-    """
-    return SO3LRPotential(model_path=model_path, model_name=model_name, device=device, **kwargs)

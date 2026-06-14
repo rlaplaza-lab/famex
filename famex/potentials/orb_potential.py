@@ -177,14 +177,3 @@ class OrbPotential(BasePotential):
             self.atoms = atoms
         self._apply_charge_spin()
         return super().get_forces(atoms)
-
-
-def get_orb_calculator(
-    model_name: str = "orb-v3-conservative-omol",
-    device: str | None = None,
-    charge: int = 0,
-    spin: int = 1,
-    **kwargs: Any,
-) -> OrbPotential:
-    """Get Orb calculator."""
-    return OrbPotential(model_name=model_name, device=device, charge=charge, spin=spin, **kwargs)
