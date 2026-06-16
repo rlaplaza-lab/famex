@@ -164,6 +164,8 @@ ts_optimizer_benchmark_results.json
 bh28_benchmark_results.json
 zimmermann93_benchmark_results.json
 optimizer_comparison_benchmark_results.json
+ts_benchmark_suite_results.json
+**/uma_ts_validation.json
 
 # Test output files
 test_*.xyz

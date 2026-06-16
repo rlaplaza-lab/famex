@@ -19,6 +19,7 @@ from famex.analysis.physics_constants import (
     PLANCK_CONSTANT,
     SPEED_OF_LIGHT,
     filter_positive_frequencies,
+    normalize_frequencies_cm1,
 )
 from famex.utils.logging import get_famex_logger
 
@@ -60,7 +61,8 @@ def calculate_damping_function(
     """
     # Avoid division by zero for zero frequencies
     # Handle complex frequencies by taking real part for comparison
-    frequencies_safe = np.where(np.real(frequencies) > 0, np.real(frequencies), 1e-10)
+    signed_freqs = normalize_frequencies_cm1(frequencies)
+    frequencies_safe = np.where(signed_freqs > 0, signed_freqs, 1e-10)
     damp = 1.0 / (1.0 + (freq_cutoff / frequencies_safe) ** alpha)
     return damp
 

@@ -379,3 +379,62 @@ class TestHessianErrorPaths:
         # Just verify the code path exists
         hessian = opt.hessian_func(x)
         assert hessian is not None
+
+
+class TestSciPyTSOptimizers:
+    def test_trust_krylov_ts_search_mode(self, h2o_molecule_perturbed_with_mock):
+        atoms = h2o_molecule_perturbed_with_mock
+        opt = TrustKrylov(atoms, logfile=None, ts_search=True, hessian_update_freq=1)
+        assert opt.ts_search is True
+        assert hasattr(opt, "_ts_trust_radius")
+        assert opt._ts_step_mode == "matrix_free"
+        assert opt._ts_subproblem == "krylov"
+
+    def test_trust_exact_ts_search_mode(self, h2o_molecule_perturbed_with_mock):
+        atoms = h2o_molecule_perturbed_with_mock
+        opt = TrustExact(atoms, logfile=None, ts_search=True, hessian_update_freq=1)
+        assert opt._ts_step_mode == "dense"
+        assert opt._ts_subproblem == "exact"
+
+    def test_ts_search_runs_without_scipy_minimize(self, h2o_molecule_perturbed_with_mock):
+        atoms = h2o_molecule_perturbed_with_mock
+        opt = TrustKrylov(atoms, logfile=None, ts_search=True, hessian_update_freq=1)
+        result = opt.run(fmax=0.5, steps=3)
+        assert bool(result) in (True, False)
+        assert opt.nsteps > 0
+        assert opt.hessian_calls == 0  # matrix-free path
+
+    def test_trust_exact_ts_uses_hessian(self, h2o_molecule_perturbed_with_mock):
+        atoms = h2o_molecule_perturbed_with_mock
+        opt = TrustExact(atoms, logfile=None, ts_search=True, hessian_update_freq=1)
+        opt.run(fmax=0.5, steps=2)
+        assert opt.hessian_calls >= 1
+
+    def test_trust_ncg_ts_search_mode(self, h2o_molecule_perturbed_with_mock):
+        atoms = h2o_molecule_perturbed_with_mock
+        opt = TrustNCG(atoms, logfile=None, ts_search=True, hessian_update_freq=1)
+        assert opt._ts_step_mode == "matrix_free"
+        assert opt._ts_subproblem == "ncg"
+
+    def test_trust_ncg_ts_search_runs_without_scipy_minimize(
+        self, h2o_molecule_perturbed_with_mock
+    ):
+        atoms = h2o_molecule_perturbed_with_mock
+        opt = TrustNCG(atoms, logfile=None, ts_search=True, hessian_update_freq=1)
+        result = opt.run(fmax=0.5, steps=3)
+        assert bool(result) in (True, False)
+        assert opt.nsteps > 0
+        assert opt.hessian_calls == 0
+
+    def test_newton_cg_ts_search_raises(self, h2o_molecule_perturbed_with_mock):
+        atoms = h2o_molecule_perturbed_with_mock
+        with pytest.raises(ValueError, match="not supported for transition-state"):
+            NewtonCG(atoms, logfile=None, ts_search=True)
+
+    def test_ts_search_trust_radius_increases_on_good_step(self, h2o_molecule_perturbed_with_mock):
+        atoms = h2o_molecule_perturbed_with_mock
+        opt = TrustKrylov(atoms, logfile=None, ts_search=True, hessian_update_freq=1)
+        opt.trust_radius = 0.1
+        opt.max_trust_radius = 0.3
+        opt.run(fmax=0.5, steps=2)
+        assert opt.trust_radius >= 0.1

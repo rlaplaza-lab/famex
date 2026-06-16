@@ -138,7 +138,7 @@ def uma_backend():
 
     import famex
 
-    calc = famex.get_uma_calculator(model_name="uma-s-1p2")
+    calc = famex.get_uma_calculator(model_name="uma-s-1p1")
     calc.ensure_loaded()
     return calc
 

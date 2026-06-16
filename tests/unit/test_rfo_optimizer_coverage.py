@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from famex.optimizers.rfo_optimizer import ConvergedError, RFOTransitionState
+from famex.optimizers.ts_step import adjust_trust_radius
 from tests.test_constants import LOOSE_FMAX, QUICK_STEPS, QUICK_STEPS_EXTENDED, TIGHT_FMAX
 
 
@@ -155,10 +156,22 @@ class TestRFOConvergenceScenarios:
         initial_trust = opt.trust_radius
 
         # Test that trust radius doesn't exceed max
-        opt._adjust_trust_radius(1.0, step_size=0.0001)  # Excellent step
+        opt.trust_radius = adjust_trust_radius(
+            opt.trust_radius,
+            1.0,
+            0.0001,
+            opt.min_trust_radius,
+            opt.max_trust_radius,
+        )
         assert opt.trust_radius <= opt.max_trust_radius
 
         # Reset and test minimum
         opt.trust_radius = initial_trust
-        opt._adjust_trust_radius(0.0, step_size=0.0001)  # Poor step
+        opt.trust_radius = adjust_trust_radius(
+            opt.trust_radius,
+            0.0,
+            0.0001,
+            opt.min_trust_radius,
+            opt.max_trust_radius,
+        )
         assert opt.trust_radius >= 0.0  # Should not go negative

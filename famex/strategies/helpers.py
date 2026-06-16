@@ -80,7 +80,16 @@ def validate_ts_structure(
 
 def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
     FORBIDDEN_BACKENDS_FOR_TS = {"mock"}
-    FORBIDDEN_OPTIMIZERS_FOR_TS = {"lbfgs", "l-bfgs", "l_bfgs", "bfgs", "fire"}
+    FORBIDDEN_OPTIMIZERS_FOR_TS = {
+        "lbfgs",
+        "l-bfgs",
+        "l_bfgs",
+        "bfgs",
+        "fire",
+        "newton-cg",
+        "newtoncg",
+        "newton_cg",
+    }
 
     if backend.lower() in FORBIDDEN_BACKENDS_FOR_TS:
         msg = (
@@ -95,7 +104,8 @@ def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
     if normalized_name in FORBIDDEN_OPTIMIZERS_FOR_TS:
         msg = (
             f"Optimizer '{optimizer_name}' is not suitable for transition state "
-            "optimization. Use 'sella' or 'rfo' for TS searches."
+            "optimization. Use 'sella', 'rfo', or a SciPy trust-region TS optimizer "
+            "('trust-krylov', 'trust-ncg', 'trust-exact') for TS searches."
         )
         raise ValueError(
             msg,

@@ -220,9 +220,12 @@ class VerboseOptimizerWrapper(Optimizer):
         return self.wrapped_optimizer.get_number_of_steps()  # type: ignore[no-any-return]
 
     def converged(self, forces: Any = None, *, gradient: Any = None) -> bool:
-        if gradient is not None:
-            return bool(self.wrapped_optimizer.converged(gradient))
-        return bool(self.wrapped_optimizer.converged(forces))
+        if gradient is None:
+            if forces is None:
+                gradient = self.atoms.get_forces().ravel()
+            else:
+                gradient = np.asarray(forces).ravel()
+        return bool(self.wrapped_optimizer.converged(gradient))
 
     def log(self, forces: np.ndarray) -> None:
         return self.wrapped_optimizer.log(forces)  # type: ignore[no-any-return]

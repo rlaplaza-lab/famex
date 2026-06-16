@@ -9,6 +9,16 @@ from ase import Atoms
 from ase.optimize.optimize import Optimizer
 from scipy.optimize import minimize
 
+from famex.optimizers.ts_step import (
+    adjust_trust_radius,
+    build_translation_rotation_basis,
+    compute_dense_prfo_step,
+    compute_matrix_free_ts_step,
+    compute_step_quality,
+    make_atoms_hessp,
+    prepare_ts_hessian,
+    project_gradient,
+)
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
@@ -36,10 +46,16 @@ class SciPyHessianOptimizer(Optimizer):
         adaptive_hessian: bool = False,
         force_threshold_ratio: float = 2.0,
         verbose: int = 1,
+        ts_search: bool = False,
+        trust_radius: float = 0.1,
+        max_trust_radius: float = 0.3,
+        min_trust_radius: float = 0.001,
         **kwargs: Any,
     ) -> None:
         """Initialize SciPy Hessian-based optimizer."""
         self.verbose = verbose
+        self.ts_search = ts_search
+        self.hessian_delta = hessian_delta
 
         if verbose == 0:
             logfile = None
@@ -87,6 +103,28 @@ class SciPyHessianOptimizer(Optimizer):
         if not hasattr(self, "fmax"):
             self.fmax = 0.05
         self.fmax: float = getattr(self, "fmax", 0.05)  # type: ignore[assignment]
+
+        if ts_search:
+            if method == "Newton-CG":
+                msg = (
+                    "Newton-CG is not supported for transition-state searches. "
+                    "Use 'trust-krylov', 'trust-ncg', 'trust-exact', 'rfo', or 'sella' instead."
+                )
+                raise ValueError(msg)
+            self._ts_trust_radius = trust_radius
+            self.trust_radius = trust_radius
+            self.max_trust_radius = max_trust_radius
+            self.min_trust_radius = min_trust_radius
+            self._transition_mode: np.ndarray | None = None
+            self._previous_energy: float | None = None
+            if hessian_update_freq is None:
+                self.hessian_update_freq = 1
+            if method == "trust-exact":
+                self._ts_step_mode = "dense"
+                self._ts_subproblem = "exact"
+            else:
+                self._ts_step_mode = "matrix_free"
+                self._ts_subproblem = "krylov" if method == "trust-krylov" else "ncg"
 
         valid_methods = ["trust-krylov", "trust-ncg", "trust-exact", "Newton-CG"]
         if method not in valid_methods:
@@ -273,6 +311,130 @@ class SciPyHessianOptimizer(Optimizer):
         if self.converged(forces_flat):
             raise ConvergedError
 
+    def _get_ts_gradient(self, x: np.ndarray) -> np.ndarray:
+        self.atoms.set_positions(self._x_to_positions(x))
+        self.force_calls += 1
+        gradient = -self.atoms.get_forces().ravel()
+        basis = build_translation_rotation_basis(
+            self.atoms.get_positions(),
+            self.atoms.get_masses(),
+        )
+        return project_gradient(gradient, basis)
+
+    def _compute_ts_hessian(self, x: np.ndarray) -> np.ndarray:
+        steps_since_full = self.nsteps - self._last_full_hessian_step
+        need_full = self.hessian is None or (
+            self.hessian_update_freq is not None and steps_since_full >= self.hessian_update_freq
+        )
+        if need_full:
+            self.atoms.set_positions(self._x_to_positions(x))
+            self.hessian_calls += 1
+            self._last_full_hessian_step = self.nsteps
+            if self.verbose >= 1:
+                logger.info(
+                    f"Computing full Hessian at step {self.nsteps} (call #{self.hessian_calls})",
+                )
+            self.freq_analysis.atoms = self.atoms
+            self.freq_analysis.atoms.calc = self.atoms.calc
+            hessian = self.freq_analysis.calculate_hessian(method=self.hessian_method)
+            basis = build_translation_rotation_basis(
+                self.atoms.get_positions(),
+                self.atoms.get_masses(),
+            )
+            self.hessian = prepare_ts_hessian(hessian, basis)
+        if self.hessian is None:
+            raise RuntimeError("Hessian is None after update logic")
+        return self.hessian
+
+    def _run_ts_search(self, fmax: float, steps: int) -> bool:
+        """Run transition-state search with Hessian usage aligned to the SciPy method."""
+        x = self._positions_to_x()
+        self._previous_energy = float(self.atoms.get_potential_energy())
+
+        if self.verbose >= 2:
+            logger.info(f"Starting {self.method} transition-state search ({self._ts_step_mode})")
+
+        try:
+            while self.nsteps < self.max_steps:
+                gradient = self._get_ts_gradient(x)
+
+                if self._ts_step_mode == "dense":
+                    hessian = self._compute_ts_hessian(x)
+                    step_result = compute_dense_prfo_step(
+                        gradient=gradient,
+                        hessian=hessian,
+                        trust_radius=self.trust_radius,
+                        previous_mode=self._transition_mode,
+                        alpha=self.alpha,
+                    )
+                else:
+                    basis = build_translation_rotation_basis(
+                        self.atoms.get_positions(),
+                        self.atoms.get_masses(),
+                    )
+                    hessp = make_atoms_hessp(
+                        self.atoms,
+                        x,
+                        self._x_to_positions,
+                        delta=self.hessian_delta,
+                        basis=basis,
+                    )
+                    step_result = compute_matrix_free_ts_step(
+                        gradient=gradient,
+                        hessp=hessp,
+                        trust_radius=self.trust_radius,
+                        previous_mode=self._transition_mode,
+                        subproblem=self._ts_subproblem,
+                    )
+
+                self._transition_mode = step_result.transition_mode
+                step = step_result.step
+                step_norm = float(np.linalg.norm(step))
+                if step_norm < 1e-12:
+                    if self.verbose >= 1:
+                        logger.warning("Step size is zero, stopping optimization")
+                    break
+
+                x_new = x + step
+                self.atoms.set_positions(self._x_to_positions(x_new))
+                new_energy = float(self.atoms.get_potential_energy())
+                energy_change = new_energy - (self._previous_energy or new_energy)
+                quality = compute_step_quality(energy_change, step_result.predicted_energy_change)
+
+                self.trust_radius = adjust_trust_radius(
+                    self.trust_radius,
+                    quality,
+                    step_norm,
+                    self.min_trust_radius,
+                    self.max_trust_radius,
+                )
+                self._ts_trust_radius = self.trust_radius
+
+                reject = quality < -1.0 and abs(energy_change) > 10.0
+                if not reject:
+                    x = x_new
+                    self._previous_energy = new_energy
+                else:
+                    self.atoms.set_positions(self._x_to_positions(x))
+                    if self.verbose >= 1:
+                        logger.warning(f"Rejected poor TS step (Q={quality:.4f})")
+
+                self.nsteps += 1
+                forces = self.atoms.get_forces()
+                self.log(forces)
+                self.call_observers()
+
+                if self.converged(forces.ravel()):
+                    raise ConvergedError
+
+        except ConvergedError:
+            if self.verbose >= 1:
+                logger.info("Transition-state optimization converged!")
+            return True
+
+        forces = self.atoms.get_forces()
+        return bool(self.converged(forces.ravel()))
+
     def run(self, fmax: float = 0.05, steps: int = 100) -> bool:  # type: ignore[override]
         """Run the optimization."""
         self.fmax = float(fmax)
@@ -285,6 +447,9 @@ class SciPyHessianOptimizer(Optimizer):
             self.log(forces)
             self.call_observers()
             self.nsteps += 1
+
+        if self.ts_search:
+            return self._run_ts_search(fmax, steps)
 
         if self.verbose >= 2:
             logger.info(f"Starting {self.method} optimization")

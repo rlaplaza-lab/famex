@@ -969,7 +969,7 @@ def get_calculator_for_backend(
     if backend == "mace":
         calc = famex.get_mace_calculator(device=device)
     elif backend == "uma":
-        calc = famex.get_uma_calculator(model_name=model_name or "uma-s-1p2", device=device)
+        calc = famex.get_uma_calculator(model_name=model_name or "uma-s-1p1", device=device)
     elif backend == "aimnet2":
         calc = famex.get_aimnet2_calculator(device=device)
     elif backend == "so3lr":

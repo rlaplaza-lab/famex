@@ -48,7 +48,7 @@ def diagonalize_mass_weighted_hessian(
     Notes
     -----
     - Uses ASE's VibrationsData.from_2d() for consistency
-    - Frequencies follow ASE's convention (signed, cm^-1)
+    - Frequencies follow ASE's convention, normalized to signed real cm^-1 values
     - Normal modes are in Cartesian coordinates, normalized
 
     """

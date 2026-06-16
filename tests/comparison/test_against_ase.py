@@ -8,6 +8,7 @@ from ase.vibrations import Vibrations
 from famex.analysis.frequency import FrequencyAnalysis
 from famex.analysis.hessian import HessianCalculator
 from famex.analysis.molecular_properties import determine_degrees_of_freedom
+from famex.analysis.physics_constants import normalize_frequencies_cm1
 from famex.potentials.mock_potential import MockCalculator
 from tests.test_constants import ASE_COMPARISON_TOL, FREQUENCY_COMPARE_TOL, TIGHT_TOL
 
@@ -66,8 +67,8 @@ class TestFAMEXvsASEHessian:
         famex_freq.diagonalize_hessian()
         fq_famex = famex_freq.get_frequencies(unit="cm-1")
 
-        # ASE: frequencies (cm^-1)
-        fq_ase_all = vib.get_frequencies()
+        # ASE: frequencies (cm^-1), normalized to signed real values
+        fq_ase_all = normalize_frequencies_cm1(vib.get_frequencies())
 
         # Remove translational/rotational modes consistently
         nfree = determine_degrees_of_freedom(atoms, indices)

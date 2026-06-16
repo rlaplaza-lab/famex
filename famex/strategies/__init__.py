@@ -15,6 +15,7 @@ import famex.strategies.neb  # Registers both NEB and CI-NEB strategies
 import famex.strategies.neb_optimizer
 import famex.strategies.path_interpolate
 import famex.strategies.ts
+import famex.strategies.ts_cineb  # noqa: F401
 import famex.strategies.ts_interpolate  # noqa: F401
 
 __all__: list[str] = []

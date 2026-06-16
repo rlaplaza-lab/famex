@@ -61,8 +61,8 @@ class Explorer:
         - "fire": FIRE optimizer
         - "trust-krylov": Trust-region with Krylov subspace
         - "trust-ncg": Trust-region with nonlinear CG
-        - "trust-exact": Trust-region with exact Hessian
-        - "newton-cg": Newton-CG method
+        - "trust-exact": Trust-region with exact Hessian (TS: dense RS-P-RFO)
+        - "newton-cg": Newton-CG method (minima only; not supported for target="ts")
         - "rfo": Rational Function Optimization for TS
     optimizer_kwargs : dict[str, Any], optional
         Keyword arguments forwarded to the local optimizer.
@@ -135,6 +135,7 @@ class Explorer:
     │ minima   │ interpolate      │ Minima from interpolated path   │
     │ ts       │ local            │ Local TS search                 │
     │ ts       │ interpolate      │ TS guess from interpolation     │
+    │ ts       │ cineb            │ TS guess via CI-NEB             │
     │ ts       │ growing_string   │ Growing string method (DE-GSM)  │
     │ path     │ neb              │ NEB path optimization           │
     │ path     │ cineb            │ CI-NEB path optimization        │

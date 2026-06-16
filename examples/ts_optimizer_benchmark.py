@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""FAMEX TS Optimizer Benchmark - Transition State Optimizer Comparison."""
+"""FAMEX TS Optimizer Benchmark - Transition State Optimizer Comparison.
+
+Trust-radius tuning (RFO and SciPy TS optimizers):
+  trust_radius       Initial step bound in Å (default 0.1; geomeTRIC uses ~0.01)
+  max_trust_radius   Upper cap in Å (default 0.3)
+  min_trust_radius   Lower cap in Å (default 0.001)
+  alpha              RFO metric scaling (default 1.0)
+Pass via Explorer ts_kwargs or --ts-kw trust_radius=0.05 max_trust_radius=0.15.
+"""
 
 import sys
 import warnings
@@ -44,10 +52,25 @@ def benchmark_ts_optimizer(
     save_optimized_structure: bool = False,
     structure_label: str | None = None,
 ) -> dict[str, Any]:
-    """Benchmark TS optimizer (Sella, RFO)."""
+    """Benchmark TS optimizer (Sella, RFO, SciPy trust-region)."""
     # Prepare ts_kwargs if hessian_update_freq is specified for Hessian-based optimizers
     ts_kwargs = None
-    if hessian_update_freq is not None and optimizer in ["rfo"]:
+    hessian_optimizers = {
+        "rfo",
+        "trust-krylov",
+        "trustkrylov",
+        "trust_krylov",
+        "trust-ncg",
+        "trustncg",
+        "trust_ncg",
+        "trust-exact",
+        "trustexact",
+        "trust_exact",
+        "newton-cg",
+        "newtoncg",
+        "newton_cg",
+    }
+    if hessian_update_freq is not None and optimizer.lower() in hessian_optimizers:
         ts_kwargs = {"hessian_update_freq": hessian_update_freq}
     if force_finite_diff_hessian:
         if ts_kwargs is None:
@@ -62,7 +85,14 @@ def benchmark_ts_optimizer(
         verbose=verbose,
         test_ts=True,
         create_structure_func=create_ts_structure,
-        suitable_optimizers=["sella", "rfo"],
+        suitable_optimizers=[
+            "sella",
+            "rfo",
+            "trust-krylov",
+            "trust-ncg",
+            "trust-exact",
+            "newton-cg",
+        ],
         calculate_frequencies=calculate_frequencies,
         ts_kwargs=ts_kwargs,
         force_finite_diff_hessian=force_finite_diff_hessian,
@@ -388,7 +418,14 @@ def main() -> int:
         return 1
 
     # Determine which optimizers to test
-    valid_optimizers = ["sella", "rfo"]
+    valid_optimizers = [
+        "sella",
+        "rfo",
+        "trust-krylov",
+        "trust-ncg",
+        "trust-exact",
+        "newton-cg",
+    ]
     if args.optimizers:
         requested_optimizers = [o.strip().lower() for o in args.optimizers.split(",")]
         # Filter to only TS optimizers
@@ -402,7 +439,7 @@ def main() -> int:
                 )
     else:
         # Default: test all TS optimizers on equal footing
-        ts_optimizers = ["sella", "rfo"]
+        ts_optimizers = ["sella", "rfo", "trust-krylov", "trust-ncg", "trust-exact"]
 
     if not ts_optimizers:
         interface.print_error("No valid TS optimizers specified!")
@@ -427,17 +464,21 @@ def main() -> int:
     for backend in available_backends:
         for optimizer in ts_optimizers:
             # For Hessian-based optimizers, test multiple update frequencies
-            if optimizer in ["rfo"]:
-                # Test with: single Hessian (None), every 5 steps, every 10 steps
-                hessian_freqs = [None, 5, 10]
+            hessian_based = {
+                "rfo",
+                "trust-krylov",
+                "trust-ncg",
+                "trust-exact",
+                "newton-cg",
+            }
+            if optimizer in hessian_based:
+                hessian_freqs = [None, 1, 5]
             else:
-                # For other optimizers (e.g., sella), use default or specified value
                 hessian_freqs = [args.hessian_update_freq]
 
             for hessian_freq in hessian_freqs:
-                # Create a unique identifier for this configuration
                 optimizer_name = optimizer
-                if optimizer in ["rfo"]:
+                if optimizer in hessian_based:
                     if hessian_freq is None:
                         optimizer_name = f"{optimizer}_single_hessian"
                     else:

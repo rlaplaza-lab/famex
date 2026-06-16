@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 from famex.analysis.hessian import HessianCalculator
 from famex.analysis.molecular_properties import determine_degrees_of_freedom
 from famex.analysis.normal_modes import convert_frequency_unit, diagonalize_mass_weighted_hessian
-from famex.analysis.physics_constants import filter_positive_frequencies
+from famex.analysis.physics_constants import filter_positive_frequencies, normalize_frequencies_cm1
 from famex.analysis.thermodynamics import ThermodynamicProperties
 from famex.analysis.utils import has_calculator_property, validate_indices
 from famex.analysis.validation import validate_hessian
@@ -299,7 +299,7 @@ class FrequencyAnalysis:
         -------
         Tuple[np.ndarray, np.ndarray]
             frequencies (in cm^-1) and normal mode eigenvectors.
-            Frequencies are always real numbers (complex parts are discarded).
+            Frequencies are signed real values: negative for imaginary modes.
 
         """
         if self._hessian is None:
@@ -310,16 +310,11 @@ class FrequencyAnalysis:
             self._hessian, self.atoms, self.indices
         )
 
-        # Ensure frequencies are real (discard any imaginary parts)
-        # In normal mode analysis, frequencies should be real numbers.
-        # The sign convention (positive/negative) handles imaginary modes.
-        frequencies = np.real(frequencies)
-
-        self._frequencies = frequencies
+        self._frequencies = normalize_frequencies_cm1(frequencies)
         self._normal_modes = eigenvectors
         self._is_calculated = True
 
-        return frequencies, eigenvectors
+        return self._frequencies, eigenvectors
 
     def get_frequencies(self, unit: str = "cm-1") -> np.ndarray:
         """Get vibrational frequencies in specified units.
@@ -333,12 +328,12 @@ class FrequencyAnalysis:
         -------
         np.ndarray
             Vibrational frequencies, excluding translational and rotational modes.
-            Frequencies are always real numbers (complex parts are discarded).
+            Signed real values in cm^-1 (negative for imaginary modes).
 
         """
         # Gather all frequencies
         if self._direct_frequencies is not None:
-            freq_all = self._direct_frequencies
+            freq_all = normalize_frequencies_cm1(self._direct_frequencies)
         else:
             if not self._is_calculated:
                 self.calculate_hessian()
@@ -349,11 +344,6 @@ class FrequencyAnalysis:
                 raise FAMEXError(msg)
 
             freq_all = self._frequencies
-
-        # Ensure frequencies are real (discard any imaginary parts)
-        # In normal mode analysis, frequencies should be real numbers.
-        # The sign convention (positive/negative) handles imaginary modes.
-        freq_all = np.real(freq_all)
 
         idx_sorted = np.argsort(np.abs(freq_all))
         keep_idx = idx_sorted[self.nfree :]
@@ -414,7 +404,6 @@ class FrequencyAnalysis:
         """
         frequencies = self.get_frequencies()
 
-        # Frequencies are now guaranteed to be real (from get_frequencies)
         # Negative frequencies indicate imaginary modes
         imaginary_freqs_list = []
         for freq in frequencies:
@@ -486,7 +475,6 @@ class FrequencyAnalysis:
         """
         frequencies = self.get_frequencies()
 
-        # Frequencies are now guaranteed to be real (from get_frequencies)
         # Negative frequencies indicate imaginary modes
         significant_imaginary = frequencies[frequencies < -threshold]
         n_significant_imaginary = len(significant_imaginary)

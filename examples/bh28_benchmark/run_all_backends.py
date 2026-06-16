@@ -86,7 +86,7 @@ class MultiBackendBenchmarkRunner:
         backends = [
             "mace",
             "orb",
-            "uma:uma-s-1p2",  # UMA Small
+            "uma:uma-s-1p1",  # UMA Small
             "uma:uma-m-1p1",  # UMA Medium
             "aimnet2",
             # Optional backends (can be added later)
@@ -318,7 +318,7 @@ class MultiBackendBenchmarkRunner:
             parts = backend.split(":", 1)
             base, model = parts[0], parts[1]
             if base == "uma":
-                if "uma-s-1p2" in model or "small" in model.lower():
+                if "uma-s-1p1" in model or "small" in model.lower():
                     return "uma-small"
                 elif "uma-m-1p1" in model or "medium" in model.lower():
                     return "uma-medium"

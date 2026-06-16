@@ -16,6 +16,7 @@ from ase.vibrations import Vibrations
 from ase.vibrations.data import VibrationsData
 from numpy.typing import NDArray
 
+from famex.analysis.physics_constants import normalize_frequencies_cm1
 from famex.utils.logging import get_famex_logger
 
 if TYPE_CHECKING:
@@ -179,12 +180,12 @@ def frequencies_via_ase(
     tuple[NDArray[np.float64], NDArray[np.float64]]
         Frequencies in cm^-1 and normal mode eigenvectors (Cartesian coordinates).
         Modes are for indices only (shape: 3N x 3N where N=len(indices)).
-        Frequencies are signed: positive for real modes, negative for imaginary.
+        Frequencies are signed real values in cm^-1 (negative for imaginary modes).
 
     Notes
     -----
     - Uses ASE's VibrationsData.from_2d() for consistency
-    - Returns frequencies in cm^-1 (same as ASE)
+    - Returns frequencies in cm^-1 as signed real values (negative for imaginary modes)
     - Normal modes are in Cartesian coordinates, normalized, for indices only
     """
     if indices is None:
@@ -194,7 +195,7 @@ def frequencies_via_ase(
     vib_data = VibrationsData.from_2d(atoms, hessian, indices=indices)
 
     # Get frequencies (in cm^-1)
-    frequencies = vib_data.get_frequencies()
+    frequencies = normalize_frequencies_cm1(vib_data.get_frequencies())
 
     # Get modes for indices only (not all atoms)
     # ASE returns modes as (3N, N, 3) array: (mode_index, atom_index, direction)

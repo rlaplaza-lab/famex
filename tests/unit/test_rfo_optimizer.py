@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from famex.optimizers.rfo_optimizer import RFOTransitionState
+from famex.optimizers.ts_step import adjust_trust_radius, compute_step_quality
 from tests.test_constants import (
     DEFAULT_FMAX,
     DEFAULT_STEPS,
@@ -53,9 +54,10 @@ class TestRFOTransitionState:
         grad = opt._get_gradient(x)
 
         assert grad.shape == (9,)
+        # Projected gradient should have smaller or equal norm than raw gradient
         forces = atoms.get_forces()
-        expected_grad = -forces.ravel()
-        assert np.allclose(grad, expected_grad)
+        raw_grad = -forces.ravel()
+        assert np.linalg.norm(grad) <= np.linalg.norm(raw_grad) + 1e-10
 
     def test_rfo_hessian_computation(self, mock_backend, water_dissociation_ts_guess):
         atoms = water_dissociation_ts_guess.copy()
@@ -198,14 +200,12 @@ class TestRFOTransitionState:
         initial_trust = opt.trust_radius
 
         # Test good step quality (should increase trust radius)
-        opt._adjust_trust_radius(0.8, step_size=0.005)
-        assert opt.trust_radius >= initial_trust
+        new_trust = adjust_trust_radius(initial_trust, 0.8, 0.005, 0.001, 0.05)
+        assert new_trust >= initial_trust
 
-        # Reset
-        opt.trust_radius = 0.01
         # Test poor step quality (should decrease trust radius)
-        opt._adjust_trust_radius(0.1, step_size=0.005)
-        assert opt.trust_radius <= 0.01
+        new_trust = adjust_trust_radius(0.01, 0.1, 0.005, 0.001, 0.05)
+        assert new_trust <= 0.01
 
     def test_rfo_step_quality_computation(self, mock_backend, water_dissociation_ts_guess):
         atoms = water_dissociation_ts_guess.copy()
@@ -221,12 +221,11 @@ class TestRFOTransitionState:
         predicted_quadratic = 0.5 * np.dot(step, hessian @ step)
         predicted_linear = np.dot(step, gradient)
         predicted_change = predicted_quadratic + predicted_linear
-        quality = opt._compute_step_quality(predicted_change, step, gradient, hessian)
+        quality = compute_step_quality(predicted_change, predicted_change)
         assert 0.5 <= quality <= 1.0
 
         # Poor step: actual much different from predicted
-        # Use a smaller multiplier to keep quality >= 0 (avoid very poor steps with quality < 0)
-        poor_actual = predicted_change * 2.5  # Different from predicted but not extreme
-        quality = opt._compute_step_quality(poor_actual, step, gradient, hessian)
+        poor_actual = predicted_change * 2.5
+        quality = compute_step_quality(poor_actual, predicted_change)
         # quality can be negative for very poor steps, so just check it's less than good
         assert quality < 0.5  # Should be poor (quality < 0.5) or very poor (quality < 0)

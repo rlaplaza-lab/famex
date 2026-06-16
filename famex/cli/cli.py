@@ -95,7 +95,7 @@ def _validate_strategy_requirements(
     errors: list[str] = []
     warnings: list[str] = []
 
-    if target != "path" and strategy in ["interpolate", "growing_string"]:
+    if target != "path" and strategy in ["interpolate", "growing_string", "cineb"]:
         if product is None:
             errors.append(f"--product is required for {strategy} strategy")
 
@@ -210,6 +210,8 @@ def _generate_output_path(input_path: str, strategy: str, target: str) -> str:
             suffix = ".ts.local.xyz"
         elif strategy == "interpolate":
             suffix = ".ts.interpolate.xyz"
+        elif strategy == "cineb":
+            suffix = ".ts.cineb.xyz"
         else:  # growing_string
             suffix = ".ts.gsm.xyz"
     else:  # path
@@ -312,6 +314,16 @@ def _run_optimization(
                     "steps": steps,
                 }
             )
+        elif strategy == "cineb":
+            run_kwargs.update(
+                {
+                    "npoints": npoints,
+                    "method": interp.lower() if interp else "geodesic",
+                    "fmax": fmax,
+                    "steps": steps,
+                    "spring_constant": spring_constant,
+                }
+            )
     else:  # minima
         if strategy == "local":
             run_kwargs.update({"fmax": fmax, "steps": steps})
@@ -361,7 +373,8 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 show_default=True,
                 help=(
                     "Local optimizer: default|lbfgs|bfgs|fire|sella|trust-krylov|"
-                    "trust-ncg|trust-exact|newton-cg|rfo (default=auto-select based on target)"
+                    "trust-ncg|trust-exact|rfo|newton-cg (newton-cg is minima-only; "
+                    "default=auto-select based on target)"
                 ),
             ),
             click.option(
@@ -589,7 +602,7 @@ def minima(
 @main.command()
 @click.option(
     "--strategy",
-    type=click.Choice(["local", "interpolate", "growing_string"]),
+    type=click.Choice(["local", "interpolate", "cineb", "growing_string"]),
     default="local",
     show_default=True,
     help="Optimization strategy",
@@ -599,7 +612,7 @@ def minima(
     "--product",
     type=click.Path(exists=True, dir_okay=False),
     default=None,
-    help="Product structure (required for interpolate/growing_string strategies)",
+    help="Product structure (required for interpolate/cineb/growing_string strategies)",
 )
 @click.option(
     "--output",
@@ -614,14 +627,21 @@ def minima(
     type=int,
     default=11,
     show_default=True,
-    help="Number of interpolation points (interpolate/growing_string strategies only)",
+    help="Number of interpolation points (interpolate/cineb/growing_string strategies only)",
 )
 @click.option(
     "--interp",
     type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
     default="geodesic",
     show_default=True,
-    help="Interpolation method (interpolate strategy only)",
+    help="Interpolation method (interpolate/cineb strategies only)",
+)
+@click.option(
+    "--spring-constant",
+    type=float,
+    default=5.0,
+    show_default=True,
+    help="Spring constant for CI-NEB (cineb strategy only)",
 )
 @click.option(
     "--max-images",
@@ -661,6 +681,7 @@ def ts(
     steps: int,
     npoints: int,
     interp: str,
+    spring_constant: float,
     max_images: int,
     distance_threshold: float,
     step_size: float,
@@ -695,9 +716,11 @@ def ts(
     atoms = load_atoms_from_xyz(input)
     atoms_list = [atoms]
 
-    if strategy in ["interpolate", "growing_string"]:
+    if strategy in ["interpolate", "growing_string", "cineb"]:
         if product is None:
-            raise ValueError("Product file is required for interpolate/growing_string strategy")
+            raise ValueError(
+                f"Product file is required for {strategy} strategy",
+            )
         atoms_product = load_atoms_from_xyz(product)
         atoms_list = [atoms, atoms_product]
 
@@ -740,8 +763,9 @@ def ts(
             steps=steps,
             calculate_frequencies=calculate_frequencies,
             temperature=temperature,
-            npoints=npoints if strategy in ["interpolate", "growing_string"] else None,
-            interp=interp if strategy == "interpolate" else None,
+            npoints=npoints if strategy in ["interpolate", "growing_string", "cineb"] else None,
+            interp=interp if strategy in ["interpolate", "cineb"] else None,
+            spring_constant=spring_constant if strategy == "cineb" else None,
             max_images=max_images if strategy == "growing_string" else None,
             distance_threshold=distance_threshold if strategy == "growing_string" else None,
             step_size=step_size if strategy == "growing_string" else None,

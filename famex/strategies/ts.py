@@ -62,10 +62,29 @@ class LocalTSStrategy(BaseStrategy):
                 "rational-function",
                 "rational_function",
             ):
-                opt_kwargs.setdefault("hessian_update_freq", 10)
+                # hessian_update_freq=1 recomputes the projected Hessian each step for stability.
+                opt_kwargs.setdefault("hessian_update_freq", 1)
                 opt_kwargs.setdefault("hessian_method", "auto")
-                opt_kwargs.setdefault("trust_radius", 0.02)
-                opt_kwargs.setdefault("max_trust_radius", 0.06)
+                # Defaults are larger than geomeTRIC (0.01/0.03) for ML potentials.
+                opt_kwargs.setdefault("trust_radius", 0.1)
+                opt_kwargs.setdefault("max_trust_radius", 0.3)
+            elif normalized_name in (
+                "trust-krylov",
+                "trustkrylov",
+                "trust_krylov",
+                "trust-ncg",
+                "trustncg",
+                "trust_ncg",
+                "trust-exact",
+                "trustexact",
+                "trust_exact",
+            ):
+                opt_kwargs.setdefault("ts_search", True)
+                opt_kwargs.setdefault("hessian_update_freq", 1)
+                opt_kwargs.setdefault("hessian_method", "auto")
+                opt_kwargs.setdefault("trust_radius", 0.1)
+                opt_kwargs.setdefault("max_trust_radius", 0.3)
+                opt_kwargs.setdefault("use_bfgs_update", False)
 
             if getattr(explorer, "force_finite_diff_hessian", False):
                 if normalized_name in {
@@ -73,6 +92,15 @@ class LocalTSStrategy(BaseStrategy):
                     "rfo-ts",
                     "rational-function",
                     "rational_function",
+                    "trust-krylov",
+                    "trustkrylov",
+                    "trust_krylov",
+                    "trust-ncg",
+                    "trustncg",
+                    "trust_ncg",
+                    "trust-exact",
+                    "trustexact",
+                    "trust_exact",
                 }:
                     opt_kwargs["hessian_method"] = "finite_differences"
 

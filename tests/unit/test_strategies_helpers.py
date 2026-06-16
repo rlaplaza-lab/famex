@@ -72,6 +72,8 @@ class TestValidateTSOptimizationSetup:
             ("uma", "l-bfgs", "l-bfgs variant"),
             ("uma", "l_bfgs", "l_bfgs variant"),
             ("uma", "L-BFGS", "L-BFGS variant"),
+            ("uma", "newton-cg", "newton-cg optimizer"),
+            ("uma", "newtoncg", "newtoncg variant"),
         ],
         ids=[
             "forbidden_backend_mock",
@@ -82,6 +84,8 @@ class TestValidateTSOptimizationSetup:
             "forbidden_optimizer_l-bfgs",
             "forbidden_optimizer_l_bfgs",
             "forbidden_optimizer_L-BFGS",
+            "forbidden_optimizer_newton-cg",
+            "forbidden_optimizer_newtoncg",
         ],
     )
     def test_validate_ts_setup_with_forbidden_combinations(self, backend, optimizer, description):
