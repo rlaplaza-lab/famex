@@ -81,6 +81,8 @@ aimnet2      6/6      0.156      0.198       1.8s
 ```
 bh28_benchmark/
 ├── bh28_benchmark.py          # Main benchmark script
+├── run_all_backends.py        # Multi-backend runner (separate conda envs per backend)
+├── ts_optimizer_sweep.py      # TS optimizer comparison on BH28 subset (UMA)
 ├── README.md                  # This file
 ├── bh28_dataset/             # Dataset files
 │   ├── *_min.xyz            # Reactant minimum structures

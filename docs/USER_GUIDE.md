@@ -378,7 +378,7 @@ Usage: `famex path --strategy neb reactant.xyz product.xyz --interp idpp`
 
 ## Examples
 
-Runnable scripts and benchmarks live in [`examples/`](../examples/README.md) (`cli_demo.py`, `irc_demo.py`, `growing_string_demo.py`, `thermochemistry_demo.py`, and backend benchmarks).
+See [`examples/README.md`](../examples/README.md) for the full catalog of demos and benchmarks (`cli_demo.py`, `irc_demo.py`, `timing_benchmark.py`, `bh28_benchmark/`, `zimmermann93_benchmark/`, and others).
 
 ---
 

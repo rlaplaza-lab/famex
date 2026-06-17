@@ -8,4 +8,6 @@
 
 **Defaults:** `backend=uma`, model `uma-s-1p2`, `fairchem-core>=2.21.0` via `pip install famex[uma]`.
 
+**Installation and backend table:** [README](../README.md#quick-start).
+
 Examples: [`../examples/README.md`](../examples/README.md).

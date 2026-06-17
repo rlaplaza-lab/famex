@@ -13,7 +13,7 @@ Hands-on tutorials for molecular geometry optimization and transition state sear
 
 ## Basic Optimization
 
-**target** (`minima`, `ts`, `path`) specifies what you want; **strategy** (`local`, `interpolate`, `neb`, etc.) specifies how to get there.
+**target** (`minima`, `ts`, `path`) specifies what you want; **strategy** (`local`, `interpolate`, `neb`, etc.) specifies how to get there. See [Core Concepts](USER_GUIDE.md#core-concepts) in the User Guide for the full matrix.
 
 ### Local Optimization
 

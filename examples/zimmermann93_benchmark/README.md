@@ -20,7 +20,7 @@ Tests FAMEX backends on two-ended (reactant→product) transition state searches
 python zimmermann93_benchmark.py --quick
 
 # Test specific backends
-python zimmermann93_benchmark.py --backends uma mace
+python zimmermann93_benchmark.py --backends uma,mace
 
 # Run comprehensive benchmark on all available backends
 python zimmermann93_benchmark.py

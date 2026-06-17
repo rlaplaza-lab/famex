@@ -22,7 +22,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: What Python version do I need?
 
-**A:** Python 3.10+ required.
+**A:** Python 3.10+ required. The **PET** backend (`pip install famex[pet]`) requires Python 3.11+.
 
 ### Q: Backend not available after installation?
 
@@ -36,10 +36,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: How do I choose convergence criteria?
 
-**A:**
-- Quick testing: `--fmax 0.1 --steps 100`
-- Standard: `--fmax 0.05 --steps 1000` (default)
-- High precision: `--fmax 0.01 --steps 2000`
+**A:** See [Convergence](TUTORIALS.md#convergence) in the Tutorials. Quick reference: `--fmax 0.1 --steps 100` (testing), `--fmax 0.05 --steps 1000` (default), `--fmax 0.01 --steps 2000` (high precision).
 
 ### Q: What file formats are supported?
 
@@ -58,7 +55,7 @@ famex minima --strategy local molecule.xyz --constraints "fix 0,1,2"
 famex minima --strategy local molecule.xyz --constraints "fix 0,1; harmonic_bond 2,3 k=5.0"
 ```
 
-Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_angle`, and `fixinternals_bond` / `fixinternals_angle` / `fixinternals_dihedral`. See the User Guide global options table.
+Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_angle`, and `fixinternals_bond` / `fixinternals_angle` / `fixinternals_dihedral`. See the [global options table](USER_GUIDE.md#global-options) in the User Guide.
 
 ## Troubleshooting
 

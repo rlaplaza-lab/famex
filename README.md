@@ -78,6 +78,8 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 
 ## Examples
 
+Runnable demos and benchmarks: **[examples/README.md](examples/README.md)**.
+
 ```bash
 # Transition state search
 famex ts --strategy interpolate reactant.xyz --product product.xyz
