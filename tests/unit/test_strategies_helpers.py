@@ -1,5 +1,3 @@
-"""Tests for strategy helper functions."""
-
 from __future__ import annotations
 
 import pytest
@@ -108,6 +106,8 @@ class TestGetLocalOptimizerClass:
         ("optimizer_name", "expected_in_name"),
         [
             ("sella", "Sella"),
+            ("sella-analytical", "SellaAnalytical"),
+            ("sella_analytical", "SellaAnalytical"),
             ("trust-krylov", "TrustKrylov"),
             ("trustkrylov", "TrustKrylov"),
             ("trust_krylov", "TrustKrylov"),
@@ -133,6 +133,8 @@ class TestGetLocalOptimizerClass:
         ],
         ids=[
             "sella",
+            "sella-analytical",
+            "sella_analytical",
             "trust-krylov",
             "trustkrylov",
             "trust_krylov",

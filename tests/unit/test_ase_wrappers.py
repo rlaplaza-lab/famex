@@ -4,12 +4,22 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from famex.optimizers.ase_wrappers import (
     LoggingFile,
     ProfilerCalculatorWrapper,
     VerboseOptimizerWrapper,
+    VerboseSellaAnalytical,
+)
+from famex.optimizers.sella_utils import (
+    is_sella_analytical_optimizer,
+    is_sella_optimizer,
+    make_analytical_hessian_function,
+    validate_calculator_supports_hessian,
 )
 from tests.test_constants import LOOSE_FMAX, QUICK_STEPS
+from tests.test_utils import HarmonicCalculator
 
 
 class TestLoggingFile:
@@ -287,3 +297,43 @@ class TestVerboseOptimizerWrapper:
             wrapper.run(fmax=LOOSE_FMAX, steps=QUICK_STEPS)
             # Should log warning about non-convergence
             mock_logger.warning.assert_called()
+
+
+class TestSellaAnalytical:
+    """Tests for analytical-Hessian Sella integration."""
+
+    def test_is_sella_optimizer_names(self):
+        assert is_sella_optimizer("sella")
+        assert is_sella_optimizer("sella-analytical")
+        assert is_sella_optimizer("sella_analytical")
+        assert not is_sella_optimizer("rfo")
+
+    def test_is_sella_analytical_optimizer_names(self):
+        assert is_sella_analytical_optimizer("sella-analytical")
+        assert is_sella_analytical_optimizer("sella_analytical")
+        assert not is_sella_analytical_optimizer("sella")
+
+    def test_make_analytical_hessian_function(self, h2_equilibrium_molecule):
+        atoms = h2_equilibrium_molecule.copy()
+        atoms.calc = HarmonicCalculator()
+        hessian_fn = make_analytical_hessian_function()
+        hessian = hessian_fn(atoms)
+        assert hessian.shape == (6, 6)
+
+    def test_validate_calculator_supports_hessian_missing(self):
+        with pytest.raises(ValueError, match="Attach a calculator"):
+            validate_calculator_supports_hessian(None)
+
+    def test_validate_calculator_supports_hessian_unsupported(self, mock_backend):
+        with pytest.raises(ValueError, match="does not provide an analytical Hessian"):
+            validate_calculator_supports_hessian(mock_backend)
+
+    @pytest.mark.skipif(
+        not __import__("famex").deps.has("sella"),
+        reason="Sella is required for TS optimization",
+    )
+    def test_verbose_sella_analytical_sets_hessian_function(self, h2_equilibrium_molecule):
+        atoms = h2_equilibrium_molecule.copy()
+        atoms.calc = HarmonicCalculator()
+        optimizer = VerboseSellaAnalytical(atoms, verbose=0)
+        assert optimizer.wrapped_optimizer.pes.hessian_function is not None

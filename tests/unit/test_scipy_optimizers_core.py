@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 from ase import Atoms
@@ -140,6 +142,31 @@ class TestSciPyOptimizersBasic:
         # Second call should use BFGS or cache (no new full Hessian)
         opt.hessian_func(x)
         assert opt.hessian_calls == 1  # Still only 1 full Hessian
+
+    def test_run_passes_scipy_trust_radius_options(self, h2o_molecule_perturbed_with_mock):
+        atoms = h2o_molecule_perturbed_with_mock
+        opt = TrustKrylov(
+            atoms,
+            logfile=None,
+            trust_radius=0.1,
+            max_trust_radius=0.3,
+            hessian_update_freq=1,
+            use_bfgs_update=False,
+        )
+
+        mock_result = MagicMock()
+        mock_result.x = opt._positions_to_x()
+        mock_result.nit = 1
+        mock_result.message = "converged"
+
+        with patch(
+            "famex.optimizers.scipy_optimizers.minimize", return_value=mock_result
+        ) as mock_min:
+            opt.run(fmax=LOOSE_FMAX, steps=QUICK_STEPS)
+
+        options = mock_min.call_args.kwargs["options"]
+        assert options["initial_trust_radius"] == 0.1
+        assert options["max_trust_radius"] == 0.3
 
     def test_convergence(self, h2o_molecule_perturbed_with_mock):
         atoms = h2o_molecule_perturbed_with_mock

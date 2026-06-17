@@ -100,6 +100,9 @@ class SciPyHessianOptimizer(Optimizer):
         self._previous_fmax = None
         self.max_steps: int = 0
         self._scipy_result = None
+        self.trust_radius = trust_radius
+        self.max_trust_radius = max_trust_radius
+        self.min_trust_radius = min_trust_radius
         if not hasattr(self, "fmax"):
             self.fmax = 0.05
         self.fmax: float = getattr(self, "fmax", 0.05)  # type: ignore[assignment]
@@ -112,9 +115,6 @@ class SciPyHessianOptimizer(Optimizer):
                 )
                 raise ValueError(msg)
             self._ts_trust_radius = trust_radius
-            self.trust_radius = trust_radius
-            self.max_trust_radius = max_trust_radius
-            self.min_trust_radius = min_trust_radius
             self._transition_mode: np.ndarray | None = None
             self._previous_energy: float | None = None
             if hessian_update_freq is None:
@@ -463,16 +463,9 @@ class SciPyHessianOptimizer(Optimizer):
             }
 
             if self.method in ("trust-krylov", "trust-ncg", "trust-exact"):
-                is_ts_optimizer = hasattr(self, "_ts_trust_radius")
-                if is_ts_optimizer:
-                    options["gtol"] = 1e-9
-                else:
-                    options["gtol"] = 1e-8
-                if is_ts_optimizer:
-                    options["initial_tr_radius"] = 2.0
-                else:
-                    options["initial_tr_radius"] = 1.0
-                options["max_tr_radius"] = 10.0
+                options["gtol"] = 1e-8
+                options["initial_trust_radius"] = self.trust_radius
+                options["max_trust_radius"] = self.max_trust_radius
                 if self.method == "trust-krylov":
                     options["maxiter"] = int(steps)
                     options["inexact"] = True
@@ -567,6 +560,8 @@ class TrustKrylov(SciPyHessianOptimizer):
         use_bfgs_update: bool = True,
         adaptive_hessian: bool = False,
         verbose: int = 1,
+        trust_radius: float = 1.0,
+        max_trust_radius: float = 10.0,
         **kwargs: Any,
     ) -> None:
         """Initialize Trust-Krylov optimizer."""
@@ -582,6 +577,8 @@ class TrustKrylov(SciPyHessianOptimizer):
             use_bfgs_update=use_bfgs_update,
             adaptive_hessian=adaptive_hessian,
             verbose=verbose,
+            trust_radius=trust_radius,
+            max_trust_radius=max_trust_radius,
             **kwargs,
         )
 

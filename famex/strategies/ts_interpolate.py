@@ -68,7 +68,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         """
         self.validate_inputs(atoms_list)
 
-        local_optimizer_name = kwargs.get("local_optimizer_name", "sella")
+        local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
 
         # Generate interpolated path using PathManager
         path_mgr = PathManager(atoms_list)

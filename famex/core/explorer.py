@@ -166,6 +166,7 @@ class Explorer:
         verbose: int = 1,
         profile: bool = False,
         force_finite_diff_hessian: bool = False,
+        cleanup_frequencies: bool = False,
     ) -> None:
         """Initialize the Explorer with molecular structure and configuration.
 
@@ -207,6 +208,11 @@ class Explorer:
             If True, forces use of finite difference hessians for TS optimizers
             and frequency calculations. When True and target is "ts", automatically
             sets hessian_method="finite_differences" in ts_kwargs if not already specified.
+        cleanup_frequencies : bool, default False
+            If True, after local optimization compute frequencies and, when the
+            stationary-point character is wrong, run a Hessian-based cleanup
+            optimizer from the current geometry until there are 0 (minima) or 1 (TS)
+            relevant imaginary frequencies, or the attempt limit is reached.
         """
         if isinstance(atoms, Atoms):
             self.atoms_list: list[Atoms] = [atoms]
@@ -234,6 +240,7 @@ class Explorer:
         self.target = (target or "").strip().lower()
         self.ts_kwargs = ts_kwargs or {}
         self.force_finite_diff_hessian = force_finite_diff_hessian
+        self.cleanup_frequencies = cleanup_frequencies
         if self.force_finite_diff_hessian and self.target == "ts":
             if "hessian_method" not in self.ts_kwargs:
                 self.ts_kwargs["hessian_method"] = "finite_differences"
@@ -265,7 +272,7 @@ class Explorer:
         if self.local_optimizer_name != "default":
             return self.local_optimizer_name
         if self.target == "ts":
-            return "sella"
+            return "rfo"
         return "lbfgs"
 
     def _create_and_attach_calculator(self, atoms: Atoms) -> Any:
@@ -351,6 +358,7 @@ class Explorer:
         self,
         runner: Callable[..., Any] | None = None,
         calculate_frequencies: bool = False,
+        cleanup_frequencies: bool | None = None,
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Execute a registered or user-supplied runner.
@@ -364,6 +372,9 @@ class Explorer:
             Optional callable to execute directly, bypassing strategy selection.
         calculate_frequencies : bool, default=False
             Whether to perform frequency analysis after optimization.
+        cleanup_frequencies : bool, optional
+            Whether to run post-optimization Hessian-based frequency cleanup.
+            Defaults to the Explorer's ``cleanup_frequencies`` setting.
         **kwargs
             Additional keyword arguments forwarded to the strategy runner.
 
@@ -423,6 +434,10 @@ class Explorer:
         kwargs.setdefault("local_optimizer_name", self._get_effective_optimizer())
         kwargs.setdefault("verbose", self.verbose)
         kwargs.setdefault("calculate_frequencies", calculate_frequencies)
+        if cleanup_frequencies is not None:
+            kwargs["cleanup_frequencies"] = cleanup_frequencies
+        else:
+            kwargs.setdefault("cleanup_frequencies", self.cleanup_frequencies)
         return strategy_instance.run(self.atoms_list, **kwargs)
 
     # --- File I/O Methods ---

@@ -825,7 +825,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         reparam_every_full = kwargs.get("reparam_every_full", 3)
         optimize_endpoints = kwargs.get("optimize_endpoints", True)
         refine_ts = kwargs.get("refine_ts", True)
-        local_optimizer_name = kwargs.get("local_optimizer_name", "sella")
+        local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
         self.reparam_check = kwargs.get("reparam_check", "rms")  # "rms" or "norm"
         self.perp_thresh_relaxed = perp_thresh_relaxed
 

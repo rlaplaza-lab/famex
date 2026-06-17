@@ -136,6 +136,7 @@ def _create_explorer(
     constraints: str | None,
     verbose: int,
     force_finite_diff_hessian: bool,
+    cleanup_frequencies: bool,
 ) -> tuple[Explorer, AbstractContextManager[list[str]]]:
     verbosity = max(0, verbose - 1)
 
@@ -163,6 +164,7 @@ def _create_explorer(
         constraints=constraints,
         verbose=verbosity,
         force_finite_diff_hessian=force_finite_diff_hessian,
+        cleanup_frequencies=cleanup_frequencies,
     )
 
     return exp, ctx
@@ -250,9 +252,11 @@ def _run_optimization(
     spring_constant: float | None = None,
     direction: str | None = None,
     climb: bool = False,
+    cleanup_frequencies: bool = False,
 ) -> dict[str, Any]:
     run_kwargs: dict[str, Any] = {
         "calculate_frequencies": calculate_frequencies,
+        "cleanup_frequencies": cleanup_frequencies,
         "temperature": temperature,
     }
 
@@ -372,7 +376,8 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 default="default",
                 show_default=True,
                 help=(
-                    "Local optimizer: default|lbfgs|bfgs|fire|sella|trust-krylov|"
+                    "Local optimizer: default|lbfgs|bfgs|fire|sella|sella-analytical|"
+                    "trust-krylov|"
                     "trust-ncg|trust-exact|rfo|newton-cg (newton-cg is minima-only; "
                     "default=auto-select based on target)"
                 ),
@@ -442,6 +447,19 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 help=(
                     "Force use of finite difference hessians for TS optimizers "
                     "and frequency calculations"
+                ),
+            )
+        )
+        opts.append(
+            click.option(
+                "--cleanup-frequencies",
+                "cleanup_frequencies",
+                is_flag=True,
+                default=False,
+                help=(
+                    "After optimization, run Hessian-based cleanup from the final "
+                    "geometry until there are 0 (minima) or 1 (TS) relevant "
+                    "imaginary frequencies"
                 ),
             )
         )
@@ -522,6 +540,7 @@ def minima(
     calculate_frequencies: bool,
     temperature: float,
     force_finite_diff_hessian: bool,
+    cleanup_frequencies: bool,
 ) -> None:
     """Minima optimization using various strategies."""
     # Validate strategy-specific requirements
@@ -564,6 +583,7 @@ def minima(
         constraints=constraints,
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
+        cleanup_frequencies=cleanup_frequencies,
     )
 
     with ctx:
@@ -579,6 +599,7 @@ def minima(
             fmax=fmax,
             steps=steps,
             calculate_frequencies=calculate_frequencies,
+            cleanup_frequencies=cleanup_frequencies,
             temperature=temperature,
             npoints=npoints if strategy == "interpolate" else None,
             interp=interp if strategy == "interpolate" else None,
@@ -701,6 +722,7 @@ def ts(
     calculate_frequencies: bool,
     temperature: float,
     force_finite_diff_hessian: bool,
+    cleanup_frequencies: bool,
 ) -> None:
     """Transition state optimization using various strategies."""
     # Validate strategy-specific requirements
@@ -747,6 +769,7 @@ def ts(
         constraints=constraints,
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
+        cleanup_frequencies=cleanup_frequencies,
     )
 
     with ctx:
@@ -762,6 +785,7 @@ def ts(
             fmax=fmax,
             steps=steps,
             calculate_frequencies=calculate_frequencies,
+            cleanup_frequencies=cleanup_frequencies,
             temperature=temperature,
             npoints=npoints if strategy in ["interpolate", "growing_string", "cineb"] else None,
             interp=interp if strategy in ["interpolate", "cineb"] else None,
@@ -866,6 +890,7 @@ def path(
     verbose: int,
     dry_run: bool,
     force_finite_diff_hessian: bool,
+    cleanup_frequencies: bool,
 ) -> None:
     """Reaction path optimization using various strategies.
 
@@ -919,9 +944,8 @@ def path(
         constraints=constraints,
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
+        cleanup_frequencies=False,
     )
-
-    # Use first structure file for default output naming
     first_file = structures[0]
 
     with ctx:

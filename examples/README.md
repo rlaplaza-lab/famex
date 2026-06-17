@@ -23,10 +23,9 @@ These scripts compare performance and accuracy across different backends and opt
 |---------|-------------|
 | `timing_benchmark.py` | ML backend performance comparison |
 | `minima_optimizer_benchmark.py` | Minima optimizer comparison (lbfgs, bfgs, fire, trust-krylov) |
-| `ts_optimizer_benchmark.py` | TS optimizer comparison (sella, rfo, trust-krylov, trust-ncg, trust-exact) |
+| `ts_optimizer_benchmark.py` | Unified TS optimizer comparison: local TS (example, BH28 subset/full), hessian/trust sweeps, two-ended strategies |
 | `hessian_benchmark.py` | Hessian method comparison (FD schemes and backend methods; `--mode fd`, `backend`, or `both`) |
-| `ts_benchmark_suite.py` | GPU-focused local and two-ended TS benchmark suite |
-| `bh28_benchmark/` | Chemical accuracy evaluation (28 reactions); includes `run_all_backends.py` and `ts_optimizer_sweep.py` |
+| `bh28_benchmark/` | Chemical accuracy evaluation (28 reactions) |
 | `zimmermann93_benchmark/` | Two-ended TS search benchmark; long-running — use `--quick` for testing |
 
 ## Usage
@@ -64,6 +63,10 @@ python timing_benchmark.py --device cuda
 # Optimizer comparison
 python minima_optimizer_benchmark.py --backends uma,mace
 python ts_optimizer_benchmark.py --backends uma,mace
+python ts_optimizer_benchmark.py --backends uma --bh28-subset
+python ts_optimizer_benchmark.py --backends uma --full-bh28 --hessian-sweep
+python ts_optimizer_benchmark.py --backends uma --trust-sweep
+python ts_optimizer_benchmark.py --backends uma --two-ended --quick-two-ended --device cuda
 
 # Chemical accuracy (quick test)
 python bh28_benchmark/bh28_benchmark.py --quick
@@ -76,9 +79,6 @@ python hessian_benchmark.py --mode fd  # FD schemes only
 python hessian_benchmark.py --mode backend --backends uma  # Backend methods only
 python hessian_benchmark.py --mode both --backends uma,mace  # Both
 python hessian_benchmark.py --quick  # Quick test with water only
-
-# TS benchmark suite
-python ts_benchmark_suite.py --quick-two-ended --device cuda
 ```
 
 **Note:**

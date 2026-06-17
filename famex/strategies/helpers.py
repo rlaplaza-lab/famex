@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from contextlib import nullcontext
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from ase import Atoms
 
@@ -104,7 +104,8 @@ def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
     if normalized_name in FORBIDDEN_OPTIMIZERS_FOR_TS:
         msg = (
             f"Optimizer '{optimizer_name}' is not suitable for transition state "
-            "optimization. Use 'sella', 'rfo', or a SciPy trust-region TS optimizer "
+            "optimization. Use 'sella', 'sella-analytical', 'rfo', or a SciPy trust-region "
+            "TS optimizer "
             "('trust-krylov', 'trust-ncg', 'trust-exact') for TS searches."
         )
         raise ValueError(
@@ -119,6 +120,11 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
         from famex.optimizers.ase_wrappers import VerboseSella
 
         return VerboseSella
+
+    if name in ("sella-analytical", "sella_analytical", "sellaanalytical"):
+        from famex.optimizers.ase_wrappers import VerboseSellaAnalytical
+
+        return VerboseSellaAnalytical
 
     if name in ("trust-krylov", "trustkrylov", "trust_krylov"):
         from famex.optimizers.scipy_optimizers import TrustKrylov
@@ -191,6 +197,9 @@ def _run_local_optimization_common(
     prepare_frequency_kwargs: Callable[[Atoms], dict[str, Any]] | None = None,
     result_key_name: str = "is_minimum",
     log_prefix: str = "optimization",
+    cleanup_frequencies: bool = False,
+    stationary_point_target: Literal["minima", "ts"] = "minima",
+    prepare_cleanup_optimizer_kwargs: Callable[[str, Any], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Execute common local optimization pattern for minima and TS."""
     atoms_list = list(atoms_list)
@@ -272,8 +281,38 @@ def _run_local_optimization_common(
     else:
         validation_results = [None] * len(results)
 
-    frequency_results = []
-    if calculate_frequencies:
+    frequency_results: list[dict[str, Any] | None] = []
+    cleanup_summaries: list[dict[str, Any] | None] = []
+
+    if cleanup_frequencies:
+        if prepare_cleanup_optimizer_kwargs is None:
+            msg = "prepare_cleanup_optimizer_kwargs is required when cleanup_frequencies=True"
+            raise ValueError(msg)
+
+        from famex.strategies.frequency_cleanup import run_frequency_cleanup
+
+        for idx, atoms_copy in enumerate(results):
+            with (
+                strategy.profiler.profile_section("frequency_cleanup")
+                if strategy.profiler
+                else nullcontext()
+            ):
+                atoms_copy, freq_result, cleanup_steps, cleanup_summary = run_frequency_cleanup(
+                    atoms_copy,
+                    strategy.explorer,
+                    target=stationary_point_target,
+                    fmax=fmax,
+                    temperature=temperature,
+                    verbose=verbose,
+                    prepare_optimizer_kwargs=prepare_cleanup_optimizer_kwargs,
+                    prepare_frequency_kwargs=prepare_frequency_kwargs,
+                    profiler=strategy.profiler,
+                )
+            results[idx] = atoms_copy
+            step_counts[idx] = (step_counts[idx] or 0) + cleanup_steps
+            frequency_results.append(freq_result)
+            cleanup_summaries.append(cleanup_summary)
+    elif calculate_frequencies:
         with (
             strategy.profiler.profile_section("frequency_analysis")
             if strategy.profiler
@@ -290,8 +329,10 @@ def _run_local_optimization_common(
                     freq_kwargs.update(custom_kwargs)
                 freq_result = strategy.explorer.calculate_frequencies(**freq_kwargs)
                 frequency_results.append(freq_result)
+        cleanup_summaries = [None] * len(results)
     else:
         frequency_results = [None] * len(results)
+        cleanup_summaries = [None] * len(results)
 
     if single_input and results:
         result = strategy.prepare_result(
@@ -307,6 +348,8 @@ def _run_local_optimization_common(
             result["free_energy_correction"] = _calculate_free_energy_correction(
                 frequency_results[0], temperature
             )
+        if cleanup_summaries[0] is not None:
+            result["frequency_cleanup"] = cleanup_summaries[0]
     else:
         result = strategy.prepare_result(
             results,
@@ -324,6 +367,8 @@ def _run_local_optimization_common(
                 _calculate_free_energy_correction(f, temperature) for f in frequency_results
             ]
             result["free_energy_correction"] = free_energy_corrections
+        if any(summary is not None for summary in cleanup_summaries):
+            result["frequency_cleanup"] = cleanup_summaries
 
     merged_result = strategy._merge_profiler_results(result)
     return cast(dict[str, Any], merged_result)

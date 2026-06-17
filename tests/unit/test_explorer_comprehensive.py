@@ -711,7 +711,7 @@ class TestExplorerEffectiveMethods:
         ("target", "local_optimizer", "expected_optimizer"),
         [
             ("minima", "default", "lbfgs"),
-            ("ts", "default", "sella"),
+            ("ts", "default", "rfo"),
             (None, "bfgs", "bfgs"),
         ],
         ids=["minima_default", "ts_default", "explicit"],

@@ -9,6 +9,7 @@ from ase import Atoms
 
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
+from famex.optimizers.sella_utils import is_sella_optimizer
 from famex.strategies.helpers import (
     _run_local_optimization_common,
     _validate_ts_optimization_setup,
@@ -27,7 +28,7 @@ class LocalTSStrategy(BaseStrategy):
         name="ts:local",
         target="ts",
         strategy="local",
-        description="Local transition-state optimization (SELLA preferred)",
+        description="Local transition-state optimization (RFO preferred)",
         aliases=["ts", "local:ts", "local-ts"],
         requires_multiple_structures=False,
     )
@@ -39,11 +40,14 @@ class LocalTSStrategy(BaseStrategy):
         steps: int = 1000,
         validate_ts: bool = False,
         calculate_frequencies: bool = False,
+        cleanup_frequencies: bool = False,
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
-        local_optimizer_name = kwargs.get("local_optimizer_name", "sella")
+        local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
         verbose = kwargs.get("verbose", 1)
         temperature = kwargs.get("temperature", 298.15)
+        if cleanup_frequencies is False:
+            cleanup_frequencies = bool(getattr(self.explorer, "cleanup_frequencies", False))
 
         _validate_ts_optimization_setup(self.explorer.backend, local_optimizer_name)
 
@@ -52,7 +56,7 @@ class LocalTSStrategy(BaseStrategy):
             opt_kwargs = dict(opt_kwargs)
 
             normalized_name = optimizer_name.lower()
-            if normalized_name == "sella":
+            if is_sella_optimizer(normalized_name):
                 opt_kwargs.setdefault("internal", True)
                 opt_kwargs.setdefault("order", 1)
                 opt_kwargs.pop("hessian_method", None)
@@ -146,6 +150,9 @@ class LocalTSStrategy(BaseStrategy):
             prepare_frequency_kwargs=prepare_ts_frequency_kwargs,
             result_key_name="is_ts",
             log_prefix="Transition state",
+            cleanup_frequencies=cleanup_frequencies,
+            stationary_point_target="ts",
+            prepare_cleanup_optimizer_kwargs=prepare_ts_optimizer_kwargs,
         )
 
 

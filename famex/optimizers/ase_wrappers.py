@@ -326,3 +326,34 @@ class VerboseSella(VerboseOptimizerWrapper):
             profiler=profiler,
             **kwargs,
         )
+
+
+class VerboseSellaAnalytical(VerboseSella):
+    """Sella optimizer that uses analytical Hessians from the attached calculator."""
+
+    def __init__(
+        self,
+        atoms: Atoms,
+        logfile: IO[Any] | TextIO | str | None = "-",
+        trajectory: str | None = None,
+        verbose: int = 1,
+        profiler: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        from famex.optimizers.sella_utils import (
+            make_analytical_hessian_function,
+            validate_calculator_supports_hessian,
+        )
+
+        if "hessian_function" not in kwargs:
+            validate_calculator_supports_hessian(atoms.calc)
+            kwargs["hessian_function"] = make_analytical_hessian_function()
+
+        super().__init__(
+            atoms=atoms,
+            logfile=logfile,
+            trajectory=trajectory,
+            verbose=verbose,
+            profiler=profiler,
+            **kwargs,
+        )

@@ -44,7 +44,7 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
         """Run multi-structure TS search via CI-NEB."""
         self.validate_inputs(atoms_list)
 
-        local_optimizer_name = kwargs.get("local_optimizer_name", "sella")
+        local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
 
         path_mgr = PathManager(atoms_list)
         interpolate_kwargs = filter_interpolation_kwargs(kwargs, allowed_keys={"calculator"})
