@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 from ase.io import read
 
+from famex.backends.constants import DEFAULT_UMA_MODEL
 from famex.optimizers.rfo_optimizer import RFOTransitionState
 from famex.potentials import get_uma_calculator
 from tests.test_constants import DEFAULT_FMAX, LONG_STEPS
@@ -37,7 +38,7 @@ def _load_bh28_ts(reaction):
     atoms = read(str(ts_file))
     if isinstance(atoms, list):
         atoms = atoms[0]
-    atoms.calc = get_uma_calculator(model_name="uma-s-1p1")
+    atoms.calc = get_uma_calculator(model_name=DEFAULT_UMA_MODEL)
     return atoms
 
 
@@ -50,7 +51,7 @@ class TestRFOTSOptimizer:
 
         def fresh_atoms():
             atoms = atoms_template.copy()
-            atoms.calc = get_uma_calculator(model_name="uma-s-1p1")
+            atoms.calc = get_uma_calculator(model_name=DEFAULT_UMA_MODEL)
             return atoms
 
         # Baseline gradient/energy from the starting geometry.

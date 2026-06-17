@@ -611,10 +611,7 @@ def benchmark_hessian(
                 return result
 
             # Set up calculator
-            if backend == "uma":
-                calc = get_calculator_for_backend(backend, device=device, model_name="uma-s-1p1")
-            else:
-                calc = get_calculator_for_backend(backend, device=device)
+            calc = get_calculator_for_backend(backend, device=device)
             calc.ensure_loaded()
             atoms.calc = calc
 

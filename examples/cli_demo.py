@@ -315,7 +315,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
         },
         {
             "desc": "Two-ended TS optimization using 'ts' command with growing_string strategy and frequency analysis",
-            "timeout": 1800,
+            "timeout": 2400,
             "cmd": [
                 "famex",
                 "ts",
@@ -333,7 +333,7 @@ def create_example_commands(example_files: Path, backend: str, steps: int = 500)
                 "--step-size",
                 "0.1",
                 "--distance-threshold",
-                "0.1",
+                "0.5",
                 "--freq",
                 "--output",
                 f"test_ts_gsm_{backend}.xyz",

@@ -329,7 +329,7 @@ def main() -> int:
     parser.add_argument("--device", default="cuda", choices=["cpu", "cuda"])
     parser.add_argument(
         "--output",
-        default="examples/benchmark_results/ts_benchmark_suite_results.json",
+        default="benchmark_results/ts_benchmark_suite_results.json",
     )
     parser.add_argument("--quick-two-ended", action="store_true", help="Use 3 Zimmermann reactions")
     parser.add_argument(

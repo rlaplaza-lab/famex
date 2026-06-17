@@ -8,6 +8,7 @@ import famex
 from famex.analysis.frequency import FrequencyAnalysis, HessianCalculator
 from famex.analysis.utils import has_calculator_property
 from famex.backends.availability import is_backend_available
+from famex.backends.constants import DEFAULT_UMA_MODEL
 from tests.test_constants import (
     DEFAULT_DELTA,
     EXTRA_TIGHT_TOL,
@@ -55,7 +56,7 @@ def get_backend_calculator_with_hessian(backend_name: str, model_name: str | Non
     if backend_name == "mace":
         calc = famex.get_mace_calculator(model_name=model_name or "mace-omol-0")
     elif backend_name == "uma":
-        calc = famex.get_uma_calculator(model_name=model_name or "uma-s-1p1")
+        calc = famex.get_uma_calculator(model_name=model_name or DEFAULT_UMA_MODEL)
     else:
         pytest.skip(f"Unknown backend: {backend_name}")
 

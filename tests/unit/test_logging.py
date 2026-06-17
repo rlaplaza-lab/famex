@@ -5,6 +5,7 @@ from io import StringIO
 
 import pytest
 
+from famex.backends.constants import DEFAULT_UMA_MODEL
 from famex.utils.logging import (
     get_famex_log_level,
     get_famex_logger,
@@ -170,7 +171,7 @@ class TestPrintModelInfo:
     def test_print_model_info_basic(self):
         # This function uses click.echo, so we test that it doesn't raise
         try:
-            print_model_info("uma", model_name="uma-s-1p1", device="cpu")
+            print_model_info("uma", model_name=DEFAULT_UMA_MODEL, device="cpu")
         except Exception:
             # If click is not available or there's an import error, that's okay
             # We're just testing the function structure

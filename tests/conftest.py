@@ -132,13 +132,14 @@ def ethylene_twisted_ts_guess():
 def uma_backend():
     """UMA backend calculator fixture."""
     from famex.backends.availability import is_backend_available
+    from famex.backends.constants import DEFAULT_UMA_MODEL
 
     if not is_backend_available("uma"):
         pytest.skip("UMA backend not available")
 
     import famex
 
-    calc = famex.get_uma_calculator(model_name="uma-s-1p1")
+    calc = famex.get_uma_calculator(model_name=DEFAULT_UMA_MODEL)
     calc.ensure_loaded()
     return calc
 

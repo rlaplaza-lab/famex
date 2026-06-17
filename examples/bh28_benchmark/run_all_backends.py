@@ -86,7 +86,7 @@ class MultiBackendBenchmarkRunner:
         backends = [
             "mace",
             "orb",
-            "uma:uma-s-1p1",  # UMA Small
+            "uma:uma-s-1p2",  # UMA Small
             "uma:uma-m-1p1",  # UMA Medium
             "aimnet2",
             # Optional backends (can be added later)
@@ -106,7 +106,7 @@ class MultiBackendBenchmarkRunner:
         Returns
         -------
         str
-            Environment name like "famex-benchmark-orb" or "famex-benchmark-uma-s-1p1"
+            Environment name like "famex-benchmark-orb" or "famex-benchmark-uma-s-1p2"
         """
         # Normalize backend name for env name (no colons, lowercase, replace special chars)
         env_name = backend.lower().replace(":", "-").replace("_", "-")
@@ -312,13 +312,13 @@ class MultiBackendBenchmarkRunner:
         str
             Normalized backend name for result storage
         """
-        # Convert uma:uma-s-1p1 -> uma-small, uma:uma-m-1p1 -> uma-medium
+        # Convert uma:uma-s-1p2 -> uma-small, uma:uma-m-1p1 -> uma-medium
         # Convert tblite:GFN2-xTB -> tblite-gfn2, tblite:GFN1-xTB -> tblite-gfn1
         if ":" in backend:
             parts = backend.split(":", 1)
             base, model = parts[0], parts[1]
             if base == "uma":
-                if "uma-s-1p1" in model or "small" in model.lower():
+                if "uma-s-1p" in model or "small" in model.lower():
                     return "uma-small"
                 elif "uma-m-1p1" in model or "medium" in model.lower():
                     return "uma-medium"

@@ -9,6 +9,7 @@ from ase.vibrations.data import VibrationsData
 
 from famex.analysis.frequency import FrequencyAnalysis
 from famex.analysis.physics_constants import normalize_frequencies_cm1
+from famex.backends.constants import DEFAULT_UMA_MODEL
 from tests.test_utils import requires_backend
 
 
@@ -74,7 +75,7 @@ class TestImaginaryFrequencyDetection:
         from famex.potentials import get_uma_calculator
 
         try:
-            atoms.calc = get_uma_calculator(model_name="uma-s-1p1")
+            atoms.calc = get_uma_calculator(model_name=DEFAULT_UMA_MODEL)
             freq = FrequencyAnalysis(atoms=atoms, calculator=atoms.calc, verbose=0)
             freq.calculate_hessian(method="auto")
             freq.diagonalize_hessian()

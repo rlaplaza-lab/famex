@@ -18,12 +18,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: Can I install multiple backends?
 
-**A:** Some backends conflict (UMA vs MACE). Use separate environments:
-
-```bash
-conda create -n famex-uma python=3.12 && conda activate famex-uma && pip install famex[uma]
-conda create -n famex-mace python=3.12 && conda activate famex-mace && pip install famex mace-torch
-```
+**A:** Some backends conflict (UMA vs MACE). Use separate conda environments — see [Dependency Conflicts](USER_GUIDE.md#dependency-conflicts) in the User Guide.
 
 ### Q: What Python version do I need?
 

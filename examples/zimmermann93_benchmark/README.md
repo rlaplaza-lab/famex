@@ -27,8 +27,6 @@ python zimmermann93_benchmark.py
 
 # Analysis only (load existing results)
 python zimmermann93_benchmark.py --analyze
-
-python zimmermann93_benchmark.py --quick
 ```
 
 ### Command Line Options

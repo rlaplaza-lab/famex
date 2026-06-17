@@ -29,8 +29,6 @@ python bh28_benchmark.py --reactions BHDIV_3 PXBH_2 CADBH_1
 
 # Analysis only (load existing results)
 python bh28_benchmark.py --analyze
-
-python bh28_benchmark.py --quick
 ```
 
 ### Command Line Options

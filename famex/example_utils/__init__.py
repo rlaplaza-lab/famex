@@ -20,6 +20,7 @@ from ase.io import write as ase_write
 
 # Import FAMEX components
 from famex.backends.availability import is_backend_available
+from famex.backends.constants import DEFAULT_UMA_MODEL
 from famex.backends.registry import calculator_registry
 
 # Import device utilities
@@ -969,7 +970,7 @@ def get_calculator_for_backend(
     if backend == "mace":
         calc = famex.get_mace_calculator(device=device)
     elif backend == "uma":
-        calc = famex.get_uma_calculator(model_name=model_name or "uma-s-1p1", device=device)
+        calc = famex.get_uma_calculator(model_name=model_name or DEFAULT_UMA_MODEL, device=device)
     elif backend == "aimnet2":
         calc = famex.get_aimnet2_calculator(device=device)
     elif backend == "so3lr":

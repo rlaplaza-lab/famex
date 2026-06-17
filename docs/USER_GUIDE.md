@@ -64,7 +64,7 @@ All commands support these common options:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--backend` | `uma` | Backend: uma\|aimnet2\|mace\|orb\|so3lr\|tblite\|mock |
+| `--backend` | `uma` | Backend: uma\|aimnet2\|mace\|orb\|so3lr\|tblite\|pet\|mock |
 | `--model-name` | backend default | Override model (see [Default models](#default-models) when omitted) |
 | `--model-path` | `None` | Path to model file (if applicable) |
 | `--device` | `None` | Device: cpu\|cuda |
@@ -330,6 +330,7 @@ When `--model-name` / `model_name` is omitted:
 | `uma` | `uma-s-1p2` |
 | `aimnet2` | `aimnet2` |
 | `mace` | `mace-omol-0` |
+| `pet` | `pet-mad-s` |
 | `mock` | `mock-model` |
 
 For **TBLite**, pass the xTB method via `--model-name` (e.g. `--model-name GFN2-xTB`); the registry maps this to the calculator `method` parameter.
@@ -346,6 +347,7 @@ Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin`
 | `orb` | `pip install orb-models` | Universal coverage | Molecules and materials |
 | `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations |
 | `so3lr` | `pip install so3lr` | Research | Custom models |
+| `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential | Python 3.11+ |
 | `mock` | Built-in | Testing | Development only |
 
 ### Dependency Conflicts

@@ -13,6 +13,7 @@ from famex.analysis.noise_estimation import (
     estimate_optimal_delta,
     estimate_richardson_noise,
 )
+from famex.backends.constants import DEFAULT_UMA_MODEL
 from tests.test_constants import ADAPTIVE_HESSIAN_ASYMMETRY_TOL, ADAPTIVE_HESSIAN_TOL, DEFAULT_DELTA
 from tests.test_utils import HarmonicCalculator, NoisyCalculator, requires_backend
 
@@ -203,7 +204,7 @@ class TestAutoselectMethod:
     @requires_backend("uma")
     def test_autoselect_uma_integration(self, water_molecule):
         atoms = water_molecule.copy()
-        atoms.calc = famex.get_uma_calculator(model_name="uma-s-1p1")
+        atoms.calc = famex.get_uma_calculator(model_name=DEFAULT_UMA_MODEL)
         atoms.calc.ensure_loaded()
 
         freq_analysis = FrequencyAnalysis(atoms, atoms.calc, verbose=0)

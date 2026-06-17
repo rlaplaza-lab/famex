@@ -23,15 +23,11 @@ These scripts compare performance and accuracy across different backends and opt
 |---------|-------------|
 | `timing_benchmark.py` | ML backend performance comparison |
 | `minima_optimizer_benchmark.py` | Minima optimizer comparison (lbfgs, bfgs, fire, trust-krylov) |
-| `ts_optimizer_benchmark.py` | TS optimizer comparison (sella, rfo) |
+| `ts_optimizer_benchmark.py` | TS optimizer comparison (sella, rfo, trust-krylov, trust-ncg, trust-exact) |
+| `hessian_benchmark.py` | Hessian method comparison (FD schemes and backend methods; `--mode fd`, `backend`, or `both`) |
+| `ts_benchmark_suite.py` | GPU-focused local and two-ended TS benchmark suite |
 | `bh28_benchmark/` | Chemical accuracy evaluation (28 reactions) |
-| `zimmermann93_benchmark/` | Two-ended TS search benchmark (flags reactions without validated TSs) | ⚠️ **Note:** Very long-running benchmark, use `--quick` for testing (may still take several minutes) |
-
-### Benchmarks (Performance & Comparison) - Continued
-
-| Example | Description |
-|---------|-------------|
-| `hessian_benchmark.py` | Hessian method comparison benchmark | Compares FD schemes and backend methods. Use `--mode fd`, `--mode backend`, or `--mode both` |
+| `zimmermann93_benchmark/` | Two-ended TS search benchmark; long-running — use `--quick` for testing |
 
 ## Usage
 
@@ -78,6 +74,9 @@ python hessian_benchmark.py --mode fd  # FD schemes only
 python hessian_benchmark.py --mode backend --backends uma  # Backend methods only
 python hessian_benchmark.py --mode both --backends uma,mace  # Both
 python hessian_benchmark.py --quick  # Quick test with water only
+
+# TS benchmark suite
+python ts_benchmark_suite.py --quick-two-ended --device cuda
 ```
 
 **Note:**

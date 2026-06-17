@@ -93,7 +93,6 @@ famex path --strategy irc ts.xyz --direction both
 
 - **GitHub Repository**: [https://github.com/rlaplaza-lab/famex](https://github.com/rlaplaza-lab/famex)
 - **Issues**: [Report bugs and request features](https://github.com/rlaplaza-lab/famex/issues)
-- **Security**: [Report vulnerabilities](https://github.com/rlaplaza-lab/famex/security/policy)
 - **License**: MIT License
 
 ## Citation
