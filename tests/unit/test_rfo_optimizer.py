@@ -34,6 +34,14 @@ class TestRFOTransitionState:
         assert opt.trust_radius == 0.02
         assert opt.max_trust_radius == 0.06
 
+    def test_rfo_default_trust_radii(self, mock_backend, water_dissociation_ts_guess):
+        atoms = water_dissociation_ts_guess.copy()
+        atoms.calc = mock_backend
+        opt = RFOTransitionState(atoms, logfile=None)
+        assert opt.trust_radius == 0.02
+        assert opt.max_trust_radius == 0.06
+        assert opt.hessian_update_freq == 1
+
     def test_rfo_positions_conversion(self, mock_backend, water_dissociation_ts_guess):
         atoms = water_dissociation_ts_guess.copy()
         atoms.calc = mock_backend

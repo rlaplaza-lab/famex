@@ -32,8 +32,8 @@ class ConvergedError(Exception):
 class RFOTransitionState(Optimizer):
     """Restricted-Step Partitioned RFO transition state optimizer.
 
-    Default trust radii (0.1 / 0.3 Å) are larger than geomeTRIC TS defaults to suit
-    ML potentials. ``hessian_update_freq=1`` recomputes the projected Hessian each step.
+    Default trust radii (0.02 / 0.06 Å) tuned on full BH28 with uma-s-1p2.
+    ``hessian_update_freq=1`` recomputes the projected Hessian each step.
     """
 
     def __init__(
@@ -45,8 +45,8 @@ class RFOTransitionState(Optimizer):
         hessian_method: str = "auto",
         hessian_delta: float = 0.01,
         initial_hessian: np.ndarray | None = None,
-        trust_radius: float = 0.1,
-        max_trust_radius: float = 0.3,
+        trust_radius: float = 0.02,
+        max_trust_radius: float = 0.06,
         min_trust_radius: float = 0.001,
         alpha: float = 1.0,
         verbose: int = 1,

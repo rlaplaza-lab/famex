@@ -2,8 +2,8 @@
 """FAMEX TS Optimizer Benchmark - unified local and two-ended TS comparison.
 
 Trust-radius tuning (RFO and SciPy TS optimizers):
-  trust_radius       Initial step bound in Å (default 0.1; geomeTRIC uses ~0.01)
-  max_trust_radius   Upper cap in Å (default 0.3)
+  trust_radius       Initial step bound in Å (RFO default 0.02; trust-krylov 0.05; others 0.1)
+  max_trust_radius   Upper cap in Å (RFO default 0.06; trust-krylov 0.15; others 0.3)
   min_trust_radius   Lower cap in Å (default 0.001)
   alpha              RFO metric scaling (default 1.0)
 Pass via Explorer ts_kwargs or --ts-kw trust_radius=0.05 max_trust_radius=0.15.
@@ -63,6 +63,11 @@ TRUST_RADIUS_PRESETS: list[tuple[float, float]] = [
 
 TRUST_SWEEP_OPTIMIZERS = ["rfo", "trust-exact", "trust-krylov"]
 
+PARAM_SWEEP_HESSIAN_FREQS: list[int | None] = [None, 1, 5]
+PARAM_SWEEP_DENSE_OPTIMIZERS = frozenset({"rfo", "trust-exact"})
+PARAM_SWEEP_OPTIMIZERS = ["rfo", "trust-exact", "trust-krylov", "trust-ncg"]
+PARAM_SWEEP_BASELINE_OPTIMIZERS = ["sella", "sella-analytical"]
+
 TRUST_SWEEP_STRUCTURES = [
     ("A_C_A_B_A_C_ts", Path(__file__).parent / "example_files" / "A_C_A_B_A_C_ts.xyz"),
     ("BHDIV_3", BH28_DATASET_DIR / "BHDIV_3_ts.xyz"),
@@ -117,12 +122,15 @@ def _build_ts_kwargs(
     trust_radius: float | None = None,
     max_trust_radius: float | None = None,
     force_finite_diff_hessian: bool = False,
+    explicit_hessian_update_freq: bool = False,
 ) -> dict[str, Any] | None:
     """Build ts_kwargs for Hessian-based TS optimizers."""
     normalized = optimizer.lower()
     ts_kwargs: dict[str, Any] = {}
 
-    if hessian_update_freq is not None and normalized in HESSIAN_BASED_OPTIMIZERS:
+    if normalized in HESSIAN_BASED_OPTIMIZERS and (
+        explicit_hessian_update_freq or hessian_update_freq is not None
+    ):
         ts_kwargs["hessian_update_freq"] = hessian_update_freq
 
     if trust_radius is not None:
@@ -164,6 +172,7 @@ def benchmark_ts_optimizer(
     save_optimized_structure: bool = False,
     structure_label: str | None = None,
     create_structure_func: Callable[[], Atoms] | None = None,
+    explicit_hessian_update_freq: bool = False,
 ) -> dict[str, Any]:
     """Benchmark TS optimizer (Sella, RFO, SciPy trust-region)."""
     ts_kwargs = _build_ts_kwargs(
@@ -172,6 +181,7 @@ def benchmark_ts_optimizer(
         trust_radius=trust_radius,
         max_trust_radius=max_trust_radius,
         force_finite_diff_hessian=force_finite_diff_hessian,
+        explicit_hessian_update_freq=explicit_hessian_update_freq,
     )
 
     return benchmark_optimization(
@@ -201,22 +211,30 @@ def benchmark_ts_optimizer(
 
 def _optimizer_kwargs_for_two_ended(
     optimizer: str,
-    trust_radius: float = 0.1,
-    max_trust_radius: float = 0.3,
+    trust_radius: float | None = None,
+    max_trust_radius: float | None = None,
 ) -> dict[str, Any]:
     if optimizer == "sella":
         return {"internal": True, "order": 1}
     if optimizer == "rfo":
         return {
             "hessian_update_freq": 1,
-            "trust_radius": trust_radius,
-            "max_trust_radius": max_trust_radius,
+            "trust_radius": trust_radius if trust_radius is not None else 0.02,
+            "max_trust_radius": max_trust_radius if max_trust_radius is not None else 0.06,
+        }
+    if optimizer in {"trust-krylov", "trustkrylov", "trust_krylov"}:
+        return {
+            "ts_search": True,
+            "hessian_update_freq": 1,
+            "trust_radius": trust_radius if trust_radius is not None else 0.05,
+            "max_trust_radius": max_trust_radius if max_trust_radius is not None else 0.15,
+            "use_bfgs_update": False,
         }
     return {
         "ts_search": True,
         "hessian_update_freq": 1,
-        "trust_radius": trust_radius,
-        "max_trust_radius": max_trust_radius,
+        "trust_radius": trust_radius if trust_radius is not None else 0.1,
+        "max_trust_radius": max_trust_radius if max_trust_radius is not None else 0.3,
         "use_bfgs_update": False,
     }
 
@@ -730,6 +748,267 @@ def _hessian_freqs_for_optimizer(
     return [None]
 
 
+def _hessian_freqs_for_param_sweep(optimizer: str) -> list[int | None]:
+    if optimizer in PARAM_SWEEP_DENSE_OPTIMIZERS:
+        return list(PARAM_SWEEP_HESSIAN_FREQS)
+    if optimizer in HESSIAN_BASED_OPTIMIZERS:
+        return [1]
+    return [None]
+
+
+def _param_sweep_config_key(
+    optimizer: str,
+    hessian_update_freq: int | None,
+    trust_radius: float | None,
+    max_trust_radius: float | None,
+) -> tuple[str, int | None, float | None, float | None]:
+    return (optimizer, hessian_update_freq, trust_radius, max_trust_radius)
+
+
+def _aggregate_param_sweep_rows(
+    rows: list[dict[str, Any]],
+) -> dict[tuple[str, int | None, float | None, float | None], dict[str, Any]]:
+    aggregated: dict[tuple[str, int | None, float | None, float | None], dict[str, Any]] = {}
+    for row in rows:
+        if row.get("error") or not _should_show_backend(row):
+            continue
+        key = _param_sweep_config_key(
+            row.get("optimizer", "unknown"),
+            row.get("hessian_update_freq"),
+            row.get("trust_radius"),
+            row.get("max_trust_radius"),
+        )
+        bucket = aggregated.setdefault(
+            key,
+            {
+                "optimizer": key[0],
+                "hessian_update_freq": key[1],
+                "trust_radius": key[2],
+                "max_trust_radius": key[3],
+                "total": 0,
+                "valid": 0,
+                "converged": 0,
+                "steps": [],
+                "times": [],
+            },
+        )
+        bucket["total"] += 1
+        opt_results = row.get("optimization_results", {})
+        freq_results = row.get("frequency_results", {})
+        converged = bool(opt_results.get("converged", False))
+        valid = converged and bool(freq_results.get("is_valid_result", False))
+        if valid:
+            bucket["valid"] += 1
+        if converged:
+            bucket["converged"] += 1
+            bucket["steps"].append(int(opt_results.get("steps_taken", 0)))
+        bucket["times"].append(float(row.get("timings", {}).get("total", 0.0)))
+    return aggregated
+
+
+def print_param_sweep_summary(rows: list[dict[str, Any]]) -> None:
+    """Print combined hessian/trust-radius sweep summary."""
+    if not rows:
+        return
+
+    aggregated = _aggregate_param_sweep_rows(rows)
+    if not aggregated:
+        print("\nNo param-sweep results to summarize.")
+        return
+
+    print(f"\n{'=' * 130}")
+    print("PARAM SWEEP — per-config summary (converged + valid TS)")
+    print(f"{'=' * 130}")
+    print(
+        f"{'Optimizer':<16} {'HessFreq':<10} {'TrustR':<8} {'MaxTR':<8} "
+        f"{'Valid':<10} {'Conv':<10} {'AvgSteps':<10} {'AvgTime(s)':<12}"
+    )
+    print("-" * 130)
+
+    def sort_key(item: tuple[tuple[str, int | None, float | None, float | None], dict[str, Any]]):
+        key, stats = item
+        avg_steps = sum(stats["steps"]) / len(stats["steps"]) if stats["steps"] else float("inf")
+        avg_time = sum(stats["times"]) / len(stats["times"]) if stats["times"] else float("inf")
+        return (-stats["valid"], -stats["converged"], avg_steps, avg_time, key[0], key[1] or -1)
+
+    for _key, stats in sorted(aggregated.items(), key=sort_key):
+        hess_label = (
+            "single" if stats["hessian_update_freq"] is None else str(stats["hessian_update_freq"])
+        )
+        trust_r = stats["trust_radius"]
+        max_tr = stats["max_trust_radius"]
+        avg_steps = sum(stats["steps"]) / len(stats["steps"]) if stats["steps"] else 0.0
+        avg_time = sum(stats["times"]) / len(stats["times"]) if stats["times"] else 0.0
+        print(
+            f"{stats['optimizer']:<16} {hess_label:<10} "
+            f"{(trust_r if trust_r is not None else 0.0):<8.2f} "
+            f"{(max_tr if max_tr is not None else 0.0):<8.2f} "
+            f"{stats['valid']}/{stats['total']:<8} "
+            f"{stats['converged']}/{stats['total']:<8} "
+            f"{avg_steps:<10.1f} {avg_time:<12.1f}"
+        )
+
+
+def recommend_param_defaults(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Pick best config per optimizer: valid TS rate, then avg steps, then avg time."""
+    aggregated = _aggregate_param_sweep_rows(rows)
+    if not aggregated:
+        return []
+
+    by_optimizer: dict[
+        str, list[tuple[tuple[str, int | None, float | None, float | None], dict[str, Any]]]
+    ] = {}
+    for key, stats in aggregated.items():
+        by_optimizer.setdefault(stats["optimizer"], []).append((key, stats))
+
+    recommendations: list[dict[str, Any]] = []
+    print(f"\n{'=' * 130}")
+    print("PARAM SWEEP — recommended defaults per optimizer")
+    print(f"{'=' * 130}")
+    print(
+        f"{'Optimizer':<16} {'HessFreq':<10} {'TrustR':<8} {'MaxTR':<8} "
+        f"{'Valid':<10} {'AvgSteps':<10} {'AvgTime(s)':<12}"
+    )
+    print("-" * 130)
+
+    for optimizer in sorted(by_optimizer):
+        candidates = by_optimizer[optimizer]
+
+        def rank(item: tuple[tuple[str, int | None, float | None, float | None], dict[str, Any]]):
+            _, stats = item
+            valid_rate = stats["valid"] / stats["total"] if stats["total"] else 0.0
+            avg_steps = (
+                sum(stats["steps"]) / len(stats["steps"]) if stats["steps"] else float("inf")
+            )
+            avg_time = sum(stats["times"]) / len(stats["times"]) if stats["times"] else float("inf")
+            return (-valid_rate, -stats["valid"], avg_steps, avg_time)
+
+        _, best = min(candidates, key=rank)
+        hess_label = (
+            "single" if best["hessian_update_freq"] is None else str(best["hessian_update_freq"])
+        )
+        avg_steps = sum(best["steps"]) / len(best["steps"]) if best["steps"] else 0.0
+        avg_time = sum(best["times"]) / len(best["times"]) if best["times"] else 0.0
+        print(
+            f"{optimizer:<16} {hess_label:<10} "
+            f"{(best['trust_radius'] if best['trust_radius'] is not None else 0.0):<8.2f} "
+            f"{(best['max_trust_radius'] if best['max_trust_radius'] is not None else 0.0):<8.2f} "
+            f"{best['valid']}/{best['total']:<8} "
+            f"{avg_steps:<10.1f} {avg_time:<12.1f}"
+        )
+        recommendations.append(
+            {
+                "optimizer": optimizer,
+                "hessian_update_freq": best["hessian_update_freq"],
+                "trust_radius": best["trust_radius"],
+                "max_trust_radius": best["max_trust_radius"],
+                "valid": best["valid"],
+                "total": best["total"],
+                "avg_steps": avg_steps,
+                "avg_time": avg_time,
+            }
+        )
+
+    return recommendations
+
+
+def _run_param_sweep(
+    backend: str,
+    device: str,
+    model_name: str | None,
+    verbose: int,
+    calculate_frequencies: bool,
+    structures: list[tuple[str | None, str]],
+    force_finite_diff_hessian: bool,
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    sweep_optimizers = list(PARAM_SWEEP_OPTIMIZERS) + list(PARAM_SWEEP_BASELINE_OPTIMIZERS)
+
+    print(
+        f"\nRunning param sweep on {len(structures)} structure(s), "
+        f"{len(PARAM_SWEEP_OPTIMIZERS)} Hessian-based optimizers "
+        f"+ {len(PARAM_SWEEP_BASELINE_OPTIMIZERS)} baselines ..."
+    )
+
+    for reaction, structure_label_name in structures:
+        for optimizer in sweep_optimizers:
+            hessian_freqs = _hessian_freqs_for_param_sweep(optimizer)
+            trust_presets: list[tuple[float | None, float | None]] = (
+                list(TRUST_RADIUS_PRESETS)
+                if optimizer in PARAM_SWEEP_OPTIMIZERS
+                else [(None, None)]
+            )
+
+            for hessian_freq in hessian_freqs:
+                for trust_radius, max_trust_radius in trust_presets:
+                    hess_label = "single" if hessian_freq is None else str(hessian_freq)
+                    trust_label = (
+                        f"r{trust_radius:.2f}"
+                        if trust_radius is not None and max_trust_radius is not None
+                        else "default"
+                    )
+                    label = f"{structure_label_name}_{optimizer}_{hess_label}_{trust_label}"
+
+                    try:
+                        row = benchmark_ts_optimizer(
+                            backend=backend,
+                            optimizer=optimizer,
+                            device=device,
+                            model_name=model_name,
+                            verbose=verbose,
+                            calculate_frequencies=calculate_frequencies,
+                            hessian_update_freq=hessian_freq,
+                            trust_radius=trust_radius,
+                            max_trust_radius=max_trust_radius,
+                            force_finite_diff_hessian=force_finite_diff_hessian,
+                            structure_label=label,
+                            create_structure_func=lambda r=reaction: create_ts_structure(r),
+                            explicit_hessian_update_freq=optimizer in HESSIAN_BASED_OPTIMIZERS,
+                        )
+                        row["optimizer"] = optimizer
+                        row["hessian_update_freq"] = hessian_freq
+                        row["trust_radius"] = trust_radius
+                        row["max_trust_radius"] = max_trust_radius
+                        if reaction is not None:
+                            row["reaction"] = reaction
+                        results.append(row)
+
+                        opt_results = row.get("optimization_results", {})
+                        freq_results = row.get("frequency_results", {})
+                        print(
+                            f"  {structure_label_name}/{optimizer} h={hess_label} {trust_label}: "
+                            f"conv={opt_results.get('converged')}, "
+                            f"valid_ts={freq_results.get('is_valid_result')}, "
+                            f"time={row.get('timings', {}).get('total', 0):.1f}s"
+                        )
+                    except KeyboardInterrupt:
+                        raise
+                    except Exception as exc:
+                        results.append(
+                            {
+                                "backend": backend,
+                                "optimizer": optimizer,
+                                "hessian_update_freq": hessian_freq,
+                                "trust_radius": trust_radius,
+                                "max_trust_radius": max_trust_radius,
+                                "reaction": reaction,
+                                "device": device,
+                                "test_ts": True,
+                                "available": False,
+                                "error": str(exc),
+                                "timings": {},
+                                "optimization_results": {},
+                                "frequency_results": {},
+                            },
+                        )
+                        print(
+                            f"  {structure_label_name}/{optimizer} h={hess_label} {trust_label}: "
+                            f"ERROR {exc}"
+                        )
+
+    return results
+
+
 def main() -> int:
     """Run the unified TS optimizer comparison benchmark."""
     interface = FAMEXExampleInterface(
@@ -772,6 +1051,14 @@ def main() -> int:
         "--trust-sweep",
         action="store_true",
         help="Run trust-radius preset sweep on selected structures and optimizers",
+    )
+    parser.add_argument(
+        "--param-sweep",
+        action="store_true",
+        help=(
+            "Run combined hessian_update_freq x trust-radius grid on BH28 structures "
+            "(use with --full-bh28 or --bh28-subset)"
+        ),
     )
     parser.add_argument(
         "--force-finite-diff-hessian",
@@ -874,6 +1161,7 @@ def main() -> int:
         "Structures": structure_label,
         "Hessian sweep": args.hessian_sweep,
         "Trust sweep": args.trust_sweep,
+        "Param sweep": args.param_sweep,
         "Two-ended": args.two_ended or args.two_ended_only,
     }
     interface.print_configuration(config)
@@ -884,11 +1172,16 @@ def main() -> int:
         "device": device,
         "local": [],
         "trust_sweep": [],
+        "param_sweep": [],
         "two_ended": [],
     }
 
     results_list: list[dict[str, Any]] = []
-    run_local = not args.two_ended_only and not args.trust_sweep
+    run_local = not args.two_ended_only and not args.trust_sweep and not args.param_sweep
+
+    if args.param_sweep and not args.full_bh28 and not args.bh28_subset:
+        interface.print_error("--param-sweep requires --full-bh28 or --bh28-subset")
+        return 1
 
     if args.trust_sweep and not args.two_ended_only:
         for backend in available_backends:
@@ -902,6 +1195,25 @@ def main() -> int:
                 )
             )
         print_trust_sweep_summary(all_results["trust_sweep"])
+
+    if args.param_sweep and not args.two_ended_only:
+        structures = _collect_structures(args.full_bh28, args.bh28_subset, skip_example=True)
+        param_sweep_results: list[dict[str, Any]] = []
+        for backend in available_backends:
+            param_sweep_results.extend(
+                _run_param_sweep(
+                    backend,
+                    device,
+                    args.model_name,
+                    args.verbose,
+                    args.freq,
+                    structures,
+                    args.force_finite_diff_hessian,
+                )
+            )
+        all_results["param_sweep"] = param_sweep_results
+        print_param_sweep_summary(param_sweep_results)
+        all_results["recommended_defaults"] = recommend_param_defaults(param_sweep_results)
 
     if run_local:
         structures = _collect_structures(args.full_bh28, args.bh28_subset, args.skip_example)

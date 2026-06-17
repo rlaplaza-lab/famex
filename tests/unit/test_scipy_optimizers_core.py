@@ -143,6 +143,15 @@ class TestSciPyOptimizersBasic:
         opt.hessian_func(x)
         assert opt.hessian_calls == 1  # Still only 1 full Hessian
 
+    def test_trust_krylov_default_trust_radii(self, h2o_molecule_perturbed_with_mock):
+        atoms = h2o_molecule_perturbed_with_mock
+        minima_opt = TrustKrylov(atoms, logfile=None)
+        ts_opt = TrustKrylov(atoms, logfile=None, ts_search=True)
+        assert minima_opt.trust_radius == 1.0
+        assert minima_opt.max_trust_radius == 10.0
+        assert ts_opt.trust_radius == 0.05
+        assert ts_opt.max_trust_radius == 0.15
+
     def test_run_passes_scipy_trust_radius_options(self, h2o_molecule_perturbed_with_mock):
         atoms = h2o_molecule_perturbed_with_mock
         opt = TrustKrylov(

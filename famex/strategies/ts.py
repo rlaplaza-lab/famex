@@ -69,13 +69,22 @@ class LocalTSStrategy(BaseStrategy):
                 # hessian_update_freq=1 recomputes the projected Hessian each step for stability.
                 opt_kwargs.setdefault("hessian_update_freq", 1)
                 opt_kwargs.setdefault("hessian_method", "auto")
-                # Defaults are larger than geomeTRIC (0.01/0.03) for ML potentials.
-                opt_kwargs.setdefault("trust_radius", 0.1)
-                opt_kwargs.setdefault("max_trust_radius", 0.3)
+                # Tuned on full BH28 with uma-s-1p2 (28/28 valid TS).
+                opt_kwargs.setdefault("trust_radius", 0.02)
+                opt_kwargs.setdefault("max_trust_radius", 0.06)
             elif normalized_name in (
                 "trust-krylov",
                 "trustkrylov",
                 "trust_krylov",
+            ):
+                opt_kwargs.setdefault("ts_search", True)
+                opt_kwargs.setdefault("hessian_update_freq", 1)
+                opt_kwargs.setdefault("hessian_method", "auto")
+                # Tuned on full BH28 with uma-s-1p2 (27/28 valid TS; best avg steps).
+                opt_kwargs.setdefault("trust_radius", 0.05)
+                opt_kwargs.setdefault("max_trust_radius", 0.15)
+                opt_kwargs.setdefault("use_bfgs_update", False)
+            elif normalized_name in (
                 "trust-ncg",
                 "trustncg",
                 "trust_ncg",
@@ -86,6 +95,7 @@ class LocalTSStrategy(BaseStrategy):
                 opt_kwargs.setdefault("ts_search", True)
                 opt_kwargs.setdefault("hessian_update_freq", 1)
                 opt_kwargs.setdefault("hessian_method", "auto")
+                # Tuned on full BH28 with uma-s-1p2 (28/28 valid TS).
                 opt_kwargs.setdefault("trust_radius", 0.1)
                 opt_kwargs.setdefault("max_trust_radius", 0.3)
                 opt_kwargs.setdefault("use_bfgs_update", False)

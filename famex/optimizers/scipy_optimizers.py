@@ -560,11 +560,16 @@ class TrustKrylov(SciPyHessianOptimizer):
         use_bfgs_update: bool = True,
         adaptive_hessian: bool = False,
         verbose: int = 1,
-        trust_radius: float = 1.0,
-        max_trust_radius: float = 10.0,
+        trust_radius: float | None = None,
+        max_trust_radius: float | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize Trust-Krylov optimizer."""
+        ts_search = bool(kwargs.get("ts_search", False))
+        if trust_radius is None:
+            trust_radius = 0.05 if ts_search else 1.0
+        if max_trust_radius is None:
+            max_trust_radius = 0.15 if ts_search else 10.0
         super().__init__(
             atoms=atoms,
             method="trust-krylov",
