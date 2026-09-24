@@ -20,9 +20,9 @@ Install a backend separately:
 
 | Backend | Installation | Notes |
 |---------|--------------|-------|
-| `aimnet2` | `pip install torch` | Recommended for beginners, no conflicts |
-| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install famex[uma]` | Materials science (default model: uma-s-1p2) |
-| `mace` | `pip install mace-torch` | High accuracy, conflicts with UMA |
+| `aimnet2` | `pip install torch` | Recommended for beginners, no conflicts; supports analytical Hessian |
+| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install famex[uma]` | Materials science (default model: uma-s-1p2); supports analytical Hessian |
+| `mace` | `pip install mace-torch` | High accuracy, conflicts with UMA; supports analytical Hessian |
 | `orb` | `pip install orb-models` | Universal forcefield |
 | `so3lr` | `pip install so3lr` | Research, custom models |
 | `tblite` | `pip install tblite` | Fast semi-empirical |

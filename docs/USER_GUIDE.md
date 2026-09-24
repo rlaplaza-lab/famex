@@ -78,7 +78,7 @@ All commands support these common options:
 | `--temperature` | `298.15` | Temperature in Kelvin for thermodynamic calculations |
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
 | `--freq`, `--frequencies` | `False` | Perform frequency analysis after optimization (includes thermodynamic properties) |
-| `--force-finite-diff-hessian` | `False` | Force use of finite difference hessians for TS optimizers and frequency calculations |
+| `--force-finite-diff-hessian` | `False` | Force use of finite difference hessians for TS optimizers and frequency calculations. When disabled (default), backends with analytical Hessian support (e.g., `uma`, `mace`, `aimnet2`) use the exact analytical Hessian automatically for faster and more accurate frequencies and TS optimization. |
 
 ### famex minima - Minima Optimization
 
@@ -341,9 +341,9 @@ Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin`
 
 | Backend | Installation | Best For | Notes |
 |---------|--------------|----------|-------|
-| `aimnet2` | `pip install torch` | Beginners, molecules | No conflicts, fast |
-| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install famex[uma]` | Materials science (default: uma-s-1p2) | Conflicts with MACE |
-| `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA |
+| `aimnet2` | `pip install torch` | Beginners, molecules | No conflicts, fast; analytical Hessian via autograd |
+| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install famex[uma]` | Materials science (default: uma-s-1p2) | Conflicts with MACE; analytical Hessian |
+| `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA; analytical Hessian |
 | `orb` | `pip install orb-models` | Universal coverage | Molecules and materials |
 | `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations |
 | `so3lr` | `pip install so3lr` | Research | Custom models |
