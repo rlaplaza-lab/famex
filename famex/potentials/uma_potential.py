@@ -79,13 +79,18 @@ class UMAPotential(BasePotential):
                     raise ImportError(msg)
 
                 pretrained_mlip = deps.get("fairchem_pretrained_mlip")
+                InferenceSettings = deps.get("fairchem_inference_settings")
                 fairchem_calculator = deps.get("fairchem_calculator")
                 if not pretrained_mlip or not fairchem_calculator:
                     raise RuntimeError("FairChem v2 components not available")
 
                 model_name = self.model_name or DEFAULT_UMA_MODEL
                 device_param = "cuda" if self.device == "cuda" else "cpu"
-                self.predictor = pretrained_mlip.get_predict_unit(model_name, device=device_param)
+                # Disable torch.compile so autograd Hessian works on torch ≥2.13
+                settings = InferenceSettings(compile=False) if InferenceSettings else "default"
+                self.predictor = pretrained_mlip.get_predict_unit(
+                    model_name, inference_settings=settings, device=device_param
+                )
                 self._set_model_precision("float32")
                 self._calc = fairchem_calculator(self.predictor, task_name="omol")
             except (ImportError, ValueError, TypeError, KeyError, OSError, RuntimeError) as exc:
@@ -277,15 +282,12 @@ class UMAPotential(BasePotential):
         if use_vmap and hasattr(torch, "vmap"):
             try:
                 chunk_size = 1 if num_dofs < 64 else 16
-                return cast(
-                    torch.Tensor,
-                    torch.vmap(
-                        grad_wrt_positions,
-                        in_dims=0,
-                        out_dims=0,
-                        chunk_size=chunk_size,
-                    )(identity),
-                )
+                return torch.vmap(
+                    grad_wrt_positions,
+                    in_dims=0,
+                    out_dims=0,
+                    chunk_size=chunk_size,
+                )(identity)
             except RuntimeError:
                 use_vmap = False
 
