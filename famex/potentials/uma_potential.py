@@ -37,7 +37,9 @@ class UMAPotential(BasePotential):
         **kwargs: Any,
     ) -> None:
         if device is None:
-            device = "cpu"
+            from famex.utils.device import get_optimal_device
+
+            device = get_optimal_device()
 
         self.predictor: Any = None
         self._calc: Any = None

@@ -89,21 +89,21 @@ class MACEPotential(BasePotential):
                 if self.model_name == DEFAULT_MACE_MODEL:
                     from mace.calculators import mace_omol
 
-                    self._calc = mace_omol(device=self.device or "cpu")
+                    self._calc = mace_omol(device=self.device)
                 elif self.model_name and self.model_name.startswith("mace-mp"):
                     from mace.calculators import mace_mp
 
                     model_size = self.model_name.replace("mace-mp-", "") or "medium"
-                    self._calc = mace_mp(model=model_size, device=self.device or "cpu")
+                    self._calc = mace_mp(model=model_size, device=self.device)
                 elif self.model_name and self.model_name.startswith("mace-off"):
                     from mace.calculators import mace_off
 
                     model_size = self.model_name.replace("mace-off-", "") or "medium"
-                    self._calc = mace_off(model=model_size, device=self.device or "cpu")
+                    self._calc = mace_off(model=model_size, device=self.device)
                 else:
                     from mace.calculators import mace_omol
 
-                    self._calc = mace_omol(device=self.device or "cpu")
+                    self._calc = mace_omol(device=self.device)
 
             except ImportError as e:
                 logger.error("MACE not available: %s. Install with: pip install mace-torch", e)

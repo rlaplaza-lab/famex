@@ -16,6 +16,7 @@ from famex.backends.constants import (
     BACKEND_TBLITE,
     BACKEND_UMA,
 )
+from famex.utils.device import resolve_backend_device
 from famex.utils.lazy_imports import get_module_logger
 from famex.utils.validation import BackendError
 
@@ -109,8 +110,8 @@ class CalculatorRegistry:
 
         if model_path is not None:
             factory_kwargs["model_path"] = model_path
-        if device is not None:
-            factory_kwargs["device"] = device
+        # Always resolve: MLIP → CUDA if available; tblite → CPU.
+        factory_kwargs["device"] = resolve_backend_device(backend, device)
 
         if backend == BACKEND_MOCK:
             factory_kwargs["backend"] = kwargs.get("mock_backend", "generic")

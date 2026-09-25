@@ -91,7 +91,9 @@ class OrbPotential(BasePotential):
                 self.model_name = "orb-v3-conservative-omol"
 
             if self.device is None:
-                self.device = "cpu"
+                from famex.utils.device import resolve_backend_device
+
+                self.device = resolve_backend_device("orb", None)
 
             model_registry = {
                 "orb-v3-conservative-omol": pretrained.orb_v3_conservative_omol,

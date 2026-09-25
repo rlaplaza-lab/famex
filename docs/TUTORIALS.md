@@ -108,7 +108,9 @@ See also `examples/growing_string_demo.py`.
 
 ### Validation
 
-A valid TS has exactly one significant imaginary frequency:
+A valid TS is vibrationally characterized as a first-order saddle: exactly one
+significant imaginary frequency. Path-search details (e.g. whether growing-string
+sides formally met) do not define validity:
 
 ```bash
 famex ts --strategy local ts_guess.xyz --freq

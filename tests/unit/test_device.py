@@ -8,6 +8,7 @@ from famex.utils.device import (
     get_device_info,
     get_optimal_device,
     print_device_info,
+    resolve_backend_device,
     validate_device,
 )
 
@@ -62,6 +63,24 @@ class TestDeviceUtilities:
         with patch("famex.utils.device.get_optimal_device", return_value="cpu"):
             device = validate_device(None)
             assert device == "cpu"
+
+    def test_resolve_backend_device_tblite_always_cpu(self):
+        assert resolve_backend_device("tblite", None) == "cpu"
+        assert resolve_backend_device("tblite", "cuda") == "cpu"
+        assert resolve_backend_device("TBLite", "cuda") == "cpu"
+
+    @patch("famex.utils.device.get_optimal_device", return_value="cuda")
+    def test_resolve_backend_device_mlip_auto_cuda(self, _mock_optimal):
+        assert resolve_backend_device("mace", None) == "cuda"
+        assert resolve_backend_device("uma", None) == "cuda"
+        assert resolve_backend_device("aimnet2", None) == "cuda"
+        assert resolve_backend_device("orb", None) == "cuda"
+        assert resolve_backend_device("so3lr", None) == "cuda"
+        assert resolve_backend_device("pet", None) == "cuda"
+
+    def test_resolve_backend_device_mlip_explicit_cpu(self):
+        assert resolve_backend_device("mace", "cpu") == "cpu"
+        assert resolve_backend_device("uma", "CPU") == "cpu"
 
     def test_validate_device_cpu(self):
         device = validate_device("cpu")

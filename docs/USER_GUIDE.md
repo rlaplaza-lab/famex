@@ -162,7 +162,7 @@ famex ts --strategy {local,interpolate,growing_string} INPUT [OPTIONS]
 | `--max-images` | `100` | Maximum number of images (growing_string strategy only) |
 | `--distance-threshold` | `0.1` | Distance threshold for convergence (growing_string strategy only) |
 | `--step-size` | `0.1` | Step size for growing string method (growing_string strategy only) |
-| `--require-ts/--allow-ts` | `--allow-ts` | Require a validated first-order saddle (raises an error if GSM/refinement fails) |
+| `--require-ts/--allow-ts` | `--allow-ts` | Require a vibrationally validated first-order saddle (exactly one imaginary mode; raises if characterization fails). Growing-string sides meeting is not required. |
 
 #### Examples
 
@@ -185,7 +185,7 @@ famex ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 
 # Growing string method
 famex ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
 
-# Strict validation (raises if the TS is not first-order)
+# Strict validation (raises unless vibrationally a first-order saddle)
 famex ts --strategy growing_string reactant.xyz --product product.xyz --require-ts
 
 # With frequency analysis

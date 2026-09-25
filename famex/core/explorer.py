@@ -18,6 +18,7 @@ from famex.core.exceptions import StrategyNotFoundError
 from famex.core.file_io import write_atoms_safely, write_trajectory_safely
 from famex.core.registry import REGISTRY
 from famex.io.geometry import read_geometry
+from famex.utils.device import resolve_backend_device
 from famex.utils.profiler import PerformanceProfiler
 
 if TYPE_CHECKING:
@@ -45,7 +46,8 @@ class Explorer:
     model_path : str, optional
         Path to local model file (required for SO3LR, optional for others).
     device : str, optional
-        Device for computations ("cpu" or "cuda"). Auto-detected if None.
+        Device for computations ("cpu" or "cuda"). For MLIP backends, defaults
+        to CUDA when available; TBLite always uses CPU.
     default_charge : int, default 0
         Default total charge used when per-structure metadata is not available.
     default_spin : int, default 1
@@ -222,7 +224,7 @@ class Explorer:
         self.backend = backend
         self.model_name = model_name
         self.model_path = model_path
-        self.device = device
+        self.device = resolve_backend_device(backend, device)
         self.default_charge = default_charge
         self.default_spin = default_spin
         self.verbose = verbose
@@ -251,7 +253,7 @@ class Explorer:
             backend=backend,
             model_name=model_name,
             model_path=model_path,
-            device=device,
+            device=self.device,
             default_charge=default_charge,
             default_spin=default_spin,
             verbose=verbose,

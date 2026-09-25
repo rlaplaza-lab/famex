@@ -109,7 +109,7 @@ class PETPotential(BasePotential):
             try:
                 from upet.calculator import UPETCalculator
 
-                device = self.device or "cpu"
+                device = self.device
                 if self.model_path is not None:
                     self._calc = UPETCalculator(checkpoint_path=self.model_path, device=device)
                 else:

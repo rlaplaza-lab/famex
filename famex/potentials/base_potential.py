@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from ase import Atoms
 
 
+from famex.utils.device import resolve_backend_device
 from famex.utils.lazy_imports import get_module_logger
 
 logger = get_module_logger(__name__)
@@ -61,7 +62,9 @@ class BasePotential:
 
         # Common configuration passed by derived classes
         self.model_name: str | None = kwargs.get("model_name")
-        self.device: str | None = kwargs.get("device")
+        # MLIP backends: CUDA when available. TBLite (and other CPU-only backends)
+        # always stay on CPU — see famex.utils.device.resolve_backend_device.
+        self.device: str = resolve_backend_device(self.backend, kwargs.get("device"))
 
         # ASE-style state
         self.atoms: Atoms | None = None

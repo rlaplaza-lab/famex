@@ -9,6 +9,7 @@ from ase import Atoms
 from famex.backends.constants import DEFAULT_MACE_MODEL, DEFAULT_PET_MODEL, DEFAULT_UMA_MODEL
 from famex.backends.registry import create_calculator
 from famex.core.charge_spin import check_missing_charge_spin, extract_charge_spin_from_atoms
+from famex.utils.device import resolve_backend_device
 
 
 class CalculatorManager:
@@ -27,7 +28,7 @@ class CalculatorManager:
         self.backend = backend
         self.model_name = model_name
         self.model_path = model_path
-        self.device = device
+        self.device = resolve_backend_device(backend, device)
         self.default_charge = default_charge
         self.default_spin = default_spin
         self.verbose = verbose

@@ -13,6 +13,12 @@ Features:
     - Two-ended transition state search evaluation using Explorer API
     - Geometry comparison with reference structures
     - Comprehensive backend performance analysis
+
+Valid TS (``ts_success``):
+    A refined structure that is vibrationally characterized as a first-order
+    saddle (exactly one imaginary frequency). Whether the growing-string sides
+    formally met (``strings_met``) is recorded as soft metadata only and does
+    not affect success.
 """
 
 import json
@@ -173,6 +179,7 @@ class Zimmermann93Benchmark:
         fmax: float = 0.01,
         steps: int = 300,
         verbose: bool = False,
+        device: str | None = None,
     ) -> dict:
         results: dict[str, dict] = {}
         total_tests = len(backends) * len(reactions)
@@ -212,6 +219,7 @@ class Zimmermann93Benchmark:
                             backend=backend,
                             target="ts",
                             strategy="growing_string",
+                            device=device,
                             verbose=0,  # Suppress output since we're using suppress_verbose_output()
                         )
                         init_time = time.perf_counter() - init_start
@@ -307,48 +315,67 @@ class Zimmermann93Benchmark:
                         except Exception:
                             rmsd = float("nan")
 
+                        # Valid TS definition (paper / benchmark):
+                        #   vibrationally characterized first-order saddle
+                        #   (exactly one imaginary frequency after refinement).
+                        # ``strings_met`` is path-growth metadata only and never
+                        # affects ts_success / success.
+                        soft_warnings: list[str] = []
                         validation_errors: list[str] = []
                         strings_met_flag = True
                         if isinstance(ts_result, dict):
                             strings_met_flag = bool(ts_result.get("strings_met", True))
                             if not strings_met_flag:
-                                validation_errors.append("growing_string_never_converged")
+                                soft_warnings.append("growing_string_sides_never_met")
 
-                        if not ts_success:
+                        refinement_converged = bool(ts_success)
+                        if not refinement_converged:
                             validation_errors.append("ts_refinement_not_converged")
 
                         freq_info = reaction_data.get("frequency_results", {})
+                        n_imaginary: int | None = None
+                        is_first_order_saddle = False
                         if isinstance(freq_info, dict):
                             if freq_info.get("skipped"):
                                 validation_errors.append("frequency_analysis_skipped")
                             elif freq_info.get("error"):
                                 validation_errors.append("frequency_analysis_failed")
                             else:
-                                is_ts_flag = freq_info.get("is_transition_state")
-                                ts_analysis = freq_info.get("ts_analysis")
-                                if is_ts_flag is False:
-                                    validation_errors.append(
-                                        "frequency_reports_not_transition_state"
-                                    )
-                                imaginary_modes = None
+                                ts_analysis = freq_info.get("ts_analysis") or {}
                                 if isinstance(ts_analysis, dict):
-                                    imaginary_modes = ts_analysis.get("n_imaginary_frequencies")
-                                if imaginary_modes is not None and imaginary_modes != 1:
-                                    validation_errors.append(
-                                        f"unexpected_imaginary_mode_count={imaginary_modes}"
+                                    raw_n = ts_analysis.get("n_imaginary_frequencies")
+                                    if raw_n is not None:
+                                        n_imaginary = int(raw_n)
+                                is_ts_flag = freq_info.get("is_transition_state")
+                                # Prefer explicit imaginary-mode count; fall back to is_ts.
+                                if n_imaginary is not None:
+                                    is_first_order_saddle = n_imaginary == 1
+                                else:
+                                    is_first_order_saddle = is_ts_flag is True
+                                if not is_first_order_saddle:
+                                    detail = (
+                                        f"(n_imaginary={n_imaginary})"
+                                        if n_imaginary is not None
+                                        else "(frequency_reports_not_transition_state)"
                                     )
+                                    validation_errors.append(f"not_first_order_saddle{detail}")
 
-                        validation_success = len(validation_errors) == 0
+                        # Valid TS <=> refinement converged + vibrational first-order saddle.
+                        # strings_met is irrelevant.
+                        is_valid_ts = refinement_converged and is_first_order_saddle
 
                         reaction_data.update(
                             {
                                 "ts_result": ts_result,
-                                "ts_success": ts_success and validation_success,
+                                "ts_success": is_valid_ts,
                                 "ts_rmsd_to_reference": rmsd,
-                                "success": validation_success,
+                                "success": is_valid_ts,
+                                "is_first_order_saddle": is_first_order_saddle,
+                                "n_imaginary_frequencies": n_imaginary,
                                 "validation_errors": validation_errors
                                 if validation_errors
                                 else None,
+                                "soft_warnings": soft_warnings if soft_warnings else None,
                                 "strings_met": strings_met_flag,
                             },
                         )
@@ -662,10 +689,12 @@ def main() -> int:
         return 1
 
     # Print configuration
+    device = interface.get_device_info(args.device)
     config = {
         "NPoints": args.npoints,
         "Force max": args.fmax,
         "Max steps": args.steps,
+        "Device": device,
         "Verbose": args.verbose,
         "Output": args.output_dir,
     }
@@ -678,6 +707,7 @@ def main() -> int:
         fmax=args.fmax,
         steps=args.steps,
         verbose=args.verbose,
+        device=device,
     )
 
     # Analyze performance

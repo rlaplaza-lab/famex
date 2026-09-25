@@ -785,8 +785,10 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         calculate_frequencies : bool, default=False
             Whether to calculate frequencies
         require_ts : bool, optional
-            If True, raise an error unless the method returns a validated first-order
-            saddle (strings meet, refinement converges, and one imaginary mode).
+            If True, raise an error unless the refined structure is vibrationally
+            characterized as a first-order saddle (exactly one imaginary mode).
+            Whether the growing-string sides formally met is recorded in
+            ``strings_met`` but does **not** affect TS validity.
         **kwargs : Any
             Additional parameters:
             - npoints: Maximum number of images (default: 15)
@@ -1064,37 +1066,22 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     save_hessian=False,
                 )
 
+        # Valid TS := vibrationally a first-order saddle (exactly one imaginary
+        # mode). ``strings_met`` is path-growth metadata only and must not gate
+        # TS validity (strings often hit max images before formally meeting).
         validation_error_messages: list[str] = []
         if require_ts:
-            if not strings_met:
-                validation_error_messages.append(
-                    "Growing string did not converge: forward and backward strings never met."
-                )
-            if not ts_converged:
+            if refine_ts and not ts_converged:
                 validation_error_messages.append("Local TS refinement failed to converge.")
             if freq_analysis is None:
                 validation_error_messages.append(
                     "Frequency analysis unavailable for TS validation."
                 )
-            else:
-                ts_info = freq_analysis.get("ts_analysis") or {}
-                imag_modes = (
-                    freq_analysis.get("num_imaginary_modes")
-                    or freq_analysis.get("n_imaginary_modes")
-                    or freq_analysis.get("n_imaginary_frequencies")
-                    or (
-                        ts_info.get("n_imaginary_frequencies")
-                        if isinstance(ts_info, dict)
-                        else None
-                    )
+            elif not self._ts_has_one_imaginary_mode(freq_analysis):
+                validation_error_messages.append(
+                    "Refined structure is not a first-order saddle "
+                    "(vibrational characterization failed: need exactly one imaginary mode)."
                 )
-                is_ts = freq_analysis.get("is_ts")
-                if is_ts is None and isinstance(ts_info, dict):
-                    is_ts = ts_info.get("is_transition_state")
-                if not is_ts or (imag_modes is not None and imag_modes != 1):
-                    validation_error_messages.append(
-                        "Refined structure is not a first-order saddle (frequency analysis failed)."
-                    )
 
         if validation_error_messages:
             raise RuntimeError(

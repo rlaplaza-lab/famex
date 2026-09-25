@@ -8,6 +8,9 @@ from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
 
+# Backends that cannot use GPU (semi-empirical / CPU-only stacks).
+CPU_ONLY_BACKENDS: frozenset[str] = frozenset({"tblite"})
+
 
 def get_optimal_device(device: str | None = None) -> str:
     """Get the optimal device for computation.
@@ -39,6 +42,30 @@ def get_optimal_device(device: str | None = None) -> str:
 
     # Fallback to CPU
     return "cpu"
+
+
+def resolve_backend_device(backend: str | None, device: str | None = None) -> str:
+    """Resolve device for a backend.
+
+    MLIP backends default to CUDA when available. CPU-only backends (e.g. TBLite)
+    always use CPU. An explicit ``device`` is honored for MLIP backends.
+
+    Parameters
+    ----------
+    backend : str, optional
+        Backend name (e.g. ``uma``, ``mace``, ``tblite``).
+    device : str, optional
+        Explicit device request. If None, auto-select for MLIP backends.
+
+    Returns
+    -------
+    str
+        ``"cpu"`` or ``"cuda"``.
+    """
+    backend_key = (backend or "").strip().lower()
+    if backend_key in CPU_ONLY_BACKENDS:
+        return "cpu"
+    return get_optimal_device(device)
 
 
 def print_device_info(device: str) -> None:
