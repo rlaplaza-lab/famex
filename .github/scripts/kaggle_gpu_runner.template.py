@@ -306,24 +306,18 @@ def _install_famex_suite(py: list[str], pip: list[str], *, mlip_extra: str) -> N
 
 
 def _assert_numpy_version(py: list[str]) -> None:
+    """Check installed NumPy against the pyproject pin (PEP 508, incl. patch)."""
     spec = _numpy_requirement()
     run(
         [
             *py,
             "-c",
             (
-                "import re\n"
                 "import numpy as np\n"
+                "from packaging.requirements import Requirement\n"
                 f"spec = {spec!r}\n"
-                "match = re.fullmatch(r'numpy>=(\\d+)\\.(\\d+)(?:,<(\\d+)\\.(\\d+))?', spec)\n"
-                "if match is None:\n"
-                "    raise SystemExit(f'Unsupported numpy spec: {spec!r}')\n"
-                "lo_major, lo_minor, hi_major, hi_minor = match.groups()\n"
-                "lo = (int(lo_major), int(lo_minor))\n"
-                "hi = (int(hi_major), int(hi_minor)) if hi_major else None\n"
-                "parts = [int(part) for part in np.__version__.split('.')[:2]]\n"
-                "version = (parts[0], parts[1])\n"
-                "if version < lo or (hi is not None and version >= hi):\n"
+                "req = Requirement(spec)\n"
+                "if np.__version__ not in req.specifier:\n"
                 "    raise SystemExit(\n"
                 "        f'NumPy {np.__version__} does not satisfy {spec!r}'\n"
                 "    )\n"
