@@ -36,6 +36,16 @@ class _SimpleHarmonicModel:
         return data
 
 
+def _torch_available() -> bool:
+    """Return True if PyTorch can be imported."""
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+@pytest.mark.skipif(not _torch_available(), reason="PyTorch not installed")
 def test_hessian_sign_convention_on_harmonic_potential() -> None:
     """H = d2E/dx2 should equal the identity for E = 0.5 * sum(r2)."""
     import torch
@@ -82,14 +92,16 @@ def test_hessian_sign_convention_on_harmonic_potential() -> None:
 
 
 def _aimnet2_model_available() -> bool:
-    """Check if the AIMNet2 model can be loaded."""
+    """Check if torch and the AIMNet2 model can be loaded."""
+    if not _torch_available():
+        return False
     try:
         from famex.potentials.aimnet2_potential import get_model_path
 
         get_model_path("aimnet2")
-        return True
     except (ImportError, RuntimeError):
         return False
+    return True
 
 
 def _water_equilibrium() -> tuple[np.ndarray, np.ndarray]:
