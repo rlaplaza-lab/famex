@@ -271,27 +271,38 @@ class Zimmermann93Benchmark:
                         }
                         reaction_data["timings"]["avg_time_per_step"] = avg_time_per_step
 
-                        # Frequency analysis to verify TS character
+                        # Frequency analysis to verify TS character.
+                        # Prefer refine-time analysis from the strategy result when
+                        # present. If recomputing, MUST pass atoms=ts_opt_atoms —
+                        # calculate_frequencies() defaults to explorer.atoms_list[0]
+                        # (the reactant), which falsely scores minima.
                         if ts_opt_atoms is not None and ts_success:
                             freq_start = time.perf_counter()
                             try:
-                                with suppress_verbose_output():
-                                    freq_results = explorer.calculate_frequencies(
-                                        delta=0.01,
-                                        method="auto",
-                                        temperature=298.15,
-                                        save_hessian=False,
-                                    )
-                                freq_time = time.perf_counter() - freq_start
+                                refine_fa = None
+                                if isinstance(ts_result, dict):
+                                    refine_fa = ts_result.get("frequency_analysis")
+                                if isinstance(refine_fa, dict) and refine_fa.get("ts_analysis"):
+                                    freq_results = refine_fa
+                                    freq_time = 0.0
+                                else:
+                                    with suppress_verbose_output():
+                                        freq_results = explorer.calculate_frequencies(
+                                            atoms=ts_opt_atoms,
+                                            delta=0.01,
+                                            method="auto",
+                                            temperature=298.15,
+                                            save_hessian=False,
+                                        )
+                                    freq_time = time.perf_counter() - freq_start
                                 reaction_data["timings"]["frequency_analysis"] = freq_time
+                                freqs = freq_results.get("frequencies") or []
                                 reaction_data["frequency_results"] = {
-                                    "n_frequencies": len(freq_results["frequencies"]),
-                                    "frequencies": freq_results["frequencies"][
-                                        :10
-                                    ],  # First 10 frequencies
-                                    "zero_point_energy": freq_results["zero_point_energy"],
-                                    "is_transition_state": freq_results["is_ts"],
-                                    "method_used": freq_results["method_used"],
+                                    "n_frequencies": len(freqs),
+                                    "frequencies": freqs[:10],
+                                    "zero_point_energy": freq_results.get("zero_point_energy"),
+                                    "is_transition_state": freq_results.get("is_ts"),
+                                    "method_used": freq_results.get("method_used", "auto"),
                                     "ts_analysis": freq_results.get("ts_analysis", {}),
                                 }
                             except Exception as e:
