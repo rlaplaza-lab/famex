@@ -225,3 +225,5 @@ coverage.xml
 
 # Internal development directories
 hessian_issues/
+figures/
+manuscript/
