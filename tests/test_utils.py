@@ -771,7 +771,7 @@ def assert_backend_calculator(calculator, backend="mock"):
 def handle_backend_errors(
     skip_on_not_suitable=True,
     skip_on_not_available=True,
-    catch_exceptions=(ValueError, ImportError),
+    catch_exceptions=(ValueError, ImportError, RuntimeError, OSError),
 ):
     """Standardize backend error handling in tests.
 
@@ -782,7 +782,8 @@ def handle_backend_errors(
     Args:
         skip_on_not_suitable: If True, skip test when error message contains "not suitable"
         skip_on_not_available: If True, skip test when error message contains "not available"
-        catch_exceptions: Tuple of exception types to catch (default: ValueError, ImportError)
+        catch_exceptions: Tuple of exception types to catch
+            (default: ValueError, ImportError, RuntimeError, OSError)
 
     Returns
     -------
@@ -806,7 +807,13 @@ def handle_backend_errors(
                 error_msg = str(e).lower()
                 if skip_on_not_suitable and "not suitable" in error_msg:
                     pytest.skip("Backend doesn't support TS optimization")
-                if skip_on_not_available and "not available" in error_msg:
+                if skip_on_not_available and (
+                    "not available" in error_msg
+                    or "missing required dependencies" in error_msg
+                    or "is required for" in error_msg
+                    or "cannot access gated repo" in error_msg
+                    or "401 client error" in error_msg
+                ):
                     pytest.skip("Backend not available")
                 # Re-raise unexpected errors
                 raise

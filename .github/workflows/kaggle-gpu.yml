@@ -149,7 +149,21 @@ jobs:
         with:
           ref: ${{ needs.publish-source.outputs.ref }}
 
+      - name: Check HuggingFace token for uma
+        id: hf
+        if: matrix.suite == 'uma'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "${HF_TOKEN}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping uma suite: secrets.HF_TOKEN is not set (gated facebook/UMA weights)."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Render Kaggle runner script
+        if: matrix.suite != 'uma' || steps.hf.outputs.skip != 'true'
         env:
           GIT_REF: ${{ needs.publish-source.outputs.ref }}
           MLIP_EXTRA: ${{ matrix.mlip_extra }}
@@ -175,11 +189,13 @@ jobs:
           PY
 
       - name: Configure Kaggle credentials
+        if: matrix.suite != 'uma' || steps.hf.outputs.skip != 'true'
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
         run: python .github/scripts/setup_kaggle_auth.py --emit-outputs
 
       - name: Run tests on Kaggle GPU
+        if: matrix.suite != 'uma' || steps.hf.outputs.skip != 'true'
         run: |
           python -m pip install --upgrade kaggle
           # Smoke: 1h kernel cap; full: 3h (still below Kaggle session limits).

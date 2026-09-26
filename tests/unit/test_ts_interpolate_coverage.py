@@ -79,6 +79,7 @@ class TestTSInterpolateEdgeCases:
         )
         StandardTestAssertions.assert_optimization_result(result)
 
+    @handle_backend_errors()
     def test_custom_local_optimizer_name(self, reactant_product_pair, any_real_backend_explorer):
         """Test that custom local_optimizer_name is properly handled."""
         reactant, product = reactant_product_pair
@@ -99,12 +100,21 @@ class TestTSInterpolateEdgeCases:
                     local_optimizer_name=optimizer_name,
                 )
                 StandardTestAssertions.assert_optimization_result(result)
-            except (ValueError, ImportError, NotImplementedError) as e:
+            except (
+                ValueError,
+                ImportError,
+                NotImplementedError,
+                AttributeError,
+                RuntimeError,
+            ) as e:
                 # Some optimizers might not be available or suitable
                 if "not suitable" in str(e).lower():
                     # This is expected for some optimizers
                     continue
                 # Other errors might be acceptable (missing dependency, etc.)
+                if "not available" in str(e).lower() or "required" in str(e).lower():
+                    continue
+                raise
 
     @handle_backend_errors()
     def test_interpolation_kwargs_filtering(self, reactant_product_pair, any_real_backend_explorer):

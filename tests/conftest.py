@@ -169,24 +169,18 @@ def mock_backend():
 
 @pytest.fixture
 def any_real_backend_explorer(request):
-    """Fixture that provides an Explorer with any available real backend (uma or mace).
+    """Fixture that provides an Explorer with any available real ML backend.
 
-    Tries uma first, then mace. Skips test if neither is available.
-    Works with any atoms fixture by accepting atoms as a parameter (single Atoms or list).
-
-    Usage:
-        def test_something(any_real_backend_explorer, water_molecule):
-            explorer = any_real_backend_explorer(water_molecule)
-            # Use explorer...
-
-        def test_with_list(any_real_backend_explorer, reactant_product_pair):
-            reactant, product = reactant_product_pair
-            explorer = any_real_backend_explorer([reactant, product])
-            # Use explorer...
+    Prefers backends that pass ``is_backend_available`` (uma, mace, aimnet2, pet),
+    in that order. Skips the test if none can be constructed. Avoids returning a
+    lazily-initialized UMA explorer when only another backend is installed.
     """
     from famex.backends.availability import is_backend_available
     from famex.core.explorer import Explorer
     from famex.utils.validation import BackendError
+
+    # Preference order for GPU CI suites and local installs.
+    candidates = ("uma", "mace", "aimnet2", "pet")
 
     def _create_explorer(atoms, skip_message="No real backend available"):
         """Create explorer with any available real backend.
@@ -195,19 +189,24 @@ def any_real_backend_explorer(request):
             atoms: Single Atoms object or list of Atoms objects
             skip_message: Message to use when skipping test
         """
-        # Check availability first
-        if not is_backend_available("uma") and not is_backend_available("mace"):
+        available = [name for name in candidates if is_backend_available(name)]
+        if not available:
             pytest.skip(skip_message)
 
-        # Try uma first
-        try:
-            return Explorer(atoms, backend="uma")
-        except (ImportError, BackendError, Exception):
-            # Try mace as fallback
+        last_error: Exception | None = None
+        for backend in available:
             try:
-                return Explorer(atoms, backend="mace")
-            except (ImportError, BackendError, Exception):
-                pytest.skip(skip_message)
+                explorer = Explorer(atoms, backend=backend)
+                # Force calculator construction so lazy UMA/fairchem failures
+                # do not surface mid-test as unexpected ImportErrors.
+                explorer.calculator_manager.create_and_attach_calculator(explorer.atoms_list[0])
+                return explorer
+            except (ImportError, BackendError, RuntimeError, OSError, ValueError) as exc:
+                last_error = exc
+                continue
+
+        detail = f" ({last_error})" if last_error is not None else ""
+        pytest.skip(f"{skip_message}{detail}")
 
     return _create_explorer
 
