@@ -165,7 +165,9 @@ ignore = [
 convention = "numpy"  # Standardize on NumPy-style docstrings
 
 [tool.mypy]
-python_version = "3.10"
+# Match the CI lint runtime (Python 3.12). NumPy >=2.3 stubs use PEP 695 `type`
+# aliases that mypy only accepts when python_version >= 3.12.
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -189,9 +191,6 @@ exclude = [
     "tests/",
     "examples/",
 ]
-
-# Type checking runs on Python 3.12 (see lint job in CI and pre-commit hook).
-# Mypy is configured for python_version = "3.10" syntax but executed with 3.12+ runtime.
 
 # Ignore missing imports for external libraries without stubs
 [[tool.mypy.overrides]]

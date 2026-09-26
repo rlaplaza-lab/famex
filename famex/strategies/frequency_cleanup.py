@@ -191,7 +191,7 @@ def _select_modes_to_follow(
     target: StationaryPointTarget,
 ) -> list[int]:
     """Return column indices of normal modes to displace along for the given target."""
-    imaginary_idx = list(np.where(frequencies < -_IMAGINARY_THRESHOLD_CM)[0])
+    imaginary_idx = [int(i) for i in np.where(frequencies < -_IMAGINARY_THRESHOLD_CM)[0]]
 
     if target == "minima":
         # Every imaginary mode is spurious; displacing along it slides off the saddle.
@@ -199,7 +199,7 @@ def _select_modes_to_follow(
 
     if len(imaginary_idx) >= 2:
         # Keep the most negative mode (reaction coordinate); remove the extras.
-        reaction_global = int(imaginary_idx[int(frequencies[imaginary_idx].argmin())])
+        reaction_global = imaginary_idx[int(frequencies[imaginary_idx].argmin())]
         return [idx for idx in imaginary_idx if idx != reaction_global]
 
     if len(imaginary_idx) == 0:
