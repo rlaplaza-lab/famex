@@ -52,6 +52,7 @@ class FrequencyAnalysis:
         self._is_calculated = False
         self._direct_frequencies: np.ndarray | None = None
         self._keep_indices: np.ndarray | None = None
+        self._hessian_validation_warned = False
 
     def calculate_hessian(self, method: str = "auto") -> np.ndarray:
         if method == "autoselect":
@@ -93,12 +94,25 @@ class FrequencyAnalysis:
             msg = f"Unknown Hessian method: {method}"
             raise ValueError(msg)
 
-        validation_results = validate_hessian(self._hessian, warn_on_issues=True)
-        if not validation_results["is_valid"]:
-            logger.warning(
-                "Hessian validation detected issues. Results may be unreliable. "
-                f"Validation results: {validation_results}"
-            )
+        warn = not self._hessian_validation_warned
+        kwargs: dict[str, Any] = {"warn_on_issues": warn}
+        if len(self.indices) == len(self.atoms) and self._hessian.shape == (
+            3 * len(self.atoms),
+            3 * len(self.atoms),
+        ):
+            kwargs["positions"] = self.atoms.get_positions()
+            kwargs["masses"] = self.atoms.get_masses()
+
+        results = validate_hessian(self._hessian, **kwargs)
+        cond = results["condition_number"]
+        ill_conditioned = isinstance(cond, float) and cond > 1e18
+        if warn and (not results["is_valid"] or ill_conditioned):
+            self._hessian_validation_warned = True
+            if not results["is_valid"]:
+                logger.warning(
+                    "Hessian validation detected issues. Results may be unreliable. "
+                    f"Validation results: {results}"
+                )
 
         return self._hessian
 

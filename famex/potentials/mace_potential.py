@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from famex.backends.constants import DEFAULT_MACE_MODEL
 from famex.backends.dependencies import deps
 from famex.backends.mace_compat import format_mace_e3nn_conflict_message, is_mace_e3nn_error
@@ -199,8 +201,9 @@ class MACEPotential(BasePotential):
                 if self.atoms is not None:
                     n_atoms = len(self.atoms)
                     if hessian.shape == (3 * n_atoms, n_atoms, 3):
-                        return hessian.reshape(3 * n_atoms, 3 * n_atoms)
-            return hessian
+                        hessian = hessian.reshape(3 * n_atoms, 3 * n_atoms)
+            hessian = np.asarray(hessian, dtype=np.float64)
+            return 0.5 * (hessian + hessian.T)
         except (AttributeError, RuntimeError) as e:
             if is_mace_e3nn_error(e):
                 msg = format_mace_e3nn_conflict_message(e, hessian=True)

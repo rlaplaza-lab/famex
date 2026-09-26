@@ -7,6 +7,7 @@ from unittest.mock import patch
 import numpy as np
 
 from famex.analysis.validation import validate_hessian
+from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
 
 
 class TestValidateHessian:
@@ -180,3 +181,43 @@ class TestValidateHessian:
 
             # Should have logged warning about high force noise
             assert mock_logger.warning.called
+
+    def test_projected_condition_number_with_geometry(self):
+        """Projected vibrational block is well-conditioned; raw Cartesian is not."""
+        positions = np.array(
+            [[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]],
+            dtype=np.float64,
+        )
+        masses = np.array([16.0, 1.0, 1.0], dtype=np.float64)
+        hessian = project_hessian(
+            np.eye(9) * 2.0, build_translation_rotation_basis(positions, masses)
+        )
+
+        results_raw = validate_hessian(hessian, warn_on_issues=False)
+        assert results_raw["condition_number"] > 1e10
+
+        with patch("famex.analysis.validation.logger") as mock_logger:
+            results_proj = validate_hessian(
+                hessian, positions=positions, masses=masses, warn_on_issues=True
+            )
+            mock_logger.warning.assert_not_called()
+
+        assert results_proj["condition_number"] < 10.0
+        assert bool(results_proj["is_valid"]) is True
+
+    def test_empty_vibrational_subspace_no_warning(self):
+        """Single atom has only translations; empty vib block must not warn."""
+        positions = np.array([[0.0, 0.0, 0.0]], dtype=np.float64)
+        masses = np.array([1.0], dtype=np.float64)
+
+        with patch("famex.analysis.validation.logger") as mock_logger:
+            results = validate_hessian(
+                np.zeros((3, 3)),
+                positions=positions,
+                masses=masses,
+                warn_on_issues=True,
+            )
+            mock_logger.warning.assert_not_called()
+
+        assert results["condition_number"] == 0.0
+        assert bool(results["is_valid"]) is True
