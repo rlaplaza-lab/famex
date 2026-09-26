@@ -2,6 +2,7 @@ name: Kaggle GPU tests
 
 # GPU CI via Kaggle. CPU CI in ci.yml stays unchanged.
 # Runs aimnet2, mace, pet, and uma suites in separate kernels (avoid e3nn conflicts).
+# Kaggle allows at most 2 concurrent batch GPU sessions — matrix uses max-parallel: 2.
 #
 # mode=smoke (default): pytest -m "not slow" — cheap enough for weekly cron.
 # mode=full: entire tests/ suite (manual only; burns Kaggle GPU quota).
@@ -43,22 +44,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  kaggle-gpu:
-    name: Kaggle GPU (${{ matrix.suite }}, ${{ github.event.inputs.mode || 'smoke' }}, ${{ github.event.inputs.ref || 'main' }})
+  publish-source:
+    name: Publish CI source to Kaggle
     runs-on: ubuntu-latest
-    timeout-minutes: 240
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - suite: aimnet2
-            mlip_extra: aimnet2
-          - suite: mace
-            mlip_extra: mace
-          - suite: pet
-            mlip_extra: pet
-          - suite: uma
-            mlip_extra: uma
+    timeout-minutes: 30
+    outputs:
+      ref: ${{ steps.cfg.outputs.ref }}
+      mode: ${{ steps.cfg.outputs.mode }}
+      marker: ${{ steps.cfg.outputs.marker }}
     steps:
       - name: Resolve mode and ref
         id: cfg
@@ -86,33 +79,7 @@ jobs:
         with:
           ref: ${{ steps.cfg.outputs.ref }}
 
-      - name: Render Kaggle runner script
-        env:
-          GIT_REF: ${{ steps.cfg.outputs.ref }}
-          MLIP_EXTRA: ${{ matrix.mlip_extra }}
-          PYTEST_MARKER: ${{ steps.cfg.outputs.marker }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import os
-          template = Path(".github/scripts/kaggle_gpu_runner.template.py").read_text()
-          hf_token = os.environ.get("HF_TOKEN", "")
-          rendered = (
-              template.replace("__GIT_REF__", os.environ["GIT_REF"])
-              .replace("__PYTEST_MARKER__", os.environ["PYTEST_MARKER"])
-              .replace("__MLIP_EXTRA__", os.environ["MLIP_EXTRA"])
-              .replace("__HF_TOKEN__", hf_token)
-          )
-          out = Path(".github/scripts/kaggle_gpu_runner.py")
-          out.write_text(rendered)
-          print(f"Wrote {out} ({len(rendered)} bytes)")
-          print(f"suite={os.environ['MLIP_EXTRA']} marker={os.environ['PYTEST_MARKER']!r}")
-          print(f"hf_token_set={bool(hf_token)}")
-          PY
-
       - name: Configure Kaggle credentials
-        id: kaggle_creds
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
         run: python .github/scripts/setup_kaggle_auth.py --emit-outputs
@@ -157,11 +124,66 @@ jobs:
           done
           kaggle datasets files rlaplaza/famexcisrc
 
+  kaggle-gpu:
+    name: Kaggle GPU (${{ matrix.suite }}, ${{ needs.publish-source.outputs.mode }}, ${{ needs.publish-source.outputs.ref }})
+    needs: publish-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      # Kaggle: "Maximum batch GPU session count of 2 reached."
+      max-parallel: 2
+      matrix:
+        include:
+          - suite: aimnet2
+            mlip_extra: aimnet2
+          - suite: mace
+            mlip_extra: mace
+          - suite: pet
+            mlip_extra: pet
+          - suite: uma
+            mlip_extra: uma
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish-source.outputs.ref }}
+
+      - name: Render Kaggle runner script
+        env:
+          GIT_REF: ${{ needs.publish-source.outputs.ref }}
+          MLIP_EXTRA: ${{ matrix.mlip_extra }}
+          PYTEST_MARKER: ${{ needs.publish-source.outputs.marker }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          template = Path(".github/scripts/kaggle_gpu_runner.template.py").read_text()
+          hf_token = os.environ.get("HF_TOKEN", "")
+          rendered = (
+              template.replace("__GIT_REF__", os.environ["GIT_REF"])
+              .replace("__PYTEST_MARKER__", os.environ["PYTEST_MARKER"])
+              .replace("__MLIP_EXTRA__", os.environ["MLIP_EXTRA"])
+              .replace("__HF_TOKEN__", hf_token)
+          )
+          out = Path(".github/scripts/kaggle_gpu_runner.py")
+          out.write_text(rendered)
+          print(f"Wrote {out} ({len(rendered)} bytes)")
+          print(f"suite={os.environ['MLIP_EXTRA']} marker={os.environ['PYTEST_MARKER']!r}")
+          print(f"hf_token_set={bool(hf_token)}")
+          PY
+
+      - name: Configure Kaggle credentials
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: python .github/scripts/setup_kaggle_auth.py --emit-outputs
+
       - name: Run tests on Kaggle GPU
         run: |
           python -m pip install --upgrade kaggle
           # Smoke: 1h kernel cap; full: 3h (still below Kaggle session limits).
-          if [ "${{ steps.cfg.outputs.mode }}" = "full" ]; then
+          if [ "${{ needs.publish-source.outputs.mode }}" = "full" ]; then
             TIMEOUT=10800
           else
             TIMEOUT=3600

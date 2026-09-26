@@ -33,6 +33,11 @@ def run_cmd(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProces
     return completed
 
 
+def _is_gpu_session_limit(text: str) -> bool:
+    lowered = text.lower()
+    return "maximum batch gpu session" in lowered or "gpu session count" in lowered
+
+
 def write_kernel_metadata(
     *,
     staging_dir: Path,
@@ -42,6 +47,8 @@ def write_kernel_metadata(
     dataset_sources: list[str],
     timeout_seconds: int,
     machine_shape: str,
+    push_retries: int = 40,
+    push_retry_seconds: int = 90,
 ) -> None:
     run_cmd(["kaggle", "kernels", "init", "-p", str(staging_dir)])
     metadata_path = staging_dir / "kernel-metadata.json"
@@ -64,7 +71,30 @@ def write_kernel_metadata(
     push_cmd = ["kaggle", "kernels", "push", "-p", str(staging_dir)]
     if timeout_seconds > 0:
         push_cmd.extend(["--timeout", str(timeout_seconds)])
-    run_cmd(push_cmd)
+
+    # Kaggle caps concurrent batch GPU sessions at 2. Retry when another
+    # famex/scgo kernel (or a cancelled CI leftover) still holds a slot.
+    last: subprocess.CompletedProcess[str] | None = None
+    for attempt in range(1, push_retries + 1):
+        last = run_cmd(push_cmd, check=False)
+        if last.returncode == 0:
+            return
+        combined = f"{last.stdout or ''}\n{last.stderr or ''}"
+        if _is_gpu_session_limit(combined) and attempt < push_retries:
+            print(
+                f"GPU session limit hit (attempt {attempt}/{push_retries}); "
+                f"retrying in {push_retry_seconds}s",
+                flush=True,
+            )
+            time.sleep(push_retry_seconds)
+            continue
+        raise subprocess.CalledProcessError(
+            last.returncode, push_cmd, output=last.stdout, stderr=last.stderr
+        )
+    assert last is not None
+    raise subprocess.CalledProcessError(
+        last.returncode, push_cmd, output=last.stdout, stderr=last.stderr
+    )
 
 
 def download_kernel_log(slug: str, output_dir: Path) -> Path | None:
