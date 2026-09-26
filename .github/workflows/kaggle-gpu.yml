@@ -131,8 +131,9 @@ jobs:
     timeout-minutes: 240
     strategy:
       fail-fast: false
-      # Kaggle: "Maximum batch GPU session count of 2 reached."
-      max-parallel: 2
+      # Kaggle allows only 2 concurrent batch GPU sessions. Use 1 so a leftover
+      # kernel from a cancelled run (or scgo CI) cannot block the whole matrix.
+      max-parallel: 1
       matrix:
         include:
           - suite: aimnet2

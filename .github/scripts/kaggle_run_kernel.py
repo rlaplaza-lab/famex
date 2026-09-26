@@ -47,8 +47,8 @@ def write_kernel_metadata(
     dataset_sources: list[str],
     timeout_seconds: int,
     machine_shape: str,
-    push_retries: int = 40,
-    push_retry_seconds: int = 90,
+    push_retries: int = 60,
+    push_retry_seconds: int = 120,
 ) -> None:
     run_cmd(["kaggle", "kernels", "init", "-p", str(staging_dir)])
     metadata_path = staging_dir / "kernel-metadata.json"
