@@ -74,13 +74,15 @@ def write_kernel_metadata(
 
     # Kaggle caps concurrent batch GPU sessions at 2. Retry when another
     # famex/scgo kernel (or a cancelled CI leftover) still holds a slot.
+    # Note: newer kaggle CLIs may print the limit error and still exit 0.
     last: subprocess.CompletedProcess[str] | None = None
     for attempt in range(1, push_retries + 1):
         last = run_cmd(push_cmd, check=False)
-        if last.returncode == 0:
-            return
         combined = f"{last.stdout or ''}\n{last.stderr or ''}"
-        if _is_gpu_session_limit(combined) and attempt < push_retries:
+        hit_limit = _is_gpu_session_limit(combined)
+        if last.returncode == 0 and not hit_limit:
+            return
+        if hit_limit and attempt < push_retries:
             print(
                 f"GPU session limit hit (attempt {attempt}/{push_retries}); "
                 f"retrying in {push_retry_seconds}s",
@@ -88,12 +90,14 @@ def write_kernel_metadata(
             )
             time.sleep(push_retry_seconds)
             continue
+        if hit_limit:
+            raise SystemExit(f"Kaggle GPU session limit still hit after {push_retries} attempts")
         raise subprocess.CalledProcessError(
-            last.returncode, push_cmd, output=last.stdout, stderr=last.stderr
+            last.returncode or 1, push_cmd, output=last.stdout, stderr=last.stderr
         )
     assert last is not None
     raise subprocess.CalledProcessError(
-        last.returncode, push_cmd, output=last.stdout, stderr=last.stderr
+        last.returncode or 1, push_cmd, output=last.stdout, stderr=last.stderr
     )
 
 
