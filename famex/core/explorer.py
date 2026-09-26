@@ -47,7 +47,7 @@ class Explorer:
         Path to local model file (required for SO3LR, optional for others).
     device : str, optional
         Device for computations ("cpu" or "cuda"). For MLIP backends, defaults
-        to CUDA when available; TBLite always uses CPU.
+        to CUDA when available. TBLite is CPU-only and raises if CUDA is requested.
     default_charge : int, default 0
         Default total charge used when per-structure metadata is not available.
     default_spin : int, default 1

@@ -14,7 +14,6 @@ from typing import Protocol, cast
 
 import numpy as np
 from ase import Atoms
-from numpy.typing import NDArray
 
 from famex.analysis.utils import validate_indices
 from famex.utils.logging import get_famex_logger
@@ -202,13 +201,12 @@ class EnergyBasedHessianCalculator:
             for j in range(i + 1, n_coords):
                 hessian[j, i] = hessian[i, j]
 
-        # Final symmetrization for numerical stability
-        hessian = cast(NDArray[np.float64], 0.5 * (hessian + hessian.T))
+        symmetrized = 0.5 * (hessian + hessian.T)
 
         if self.verbose >= 2:
             logger.info("Energy-based Hessian calculation completed")
 
-        return cast(NDArray[np.float64], hessian)
+        return symmetrized
 
     def _compute_cross_derivative(self, i: int, j: int) -> float:
         """Compute cross-derivative H_ij using 4-point energy stencil.

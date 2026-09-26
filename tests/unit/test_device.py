@@ -64,10 +64,18 @@ class TestDeviceUtilities:
             device = validate_device(None)
             assert device == "cpu"
 
-    def test_resolve_backend_device_tblite_always_cpu(self):
+    def test_resolve_backend_device_tblite_defaults_cpu(self):
         assert resolve_backend_device("tblite", None) == "cpu"
-        assert resolve_backend_device("tblite", "cuda") == "cpu"
-        assert resolve_backend_device("TBLite", "cuda") == "cpu"
+        assert resolve_backend_device("tblite", "cpu") == "cpu"
+        assert resolve_backend_device("TBLite", "CPU") == "cpu"
+
+    def test_resolve_backend_device_tblite_explicit_cuda_errors(self):
+        with pytest.raises(ValueError, match="does not support CUDA"):
+            resolve_backend_device("tblite", "cuda")
+        with pytest.raises(ValueError, match="does not support CUDA"):
+            resolve_backend_device("TBLite", "CUDA")
+        with pytest.raises(ValueError, match="does not support CUDA"):
+            resolve_backend_device("tblite", "gpu")
 
     @patch("famex.utils.device.get_optimal_device", return_value="cuda")
     def test_resolve_backend_device_mlip_auto_cuda(self, _mock_optimal):

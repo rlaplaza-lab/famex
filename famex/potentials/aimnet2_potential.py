@@ -536,11 +536,6 @@ class AIMNet2Potential(BasePotential):
             if self.model_name is None:
                 self.model_name = "aimnet2"
 
-            if self.device is None:
-                from famex.utils.device import resolve_backend_device
-
-                self.device = resolve_backend_device("aimnet2", None)
-
             model_path = get_model_path(self.model_name)
 
             with quiet_backend_loading(

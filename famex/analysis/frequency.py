@@ -180,12 +180,12 @@ class FrequencyAnalysis:
                             neg_forces[atom_k, coord] - pos_forces[atom_k, coord]
                         ) / (2 * self.delta)
 
-        hessian = cast(NDArray[np.float64], 0.5 * (hessian + hessian.T))
+        symmetrized = 0.5 * (hessian + hessian.T)
 
         if self.verbose >= 2:
             logger.debug("Hessian constructed from batch results")
 
-        return cast(NDArray[np.float64], hessian)
+        return symmetrized
 
     def _calculate_direct_frequencies(self) -> np.ndarray:
         from famex.analysis.utils import get_calculator_property

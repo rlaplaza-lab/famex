@@ -110,7 +110,7 @@ class CalculatorRegistry:
 
         if model_path is not None:
             factory_kwargs["model_path"] = model_path
-        # Always resolve: MLIP → CUDA if available; tblite → CPU.
+        # Always resolve: MLIP → CUDA if available; tblite → CPU (error if CUDA).
         factory_kwargs["device"] = resolve_backend_device(backend, device)
 
         if backend == BACKEND_MOCK:

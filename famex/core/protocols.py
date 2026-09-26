@@ -24,7 +24,7 @@ class ExplorerProtocol(Protocol):
     backend: str
     model_name: str | None
     model_path: str | None
-    device: str | None
+    device: str
     default_charge: int
     default_spin: int
     verbose: int

@@ -63,7 +63,8 @@ class BasePotential:
         # Common configuration passed by derived classes
         self.model_name: str | None = kwargs.get("model_name")
         # MLIP backends: CUDA when available. TBLite (and other CPU-only backends)
-        # always stay on CPU — see famex.utils.device.resolve_backend_device.
+        # stay on CPU and raise if CUDA is requested explicitly.
+        # See famex.utils.device.resolve_backend_device.
         self.device: str = resolve_backend_device(self.backend, kwargs.get("device"))
 
         # ASE-style state

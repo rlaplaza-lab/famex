@@ -44,11 +44,20 @@ def get_optimal_device(device: str | None = None) -> str:
     return "cpu"
 
 
+def _requests_cuda(device: str | None) -> bool:
+    """Return whether ``device`` is an explicit CUDA/GPU request."""
+    if device is None:
+        return False
+    normalized = device.strip().lower()
+    return normalized == "gpu" or normalized.startswith("cuda")
+
+
 def resolve_backend_device(backend: str | None, device: str | None = None) -> str:
     """Resolve device for a backend.
 
     MLIP backends default to CUDA when available. CPU-only backends (e.g. TBLite)
-    always use CPU. An explicit ``device`` is honored for MLIP backends.
+    run on CPU. An explicit CUDA request for a CPU-only backend is an error.
+    An explicit ``device`` is honored for MLIP backends.
 
     Parameters
     ----------
@@ -61,9 +70,20 @@ def resolve_backend_device(backend: str | None, device: str | None = None) -> st
     -------
     str
         ``"cpu"`` or ``"cuda"``.
+
+    Raises
+    ------
+    ValueError
+        If a CPU-only backend is asked to run on CUDA.
     """
     backend_key = (backend or "").strip().lower()
     if backend_key in CPU_ONLY_BACKENDS:
+        if _requests_cuda(device):
+            msg = (
+                f"Backend '{backend_key}' does not support CUDA. "
+                "Use device='cpu' or omit device to run on CPU."
+            )
+            raise ValueError(msg)
         return "cpu"
     return get_optimal_device(device)
 

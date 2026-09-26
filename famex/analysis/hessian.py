@@ -1060,14 +1060,14 @@ class HessianCalculator:
 
         # Symmetrize Hessian: H_sym = (H + H^T) / 2
         HESSIAN_SYMMETRIZATION_FACTOR = 0.5
-        hessian = cast(NDArray[np.float64], HESSIAN_SYMMETRIZATION_FACTOR * (hessian + hessian.T))
+        symmetrized = HESSIAN_SYMMETRIZATION_FACTOR * (hessian + hessian.T)
 
         if self.verbose >= 1:
             elapsed = time.time() - (start_time or 0) if start_time else 0
             logger.info(f"Hessian calculation completed in {elapsed:.2f} seconds")
         elif self.verbose >= 2:
             logger.info("Hessian calculation completed")
-        return cast(NDArray[np.float64], hessian)
+        return symmetrized
 
 
 __all__ = [
