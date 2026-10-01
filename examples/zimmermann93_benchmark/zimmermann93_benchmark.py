@@ -905,9 +905,7 @@ def main() -> int:
 
     if args.merge_only:
         for backend in backends:
-            result_key = (
-                f"{backend}:{args.model_name}" if args.model_name else backend
-            )
+            result_key = f"{backend}:{args.model_name}" if args.model_name else backend
             benchmark.merge_shards_into_canonical(result_key, canonical)
         interface.print_success("Merge complete")
         return 0
