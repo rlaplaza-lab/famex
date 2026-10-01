@@ -189,3 +189,44 @@ class TestPETPotentialParsing:
             checkpoint_path="/path/to/model.ckpt",
             device="cpu",
         )
+
+    def test_pet_model_name_path_sets_model_path(self, tmp_path):
+        from famex.potentials.pet_potential import PETPotential
+
+        ckpt = tmp_path / "pet-omol-s-v1.0.0.ckpt"
+        ckpt.write_text("placeholder")
+        potential = PETPotential(model_name=str(ckpt), device="cpu")
+        assert potential.model_path == str(ckpt)
+
+
+class TestOrbPotentialLoaders:
+    def test_resolve_orb_loader_known_alias(self):
+        from types import SimpleNamespace
+
+        from famex.potentials.orb_potential import _resolve_orb_loader
+
+        sentinel = object()
+        pretrained = SimpleNamespace(orb_v3_conservative_omol=sentinel)
+        loader, name = _resolve_orb_loader(pretrained, "omol")
+        assert loader is sentinel
+        assert name == "omol"
+
+    def test_resolve_orb_loader_orbmol_v2_missing_raises(self):
+        from types import SimpleNamespace
+
+        from famex.potentials.orb_potential import _resolve_orb_loader
+
+        pretrained = SimpleNamespace(orb_v3_conservative_omol=object())
+        with pytest.raises(ImportError, match="orb-models>=0.7.0"):
+            _resolve_orb_loader(pretrained, "orbmol-v2")
+
+    def test_resolve_orb_loader_unknown_falls_back(self):
+        from types import SimpleNamespace
+
+        from famex.potentials.orb_potential import _resolve_orb_loader
+
+        sentinel = object()
+        pretrained = SimpleNamespace(orb_v3_conservative_omol=sentinel)
+        loader, name = _resolve_orb_loader(pretrained, "not-a-real-model")
+        assert loader is sentinel
+        assert name == "orb-v3-conservative-omol"

@@ -36,6 +36,8 @@ dependencies = [
 # ML backends must be installed separately - see README for details
 uma = ["fairchem-core>=2.22.0"]
 pet = ["upet"]
+# orb-models 0.7.0 adds OrbMol-v2 and requires Python 3.12+.
+orb = ["orb-models>=0.7.0"]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
