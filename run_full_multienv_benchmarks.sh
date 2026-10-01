@@ -131,6 +131,8 @@ setup_env() {
 
   if [[ "$backend" == "pet" ]]; then
     pyver="3.11"
+  elif [[ "$backend" == "orb" ]]; then
+    pyver="3.12"
   fi
 
   if [[ "$SKIP_ENV_SETUP" -eq 1 ]]; then
@@ -172,7 +174,7 @@ setup_env() {
       conda run -n "$env_name" pip install so3lr
       ;;
     orb)
-      conda run -n "$env_name" pip install orb-models torch
+      conda run -n "$env_name" pip install "orb-models>=0.7.0"
       ;;
     pet)
       conda run -n "$env_name" pip install upet torch
@@ -232,6 +234,10 @@ for backend in "${BACKENDS[@]}"; do
 
   bh28_log="${LOG_ROOT}/${backend}_bh28.log"
   z93_log="${LOG_ROOT}/${backend}_zimmermann93.log"
+  model_spec="$backend"
+  if [[ "$backend" == "orb" ]]; then
+    model_spec="orb:orbmol-v2"
+  fi
 
   run_one_suite \
     "$env_name" \
@@ -239,7 +245,7 @@ for backend in "${BACKENDS[@]}"; do
     "$backend" \
     "$bh28_log" \
     conda run -n "$env_name" python "$REPO_ROOT/examples/bh28_benchmark/bh28_benchmark.py" \
-      --backends "$backend" \
+      --backends "$model_spec" \
       --output-dir "$bh28_out" \
       --device "$DEVICE"
 
@@ -249,7 +255,7 @@ for backend in "${BACKENDS[@]}"; do
     "$backend" \
     "$z93_log" \
     conda run -n "$env_name" python "$REPO_ROOT/examples/zimmermann93_benchmark/zimmermann93_benchmark.py" \
-      --backends "$backend" \
+      --backends "$model_spec" \
       --output-dir "$z93_out"
 done
 

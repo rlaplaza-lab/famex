@@ -6,6 +6,7 @@ potentials based on the Point Edge Transformer architecture.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from famex.backends.constants import DEFAULT_PET_MODEL
@@ -76,6 +77,10 @@ class PETPotential(BasePotential):
             version = parsed_version
         self.pet_model = parsed_model
         self.pet_version = version
+        # A checkpoint path passed as model_name loads locally and skips the
+        # Hugging Face repository listing that UPET otherwise does on startup.
+        if self.model_path is None and Path(self.pet_model).is_file():
+            self.model_path = self.pet_model
 
         super().__init__(
             backend="pet",

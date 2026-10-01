@@ -100,7 +100,10 @@ class Zimmermann93Benchmark:
     """Benchmark suite for two-ended TS search on Zimmermann-93 dataset."""
 
     def __init__(
-        self, dataset_dir: str | None = None, output_dir: str = "benchmark_results"
+        self,
+        dataset_dir: str | None = None,
+        output_dir: str = "benchmark_results",
+        shard_dir: str | None = None,
     ) -> None:
         # Use dataset in same directory by default
         if dataset_dir is None:
@@ -108,7 +111,10 @@ class Zimmermann93Benchmark:
 
         self.dataset_dir = Path(dataset_dir)
         self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._shard_dir_explicit = shard_dir is not None
+        self.shard_dir = Path(shard_dir) if shard_dir else self.output_dir / "shards"
+        self.shard_dir.mkdir(parents=True, exist_ok=True)
 
         if not self.dataset_dir.exists():
             msg = f"Dataset directory not found: {self.dataset_dir}"
@@ -129,6 +135,129 @@ class Zimmermann93Benchmark:
         self.quicker_reactions = self.reactions[:1]
 
         self.results: dict[str, dict] = {}
+
+    @staticmethod
+    def _to_serializable(obj: object) -> object:
+        """Convert numpy / ASE objects into JSON-safe types."""
+        try:
+            from ase import Atoms as _Atoms
+
+            if isinstance(obj, _Atoms):
+                return {
+                    "formula": obj.get_chemical_formula(),
+                    "positions": obj.get_positions().tolist(),
+                    "symbols": obj.get_chemical_symbols(),
+                }
+        except Exception:
+            pass
+
+        if hasattr(obj, "get_positions") and callable(obj.get_positions):
+            try:
+                pos = obj.get_positions()
+                return {"positions": np.array(pos).tolist()}
+            except Exception:
+                pass
+
+        if isinstance(obj, complex):
+            return {"real": float(obj.real), "imag": float(obj.imag), "_type": "complex"}
+        if isinstance(obj, np.complexfloating):
+            return {"real": float(obj.real), "imag": float(obj.imag), "_type": "complex"}
+        if isinstance(obj, np.ndarray):
+            return [Zimmermann93Benchmark._to_serializable(item) for item in obj.tolist()]
+        if isinstance(obj, np.integer | np.floating):
+            return float(obj)
+        try:
+            if isinstance(obj, np.bool_):
+                return bool(obj)
+        except Exception:
+            pass
+        if obj is None:
+            return None
+        if isinstance(obj, dict):
+            return {k: Zimmermann93Benchmark._to_serializable(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [Zimmermann93Benchmark._to_serializable(i) for i in obj]
+        if isinstance(obj, tuple):
+            return [Zimmermann93Benchmark._to_serializable(i) for i in obj]
+        return obj
+
+    def _result_key(self, backend: str, model_name: str | None) -> str:
+        if model_name:
+            return f"{backend}:{model_name}"
+        return backend
+
+    def _shard_path(self, result_key: str, reaction: str) -> Path:
+        """Path for one reaction shard.
+
+        When ``shard_dir`` was set explicitly (parallel runner already isolates
+        by backend), write flat ``{reaction}.json``. Otherwise nest under a
+        sanitized result_key subdirectory.
+        """
+        if getattr(self, "_shard_dir_explicit", False):
+            self.shard_dir.mkdir(parents=True, exist_ok=True)
+            return self.shard_dir / f"{reaction}.json"
+        safe_key = result_key.replace(":", "_")
+        backend_dir = self.shard_dir / safe_key
+        backend_dir.mkdir(parents=True, exist_ok=True)
+        return backend_dir / f"{reaction}.json"
+
+    def _iter_shard_files(self, result_key: str):
+        """Yield shard JSON paths for a result key (flat or nested layouts)."""
+        safe_key = result_key.replace(":", "_")
+        candidates = [
+            self.shard_dir,
+            self.shard_dir / safe_key,
+            self.shard_dir / result_key.split(":")[0],
+        ]
+        seen: set[Path] = set()
+        for directory in candidates:
+            if not directory.is_dir():
+                continue
+            for shard in sorted(directory.glob("reaction_*.json")):
+                if shard in seen:
+                    continue
+                seen.add(shard)
+                yield shard
+
+    def load_existing_results(
+        self,
+        result_key: str,
+        canonical_path: Path | None = None,
+    ) -> dict[str, dict]:
+        """Load completed reactions from canonical JSON and/or shards."""
+        existing: dict[str, dict] = {}
+        if canonical_path is not None and canonical_path.exists():
+            try:
+                with open(canonical_path) as f:
+                    data = json.load(f)
+                if result_key in data and isinstance(data[result_key], dict):
+                    existing.update(data[result_key])
+                elif result_key.split(":")[0] in data and ":" not in result_key:
+                    existing.update(data[result_key.split(":")[0]])
+            except (json.JSONDecodeError, OSError) as exc:
+                print(f"  Warning: could not load {canonical_path}: {exc}", flush=True)
+
+        for shard in self._iter_shard_files(result_key):
+            try:
+                with open(shard) as f:
+                    payload = json.load(f)
+                reaction = payload.get("reaction") or shard.stem
+                existing[reaction] = payload.get("result", payload)
+            except (json.JSONDecodeError, OSError):
+                continue
+        return existing
+
+    def save_shard(self, result_key: str, reaction: str, reaction_data: dict) -> Path:
+        """Write one reaction result to a shard file for crash-safe resume."""
+        path = self._shard_path(result_key, reaction)
+        payload = {
+            "reaction": reaction,
+            "result_key": result_key,
+            "result": self._to_serializable(reaction_data),
+        }
+        with open(path, "w") as f:
+            json.dump(payload, f, indent=2)
+        return path
 
     def load_structure(self, filename: str) -> Atoms:
         filepath = self.dataset_dir / filename
@@ -180,28 +309,90 @@ class Zimmermann93Benchmark:
         steps: int = 300,
         verbose: bool = False,
         device: str | None = None,
+        model_name: str | None = None,
+        skip_existing: bool = True,
+        canonical_results: Path | None = None,
+        backend_models: dict[str, str | None] | None = None,
     ) -> dict:
         results: dict[str, dict] = {}
         total_tests = len(backends) * len(reactions)
         current_test = 0
 
         for backend in backends:
-            backend_results: dict[str, dict] = {}
+            per_backend_model = None
+            if backend_models and backend in backend_models:
+                per_backend_model = backend_models[backend]
+            elif model_name:
+                per_backend_model = model_name
+            # Support backend:model shorthand in the backends list
+            if ":" in backend and per_backend_model is None:
+                backend, per_backend_model = backend.split(":", 1)
+
+            result_key = self._result_key(backend, per_backend_model)
+            existing = {}
+            if skip_existing:
+                existing = self.load_existing_results(result_key, canonical_results)
+                # Also try plain backend key for legacy files
+                if not existing and result_key != backend:
+                    existing = self.load_existing_results(backend, canonical_results)
+                if not existing and canonical_results is None:
+                    default_canon = self.output_dir / "zimmermann93_benchmark_results.json"
+                    existing = self.load_existing_results(result_key, default_canon)
+                    if not existing:
+                        existing = self.load_existing_results(backend, default_canon)
+
+            backend_results: dict[str, dict] = dict(existing)
             print(f"\n{'=' * 80}", flush=True)
-            print(f"Testing backend: {backend}", flush=True)
+            print(f"Testing backend: {result_key}", flush=True)
+            if existing:
+                print(f"  Resuming with {len(existing)} completed reactions", flush=True)
             print(f"{'=' * 80}", flush=True)
 
             try:
                 for reaction in reactions:
                     current_test += 1
+                    # Re-check shards each iteration so parallel workers can skip
+                    # work finished by a peer after this process started.
+                    if skip_existing:
+                        if reaction in backend_results:
+                            print(
+                                f"\n[{current_test}/{total_tests}] Skipping "
+                                f"{result_key}/{reaction} (already done)",
+                                flush=True,
+                            )
+                            continue
+                        shard_path = self._shard_path(result_key, reaction)
+                        # Also check nested layout from early runs
+                        nested = self.shard_dir / result_key.replace(":", "_") / f"{reaction}.json"
+                        for candidate in (shard_path, nested):
+                            if candidate.exists():
+                                try:
+                                    with open(candidate) as f:
+                                        payload = json.load(f)
+                                    backend_results[reaction] = payload.get("result", payload)
+                                    print(
+                                        f"\n[{current_test}/{total_tests}] Skipping "
+                                        f"{result_key}/{reaction} (shard on disk)",
+                                        flush=True,
+                                    )
+                                    break
+                                except (json.JSONDecodeError, OSError):
+                                    continue
+                        else:
+                            pass
+                        if reaction in backend_results:
+                            continue
+
                     print(
-                        f"\n[{current_test}/{total_tests}] Testing {backend}/{reaction}...",
+                        f"\n[{current_test}/{total_tests}] Testing {result_key}/{reaction}...",
                         flush=True,
                     )
                     reaction_data: dict = {
                         "timings": {},
                         "optimization_results": {},
                         "frequency_results": {},
+                        "model_name": per_backend_model,
+                        "backend": backend,
                     }
 
                     try:
@@ -214,14 +405,17 @@ class Zimmermann93Benchmark:
                         # Initialize Explorer with both reactant and product
                         # for growing string method TS optimization
                         init_start = time.perf_counter()
-                        explorer = Explorer(
-                            atoms=[reactant, product],
-                            backend=backend,
-                            target="ts",
-                            strategy="growing_string",
-                            device=device,
-                            verbose=0,  # Suppress output since we're using suppress_verbose_output()
-                        )
+                        explorer_kwargs: dict = {
+                            "atoms": [reactant, product],
+                            "backend": backend,
+                            "target": "ts",
+                            "strategy": "growing_string",
+                            "device": device,
+                            "verbose": 0,
+                        }
+                        if per_backend_model:
+                            explorer_kwargs["model_name"] = per_backend_model
+                        explorer = Explorer(**explorer_kwargs)
                         init_time = time.perf_counter() - init_start
                         reaction_data["timings"]["initialization"] = init_time
 
@@ -390,7 +584,7 @@ class Zimmermann93Benchmark:
                                 "strings_met": strings_met_flag,
                             },
                         )
-                        print(f"  ✓ Completed {backend}/{reaction}", flush=True)
+                        print(f"  ✓ Completed {result_key}/{reaction}", flush=True)
 
                         # Calculate total time
                         total_time = sum(
@@ -415,15 +609,18 @@ class Zimmermann93Benchmark:
                             "timings": {},
                             "optimization_results": {},
                             "frequency_results": {},
+                            "model_name": per_backend_model,
+                            "backend": backend,
                         }
-                        print(f"  ✗ Failed {backend}/{reaction}: {e}", flush=True)
+                        print(f"  ✗ Failed {result_key}/{reaction}: {e}", flush=True)
 
                     backend_results[reaction] = reaction_data
+                    self.save_shard(result_key, reaction, reaction_data)
 
             except Exception as e:
                 backend_results = {"_backend_error": {"error": str(e)}}
 
-            results[backend] = backend_results
+            results[result_key] = backend_results
 
         self.results = results
         return results
@@ -545,68 +742,44 @@ class Zimmermann93Benchmark:
 
     def save_results(self, filename: str = "zimmermann93_benchmark_results.json") -> None:
         out = self.output_dir / filename
-
-        # Convert numpy and other non-serializable objects
-        def convert(obj):
-            # Handle ASE Atoms-like objects
-            try:
-                from ase import Atoms as _Atoms
-
-                if isinstance(obj, _Atoms):
-                    return {
-                        "formula": obj.get_chemical_formula(),
-                        "positions": obj.get_positions().tolist(),
-                        "symbols": obj.get_chemical_symbols(),
-                    }
-            except Exception:
-                pass
-
-            # Handle generic geometry-like objects that expose get_positions
-            if hasattr(obj, "get_positions") and callable(obj.get_positions):
-                try:
-                    pos = obj.get_positions()
-                    return {
-                        "positions": np.array(pos).tolist(),
-                    }
-                except Exception:
-                    pass
-
-            # Handle complex numbers first (before numpy arrays)
-            if isinstance(obj, complex):
-                return {"real": float(obj.real), "imag": float(obj.imag), "_type": "complex"}
-            if isinstance(obj, np.complexfloating):
-                return {"real": float(obj.real), "imag": float(obj.imag), "_type": "complex"}
-            # Handle numpy arrays and scalars
-            if isinstance(obj, np.ndarray):
-                # Convert to list and recursively handle complex numbers
-                return [convert(item) for item in obj.tolist()]
-            if isinstance(obj, np.integer | np.floating):
-                return float(obj)
-
-            # Handle numpy boolean scalars
-            try:
-                if isinstance(obj, np.bool_):
-                    return bool(obj)
-            except Exception:
-                pass
-
-            # Handle None values in timing data
-            if obj is None:
-                return None
-
-            # Recursively convert nested structures
-            if isinstance(obj, dict):
-                return {k: convert(v) for k, v in obj.items()}
-            if isinstance(obj, list):
-                return [convert(i) for i in obj]
-            if isinstance(obj, tuple):
-                return [convert(i) for i in obj]
-
-            return obj
-
-        serializable = convert(self.results)
+        serializable = self._to_serializable(self.results)
         with open(out, "w") as f:
             json.dump(serializable, f, indent=2)
+        print(f"Results saved to {out}", flush=True)
+
+    def merge_shards_into_canonical(
+        self,
+        result_key: str,
+        canonical_path: Path | None = None,
+    ) -> Path:
+        """Merge shards + existing canonical JSON into one results file.
+
+        Figure loaders expect a bare backend key (``uma``, ``mace``, ``aimnet2``).
+        Default-model runs therefore write under that bare name. Model-suffixed
+        keys (``uma:uma-s-1p1``) are stored under the full key.
+        """
+        out = canonical_path or (self.output_dir / "zimmermann93_benchmark_results.json")
+        merged: dict[str, dict] = {}
+        if out.exists():
+            try:
+                with open(out) as f:
+                    merged = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                merged = {}
+
+        existing = self.load_existing_results(result_key, out)
+        write_key = result_key
+        prev = merged.get(write_key, {})
+        if isinstance(prev, dict):
+            prev.update(existing)
+            merged[write_key] = prev
+        else:
+            merged[write_key] = existing
+
+        with open(out, "w") as f:
+            json.dump(self._to_serializable(merged), f, indent=2)
+        print(f"Merged {len(existing)} reactions into {out} [{write_key}]", flush=True)
+        return out
 
 
 @setup_example_environment
@@ -643,6 +816,43 @@ def main() -> int:
         help="Output directory for results (default: benchmark_results)",
     )
     parser.add_argument(
+        "--shard-dir",
+        default=None,
+        help="Directory for per-reaction shard JSON files (default: <output-dir>/shards)",
+    )
+    parser.add_argument(
+        "--canonical-results",
+        default=None,
+        help="Existing canonical results JSON to merge/skip against",
+    )
+    parser.add_argument(
+        "--model-name",
+        default=None,
+        help="Optional model name passed to Explorer (e.g. uma-s-1p1, mace-off23)",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        default=True,
+        help="Skip reactions already present in canonical results or shards (default)",
+    )
+    parser.add_argument(
+        "--no-skip-existing",
+        dest="skip_existing",
+        action="store_false",
+        help="Re-run all requested reactions even if results already exist",
+    )
+    parser.add_argument(
+        "--merge-only",
+        action="store_true",
+        help="Only merge shards into the canonical results file, then exit",
+    )
+    parser.add_argument(
+        "--shards-only",
+        action="store_true",
+        help="Write per-reaction shards only; do not overwrite the canonical JSON",
+    )
+    parser.add_argument(
         "--npoints",
         type=int,
         default=11,
@@ -667,7 +877,11 @@ def main() -> int:
     interface.setup_logging(args.verbose)
 
     # Initialize benchmark
-    benchmark = Zimmermann93Benchmark(dataset_dir=None, output_dir=args.output_dir)
+    benchmark = Zimmermann93Benchmark(
+        dataset_dir=None,
+        output_dir=args.output_dir,
+        shard_dir=args.shard_dir,
+    )
 
     interface.print_header("Two-Ended Transition State Search")
 
@@ -682,6 +896,21 @@ def main() -> int:
         return 1
 
     interface.print_backend_summary(backends, "Benchmarking Backends")
+
+    canonical = (
+        Path(args.canonical_results)
+        if args.canonical_results
+        else Path(args.output_dir) / "zimmermann93_benchmark_results.json"
+    )
+
+    if args.merge_only:
+        for backend in backends:
+            result_key = (
+                f"{backend}:{args.model_name}" if args.model_name else backend
+            )
+            benchmark.merge_shards_into_canonical(result_key, canonical)
+        interface.print_success("Merge complete")
+        return 0
 
     if args.quicker:
         reactions = benchmark.quicker_reactions
@@ -706,8 +935,13 @@ def main() -> int:
         "Force max": args.fmax,
         "Max steps": args.steps,
         "Device": device,
+        "Model": args.model_name or "backend default",
+        "Skip existing": args.skip_existing,
         "Verbose": args.verbose,
         "Output": args.output_dir,
+        "Shards": str(benchmark.shard_dir),
+        "Canonical": str(canonical),
+        "Reactions": len(reactions),
     }
     interface.print_configuration(config)
 
@@ -719,13 +953,22 @@ def main() -> int:
         steps=args.steps,
         verbose=args.verbose,
         device=device,
+        model_name=args.model_name,
+        skip_existing=args.skip_existing,
+        canonical_results=canonical,
     )
 
     # Analyze performance
-    benchmark.analyze_performance(backends)
+    result_keys = list(benchmark.results.keys())
+    benchmark.analyze_performance(result_keys)
 
-    # Save results
-    benchmark.save_results()
+    if args.shards_only:
+        print("Shards-only mode: skipping canonical overwrite (use --merge-only later)")
+    else:
+        # Save this run's results and merge shards into the canonical file
+        benchmark.save_results()
+        for key in result_keys:
+            benchmark.merge_shards_into_canonical(key, canonical)
 
     interface.print_success()
     return 0

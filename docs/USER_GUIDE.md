@@ -331,7 +331,10 @@ When `--model-name` / `model_name` is omitted:
 | `aimnet2` | `aimnet2` |
 | `mace` | `mace-omol-0` |
 | `pet` | `pet-mad-s` |
+| `orb` | `orb-v3-conservative-omol` |
 | `mock` | `mock-model` |
+
+OrbMol-v2 is selected with `--model-name orbmol-v2`. That checkpoint ships in `orb-models>=0.7.0`, which requires Python 3.12.
 
 For **TBLite**, pass the xTB method via `--model-name` (e.g. `--model-name GFN2-xTB`); the registry maps this to the calculator `method` parameter.
 
@@ -344,7 +347,7 @@ Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin`
 | `aimnet2` | `pip install torch` | Beginners, molecules | No conflicts, fast; analytical Hessian via autograd |
 | `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install famex[uma]` | Materials science (default: uma-s-1p2) | Conflicts with MACE; analytical Hessian |
 | `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA; analytical Hessian |
-| `orb` | `pip install orb-models` | Universal coverage | Molecules and materials |
+| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | Molecules (`orbmol-v2`) and materials | Python 3.12+ |
 | `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations |
 | `so3lr` | `pip install so3lr` | Research | Custom models |
 | `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential | Python 3.11+ |

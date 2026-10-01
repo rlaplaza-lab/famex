@@ -93,7 +93,7 @@ class BackendAvailabilityChecker:
             BACKEND_UMA: ["fairchem-core", "torch"],
             BACKEND_SO3LR: ["so3lr"],
             BACKEND_MACE: ["mace-torch", "torch"],
-            "orb": ["orb-models", "torch"],
+            "orb": ["orb-models>=0.7.0", "torch"],
             "tblite": ["tblite"],
             BACKEND_PET: ["upet", "torch"],
         }
@@ -261,7 +261,7 @@ def get_backend_error_message(backend: str) -> str:
         BACKEND_MACE: "pip install mace-torch",
         BACKEND_SO3LR: "pip install so3lr",
         BACKEND_PET: "pip install upet",
-        "orb": "pip install orb-models",
+        "orb": 'pip install "orb-models>=0.7.0"',
         "tblite": "pip install tblite",
     }
 

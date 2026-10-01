@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import all_changes
 
@@ -18,6 +19,45 @@ from famex.potentials.base_potential import BasePotential
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
+
+_ORB_INSTALL = 'pip install "orb-models>=0.7.0"'
+
+# Public model names mapped onto pretrained loaders. orb-models>=0.7.0
+# loaders return (model, atoms_adapter); older releases return the model.
+_ORB_LOADERS = {
+    "orb-v3-conservative-omol": "orb_v3_conservative_omol",
+    "orb-v3-conservative-inf-omat": "orb_v3_conservative_inf_omat",
+    "orb-v2": "orb_v2",
+    "orb-v3-omol": "orb_v3_conservative_omol",
+    "orb-v3-omat": "orb_v3_conservative_inf_omat",
+    "omol": "orb_v3_conservative_omol",
+    "omat": "orb_v3_conservative_inf_omat",
+    "orbmol-v2": "orbmol_v2",
+    "orbmol_v2": "orbmol_v2",
+}
+
+
+def _import_orb_calculator() -> Any:
+    try:
+        from orb_models.forcefield.inference.calculator import ORBCalculator
+    except ImportError:
+        from orb_models.forcefield.calculator import ORBCalculator
+    return ORBCalculator
+
+
+def _resolve_orb_loader(pretrained: Any, model_name: str) -> tuple[Any, str]:
+    """Return the pretrained loader and the canonical model name."""
+    if model_name not in _ORB_LOADERS:
+        return pretrained.orb_v3_conservative_omol, "orb-v3-conservative-omol"
+    attr = _ORB_LOADERS[model_name]
+    loader = getattr(pretrained, attr, None)
+    if loader is None:
+        msg = (
+            f"Orb model '{model_name}' requires orb-models>=0.7.0 on Python 3.12+. "
+            f"Install with: {_ORB_INSTALL}"
+        )
+        raise ImportError(msg)
+    return loader, model_name
 
 
 class OrbPotential(BasePotential):
@@ -31,6 +71,7 @@ class OrbPotential(BasePotential):
     ----------
     model_name : str, default "orb-v3-conservative-omol"
         Name of Orb model to use. Available models:
+        - "orbmol-v2": OrbMol-v2 with learnable electrostatics (orb-models>=0.7.0)
         - "orb-v3-conservative-omol": Conservative molecular model (default)
         - "orb-v3-conservative-inf-omat": Inference materials model
         - "orb-v2": Orb v2 model
@@ -55,7 +96,7 @@ class OrbPotential(BasePotential):
     ) -> None:
         """Initialize Orb potential calculator."""
         if not deps.has("orb_models"):
-            msg = "orb-models is required for Orb potentials. Install with: pip install orb-models"
+            msg = f"orb-models is required for Orb potentials. Install with: {_ORB_INSTALL}"
             raise ImportError(msg)
 
         if not deps.has("torch"):
@@ -75,7 +116,7 @@ class OrbPotential(BasePotential):
             backend="orb",
             model_name=model_name,
             device=device,
-            implemented_properties=["energy", "forces"],
+            implemented_properties=["energy", "forces", "hessian"],
             **kwargs,
         )
 
@@ -85,26 +126,11 @@ class OrbPotential(BasePotential):
 
         try:
             from orb_models.forcefield import pretrained
-            from orb_models.forcefield.calculator import ORBCalculator
 
+            orb_calculator = _import_orb_calculator()
             if self.model_name is None:
                 self.model_name = "orb-v3-conservative-omol"
-
-            model_registry = {
-                "orb-v3-conservative-omol": pretrained.orb_v3_conservative_omol,
-                "orb-v3-conservative-inf-omat": pretrained.orb_v3_conservative_inf_omat,
-                "orb-v2": pretrained.orb_v2,
-                "orb-v3-omol": pretrained.orb_v3_conservative_omol,
-                "orb-v3-omat": pretrained.orb_v3_conservative_inf_omat,
-                "omol": pretrained.orb_v3_conservative_omol,
-                "omat": pretrained.orb_v3_conservative_inf_omat,
-            }
-
-            if self.model_name in model_registry:
-                model_loader = model_registry[self.model_name]
-            else:
-                model_loader = pretrained.orb_v3_conservative_omol
-                self.model_name = "orb-v3-conservative-omol"
+            model_loader, self.model_name = _resolve_orb_loader(pretrained, self.model_name)
 
             with quiet_backend_loading(
                 "orb",
@@ -113,8 +139,21 @@ class OrbPotential(BasePotential):
                 self.device,
                 show_model_info=False,
             ):
-                orbff = model_loader(device=self.device)
-                self._calc = ORBCalculator(orbff, device=self.device)
+                try:
+                    # Eager mode keeps the force graph differentiable. torch.compile
+                    # on this model rejects the second backward used for the Hessian.
+                    loaded = model_loader(device=self.device, compile=False)
+                except TypeError:
+                    loaded = model_loader(device=self.device)
+                atoms_adapter = None
+                if isinstance(loaded, tuple):
+                    orbff, atoms_adapter = loaded[0], loaded[1]
+                else:
+                    orbff = loaded
+                calc_kwargs: dict[str, Any] = {"device": self.device}
+                if atoms_adapter is not None:
+                    calc_kwargs["atoms_adapter"] = atoms_adapter
+                self._calc = orb_calculator(orbff, **calc_kwargs)
 
                 import torch
 
@@ -174,3 +213,78 @@ class OrbPotential(BasePotential):
             self.atoms = atoms
         self._apply_charge_spin()
         return super().get_forces(atoms)
+
+    def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
+        """Analytical Hessian (3N x 3N, eV/Å²) for conservative Orb models.
+
+        Forces are minus the energy gradient, so the Hessian is minus the
+        Jacobian of those forces. Direct (non-conservative) Orb models have no
+        energy graph and fall back to finite differences.
+        """
+        import torch
+
+        if atoms is not None:
+            self.atoms = atoms
+        if self.atoms is None:
+            msg = "No atoms provided for Hessian calculation"
+            raise ValueError(msg)
+
+        self._apply_charge_spin()
+        calc = self._require_calc()
+        if not getattr(calc, "conservative", False):
+            from famex.analysis.hessian import HessianCalculator
+
+            hessian_calc = HessianCalculator(self.atoms, self, verbose=0)
+            return hessian_calc.calculate_numerical_hessian()
+
+        import orb_models.forcefield.models.conservative_regressor as orb_regressor
+
+        batch = calc.adapter.from_ase_atoms(
+            atoms=self.atoms,
+            max_num_neighbors=calc.max_num_neighbors,
+            edge_method=calc.edge_method,
+            half_supercell=calc.half_supercell,
+            device=calc.device,
+        )
+        original = orb_regressor.compute_gradient_forces_and_stress
+
+        def _keep_force_graph(*args: Any, **kwargs: Any) -> Any:
+            kwargs["training"] = True
+            return original(*args, **kwargs)
+
+        orb_regressor.compute_gradient_forces_and_stress = _keep_force_graph
+        was_training = calc.model.training
+        calc.model.eval()
+        try:
+            prediction = calc.model(batch)
+            forces = prediction[calc.model.grad_forces_name]
+            positions = batch.node_features["positions"]
+            rows = [
+                (-torch.autograd.grad(component, positions, retain_graph=True)[0]).reshape(-1)
+                for component in forces.reshape(-1)
+            ]
+            hessian = torch.stack(rows)
+        finally:
+            orb_regressor.compute_gradient_forces_and_stress = original
+            calc.model.train(was_training)
+
+        hessian_np = np.asarray(hessian.detach().cpu().numpy(), dtype=np.float64)
+        hessian_np = 0.5 * (hessian_np + hessian_np.T)
+        self.results["hessian"] = hessian_np
+        return hessian_np
+
+    def get_property(
+        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
+        """Get energy, forces, or the analytical Hessian."""
+        del allow_calculation
+        if atoms is not None:
+            self.atoms = atoms
+        if prop == "energy":
+            return self.get_potential_energy(atoms)
+        if prop == "forces":
+            return self.get_forces(atoms)
+        if prop == "hessian":
+            return self.get_hessian(atoms)
+        msg = f"Property '{prop}' not supported by OrbPotential"
+        raise KeyError(msg)

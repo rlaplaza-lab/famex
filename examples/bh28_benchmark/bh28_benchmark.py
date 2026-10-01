@@ -110,7 +110,8 @@ class BH28Benchmark:
             msg = f"BH28 dataset directory not found: {self.dataset_dir}. Tried: {dataset_dir}"
             raise FileNotFoundError(msg)
 
-        # Load reference barrier heights from JSON
+        # Karton, J. Phys. Chem. A 2019, 123, 6720, Table S1.
+        # Relativistic all-electron CCSDT(Q)/CBS barriers, stored in eV.
         ref_file = self.dataset_dir / "reference_barrier_heights.json"
         with open(ref_file) as f:
             self.reference_barriers = json.load(f)
