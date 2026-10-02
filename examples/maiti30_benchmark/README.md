@@ -31,8 +31,9 @@ Explorer call.
 # Single backend, full set
 conda run -n famex-uma python maiti30_benchmark.py --backends uma --device cuda
 
-# All four OMol backends (sequential on one GPU)
-python ../../run_maiti30_parallel.py
+# Parallel across OMol backends (from this directory or repo root)
+python run_maiti30_parallel.py
+# python examples/maiti30_benchmark/run_maiti30_parallel.py
 ```
 
 AIMNet2 is not included: its ωB97M checkpoint has no transition metals.

@@ -27,6 +27,8 @@ These scripts compare performance and accuracy across different backends and opt
 | `hessian_benchmark.py` | Hessian method comparison (FD schemes and backend methods; `--mode fd`, `backend`, or `both`) |
 | `bh28_benchmark/` | Chemical accuracy evaluation (28 reactions) |
 | `zimmermann93_benchmark/` | Two-ended TS search benchmark; long-running — use `--quick` for testing |
+| `maiti30_benchmark/` | Metal-catalyzed growing-string TS search (30 reactions) |
+| `paper/` | Manuscript table/figure finalize helpers (local figures + manuscript) |
 
 ## Usage
 

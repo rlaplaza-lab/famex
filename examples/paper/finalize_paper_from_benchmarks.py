@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-REPO = Path(__file__).resolve().parent
+REPO = Path(__file__).resolve().parents[2]
 BENCHMARK = REPO / "benchmark_runs"
 MANUSCRIPT = REPO / "manuscript" / "famex_paper.tex"
 FIGURES = REPO / "figures"
@@ -31,9 +31,7 @@ def bh28_row(backend: str) -> dict:
     data = json.loads((BENCHMARK / backend / "bh28_benchmark_results.json").read_text())
     rr = data[backend]
     n = len(rr)
-    ts_conv = sum(
-        1 for v in rr.values() if v.get("optimization_results", {}).get("ts_converged")
-    )
+    ts_conv = sum(1 for v in rr.values() if v.get("optimization_results", {}).get("ts_converged"))
     errs = [
         v["optimization_results"]["absolute_error"] * EV_TO_KCAL
         for v in rr.values()
@@ -112,9 +110,7 @@ def mace_off_row() -> dict | None:
     key = next(iter(data))
     rr = data[key]
     n = len(rr)
-    ts_conv = sum(
-        1 for v in rr.values() if v.get("optimization_results", {}).get("ts_converged")
-    )
+    ts_conv = sum(1 for v in rr.values() if v.get("optimization_results", {}).get("ts_converged"))
     errs = [
         v["optimization_results"]["absolute_error"] * EV_TO_KCAL
         for v in rr.values()
@@ -146,9 +142,13 @@ _TS_OPTIMIZERS = (
 def ts_optimizer_table_body() -> str:
     """Build LaTeX rows for the analytical-Hessian TS optimizer table."""
     mapping = {"aimnet2": "aimnet2", "uma": "bh28_uma_s1p2", "mace": "mace"}
-    reactions = set(json.loads(
-        (REPO / "examples/bh28_benchmark/bh28_dataset/reference_barrier_heights.json").read_text()
-    ))
+    reactions = set(
+        json.loads(
+            (
+                REPO / "examples/bh28_benchmark/bh28_dataset/reference_barrier_heights.json"
+            ).read_text()
+        )
+    )
     lines = []
     for b in BACKENDS:
         path = BENCHMARK / mapping[b] / "ts_benchmark_suite_full_bh28.json"
@@ -158,8 +158,7 @@ def ts_optimizer_table_body() -> str:
         local = suite.get("local") or suite.get("local_bh28", [])
         for key, label in _TS_OPTIMIZERS:
             rows = [
-                r for r in local
-                if r.get("optimizer") == key and r.get("reaction") in reactions
+                r for r in local if r.get("optimizer") == key and r.get("reaction") in reactions
             ]
             conv = []
             for r in rows:
@@ -240,8 +239,7 @@ def patch_manuscript(bh28, z93, timing, mace_off, uma_1p1_mae, uma_1p1_rmse) -> 
     if r"\graphicspath" not in tex:
         tex = tex.replace(
             r"\usepackage{graphicx}",
-            "\\usepackage{graphicx}\n"
-            "\\graphicspath{{figures/}} % Sets the folder for your images",
+            "\\usepackage{graphicx}\n\\graphicspath{{figures/}} % Sets the folder for your images",
         )
 
     tex = replace_caption_units_bh28(tex)
@@ -259,8 +257,7 @@ def patch_manuscript(bh28, z93, timing, mace_off, uma_1p1_mae, uma_1p1_rmse) -> 
 
     z_n = z93[0]["n"]
     z93_rows = "\n".join(
-        f"{r['label']} & {r['succ']} & {r['median']:.2f} & {r['avg']:.2f} \\\\"
-        for r in z93
+        f"{r['label']} & {r['succ']} & {r['median']:.2f} & {r['avg']:.2f} \\\\" for r in z93
     )
     tex = replace_tabular(tex, "tab:zimmermann93", z93_rows)
 

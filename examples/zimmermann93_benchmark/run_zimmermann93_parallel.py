@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Parallel Maiti-30 runner across conda environments.
+"""Parallel Zimmermann-93 runner across conda environments.
 
-Same growing-string driver as Zimmermann-93, on the four OMol checkpoints that
-cover transition metals. Skips AIMNet2 (no TM elements).
-
-Skips reactions already present in benchmark_runs/{backend}/maiti30_benchmark_results.json.
-Writes per-reaction shards under benchmark_runs/maiti30_shards/{backend}/ and merges
+Skips reactions already present in benchmark_runs/{backend}/zimmermann93_benchmark_results.json.
+Writes per-reaction shards under benchmark_runs/zimmermann93_shards/{backend}/ and merges
 them back into the canonical JSON after each worker finishes.
 
+Default schedule (single 16 GB GPU):
+  - aimnet2: up to 2 workers
+  - uma: 1 worker (can overlap with aimnet2 if VRAM allows; default is sequential backends)
+  - mace: 1 worker alone
+
 Usage:
-  python run_maiti30_parallel.py
-  python run_maiti30_parallel.py --backends uma,mace
-  python run_maiti30_parallel.py --merge-only
+  python examples/zimmermann93_benchmark/run_zimmermann93_parallel.py
+  python examples/zimmermann93_benchmark/run_zimmermann93_parallel.py --backends aimnet2,uma --workers-aimnet2 2
+  python examples/zimmermann93_benchmark/run_zimmermann93_parallel.py --merge-only
 """
 
 from __future__ import annotations
@@ -25,26 +27,23 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent
-DATASET = REPO_ROOT / "examples" / "maiti30_benchmark" / "maiti30_dataset"
-BENCH_SCRIPT = REPO_ROOT / "examples" / "maiti30_benchmark" / "maiti30_benchmark.py"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DATASET = REPO_ROOT / "examples" / "zimmermann93_benchmark" / "zimmermann93_dataset"
+BENCH_SCRIPT = REPO_ROOT / "examples" / "zimmermann93_benchmark" / "zimmermann93_benchmark.py"
 BENCHMARK_ROOT = REPO_ROOT / "benchmark_runs"
-SHARD_ROOT = BENCHMARK_ROOT / "maiti30_shards"
-LOG_ROOT = BENCHMARK_ROOT / "logs" / "maiti30_parallel"
+SHARD_ROOT = BENCHMARK_ROOT / "zimmermann93_shards"
+LOG_ROOT = BENCHMARK_ROOT / "logs" / "zimmermann93_parallel"
 
-# Backend key -> (conda env, optional --model-name, result subdirectory)
-BACKEND_SPEC: dict[str, tuple[str, str | None, str]] = {
-    "uma": ("famex-uma", None, "uma"),
-    "mace": ("famex-mace", None, "mace"),
-    "pet": ("famex-benchmark-pet", "pet-omol-s", "pet_omol_s"),
-    "orb": ("famex-orb", "orbmol-v2", "orbmol_v2"),
+ENV_MAP = {
+    "aimnet2": "famex-aimnet2",
+    "uma": "famex-uma",
+    "mace": "famex-mace",
 }
 
 DEFAULT_WORKERS = {
+    "aimnet2": 2,
     "uma": 1,
     "mace": 1,
-    "pet": 1,
-    "orb": 1,
 }
 
 
@@ -55,26 +54,20 @@ def discover_reactions() -> list[str]:
     return reactions
 
 
-def result_key(backend: str) -> str:
-    _env, model, _outdir = BACKEND_SPEC[backend]
-    return f"{backend}:{model}" if model else backend
-
-
 def load_done(backend: str) -> set[str]:
     done: set[str] = set()
-    _env, model, outdir = BACKEND_SPEC[backend]
-    canon = BENCHMARK_ROOT / outdir / "maiti30_benchmark_results.json"
-    key = result_key(backend)
+    canon = BENCHMARK_ROOT / backend / "zimmermann93_benchmark_results.json"
     if canon.exists():
         try:
             data = json.loads(canon.read_text())
-            for candidate in (key, backend, f"{backend}:{model}" if model else None):
-                if candidate and isinstance(data.get(candidate), dict):
-                    done.update(k for k in data[candidate] if k.startswith("reaction_"))
+            blob = data.get(backend, {})
+            if isinstance(blob, dict):
+                done.update(k for k in blob if k.startswith("reaction_"))
         except (json.JSONDecodeError, OSError):
             pass
     shard_dir = SHARD_ROOT / backend
-    for directory in (shard_dir, shard_dir / backend, shard_dir / key.replace(":", "_")):
+    # Flat layout (preferred) and nested layout from early runs
+    for directory in (shard_dir, shard_dir / backend):
         if directory.is_dir():
             for shard in directory.glob("reaction_*.json"):
                 done.add(shard.stem)
@@ -97,10 +90,11 @@ def run_worker(
     worker_id: int,
     device: str,
 ) -> tuple[str, int, int, str]:
-    env_name, model, outdir = BACKEND_SPEC[backend]
-    out_dir = BENCHMARK_ROOT / outdir
+    """Run one worker process. Returns (backend, worker_id, returncode, log_path)."""
+    env_name = ENV_MAP[backend]
+    out_dir = BENCHMARK_ROOT / backend
     shard_dir = SHARD_ROOT / backend
-    canon = out_dir / "maiti30_benchmark_results.json"
+    canon = out_dir / "zimmermann93_benchmark_results.json"
     out_dir.mkdir(parents=True, exist_ok=True)
     shard_dir.mkdir(parents=True, exist_ok=True)
     LOG_ROOT.mkdir(parents=True, exist_ok=True)
@@ -129,9 +123,8 @@ def run_worker(
         "--reactions",
         *reactions,
     ]
-    if model:
-        cmd.extend(["--model-name", model])
     env = os.environ.copy()
+    # Give each worker a unique CUDA MPS-friendly identity; sharing one GPU.
     env["CUDA_VISIBLE_DEVICES"] = env.get("CUDA_VISIBLE_DEVICES", "0")
     with open(log_path, "w") as log:
         log.write(f"CMD: {' '.join(cmd)}\n")
@@ -149,10 +142,10 @@ def run_worker(
 
 
 def merge_backend(backend: str) -> None:
-    env_name, model, outdir = BACKEND_SPEC[backend]
-    out_dir = BENCHMARK_ROOT / outdir
+    env_name = ENV_MAP[backend]
+    out_dir = BENCHMARK_ROOT / backend
     shard_dir = SHARD_ROOT / backend
-    canon = out_dir / "maiti30_benchmark_results.json"
+    canon = out_dir / "zimmermann93_benchmark_results.json"
     cmd = [
         "conda",
         "run",
@@ -171,8 +164,6 @@ def merge_backend(backend: str) -> None:
         str(canon),
         "--merge-only",
     ]
-    if model:
-        cmd.extend(["--model-name", model])
     subprocess.run(cmd, cwd=str(REPO_ROOT), check=False)
 
 
@@ -192,8 +183,7 @@ def run_backend(backend: str, workers: int, device: str) -> int:
     failed = 0
     with ThreadPoolExecutor(max_workers=len(chunks)) as pool:
         futures = {
-            pool.submit(run_worker, backend, chunk, i, device): i
-            for i, chunk in enumerate(chunks)
+            pool.submit(run_worker, backend, chunk, i, device): i for i, chunk in enumerate(chunks)
         }
         for fut in as_completed(futures):
             backend_name, wid, rc, log_path = fut.result()
@@ -209,14 +199,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--backends",
-        default="uma,mace,pet,orb",
-        help="Comma-separated backends (default: uma,mace,pet,orb)",
+        default="aimnet2,uma,mace",
+        help="Comma-separated backends (default: aimnet2,uma,mace)",
     )
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--workers-aimnet2", type=int, default=DEFAULT_WORKERS["aimnet2"])
     parser.add_argument("--workers-uma", type=int, default=DEFAULT_WORKERS["uma"])
     parser.add_argument("--workers-mace", type=int, default=DEFAULT_WORKERS["mace"])
-    parser.add_argument("--workers-pet", type=int, default=DEFAULT_WORKERS["pet"])
-    parser.add_argument("--workers-orb", type=int, default=DEFAULT_WORKERS["orb"])
+    parser.add_argument(
+        "--overlap-aimnet2-uma",
+        action="store_true",
+        help="Run aimnet2 and uma backends concurrently (higher VRAM use)",
+    )
     parser.add_argument(
         "--merge-only",
         action="store_true",
@@ -226,19 +220,14 @@ def main() -> int:
 
     backends = [b.strip() for b in args.backends.split(",") if b.strip()]
     for b in backends:
-        if b not in BACKEND_SPEC:
-            print(f"Unknown backend {b}; known: {list(BACKEND_SPEC)}", file=sys.stderr)
+        if b not in ENV_MAP:
+            print(f"Unknown backend {b}; known: {list(ENV_MAP)}", file=sys.stderr)
             return 1
 
-    if not DATASET.exists():
-        print(f"Dataset missing: {DATASET}", file=sys.stderr)
-        return 1
-
     workers = {
+        "aimnet2": args.workers_aimnet2,
         "uma": args.workers_uma,
         "mace": args.workers_mace,
-        "pet": args.workers_pet,
-        "orb": args.workers_orb,
     }
 
     print(f"Repo: {REPO_ROOT}")
@@ -256,8 +245,20 @@ def main() -> int:
     t0 = time.time()
     failed_total = 0
 
-    # One backend at a time on the single GPU.
-    for backend in backends:
+    # Schedule: optionally overlap aimnet2+uma, then mace alone.
+    remaining = list(backends)
+    if args.overlap_aimnet2_uma and "aimnet2" in remaining and "uma" in remaining:
+        print("\n--- Overlapping aimnet2 + uma ---")
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futs = [
+                pool.submit(run_backend, "aimnet2", workers["aimnet2"], args.device),
+                pool.submit(run_backend, "uma", workers["uma"], args.device),
+            ]
+            for fut in as_completed(futs):
+                failed_total += fut.result()
+        remaining = [b for b in remaining if b not in ("aimnet2", "uma")]
+
+    for backend in remaining:
         failed_total += run_backend(backend, workers[backend], args.device)
 
     elapsed = time.time() - t0

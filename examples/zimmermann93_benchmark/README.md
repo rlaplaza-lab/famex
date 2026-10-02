@@ -25,6 +25,9 @@ python zimmermann93_benchmark.py --backends uma,mace
 # Run comprehensive benchmark on all available backends
 python zimmermann93_benchmark.py
 
+# Parallel multi-env run (from this directory or repo root)
+python run_zimmermann93_parallel.py
+
 # Analysis only (load existing results)
 python zimmermann93_benchmark.py --analyze
 ```
@@ -73,6 +76,7 @@ aimnet2      9/10     0.38          0.29              6.2s
 ```
 zimmermann93_benchmark/
 ├── zimmermann93_benchmark.py     # Main benchmark script
+├── run_zimmermann93_parallel.py  # Multi-env parallel runner
 ├── README.md                     # This file
 ├── zimmermann93_dataset/         # Dataset files
 │   ├── *_reactant.xyz           # Reactant structures
