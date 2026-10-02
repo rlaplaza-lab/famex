@@ -10,7 +10,6 @@ from ase import Atoms
 
 from famex.backends.constants import DEFAULT_UMA_MODEL
 from famex.core.explorer import Explorer, compute_needs_hessian
-from famex.potentials.uma_potential import UMAPotential
 from tests.test_utils import requires_backend
 
 
@@ -125,6 +124,10 @@ class TestExplorerNeedsHessian:
 
 class TestUMAPotentialReload:
     def test_compiled_reloads_once_on_get_hessian(self):
+        # uma_potential imports torch at module scope; keep collection torch-free.
+        pytest.importorskip("torch")
+        from famex.potentials.uma_potential import UMAPotential
+
         pot = UMAPotential(model_name=DEFAULT_UMA_MODEL, needs_hessian=False, device="cpu")
         pot.atoms = Atoms("H2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]])
 
