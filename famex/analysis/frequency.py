@@ -61,13 +61,13 @@ class FrequencyAnalysis:
         if method == "auto":
             if has_calculator_property(self.calculator, "frequencies"):
                 method = "direct_frequencies"
+            elif has_calculator_property(self.calculator, "hessian"):
+                method = "direct"
             elif (
                 hasattr(self.calculator, "supports_batch_evaluation")
                 and self.calculator.supports_batch_evaluation
             ):
                 method = "batch"
-            elif has_calculator_property(self.calculator, "hessian"):
-                method = "direct"
             else:
                 method = "finite_differences"
 
@@ -256,7 +256,7 @@ class FrequencyAnalysis:
             )
             if self.verbose >= 1:
                 logger.info(f"  Force noise: {force_noise:.2e} eV/Å")
-        except Exception as e:
+        except (AttributeError, RuntimeError, TypeError, ValueError) as e:
             logger.warning(f"  Force noise estimation failed: {e}, assuming moderate noise")
             force_noise = 1e-5  # Default moderate noise
 

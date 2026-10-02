@@ -95,7 +95,7 @@ def _validate_strategy_requirements(
     errors: list[str] = []
     warnings: list[str] = []
 
-    if target != "path" and strategy in ["interpolate", "growing_string", "cineb"]:
+    if target != "path" and strategy in ["interpolate", "growing_string", "cineb", "dhs"]:
         if product is None:
             errors.append(f"--product is required for {strategy} strategy")
 
@@ -214,6 +214,8 @@ def _generate_output_path(input_path: str, strategy: str, target: str) -> str:
             suffix = ".ts.interpolate.xyz"
         elif strategy == "cineb":
             suffix = ".ts.cineb.xyz"
+        elif strategy == "dhs":
+            suffix = ".ts.dhs.xyz"
         else:  # growing_string
             suffix = ".ts.gsm.xyz"
     else:  # path
@@ -253,6 +255,8 @@ def _run_optimization(
     direction: str | None = None,
     climb: bool = False,
     cleanup_frequencies: bool = False,
+    dhs_small_step: float | None = None,
+    dhs_switch_thresh: float | None = None,
 ) -> dict[str, Any]:
     run_kwargs: dict[str, Any] = {
         "calculate_frequencies": calculate_frequencies,
@@ -302,7 +306,7 @@ def _run_optimization(
             run_kwargs.update(
                 {
                     "npoints": npoints,
-                    "method": interp.lower() if interp else "geodesic",
+                    "method": interp.lower() if interp else "idpp",
                     "fmax": fmax,
                     "steps": steps,
                 }
@@ -322,10 +326,21 @@ def _run_optimization(
             run_kwargs.update(
                 {
                     "npoints": npoints,
-                    "method": interp.lower() if interp else "geodesic",
+                    "method": interp.lower() if interp else "idpp",
                     "fmax": fmax,
                     "steps": steps,
                     "spring_constant": spring_constant,
+                }
+            )
+        elif strategy == "dhs":
+            run_kwargs.update(
+                {
+                    "fmax": fmax,
+                    "steps": steps,
+                    "dist_tol": distance_threshold if distance_threshold is not None else 0.5,
+                    "large_step": step_size if step_size is not None else 0.2,
+                    "small_step": dhs_small_step,
+                    "switch_thresh": dhs_switch_thresh,
                 }
             )
     else:  # minima
@@ -623,7 +638,7 @@ def minima(
 @main.command()
 @click.option(
     "--strategy",
-    type=click.Choice(["local", "interpolate", "cineb", "growing_string"]),
+    type=click.Choice(["local", "interpolate", "cineb", "growing_string", "dhs"]),
     default="local",
     show_default=True,
     help="Optimization strategy",
@@ -633,7 +648,7 @@ def minima(
     "--product",
     type=click.Path(exists=True, dir_okay=False),
     default=None,
-    help="Product structure (required for interpolate/cineb/growing_string strategies)",
+    help="Product structure (required for interpolate/cineb/growing_string/dhs strategies)",
 )
 @click.option(
     "--output",
@@ -653,7 +668,7 @@ def minima(
 @click.option(
     "--interp",
     type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
-    default="geodesic",
+    default="idpp",
     show_default=True,
     help="Interpolation method (interpolate/cineb strategies only)",
 )
@@ -674,16 +689,30 @@ def minima(
 @click.option(
     "--distance-threshold",
     type=float,
-    default=0.1,
-    show_default=True,
-    help="Distance threshold for convergence (growing_string strategy only)",
+    default=None,
+    show_default=False,
+    help="Distance threshold: growing_string default 0.1; DHS dist_tol default 0.5",
 )
 @click.option(
     "--step-size",
     type=float,
-    default=0.1,
+    default=None,
+    show_default=False,
+    help="Step size: growing_string default 0.1; DHS large_step default 0.2",
+)
+@click.option(
+    "--dhs-small-step",
+    type=float,
+    default=0.05,
     show_default=True,
-    help="Step size for growing string method (growing_string strategy only)",
+    help="DHS small step size when images are close (dhs strategy only)",
+)
+@click.option(
+    "--dhs-switch-thresh",
+    type=float,
+    default=1.5,
+    show_default=True,
+    help="DHS distance below which small_step is used (dhs strategy only)",
 )
 @click.option(
     "--require-ts/--allow-ts",
@@ -704,8 +733,10 @@ def ts(
     interp: str,
     spring_constant: float,
     max_images: int,
-    distance_threshold: float,
-    step_size: float,
+    distance_threshold: float | None,
+    step_size: float | None,
+    dhs_small_step: float,
+    dhs_switch_thresh: float,
     require_ts: bool,
     backend: str,
     model_name: str | None,
@@ -738,7 +769,7 @@ def ts(
     atoms = load_atoms_from_xyz(input)
     atoms_list = [atoms]
 
-    if strategy in ["interpolate", "growing_string", "cineb"]:
+    if strategy in ["interpolate", "growing_string", "cineb", "dhs"]:
         if product is None:
             raise ValueError(
                 f"Product file is required for {strategy} strategy",
@@ -777,7 +808,8 @@ def ts(
             _handle_dry_run(exp)
             return
 
-        # Run optimization
+        dist_default = 0.5 if strategy == "dhs" else 0.1
+        step_default = 0.2 if strategy == "dhs" else 0.1
         results = _run_optimization(
             exp=exp,
             strategy=strategy,
@@ -791,8 +823,18 @@ def ts(
             interp=interp if strategy in ["interpolate", "cineb"] else None,
             spring_constant=spring_constant if strategy == "cineb" else None,
             max_images=max_images if strategy == "growing_string" else None,
-            distance_threshold=distance_threshold if strategy == "growing_string" else None,
-            step_size=step_size if strategy == "growing_string" else None,
+            distance_threshold=(
+                (distance_threshold if distance_threshold is not None else dist_default)
+                if strategy in ("growing_string", "dhs")
+                else None
+            ),
+            step_size=(
+                (step_size if step_size is not None else step_default)
+                if strategy in ("growing_string", "dhs")
+                else None
+            ),
+            dhs_small_step=dhs_small_step if strategy == "dhs" else None,
+            dhs_switch_thresh=dhs_switch_thresh if strategy == "dhs" else None,
         )
 
         # Extract results and generate output path

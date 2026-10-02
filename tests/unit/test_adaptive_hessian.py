@@ -170,6 +170,31 @@ class TestEnergyBasedHessian:
         )
 
 
+class TestAutoMethodPrefersAnalytical:
+    def test_auto_prefers_analytical_over_batch(self):
+        class BatchAndAnalyticalCalculator(HarmonicCalculator):
+            implemented_properties = ["energy", "forces", "hessian"]
+            supports_batch_evaluation = True
+            batch_called = False
+
+            def calculate_batch(self, atoms_list, properties=None):
+                self.batch_called = True
+                raise AssertionError("batch path should not be used when analytical Hessian exists")
+
+        calc = BatchAndAnalyticalCalculator()
+        atoms = Atoms(
+            symbols="HH",
+            positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
+        )
+        atoms.calc = calc
+        calc.atoms = atoms
+
+        hessian = FrequencyAnalysis(atoms, calc, verbose=0).calculate_hessian(method="auto")
+        assert hessian.shape == (6, 6)
+        np.testing.assert_allclose(hessian, np.eye(6))
+        assert not calc.batch_called
+
+
 class TestAutoselectMethod:
     def test_autoselect_analytical(self):
         calc = HarmonicCalculator()

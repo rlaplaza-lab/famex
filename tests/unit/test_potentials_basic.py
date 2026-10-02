@@ -6,6 +6,8 @@ import pytest
 from ase import Atoms
 
 from famex.potentials.base_potential import BasePotential
+from famex.potentials.pet_potential import PETPotential
+from famex.potentials.so3lr_potential import SO3LRPotential
 
 
 class TestBasePotential:
@@ -230,3 +232,15 @@ class TestOrbPotentialLoaders:
         loader, name = _resolve_orb_loader(pretrained, "not-a-real-model")
         assert loader is sentinel
         assert name == "orb-v3-conservative-omol"
+
+
+class TestHessianPropertyAdvertising:
+    def test_pet_and_so3lr_advertise_hessian(self):
+        assert "hessian" in PETPotential.implemented_properties
+        assert "hessian" in SO3LRPotential.implemented_properties
+
+    def test_tblite_does_not_advertise_analytical_hessian(self):
+        from famex.potentials.tblite_potential import TBLitePotential
+
+        assert "hessian" not in TBLitePotential.implemented_properties
+        assert not hasattr(TBLitePotential, "get_hessian")

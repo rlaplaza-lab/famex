@@ -41,7 +41,8 @@ def validate_calculator_supports_hessian(calculator: Any) -> None:
         msg = (
             f"Calculator '{calc_name}' does not provide an analytical Hessian. "
             "Use 'sella' for finite-difference Hessians, or choose a backend that "
-            "implements get_hessian / the 'hessian' property (e.g. uma, mace, tblite)."
+            "implements get_hessian / the 'hessian' property (e.g. uma, mace, aimnet2, "
+            "pet, so3lr, conservative orb)."
         )
         raise ValueError(msg)
 

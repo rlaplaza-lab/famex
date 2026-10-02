@@ -206,6 +206,8 @@ module = [
     "tblite.*",
     "torch_cluster.*",
     "upet.*",
+    "metatomic.*",
+    "metatomic_ase.*",
     "tqdm.*",
     "torch.*",
     "scipy.*",
