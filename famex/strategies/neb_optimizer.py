@@ -115,18 +115,18 @@ def compute_neb_forces(
 
     for i in range(1, nimages - 1):
         force = np.asarray(true_forces[i], dtype=float).copy()
-        force_flat = force.ravel()
+        force_flat = np.asarray(force.ravel(), dtype=float)
         tangent = improved_tangent(positions, energies, i)
         tangential_force = float(np.vdot(force_flat, tangent))
 
         if climb and i == climbing_image:
-            force_flat = cast(np.ndarray, force_flat - 2.0 * tangential_force * tangent)
+            updated = force_flat - 2.0 * tangential_force * tangent
         else:
-            force_flat = cast(np.ndarray, force_flat - tangential_force * tangent)
+            updated = force_flat - tangential_force * tangent
             spring_force_mag = k_arr[i] * spring_lengths[i] - k_arr[i - 1] * spring_lengths[i - 1]
-            force_flat = cast(np.ndarray, force_flat + spring_force_mag * tangent)
+            updated = updated + spring_force_mag * tangent
 
-        neb_forces.append(force_flat.reshape(force.shape))
+        neb_forces.append(np.asarray(updated, dtype=float).reshape(force.shape))
 
     neb_forces.append(np.zeros_like(np.asarray(true_forces[-1], dtype=float)))
     return neb_forces, climbing_image
