@@ -181,6 +181,13 @@ class UMAPotential(BasePotential):
             if "forces" in properties:
                 self.results["forces"] = calc.results["forces"]
 
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
+        """Get forces as a numpy array (required by HessianCalculator protocol)."""
+        forces = super().get_forces(atoms)
+        if forces is None:
+            raise RuntimeError("UMA calculator did not return forces")
+        return np.asarray(forces)
+
     def get_hessian(
         self,
         atoms: Atoms | None = None,
