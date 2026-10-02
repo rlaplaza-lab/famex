@@ -1,0 +1,1003 @@
+#!/usr/bin/env python3
+"""FAMEX Maiti-30 Benchmark - Two-Ended Transition State Search.
+
+This benchmark runs two-ended (reactant → product) transition state searches
+across available ML backends in FAMEX using the standardized Explorer API.
+
+Usage:
+    python maiti30_benchmark.py [--quick|--quicker]
+    python maiti30_benchmark.py --backends uma,mace,pet,orb
+    python maiti30_benchmark.py --backends uma,mace
+    python maiti30_benchmark.py --npoints 15
+
+Features:
+    - Two-ended transition state search evaluation using Explorer API
+    - Geometry comparison with reference structures
+    - Comprehensive backend performance analysis
+
+Valid TS (``ts_success``):
+    A refined structure that is vibrationally characterized as a first-order
+    saddle (exactly one imaginary frequency). Whether the growing-string sides
+    formally met (``strings_met``) is recorded as soft metadata only and does
+    not affect success.
+"""
+
+import json
+import logging
+import os
+import sys
+import time
+import warnings
+from contextlib import contextmanager
+from io import StringIO
+from pathlib import Path
+
+import numpy as np
+from ase import Atoms
+from ase.io import read
+
+# Import FAMEX components
+from famex import Explorer, calculator_registry
+
+# Import common interface
+from famex.example_utils import (
+    FAMEXExampleInterface,
+    create_standard_epilog,
+    setup_example_environment,
+)
+
+# Suppress warnings for cleaner output
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+
+# Quiet noisy backends
+logging.getLogger("jax").setLevel(logging.WARNING)
+logging.getLogger("numexpr").setLevel(logging.WARNING)
+logging.getLogger("ase").setLevel(logging.WARNING)
+
+os.environ.setdefault("JAX_LOG_LEVEL", "ERROR")
+
+
+@contextmanager
+def suppress_verbose_output():
+    """Capture stdout/stderr and suppress global logging temporarily."""
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    stdout_buffer, stderr_buffer = StringIO(), StringIO()
+    old_level = logging.getLogger().getEffectiveLevel()
+    logging.getLogger().setLevel(logging.ERROR)
+    try:
+        sys.stdout, sys.stderr = stdout_buffer, stderr_buffer
+        yield
+    finally:
+        sys.stdout, sys.stderr = old_stdout, old_stderr
+        logging.getLogger().setLevel(old_level)
+
+
+def compute_rmsd(reference: np.ndarray, target: np.ndarray) -> float:
+    """Compute RMSD between two coordinate arrays using Kabsch alignment.
+
+    Both arrays must be shape (N,3) and represent the same atoms in the same order.
+    """
+    # Center both structures
+    ref_cent = reference.mean(axis=0)
+    tar_cent = target.mean(axis=0)
+    ref = reference - ref_cent
+    tar = target - tar_cent
+
+    # Kabsch alignment
+    C = np.dot(tar.T, ref)
+    V, _S, Wt = np.linalg.svd(C)
+    d = np.sign(np.linalg.det(np.dot(V, Wt)))
+    D = np.diag([1.0, 1.0, d])
+    U = np.dot(np.dot(V, D), Wt)
+
+    aligned = np.dot(tar, U.T)
+    rmsd = np.sqrt(np.mean(np.sum((aligned - ref) ** 2, axis=1)))
+    return float(rmsd)
+
+
+class Maiti30Benchmark:
+    """Benchmark suite for two-ended TS search on Maiti-30 dataset."""
+
+    def __init__(
+        self,
+        dataset_dir: str | None = None,
+        output_dir: str = "benchmark_results",
+        shard_dir: str | None = None,
+    ) -> None:
+        # Use dataset in same directory by default
+        if dataset_dir is None:
+            dataset_dir = str(Path(__file__).parent / "maiti30_dataset")
+
+        self.dataset_dir = Path(dataset_dir)
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._shard_dir_explicit = shard_dir is not None
+        self.shard_dir = Path(shard_dir) if shard_dir else self.output_dir / "shards"
+        self.shard_dir.mkdir(parents=True, exist_ok=True)
+
+        if not self.dataset_dir.exists():
+            msg = f"Dataset directory not found: {self.dataset_dir}"
+            raise FileNotFoundError(msg)
+
+        # Discover reactions by searching for reactant files
+        self.reactions = []
+        for p in sorted(self.dataset_dir.glob("reaction_*_reactant.*")):
+            stem = p.stem
+            # stem like 'reaction_001_reactant'
+            rxn = stem.replace("_reactant", "")
+            self.reactions.append(rxn)
+
+        # Quick subset
+        self.quick_reactions = self.reactions[:8]
+
+        # Quicker subset for very fast testing (single reaction)
+        self.quicker_reactions = self.reactions[:1]
+
+        self.results: dict[str, dict] = {}
+
+        charges_path = self.dataset_dir / "charges.json"
+        if charges_path.exists():
+            with open(charges_path) as f:
+                raw = json.load(f)
+            self.charges = {
+                rid: {"charge": int(v["charge"]), "spin": int(v["spin"])} for rid, v in raw.items()
+            }
+        else:
+            self.charges = {}
+
+    def _apply_charge_spin(self, atoms: Atoms, reaction_name: str) -> Atoms:
+        """Stamp total charge and spin multiplicity from the ORCA inputs."""
+        meta = self.charges.get(reaction_name, {"charge": 0, "spin": 1})
+        atoms.info["charge"] = int(meta["charge"])
+        atoms.info["spin"] = int(meta["spin"])
+        return atoms
+
+    @staticmethod
+    def _to_serializable(obj: object) -> object:
+        """Convert numpy / ASE objects into JSON-safe types."""
+        try:
+            from ase import Atoms as _Atoms
+
+            if isinstance(obj, _Atoms):
+                return {
+                    "formula": obj.get_chemical_formula(),
+                    "positions": obj.get_positions().tolist(),
+                    "symbols": obj.get_chemical_symbols(),
+                }
+        except Exception:
+            pass
+
+        if hasattr(obj, "get_positions") and callable(obj.get_positions):
+            try:
+                pos = obj.get_positions()
+                return {"positions": np.array(pos).tolist()}
+            except Exception:
+                pass
+
+        if isinstance(obj, complex):
+            return {"real": float(obj.real), "imag": float(obj.imag), "_type": "complex"}
+        if isinstance(obj, np.complexfloating):
+            return {"real": float(obj.real), "imag": float(obj.imag), "_type": "complex"}
+        if isinstance(obj, np.ndarray):
+            return [Maiti30Benchmark._to_serializable(item) for item in obj.tolist()]
+        if isinstance(obj, np.integer | np.floating):
+            return float(obj)
+        try:
+            if isinstance(obj, np.bool_):
+                return bool(obj)
+        except Exception:
+            pass
+        if obj is None:
+            return None
+        if isinstance(obj, dict):
+            return {k: Maiti30Benchmark._to_serializable(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [Maiti30Benchmark._to_serializable(i) for i in obj]
+        if isinstance(obj, tuple):
+            return [Maiti30Benchmark._to_serializable(i) for i in obj]
+        return obj
+
+    def _result_key(self, backend: str, model_name: str | None) -> str:
+        if model_name:
+            return f"{backend}:{model_name}"
+        return backend
+
+    def _shard_path(self, result_key: str, reaction: str) -> Path:
+        """Path for one reaction shard.
+
+        When ``shard_dir`` was set explicitly (parallel runner already isolates
+        by backend), write flat ``{reaction}.json``. Otherwise nest under a
+        sanitized result_key subdirectory.
+        """
+        if getattr(self, "_shard_dir_explicit", False):
+            self.shard_dir.mkdir(parents=True, exist_ok=True)
+            return self.shard_dir / f"{reaction}.json"
+        safe_key = result_key.replace(":", "_")
+        backend_dir = self.shard_dir / safe_key
+        backend_dir.mkdir(parents=True, exist_ok=True)
+        return backend_dir / f"{reaction}.json"
+
+    def _iter_shard_files(self, result_key: str):
+        """Yield shard JSON paths for a result key (flat or nested layouts)."""
+        safe_key = result_key.replace(":", "_")
+        candidates = [
+            self.shard_dir,
+            self.shard_dir / safe_key,
+            self.shard_dir / result_key.split(":")[0],
+        ]
+        seen: set[Path] = set()
+        for directory in candidates:
+            if not directory.is_dir():
+                continue
+            for shard in sorted(directory.glob("reaction_*.json")):
+                if shard in seen:
+                    continue
+                seen.add(shard)
+                yield shard
+
+    def load_existing_results(
+        self,
+        result_key: str,
+        canonical_path: Path | None = None,
+    ) -> dict[str, dict]:
+        """Load completed reactions from canonical JSON and/or shards."""
+        existing: dict[str, dict] = {}
+        if canonical_path is not None and canonical_path.exists():
+            try:
+                with open(canonical_path) as f:
+                    data = json.load(f)
+                if result_key in data and isinstance(data[result_key], dict):
+                    existing.update(data[result_key])
+                elif result_key.split(":")[0] in data and ":" not in result_key:
+                    existing.update(data[result_key.split(":")[0]])
+            except (json.JSONDecodeError, OSError) as exc:
+                print(f"  Warning: could not load {canonical_path}: {exc}", flush=True)
+
+        for shard in self._iter_shard_files(result_key):
+            try:
+                with open(shard) as f:
+                    payload = json.load(f)
+                reaction = payload.get("reaction") or shard.stem
+                existing[reaction] = payload.get("result", payload)
+            except (json.JSONDecodeError, OSError):
+                continue
+        return existing
+
+    def save_shard(self, result_key: str, reaction: str, reaction_data: dict) -> Path:
+        """Write one reaction result to a shard file for crash-safe resume."""
+        path = self._shard_path(result_key, reaction)
+        payload = {
+            "reaction": reaction,
+            "result_key": result_key,
+            "result": self._to_serializable(reaction_data),
+        }
+        with open(path, "w") as f:
+            json.dump(payload, f, indent=2)
+        return path
+
+    def load_structure(self, filename: str, reaction_name: str | None = None) -> Atoms:
+        filepath = self.dataset_dir / filename
+        if not filepath.exists():
+            msg = f"Structure file not found: {filepath}"
+            raise FileNotFoundError(msg)
+        atoms = read(str(filepath))
+        atoms = atoms[0] if isinstance(atoms, list) else atoms
+        if reaction_name is not None:
+            atoms = self._apply_charge_spin(atoms, reaction_name)
+        return atoms
+
+    def get_reactant_and_product(self, reaction_name: str) -> tuple[Atoms, Atoms]:
+        reactant_file = f"{reaction_name}_reactant.xyz"
+        product_file = f"{reaction_name}_product.xyz"
+        return (
+            self.load_structure(reactant_file, reaction_name),
+            self.load_structure(product_file, reaction_name),
+        )
+
+    def get_reference_ts(self, reaction_name: str) -> Atoms:
+        ts_file = f"{reaction_name}_ts.xyz"
+        return self.load_structure(ts_file, reaction_name)
+
+    def get_available_backends(self) -> list[str]:
+        """Get list of available ML backends (excluding mock)."""
+        # Use the centralized backend availability system
+        from famex.backends.availability import get_available_ml_backends
+
+        return get_available_ml_backends()
+
+    def filter_available_backends(
+        self,
+        requested_backends: list[str],
+        verbose: bool = False,
+    ) -> list[str]:
+        """Filter requested backends to only available ones."""
+        available = []
+        for backend in requested_backends:
+            if calculator_registry.is_backend_available(backend):
+                available.append(backend)
+            elif verbose:
+                pass
+        return available
+
+    def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
+        """Print a formatted summary of backends."""
+
+    def run_benchmark(
+        self,
+        backends: list[str],
+        reactions: list[str],
+        npoints: int = 11,
+        fmax: float = 0.01,
+        steps: int = 300,
+        verbose: bool = False,
+        device: str | None = None,
+        model_name: str | None = None,
+        skip_existing: bool = True,
+        canonical_results: Path | None = None,
+        backend_models: dict[str, str | None] | None = None,
+    ) -> dict:
+        results: dict[str, dict] = {}
+        total_tests = len(backends) * len(reactions)
+        current_test = 0
+
+        for backend in backends:
+            per_backend_model = None
+            if backend_models and backend in backend_models:
+                per_backend_model = backend_models[backend]
+            elif model_name:
+                per_backend_model = model_name
+            # Support backend:model shorthand in the backends list
+            if ":" in backend and per_backend_model is None:
+                backend, per_backend_model = backend.split(":", 1)
+
+            result_key = self._result_key(backend, per_backend_model)
+            existing = {}
+            if skip_existing:
+                existing = self.load_existing_results(result_key, canonical_results)
+                # Also try plain backend key for legacy files
+                if not existing and result_key != backend:
+                    existing = self.load_existing_results(backend, canonical_results)
+                if not existing and canonical_results is None:
+                    default_canon = self.output_dir / "maiti30_benchmark_results.json"
+                    existing = self.load_existing_results(result_key, default_canon)
+                    if not existing:
+                        existing = self.load_existing_results(backend, default_canon)
+
+            backend_results: dict[str, dict] = dict(existing)
+            print(f"\n{'=' * 80}", flush=True)
+            print(f"Testing backend: {result_key}", flush=True)
+            if existing:
+                print(f"  Resuming with {len(existing)} completed reactions", flush=True)
+            print(f"{'=' * 80}", flush=True)
+
+            try:
+                for reaction in reactions:
+                    current_test += 1
+                    # Re-check shards each iteration so parallel workers can skip
+                    # work finished by a peer after this process started.
+                    if skip_existing:
+                        if reaction in backend_results:
+                            print(
+                                f"\n[{current_test}/{total_tests}] Skipping "
+                                f"{result_key}/{reaction} (already done)",
+                                flush=True,
+                            )
+                            continue
+                        shard_path = self._shard_path(result_key, reaction)
+                        # Also check nested layout from early runs
+                        nested = self.shard_dir / result_key.replace(":", "_") / f"{reaction}.json"
+                        for candidate in (shard_path, nested):
+                            if candidate.exists():
+                                try:
+                                    with open(candidate) as f:
+                                        payload = json.load(f)
+                                    backend_results[reaction] = payload.get("result", payload)
+                                    print(
+                                        f"\n[{current_test}/{total_tests}] Skipping "
+                                        f"{result_key}/{reaction} (shard on disk)",
+                                        flush=True,
+                                    )
+                                    break
+                                except (json.JSONDecodeError, OSError):
+                                    continue
+                        else:
+                            pass
+                        if reaction in backend_results:
+                            continue
+
+                    print(
+                        f"\n[{current_test}/{total_tests}] Testing {result_key}/{reaction}...",
+                        flush=True,
+                    )
+                    charge_meta = self.charges.get(reaction, {"charge": 0, "spin": 1})
+                    reaction_data: dict = {
+                        "timings": {},
+                        "optimization_results": {},
+                        "frequency_results": {},
+                        "model_name": per_backend_model,
+                        "backend": backend,
+                        "charge": int(charge_meta["charge"]),
+                        "spin": int(charge_meta["spin"]),
+                    }
+
+                    try:
+                        # Load endpoints
+                        load_start = time.perf_counter()
+                        reactant, product = self.get_reactant_and_product(reaction)
+                        load_time = time.perf_counter() - load_start
+                        reaction_data["timings"]["structure_loading"] = load_time
+
+                        # Initialize Explorer with both reactant and product
+                        # for growing string method TS optimization
+                        init_start = time.perf_counter()
+                        explorer_kwargs: dict = {
+                            "atoms": [reactant, product],
+                            "backend": backend,
+                            "target": "ts",
+                            "strategy": "growing_string",
+                            "device": device,
+                            "verbose": 0,
+                        }
+                        if per_backend_model:
+                            explorer_kwargs["model_name"] = per_backend_model
+                        explorer = Explorer(**explorer_kwargs)
+                        init_time = time.perf_counter() - init_start
+                        reaction_data["timings"]["initialization"] = init_time
+
+                        # Run growing string method TS optimization
+                        opt_start = time.perf_counter()
+                        with suppress_verbose_output():
+                            ts_result = explorer.run(
+                                fmax=fmax,
+                                steps=steps,
+                                npoints=npoints,
+                                step_size=0.1,
+                                distance_threshold=0.5,
+                                optimize_endpoints=True,
+                                refine_ts=True,
+                            )
+                        opt_time = time.perf_counter() - opt_start
+                        reaction_data["timings"]["optimization"] = opt_time
+
+                        # Handle TS result from Explorer.run() method
+                        # The run() method returns a dictionary with standardized results
+                        if isinstance(ts_result, dict):
+                            ts_opt_atoms = ts_result.get("optimized_atoms", reactant)
+                            ts_success = bool(ts_result.get("converged", False))
+                            steps_taken = ts_result.get("steps_taken", 0)
+                        else:
+                            ts_opt_atoms = ts_result
+                            ts_success = True
+                            steps_taken = 0
+
+                        # Calculate average time per step
+                        avg_time_per_step = opt_time / steps_taken if steps_taken > 0 else None
+
+                        # Get final energy and forces
+                        if ts_opt_atoms is not None:
+                            final_energy = float(ts_opt_atoms.get_potential_energy())
+                            forces = ts_opt_atoms.get_forces()
+                            max_force = float(np.max(np.abs(forces)))
+                        else:
+                            final_energy = None
+                            max_force = float("inf")
+
+                        reaction_data["optimization_results"] = {
+                            "converged": ts_success,
+                            "final_energy": final_energy,
+                            "max_force": max_force,
+                            "steps_taken": steps_taken,
+                        }
+                        reaction_data["timings"]["avg_time_per_step"] = avg_time_per_step
+
+                        # Frequency analysis to verify TS character.
+                        # Prefer refine-time analysis from the strategy result when
+                        # present. If recomputing, MUST pass atoms=ts_opt_atoms —
+                        # calculate_frequencies() defaults to explorer.atoms_list[0]
+                        # (the reactant), which falsely scores minima.
+                        if ts_opt_atoms is not None and ts_success:
+                            freq_start = time.perf_counter()
+                            try:
+                                refine_fa = None
+                                if isinstance(ts_result, dict):
+                                    refine_fa = ts_result.get("frequency_analysis")
+                                if isinstance(refine_fa, dict) and refine_fa.get("ts_analysis"):
+                                    freq_results = refine_fa
+                                    freq_time = 0.0
+                                else:
+                                    with suppress_verbose_output():
+                                        freq_results = explorer.calculate_frequencies(
+                                            atoms=ts_opt_atoms,
+                                            delta=0.01,
+                                            method="auto",
+                                            temperature=298.15,
+                                            save_hessian=False,
+                                        )
+                                    freq_time = time.perf_counter() - freq_start
+                                reaction_data["timings"]["frequency_analysis"] = freq_time
+                                freqs = freq_results.get("frequencies") or []
+                                reaction_data["frequency_results"] = {
+                                    "n_frequencies": len(freqs),
+                                    "frequencies": freqs[:10],
+                                    "zero_point_energy": freq_results.get("zero_point_energy"),
+                                    "is_transition_state": freq_results.get("is_ts"),
+                                    "method_used": freq_results.get("method_used", "auto"),
+                                    "ts_analysis": freq_results.get("ts_analysis", {}),
+                                }
+                            except Exception as e:
+                                reaction_data["timings"]["frequency_analysis"] = None
+                                reaction_data["frequency_results"] = {"error": str(e)}
+                        else:
+                            reaction_data["timings"]["frequency_analysis"] = None
+                            reaction_data["frequency_results"] = {
+                                "skipped": "TS optimization failed",
+                            }
+
+                        # Compare geometry to reference TS
+                        try:
+                            ref_ts = self.get_reference_ts(reaction)
+                            if ts_opt_atoms is not None:
+                                ref_coords = ref_ts.get_positions()
+                                opt_coords = ts_opt_atoms.get_positions()
+                                rmsd = compute_rmsd(ref_coords, opt_coords)
+                            else:
+                                rmsd = float("nan")
+                        except Exception:
+                            rmsd = float("nan")
+
+                        # Valid TS definition (paper / benchmark):
+                        #   vibrationally characterized first-order saddle
+                        #   (exactly one imaginary frequency after refinement).
+                        # ``strings_met`` is path-growth metadata only and never
+                        # affects ts_success / success.
+                        soft_warnings: list[str] = []
+                        validation_errors: list[str] = []
+                        strings_met_flag = True
+                        if isinstance(ts_result, dict):
+                            strings_met_flag = bool(ts_result.get("strings_met", True))
+                            if not strings_met_flag:
+                                soft_warnings.append("growing_string_sides_never_met")
+
+                        refinement_converged = bool(ts_success)
+                        if not refinement_converged:
+                            validation_errors.append("ts_refinement_not_converged")
+
+                        freq_info = reaction_data.get("frequency_results", {})
+                        n_imaginary: int | None = None
+                        is_first_order_saddle = False
+                        if isinstance(freq_info, dict):
+                            if freq_info.get("skipped"):
+                                validation_errors.append("frequency_analysis_skipped")
+                            elif freq_info.get("error"):
+                                validation_errors.append("frequency_analysis_failed")
+                            else:
+                                ts_analysis = freq_info.get("ts_analysis") or {}
+                                if isinstance(ts_analysis, dict):
+                                    raw_n = ts_analysis.get("n_imaginary_frequencies")
+                                    if raw_n is not None:
+                                        n_imaginary = int(raw_n)
+                                is_ts_flag = freq_info.get("is_transition_state")
+                                # Prefer explicit imaginary-mode count; fall back to is_ts.
+                                if n_imaginary is not None:
+                                    is_first_order_saddle = n_imaginary == 1
+                                else:
+                                    is_first_order_saddle = is_ts_flag is True
+                                if not is_first_order_saddle:
+                                    detail = (
+                                        f"(n_imaginary={n_imaginary})"
+                                        if n_imaginary is not None
+                                        else "(frequency_reports_not_transition_state)"
+                                    )
+                                    validation_errors.append(f"not_first_order_saddle{detail}")
+
+                        # Valid TS <=> refinement converged + vibrational first-order saddle.
+                        # strings_met is irrelevant.
+                        is_valid_ts = refinement_converged and is_first_order_saddle
+
+                        reaction_data.update(
+                            {
+                                "ts_result": ts_result,
+                                "ts_success": is_valid_ts,
+                                "ts_rmsd_to_reference": rmsd,
+                                "success": is_valid_ts,
+                                "is_first_order_saddle": is_first_order_saddle,
+                                "n_imaginary_frequencies": n_imaginary,
+                                "validation_errors": validation_errors
+                                if validation_errors
+                                else None,
+                                "soft_warnings": soft_warnings if soft_warnings else None,
+                                "strings_met": strings_met_flag,
+                            },
+                        )
+                        print(f"  ✓ Completed {result_key}/{reaction}", flush=True)
+
+                        # Calculate total time
+                        total_time = sum(
+                            v for v in reaction_data["timings"].values() if v is not None
+                        )
+                        reaction_data["timings"]["total"] = total_time
+
+                        # Print status
+                        freq_info = reaction_data["frequency_results"]
+                        if "is_transition_state" in freq_info:
+                            freq_info["is_transition_state"]
+                        else:
+                            pass
+
+                        if verbose and avg_time_per_step:
+                            pass
+
+                    except Exception as e:
+                        reaction_data = {
+                            "success": False,
+                            "error": str(e),
+                            "timings": {},
+                            "optimization_results": {},
+                            "frequency_results": {},
+                            "model_name": per_backend_model,
+                            "backend": backend,
+                        }
+                        print(f"  ✗ Failed {result_key}/{reaction}: {e}", flush=True)
+
+                    backend_results[reaction] = reaction_data
+                    self.save_shard(result_key, reaction, reaction_data)
+
+            except Exception as e:
+                backend_results = {"_backend_error": {"error": str(e)}}
+
+            results[result_key] = backend_results
+
+        self.results = results
+        return results
+
+    def analyze_performance(self, backends: list[str]) -> dict:
+        """Analyze performance metrics across backends with detailed statistics."""
+        analysis = {}
+
+        for backend in backends:
+            backend_data = self.results.get(backend, {})
+
+            # Collect successful TS calculations
+            successful_ts = []
+            failed_count = 0
+            converged_count = 0
+            ts_verified_count = 0
+            timing_stats = {"total": [], "optimization": [], "frequency": []}
+            step_stats = []
+
+            for data in backend_data.values():
+                if isinstance(data, dict) and not data.get("skipped"):
+                    if not data.get("success", True):
+                        failed_count += 1
+                    else:
+                        # Check convergence
+                        opt_results = data.get("optimization_results", {})
+                        if opt_results.get("converged"):
+                            converged_count += 1
+                            successful_ts.append(data)
+
+                            # Collect timing statistics
+                            timings = data.get("timings", {})
+                            if timings.get("total"):
+                                timing_stats["total"].append(timings["total"])
+                            if timings.get("optimization"):
+                                timing_stats["optimization"].append(timings["optimization"])
+                            if timings.get("frequency_analysis"):
+                                timing_stats["frequency"].append(timings["frequency_analysis"])
+
+                            # Collect step statistics
+                            steps = opt_results.get("steps_taken", 0)
+                            if steps > 0:
+                                step_stats.append(steps)
+
+                            # Check TS verification
+                            freq_results = data.get("frequency_results", {})
+                            if freq_results.get("is_transition_state"):
+                                ts_verified_count += 1
+
+            # Calculate statistics
+            total_reactions = len(
+                [r for r in backend_data.values() if isinstance(r, dict) and not r.get("skipped")],
+            )
+
+            if successful_ts:
+                rmsds = [
+                    data["ts_rmsd_to_reference"]
+                    for data in successful_ts
+                    if not np.isnan(data["ts_rmsd_to_reference"])
+                ]
+
+                ts_stats = {
+                    "total_reactions": total_reactions,
+                    "converged": converged_count,
+                    "ts_verified": ts_verified_count,
+                    "failed": failed_count,
+                    "convergence_rate": (
+                        (converged_count / total_reactions * 100) if total_reactions > 0 else 0
+                    ),
+                    "verification_rate": (
+                        (ts_verified_count / converged_count * 100) if converged_count > 0 else 0
+                    ),
+                    "mean_rmsd": np.mean(rmsds) if rmsds else 0,
+                    "max_rmsd": np.max(rmsds) if rmsds else 0,
+                    "std_rmsd": np.std(rmsds) if rmsds else 0,
+                }
+
+                ts_stats["convergence_rate"]
+                ts_stats["verification_rate"]
+
+                # Timing statistics
+                if timing_stats["total"]:
+                    np.mean(timing_stats["total"])
+                    np.std(timing_stats["total"])
+                    if timing_stats["optimization"]:
+                        np.mean(timing_stats["optimization"])
+                        np.std(timing_stats["optimization"])
+                    if timing_stats["frequency"]:
+                        np.mean(timing_stats["frequency"])
+                        np.std(timing_stats["frequency"])
+
+                # Step statistics
+                if step_stats:
+                    pass
+
+            else:
+                ts_stats = {
+                    "total_reactions": total_reactions,
+                    "converged": 0,
+                    "ts_verified": 0,
+                    "failed": failed_count,
+                    "convergence_rate": 0,
+                    "verification_rate": 0,
+                }
+
+            analysis[backend] = {"ts_statistics": ts_stats}
+
+        # Comprehensive summary table
+
+        # Print legend
+
+        # Header
+
+        # Results
+        for backend in backends:
+            analysis.get(backend, {}).get("ts_statistics", {})
+
+        return analysis
+
+    def save_results(self, filename: str = "maiti30_benchmark_results.json") -> None:
+        out = self.output_dir / filename
+        serializable = self._to_serializable(self.results)
+        with open(out, "w") as f:
+            json.dump(serializable, f, indent=2)
+        print(f"Results saved to {out}", flush=True)
+
+    def merge_shards_into_canonical(
+        self,
+        result_key: str,
+        canonical_path: Path | None = None,
+    ) -> Path:
+        """Merge shards + existing canonical JSON into one results file.
+
+        Figure loaders expect a bare backend key (``uma``, ``mace``, ``aimnet2``).
+        Default-model runs therefore write under that bare name. Model-suffixed
+        keys (``uma:uma-s-1p1``) are stored under the full key.
+        """
+        out = canonical_path or (self.output_dir / "maiti30_benchmark_results.json")
+        merged: dict[str, dict] = {}
+        if out.exists():
+            try:
+                with open(out) as f:
+                    merged = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                merged = {}
+
+        existing = self.load_existing_results(result_key, out)
+        write_key = result_key
+        prev = merged.get(write_key, {})
+        if isinstance(prev, dict):
+            prev.update(existing)
+            merged[write_key] = prev
+        else:
+            merged[write_key] = existing
+
+        with open(out, "w") as f:
+            json.dump(self._to_serializable(merged), f, indent=2)
+        print(f"Merged {len(existing)} reactions into {out} [{write_key}]", flush=True)
+        return out
+
+
+@setup_example_environment
+def main() -> int:
+    """Run the benchmark."""
+    # Create standardized interface
+    interface = FAMEXExampleInterface(
+        name="Maiti-30 Benchmark",
+        description="Two-Ended Transition State Search",
+        epilog=create_standard_epilog("benchmark_quick"),
+    )
+
+    parser = interface.create_parser()
+
+    # Add benchmark-specific arguments
+    parser.add_argument(
+        "--reactions",
+        nargs="+",
+        help="Specific reactions to test (default: all reactions)",
+    )
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Run quick benchmark with representative subset of reactions",
+    )
+    parser.add_argument(
+        "--quicker",
+        action="store_true",
+        help="Run quicker benchmark with single reaction for very fast testing",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="benchmark_results",
+        help="Output directory for results (default: benchmark_results)",
+    )
+    parser.add_argument(
+        "--shard-dir",
+        default=None,
+        help="Directory for per-reaction shard JSON files (default: <output-dir>/shards)",
+    )
+    parser.add_argument(
+        "--canonical-results",
+        default=None,
+        help="Existing canonical results JSON to merge/skip against",
+    )
+    parser.add_argument(
+        "--model-name",
+        default=None,
+        help="Optional model name passed to Explorer (e.g. uma-s-1p1, mace-off23)",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        default=True,
+        help="Skip reactions already present in canonical results or shards (default)",
+    )
+    parser.add_argument(
+        "--no-skip-existing",
+        dest="skip_existing",
+        action="store_false",
+        help="Re-run all requested reactions even if results already exist",
+    )
+    parser.add_argument(
+        "--merge-only",
+        action="store_true",
+        help="Only merge shards into the canonical results file, then exit",
+    )
+    parser.add_argument(
+        "--shards-only",
+        action="store_true",
+        help="Write per-reaction shards only; do not overwrite the canonical JSON",
+    )
+    parser.add_argument(
+        "--npoints",
+        type=int,
+        default=11,
+        help="Number of points in interpolated path (default: 11)",
+    )
+    parser.add_argument(
+        "--fmax",
+        type=float,
+        default=0.01,
+        help="Force convergence criterion (default: 0.01)",
+    )
+    parser.add_argument(
+        "--steps",
+        type=int,
+        default=300,
+        help="Maximum optimization steps (default: 300)",
+    )
+
+    args = parser.parse_args()
+
+    # Set up logging based on verbosity level
+    interface.setup_logging(args.verbose)
+
+    # Initialize benchmark
+    benchmark = Maiti30Benchmark(
+        dataset_dir=None,
+        output_dir=args.output_dir,
+        shard_dir=args.shard_dir,
+    )
+
+    interface.print_header("Two-Ended Transition State Search")
+
+    # Determine backends to test
+    requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
+    _backend, backends = interface.select_backend(
+        requested_backends=requested,
+        verbose=args.verbose,
+    )
+    if not backends:
+        interface.print_error("No ML backends available!")
+        return 1
+
+    interface.print_backend_summary(backends, "Benchmarking Backends")
+
+    canonical = (
+        Path(args.canonical_results)
+        if args.canonical_results
+        else Path(args.output_dir) / "maiti30_benchmark_results.json"
+    )
+
+    if args.merge_only:
+        for backend in backends:
+            result_key = f"{backend}:{args.model_name}" if args.model_name else backend
+            benchmark.merge_shards_into_canonical(result_key, canonical)
+        interface.print_success("Merge complete")
+        return 0
+
+    if args.quicker:
+        reactions = benchmark.quicker_reactions
+    elif args.quick:
+        reactions = benchmark.quick_reactions
+    elif args.reactions:
+        reactions = args.reactions
+    else:
+        reactions = benchmark.reactions
+
+    invalid_rxn = [
+        r for r in reactions if (benchmark.dataset_dir / f"{r}_reactant.xyz").exists() is False
+    ]
+    if invalid_rxn:
+        interface.print_error(f"Invalid reactions: {invalid_rxn}")
+        return 1
+
+    # Print configuration
+    device = interface.get_device_info(args.device)
+    config = {
+        "NPoints": args.npoints,
+        "Force max": args.fmax,
+        "Max steps": args.steps,
+        "Device": device,
+        "Model": args.model_name or "backend default",
+        "Skip existing": args.skip_existing,
+        "Verbose": args.verbose,
+        "Output": args.output_dir,
+        "Shards": str(benchmark.shard_dir),
+        "Canonical": str(canonical),
+        "Reactions": len(reactions),
+    }
+    interface.print_configuration(config)
+
+    benchmark.run_benchmark(
+        backends,
+        reactions,
+        npoints=args.npoints,
+        fmax=args.fmax,
+        steps=args.steps,
+        verbose=args.verbose,
+        device=device,
+        model_name=args.model_name,
+        skip_existing=args.skip_existing,
+        canonical_results=canonical,
+    )
+
+    # Analyze performance
+    result_keys = list(benchmark.results.keys())
+    benchmark.analyze_performance(result_keys)
+
+    if args.shards_only:
+        print("Shards-only mode: skipping canonical overwrite (use --merge-only later)")
+    else:
+        # Save this run's results and merge shards into the canonical file
+        benchmark.save_results()
+        for key in result_keys:
+            benchmark.merge_shards_into_canonical(key, canonical)
+
+    interface.print_success()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

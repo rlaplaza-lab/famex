@@ -370,22 +370,7 @@ def lowest_eigenpair(
         v0 = np.random.default_rng(0).standard_normal(n)
         v0 /= np.linalg.norm(v0)
 
-    try:
-        eigenvalues, eigenvectors = eigsh(op, k=1, which="SA", tol=1e-4, maxiter=n_iter, v0=v0)
-    except Exception:
-        # Fallback: power iteration on inverse-shifted operator is expensive;
-        # use a few steps of Rayleigh quotient iteration with diagonal estimate.
-        vec = v0
-        lam = float(np.dot(vec, hessp(vec)))
-        for _ in range(max(n_iter, 10)):
-            vec = hessp(vec)
-            norm = np.linalg.norm(vec)
-            if norm < 1e-12:
-                break
-            vec /= norm
-            lam = float(np.dot(vec, hessp(vec)))
-        return lam, vec
-
+    eigenvalues, eigenvectors = eigsh(op, k=1, which="SA", tol=1e-4, maxiter=n_iter, v0=v0)
     return float(eigenvalues[0]), eigenvectors[:, 0]
 
 

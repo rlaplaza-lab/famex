@@ -9,6 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from famex.backends.constants import DEFAULT_PET_MODEL
 from famex.backends.dependencies import deps
 from famex.potentials.base_potential import BasePotential
@@ -42,7 +44,7 @@ class PETPotential(BasePotential):
     modeling with PET-MAD, PET-OAM, PET-OMat, and related model families.
     """
 
-    implemented_properties = ["energy", "forces"]
+    implemented_properties = ["energy", "forces", "hessian"]
 
     def __init__(
         self,
@@ -70,6 +72,7 @@ class PETPotential(BasePotential):
             Additional arguments passed to BasePotential.
         """
         self._calc: Any | None = None
+        self._hessian_calc: Any | None = None
         self.model_path = model_path
 
         parsed_model, parsed_version = parse_pet_model_name(model_name)
@@ -128,6 +131,44 @@ class PETPotential(BasePotential):
                 msg = f"UPET not available ({exc}). Install with: pip install upet"
                 raise ImportError(msg) from exc
 
+    def _ensure_hessian_calculator(self) -> Any:
+        """Load an unscripted model; TorchScripted ASE path cannot second-differentiate."""
+        if self._hessian_calc is not None:
+            return self._hessian_calc
+
+        from metatomic_ase import MetatomicCalculator
+        from upet._models import _get_upet_exported_atomistic_model
+
+        from famex.utils.ml_warnings import quiet_backend_loading
+
+        with quiet_backend_loading(
+            "pet",
+            self.pet_model,
+            self.model_path,
+            self.device,
+            show_model_info=False,
+        ):
+            if self.model_path is not None:
+                model = _get_upet_exported_atomistic_model(checkpoint_path=self.model_path)
+            else:
+                base_model, size = self.pet_model.rsplit("-", 1)
+                model = _get_upet_exported_atomistic_model(
+                    model=base_model,
+                    size=size,
+                    version=self.pet_version,
+                )
+
+            for parameter in model.parameters():
+                parameter.requires_grad_(False)
+            model = model.eval()
+            self._hessian_calc = MetatomicCalculator(
+                model,
+                device=self.device,
+                do_gradients_with_energy=False,
+            )
+
+        return self._hessian_calc
+
     def calculate(
         self,
         atoms: Atoms | None = None,
@@ -140,3 +181,82 @@ class PETPotential(BasePotential):
         calc = self._require_calc()
         calc.calculate(self.atoms, properties, system_changes)
         self.results = calc.results.copy()
+
+    def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
+        """Analytical Hessian (3N x 3N, eV/Å²) via double-backward on energy."""
+        if atoms is not None:
+            self.atoms = atoms
+        if self.atoms is None:
+            msg = "No atoms provided for Hessian calculation"
+            raise ValueError(msg)
+
+        hessian = self._compute_analytical_hessian(self.atoms)
+        self.results["hessian"] = hessian
+        return hessian
+
+    def _compute_analytical_hessian(self, atoms: Atoms) -> np.ndarray:
+        import torch
+        from metatomic.torch import ModelEvaluationOptions, System
+        from metatomic_ase._calculator import _ase_to_torch_data, _get_ase_input
+
+        hessian_calc = self._ensure_hessian_calculator()
+        types, positions, cell, pbc = _ase_to_torch_data(
+            atoms=atoms,
+            dtype=hessian_calc._dtype,
+            device=hessian_calc._device,
+        )
+        positions = positions.clone().detach().requires_grad_(True)
+        system = System(types, positions, cell, pbc)
+        input_system = hessian_calc._nl_calculators.compute(systems=[system])[0]
+
+        for name, option in hessian_calc._model.requested_inputs(use_new_names=True).items():
+            input_system.add_data(
+                name,
+                _get_ase_input(
+                    atoms,
+                    name,
+                    option,
+                    dtype=hessian_calc._dtype,
+                    device=hessian_calc._device,
+                ),
+            )
+
+        outputs = hessian_calc._ase_properties_to_metatensor_outputs(
+            properties=["energy"],
+            calculate_forces=False,
+            calculate_stress=False,
+            calculate_stresses=False,
+        )
+        predictions = hessian_calc._model(
+            systems=[input_system],
+            options=ModelEvaluationOptions(length_unit="angstrom", outputs=outputs),
+            check_consistency=False,
+        )
+        energy = predictions[hessian_calc._energy_key].block().values.sum()
+        if energy.grad_fn is None:
+            msg = "PET energy has no autograd graph; cannot form an analytical Hessian"
+            raise RuntimeError(msg)
+
+        forces = -torch.autograd.grad(energy, positions, create_graph=True, retain_graph=True)[0]
+        rows = [
+            (-torch.autograd.grad(component, positions, retain_graph=True)[0]).reshape(-1)
+            for component in forces.reshape(-1)
+        ]
+        hessian_np = np.asarray(torch.stack(rows).detach().cpu().numpy(), dtype=np.float64)
+        return 0.5 * (hessian_np + hessian_np.T)
+
+    def get_property(
+        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
+        """Get energy, forces, or the analytical Hessian."""
+        del allow_calculation
+        if atoms is not None:
+            self.atoms = atoms
+        if prop == "energy":
+            return self.get_potential_energy(atoms)
+        if prop == "forces":
+            return self.get_forces(atoms)
+        if prop == "hessian":
+            return self.get_hessian(atoms)
+        msg = f"Property '{prop}' not supported by PETPotential"
+        raise KeyError(msg)

@@ -33,18 +33,20 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
         self,
         atoms_list: list[Atoms],
         npoints: int = 11,
-        method: str = "geodesic",
+        method: str = "idpp",
         fmax: float = 0.05,
         steps: int = 1000,
         spring_constant: float = 5.0,
         validate_ts: bool = False,
         calculate_frequencies: bool = False,
+        path_fmax: float | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Run multi-structure TS search via CI-NEB."""
         self.validate_inputs(atoms_list)
 
         local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
+        band_fmax = 0.10 if path_fmax is None else float(path_fmax)
 
         path_mgr = PathManager(atoms_list)
         interpolate_kwargs = filter_interpolation_kwargs(kwargs, allowed_keys={"calculator"})
@@ -72,7 +74,7 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
             images=path,
             spring_constant=spring_constant,
             climb=True,
-            fmax=fmax,
+            fmax=band_fmax,
             steps=steps,
             **kwargs,
         )
@@ -87,7 +89,9 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
             logger.info("Using highest-energy image %d as TS guess", ts_index)
 
         ts_strategy = LocalTSStrategy(self.explorer)
-        ts_kwargs = {k: v for k, v in kwargs.items() if k != "local_optimizer_name"}
+        ts_kwargs = {
+            k: v for k, v in kwargs.items() if k not in {"local_optimizer_name", "path_fmax"}
+        }
         ts_result = ts_strategy.run(
             [ts_guess],
             fmax=fmax,

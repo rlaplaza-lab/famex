@@ -1,0 +1,902 @@
+{
+  "reaction_001": {
+    "charge": 1,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472374",
+        "charge": 1,
+        "spin": 1,
+        "inp_name": "reaction-1-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473052&mode=single_xyz",
+        "n_atoms": 65
+      },
+      "reactant": {
+        "handle": "472373",
+        "charge": 1,
+        "spin": 1,
+        "inp_name": "reaction-1-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473051&mode=single_xyz",
+        "n_atoms": 65
+      },
+      "ts": {
+        "handle": "472312",
+        "charge": 1,
+        "spin": 1,
+        "inp_name": "reaction-1-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=472990&mode=single_xyz",
+        "n_atoms": 65
+      }
+    }
+  },
+  "reaction_002": {
+    "charge": 1,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472376",
+        "charge": 1,
+        "spin": 1,
+        "inp_name": "reaction-2-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473054&mode=single_xyz",
+        "n_atoms": 51
+      },
+      "reactant": {
+        "handle": "472375",
+        "charge": 1,
+        "spin": 1,
+        "inp_name": "reaction-2-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473053&mode=single_xyz",
+        "n_atoms": 51
+      },
+      "ts": {
+        "handle": "472313",
+        "charge": 1,
+        "spin": 1,
+        "inp_name": "reaction-2-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=472991&mode=single_xyz",
+        "n_atoms": 51
+      }
+    }
+  },
+  "reaction_003": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472378",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-3-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473056&mode=single_xyz",
+        "n_atoms": 23
+      },
+      "reactant": {
+        "handle": "472377",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-3-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473055&mode=single_xyz",
+        "n_atoms": 23
+      },
+      "ts": {
+        "handle": "472314",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-3-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=472992&mode=single_xyz",
+        "n_atoms": 23
+      }
+    }
+  },
+  "reaction_004": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472380",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-4-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473058&mode=single_xyz",
+        "n_atoms": 38
+      },
+      "reactant": {
+        "handle": "472379",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-4-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473057&mode=single_xyz",
+        "n_atoms": 38
+      },
+      "ts": {
+        "handle": "472315",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-4-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=472993&mode=single_xyz",
+        "n_atoms": 38
+      }
+    }
+  },
+  "reaction_005": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472384",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-5-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473062&mode=single_xyz",
+        "n_atoms": 37
+      },
+      "reactant": {
+        "handle": "472383",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-5-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473061&mode=single_xyz",
+        "n_atoms": 37
+      },
+      "ts": {
+        "handle": "472316",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-5-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=472994&mode=single_xyz",
+        "n_atoms": 37
+      }
+    }
+  },
+  "reaction_006": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472386",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-6-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473064&mode=single_xyz",
+        "n_atoms": 37
+      },
+      "reactant": {
+        "handle": "472385",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-6-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473063&mode=single_xyz",
+        "n_atoms": 37
+      },
+      "ts": {
+        "handle": "472317",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-6-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=472995&mode=single_xyz",
+        "n_atoms": 37
+      }
+    }
+  },
+  "reaction_007": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472388",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-7-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473066&mode=single_xyz",
+        "n_atoms": 32
+      },
+      "reactant": {
+        "handle": "472387",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-7-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473065&mode=single_xyz",
+        "n_atoms": 32
+      },
+      "ts": {
+        "handle": "472318",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-7-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=472996&mode=single_xyz",
+        "n_atoms": 32
+      }
+    }
+  },
+  "reaction_008": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472390",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-8-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473068&mode=single_xyz",
+        "n_atoms": 54
+      },
+      "reactant": {
+        "handle": "472389",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-8-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473067&mode=single_xyz",
+        "n_atoms": 54
+      },
+      "ts": {
+        "handle": "472319",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-8-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=472997&mode=single_xyz",
+        "n_atoms": 54
+      }
+    }
+  },
+  "reaction_009": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472392",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-9-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473070&mode=single_xyz",
+        "n_atoms": 57
+      },
+      "reactant": {
+        "handle": "472391",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-9-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473069&mode=single_xyz",
+        "n_atoms": 57
+      },
+      "ts": {
+        "handle": "472320",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-9-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=472998&mode=single_xyz",
+        "n_atoms": 57
+      }
+    }
+  },
+  "reaction_010": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472394",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-10-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473072&mode=single_xyz",
+        "n_atoms": 50
+      },
+      "reactant": {
+        "handle": "472393",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-10-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473071&mode=single_xyz",
+        "n_atoms": 50
+      },
+      "ts": {
+        "handle": "472321",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-10-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=472999&mode=single_xyz",
+        "n_atoms": 50
+      }
+    }
+  },
+  "reaction_011": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472396",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-11-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473074&mode=single_xyz",
+        "n_atoms": 39
+      },
+      "reactant": {
+        "handle": "472395",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-11-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473073&mode=single_xyz",
+        "n_atoms": 39
+      },
+      "ts": {
+        "handle": "472322",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-11-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473000&mode=single_xyz",
+        "n_atoms": 39
+      }
+    }
+  },
+  "reaction_012": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472399",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-12-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473077&mode=single_xyz",
+        "n_atoms": 19
+      },
+      "reactant": {
+        "handle": "472397",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-12-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473075&mode=single_xyz",
+        "n_atoms": 19
+      },
+      "ts": {
+        "handle": "472323",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-12-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473001&mode=single_xyz",
+        "n_atoms": 19
+      }
+    }
+  },
+  "reaction_013": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472401",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-13-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473079&mode=single_xyz",
+        "n_atoms": 41
+      },
+      "reactant": {
+        "handle": "472400",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-13-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473078&mode=single_xyz",
+        "n_atoms": 41
+      },
+      "ts": {
+        "handle": "472324",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-13-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473002&mode=single_xyz",
+        "n_atoms": 41
+      }
+    }
+  },
+  "reaction_014": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472403",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-14-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473081&mode=single_xyz",
+        "n_atoms": 41
+      },
+      "reactant": {
+        "handle": "472402",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-14-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473080&mode=single_xyz",
+        "n_atoms": 41
+      },
+      "ts": {
+        "handle": "472325",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-14-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473003&mode=single_xyz",
+        "n_atoms": 41
+      }
+    }
+  },
+  "reaction_015": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472405",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-15-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473083&mode=single_xyz",
+        "n_atoms": 45
+      },
+      "reactant": {
+        "handle": "472404",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-15-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473082&mode=single_xyz",
+        "n_atoms": 45
+      },
+      "ts": {
+        "handle": "472326",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-15-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473004&mode=single_xyz",
+        "n_atoms": 45
+      }
+    }
+  },
+  "reaction_016": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472407",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-16-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473085&mode=single_xyz",
+        "n_atoms": 60
+      },
+      "reactant": {
+        "handle": "472406",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-16-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473084&mode=single_xyz",
+        "n_atoms": 60
+      },
+      "ts": {
+        "handle": "472328",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-16-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473006&mode=single_xyz",
+        "n_atoms": 60
+      }
+    }
+  },
+  "reaction_017": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472409",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-17-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473087&mode=single_xyz",
+        "n_atoms": 38
+      },
+      "reactant": {
+        "handle": "472408",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-17-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473086&mode=single_xyz",
+        "n_atoms": 38
+      },
+      "ts": {
+        "handle": "472329",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-17-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473007&mode=single_xyz",
+        "n_atoms": 38
+      }
+    }
+  },
+  "reaction_018": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472411",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-18-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473089&mode=single_xyz",
+        "n_atoms": 43
+      },
+      "reactant": {
+        "handle": "472410",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-18-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473088&mode=single_xyz",
+        "n_atoms": 43
+      },
+      "ts": {
+        "handle": "472330",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-18-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473008&mode=single_xyz",
+        "n_atoms": 43
+      }
+    }
+  },
+  "reaction_019": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472413",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-19-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473091&mode=single_xyz",
+        "n_atoms": 39
+      },
+      "reactant": {
+        "handle": "472412",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-19-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473090&mode=single_xyz",
+        "n_atoms": 39
+      },
+      "ts": {
+        "handle": "472331",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-19-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473009&mode=single_xyz",
+        "n_atoms": 39
+      }
+    }
+  },
+  "reaction_020": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472415",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-20-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473093&mode=single_xyz",
+        "n_atoms": 51
+      },
+      "reactant": {
+        "handle": "472414",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-20-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473092&mode=single_xyz",
+        "n_atoms": 51
+      },
+      "ts": {
+        "handle": "472332",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-20-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473010&mode=single_xyz",
+        "n_atoms": 51
+      }
+    }
+  },
+  "reaction_021": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472417",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-21-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473095&mode=single_xyz",
+        "n_atoms": 53
+      },
+      "reactant": {
+        "handle": "472416",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-21-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473094&mode=single_xyz",
+        "n_atoms": 53
+      },
+      "ts": {
+        "handle": "472333",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-21-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473011&mode=single_xyz",
+        "n_atoms": 53
+      }
+    }
+  },
+  "reaction_022": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472419",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-22-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473097&mode=single_xyz",
+        "n_atoms": 43
+      },
+      "reactant": {
+        "handle": "472418",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-22-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473096&mode=single_xyz",
+        "n_atoms": 43
+      },
+      "ts": {
+        "handle": "472334",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-22-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473012&mode=single_xyz",
+        "n_atoms": 43
+      }
+    }
+  },
+  "reaction_023": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472421",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-23-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473099&mode=single_xyz",
+        "n_atoms": 43
+      },
+      "reactant": {
+        "handle": "472420",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-23-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473098&mode=single_xyz",
+        "n_atoms": 43
+      },
+      "ts": {
+        "handle": "472335",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-23-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473013&mode=single_xyz",
+        "n_atoms": 43
+      }
+    }
+  },
+  "reaction_024": {
+    "charge": 1,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472423",
+        "charge": 1,
+        "spin": 1,
+        "inp_name": "reaction-24-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473101&mode=single_xyz",
+        "n_atoms": 15
+      },
+      "reactant": {
+        "handle": "472422",
+        "charge": 1,
+        "spin": 1,
+        "inp_name": "reaction-24-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473100&mode=single_xyz",
+        "n_atoms": 15
+      },
+      "ts": {
+        "handle": "472336",
+        "charge": 1,
+        "spin": 1,
+        "inp_name": "reaction-24-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473014&mode=single_xyz",
+        "n_atoms": 15
+      }
+    }
+  },
+  "reaction_025": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472425",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-25-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473103&mode=single_xyz",
+        "n_atoms": 33
+      },
+      "reactant": {
+        "handle": "472424",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-25-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473102&mode=single_xyz",
+        "n_atoms": 33
+      },
+      "ts": {
+        "handle": "472337",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-25-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473015&mode=single_xyz",
+        "n_atoms": 33
+      }
+    }
+  },
+  "reaction_026": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472427",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-26-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473105&mode=single_xyz",
+        "n_atoms": 31
+      },
+      "reactant": {
+        "handle": "472426",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-26-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473104&mode=single_xyz",
+        "n_atoms": 31
+      },
+      "ts": {
+        "handle": "472338",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-26-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473016&mode=single_xyz",
+        "n_atoms": 31
+      }
+    }
+  },
+  "reaction_027": {
+    "charge": -1,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472429",
+        "charge": -1,
+        "spin": 1,
+        "inp_name": "reaction-27-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473107&mode=single_xyz",
+        "n_atoms": 38
+      },
+      "reactant": {
+        "handle": "472428",
+        "charge": -1,
+        "spin": 1,
+        "inp_name": "reaction-27-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473106&mode=single_xyz",
+        "n_atoms": 38
+      },
+      "ts": {
+        "handle": "472339",
+        "charge": -1,
+        "spin": 1,
+        "inp_name": "reaction-27-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473017&mode=single_xyz",
+        "n_atoms": 38
+      }
+    }
+  },
+  "reaction_028": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472431",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-28-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473109&mode=single_xyz",
+        "n_atoms": 38
+      },
+      "reactant": {
+        "handle": "472430",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-28-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473108&mode=single_xyz",
+        "n_atoms": 38
+      },
+      "ts": {
+        "handle": "472340",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-28-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473018&mode=single_xyz",
+        "n_atoms": 38
+      }
+    }
+  },
+  "reaction_029": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472433",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-29-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473111&mode=single_xyz",
+        "n_atoms": 27
+      },
+      "reactant": {
+        "handle": "472432",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-29-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473110&mode=single_xyz",
+        "n_atoms": 27
+      },
+      "ts": {
+        "handle": "472341",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-29-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473019&mode=single_xyz",
+        "n_atoms": 27
+      }
+    }
+  },
+  "reaction_030": {
+    "charge": 0,
+    "spin": 1,
+    "roles": {
+      "product": {
+        "handle": "472435",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-30-minim_PROD_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473113&mode=single_xyz",
+        "n_atoms": 35
+      },
+      "reactant": {
+        "handle": "472434",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-30-minim_RCT_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473112&mode=single_xyz",
+        "n_atoms": 35
+      },
+      "ts": {
+        "handle": "472342",
+        "charge": 0,
+        "spin": 1,
+        "inp_name": "reaction-30-ts-opt_pbe0.inp",
+        "cml2xyz": "https://iochem-bd.bsc.es/browse/cml2xyz?id=473020&mode=single_xyz",
+        "n_atoms": 35
+      }
+    }
+  }
+}

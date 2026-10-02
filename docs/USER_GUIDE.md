@@ -14,7 +14,7 @@ Reference for CLI, Python API, and backends.
 ## Core Concepts
 
 - **Target**: What you want (`minima`, `ts`, `path`)
-- **Strategy**: How to get there (`local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string`)
+- **Strategy**: How to get there (`local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string`, `dhs`)
 
 ### Target/Strategy Matrix
 
@@ -23,7 +23,9 @@ Reference for CLI, Python API, and backends.
 | `minima` | `local` | Direct local optimization |
 | `minima` | `interpolate` | Minima from interpolated path |
 | `ts` | `local` | Local TS search |
-| `ts` | `interpolate` | TS guess from interpolation |
+| `ts` | `interpolate` | TS guess from IDPP interpolation + local refinement |
+| `ts` | `cineb` | IDPP path, energy-weighted CI-NEB (looser band `fmax`), then local TS refinement |
+| `ts` | `dhs` | Dewar–Healy–Stewart two-image bracket + local TS refinement |
 | `ts` | `growing_string` | Growing string method (DE-GSM) |
 | `path` | `neb` | NEB path optimization |
 | `path` | `cineb` | CI-NEB path optimization |
@@ -78,7 +80,7 @@ All commands support these common options:
 | `--temperature` | `298.15` | Temperature in Kelvin for thermodynamic calculations |
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
 | `--freq`, `--frequencies` | `False` | Perform frequency analysis after optimization (includes thermodynamic properties) |
-| `--force-finite-diff-hessian` | `False` | Force use of finite difference hessians for TS optimizers and frequency calculations. When disabled (default), backends with analytical Hessian support (e.g., `uma`, `mace`, `aimnet2`) use the exact analytical Hessian automatically for faster and more accurate frequencies and TS optimization. |
+| `--force-finite-diff-hessian` | `False` | Force use of finite difference hessians for TS optimizers and frequency calculations. When disabled (default), backends with analytical Hessian support (`uma`, `mace`, `aimnet2`, `orb` conservative models, `pet`, `so3lr`) use the analytical Hessian automatically. `tblite` and non-conservative Orb models fall back to finite differences (no differentiable energy Hessian). |
 
 ### famex minima - Minima Optimization
 
@@ -139,7 +141,7 @@ Find and optimize transition state structures.
 #### Usage
 
 ```bash
-famex ts --strategy {local,interpolate,growing_string} INPUT [OPTIONS]
+famex ts --strategy {local,interpolate,cineb,growing_string,dhs} INPUT [OPTIONS]
 ```
 
 #### Arguments
@@ -152,16 +154,19 @@ famex ts --strategy {local,interpolate,growing_string} INPUT [OPTIONS]
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--strategy` | `local` | Optimization strategy: local\|interpolate\|growing_string |
-| `--product` | `None` | Product XYZ for interpolate/growing_string strategies |
+| `--strategy` | `local` | Optimization strategy: local\|interpolate\|cineb\|growing_string\|dhs |
+| `--product` | `None` | Product XYZ for interpolate/cineb/growing_string/dhs strategies |
 | `--output` | Auto | Output TS XYZ path |
-| `--fmax` | `0.05` | Convergence threshold |
+| `--fmax` | `0.05` | Convergence threshold for local TS refinement |
 | `--steps` | `1000` | Max optimization steps |
-| `--npoints` | `11` | Number of interpolation points (interpolate/growing_string strategies only) |
-| `--interp` | `geodesic` | Interpolation method (interpolate strategy only) |
+| `--npoints` | `11` | Number of interpolation points (interpolate/cineb/growing_string) |
+| `--interp` | `idpp` | Interpolation method (interpolate/cineb; default IDPP) |
+| `--spring-constant` | `5.0` | Upper spring constant for energy-weighted CI-NEB (`cineb`) |
 | `--max-images` | `100` | Maximum number of images (growing_string strategy only) |
-| `--distance-threshold` | `0.1` | Distance threshold for convergence (growing_string strategy only) |
-| `--step-size` | `0.1` | Step size for growing string method (growing_string strategy only) |
+| `--distance-threshold` | strategy default | growing_string: 0.1; dhs `dist_tol`: 0.5 |
+| `--step-size` | strategy default | growing_string: 0.1; dhs `large_step`: 0.2 |
+| `--dhs-small-step` | `0.05` | DHS small step when images are close |
+| `--dhs-switch-thresh` | `1.5` | DHS distance below which small_step is used |
 | `--require-ts/--allow-ts` | `--allow-ts` | Require a vibrationally validated first-order saddle (exactly one imaginary mode; raises if characterization fails). Growing-string sides meeting is not required. |
 
 #### Examples
@@ -176,11 +181,17 @@ famex ts --strategy local ts_guess.xyz --freq
 # With custom optimizer
 famex ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02
 
-# TS from interpolation
+# TS from IDPP interpolation
 famex ts --strategy interpolate reactant.xyz --product product.xyz
 
 # With custom settings
 famex ts --strategy interpolate reactant.xyz --product product.xyz --npoints 15 --interp idpp
+
+# CI-NEB TS guess (IDPP + energy-weighted springs, looser band fmax)
+famex ts --strategy cineb reactant.xyz --product product.xyz
+
+# Dewar–Healy–Stewart bracket
+famex ts --strategy dhs reactant.xyz --product product.xyz
 
 # Growing string method
 famex ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
@@ -196,6 +207,8 @@ famex ts --strategy interpolate reactant.xyz --product product.xyz --freq
 
 - Local TS: `{input}.ts.local.xyz`
 - Interpolated TS: `{input}.ts.interpolate.xyz`
+- CI-NEB TS: `{input}.ts.cineb.xyz`
+- DHS TS: `{input}.ts.dhs.xyz`
 - Growing string TS: `{input}.ts.gsm.xyz`
 
 ### famex path - Reaction Path Optimization
@@ -277,7 +290,7 @@ explorer = Explorer(
     atoms,                    # Atoms or Sequence[Atoms]
     backend="uma",            # Backend name
     target="minima",          # Target: minima|ts|path
-    strategy="local",         # Strategy: local|neb|cineb|interpolate|growing_string|irc
+    strategy="local",         # Strategy: local|neb|cineb|interpolate|growing_string|dhs|irc
     device=None,              # Device: cpu|cuda (auto-detected if None)
     local_optimizer="default", # Optimizer (auto-selects based on target)
     default_charge=0,
@@ -287,7 +300,7 @@ explorer = Explorer(
 
 **Targets:** `minima`, `ts`, `path`
 
-**Strategies:** `local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string` (see [Target/Strategy Matrix](#targetstrategy-matrix))
+**Strategies:** `local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string`, `dhs` (see [Target/Strategy Matrix](#targetstrategy-matrix))
 
 **Optimizers:** `default` (auto-selects), first-order (`lbfgs`, `bfgs`, `fire`), second-order (`sella`, `trust-krylov`, `trust-ncg`, `trust-exact`, `newton-cg`, `rfo`)
 
@@ -347,10 +360,10 @@ Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin`
 | `aimnet2` | `pip install torch` | Beginners, molecules | No conflicts, fast; analytical Hessian via autograd |
 | `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install famex[uma]` | Materials science (default: uma-s-1p2) | Conflicts with MACE; analytical Hessian |
 | `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA; analytical Hessian |
-| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | Molecules (`orbmol-v2`) and materials | Python 3.12+ |
-| `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations |
-| `so3lr` | `pip install so3lr` | Research | Custom models |
-| `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential | Python 3.11+ |
+| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | Molecules (`orbmol-v2`) and materials | Python 3.12+; analytical Hessian for conservative models; FD for non-conservative |
+| `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations; Hessian via finite differences |
+| `so3lr` | `pip install so3lr` | Research | Custom models; analytical Hessian via JAX |
+| `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential | Python 3.11+; analytical Hessian via double-backward |
 | `mock` | Built-in | Testing | Development only |
 
 ### Dependency Conflicts

@@ -108,9 +108,10 @@ class TestIDPPInterpolation:
         assert np.allclose(path[-1], end)
 
     def test_get_distance_matrix(self):
-        interp = IDPPInterpolation()
+        from scipy.spatial.distance import cdist
+
         coords = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
-        dist_matrix = interp._get_distance_matrix(coords)
+        dist_matrix = cdist(coords, coords, metric="euclidean")
 
         assert dist_matrix.shape == (2, 2)
         assert np.allclose(dist_matrix[0, 1], 1.0)

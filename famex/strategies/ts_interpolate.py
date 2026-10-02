@@ -32,7 +32,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         self,
         atoms_list: list[Atoms],
         npoints: int = 11,
-        method: str = "geodesic",
+        method: str = "idpp",
         fmax: float = 0.05,
         steps: int = 1000,
         validate_ts: bool = False,
@@ -47,7 +47,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
             List of structures defining the path endpoints
         npoints : int, default=11
             Number of images in the interpolated path
-        method : str, default="geodesic"
+        method : str, default="idpp"
             Interpolation method for initial path generation
         fmax : float, default=0.05
             Force convergence threshold

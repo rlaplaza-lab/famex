@@ -32,7 +32,7 @@ class Explorer:
 
     Uses a target/strategy paradigm:
     - **target**: What you want (minima, ts, path)
-    - **strategy**: How to get there (local, neb, cineb, interpolate, growing_string, irc)
+    - **strategy**: How to get there (local, neb, cineb, interpolate, growing_string, dhs, irc)
 
     Parameters
     ----------
@@ -75,6 +75,7 @@ class Explorer:
         - "cineb": Climbing Image NEB
         - "interpolate": Path interpolation only
         - "growing_string": Growing string method
+        - "dhs": Dewar-Healy-Stewart bracket method
         - "irc": Intrinsic Reaction Coordinate
     target : str, optional, default "minima"
         Target type for optimization. Options:
@@ -138,6 +139,7 @@ class Explorer:
     │ ts       │ local            │ Local TS search                 │
     │ ts       │ interpolate      │ TS guess from interpolation     │
     │ ts       │ cineb            │ TS guess via CI-NEB             │
+    │ ts       │ dhs              │ Dewar-Healy-Stewart bracket     │
     │ ts       │ growing_string   │ Growing string method (DE-GSM)  │
     │ path     │ neb              │ NEB path optimization           │
     │ path     │ cineb            │ CI-NEB path optimization        │

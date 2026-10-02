@@ -23,10 +23,10 @@ Install a backend separately:
 | `aimnet2` | `pip install torch` | Recommended for beginners, no conflicts; supports analytical Hessian |
 | `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install famex[uma]` | Materials science (default model: uma-s-1p2); supports analytical Hessian |
 | `mace` | `pip install mace-torch` | High accuracy, conflicts with UMA; supports analytical Hessian |
-| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | OrbMol-v2 and Orb-v3; Python 3.12+ |
-| `so3lr` | `pip install so3lr` | Research, custom models |
-| `tblite` | `pip install tblite` | Fast semi-empirical |
-| `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential (Python 3.11+) |
+| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | OrbMol-v2 and Orb-v3; Python 3.12+; analytical Hessian for conservative models; FD for non-conservative |
+| `so3lr` | `pip install so3lr` | Research, custom models; analytical Hessian via JAX |
+| `tblite` | `pip install tblite` | Fast semi-empirical; Hessian via finite differences |
+| `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential (Python 3.11+); analytical Hessian via double-backward |
 
 > **Note**: Python 3.10+ required. MACE and UMA conflict - use separate environments.
 

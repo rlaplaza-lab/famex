@@ -227,3 +227,5 @@ coverage.xml
 hessian_issues/
 figures/
 manuscript/
+manuscript
+.kilo/

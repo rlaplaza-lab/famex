@@ -78,7 +78,6 @@ class TBLitePotential(BasePotential):
         "charges",
         "dipole",
         "stress",
-        "hessian",
     ]
 
     def __init__(
@@ -322,49 +321,6 @@ class TBLitePotential(BasePotential):
         msg = "Stress calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
 
-    def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get numerical Hessian matrix using finite differences.
-
-        TBLite does not provide analytical Hessians, so we compute them
-        numerically using FAMEX's HessianCalculator. We use a smaller step size
-        (0.005 Å) compared to ML potentials since semi-empirical methods can
-        have more numerical noise in force calculations.
-
-        Parameters
-        ----------
-        atoms : Atoms, optional
-            Atoms object to calculate Hessian for
-
-        Returns
-        -------
-        np.ndarray
-            Hessian matrix of shape (3N, 3N) in eV/Å² units
-        """
-        from famex.analysis.frequency import HessianCalculator
-
-        if atoms is not None:
-            self.atoms = atoms
-
-        # Ensure calculator is loaded
-        if self._calc is None:
-            self._load_calculator()
-
-        if self.atoms is None:
-            msg = "No atoms object available for Hessian calculation"
-            raise RuntimeError(msg)
-
-        # Use FAMEX's existing numerical Hessian calculator
-        # Use smaller step size for semi-empirical methods (0.005 vs 0.01)
-        hessian_calc = HessianCalculator(
-            self.atoms,
-            self,
-            delta=0.005,  # Smaller step for semi-empirical methods
-            method="central",  # Central differences for better accuracy
-            verbose=0,  # Quiet mode
-        )
-
-        return hessian_calc.calculate_numerical_hessian()
-
     def get_property(
         self, name: str, atoms: Atoms | None = None, allow_calculation: bool = True
     ) -> Any:
@@ -373,7 +329,7 @@ class TBLitePotential(BasePotential):
         Parameters
         ----------
         name : str
-            Property name ('energy', 'forces', 'hessian', etc.)
+            Property name ('energy', 'forces', 'charges', etc.)
         atoms : Atoms, optional
             Atoms object
         allow_calculation : bool, default True
@@ -388,9 +344,7 @@ class TBLitePotential(BasePotential):
             self.atoms = atoms
 
         # Handle special cases that need their own methods
-        if name == "hessian":
-            return self.get_hessian(atoms)
-        elif name == "charges":
+        if name == "charges":
             return self.get_charges(atoms)
         elif name == "dipole":
             return self.get_dipole_moment(atoms)
