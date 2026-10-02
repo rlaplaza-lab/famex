@@ -227,7 +227,14 @@ def _run_local_optimization_common(
             if strategy.profiler
             else nullcontext()
         ):
-            strategy.explorer._create_and_attach_calculator(atoms_copy)
+            needs_hessian = strategy.explorer._needs_hessian(
+                calculate_frequencies=calculate_frequencies,
+                cleanup_frequencies=cleanup_frequencies,
+            )
+            strategy.explorer._create_and_attach_calculator(
+                atoms_copy,
+                needs_hessian=needs_hessian,
+            )
             strategy.explorer._apply_constraints(atoms_copy)
 
         opt_kwargs = prepare_optimizer_kwargs(local_optimizer_name, strategy.explorer)

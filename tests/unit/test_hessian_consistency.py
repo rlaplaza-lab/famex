@@ -56,7 +56,10 @@ def get_backend_calculator_with_hessian(backend_name: str, model_name: str | Non
     if backend_name == "mace":
         calc = famex.get_mace_calculator(model_name=model_name or "mace-omol-0")
     elif backend_name == "uma":
-        calc = famex.get_uma_calculator(model_name=model_name or DEFAULT_UMA_MODEL)
+        calc = famex.get_uma_calculator(
+            model_name=model_name or DEFAULT_UMA_MODEL,
+            needs_hessian=True,
+        )
     else:
         pytest.skip(f"Unknown backend: {backend_name}")
 

@@ -136,8 +136,9 @@ def create_calculator(
     mult: int | None = None,
     use_cache: bool = True,
     verbose: int = 1,
+    needs_hessian: bool = False,
 ) -> Any:
-    factory_kwargs = {
+    factory_kwargs: dict[str, Any] = {
         "default_charge": default_charge,
         "default_spin": default_spin,
     }
@@ -147,6 +148,9 @@ def create_calculator(
         factory_kwargs["mult"] = mult
 
     backend_lower = backend.lower()
+    if backend_lower == BACKEND_UMA:
+        factory_kwargs["needs_hessian"] = needs_hessian
+
     if use_cache and backend_lower != BACKEND_SO3LR:
         try:
             from famex.backends.cache import get_cached_calculator

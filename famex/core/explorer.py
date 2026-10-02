@@ -26,6 +26,58 @@ if TYPE_CHECKING:
 
     import numpy as np
 
+# Optimizers that build a dense Hessian for minima searches.
+_MINIMA_DENSE_HESSIAN_OPTS = frozenset(
+    {
+        "trust-krylov",
+        "trustkrylov",
+        "trust_krylov",
+        "trust-exact",
+        "trustexact",
+        "trust_exact",
+        "trust-ncg",
+        "trustncg",
+        "trust_ncg",
+        "newton-cg",
+        "newtoncg",
+        "newton_cg",
+    }
+)
+
+_SADDLE_DENSE_HESSIAN_OPTS = frozenset(
+    {
+        "rfo",
+        "rfo-ts",
+        "rational-function",
+        "rational_function",
+        "sella-analytical",
+        "sella_analytical",
+        "sellaanalytical",
+        "trust-exact",
+        "trustexact",
+        "trust_exact",
+    }
+)
+
+
+def compute_needs_hessian(
+    target: str,
+    local_optimizer: str,
+    *,
+    calculate_frequencies: bool = False,
+    cleanup_frequencies: bool = False,
+) -> bool:
+    """Whether the calculator should load Hessian-capable inference settings."""
+    if calculate_frequencies or cleanup_frequencies:
+        return True
+
+    target_norm = (target or "minima").strip().lower()
+    opt = (local_optimizer or "").strip().lower()
+
+    if target_norm in {"ts", "saddle"} and opt in _SADDLE_DENSE_HESSIAN_OPTS:
+        return True
+    return target_norm == "minima" and opt in _MINIMA_DENSE_HESSIAN_OPTS
+
 
 class Explorer:
     """Explorer runs optimizations/TS searches on one or more Atoms.
@@ -279,9 +331,32 @@ class Explorer:
             return "rfo"
         return "lbfgs"
 
-    def _create_and_attach_calculator(self, atoms: Atoms) -> Any:
+    def _needs_hessian(
+        self,
+        *,
+        calculate_frequencies: bool = False,
+        cleanup_frequencies: bool | None = None,
+    ) -> bool:
+        """Decide whether the calculator should load Hessian-capable settings."""
+        cleanup = self.cleanup_frequencies if cleanup_frequencies is None else cleanup_frequencies
+        return compute_needs_hessian(
+            target=self.target or "minima",
+            local_optimizer=self._get_effective_optimizer(),
+            calculate_frequencies=calculate_frequencies,
+            cleanup_frequencies=cleanup,
+        )
+
+    def _create_and_attach_calculator(
+        self,
+        atoms: Atoms,
+        *,
+        needs_hessian: bool = False,
+    ) -> Any:
         """Create and attach calculator to atoms."""
-        return self.calculator_manager.create_and_attach_calculator(atoms)
+        return self.calculator_manager.create_and_attach_calculator(
+            atoms,
+            needs_hessian=needs_hessian,
+        )
 
     def _apply_constraints(self, atoms: Atoms) -> list[Any]:
         """Apply constraints to atoms."""
@@ -672,7 +747,7 @@ class Explorer:
             atoms = self.atoms_list[0]
 
         if getattr(atoms, "calc", None) is None:
-            self._create_and_attach_calculator(atoms)
+            self._create_and_attach_calculator(atoms, needs_hessian=True)
 
         freq_analysis = FrequencyAnalysis(
             atoms=atoms,
