@@ -90,7 +90,7 @@ bh28_benchmark/
     └── bh28_benchmark_results.json     # Results file
 ```
 
-For multi-backend runs across isolated conda environments, use `run_full_multienv_benchmarks.sh` at the repo root. For TS optimizer comparison on BH28 structures, use `../ts_optimizer_benchmark.py` with `--bh28-subset` or `--full-bh28`.
+For TS optimizer comparison on BH28 structures, use `../ts_optimizer_benchmark.py` with `--bh28-subset` or `--full-bh28`.
 
 ## Requirements
 
