@@ -148,6 +148,7 @@ cython_debug/
 *.xyz
 !examples/example_files/*.xyz
 !examples/*/dataset/*.xyz
+!examples/*/*_dataset/*.xyz
 *.png
 *.pdf
 *.log
