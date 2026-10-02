@@ -54,7 +54,12 @@ class CalculatorManager:
             return "mock-model"
         return "default-model"
 
-    def create_and_attach_calculator(self, atoms: Atoms) -> Any:
+    def create_and_attach_calculator(
+        self,
+        atoms: Atoms,
+        *,
+        needs_hessian: bool = False,
+    ) -> Any:
         charge, spin = extract_charge_spin_from_atoms(atoms, self.default_charge, self.default_spin)
         charge_missing, spin_missing = check_missing_charge_spin(atoms)
 
@@ -113,6 +118,7 @@ class CalculatorManager:
             charge=charge,
             mult=spin,
             verbose=self.verbose,
+            needs_hessian=needs_hessian,
         )
         atoms.calc = calc
         return calc
