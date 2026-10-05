@@ -31,12 +31,16 @@ def _math_attention_context() -> Iterator[None]:
     """Force math SDPA so CUDA second-order autograd can run.
 
     Efficient/flash SDPA kernels do not implement higher-order backward.
+    No-op when torch is unavailable (CI without optional ML deps).
     """
     try:
         from torch.nn.attention import SDPBackend, sdpa_kernel
     except ImportError:
-        import torch
-
+        try:
+            import torch
+        except ImportError:
+            yield
+            return
         with torch.backends.cuda.sdp_kernel(
             enable_flash=False,
             enable_math=True,
