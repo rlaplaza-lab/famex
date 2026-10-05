@@ -207,6 +207,13 @@ class PETPotential(BasePotential):
         calc.calculate(self.atoms, properties, system_changes)
         self.results = calc.results.copy()
 
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
+        """Get forces as a numpy array (required by HessianCalculator protocol)."""
+        forces = super().get_forces(atoms)
+        if forces is None:
+            raise RuntimeError("PET calculator did not return forces")
+        return np.asarray(forces)
+
     def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
         """Return the analytical Hessian (3N x 3N) in eV/Å².
 
