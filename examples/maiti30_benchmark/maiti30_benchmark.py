@@ -337,6 +337,7 @@ class Maiti30Benchmark:
         skip_existing: bool = True,
         canonical_results: Path | None = None,
         backend_models: dict[str, str | None] | None = None,
+        force_finite_diff_hessian: bool = False,
     ) -> dict:
         results: dict[str, dict] = {}
         total_tests = len(backends) * len(reactions)
@@ -439,6 +440,7 @@ class Maiti30Benchmark:
                             "strategy": "growing_string",
                             "device": device,
                             "verbose": 0,
+                            "force_finite_diff_hessian": force_finite_diff_hessian,
                         }
                         if per_backend_model:
                             explorer_kwargs["model_name"] = per_backend_model
@@ -897,6 +899,11 @@ def main() -> int:
         default=300,
         help="Maximum optimization steps (default: 300)",
     )
+    parser.add_argument(
+        "--force-finite-diff-hessian",
+        action="store_true",
+        help="Use finite-difference Hessians (needed when analytical Hessian autograd fails)",
+    )
 
     args = parser.parse_args()
 
@@ -967,6 +974,7 @@ def main() -> int:
         "Shards": str(benchmark.shard_dir),
         "Canonical": str(canonical),
         "Reactions": len(reactions),
+        "FD Hessian": args.force_finite_diff_hessian,
     }
     interface.print_configuration(config)
 
@@ -981,6 +989,7 @@ def main() -> int:
         model_name=args.model_name,
         skip_existing=args.skip_existing,
         canonical_results=canonical,
+        force_finite_diff_hessian=args.force_finite_diff_hessian,
     )
 
     # Analyze performance

@@ -96,6 +96,7 @@ def run_worker(
     reactions: list[str],
     worker_id: int,
     device: str,
+    force_finite_diff_hessian: bool = False,
 ) -> tuple[str, int, int, str]:
     env_name, model, outdir = BACKEND_SPEC[backend]
     out_dir = BENCHMARK_ROOT / outdir
@@ -131,6 +132,8 @@ def run_worker(
     ]
     if model:
         cmd.extend(["--model-name", model])
+    if force_finite_diff_hessian:
+        cmd.append("--force-finite-diff-hessian")
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = env.get("CUDA_VISIBLE_DEVICES", "0")
     with open(log_path, "w") as log:
@@ -176,7 +179,12 @@ def merge_backend(backend: str) -> None:
     subprocess.run(cmd, cwd=str(REPO_ROOT), check=False)
 
 
-def run_backend(backend: str, workers: int, device: str) -> int:
+def run_backend(
+    backend: str,
+    workers: int,
+    device: str,
+    force_finite_diff_hessian: bool = False,
+) -> int:
     all_rxn = discover_reactions()
     done = load_done(backend)
     missing = [r for r in all_rxn if r not in done]
@@ -192,7 +200,8 @@ def run_backend(backend: str, workers: int, device: str) -> int:
     failed = 0
     with ThreadPoolExecutor(max_workers=len(chunks)) as pool:
         futures = {
-            pool.submit(run_worker, backend, chunk, i, device): i for i, chunk in enumerate(chunks)
+            pool.submit(run_worker, backend, chunk, i, device, force_finite_diff_hessian): i
+            for i, chunk in enumerate(chunks)
         }
         for fut in as_completed(futures):
             backend_name, wid, rc, log_path = fut.result()
@@ -220,6 +229,11 @@ def main() -> int:
         "--merge-only",
         action="store_true",
         help="Only merge shards into canonical JSONs",
+    )
+    parser.add_argument(
+        "--force-finite-diff-hessian",
+        action="store_true",
+        help="Force FD Hessians for all backends",
     )
     args = parser.parse_args()
 
@@ -257,7 +271,12 @@ def main() -> int:
 
     # One backend at a time on the single GPU.
     for backend in backends:
-        failed_total += run_backend(backend, workers[backend], args.device)
+        failed_total += run_backend(
+            backend,
+            workers[backend],
+            args.device,
+            force_finite_diff_hessian=args.force_finite_diff_hessian,
+        )
 
     elapsed = time.time() - t0
     print(f"\nAll backends finished in {elapsed / 3600:.2f} h  failures={failed_total}")

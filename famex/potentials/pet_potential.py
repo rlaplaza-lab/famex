@@ -6,6 +6,8 @@ potentials based on the Point Edge Transformer architecture.
 
 from __future__ import annotations
 
+import warnings
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -17,11 +19,34 @@ from famex.potentials.base_potential import BasePotential
 from famex.utils.logging import get_famex_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
 
     from ase import Atoms
 
 logger = get_famex_logger(__name__)
+
+
+@contextmanager
+def _math_attention_context() -> Iterator[None]:
+    """Force math SDPA so CUDA second-order autograd can run.
+
+    Efficient/flash SDPA kernels do not implement higher-order backward.
+    """
+    try:
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+    except ImportError:
+        import torch
+
+        with torch.backends.cuda.sdp_kernel(
+            enable_flash=False,
+            enable_math=True,
+            enable_mem_efficient=False,
+        ):
+            yield
+        return
+
+    with sdpa_kernel([SDPBackend.MATH]):
+        yield
 
 
 def parse_pet_model_name(model_name: str | None) -> tuple[str, str]:
@@ -183,16 +208,37 @@ class PETPotential(BasePotential):
         self.results = calc.results.copy()
 
     def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Analytical Hessian (3N x 3N, eV/Å²) via double-backward on energy."""
+        """Return the analytical Hessian (3N x 3N) in eV/Å².
+
+        Uses double-backward through an unscripted PET model under math SDPA.
+        Falls back to finite differences if analytical autograd fails (same
+        pattern as UMA).
+        """
         if atoms is not None:
             self.atoms = atoms
         if self.atoms is None:
             msg = "No atoms provided for Hessian calculation"
             raise ValueError(msg)
 
-        hessian = self._compute_analytical_hessian(self.atoms)
+        try:
+            hessian = self._compute_analytical_hessian(self.atoms)
+        except (RuntimeError, ValueError, TypeError) as exc:
+            warnings.warn(
+                f"PET analytical Hessian failed ({exc}); falling back to finite differences.",
+                UserWarning,
+                stacklevel=2,
+            )
+            hessian = self._hessian_via_finite_differences()
+
         self.results["hessian"] = hessian
         return hessian
+
+    def _hessian_via_finite_differences(self) -> np.ndarray:
+        from famex.analysis.hessian import HessianCalculator
+
+        assert self.atoms is not None
+        hess_calc = HessianCalculator(self.atoms, self, delta=0.01, verbose=0)
+        return np.asarray(hess_calc.calculate_numerical_hessian(), dtype=np.float64)
 
     def _compute_analytical_hessian(self, atoms: Atoms) -> np.ndarray:
         import torch
@@ -227,21 +273,25 @@ class PETPotential(BasePotential):
             calculate_stress=False,
             calculate_stresses=False,
         )
-        predictions = hessian_calc._model(
-            systems=[input_system],
-            options=ModelEvaluationOptions(length_unit="angstrom", outputs=outputs),
-            check_consistency=False,
-        )
-        energy = predictions[hessian_calc._energy_key].block().values.sum()
-        if energy.grad_fn is None:
-            msg = "PET energy has no autograd graph; cannot form an analytical Hessian"
-            raise RuntimeError(msg)
+        # Math SDPA must wrap the forward: the attention op is chosen then.
+        with _math_attention_context():
+            predictions = hessian_calc._model(
+                systems=[input_system],
+                options=ModelEvaluationOptions(length_unit="angstrom", outputs=outputs),
+                check_consistency=False,
+            )
+            energy = predictions[hessian_calc._energy_key].block().values.sum()
+            if energy.grad_fn is None:
+                msg = "PET energy has no autograd graph; cannot form an analytical Hessian"
+                raise RuntimeError(msg)
 
-        forces = -torch.autograd.grad(energy, positions, create_graph=True, retain_graph=True)[0]
-        rows = [
-            (-torch.autograd.grad(component, positions, retain_graph=True)[0]).reshape(-1)
-            for component in forces.reshape(-1)
-        ]
+            forces = -torch.autograd.grad(energy, positions, create_graph=True, retain_graph=True)[
+                0
+            ]
+            rows = [
+                (-torch.autograd.grad(component, positions, retain_graph=True)[0]).reshape(-1)
+                for component in forces.reshape(-1)
+            ]
         hessian_np = np.asarray(torch.stack(rows).detach().cpu().numpy(), dtype=np.float64)
         return 0.5 * (hessian_np + hessian_np.T)
 
