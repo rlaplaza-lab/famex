@@ -58,6 +58,8 @@ See [README.md](../README.md) for the full backend table.
 - `famex minima` - Minima optimization (outputs single structure)
 - `famex ts` - Transition state optimization (outputs single TS)
 - `famex path` - Reaction path optimization (outputs trajectories)
+- `famex embed` - SMILES to 3D (`famex[smiles]` or `famex[rdkit]`)
+- `famex fetch` - Download a computed 3D conformer from PubChem
 - `famex cache` - Cache management
 
 ### Global Options
@@ -96,14 +98,15 @@ famex minima --strategy {local,interpolate} INPUT [OPTIONS]
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `INPUT` | Path | Input XYZ file (required) |
+| `INPUT` | Path or SMILES | Geometry file, or a SMILES string if that path does not exist |
 
 #### Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--strategy` | `local` | Optimization strategy: local\|interpolate |
-| `--product` | `None` | Product XYZ for interpolate strategy |
+| `--product` | `None` | Product geometry file or SMILES (interpolate strategy) |
+| `--embedder` | `pysmiles` | SMILES 3D method: `pysmiles` or `rdkit` |
 | `--output` | Auto | Output optimized XYZ path |
 | `--fmax` | `0.05` | Convergence threshold |
 | `--steps` | `1000` | Max optimization steps |
@@ -148,14 +151,15 @@ famex ts --strategy {local,interpolate,cineb,growing_string,dhs} INPUT [OPTIONS]
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `INPUT` | Path | Input XYZ file (required) |
+| `INPUT` | Path or SMILES | Geometry file, or a SMILES string if that path does not exist |
 
 #### Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--strategy` | `local` | Optimization strategy: local\|interpolate\|cineb\|growing_string\|dhs |
-| `--product` | `None` | Product XYZ for interpolate/cineb/growing_string/dhs strategies |
+| `--product` | `None` | Product geometry file or SMILES (interpolate/cineb/growing_string/dhs) |
+| `--embedder` | `pysmiles` | SMILES 3D method: `pysmiles` or `rdkit` |
 | `--output` | Auto | Output TS XYZ path |
 | `--fmax` | `0.05` | Convergence threshold for local TS refinement |
 | `--steps` | `1000` | Max optimization steps |
@@ -225,7 +229,7 @@ famex path --strategy {interpolate,neb,cineb,irc} STRUCTURES... [OPTIONS]
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `STRUCTURES...` | Path(s) | Structure file(s) (required). Can be:<br>- Multiple files: `reactant.xyz product.xyz [intermediate.xyz ...]`<br>- Single multi-frame XYZ: all frames used as path guess<br>- Single single-frame XYZ: for IRC strategy |
+| `STRUCTURES...` | Path, SMILES, or PubChem | One or more endpoints. Each may be a geometry file, a SMILES string, `pubchem:NAME`, or `cid:2244`. A single multi-frame XYZ is used as the path guess. Endpoints must have the same number of atoms. |
 
 #### Options
 
@@ -279,6 +283,68 @@ famex cache clear --model M   # Clear one model entry
 famex cache clear --yes       # Skip confirmation prompt
 ```
 
+### famex embed - SMILES to 3D
+
+Build a Cartesian guess from an OpenSMILES string. `--embedder` selects the method:
+
+| Embedder | Install | What it does |
+|----------|---------|--------------|
+| `pysmiles` (default) | `pip install famex[smiles]` | UFF distance geometry, then a short UFF-like cleanup |
+| `rdkit` | `pip install famex[rdkit]` | RDKit ETKDGv3 |
+
+The pysmiles bounds come from UFF (Rappé et al., J. Am. Chem. Soc. 1992) for main-group atom types. Elements without a tabulated type, including most metals, use covalent radii and a coordination-number angle. Either result is a starting geometry: relax it with `--relax uma` or `--relax pet`, or pass the same SMILES to `famex minima`.
+
+`famex minima` and `famex ts` accept a SMILES string in place of `INPUT` or `--product` when that path is not an existing file. They take the same `--embedder`.
+
+```bash
+famex embed "CCO" -o ethanol.xyz
+famex embed "CCO" --embedder rdkit -o ethanol_rdkit.xyz
+famex embed "c1ccccc1" --nconf 3 -o benzene.xyz
+famex embed "[Ni](C#[O])(C#[O])(C#[O])C#[O]" --relax pet -o ni_co4.xyz
+famex minima --strategy local "CCO" --backend aimnet2 --embedder pysmiles
+```
+
+```python
+from famex import Explorer, smiles_to_atoms
+
+geom = smiles_to_atoms("CCO")
+rdkit_geom = smiles_to_atoms("CCO", embedder="rdkit")
+explorer = Explorer.from_smiles(
+    "CCO", backend="uma", target="minima", strategy="local", embedder="pysmiles"
+)
+```
+
+Limits of the pysmiles embedder:
+
+- Four-coordinate centers are embedded as tetrahedral. Square-planar versus tetrahedral, and octahedral chirality, are not in ordinary SMILES.
+- Write metal charges and ligand bonds explicitly. Dative `A->B` is not OpenSMILES; use a normal bond, with charge separation when you need it (`[C-]#[O+]`).
+- No periodic crystals. Dot-disconnected fragments (salts) are embedded separately and placed at a van der Waals contact.
+- 1–4 distances use generic cis/gauche/trans windows, not element-specific torsion terms. `@` / `@@` and `/` `\` stereo are enforced when the SMILES contains them.
+
+RDKit ETKDGv3 follows RDKit's own valence and UFF atom types. It can reject metal SMILES that the pysmiles path embeds, including `[Ni](C#[O])4`. Disconnected salts can be left on top of each other.
+
+### famex fetch - PubChem import
+
+Download a starting geometry from [PubChem](https://pubchem.ncbi.nlm.nih.gov/) PUG REST. A compound name or CID is enough. When PubChem has a computed 3D conformer, those coordinates are used. When it does not, the deposited SMILES is embedded with `--embedder` (`pysmiles` by default, or `rdkit`).
+
+`famex minima`, `famex ts`, and `famex path` accept `pubchem:NAME`, `cid:2244`, or a SMILES string anywhere a structure is expected, including the reactant and `--product`. Endpoints of one calculation must have the same number of atoms.
+
+```bash
+famex fetch aspirin -o aspirin.xyz
+famex fetch cid:2244 -o aspirin.xyz
+famex minima --strategy local pubchem:aspirin --backend aimnet2
+```
+
+```python
+from famex import Explorer
+from famex.io.geometry import Geometry
+
+geom = Geometry.from_pubchem("aspirin")
+explorer = Explorer.from_pubchem("aspirin", backend="uma", target="minima", strategy="local")
+```
+
+The PubChem conformer is a computed model, not a crystal structure. Only `pubchem` is available as a database source.
+
 ## Python API
 
 ### Explorer Class
@@ -312,6 +378,7 @@ result = explorer.run(fmax=0.05, steps=1000, calculate_frequencies=False)
 
 # Load from file
 explorer = Explorer.from_file("molecule.xyz", backend="uma", target="minima")
+explorer = Explorer.from_smiles("CCO", backend="uma", target="minima", strategy="local")
 
 # Calculate frequencies (after optimization or on any structure)
 freq_result = explorer.calculate_frequencies(atoms=None, delta=0.01, method="auto")

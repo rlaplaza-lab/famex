@@ -609,6 +609,119 @@ class Explorer:
             **kwargs,
         )
 
+    @classmethod
+    def from_smiles(
+        cls,
+        smiles: str,
+        backend: str = "uma",
+        model_name: str | None = None,
+        model_path: str | None = None,
+        device: str | None = None,
+        default_charge: int = 0,
+        default_spin: int = 1,
+        verbose: int = 1,
+        profile: bool = False,
+        *,
+        seed: int = 0,
+        add_h: bool = True,
+        embedder: str = "pysmiles",
+        **kwargs: Any,
+    ) -> Explorer:
+        """Create an Explorer from a SMILES string.
+
+        The string is embedded before the Explorer is built. ``embedder``
+        selects ``pysmiles`` (``pip install famex[smiles]``) or ``rdkit``
+        (``pip install famex[rdkit]``). Charge and spin written on the
+        embedded geometry override ``default_charge`` and ``default_spin``.
+
+        Parameters
+        ----------
+        smiles : str
+            OpenSMILES string.
+        seed : int, default 0
+            Seed for distance sampling.
+        add_h : bool, default True
+            Add implicit hydrogens before embedding.
+        embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+            Distance geometry via pysmiles, or RDKit ETKDGv3.
+        **kwargs
+            Passed to :class:`Explorer`, including ``target`` and ``strategy``.
+
+        Returns
+        -------
+        Explorer
+        """
+        # Optional embed stack; Explorer import must not require pysmiles or RDKit.
+        from famex.embed.api import smiles_to_atoms
+
+        geom = smiles_to_atoms(smiles, n_conf=1, seed=seed, add_h=add_h, embedder=embedder)
+        if isinstance(geom, list):
+            if not geom:
+                raise ValueError(f"SMILES {smiles!r} produced no conformers")
+            geom = geom[0]
+        return cls(
+            atoms=geom,
+            backend=backend,
+            model_name=model_name,
+            model_path=model_path,
+            device=device,
+            default_charge=default_charge,
+            default_spin=default_spin,
+            verbose=verbose,
+            profile=profile,
+            **kwargs,
+        )
+
+    @classmethod
+    def from_pubchem(
+        cls,
+        query: str,
+        backend: str = "uma",
+        model_name: str | None = None,
+        model_path: str | None = None,
+        device: str | None = None,
+        default_charge: int = 0,
+        default_spin: int = 1,
+        verbose: int = 1,
+        profile: bool = False,
+        *,
+        embedder: str = "pysmiles",
+        source: str = "pubchem",
+        **kwargs: Any,
+    ) -> Explorer:
+        """Create an Explorer from a PubChem compound name or CID.
+
+        A computed 3D conformer is used when PubChem has one. Otherwise the
+        deposited SMILES is embedded with ``embedder``. Charge and spin on the
+        downloaded geometry override ``default_charge`` and ``default_spin``.
+
+        Parameters
+        ----------
+        query : str
+            Compound name, CID, or a ``pubchem:`` / ``cid:`` prefixed form.
+        embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+            Used when PubChem has no 3D conformer.
+        source : str, default 'pubchem'
+            Structure database. Only ``pubchem`` is available.
+        **kwargs
+            Passed to :class:`Explorer`, including ``target`` and ``strategy``.
+        """
+        from famex.io.pubchem import fetch_structure
+
+        geom = fetch_structure(query, source=source, embedder=embedder)
+        return cls(
+            atoms=geom,
+            backend=backend,
+            model_name=model_name,
+            model_path=model_path,
+            device=device,
+            default_charge=default_charge,
+            default_spin=default_spin,
+            verbose=verbose,
+            profile=profile,
+            **kwargs,
+        )
+
     def load_structure(self, filename_or_geom: str | Path | Atoms) -> Atoms:
         """Load structure from file or geometry object and update atoms_list."""
         if isinstance(filename_or_geom, str | Path):

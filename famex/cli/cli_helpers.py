@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,93 @@ def parse_kv_pairs(pairs: list[str]) -> dict[str, object]:
     return result
 
 
+_GEOM_SUFFIXES = {".xyz", ".cif", ".pdb", ".vasp", ".json", ".com", ".gjf", ".mol", ".sdf"}
+
+
+def input_stem(text: str) -> str:
+    """File stem for an existing geometry, or a filesystem-safe SMILES slug."""
+    path = Path(text)
+    try:
+        is_file = path.is_file()
+    except OSError:
+        is_file = False
+    if is_file:
+        return os.path.splitext(text)[0]
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", text).strip("_")
+    return (slug or "smiles")[:48]
+
+
+def _is_pubchem_query(text: str) -> bool:
+    """Return whether ``text`` is a PubChem name, ``cid:`` ID, or bare CID."""
+    lowered = text.strip().lower()
+    if lowered.startswith(("pubchem:", "cid:")):
+        return True
+    return text.strip().isdigit()
+
+
+def require_same_atom_count(structures: list[Atoms], labels: list[str]) -> None:
+    """Reject a reactant/product set whose structures have different sizes."""
+    if len(structures) < 2:
+        return
+    counts = [len(atoms) for atoms in structures]
+    if len(set(counts)) == 1:
+        return
+    detail = ", ".join(
+        f"{label} ({count} atoms)" for label, count in zip(labels, counts, strict=True)
+    )
+    raise ValueError(f"Atom counts do not match: {detail}")
+
+
+def load_structure_or_smiles(text: str, *, embedder: str = "pysmiles") -> Atoms:
+    """Load a geometry file, a PubChem compound, or a SMILES string.
+
+    Paths that look like geometry files and do not exist are reported as
+    missing files. ``pubchem:NAME``, ``cid:2244``, and a bare CID download
+    from PubChem. Any other missing path is parsed as SMILES.
+    ``embedder`` is ``pysmiles`` or ``rdkit``. An existing file is loaded as a
+    geometry even if its name looks like a CID.
+    """
+    path = Path(text)
+    try:
+        is_file = path.is_file()
+    except OSError as exc:
+        raise click.BadParameter(f"Cannot read {text!r}: {exc}") from exc
+    if is_file:
+        return load_atoms_from_xyz(text)
+
+    looks_like_file = path.suffix.lower() in _GEOM_SUFFIXES or text.startswith(("/", "./", "../"))
+    if looks_like_file:
+        raise click.BadParameter(f"File not found: {text}")
+
+    stripped = text.strip()
+    if _is_pubchem_query(stripped):
+        try:
+            from famex.io.pubchem import fetch_pubchem
+
+            return fetch_pubchem(stripped, embedder=embedder)
+        except ImportError as exc:
+            raise click.ClickException(str(exc)) from exc
+        except (ValueError, RuntimeError) as exc:
+            raise click.BadParameter(str(exc)) from exc
+
+    try:
+        # Optional extra; XYZ workflows must not import pysmiles or RDKit.
+        from famex.embed.api import smiles_to_atoms
+
+        geom = smiles_to_atoms(text, embedder=embedder)
+    except ImportError as exc:
+        raise click.ClickException(str(exc)) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise click.BadParameter(
+            f"{text!r} is not an existing file or a valid SMILES string ({exc})"
+        ) from exc
+    if isinstance(geom, list):
+        if not geom:
+            raise click.BadParameter(f"SMILES {text!r} produced no conformers")
+        return geom[0]
+    return geom
+
+
 def load_atoms_from_xyz(path: str) -> Atoms:
     """Load atoms from an XYZ file."""
     if path.lower().endswith(".xyz"):
@@ -52,36 +140,33 @@ def load_atoms_from_xyz(path: str) -> Atoms:
     return atoms
 
 
-def load_path_structures(structures: tuple[str, ...]) -> list[Atoms]:
-    """Load structures for path optimization from variadic file inputs."""
+def load_path_structures(structures: tuple[str, ...], *, embedder: str = "pysmiles") -> list[Atoms]:
+    """Load path endpoints from files, PubChem IDs, or SMILES strings.
+
+    One existing XYZ may be a multi-frame trajectory. Two or more inputs are
+    loaded one by one, so a reactant file can be paired with a product SMILES
+    or ``cid:``.
+    """
     if not structures:
-        raise ValueError("At least one structure file must be provided")
+        raise ValueError("At least one structure must be provided")
 
-    atoms_list: list[Atoms] = []
-
-    if len(structures) > 1:
-        for path in structures:
-            atoms = load_atoms_from_xyz(path)
-            atoms_list.append(atoms)
-        return atoms_list
-
-    single_path = structures[0]
-
-    if single_path.lower().endswith(".xyz"):
+    if len(structures) == 1 and structures[0].lower().endswith(".xyz"):
+        path = Path(structures[0])
         try:
-            geom_result = read_xyz_with_metadata(single_path, frame="all")
+            is_file = path.is_file()
+        except OSError:
+            is_file = False
+        if is_file:
+            try:
+                geom_result = read_xyz_with_metadata(structures[0], frame="all")
+            except Exception:
+                geom_result = None
             if isinstance(geom_result, list):
-                atoms_list.extend(geom_result)
-                return atoms_list
-            else:
-                atoms_list.append(geom_result)
-                return atoms_list
-        except Exception:
-            pass
+                return list(geom_result)
+            if geom_result is not None:
+                return [geom_result]
 
-    atoms = load_atoms_from_xyz(single_path)
-    atoms_list.append(atoms)
-    return atoms_list
+    return [load_structure_or_smiles(text, embedder=embedder) for text in structures]
 
 
 def _coerce_to_atoms(obj: Any) -> Atoms:
