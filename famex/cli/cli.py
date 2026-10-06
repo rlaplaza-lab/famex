@@ -26,6 +26,8 @@ from famex.cli.cli_helpers import (
     write_atoms,
 )
 from famex.core.explorer import Explorer
+from famex.embed.api import embed_smiles
+from famex.io import pubchem
 from famex.utils.ml_warnings import quiet_backend_loading
 
 os.environ.setdefault("MPLBACKEND", "Agg")
@@ -1157,11 +1159,6 @@ def embed(
     if nconf < 1:
         raise click.BadParameter("--nconf must be >= 1")
     try:
-        from famex.embed.api import embed_smiles
-    except ImportError as exc:
-        raise click.ClickException(str(exc)) from exc
-
-    try:
         geoms = embed_smiles(smiles, n_conf=nconf, seed=seed, add_h=add_h, embedder=embedder)
     except ImportError as exc:
         raise click.ClickException(str(exc)) from exc
@@ -1188,21 +1185,8 @@ def embed(
     default=None,
     help="Output XYZ path",
 )
-@click.option(
-    "--source",
-    type=click.Choice(["pubchem"]),
-    default="pubchem",
-    show_default=True,
-    help="Structure database",
-)
-@click.option(
-    "--embedder",
-    type=click.Choice(["pysmiles", "rdkit"]),
-    default="pysmiles",
-    show_default=True,
-    help="Embedder used when the database has no 3D conformer",
-)
-def fetch(query: str, output: str | None, source: str, embedder: str) -> None:
+@_embedder_option
+def fetch(query: str, output: str | None, embedder: str) -> None:
     """Download a 3D structure from PubChem.
 
     QUERY is a compound name or CID (``2244``, ``cid:2244``). PubChem's
@@ -1211,11 +1195,7 @@ def fetch(query: str, output: str | None, source: str, embedder: str) -> None:
     accept the same lookup as ``pubchem:NAME``.
     """
     try:
-        from famex.io.pubchem import fetch_structure
-    except ImportError as exc:
-        raise click.ClickException(str(exc)) from exc
-    try:
-        geom = fetch_structure(query, source=source, embedder=embedder)
+        geom = pubchem.fetch_pubchem(query, embedder=embedder)
     except ImportError as exc:
         raise click.ClickException(str(exc)) from exc
     except (ValueError, RuntimeError) as exc:

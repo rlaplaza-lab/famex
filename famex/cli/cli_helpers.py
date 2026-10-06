@@ -14,6 +14,8 @@ from ase import Atoms
 from ase.io import read as ase_read
 from ase.io import write as ase_write
 
+from famex.embed.api import smiles_to_atoms
+from famex.io import pubchem
 from famex.io.xyz_io import read_xyz_with_metadata, write_xyz_with_metadata
 
 
@@ -54,7 +56,10 @@ def input_stem(text: str) -> str:
 
 
 def _is_pubchem_query(text: str) -> bool:
-    """Return whether ``text`` is a PubChem name, ``cid:`` ID, or bare CID."""
+    """Return whether ``text`` is ``pubchem:``, ``cid:``, or a bare numeric CID.
+
+    A bare compound name is not detected. Pass ``pubchem:NAME`` for that.
+    """
     lowered = text.strip().lower()
     if lowered.startswith(("pubchem:", "cid:")):
         return True
@@ -98,30 +103,20 @@ def load_structure_or_smiles(text: str, *, embedder: str = "pysmiles") -> Atoms:
     stripped = text.strip()
     if _is_pubchem_query(stripped):
         try:
-            from famex.io.pubchem import fetch_pubchem
-
-            return fetch_pubchem(stripped, embedder=embedder)
+            return pubchem.fetch_pubchem(stripped, embedder=embedder)
         except ImportError as exc:
             raise click.ClickException(str(exc)) from exc
         except (ValueError, RuntimeError) as exc:
             raise click.BadParameter(str(exc)) from exc
 
     try:
-        # Optional extra; XYZ workflows must not import pysmiles or RDKit.
-        from famex.embed.api import smiles_to_atoms
-
-        geom = smiles_to_atoms(text, embedder=embedder)
+        return smiles_to_atoms(text, embedder=embedder)
     except ImportError as exc:
         raise click.ClickException(str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
         raise click.BadParameter(
             f"{text!r} is not an existing file or a valid SMILES string ({exc})"
         ) from exc
-    if isinstance(geom, list):
-        if not geom:
-            raise click.BadParameter(f"SMILES {text!r} produced no conformers")
-        return geom[0]
-    return geom
 
 
 def load_atoms_from_xyz(path: str) -> Atoms:

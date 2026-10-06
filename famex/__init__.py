@@ -34,7 +34,7 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-__version__ = "0.3.0"
+__version__ = "0.5.0"
 __author__ = "FAMEX Development Team"
 
 # Ensure headless operation by default to avoid GUI popups from ASE/matplotlib

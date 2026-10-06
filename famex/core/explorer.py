@@ -17,7 +17,7 @@ from famex.core.constraint_manager import ConstraintManager
 from famex.core.exceptions import StrategyNotFoundError
 from famex.core.file_io import write_atoms_safely, write_trajectory_safely
 from famex.core.registry import REGISTRY
-from famex.io.geometry import read_geometry
+from famex.io.geometry import Geometry, read_geometry
 from famex.utils.device import resolve_backend_device
 from famex.utils.profiler import PerformanceProfiler
 
@@ -651,14 +651,7 @@ class Explorer:
         -------
         Explorer
         """
-        # Optional embed stack; Explorer import must not require pysmiles or RDKit.
-        from famex.embed.api import smiles_to_atoms
-
-        geom = smiles_to_atoms(smiles, n_conf=1, seed=seed, add_h=add_h, embedder=embedder)
-        if isinstance(geom, list):
-            if not geom:
-                raise ValueError(f"SMILES {smiles!r} produced no conformers")
-            geom = geom[0]
+        geom = Geometry.from_smiles(smiles, seed=seed, add_h=add_h, embedder=embedder)
         return cls(
             atoms=geom,
             backend=backend,
@@ -686,7 +679,6 @@ class Explorer:
         profile: bool = False,
         *,
         embedder: str = "pysmiles",
-        source: str = "pubchem",
         **kwargs: Any,
     ) -> Explorer:
         """Create an Explorer from a PubChem compound name or CID.
@@ -701,14 +693,10 @@ class Explorer:
             Compound name, CID, or a ``pubchem:`` / ``cid:`` prefixed form.
         embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
             Used when PubChem has no 3D conformer.
-        source : str, default 'pubchem'
-            Structure database. Only ``pubchem`` is available.
         **kwargs
             Passed to :class:`Explorer`, including ``target`` and ``strategy``.
         """
-        from famex.io.pubchem import fetch_structure
-
-        geom = fetch_structure(query, source=source, embedder=embedder)
+        geom = Geometry.from_pubchem(query, embedder=embedder)
         return cls(
             atoms=geom,
             backend=backend,

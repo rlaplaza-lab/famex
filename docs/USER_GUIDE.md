@@ -98,14 +98,14 @@ famex minima --strategy {local,interpolate} INPUT [OPTIONS]
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `INPUT` | Path or SMILES | Geometry file, or a SMILES string if that path does not exist |
+| `INPUT` | Path, SMILES, or PubChem | Geometry file, SMILES, `pubchem:NAME`, `cid:2244`, or a bare numeric CID. A missing path that looks like a file is an error. A bare name is SMILES, not a PubChem lookup. |
 
 #### Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--strategy` | `local` | Optimization strategy: local\|interpolate |
-| `--product` | `None` | Product geometry file or SMILES (interpolate strategy) |
+| `--product` | `None` | Product geometry, SMILES, or PubChem (`pubchem:NAME`, `cid:`, or a bare CID) for interpolate |
 | `--embedder` | `pysmiles` | SMILES 3D method: `pysmiles` or `rdkit` |
 | `--output` | Auto | Output optimized XYZ path |
 | `--fmax` | `0.05` | Convergence threshold |
@@ -151,14 +151,14 @@ famex ts --strategy {local,interpolate,cineb,growing_string,dhs} INPUT [OPTIONS]
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `INPUT` | Path or SMILES | Geometry file, or a SMILES string if that path does not exist |
+| `INPUT` | Path, SMILES, or PubChem | Geometry file, SMILES, `pubchem:NAME`, `cid:2244`, or a bare numeric CID. A missing path that looks like a file is an error. A bare name is SMILES, not a PubChem lookup. |
 
 #### Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--strategy` | `local` | Optimization strategy: local\|interpolate\|cineb\|growing_string\|dhs |
-| `--product` | `None` | Product geometry file or SMILES (interpolate/cineb/growing_string/dhs) |
+| `--product` | `None` | Product geometry, SMILES, or PubChem (`pubchem:NAME`, `cid:`, or a bare CID) for interpolate/cineb/growing_string/dhs |
 | `--embedder` | `pysmiles` | SMILES 3D method: `pysmiles` or `rdkit` |
 | `--output` | Auto | Output TS XYZ path |
 | `--fmax` | `0.05` | Convergence threshold for local TS refinement |
@@ -229,7 +229,7 @@ famex path --strategy {interpolate,neb,cineb,irc} STRUCTURES... [OPTIONS]
 
 | Argument | Type | Description |
 |----------|------|-------------|
-| `STRUCTURES...` | Path, SMILES, or PubChem | One or more endpoints. Each may be a geometry file, a SMILES string, `pubchem:NAME`, or `cid:2244`. A single multi-frame XYZ is used as the path guess. Endpoints must have the same number of atoms. |
+| `STRUCTURES...` | Path, SMILES, or PubChem | One or more endpoints. Each may be a geometry file, a SMILES string, `pubchem:NAME`, `cid:2244`, or a bare numeric CID. A bare name is SMILES. A single multi-frame XYZ is used as the path guess. Endpoints must have the same number of atoms. |
 
 #### Options
 
@@ -292,9 +292,9 @@ Build a Cartesian guess from an OpenSMILES string. `--embedder` selects the meth
 | `pysmiles` (default) | `pip install famex[smiles]` | UFF distance geometry, then a short UFF-like cleanup |
 | `rdkit` | `pip install famex[rdkit]` | RDKit ETKDGv3 |
 
-The pysmiles bounds come from UFF (Rappé et al., J. Am. Chem. Soc. 1992) for main-group atom types. Elements without a tabulated type, including most metals, use covalent radii and a coordination-number angle. Either result is a starting geometry: relax it with `--relax uma` or `--relax pet`, or pass the same SMILES to `famex minima`.
+The pysmiles bounds come from UFF (Rappé et al., J. Am. Chem. Soc. 1992) for main-group atom types. Elements without a tabulated type, including most metals, use covalent radii and a coordination-number angle. Either result is a starting geometry: relax it with `--relax uma` or `--relax pet`, or pass the same SMILES to `famex minima`. `--nconf` asks for that many conformers; the command fails if the embedder cannot produce all of them.
 
-`famex minima` and `famex ts` accept a SMILES string in place of `INPUT` or `--product` when that path is not an existing file. They take the same `--embedder`.
+`famex minima`, `famex ts`, and `famex path` accept a SMILES string in place of a geometry file when that path does not exist. They take the same `--embedder`. PubChem lookups on those commands use `pubchem:NAME`, `cid:`, or a bare numeric CID.
 
 ```bash
 famex embed "CCO" -o ethanol.xyz
@@ -325,9 +325,9 @@ RDKit ETKDGv3 follows RDKit's own valence and UFF atom types. It can reject meta
 
 ### famex fetch - PubChem import
 
-Download a starting geometry from [PubChem](https://pubchem.ncbi.nlm.nih.gov/) PUG REST. A compound name or CID is enough. When PubChem has a computed 3D conformer, those coordinates are used. When it does not, the deposited SMILES is embedded with `--embedder` (`pysmiles` by default, or `rdkit`).
+Download a starting geometry from [PubChem](https://pubchem.ncbi.nlm.nih.gov/) PUG REST. `famex fetch` takes a compound name or CID. When PubChem has a computed 3D conformer, those coordinates are used. When it does not, the deposited SMILES is embedded with `--embedder` (`pysmiles` by default, or `rdkit`).
 
-`famex minima`, `famex ts`, and `famex path` accept `pubchem:NAME`, `cid:2244`, or a SMILES string anywhere a structure is expected, including the reactant and `--product`. Endpoints of one calculation must have the same number of atoms.
+`famex minima`, `famex ts`, and `famex path` accept `pubchem:NAME`, `cid:2244`, a bare numeric CID, or a SMILES string anywhere a structure is expected, including the reactant and `--product`. A bare name on those commands is SMILES, not a PubChem lookup. Endpoints of one calculation must have the same number of atoms.
 
 ```bash
 famex fetch aspirin -o aspirin.xyz
@@ -343,7 +343,7 @@ geom = Geometry.from_pubchem("aspirin")
 explorer = Explorer.from_pubchem("aspirin", backend="uma", target="minima", strategy="local")
 ```
 
-The PubChem conformer is a computed model, not a crystal structure. Only `pubchem` is available as a database source.
+The PubChem conformer is a computed model, not a crystal structure.
 
 ## Python API
 

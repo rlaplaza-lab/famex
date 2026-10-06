@@ -15,6 +15,7 @@ from urllib.parse import quote
 import requests
 from ase.io import read as ase_read
 
+from famex.embed.api import smiles_to_atoms
 from famex.io.geometry import Geometry
 from famex.utils.logging import get_famex_logger
 
@@ -24,7 +25,6 @@ _BASE = "https://pubchem.ncbi.nlm.nih.gov/rest/pug"
 _USER_AGENT = "famex (https://github.com/rlaplaza-lab/famex)"
 _TIMEOUT_S = 60
 _RETRY_DELAYS_S = (1.0, 2.0, 4.0)
-SOURCES = ("pubchem",)
 QueryKind = Literal["cid", "name"]
 
 
@@ -42,20 +42,9 @@ def parse_pubchem_query(query: str) -> tuple[QueryKind, str]:
     return "name", text
 
 
-def fetch_structure(
-    query: str,
-    *,
-    source: str = "pubchem",
-    embedder: str = "pysmiles",
-) -> Geometry:
-    """Download one 3D geometry from a structure database.
-
-    ``source`` is ``pubchem`` for now. Other names raise ``ValueError``.
-    """
-    if source == "pubchem":
-        return fetch_pubchem(query, embedder=embedder)
-    available = ", ".join(SOURCES)
-    raise ValueError(f"Unknown structure database {source!r}. Available: {available}")
+def fetch_structure(query: str, *, embedder: str = "pysmiles") -> Geometry:
+    """Download one 3D geometry from PubChem."""
+    return fetch_pubchem(query, embedder=embedder)
 
 
 def fetch_pubchem(query: str, *, embedder: str = "pysmiles") -> Geometry:
@@ -99,16 +88,7 @@ def fetch_pubchem(query: str, *, embedder: str = "pysmiles") -> Geometry:
         cid,
         embedder,
     )
-    # Optional embed extra, needed only for compounds without a 3D record.
-    from famex.embed.api import smiles_to_atoms
-
-    embedded = smiles_to_atoms(smiles, n_conf=1, seed=0, embedder=embedder)
-    if isinstance(embedded, list):
-        if not embedded:
-            raise ValueError(f"SMILES from PubChem CID {cid} produced no conformers")
-        geom = embedded[0]
-    else:
-        geom = embedded
+    geom = smiles_to_atoms(smiles, n_conf=1, seed=0, embedder=embedder)
     _stamp(geom, cid=cid, title=title, smiles=smiles, coordinates="embedded")
     return geom
 
@@ -200,6 +180,10 @@ def _get(session: requests.Session, url: str) -> requests.Response:
             break
         time.sleep(delay)
         response = session.get(url, timeout=_TIMEOUT_S)
+    if response.status_code == 202:
+        raise ValueError("PubChem is still busy (HTTP 202) after retries")
+    if 200 < response.status_code < 400:
+        raise ValueError(f"PubChem returned an unexpected status (HTTP {response.status_code})")
     return response
 
 

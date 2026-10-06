@@ -76,8 +76,6 @@ def _torsion_window(
     dists = [torsion_distance(r_ab, r_bc, r_cd, ang_b, ang_c, math.radians(phi)) for phi in phis]
     lo = min(dists) * 0.97
     hi = max(dists) * 1.03
-    if hi < lo:
-        lo, hi = hi, lo
     return lo, max(hi, lo + 1e-3)
 
 
@@ -189,14 +187,10 @@ def distance_bounds(
                 kind[a, b] = kind[b, a] = 2
 
     stereo = _ez_lookup(graph.ez)
-    seen_bonds: set[tuple[int, int]] = set()
     for j, k, _order in graph.bonds:
         if j not in g2l or k not in g2l:
             continue
         bond_key = (j, k)
-        if bond_key in seen_bonds:
-            continue
-        seen_bonds.add(bond_key)
         r_jk = ideal[bond_key]
         for atom_a in neigh[j]:
             if atom_a == k or atom_a not in g2l:

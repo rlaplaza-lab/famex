@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, overload
 
 import numpy as np
 
@@ -22,10 +22,9 @@ DEFAULT_EMBEDDER: EmbedderName = "pysmiles"
 def normalize_embedder(embedder: str) -> EmbedderName:
     """Return a known embedder name, or raise ``ValueError``."""
     key = embedder.strip().lower()
-    if key == "pysmiles":
-        return "pysmiles"
-    if key == "rdkit":
-        return "rdkit"
+    for name in EMBEDDERS:
+        if key == name:
+            return name
     choices = ", ".join(EMBEDDERS)
     raise ValueError(f"Unknown SMILES embedder {embedder!r}. Choose from: {choices}")
 
@@ -79,6 +78,11 @@ def _embed_pysmiles(
         ranked.append((geometry_score(coords, graph, params), coords))
     if not ranked:
         raise RuntimeError(f"Distance geometry failed for SMILES {smiles!r}")
+    if len(ranked) < n_conf:
+        raise RuntimeError(
+            f"Distance geometry produced {len(ranked)} conformer(s) for {smiles!r}; "
+            f"requested {n_conf}"
+        )
     ranked.sort(key=lambda item: item[0])
     best_score = ranked[0][0]
     if best_score > 0.5 * max(graph.n_atoms, 1):
@@ -142,8 +146,7 @@ def embed_smiles(
     chosen = normalize_embedder(embedder)
     if chosen == "pysmiles":
         return _embed_pysmiles(smiles, n_conf=n_conf, seed=seed, add_h=add_h)
-    # Lazy import keeps a pysmiles-only install from loading this helper at
-    # import time. rdkit_embed itself imports RDKit only when called.
+    # RDKit is an optional extra. Import it only when this backend is selected.
     from famex.embed.rdkit_embed import embed_with_rdkit
 
     return embed_with_rdkit(
@@ -155,6 +158,28 @@ def embed_smiles(
             text, charge, mult, elements, coords, "rdkit"
         ),
     )
+
+
+@overload
+def smiles_to_atoms(
+    smiles: str,
+    *,
+    n_conf: Literal[1] = 1,
+    seed: int = 0,
+    add_h: bool = True,
+    embedder: str = DEFAULT_EMBEDDER,
+) -> Geometry: ...
+
+
+@overload
+def smiles_to_atoms(
+    smiles: str,
+    *,
+    n_conf: int,
+    seed: int = 0,
+    add_h: bool = True,
+    embedder: str = DEFAULT_EMBEDDER,
+) -> Geometry | list[Geometry]: ...
 
 
 def smiles_to_atoms(

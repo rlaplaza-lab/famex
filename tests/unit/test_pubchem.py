@@ -9,7 +9,7 @@ import famex
 from famex.cli import main
 from famex.cli.cli_helpers import load_structure_or_smiles
 from famex.io.geometry import Geometry
-from famex.io.pubchem import fetch_pubchem, fetch_structure, parse_pubchem_query
+from famex.io.pubchem import fetch_pubchem, parse_pubchem_query
 
 _WATER_SDF = """
 water
@@ -76,10 +76,6 @@ class TestPubChemQuery:
         with pytest.raises(ValueError, match="empty"):
             parse_pubchem_query("pubchem:")
 
-    def test_unknown_database(self) -> None:
-        with pytest.raises(ValueError, match="database"):
-            fetch_structure("aspirin", source="chembl")
-
 
 class TestPubChemDownload:
     def test_uses_3d_conformer(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -114,6 +110,15 @@ class TestPubChemDownload:
         geom = fetch_pubchem("water")
         assert geom.info["coordinates"] == "pubchem-3d"
         assert session.calls[0] == session.calls[1]
+
+    def test_gives_up_when_pubchem_stays_busy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("famex.io.pubchem.time.sleep", lambda _delay: None)
+        _patch_session(
+            monkeypatch,
+            [_Response(202, text="waiting") for _ in range(4)],
+        )
+        with pytest.raises(ValueError, match="still busy"):
+            fetch_pubchem("water")
 
     def test_missing_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _patch_session(monkeypatch, [_Response(404, text="Status: 404 PUGREST.NotFound")])
@@ -150,7 +155,6 @@ class TestPubChemAPI:
         geom.info["coordinates"] = "pubchem-3d"
         geom.info["source"] = "pubchem"
 
-        monkeypatch.setattr("famex.io.pubchem.fetch_structure", lambda *args, **kwargs: geom)
         monkeypatch.setattr("famex.io.pubchem.fetch_pubchem", lambda *args, **kwargs: geom)
 
         loaded = Geometry.from_pubchem("water")
