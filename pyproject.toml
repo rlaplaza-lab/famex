@@ -36,6 +36,8 @@ dependencies = [
 # ML backends must be installed separately - see README for details
 uma = ["fairchem-core>=2.22.0"]
 pet = ["upet"]
+smiles = ["pysmiles>=1.1.0"]
+rdkit = ["rdkit>=2023.9.1"]
 # orb-models 0.7.0 adds OrbMol-v2 and requires Python 3.12+.
 orb = ["orb-models>=0.7.0"]
 dev = [
@@ -47,6 +49,7 @@ dev = [
     "types-requests>=2.25.0",
     "types-tqdm>=4.66.0",
     "types-psutil>=5.9.0",
+    "pysmiles>=1.1.0",
 ]
 
 [project.scripts]
@@ -62,7 +65,7 @@ Issues = "https://github.com/rlaplaza-lab/famex/issues"
 include = ["famex*"]
 
 [tool.setuptools.package-data]
-famex = ["*.yml", "*.yaml", "*.json"]
+famex = ["*.yml", "*.yaml", "*.json", "embed/*.json"]
 
 [tool.isort]
 profile = "black"
@@ -206,6 +209,9 @@ module = [
     "tblite.*",
     "torch_cluster.*",
     "upet.*",
+    "pysmiles",
+    "rdkit",
+    "rdkit.*",
     "metatomic.*",
     "metatomic_ase.*",
     "tqdm.*",

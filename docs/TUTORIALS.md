@@ -35,6 +35,45 @@ result = explorer.run(fmax=0.05, steps=1000)
 explorer.save_structure(result["optimized_atoms"], "optimized.xyz")
 ```
 
+### From SMILES
+
+Install one embedder, or both. `pysmiles` is the default. UMA or PET are used only if you relax or optimize; they are not required to build the initial coordinates.
+
+```bash
+pip install famex[smiles]   # default distance geometry
+pip install famex[rdkit]    # optional ETKDGv3
+famex embed "CCO" -o ethanol.xyz
+famex embed "CCO" --embedder rdkit -o ethanol_rdkit.xyz
+famex minima --strategy local "CCO" --backend aimnet2 --fmax 0.05
+```
+
+```python
+import famex
+
+geom = famex.smiles_to_atoms("CCO")
+rdkit_geom = famex.smiles_to_atoms("CCO", embedder="rdkit")
+explorer = famex.Explorer.from_smiles("CCO", backend="aimnet2", target="minima", strategy="local")
+result = explorer.run(fmax=0.05, steps=1000)
+```
+
+The pysmiles embedder covers the periodic table: tabulated UFF types for common main-group atoms, and covalent-radius fallbacks otherwise. It does not encode square-planar versus tetrahedral preference, crystal periodicity, or dative-bond arrows. Treat either embedder's coordinates as a guess and minimize them.
+
+### From PubChem
+
+`famex fetch` downloads PubChem's computed 3D conformer. If that record is missing, it embeds the deposited SMILES. `pubchem:` in front of a name works as `minima` or `ts` input.
+
+```bash
+famex fetch aspirin -o aspirin.xyz
+famex minima --strategy local pubchem:aspirin --backend aimnet2 --fmax 0.05
+```
+
+```python
+import famex
+
+geom = famex.Geometry.from_pubchem("aspirin")
+explorer = famex.Explorer.from_pubchem("aspirin", backend="aimnet2", target="minima", strategy="local")
+```
+
 ### Optimizers
 
 | Optimizer | Type | Best For |

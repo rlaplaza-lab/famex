@@ -40,7 +40,11 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: What file formats are supported?
 
-**A:** All ASE-compatible formats (XYZ, CIF, PDB, VASP, and others supported by ASE I/O).
+**A:** All ASE-compatible formats (XYZ, CIF, PDB, VASP, and others supported by ASE I/O). `famex minima` and `famex ts` also accept a SMILES string when the argument is not an existing file, or `pubchem:NAME` to download a conformer. `famex embed` writes an XYZ guess. `famex fetch` downloads from PubChem. `--embedder pysmiles` (default, `pip install famex[smiles]`) is distance geometry. `--embedder rdkit` (`pip install famex[rdkit]`) is ETKDGv3.
+
+### Q: Can SMILES embedding replace a force-field or ML minimization?
+
+**A:** No. Both embedders produce a starting geometry. Relax with `--relax uma` or `--relax pet`, or run `famex minima`. The pysmiles path uses four-coordinate tetrahedral defaults, no crystals, and generic cis/gauche/trans 1–4 windows. RDKit ETKDGv3 uses experimental torsions for organic molecules and can refuse metals that its force field does not type.
 
 ### Q: How do I specify charge and spin?
 
