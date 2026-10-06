@@ -60,7 +60,7 @@ The pysmiles embedder covers the periodic table: tabulated UFF types for common 
 
 ### From PubChem
 
-`famex fetch` downloads PubChem's computed 3D conformer. If that record is missing, it embeds the deposited SMILES. `pubchem:` in front of a name works as `minima` or `ts` input.
+`famex fetch` downloads PubChem's computed 3D conformer from a compound name or CID. If that record is missing, it embeds the deposited SMILES. `pubchem:NAME`, `cid:`, and a bare numeric CID work as `minima`, `ts`, and `path` inputs. A bare name on those commands is SMILES.
 
 ```bash
 famex fetch aspirin -o aspirin.xyz

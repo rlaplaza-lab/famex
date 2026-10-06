@@ -49,9 +49,6 @@ def _classical_mds(dist: np.ndarray) -> np.ndarray:
     order = np.argsort(evals)[::-1][:3]
     lam = np.clip(evals[order], 0.0, None)
     coords = evecs[:, order] * np.sqrt(lam)
-    if coords.shape[1] < 3:
-        pad = np.zeros((n, 3 - coords.shape[1]), dtype=float)
-        coords = np.hstack([coords, pad])
     return np.asarray(coords, dtype=float)
 
 
@@ -321,7 +318,7 @@ def _chiral_violations(coords: np.ndarray, graph: MolGraph) -> int:
             spec.neighbors[1],
             spec.neighbors[2],
         )
-        if volume < -0.02:
+        if volume <= 0.02:
             bad += 1
     return bad
 

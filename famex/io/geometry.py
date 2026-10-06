@@ -161,15 +161,10 @@ class Geometry(Atoms):
             One conformer. Charge and multiplicity come from the SMILES graph
             (odd electron counts use multiplicity 2).
         """
-        # Optional embed stack; keep geometry importable without pysmiles or RDKit.
+        # Circular: embed.api imports Geometry.
         from famex.embed.api import smiles_to_atoms
 
-        geom = smiles_to_atoms(smiles, n_conf=1, seed=seed, add_h=add_h, embedder=embedder)
-        if isinstance(geom, list):
-            if not geom:
-                raise ValueError(f"SMILES {smiles!r} produced no conformers")
-            return geom[0]
-        return geom
+        return smiles_to_atoms(smiles, n_conf=1, seed=seed, add_h=add_h, embedder=embedder)
 
     @classmethod
     def from_pubchem(
@@ -177,7 +172,6 @@ class Geometry(Atoms):
         query: str,
         *,
         embedder: str = "pysmiles",
-        source: str = "pubchem",
     ) -> Geometry:
         """Download one geometry from PubChem.
 
@@ -186,17 +180,16 @@ class Geometry(Atoms):
         query : str
             Compound name, CID, or a ``pubchem:`` / ``cid:`` prefixed form.
         embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
-            Used when the database has no computed 3D conformer.
-        source : str, default 'pubchem'
-            Structure database. Only ``pubchem`` is available.
+            Used when PubChem has no computed 3D conformer.
 
         Returns
         -------
         Geometry
         """
-        from famex.io.pubchem import fetch_structure
+        # Circular: pubchem imports Geometry.
+        from famex.io.pubchem import fetch_pubchem
 
-        return fetch_structure(query, source=source, embedder=embedder)
+        return fetch_pubchem(query, embedder=embedder)
 
 
 def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
