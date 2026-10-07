@@ -869,6 +869,12 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 StrategyUtils.ensure_charge_spin_info(reactant)
                 StrategyUtils.ensure_charge_spin_info(product)
 
+        # Reset per-run state so repeated run() calls do not leak history.
+        self.all_energies = []
+        self.all_forces = []
+        self.perp_forces_list = []
+        self.new_image_inds = []
+
         # Initialize strings
         self.left_string = [reactant.copy()]
         self.right_string = [product.copy()]

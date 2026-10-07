@@ -539,7 +539,7 @@ def main() -> None:
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
+    type=click.Choice(["linear", "geodesic", "idpp"], case_sensitive=False),
     default="geodesic",
     show_default=True,
     help="Interpolation method (interpolate strategy only)",
@@ -686,7 +686,7 @@ def minima(
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
+    type=click.Choice(["linear", "geodesic", "idpp"], case_sensitive=False),
     default="idpp",
     show_default=True,
     help="Interpolation method (interpolate/cineb strategies only)",
@@ -907,7 +907,7 @@ main.add_command(cache)
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
+    type=click.Choice(["linear", "geodesic", "idpp"], case_sensitive=False),
     default="geodesic",
     show_default=True,
     help="Initial interpolation method",

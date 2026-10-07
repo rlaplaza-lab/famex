@@ -13,6 +13,7 @@ from famex.analysis.noise_estimation import (
     estimate_optimal_delta,
     estimate_richardson_noise,
 )
+from famex.potentials.mock_potential import MockCalculator
 
 
 class TestEstimateRichardsonNoise:
@@ -181,6 +182,14 @@ class TestEstimateForceNoise:
 
         assert noise_small >= 0
         assert noise_large >= 0
+
+    def test_smooth_potential_not_flagged_as_noisy(self):
+        """Linear force response H·δ must cancel under symmetric ±δ sampling."""
+        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        noise = estimate_force_noise(
+            atoms, MockCalculator(force_constant=30.0), n_samples=5, perturbation_size=1e-5
+        )
+        assert noise < 1e-4
 
     def test_returns_float(self):
         """Test that function returns a float."""

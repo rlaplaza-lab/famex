@@ -6,11 +6,17 @@ to avoid recreating calculators and re-downloading models on every run.
 Note: SO3LR calculators are excluded from caching due to internal state
 issues that cause "vmap got inconsistent sizes" errors when reused.
 This is a known limitation of the SO3LR backend's internal implementation.
+
+Thread safety: ``CalculatorCache``, ``ModelCache``, and the module-level
+singletons are not safe for concurrent ``get``/``put`` from multiple threads.
+Singleton creation is locked so only one instance is created. Parallel Hessian
+evaluation copies calculators instead of sharing this cache.
 """
 
 import hashlib
 import json
 import shutil
+import threading
 from pathlib import Path
 from typing import Any
 from weakref import WeakValueDictionary
@@ -21,6 +27,8 @@ from famex.utils.logging import get_famex_logger
 from famex.utils.path_security import PathSecurityError, sanitize_filename, validate_safe_path
 
 logger = get_famex_logger(__name__)
+
+_cache_init_lock = threading.Lock()
 
 
 class CalculatorCache:
@@ -73,6 +81,12 @@ class CalculatorCache:
         # Generate hash
         return hashlib.md5(param_str.encode()).hexdigest()[:16]
 
+    def _prune_access_order(self) -> None:
+        """Drop access-order keys whose weak cache entries are gone."""
+        stale = [key for key in self._access_order if key not in self._cache]
+        for key in stale:
+            del self._access_order[key]
+
     def get(
         self,
         backend: str,
@@ -99,10 +113,10 @@ class CalculatorCache:
             Cached calculator if available, None otherwise
 
         """
+        self._prune_access_order()
         key = self._generate_key(backend, model_name, device, **kwargs)
 
         if key in self._cache:
-            # Update access order
             self._access_order[key] = self._access_counter
             self._access_counter += 1
             return self._cache[key]
@@ -138,31 +152,29 @@ class CalculatorCache:
             Cache key for the calculator
 
         """
+        self._prune_access_order()
         key = self._generate_key(backend, model_name, device, **kwargs)
 
-        # Check if we need to evict old entries
-        if len(self._cache) >= self.max_size and key not in self._cache:
-            self._evict_oldest()
+        while len(self._cache) >= self.max_size and key not in self._cache:
+            if not self._evict_oldest():
+                break
 
-        # Cache the calculator
         self._cache[key] = calculator
         self._access_order[key] = self._access_counter
         self._access_counter += 1
 
         return key
 
-    def _evict_oldest(self) -> None:
-        """Evict the least recently used calculator."""
+    def _evict_oldest(self) -> bool:
+        """Evict the least recently used live calculator. Return False if empty."""
+        self._prune_access_order()
         if not self._access_order:
-            return
+            return False
 
-        # Find the oldest entry
-        oldest_key = min(self._access_order.keys(), key=lambda k: self._access_order[k])
-
-        # Remove from cache (weak reference will handle cleanup)
-        if oldest_key in self._cache:
-            del self._cache[oldest_key]
+        oldest_key = min(self._access_order, key=self._access_order.__getitem__)
+        del self._cache[oldest_key]
         del self._access_order[oldest_key]
+        return True
 
     def clear(self) -> None:
         """Clear all cached calculators."""
@@ -409,7 +421,6 @@ class UnifiedCache:
         }
 
 
-# Global cache instances
 _calculator_cache = None
 _model_cache = None
 _unified_cache = None
@@ -419,7 +430,9 @@ def _get_calculator_cache() -> CalculatorCache:
     """Get the global calculator cache instance."""
     global _calculator_cache
     if _calculator_cache is None:
-        _calculator_cache = CalculatorCache()
+        with _cache_init_lock:
+            if _calculator_cache is None:
+                _calculator_cache = CalculatorCache()
     return _calculator_cache
 
 
@@ -427,7 +440,9 @@ def _get_model_cache() -> ModelCache:
     """Get the global model cache instance."""
     global _model_cache
     if _model_cache is None:
-        _model_cache = ModelCache()
+        with _cache_init_lock:
+            if _model_cache is None:
+                _model_cache = ModelCache()
     return _model_cache
 
 
@@ -435,7 +450,9 @@ def _get_unified_cache() -> UnifiedCache:
     """Get the global unified cache instance."""
     global _unified_cache
     if _unified_cache is None:
-        _unified_cache = UnifiedCache()
+        with _cache_init_lock:
+            if _unified_cache is None:
+                _unified_cache = UnifiedCache()
     return _unified_cache
 
 
@@ -552,6 +569,6 @@ def get_unified_cache() -> UnifiedCache:
 
 
 def clear_all_caches() -> None:
-    """Clear all caches (calculator and model)."""
-    unified = _get_unified_cache()
-    unified.clear_all()
+    """Clear calculator and model caches, including the registry singleton."""
+    _get_calculator_cache().clear()
+    _get_unified_cache().clear_all()

@@ -7,7 +7,7 @@ import pytest
 from ase.io import read
 from ase.vibrations.data import VibrationsData
 
-from famex.analysis.frequency import FrequencyAnalysis
+from famex.analysis.frequency import FrequencyAnalysis, select_vibrational_indices
 from famex.analysis.physics_constants import normalize_frequencies_cm1
 from famex.backends.constants import DEFAULT_UMA_MODEL
 from tests.test_utils import requires_backend
@@ -63,9 +63,15 @@ class TestNormalizeFrequenciesCm1:
             dtype=np.complex128,
         )
         signed = normalize_frequencies_cm1(raw)
-        idx_sorted = np.argsort(np.abs(signed))
-        vibrational = signed[idx_sorted[6:]]
+        vibrational = signed[select_vibrational_indices(signed, nfree=6)]
         assert any(freq < -50 for freq in vibrational)
+
+    def test_shallow_imaginary_mode_survives_contaminated_rigid_modes(self):
+        """An imaginary mode below -50 must survive larger rigid-body frequencies."""
+        freqs = np.array([60.0, 55.0, 50.0, 45.0, 40.0, 35.0, -80.0, 200.0, 300.0])
+        vibrational = freqs[select_vibrational_indices(freqs, nfree=6)]
+        assert -80.0 in vibrational
+        assert len(vibrational) == 3
 
 
 @requires_backend("uma")

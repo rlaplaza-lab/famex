@@ -111,7 +111,7 @@ famex minima --strategy {local,interpolate} INPUT [OPTIONS]
 | `--fmax` | `0.05` | Convergence threshold |
 | `--steps` | `1000` | Max optimization steps |
 | `--npoints` | `11` | Number of interpolation points (interpolate strategy only) |
-| `--interp` | `geodesic` | Interpolation method: linear\|geodesic\|idpp\|quadratic\|spline |
+| `--interp` | `geodesic` | Interpolation method: linear\|geodesic\|idpp |
 
 #### Examples
 
@@ -454,8 +454,6 @@ conda activate famex-mace && pip install famex mace-torch
 | `geodesic` | Distance-preserving with bond refinement | Default, chemically reasonable |
 | `idpp` | Image-Dependent Pair Potential | Large geometry changes |
 | `linear` | Simple linear interpolation | Quick initial guesses |
-| `quadratic` | Quadratic curve fitting | Known transition region |
-| `spline` | Cubic spline interpolation | Smooth pathways |
 
 Usage: `famex path --strategy neb reactant.xyz product.xyz --interp idpp`
 

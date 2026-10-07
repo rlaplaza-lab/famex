@@ -115,7 +115,7 @@ HARMONIC_TOL = (1e-6, 1e-6)
 # Interpolation Tolerances
 # ============================================================================
 
-# Exact methods (linear, quadratic, spline)
+# Exact methods (linear)
 INTERP_EXACT_TOL = 1e-6
 
 # Iterative methods (geodesic, IDPP)

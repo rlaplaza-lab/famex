@@ -11,7 +11,7 @@ for additional accuracy improvements.
 from __future__ import annotations
 
 import time
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import numpy as np
@@ -27,6 +27,7 @@ from famex.analysis.finite_differences import (
     SevenPointCentralDifferenceScheme,
 )
 from famex.analysis.utils import validate_indices
+from famex.potentials.mock_potential import MockCalculator
 from famex.utils.logging import get_famex_logger
 
 # Optional progress bar support
@@ -145,7 +146,6 @@ class HessianCalculator:
         target_noise: float = 1e-5,
         max_iterations: int = 5,
         n_workers: int | None = None,
-        parallel_backend: str = "thread",
     ) -> None:
         """Initialize Hessian calculator.
 
@@ -184,14 +184,11 @@ class HessianCalculator:
         max_iterations : int, default 5
             Maximum iterations for adaptive delta selection.
         n_workers : int, optional
-            Number of parallel workers for force calculations.
-            If None, uses sequential computation (default).
-            If > 1, parallelizes independent displacement calculations.
-            Recommended for CPU-bound calculators and large systems.
-        parallel_backend : str, default "thread"
-            Parallel backend to use: 'thread' or 'process'.
-            'thread' is safer for most calculators but limited by GIL.
-            'process' requires picklable calculators.
+            Number of thread workers for force calculations.
+            If None or 1, uses sequential computation. If > 1, parallelizes
+            independent displacements with a ThreadPoolExecutor. Each worker
+            needs an independent calculator copy (``MockCalculator`` or a
+            calculator with ``copy()``); otherwise evaluation stays serial.
 
         Raises
         ------
@@ -249,10 +246,6 @@ class HessianCalculator:
             msg = f"n_workers must be >= 1, got {n_workers}"
             raise ValueError(msg)
         self.n_workers = n_workers
-        if parallel_backend not in ("thread", "process"):
-            msg = f"parallel_backend must be 'thread' or 'process', got {parallel_backend}"
-            raise ValueError(msg)
-        self.parallel_backend = parallel_backend
 
         # Cache for reference forces (computed once, reused)
         self._reference_forces: np.ndarray | None = None
@@ -630,6 +623,37 @@ class HessianCalculator:
         )
         raise RuntimeError(msg) from last_error
 
+    def _fresh_mock_calculator(self) -> CalculatorProtocol:
+        calc = cast(MockCalculator, self.calculator)
+        return cast(
+            CalculatorProtocol,
+            MockCalculator(
+                backend=calc.backend,
+                force_constant=getattr(calc, "force_constant", 1.0),
+                charge=getattr(calc, "charge", 0),
+                mult=getattr(calc, "mult", 1),
+            ),
+        )
+
+    def _supports_parallel_workers(self) -> bool:
+        if isinstance(self.calculator, MockCalculator):
+            return True
+        calc_any = cast(Any, self.calculator)
+        try:
+            copy_method = calc_any.copy
+        except AttributeError:
+            return False
+        return callable(copy_method)
+
+    def _calculator_for_displacement(self) -> CalculatorProtocol:
+        """Return a calculator instance safe for one force evaluation."""
+        if isinstance(self.calculator, MockCalculator):
+            return self._fresh_mock_calculator()
+        if self.n_workers is not None and self.n_workers > 1:
+            calc_any = cast(Any, self.calculator)
+            return cast(CalculatorProtocol, calc_any.copy())
+        return self.calculator
+
     def _get_forces_displaced(
         self,
         atom_index: int,
@@ -663,27 +687,7 @@ class HessianCalculator:
         atoms_displaced = self.atoms.copy()
         atoms_displaced.positions[atom_index, direction] += displacement
 
-        # MockCalculator requires fresh instances to avoid state contamination.
-        # Real calculators (UMA, AIMNet2, etc.) are reused to avoid model reloading.
-        from typing import cast
-
-        from famex.potentials.mock_potential import MockCalculator as MockCalculatorType
-
-        calc: CalculatorProtocol
-        if isinstance(self.calculator, MockCalculatorType):
-            calc = cast(
-                CalculatorProtocol,
-                MockCalculatorType(
-                    backend=self.calculator.backend,
-                    force_constant=getattr(self.calculator, "force_constant", 1.0),
-                    charge=getattr(self.calculator, "charge", 0),
-                    mult=getattr(self.calculator, "mult", 1),
-                ),
-            )
-        else:
-            calc = self.calculator
-
-        atoms_displaced.calc = calc
+        atoms_displaced.calc = self._calculator_for_displacement()
 
         try:
             forces = atoms_displaced.get_forces()
@@ -954,32 +958,22 @@ class HessianCalculator:
                 f"Calculating Hessian for {n_atoms} atoms using {type(self.scheme).__name__}"
             )
             if self.n_workers and self.n_workers > 1:
-                logger.info(
-                    f"Using {self.n_workers} parallel workers ({self.parallel_backend} backend)"
-                )
+                logger.info(f"Using {self.n_workers} parallel workers")
 
         forces_ref = None
         if isinstance(self.scheme, ForwardDifferenceScheme):
             forces_ref = self._get_reference_forces()
 
-        # Use parallel computation if enabled and not using Richardson (which has dependencies)
-        use_parallel = (
-            self.n_workers is not None
-            and self.n_workers > 1
-            and not self.richardson  # Richardson has inter-column dependencies
-        )
+        want_parallel = self.n_workers is not None and self.n_workers > 1 and not self.richardson
+        use_parallel = want_parallel and self._supports_parallel_workers()
+        if want_parallel and not use_parallel and self.verbose >= 1:
+            logger.warning("Calculator has no copy() method; computing Hessian serially")
 
-        # Progress tracking
         use_progress_bar = self.verbose >= 3 and HAS_TQDM and not use_parallel
         start_time = time.time() if self.verbose >= 1 else None
 
         if use_parallel:
-            # Parallel column computation
-            executor_class = (
-                ThreadPoolExecutor if self.parallel_backend == "thread" else ProcessPoolExecutor
-            )
-
-            with executor_class(max_workers=self.n_workers) as executor:
+            with ThreadPoolExecutor(max_workers=self.n_workers) as executor:
                 # Submit all column computations
                 futures = {
                     executor.submit(self._compute_hessian_column, j, forces_ref): j

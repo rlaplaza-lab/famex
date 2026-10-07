@@ -38,15 +38,6 @@ def is_linear_molecule(atoms: Atoms, indices: list[int]) -> bool:
     if len(indices) <= 2:
         return True
 
-    positions = atoms.positions[indices]
-    if len(positions) == 3:
-        # For 3 atoms, check if they are collinear
-        v1 = positions[1] - positions[0]
-        v2 = positions[2] - positions[0]
-        cross = np.cross(v1, v2)
-        return bool(np.linalg.norm(cross) < 1e-3)
-
-    # For more atoms, use moment of inertia approach
     return _check_linearity_inertia(atoms, indices)
 
 

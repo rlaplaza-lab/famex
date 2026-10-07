@@ -4,11 +4,9 @@ import numpy as np
 import pytest
 
 from famex.interpolation.strategies import (
-    CubicSplineInterpolation,
     GeodesicInterpolation,
     IDPPInterpolation,
     LinearInterpolation,
-    QuadraticInterpolation,
     get_interpolation_strategy,
     list_interpolation_methods,
 )
@@ -117,72 +115,6 @@ class TestIDPPInterpolation:
         assert np.allclose(dist_matrix[0, 1], 1.0)
 
 
-class TestQuadraticInterpolation:
-    def test_quadratic_interpolation_basic(self):
-        interp = QuadraticInterpolation()
-        start = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
-        end = np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
-
-        path = interp.interpolate(start, end, npoints=5)
-
-        assert len(path) == 5
-        assert np.allclose(path[0], start)
-        assert np.allclose(path[-1], end)
-
-    def test_quadratic_interpolate_function(self):
-        interp = QuadraticInterpolation()
-        start = np.array([[0.0, 0.0, 0.0]])
-        end = np.array([[1.0, 0.0, 0.0]])
-
-        # At t=0, should be start
-        result = interp._quadratic_interpolate(start, end, 0.0)
-        assert np.allclose(result, start)
-
-        # At t=1, should be end
-        result = interp._quadratic_interpolate(start, end, 1.0)
-        assert np.allclose(result, end)
-
-
-class TestCubicSplineInterpolation:
-    def test_cubic_spline_interpolation_basic(self):
-        interp = CubicSplineInterpolation()
-        start = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
-        end = np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
-
-        path = interp.interpolate(start, end, npoints=5)
-
-        assert len(path) == 5
-        assert np.allclose(path[0], start)
-        assert np.allclose(path[-1], end)
-
-    def test_cubic_spline_interpolate_function(self):
-        interp = CubicSplineInterpolation()
-        control_points = [
-            np.array([[0.0, 0.0, 0.0]]),
-            np.array([[1.0, 0.0, 0.0]]),
-            np.array([[2.0, 0.0, 0.0]]),
-            np.array([[3.0, 0.0, 0.0]]),
-        ]
-
-        # At t=0, should be first control point
-        result = interp._cubic_spline_interpolate(control_points, 0.0)
-        assert np.allclose(result, control_points[0], atol=INTERP_EXACT_TOL)
-
-        # At t=1, should be last control point
-        result = interp._cubic_spline_interpolate(control_points, 1.0)
-        assert np.allclose(result, control_points[-1], atol=INTERP_EXACT_TOL)
-
-    def test_cubic_spline_wrong_number_points(self):
-        interp = CubicSplineInterpolation()
-        control_points = [
-            np.array([[0.0, 0.0, 0.0]]),
-            np.array([[1.0, 0.0, 0.0]]),
-        ]
-
-        with pytest.raises(ValueError, match="exactly 4 control points"):
-            interp._cubic_spline_interpolate(control_points, 0.5)
-
-
 class TestInterpolationRegistry:
     def test_get_interpolation_strategy_linear(self):
         strategy = get_interpolation_strategy("linear")
@@ -216,8 +148,8 @@ class TestInterpolationRegistry:
         assert "linear" in methods
         assert "geodesic" in methods
         assert "idpp" in methods
-        assert "quadratic" in methods
-        assert "spline" in methods
+        assert "quadratic" not in methods
+        assert "spline" not in methods
 
         # Check that all methods have descriptions
         for _method, description in methods.items():
@@ -232,8 +164,6 @@ class TestInterpolationPathQuality:
             ("linear", INTERP_EXACT_TOL),
             ("geodesic", INTERP_ITERATIVE_TOL),  # Tightened from 1e-2
             ("idpp", INTERP_ITERATIVE_TOL),  # Tightened from 1e-2
-            ("quadratic", INTERP_EXACT_TOL),
-            ("spline", INTERP_EXACT_TOL),
         ],
     )
     def test_all_methods_preserve_endpoints(self, method, tolerance):
@@ -246,7 +176,7 @@ class TestInterpolationPathQuality:
         assert np.allclose(path[0], start, atol=tolerance)
         assert np.allclose(path[-1], end, atol=tolerance)
 
-    @pytest.mark.parametrize("method", ["linear", "geodesic", "idpp", "quadratic", "spline"])
+    @pytest.mark.parametrize("method", ["linear", "geodesic", "idpp"])
     def test_all_methods_produce_correct_length(self, method):
         strategy = get_interpolation_strategy(method)
         start = np.array([[0.0, 0.0, 0.0]])

@@ -25,6 +25,8 @@ _BASE = "https://pubchem.ncbi.nlm.nih.gov/rest/pug"
 _USER_AGENT = "famex (https://github.com/rlaplaza-lab/famex)"
 _TIMEOUT_S = 60
 _RETRY_DELAYS_S = (1.0, 2.0, 4.0)
+_MAX_NAME_LENGTH = 1024
+_MAX_CID_DIGITS = 12
 QueryKind = Literal["cid", "name"]
 
 
@@ -37,8 +39,16 @@ def parse_pubchem_query(query: str) -> tuple[QueryKind, str]:
         raise ValueError("PubChem query is empty")
     if text.lower().startswith("cid:"):
         text = text.split(":", 1)[1].strip()
+        if not text:
+            raise ValueError("PubChem query is empty")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
+        raise ValueError("PubChem query contains control characters")
     if text.isdigit():
+        if len(text) > _MAX_CID_DIGITS:
+            raise ValueError(f"PubChem CID must be at most {_MAX_CID_DIGITS} digits")
         return "cid", text
+    if len(text) > _MAX_NAME_LENGTH:
+        raise ValueError(f"PubChem name exceeds {_MAX_NAME_LENGTH} characters")
     return "name", text
 
 

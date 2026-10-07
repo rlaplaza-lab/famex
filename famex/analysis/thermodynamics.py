@@ -72,9 +72,7 @@ class ThermodynamicProperties:
             linear,
             multiplicity,
         )
-        self.stat_thermo.symmetry_number = self.symmetry_handler.get_rotational_symmetry_number(
-            self.stat_thermo.linear,
-        )
+        self.stat_thermo.symmetry_number = self.symmetry_handler.symmetry_number
 
     def heat_capacity_vibrational(self) -> float:
         """Calculate vibrational heat capacity."""
@@ -113,11 +111,21 @@ class ThermodynamicProperties:
 
         energy_J_per_mol = energy / J_PER_MOL_TO_EV
         zpe = self.calculate_zero_point_energy()
+        zpe_J_per_mol = self.calculate_zero_point_energy_in_J_per_mol()
 
         u_vib, _ = self.qh_handler.vibrational_energy(self.frequencies, self.temperature)
         s_vib_actual, _ = self.qh_handler.vibrational_entropy(self.frequencies, self.temperature)
 
-        enthalpy_vib = u_vib
+        # U_vib already includes the model's ZPE; do not add harmonic ZPE again.
+        # RRHO/Truhlar: report thermal vib separately so zpe + enthalpy_vib == U_vib.
+        # Grimme: U_vib is the full contribution (ZPE folded into the handler energy).
+        if self.qh_handler.method == "grimme":
+            enthalpy_vib = u_vib
+            contrib_zpe = 0.0
+        else:
+            enthalpy_vib = u_vib - zpe_J_per_mol
+            contrib_zpe = zpe
+
         enthalpy_trans = self.stat_thermo.translational_energy(self.temperature)
         enthalpy_rot = self.stat_thermo.rotational_energy(self.temperature)
 
@@ -131,10 +139,9 @@ class ThermodynamicProperties:
 
         H_total_J_per_mol = (
             energy_J_per_mol
-            + self.calculate_zero_point_energy_in_J_per_mol()
             + enthalpy_trans
             + enthalpy_rot
-            + enthalpy_vib
+            + u_vib
             + GAS_CONSTANT * self.temperature
         )
 
@@ -176,7 +183,7 @@ class ThermodynamicProperties:
                     "enthalpy": 0.0,
                     "entropy": entropy_elec * J_PER_MOL_TO_EV,
                 },
-                "zero_point": zpe,
+                "zero_point": contrib_zpe,
             },
         }
 

@@ -213,9 +213,6 @@ def main() -> int:
         symmetry = SymmetryHandler(point_group="C2v", warn_on_assumptions=False)
         print(f"Point group: {symmetry.point_group}")
         print(f"Symmetry number: {symmetry.symmetry_number}")
-        print(
-            f"Rotational symmetry (linear): {symmetry.get_rotational_symmetry_number(linear=False)}"
-        )
 
         print("\n--- Statistical Thermodynamics ---")
         stat_thermo = StatisticalThermodynamics(
