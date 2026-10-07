@@ -85,6 +85,20 @@ class MockCalculator(Calculator):
         self.lj_cutoff = float(kwargs.get("lj_cutoff", LJ_CUTOFF))
         self.use_nonbonded = kwargs.get("use_nonbonded", True)
 
+    def copy(self) -> MockCalculator:
+        """Return an independent calculator with the same physics parameters."""
+        return MockCalculator(
+            backend=self.backend,
+            force_constant=self.force_constant,
+            charge=self.charge,
+            mult=self.mult,
+            k_angle=self.k_angle,
+            epsilon=self.epsilon,
+            sigma=self.sigma,
+            lj_cutoff=self.lj_cutoff,
+            use_nonbonded=self.use_nonbonded,
+        )
+
     def _lennard_jones_energy_force(
         self,
         dist: float,

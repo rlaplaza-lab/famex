@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 import numpy as np
 from ase import Atoms
@@ -27,7 +27,6 @@ from famex.analysis.finite_differences import (
     SevenPointCentralDifferenceScheme,
 )
 from famex.analysis.utils import validate_indices
-from famex.potentials.mock_potential import MockCalculator
 from famex.utils.logging import get_famex_logger
 
 # Optional progress bar support
@@ -77,6 +76,13 @@ class CalculatorProtocol(Protocol):
 
         """
         ...
+
+
+@runtime_checkable
+class CopyableCalculator(CalculatorProtocol, Protocol):
+    """Calculator that can produce an independent instance for parallel FD."""
+
+    def copy(self) -> CalculatorProtocol: ...
 
 
 class HessianCalculator:
@@ -187,8 +193,8 @@ class HessianCalculator:
             Number of thread workers for force calculations.
             If None or 1, uses sequential computation. If > 1, parallelizes
             independent displacements with a ThreadPoolExecutor. Each worker
-            needs an independent calculator copy (``MockCalculator`` or a
-            calculator with ``copy()``); otherwise evaluation stays serial.
+            needs an independent calculator with ``copy()``;
+            otherwise evaluation stays serial.
 
         Raises
         ------
@@ -623,35 +629,17 @@ class HessianCalculator:
         )
         raise RuntimeError(msg) from last_error
 
-    def _fresh_mock_calculator(self) -> CalculatorProtocol:
-        calc = cast(MockCalculator, self.calculator)
-        return cast(
-            CalculatorProtocol,
-            MockCalculator(
-                backend=calc.backend,
-                force_constant=getattr(calc, "force_constant", 1.0),
-                charge=getattr(calc, "charge", 0),
-                mult=getattr(calc, "mult", 1),
-            ),
-        )
-
     def _supports_parallel_workers(self) -> bool:
-        if isinstance(self.calculator, MockCalculator):
-            return True
-        calc_any = cast(Any, self.calculator)
-        try:
-            copy_method = calc_any.copy
-        except AttributeError:
-            return False
-        return callable(copy_method)
+        return isinstance(self.calculator, CopyableCalculator)
 
     def _calculator_for_displacement(self) -> CalculatorProtocol:
         """Return a calculator instance safe for one force evaluation."""
-        if isinstance(self.calculator, MockCalculator):
-            return self._fresh_mock_calculator()
-        if self.n_workers is not None and self.n_workers > 1:
-            calc_any = cast(Any, self.calculator)
-            return cast(CalculatorProtocol, calc_any.copy())
+        if (
+            self.n_workers is not None
+            and self.n_workers > 1
+            and isinstance(self.calculator, CopyableCalculator)
+        ):
+            return self.calculator.copy()
         return self.calculator
 
     def _get_forces_displaced(
