@@ -58,9 +58,9 @@ See [README.md](../README.md) for the full backend table.
 - `famex minima` - Minima optimization (outputs single structure)
 - `famex ts` - Transition state optimization (outputs single TS)
 - `famex path` - Reaction path optimization (outputs trajectories)
-- `famex embed` - SMILES to 3D (`famex[smiles]` or `famex[rdkit]`)
-- `famex fetch` - Download a computed 3D conformer from PubChem
 - `famex cache` - Cache management
+
+Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES string, `pubchem:NAME`, `cid:`, or a bare numeric CID. A bare non-numeric name on those commands is treated as SMILES. Use `--embedder pysmiles` (default, `pip install famex[smiles]`) or `--embedder rdkit` (`pip install famex[rdkit]`) when coordinates are built from SMILES.
 
 ### Global Options
 
@@ -283,35 +283,37 @@ famex cache clear --model M   # Clear one model entry
 famex cache clear --yes       # Skip confirmation prompt
 ```
 
-### famex embed - SMILES to 3D
+### Structure inputs (file, SMILES, PubChem)
 
-Build a Cartesian guess from an OpenSMILES string. `--embedder` selects the method:
+`famex minima`, `famex ts`, and `famex path` accept a geometry file, a SMILES string, `pubchem:NAME`, `cid:2244`, or a bare numeric CID anywhere a structure is expected (including `--product` and path endpoints). A bare non-numeric name is SMILES, not a PubChem lookup. Endpoints of one calculation must have the same number of atoms.
+
+When the input is SMILES (or PubChem has no 3D conformer), coordinates are built internally. `--embedder` selects the method:
 
 | Embedder | Install | What it does |
 |----------|---------|--------------|
 | `pysmiles` (default) | `pip install famex[smiles]` | UFF distance geometry, then a short UFF-like cleanup |
 | `rdkit` | `pip install famex[rdkit]` | RDKit ETKDGv3 |
 
-The pysmiles bounds come from UFF (Rappé et al., J. Am. Chem. Soc. 1992) for main-group atom types. Elements without a tabulated type, including most metals, use covalent radii and a coordination-number angle. Either result is a starting geometry: relax it with `--relax uma` or `--relax pet`, or pass the same SMILES to `famex minima`. `--nconf` asks for that many conformers; the command fails if the embedder cannot produce all of them.
-
-`famex minima`, `famex ts`, and `famex path` accept a SMILES string in place of a geometry file when that path does not exist. They take the same `--embedder`. PubChem lookups on those commands use `pubchem:NAME`, `cid:`, or a bare numeric CID.
+Either result is a starting geometry: pass it straight into optimization (for example `famex minima`).
 
 ```bash
-famex embed "CCO" -o ethanol.xyz
-famex embed "CCO" --embedder rdkit -o ethanol_rdkit.xyz
-famex embed "c1ccccc1" --nconf 3 -o benzene.xyz
-famex embed "[Ni](C#[O])(C#[O])(C#[O])C#[O]" --relax pet -o ni_co4.xyz
 famex minima --strategy local "CCO" --backend aimnet2 --embedder pysmiles
+famex minima --strategy local "CCO" --embedder rdkit --backend aimnet2
+famex minima --strategy local pubchem:aspirin --backend aimnet2
+famex minima --strategy local cid:2244 --backend aimnet2
 ```
 
 ```python
 from famex import Explorer, smiles_to_atoms
+from famex.io.geometry import Geometry
 
 geom = smiles_to_atoms("CCO")
 rdkit_geom = smiles_to_atoms("CCO", embedder="rdkit")
 explorer = Explorer.from_smiles(
     "CCO", backend="uma", target="minima", strategy="local", embedder="pysmiles"
 )
+pubchem_geom = Geometry.from_pubchem("aspirin")
+explorer = Explorer.from_pubchem("aspirin", backend="uma", target="minima", strategy="local")
 ```
 
 Limits of the pysmiles embedder:
@@ -321,29 +323,7 @@ Limits of the pysmiles embedder:
 - No periodic crystals. Dot-disconnected fragments (salts) are embedded separately and placed at a van der Waals contact.
 - 1–4 distances use generic cis/gauche/trans windows, not element-specific torsion terms. `@` / `@@` and `/` `\` stereo are enforced when the SMILES contains them.
 
-RDKit ETKDGv3 follows RDKit's own valence and UFF atom types. It can reject metal SMILES that the pysmiles path embeds, including `[Ni](C#[O])4`. Disconnected salts can be left on top of each other.
-
-### famex fetch - PubChem import
-
-Download a starting geometry from [PubChem](https://pubchem.ncbi.nlm.nih.gov/) PUG REST. `famex fetch` takes a compound name or CID. When PubChem has a computed 3D conformer, those coordinates are used. When it does not, the deposited SMILES is embedded with `--embedder` (`pysmiles` by default, or `rdkit`).
-
-`famex minima`, `famex ts`, and `famex path` accept `pubchem:NAME`, `cid:2244`, a bare numeric CID, or a SMILES string anywhere a structure is expected, including the reactant and `--product`. A bare name on those commands is SMILES, not a PubChem lookup. Endpoints of one calculation must have the same number of atoms.
-
-```bash
-famex fetch aspirin -o aspirin.xyz
-famex fetch cid:2244 -o aspirin.xyz
-famex minima --strategy local pubchem:aspirin --backend aimnet2
-```
-
-```python
-from famex import Explorer
-from famex.io.geometry import Geometry
-
-geom = Geometry.from_pubchem("aspirin")
-explorer = Explorer.from_pubchem("aspirin", backend="uma", target="minima", strategy="local")
-```
-
-The PubChem conformer is a computed model, not a crystal structure.
+RDKit ETKDGv3 follows RDKit's own valence and UFF atom types. It can reject metal SMILES that the pysmiles path embeds, including `[Ni](C#[O])4`. Disconnected salts can be left on top of each other. The PubChem conformer is a computed model, not a crystal structure.
 
 ## Python API
 

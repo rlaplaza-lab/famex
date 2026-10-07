@@ -199,81 +199,53 @@ class PathManager:
         return path_geometries
 
     @staticmethod
-    def find_ts_guess(path: Sequence[Atoms]) -> tuple[Atoms, int]:
-        energies = []
-        for atoms in path:
+    def _path_energies(path: Sequence[Atoms]) -> list[float]:
+        energies: list[float] = []
+        for index, atoms in enumerate(path):
             try:
-                energy = atoms.get_potential_energy()
-                energies.append(energy)
-            except Exception:
-                energies.append(float("-inf"))  # Invalid energy
+                energies.append(float(atoms.get_potential_energy()))
+            except Exception as exc:
+                msg = f"Failed to evaluate energy for path image {index}"
+                raise RuntimeError(msg) from exc
+        if not energies:
+            raise RuntimeError("Path is empty; cannot select extrema")
+        return energies
 
-        if not energies or all(e == float("-inf") for e in energies):
-            ts_index = len(path) // 2
-        else:
-            ts_index = energies.index(max(energies))
-
+    @staticmethod
+    def find_ts_guess(path: Sequence[Atoms]) -> tuple[Atoms, int]:
+        energies = PathManager._path_energies(path)
+        ts_index = energies.index(max(energies))
         return path[ts_index], ts_index
 
     @staticmethod
     def find_local_minima(path: Sequence[Atoms]) -> list[int]:
-        import math
-
-        energies = []
-        for atoms in path:
-            try:
-                energy = atoms.get_potential_energy()
-                energies.append(energy)
-            except Exception:
-                energies.append(float("nan"))
+        energies = PathManager._path_energies(path)
 
         minima_idxs = []
         for i, e in enumerate(energies):
-            if math.isnan(e):
-                continue
             left = energies[i - 1] if i - 1 >= 0 else float("inf")
             right = energies[i + 1] if i + 1 < len(energies) else float("inf")
-            if (not math.isnan(left) and e < left) and (not math.isnan(right) and e < right):
+            if e < left and e < right:
                 minima_idxs.append(i)
 
         if not minima_idxs:
-            valid = [(i, e) for i, e in enumerate(energies) if not math.isnan(e)]
-            if not valid:
-                msg = "No valid energies found along path to select minima"
-                raise RuntimeError(msg)
-            min_idx = min(valid, key=lambda ie: ie[1])[0]
-            minima_idxs = [min_idx]
+            minima_idxs = [min(range(len(energies)), key=lambda i: energies[i])]
 
         return minima_idxs
 
     @staticmethod
     def find_local_maxima(path: Sequence[Atoms]) -> list[int]:
-        import math
-
-        energies = []
-        for atoms in path:
-            try:
-                energy = atoms.get_potential_energy()
-                energies.append(energy)
-            except Exception:
-                energies.append(float("nan"))
+        energies = PathManager._path_energies(path)
 
         maxima_idxs = []
         for i, e in enumerate(energies):
-            if math.isnan(e):
-                continue
             left = energies[i - 1] if i - 1 >= 0 else float("-inf")
             right = energies[i + 1] if i + 1 < len(energies) else float("-inf")
-            if (not math.isnan(left) and e > left) and (not math.isnan(right) and e > right):
+            if e > left and e > right:
                 maxima_idxs.append(i)
 
         if not maxima_idxs:
-            valid = [(i, e) for i, e in enumerate(energies) if not math.isnan(e)]
-            if not valid:
-                msg = "No valid energies found along path to select maxima"
-                raise RuntimeError(msg)
-            max_idx = max(valid, key=lambda ie: ie[1])[0]
-            maxima_idxs = [max_idx]
+            maxima_idxs = [max(range(len(energies)), key=lambda i: energies[i])]
 
         return maxima_idxs
 

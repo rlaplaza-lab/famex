@@ -482,7 +482,7 @@ class TestMultiStructureInterpolateStrategies:
             assert "frequency_analysis" in result
             assert "is_minimum" in result
 
-    def test_minima_interpolate_handles_optimization_failure(self, reactant_product_pair):
+    def test_minima_interpolate_propagates_optimization_failure(self, reactant_product_pair):
         reactant, product = reactant_product_pair
         explorer = Explorer([reactant, product], backend="mock")
         strategy = MultiStructureMinimaInterpolateStrategy(explorer)
@@ -493,13 +493,8 @@ class TestMultiStructureInterpolateStrategies:
                 ValueError("Error"),
             ]
 
-            result = strategy.run(
-                [reactant, product], npoints=3, steps=QUICK_STEPS, fmax=LOOSE_FMAX
-            )
-
-            assert "optimized_atoms" in result
-            assert isinstance(result["optimized_atoms"], list)
-            assert len(result["optimized_atoms"]) >= 2
+            with pytest.raises(ValueError, match="Error"):
+                strategy.run([reactant, product], npoints=3, steps=QUICK_STEPS, fmax=LOOSE_FMAX)
 
     def test_minima_interpolate_requires_multiple_structures(self, water_molecule):
         atoms = water_molecule

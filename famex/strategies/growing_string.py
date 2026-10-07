@@ -543,11 +543,12 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
     def _collect_path_energies(self, full_path: list[Atoms]) -> list[float]:
         """Return potential energies for each image in the path."""
         energies: list[float] = []
-        for atoms in full_path:
+        for index, atoms in enumerate(full_path):
             try:
-                energies.append(atoms.get_potential_energy())
-            except Exception:
-                energies.append(float("-inf"))
+                energies.append(float(atoms.get_potential_energy()))
+            except Exception as exc:
+                msg = f"Failed to evaluate energy for growing-string image {index}"
+                raise RuntimeError(msg) from exc
         return energies
 
     def _rank_ts_guess_candidates(
@@ -557,10 +558,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
     ) -> list[tuple[int, float]]:
         """Rank interior images by energy for TS refinement (highest first)."""
         nimages = len(full_path)
-        if not energies or all(e == float("-inf") for e in energies):
-            midpoint = nimages // 2
-            logger.warning("Could not calculate energies, using middle image as TS guess")
-            return [(midpoint, 0.0)]
+        if not energies:
+            raise RuntimeError("Cannot rank TS guess candidates without path energies")
 
         margin = max(2, nimages // 5)
         search_start = margin
