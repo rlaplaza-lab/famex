@@ -15,10 +15,38 @@ from famex.analysis.physics_constants import filter_positive_frequencies, normal
 from famex.analysis.thermodynamics import ThermodynamicProperties
 from famex.analysis.utils import has_calculator_property, validate_indices
 from famex.analysis.validation import validate_hessian
+from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
 from famex.utils.logging import get_famex_logger
 from famex.utils.validation import FAMEXError
 
 logger = get_famex_logger(__name__)
+
+
+def select_vibrational_indices(
+    frequencies: np.ndarray,
+    nfree: int,
+    imag_threshold: float = 50.0,
+) -> np.ndarray:
+    """Return indices of vibrational modes after dropping ``nfree`` rigid-body modes.
+
+    Modes below ``-imag_threshold`` are never discarded as translational or
+    rotational degrees of freedom.
+    """
+    idx_by_abs = np.argsort(np.abs(frequencies))
+    drop = idx_by_abs[:nfree].tolist()
+    keep = idx_by_abs[nfree:].tolist()
+
+    for i, drop_i in enumerate(drop):
+        if frequencies[drop_i] >= -imag_threshold:
+            continue
+        nonnegative = [k for k in keep if frequencies[k] >= 0.0]
+        if not nonnegative:
+            continue
+        swap = min(nonnegative, key=lambda k: abs(frequencies[k]))
+        drop[i] = swap
+        keep[keep.index(swap)] = drop_i
+
+    return np.asarray(keep, dtype=int)
 
 
 class FrequencyAnalysis:
@@ -140,8 +168,6 @@ class FrequencyAnalysis:
     def _generate_displaced_structures(self) -> list[Atoms]:
         displaced_structures = []
 
-        displaced_structures.append(self.atoms.copy())
-
         for i in self.indices:
             for j in range(3):
                 atoms_pos = self.atoms.copy()
@@ -162,14 +188,14 @@ class FrequencyAnalysis:
         n_coords = 3 * n_atoms
         hessian = np.zeros((n_coords, n_coords))
 
-        expected_results = 1 + 2 * n_coords
+        expected_results = 2 * n_coords
         if len(batch_results) < expected_results:
             msg = (
                 f"Insufficient batch results: expected {expected_results}, got {len(batch_results)}"
             )
             raise RuntimeError(msg)
 
-        result_idx = 1
+        result_idx = 0
 
         for i in range(n_atoms):
             for j in range(3):
@@ -320,8 +346,13 @@ class FrequencyAnalysis:
             msg = "Hessian not calculated. Call calculate_hessian() first."
             raise FAMEXError(msg)
 
+        positions = self.atoms.get_positions()[self.indices]
+        masses = self.atoms.get_masses()[self.indices]
+        basis = build_translation_rotation_basis(positions, masses)
+        hessian = project_hessian(self._hessian, basis)
+
         frequencies, eigenvectors = diagonalize_mass_weighted_hessian(
-            self._hessian, self.atoms, self.indices
+            hessian, self.atoms, self.indices
         )
 
         self._frequencies = normalize_frequencies_cm1(frequencies)
@@ -330,13 +361,16 @@ class FrequencyAnalysis:
 
         return self._frequencies, eigenvectors
 
-    def get_frequencies(self, unit: str = "cm-1") -> np.ndarray:
+    def get_frequencies(self, unit: str = "cm-1", imag_threshold: float = 50.0) -> np.ndarray:
         """Get vibrational frequencies in specified units.
 
         Parameters
         ----------
         unit : str
             Unit for frequencies: 'cm-1', 'meV', 'THz'
+        imag_threshold : float
+            Frequencies below ``-imag_threshold`` are never discarded as
+            translational/rotational modes.
 
         Returns
         -------
@@ -345,7 +379,6 @@ class FrequencyAnalysis:
             Signed real values in cm^-1 (negative for imaginary modes).
 
         """
-        # Gather all frequencies
         if self._direct_frequencies is not None:
             freq_all = normalize_frequencies_cm1(self._direct_frequencies)
         else:
@@ -359,8 +392,7 @@ class FrequencyAnalysis:
 
             freq_all = self._frequencies
 
-        idx_sorted = np.argsort(np.abs(freq_all))
-        keep_idx = idx_sorted[self.nfree :]
+        keep_idx = select_vibrational_indices(freq_all, self.nfree, imag_threshold)
         self._keep_indices = keep_idx
         frequencies = freq_all[keep_idx]
 

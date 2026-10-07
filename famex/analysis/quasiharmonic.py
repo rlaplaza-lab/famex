@@ -14,6 +14,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from famex.analysis.physics_constants import (
+    AVOGADRO_CONSTANT,
     BOLTZMANN_CONSTANT,
     GAS_CONSTANT,
     PLANCK_CONSTANT,
@@ -236,12 +237,11 @@ def calculate_qRRHO_entropy(  # noqa: N802
 def calculate_qRRHO_energy(  # noqa: N802
     frequencies: np.ndarray,
     temperature: float,
-    freq_cutoff: float,
     freq_scale_factor: float = 1.0,
 ) -> np.ndarray:
     """Calculate Head-Gordon quasi-RRHO energy.
 
-    E_qRRHO = 1/2 Nhν + RT (hν/kT) e^(-hν/kT) / (1 - e^(-hν/kT))
+    E_qRRHO = 1/2 N_A hν + RT (hν/kT) e^(-hν/kT) / (1 - e^(-hν/kT))
 
     Parameters
     ----------
@@ -249,8 +249,6 @@ def calculate_qRRHO_energy(  # noqa: N802
         Vibrational frequencies in cm⁻¹
     temperature : float
         Temperature in Kelvin
-    freq_cutoff : float
-        Cutoff frequency in cm⁻¹ (not used in qRRHO energy, for API consistency)
     freq_scale_factor : float
         Frequency scaling factor (default: 1.0)
 
@@ -258,25 +256,20 @@ def calculate_qRRHO_energy(  # noqa: N802
     -------
     np.ndarray
         Quasi-RRHO energy in J/mol for each mode
-
-    Notes
-    -----
-    The freq_cutoff parameter is included for API consistency but is not
-    used in this qRRHO energy formulation.
     """
-    # Scale frequencies
     frequencies_scaled = frequencies * freq_scale_factor
 
-    # Convert to energy
-    hnu = PLANCK_CONSTANT * frequencies_scaled * SPEED_OF_LIGHT  # J/mol equivalent
+    # Photon energy (J); factor = hν/kT is dimensionless.
+    hnu = PLANCK_CONSTANT * frequencies_scaled * SPEED_OF_LIGHT
     kT = BOLTZMANN_CONSTANT * temperature
-
-    # E_qRRHO = 0.5 Nhν + RT (hν/kT) e^(-hν/kT) / (1 - e^(-hν/kT))
     factor = hnu / kT
+    zpe_J_per_mol = 0.5 * hnu * AVOGADRO_CONSTANT
+
     energy = np.where(
         factor < 50,
-        0.5 * hnu + GAS_CONSTANT * temperature * factor * np.exp(-factor) / (1 - np.exp(-factor)),
-        0.5 * hnu,  # High frequency limit
+        zpe_J_per_mol
+        + GAS_CONSTANT * temperature * factor * np.exp(-factor) / (1 - np.exp(-factor)),
+        zpe_J_per_mol,
     )
 
     return energy
@@ -452,7 +445,6 @@ class QuasiHarmonicHandler:
         per_mode_energy = calculate_qRRHO_energy(
             frequencies,
             temperature,
-            self.freq_cutoff,
             self.freq_scale_factor,
         )
         total_energy = float(np.sum(per_mode_energy))

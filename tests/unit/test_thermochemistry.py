@@ -4,9 +4,18 @@ import numpy as np
 import pytest
 from ase import Atoms
 
+from famex.analysis.physics_constants import (
+    AVOGADRO_CONSTANT,
+    GAS_CONSTANT,
+    J_PER_MOL_TO_EV,
+    PLANCK_CONSTANT,
+    SPEED_OF_LIGHT,
+)
 from famex.analysis.quasiharmonic import (
     QuasiHarmonicHandler,
     calculate_damping_function,
+    calculate_qRRHO_energy,
+    calculate_rrho_energy,
     calculate_rrho_entropy,
 )
 from famex.analysis.solvation import SolvationHandler, get_free_space
@@ -32,6 +41,18 @@ class TestQuasiHarmonic:
         assert np.all(entropy > 0)  # All entropies should be positive
         # Higher frequencies should have lower entropy
         assert entropy[2] < entropy[1] < entropy[0]
+
+    def test_qrrho_energy_high_frequency_includes_avogadro(self):
+        frequencies = np.array([10000.0])
+        energy = calculate_qRRHO_energy(frequencies, 298.15)
+        expected_zpe = 0.5 * PLANCK_CONSTANT * frequencies[0] * SPEED_OF_LIGHT * AVOGADRO_CONSTANT
+        assert energy[0] == pytest.approx(expected_zpe, rel=1e-6)
+
+    def test_rrho_energy_contains_zpe(self):
+        frequencies = np.array([1000.0])
+        energy = calculate_rrho_energy(frequencies, 298.15)
+        expected_zpe = 0.5 * PLANCK_CONSTANT * frequencies[0] * SPEED_OF_LIGHT * AVOGADRO_CONSTANT
+        assert energy[0] >= expected_zpe - 1e-6
 
     def test_damping_function(self):
         frequencies = np.array([50, 100, 500, 1000])  # cm^-1
@@ -238,12 +259,10 @@ class TestSymmetry:
         assert handler.symmetry_number == 2
         assert handler.point_group == "C2v"
 
-    def test_rotational_symmetry_number(self):
-        handler_linear = SymmetryHandler(symmetry_number=2)
-        assert handler_linear.get_rotational_symmetry_number(linear=True) == 1
-
-        handler_nonlinear = SymmetryHandler(symmetry_number=2)
-        assert handler_nonlinear.get_rotational_symmetry_number(linear=False) == 2
+    def test_point_group_linear_symmetry_numbers(self):
+        assert get_point_group_symmetry_number("Cinfv") == 1
+        assert get_point_group_symmetry_number("Dinfh") == 2
+        assert SymmetryHandler(point_group="Dinfh").symmetry_number == 2
 
 
 @pytest.fixture
@@ -307,6 +326,17 @@ class TestCompleteThermodynamics:
         assert results["zpe"] > 0
         assert results["entropy_total"] > 0
         assert results["temperature"] == 298.15
+
+        u_vib, _ = thermo.qh_handler.vibrational_energy(frequencies, 298.15)
+        expected_h_ev = (
+            (u_vib + GAS_CONSTANT * 298.15) * J_PER_MOL_TO_EV
+            + results["enthalpy_trans"]
+            + results["enthalpy_rot"]
+        )
+        assert results["enthalpy_total"] == pytest.approx(expected_h_ev, rel=1e-8)
+        assert results["zpe"] + results["enthalpy_vib"] == pytest.approx(
+            u_vib * J_PER_MOL_TO_EV, rel=1e-8
+        )
 
     def test_quasi_harmonic_methods(self, simple_molecule):
         from famex.analysis.thermodynamics import ThermodynamicProperties

@@ -38,6 +38,16 @@ class TestTSStep:
         projected = project_gradient(gradient, q)
         assert np.allclose(q.T @ projected, 0.0, atol=1e-10)
 
+    def test_cartesian_basis_projects_heteroatomic_translation(self):
+        positions = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.96], [0.0, 0.0, 1.92]])
+        masses = np.array([16.0, 1.0, 1.0])
+        basis = build_translation_rotation_basis(positions, masses)
+        # Pure Cartesian translation along z
+        gradient = np.zeros(9)
+        gradient[2::3] = 1.0
+        projected = project_gradient(gradient, basis)
+        assert np.linalg.norm(projected) < 1e-10
+
     def test_select_transition_mode_follows_previous(self):
         eigenvalues = np.array([-0.1, 0.2, 0.5])
         eigenvectors = np.eye(3)

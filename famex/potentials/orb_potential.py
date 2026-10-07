@@ -6,6 +6,7 @@ providing universal forcefields for molecular and materials calculations.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Sequence
 from typing import Any
 
@@ -19,6 +20,8 @@ from famex.potentials.base_potential import BasePotential
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
+
+_ORB_HESSIAN_PATCH_LOCK = threading.Lock()
 
 _ORB_INSTALL = 'pip install "orb-models>=0.7.0"'
 
@@ -246,27 +249,29 @@ class OrbPotential(BasePotential):
             half_supercell=calc.half_supercell,
             device=calc.device,
         )
-        original = orb_regressor.compute_gradient_forces_and_stress
 
-        def _keep_force_graph(*args: Any, **kwargs: Any) -> Any:
-            kwargs["training"] = True
-            return original(*args, **kwargs)
+        with _ORB_HESSIAN_PATCH_LOCK:
+            original = orb_regressor.compute_gradient_forces_and_stress
 
-        orb_regressor.compute_gradient_forces_and_stress = _keep_force_graph
-        was_training = calc.model.training
-        calc.model.eval()
-        try:
-            prediction = calc.model(batch)
-            forces = prediction[calc.model.grad_forces_name]
-            positions = batch.node_features["positions"]
-            rows = [
-                (-torch.autograd.grad(component, positions, retain_graph=True)[0]).reshape(-1)
-                for component in forces.reshape(-1)
-            ]
-            hessian = torch.stack(rows)
-        finally:
-            orb_regressor.compute_gradient_forces_and_stress = original
-            calc.model.train(was_training)
+            def _keep_force_graph(*args: Any, **kwargs: Any) -> Any:
+                kwargs["training"] = True
+                return original(*args, **kwargs)
+
+            orb_regressor.compute_gradient_forces_and_stress = _keep_force_graph
+            was_training = calc.model.training
+            calc.model.eval()
+            try:
+                prediction = calc.model(batch)
+                forces = prediction[calc.model.grad_forces_name]
+                positions = batch.node_features["positions"]
+                rows = [
+                    (-torch.autograd.grad(component, positions, retain_graph=True)[0]).reshape(-1)
+                    for component in forces.reshape(-1)
+                ]
+                hessian = torch.stack(rows)
+            finally:
+                orb_regressor.compute_gradient_forces_and_stress = original
+                calc.model.train(was_training)
 
         hessian_np = np.asarray(hessian.detach().cpu().numpy(), dtype=np.float64)
         hessian_np = 0.5 * (hessian_np + hessian_np.T)

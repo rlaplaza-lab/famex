@@ -40,14 +40,18 @@ class TSStepResult:
 
 
 def build_translation_rotation_basis(positions: np.ndarray, masses: np.ndarray) -> np.ndarray:
-    """Build an orthonormal basis for translation and rotation modes in Cartesian space.
+    """Build an orthonormal Cartesian basis for translation and rotation.
+
+    The basis is intended for projecting Cartesian gradients and Hessians.
+    Translations are uniform Cartesian displacements; rotations are rigid
+    displacements ``r × axis`` about the center of mass.
 
     Parameters
     ----------
     positions : np.ndarray
         Atomic positions, shape (n_atoms, 3).
     masses : np.ndarray
-        Atomic masses, shape (n_atoms,).
+        Atomic masses, shape (n_atoms,). Used only to locate the center of mass.
 
     Returns
     -------
@@ -63,27 +67,23 @@ def build_translation_rotation_basis(positions: np.ndarray, masses: np.ndarray) 
     com = np.sum(positions * masses[:, None], axis=0) / total_mass
     rel = positions - com
 
-    # Translation modes (always 3 for multi-atom; for single atom, only translations exist)
     modes: list[np.ndarray] = []
-    sqrt_masses = np.sqrt(masses)
 
     for axis in range(3):
         mode = np.zeros(n_coords)
-        for i in range(n_atoms):
-            mode[3 * i + axis] = sqrt_masses[i]
+        mode[axis::3] = 1.0
         norm = np.linalg.norm(mode)
         if norm > 1e-12:
             modes.append(mode / norm)
 
     if n_atoms >= 2:
-        # Rotation modes about COM (mass-weighted)
         for axis in range(3):
             rot = np.zeros(n_coords)
             axis_vec = np.zeros(3)
             axis_vec[axis] = 1.0
             for i in range(n_atoms):
                 disp = np.cross(axis_vec, rel[i])
-                rot[3 * i : 3 * i + 3] = sqrt_masses[i] * disp
+                rot[3 * i : 3 * i + 3] = disp
             norm = np.linalg.norm(rot)
             if norm > 1e-12:
                 modes.append(rot / norm)
@@ -92,7 +92,6 @@ def build_translation_rotation_basis(positions: np.ndarray, masses: np.ndarray) 
         return np.zeros((n_coords, 0))
 
     basis = np.column_stack(modes)
-    # Orthonormalize (Gram-Schmidt) for numerical stability
     q, _ = np.linalg.qr(basis)
     return q
 

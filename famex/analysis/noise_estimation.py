@@ -124,25 +124,26 @@ def estimate_force_noise(
     atoms_ref.calc = calculator
     forces_ref = atoms_ref.get_forces()[indices].flatten()
 
-    # Make small perturbations and recompute
     noise_samples = []
 
     for i in range(n_samples):
-        # Random small perturbation
-        perturbed_atoms = atoms.copy()
-        perturb = np.random.normal(0, perturbation_size, perturbed_atoms.positions.shape)
-        perturbed_atoms.positions += perturb
-        perturbed_atoms.calc = calculator
+        perturb = np.random.normal(0, perturbation_size, atoms.positions.shape)
 
         try:
-            forces_perturbed = perturbed_atoms.get_forces()
-            forces_perturbed_flat = forces_perturbed[indices].flatten()
+            atoms_plus = atoms.copy()
+            atoms_plus.positions = atoms.positions + perturb
+            atoms_plus.calc = calculator
+            forces_plus = atoms_plus.get_forces()[indices].flatten()
 
-            # Estimate noise from difference
-            noise = np.abs(forces_perturbed_flat - forces_ref)
+            atoms_minus = atoms.copy()
+            atoms_minus.positions = atoms.positions - perturb
+            atoms_minus.calc = calculator
+            forces_minus = atoms_minus.get_forces()[indices].flatten()
+
+            # Symmetric ±δ cancels H·δ; residual is noise / higher-order terms.
+            noise = np.abs(0.5 * (forces_plus + forces_minus) - forces_ref)
             noise_samples.append(noise)
         except Exception:
-            # If calculation fails, skip this sample
             logger.debug(f"Force calculation failed for perturbation sample {i}, skipping")
             continue
 
@@ -150,7 +151,6 @@ def estimate_force_noise(
         msg = "All force noise samples failed. Cannot estimate noise."
         raise RuntimeError(msg)
 
-    # RMS noise across all samples
     noise_array = np.array(noise_samples)
     rms_noise = np.sqrt(np.mean(noise_array**2))
 

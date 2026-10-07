@@ -73,8 +73,17 @@ class TestPubChemQuery:
         assert parse_pubchem_query("cid:2244") == ("cid", "2244")
         assert parse_pubchem_query("pubchem:cid:2244") == ("cid", "2244")
         assert parse_pubchem_query("2244") == ("cid", "2244")
+        assert parse_pubchem_query("acetylsalicylic acid") == ("name", "acetylsalicylic acid")
         with pytest.raises(ValueError, match="empty"):
             parse_pubchem_query("pubchem:")
+
+    def test_rejects_invalid_queries(self) -> None:
+        with pytest.raises(ValueError, match="control characters"):
+            parse_pubchem_query("aspirin\x00")
+        with pytest.raises(ValueError, match="exceeds"):
+            parse_pubchem_query("a" * 1025)
+        with pytest.raises(ValueError, match="digits"):
+            parse_pubchem_query("1" * 13)
 
 
 class TestPubChemDownload:

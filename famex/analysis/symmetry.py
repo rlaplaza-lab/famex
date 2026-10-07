@@ -171,28 +171,6 @@ class SymmetryHandler:
             self._point_group = "C1"
         return self._point_group
 
-    def get_rotational_symmetry_number(
-        self,
-        linear: bool = False,
-    ) -> int:
-        """Get rotational symmetry number for entropy corrections.
-
-        Parameters
-        ----------
-        linear : bool
-            Whether the molecule is linear
-
-        Returns
-        -------
-        int
-            Rotational symmetry number
-        """
-        # For linear molecules, external symmetry number is halved
-        # compared to non-linear molecules
-        if linear:
-            return self.symmetry_number // 2 if self.symmetry_number > 1 else 1
-        return self.symmetry_number
-
     def __repr__(self) -> str:
         """Return string representation."""
         return (

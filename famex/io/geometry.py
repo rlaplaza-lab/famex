@@ -118,10 +118,10 @@ class Geometry(Atoms):
         return np.array(super().get_all_distances())
 
     def get_angle_degrees(self, atom1: int, atom2: int, atom3: int) -> float:
-        return float(self.get_angle(atom1, atom2, atom3) * 180.0 / np.pi)
+        return float(self.get_angle(atom1, atom2, atom3))
 
     def get_dihedral_degrees(self, atom1: int, atom2: int, atom3: int, atom4: int) -> float:
-        return float(self.get_dihedral(atom1, atom2, atom3, atom4) * 180.0 / np.pi)
+        return float(self.get_dihedral(atom1, atom2, atom3, atom4))
 
     def center_of_mass(self) -> np.ndarray:
         return np.array(self.get_center_of_mass())

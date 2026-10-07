@@ -7,6 +7,7 @@ for semi-empirical quantum chemistry calculations with xTB methods.
 from __future__ import annotations
 
 import contextlib
+import io
 import os
 import sys
 from collections.abc import Sequence
@@ -34,30 +35,28 @@ def suppress_tblite_output() -> Any:
     TBLite output is suppressed at verbosity levels 0, 1, and 2, and only
     appears at verbosity 3 or higher (if supported in the future).
     """
-    # Always suppress TBLite output since verbosity 3+ is not currently
-    # supported in FAMEX's logging system. This ensures TBLite remains quiet
-    # even at verbosity 2 (DEBUG level).
-    # Use os.dup2() for file descriptor-level redirection to catch C/Fortran output
-    devnull_fd = os.open(os.devnull, os.O_WRONLY)
     try:
-        # Get file descriptor numbers for stdout and stderr
         stdout_fd = sys.stdout.fileno()
         stderr_fd = sys.stderr.fileno()
+    except (AttributeError, OSError, io.UnsupportedOperation):
+        # Captured/virtual streams (pytest, Jupyter) have no OS file descriptor.
+        yield
+        return
 
-        # Save copies of original file descriptors before redirecting
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    saved_stdout_fd = None
+    saved_stderr_fd = None
+    try:
         saved_stdout_fd = os.dup(stdout_fd)
         saved_stderr_fd = os.dup(stderr_fd)
-
-        # Redirect at file descriptor level (catches C/Fortran output)
         os.dup2(devnull_fd, stdout_fd)
         os.dup2(devnull_fd, stderr_fd)
         yield
     finally:
-        # Restore original file descriptors
-        if "saved_stdout_fd" in locals():
+        if saved_stdout_fd is not None:
             os.dup2(saved_stdout_fd, stdout_fd)
             os.close(saved_stdout_fd)
-        if "saved_stderr_fd" in locals():
+        if saved_stderr_fd is not None:
             os.dup2(saved_stderr_fd, stderr_fd)
             os.close(saved_stderr_fd)
         os.close(devnull_fd)

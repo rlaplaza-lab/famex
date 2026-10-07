@@ -8,15 +8,11 @@ Available strategies:
 - linear: Simple linear interpolation between coordinates
 - geodesic: Distance-preserving interpolation with bond length refinement
 - idpp: Image-Dependent Pair Potential interpolation
-- quadratic: Quadratic curve fitting through start, midpoint, and end
-- spline: Cubic spline interpolation for smooth pathways
 """
 
 from abc import ABC, abstractmethod
-from typing import cast
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.spatial.distance import cdist
 
 from famex.utils.logging import get_famex_logger
@@ -251,117 +247,11 @@ class IDPPInterpolation(InterpolationStrategy):
                 path[idx + 1] = new_pos[start : start + ncoords].reshape(natoms, 3)
 
 
-class QuadraticInterpolation(InterpolationStrategy):
-    """Quadratic interpolation through start, midpoint, and end.
-
-    Fits a quadratic curve through the start coordinates, a midpoint guess,
-    and end coordinates. Useful when approximate transition region is known.
-    """
-
-    def interpolate(
-        self,
-        start_coords: np.ndarray,
-        end_coords: np.ndarray,
-        npoints: int,
-    ) -> list[np.ndarray]:
-        """Perform quadratic interpolation."""
-        n_atoms, n_dims = start_coords.shape
-        path_coords_array = np.empty((npoints, n_atoms, n_dims))
-
-        # Create midpoint guess (average of start and end)
-        midpoint_coords = 0.5 * (start_coords + end_coords)
-
-        # Fit quadratic curve through three points
-        for i in range(npoints):
-            alpha = i / (npoints - 1)
-
-            if alpha <= 0.5:
-                # First half: quadratic from start to midpoint
-                t = 2 * alpha
-                coords = self._quadratic_interpolate(start_coords, midpoint_coords, t)
-            else:
-                # Second half: quadratic from midpoint to end
-                t = 2 * (alpha - 0.5)
-                coords = self._quadratic_interpolate(midpoint_coords, end_coords, t)
-
-            path_coords_array[i] = coords
-
-        # Convert to list of arrays for API compatibility
-        return [path_coords_array[i] for i in range(npoints)]
-
-    def _quadratic_interpolate(self, start: np.ndarray, end: np.ndarray, t: float) -> np.ndarray:
-        """Quadratic interpolation between two points."""
-        # Simple quadratic: start + t * (end - start) + t * (1 - t) * offset
-        # where offset creates a smooth curve
-        linear = start + t * (end - start)
-        offset = 0.1 * (end - start)  # Small offset for curvature
-        return cast(NDArray[np.floating], linear + t * (1 - t) * offset)
-
-
-class CubicSplineInterpolation(InterpolationStrategy):
-    """Cubic spline interpolation for smooth pathways.
-
-    Uses cubic splines to create smooth interpolation with better continuity
-    properties than linear interpolation.
-    """
-
-    def interpolate(
-        self,
-        start_coords: np.ndarray,
-        end_coords: np.ndarray,
-        npoints: int,
-    ) -> list[np.ndarray]:
-        """Perform cubic spline interpolation."""
-        n_atoms, n_dims = start_coords.shape
-        path_coords_array = np.empty((npoints, n_atoms, n_dims))
-
-        # Create control points for spline
-        # Use start, two intermediate points, and end
-        control_points = [
-            start_coords,
-            start_coords + 0.33 * (end_coords - start_coords),
-            start_coords + 0.67 * (end_coords - start_coords),
-            end_coords,
-        ]
-
-        # Generate spline points
-        for i in range(npoints):
-            t = i / (npoints - 1)
-            coords = self._cubic_spline_interpolate(control_points, t)
-            path_coords_array[i] = coords
-
-        # Convert to list of arrays for API compatibility
-        return [path_coords_array[i] for i in range(npoints)]
-
-    def _cubic_spline_interpolate(self, control_points: list[np.ndarray], t: float) -> np.ndarray:
-        """Cubic spline interpolation through control points."""
-        if len(control_points) != 4:
-            msg = "Cubic spline requires exactly 4 control points"
-            raise ValueError(msg)
-
-        # De Casteljau's algorithm for cubic Bezier curve
-        p0, p1, p2, p3 = control_points
-
-        # First level
-        q0 = (1 - t) * p0 + t * p1
-        q1 = (1 - t) * p1 + t * p2
-        q2 = (1 - t) * p2 + t * p3
-
-        # Second level
-        r0 = (1 - t) * q0 + t * q1
-        r1 = (1 - t) * q1 + t * q2
-
-        # Final level
-        return (1 - t) * r0 + t * r1
-
-
 # Registry of available interpolation strategies
 INTERPOLATION_REGISTRY: dict[str, type[InterpolationStrategy]] = {
     "linear": LinearInterpolation,
     "geodesic": GeodesicInterpolation,
     "idpp": IDPPInterpolation,
-    "quadratic": QuadraticInterpolation,
-    "spline": CubicSplineInterpolation,
 }
 
 
@@ -411,8 +301,6 @@ def list_interpolation_methods() -> dict[str, str]:
         "linear": "Simple linear interpolation between coordinates",
         "geodesic": "Distance-preserving interpolation with bond length refinement",
         "idpp": "Image-Dependent Pair Potential interpolation (robust for large changes)",
-        "quadratic": "Quadratic curve fitting through start, midpoint, and end",
-        "spline": "Cubic spline interpolation for smooth pathways",
     }
 
     return {

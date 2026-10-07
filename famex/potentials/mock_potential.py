@@ -209,16 +209,8 @@ class MockCalculator(Calculator):
         k = float(self.force_constant)
         k_angle = float(self.k_angle)
 
-        # If no bonds found, fall back to weak positional springs to preserve shape
+        # If no bonds found, use non-bonded interactions only
         if not pairs:
-            # positional springs to initial positions (no centering)
-            ref = positions.copy()
-            for i in range(natoms):
-                disp = positions[i] - ref[i]
-                energy += 0.5 * k * np.dot(disp, disp)
-                forces[i] -= k * disp
-
-            # Add non-bonded interactions even when no bonds are found
             if self.use_nonbonded:
                 for i in range(natoms):
                     for j in range(i + 1, natoms):
@@ -344,9 +336,6 @@ class MockCalculator(Calculator):
                             fij = lj_force_mag * (rij / dist)
                             forces[i] += fij
                             forces[j] -= fij
-
-        # Remove any net translational force (prevents global drift in tests)
-        forces = forces - np.mean(forces, axis=0)
 
         self.results = {"energy": float(energy), "forces": forces}
         return

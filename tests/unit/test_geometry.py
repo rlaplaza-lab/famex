@@ -246,29 +246,26 @@ class TestGeometryMethods:
         assert abs(distances[0, 1] - 1.0) < 1e-6
 
     def test_get_angle_degrees(self):
-        # Create a simple structure
         geom = Geometry(
             atoms=["H", "H", "H"],
             positions=[[0, 0, 0], [1.0, 0, 0], [0, 1.0, 0]],
         )
 
-        # Test that method returns a numeric value
+        # ASE returns degrees; do not convert again.
         angle = geom.get_angle_degrees(1, 0, 2)
-        assert isinstance(angle, int | float)
-        # Note: ASE's get_angle can return unexpected large values for certain geometries
-        # We just verify it's numeric and callable, not the specific value
-        assert np.isfinite(angle) or (np.isnan(angle) is False and np.isinf(angle) is False)
+        assert angle == pytest.approx(90.0)
 
     def test_get_dihedral_degrees(self):
-        # Simple planar structure
+        # Non-planar structure so a zero dihedral cannot hide a units bug.
         geom = Geometry(
             atoms=["C", "C", "H", "H"],
-            positions=[[0, 0, 0], [1, 0, 0], [0, 0, 1], [1, 0, 1]],
+            positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 0.5, 1]],
         )
 
         dihedral = geom.get_dihedral_degrees(2, 0, 1, 3)
-        # Should be 0 or 180 for planar structure
-        assert 0 <= abs(dihedral) <= 180
+        assert np.isfinite(dihedral)
+        assert abs(dihedral) > 1.0
+        assert abs(dihedral) <= 180.0
 
     def test_center_of_mass(self):
         geom = Geometry(

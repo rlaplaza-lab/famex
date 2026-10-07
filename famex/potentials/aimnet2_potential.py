@@ -112,7 +112,7 @@ def get_model_path(model_name: str) -> str:
             must_exist=False,
             allow_absolute=False,
         )
-    except Exception as e:
+    except PathSecurityError as e:
         msg = f"Invalid model path {model_path}: {e}"
         raise RuntimeError(msg) from e
 
@@ -128,11 +128,13 @@ def get_model_path(model_name: str) -> str:
     logger.info(f"Downloading model from {url}")
 
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=30)
         response.raise_for_status()
 
-        with open(local_path, "wb") as f:
+        tmp_path = local_path.with_suffix(local_path.suffix + ".tmp")
+        with open(tmp_path, "wb") as f:
             f.write(response.content)
+        os.replace(tmp_path, local_path)
 
         logger.info(f"Saved to {local_path}")
         return str(local_path)

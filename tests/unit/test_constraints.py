@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from ase.constraints import FixInternals
+from ase.constraints import FixInternals, Hookean
 
 from famex.constraints.constraints import (
     FAMEXConstraintManager,
@@ -10,6 +10,7 @@ from famex.constraints.constraints import (
     FixInternalsConstraint,
     HarmonicAngleConstraint,
     HarmonicBondConstraint,
+    HarmonicPositionConstraint,
     parse_constraint_string,
     validate_atom_indices,
 )
@@ -158,6 +159,23 @@ class TestHarmonicConstraintInternals:
     def test_angle_reference_validation(self, h2o_molecule):
         with pytest.raises(ValueError):
             HarmonicAngleConstraint([0, 1], h2o_molecule, 2.0)
+
+    def test_position_constraint_emits_hookean(self, h2o_molecule):
+        ase_constraints = HarmonicPositionConstraint(
+            [0, 2], h2o_molecule, 10.0
+        ).to_ase_constraints()
+        assert len(ase_constraints) == 2
+        assert all(isinstance(ac, Hookean) for ac in ase_constraints)
+
+    def test_angle_constraint_adjusts_forces(self, h2o_molecule):
+        constraint = HarmonicAngleConstraint([1, 0, 2], h2o_molecule, 5.0).to_ase_constraints()[0]
+        atoms = h2o_molecule.copy()
+        positions = atoms.get_positions()
+        positions[2] = positions[0] + np.array([0.0, 1.5, 0.0])
+        atoms.set_positions(positions)
+        forces = np.zeros_like(positions)
+        constraint.adjust_forces(atoms, forces)
+        assert np.linalg.norm(forces) > 0.0
 
 
 class TestFixInternalsConstraint:

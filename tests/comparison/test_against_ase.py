@@ -4,11 +4,13 @@ import numpy as np
 import pytest
 from ase import Atoms
 from ase.vibrations import Vibrations
+from ase.vibrations.data import VibrationsData
 
 from famex.analysis.frequency import FrequencyAnalysis
 from famex.analysis.hessian import HessianCalculator
 from famex.analysis.molecular_properties import determine_degrees_of_freedom
 from famex.analysis.physics_constants import normalize_frequencies_cm1
+from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
 from famex.potentials.mock_potential import MockCalculator
 from tests.test_constants import ASE_COMPARISON_TOL, FREQUENCY_COMPARE_TOL, TIGHT_TOL
 
@@ -67,15 +69,21 @@ class TestFAMEXvsASEHessian:
         famex_freq.diagonalize_hessian()
         fq_famex = famex_freq.get_frequencies(unit="cm-1")
 
-        # ASE: frequencies (cm^-1), normalized to signed real values
-        fq_ase_all = normalize_frequencies_cm1(vib.get_frequencies())
+        # ASE: project rigid modes out of the Cartesian Hessian (same as FAMEX),
+        # then diagonalize with VibrationsData for an apples-to-apples comparison.
+        basis = build_translation_rotation_basis(
+            atoms.get_positions()[indices],
+            atoms.get_masses()[indices],
+        )
+        ase_hess_proj = project_hessian(ase_hessian, basis)
+        fq_ase_all = normalize_frequencies_cm1(
+            VibrationsData.from_2d(atoms, ase_hess_proj, indices=indices).get_frequencies()
+        )
 
-        # Remove translational/rotational modes consistently
         nfree = determine_degrees_of_freedom(atoms, indices)
         idx_sorted = np.argsort(np.abs(fq_ase_all))
         fq_ase = fq_ase_all[idx_sorted[nfree:]]
 
-        # Compare vibrational frequencies (signs: imaginary modes negative)
         assert fq_famex.shape == fq_ase.shape
         np.testing.assert_allclose(
             fq_famex, fq_ase, rtol=FREQUENCY_COMPARE_TOL[0], atol=FREQUENCY_COMPARE_TOL[1]
