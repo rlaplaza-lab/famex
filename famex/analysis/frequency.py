@@ -33,17 +33,15 @@ def select_vibrational_indices(
     rotational degrees of freedom.
     """
     idx_by_abs = np.argsort(np.abs(frequencies))
-    drop = idx_by_abs[:nfree].tolist()
     keep = idx_by_abs[nfree:].tolist()
 
-    for i, drop_i in enumerate(drop):
+    for drop_i in idx_by_abs[:nfree]:
         if frequencies[drop_i] >= -imag_threshold:
             continue
         nonnegative = [k for k in keep if frequencies[k] >= 0.0]
         if not nonnegative:
             continue
         swap = min(nonnegative, key=lambda k: abs(frequencies[k]))
-        drop[i] = swap
         keep[keep.index(swap)] = drop_i
 
     return np.asarray(keep, dtype=int)
@@ -81,6 +79,22 @@ class FrequencyAnalysis:
         self._direct_frequencies: np.ndarray | None = None
         self._keep_indices: np.ndarray | None = None
         self._hessian_validation_warned = False
+
+    def set_hessian(self, hessian: np.ndarray) -> NDArray[np.float64]:
+        """Install a precomputed Cartesian Hessian (3N x 3N for selected indices)."""
+        h = np.asarray(hessian, dtype=np.float64)
+        n = 3 * len(self.indices)
+        if h.shape != (n, n):
+            msg = f"Hessian shape {h.shape} does not match expected ({n}, {n})"
+            raise ValueError(msg)
+        self._hessian = h
+        self._frequencies = None
+        self._normal_modes = None
+        self._zero_point_energy = None
+        self._is_calculated = False
+        self._direct_frequencies = None
+        self._keep_indices = None
+        return h
 
     def calculate_hessian(self, method: str = "auto") -> np.ndarray:
         if method == "autoselect":

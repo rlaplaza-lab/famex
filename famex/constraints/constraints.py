@@ -39,7 +39,11 @@ class HarmonicAngleASEConstraint(FixConstraint):
     def adjust_positions(self, atoms: Atoms, newpositions: np.ndarray) -> None:
         return
 
-    def adjust_forces(self, atoms: Atoms, forces: np.ndarray) -> None:
+    def _angle_geometry(
+        self,
+        atoms: Atoms,
+    ) -> tuple[float, float, np.ndarray, np.ndarray, float, float] | None:
+        """Return (theta, cos_theta, r1, r2, n1, n2) or None if degenerate."""
         i, j, k = self.indices
         positions = atoms.get_positions()
         r1 = positions[i] - positions[j]
@@ -47,15 +51,30 @@ class HarmonicAngleASEConstraint(FixConstraint):
         n1 = float(np.linalg.norm(r1))
         n2 = float(np.linalg.norm(r2))
         if n1 < 1e-12 or n2 < 1e-12:
-            return
+            return None
 
         cos_theta = float(np.dot(r1, r2) / (n1 * n2))
         cos_theta = float(np.clip(cos_theta, -1.0 + 1e-12, 1.0 - 1e-12))
         theta = float(np.arccos(cos_theta))
+        return theta, cos_theta, r1, r2, n1, n2
+
+    def adjust_potential_energy(self, atoms: Atoms) -> float:
+        geom = self._angle_geometry(atoms)
+        if geom is None:
+            return 0.0
+        theta, *_ = geom
+        return 0.5 * self.k * (theta - self.theta0) ** 2
+
+    def adjust_forces(self, atoms: Atoms, forces: np.ndarray) -> None:
+        geom = self._angle_geometry(atoms)
+        if geom is None:
+            return
+        theta, cos_theta, r1, r2, n1, n2 = geom
         sin_theta = float(np.sin(theta))
         if abs(sin_theta) < 1e-12:
             return
 
+        i, j, k = self.indices
         dE_dtheta = self.k * (theta - self.theta0)
         # dθ/dcos = -1/sin(θ); force = -dE/dx
         dE_dcos = -dE_dtheta / sin_theta

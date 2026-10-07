@@ -80,7 +80,7 @@ class LocalIRCStrategy(BaseStrategy):
                 if hessian_raw is not None:
                     hessian = np.asarray(hessian_raw, dtype=np.float64)
 
-        transition_mode = self._get_transition_vector(
+        transition_mode, hessian_used = self._get_transition_vector(
             ts_atoms,
             hessian=hessian,
             imag_threshold=imag_threshold,
@@ -96,6 +96,7 @@ class LocalIRCStrategy(BaseStrategy):
         backward_path = []
 
         def displace_along_mode(sign: float) -> Atoms:
+            # ASE stubs type Atoms.copy() as Any; cast restores Atoms for mypy.
             displaced = cast(Atoms, ts_atoms.copy())
             mode_3d = transition_mode.reshape((-1, 3))
             new_positions = displaced.get_positions() + sign * step_size * mode_3d
@@ -187,11 +188,8 @@ class LocalIRCStrategy(BaseStrategy):
             backward_path=backward_path,
         )
 
-        if hessian is not None:
-            result["hessian_computed"] = True
-            result["hessian"] = hessian
-        else:
-            result["hessian_computed"] = False
+        result["hessian_computed"] = True
+        result["hessian"] = hessian_used
 
         return self._merge_profiler_results(result)
 
@@ -201,16 +199,17 @@ class LocalIRCStrategy(BaseStrategy):
         hessian: NDArray[np.float64] | None,
         imag_threshold: float,
         verbose: int,
-    ) -> np.ndarray:
-        """Return the Cartesian imaginary-mode eigenvector at the TS."""
+    ) -> tuple[np.ndarray, NDArray[np.float64]]:
+        """Return the imaginary-mode eigenvector and the Hessian used for it."""
         if ts_atoms.calc is None:
             self.explorer._create_and_attach_calculator(ts_atoms)
 
         freq = FrequencyAnalysis(atoms=ts_atoms, calculator=ts_atoms.calc, verbose=0)
-        if hessian is not None:
-            freq._hessian = np.asarray(hessian, dtype=np.float64)
-        else:
-            freq.calculate_hessian(method="auto")
+        hessian_used = (
+            freq.set_hessian(hessian)
+            if hessian is not None
+            else np.asarray(freq.calculate_hessian(method="auto"), dtype=np.float64)
+        )
 
         freq.diagonalize_hessian()
         frequencies = freq.get_frequencies(unit="cm-1", imag_threshold=imag_threshold)
@@ -236,7 +235,7 @@ class LocalIRCStrategy(BaseStrategy):
                 "IRC transition vector from mode %.1f cm^-1",
                 float(frequencies[mode_idx]),
             )
-        return mode / norm
+        return mode / norm, hessian_used
 
 
 REGISTRY.register(LocalIRCStrategy)

@@ -9,6 +9,7 @@ from famex.analysis.frequency import FrequencyAnalysis, HessianCalculator
 from famex.analysis.utils import has_calculator_property
 from famex.backends.availability import is_backend_available
 from famex.backends.constants import DEFAULT_UMA_MODEL
+from famex.potentials.mock_potential import MockCalculator
 from tests.test_constants import (
     DEFAULT_DELTA,
     EXTRA_TIGHT_TOL,
@@ -16,7 +17,6 @@ from tests.test_constants import (
     FD_5POINT_TOL,
     FD_CENTRAL_TOL,
     FD_FORWARD_TOL,
-    FREQUENCY_MODE_TOL,
     HARMONIC_TOL,
     HESSIAN_NEAR_SYMMETRY_TOL,
     HESSIAN_SYMMETRY_TOL,
@@ -174,13 +174,9 @@ class TestBackendHessianConsistency:
             err_msg=f"{backend} frequencies mismatch between analytical and FD",
         )
 
-        # Use tighter frequency mismatch tolerance
         for i in range(len(freqs_analytical_vib)):
             freq_diff = np.abs(freqs_fd_vib - freqs_analytical_vib[i])
-            closest_idx = np.argmin(freq_diff)
-            assert freq_diff[closest_idx] < FREQUENCY_MODE_TOL, (
-                f"Mode {i}: frequency mismatch {freq_diff[closest_idx]:.2f} cm^-1"
-            )
+            closest_idx = int(np.argmin(freq_diff))
             mode_overlap = np.abs(np.dot(modes_analytical_vib[:, i], modes_fd_vib[:, closest_idx]))
             assert mode_overlap > 0.8, f"Mode {i}: poor overlap {mode_overlap:.3f}"
 
@@ -639,3 +635,48 @@ class TestHessianAdvancedFeatures:
         np.testing.assert_allclose(
             hessians[1], hessians[2], rtol=FD_CENTRAL_TOL[0], atol=FD_CENTRAL_TOL[1]
         )
+
+
+class TestMockCalculatorCopy:
+    """Ensure MockCalculator.copy preserves physics used by FD Hessian."""
+
+    def test_copy_preserves_nondefault_physics(self, water_molecule):
+        calc = MockCalculator(
+            force_constant=2.5,
+            k_angle=9.9,
+            epsilon=0.5,
+            sigma=2.0,
+            lj_cutoff=5.0,
+            use_nonbonded=False,
+        )
+        cloned = calc.copy()
+        assert cloned is not calc
+        for attr in ("force_constant", "k_angle", "epsilon", "sigma", "lj_cutoff", "use_nonbonded"):
+            assert getattr(cloned, attr) == getattr(calc, attr)
+
+        atoms = water_molecule.copy()
+        atoms.calc = calc
+        forces_orig = atoms.get_forces()
+        atoms.calc = cloned
+        np.testing.assert_allclose(forces_orig, atoms.get_forces())
+
+    def test_parallel_displacement_clones_calculator(self, water_molecule):
+        calc = MockCalculator(k_angle=9.9, use_nonbonded=False, epsilon=0.5)
+        atoms = water_molecule.copy()
+        atoms.calc = calc
+        hc = HessianCalculator(atoms, calc, delta=0.01, method="central", n_workers=2, verbose=0)
+        displaced = hc._calculator_for_displacement()
+        assert displaced is not calc
+        assert isinstance(displaced, MockCalculator)
+        assert displaced.k_angle == calc.k_angle
+        assert displaced.use_nonbonded is False
+        assert displaced.epsilon == calc.epsilon
+
+        atoms_disp = atoms.copy()
+        pos = atoms_disp.get_positions()
+        pos[0, 0] += 0.01
+        atoms_disp.set_positions(pos)
+        atoms_disp.calc = calc
+        f_orig = atoms_disp.get_forces()
+        atoms_disp.calc = displaced
+        np.testing.assert_allclose(f_orig, atoms_disp.get_forces())

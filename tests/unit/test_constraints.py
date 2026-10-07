@@ -14,6 +14,7 @@ from famex.constraints.constraints import (
     parse_constraint_string,
     validate_atom_indices,
 )
+from famex.potentials.mock_potential import MockCalculator
 
 
 @pytest.fixture
@@ -176,6 +177,33 @@ class TestHarmonicConstraintInternals:
         forces = np.zeros_like(positions)
         constraint.adjust_forces(atoms, forces)
         assert np.linalg.norm(forces) > 0.0
+
+    def test_angle_constraint_adjust_potential_energy(self, h2o_molecule):
+        wrapper = HarmonicAngleConstraint([1, 0, 2], h2o_molecule, 5.0)
+        constraint = wrapper.to_ase_constraints()[0]
+
+        atoms = h2o_molecule.copy()
+        positions = atoms.get_positions()
+        positions[2] = positions[0] + np.array([0.0, 1.5, 0.0])
+        atoms.set_positions(positions)
+
+        i, j, k = constraint.indices
+        r1 = positions[i] - positions[j]
+        r2 = positions[k] - positions[j]
+        cos_theta = float(
+            np.clip(np.dot(r1, r2) / (np.linalg.norm(r1) * np.linalg.norm(r2)), -1.0, 1.0)
+        )
+        theta = float(np.arccos(cos_theta))
+        expected = 0.5 * constraint.k * (theta - constraint.theta0) ** 2
+
+        energy = constraint.adjust_potential_energy(atoms)
+        assert abs(energy - expected) < 1e-12
+        assert energy > 0.0
+
+        atoms.calc = MockCalculator()
+        bare_energy = atoms.get_potential_energy()
+        atoms.set_constraint(constraint)
+        assert abs(atoms.get_potential_energy() - (bare_energy + energy)) < 1e-10
 
 
 class TestFixInternalsConstraint:

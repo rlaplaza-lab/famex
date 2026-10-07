@@ -29,7 +29,12 @@ def _stub_irc_transition_mode(monkeypatch, strategy: LocalIRCStrategy, n_atoms: 
     mode = np.zeros(3 * n_atoms)
     mode[3] = 1.0
     mode /= np.linalg.norm(mode)
-    monkeypatch.setattr(strategy, "_get_transition_vector", lambda *a, **k: mode)
+    hessian = np.eye(3 * n_atoms, dtype=np.float64)
+
+    def _fake_transition_vector(*_a, **_k):
+        return mode, hessian
+
+    monkeypatch.setattr(strategy, "_get_transition_vector", _fake_transition_vector)
 
 
 # ============================================================================
@@ -625,6 +630,9 @@ class TestLocalIRCStrategy:
         assert result["strategy"] == "path:irc"
         assert isinstance(result["trajectory"], list)
         assert len(result["trajectory"]) > 0
+        assert result["hessian_computed"] is True
+        assert isinstance(result["hessian"], np.ndarray)
+        assert result["hessian"].shape == (3 * len(atoms), 3 * len(atoms))
 
     @pytest.mark.parametrize(
         "direction", ["forward", "backward", "both"], ids=["forward", "backward", "both"]
