@@ -261,7 +261,6 @@ class HessianCalculator:
 
         # Error recovery settings
         self.max_retries = 3
-        self.allow_partial = False  # Allow partial Hessian if some columns fail
 
         # Performance statistics (populated after calculation)
         self._stats: dict[str, float | int] = {}
@@ -1016,20 +1015,11 @@ class HessianCalculator:
                         )
                 except Exception as e:
                     coord_name = ["x", "y", "z"][coord_j]
-                    if self.allow_partial:
-                        logger.warning(
-                            f"Failed to compute Hessian column for atom {atom_j}, "
-                            f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}. "
-                            f"Skipping this column (partial Hessian will be incomplete)."
-                        )
-                        # Leave column as zeros - caller should handle partial results
-                        continue
-                    else:
-                        msg = (
-                            f"Failed to compute Hessian column for atom {atom_j}, "
-                            f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}"
-                        )
-                        raise RuntimeError(msg) from e
+                    msg = (
+                        f"Failed to compute Hessian column for atom {atom_j}, "
+                        f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}"
+                    )
+                    raise RuntimeError(msg) from e
 
                 if self.verbose >= 2 and not use_progress_bar:
                     elapsed = time.time() - (start_time or 0) if start_time else 0

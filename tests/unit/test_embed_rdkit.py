@@ -65,15 +65,7 @@ class TestRDKitEmbedder:
 
 
 class TestRDKitCLI:
-    def test_embed_and_minima_dry_run(self, tmp_path) -> None:
-        out = tmp_path / "ethanol.xyz"
-        result = CliRunner().invoke(
-            main,
-            ["embed", "CCO", "--embedder", "rdkit", "-o", str(out), "--seed", "0"],
-        )
-        assert result.exit_code == 0, result.output
-        assert out.exists()
-
+    def test_minima_accepts_rdkit_embedder(self) -> None:
         dry = CliRunner().invoke(
             main,
             [
@@ -90,5 +82,18 @@ class TestRDKitCLI:
         )
         assert dry.exit_code == 0, dry.output
 
-        bad = CliRunner().invoke(main, ["embed", "CCO", "--embedder", "obabel"])
+        bad = CliRunner().invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "local",
+                "O",
+                "--embedder",
+                "obabel",
+                "--backend",
+                "mock",
+                "--dry-run",
+            ],
+        )
         assert bad.exit_code != 0

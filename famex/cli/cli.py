@@ -26,8 +26,6 @@ from famex.cli.cli_helpers import (
     write_atoms,
 )
 from famex.core.explorer import Explorer
-from famex.embed.api import embed_smiles
-from famex.io import pubchem
 from famex.utils.ml_warnings import quiet_backend_loading
 
 os.environ.setdefault("MPLBACKEND", "Agg")
@@ -469,19 +467,21 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 ),
             )
         )
-        opts.append(
-            click.option(
-                "--cleanup-frequencies",
-                "cleanup_frequencies",
-                is_flag=True,
-                default=False,
-                help=(
-                    "After optimization, run Hessian-based cleanup from the final "
-                    "geometry until there are 0 (minima) or 1 (TS) relevant "
-                    "imaginary frequencies"
-                ),
+        # Cleanup is only meaningful for minima/ts (include_freq=True), not path.
+        if include_freq:
+            opts.append(
+                click.option(
+                    "--cleanup-frequencies",
+                    "cleanup_frequencies",
+                    is_flag=True,
+                    default=False,
+                    help=(
+                        "After optimization, run Hessian-based cleanup from the final "
+                        "geometry until there are 0 (minima) or 1 (TS) relevant "
+                        "imaginary frequencies"
+                    ),
+                )
             )
-        )
         for opt in reversed(opts):
             f = opt(f)
         return f
@@ -501,7 +501,7 @@ def _embedder_option(func: Any) -> Any:
 
 
 @click.group(
-    help="FAMEX CLI: Fast mechanistic explorer with ML potentials.\n\n\b\nCommands:\n  famex minima : Minima optimization (outputs single structure)\n  famex ts     : Transition state optimization (outputs single TS)\n  famex path   : Reaction path optimization (outputs trajectories)\n  famex embed  : SMILES to 3D (pysmiles distance geometry or RDKit ETKDGv3)\n  famex fetch  : Download a 3D conformer from PubChem\n  famex cache  : Manage model cache\n\n\b\nExamples:\n  # SMILES to 3D\n  famex embed CCO -o ethanol.xyz\n  famex embed CCO --embedder rdkit -o ethanol_rdkit.xyz\n  famex fetch aspirin -o aspirin.xyz\n  famex minima pubchem:aspirin --backend aimnet2\n\n\b\n  # Minima optimization (outputs single structure)\n  famex minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  famex minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  famex ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  famex ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  famex ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  famex ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02  # RFO TS optimizer\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  famex path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  famex path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  famex path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  famex path --strategy neb r.xyz intermediate.xyz p.xyz --npoints 11  # Multiple structures\n  famex path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  famex minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  famex cache info  # Show cache information\n  famex cache clear # Clear model cache",
+    help='FAMEX CLI: Fast mechanistic explorer with ML potentials.\n\n\b\nCommands:\n  famex minima : Minima optimization (outputs single structure)\n  famex ts     : Transition state optimization (outputs single TS)\n  famex path   : Reaction path optimization (outputs trajectories)\n  famex cache  : Manage model cache\n\n\b\nExamples:\n  # Structure inputs: XYZ file, SMILES, or pubchem:NAME / cid: / numeric CID\n  famex minima --strategy local "CCO" --backend aimnet2\n  famex minima --strategy local pubchem:aspirin --backend aimnet2\n\n\b\n  # Minima optimization (outputs single structure)\n  famex minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  famex minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  famex ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  famex ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  famex ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  famex ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02  # RFO TS optimizer\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  famex path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  famex path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  famex path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  famex path --strategy neb r.xyz intermediate.xyz p.xyz --npoints 11  # Multiple structures\n  famex path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  famex minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  famex cache info  # Show cache information\n  famex cache clear # Clear model cache',
 )
 @click.version_option()
 def main() -> None:
@@ -959,7 +959,6 @@ def path(
     verbose: int,
     dry_run: bool,
     force_finite_diff_hessian: bool,
-    cleanup_frequencies: bool,
 ) -> None:
     """Reaction path optimization using various strategies.
 
@@ -1063,153 +1062,7 @@ def path(
     click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")
 
 
-def _relax_embedded(
-    geom: Atoms,
-    backend: str,
-    model_name: str | None,
-    device: str | None,
-) -> Atoms:
-    """Local minimization used by ``famex embed --relax``."""
-    exp = Explorer(
-        atoms=geom,
-        backend=backend,
-        model_name=model_name,
-        device=device,
-        target="minima",
-        strategy="local",
-        verbose=0,
-    )
-    with quiet_backend_loading(backend, model_name, None, device, show_model_info=False):
-        result = exp.run(fmax=0.05, steps=100)
-    relaxed_raw = result["optimized_atoms"]
-    relaxed: Atoms
-    if isinstance(relaxed_raw, Atoms):
-        relaxed = relaxed_raw
-    elif isinstance(relaxed_raw, list) and relaxed_raw and isinstance(relaxed_raw[0], Atoms):
-        relaxed = relaxed_raw[0]
-    else:
-        raise RuntimeError("Relaxation did not return a structure")
-    charge = geom.info.get("charge") if getattr(geom, "info", None) else None
-    spin = geom.info.get("spin") if getattr(geom, "info", None) else None
-    if charge is None and hasattr(geom, "charge"):
-        charge = geom.charge
-    if spin is None and hasattr(geom, "mult"):
-        spin = geom.mult
-    if charge is not None:
-        relaxed.info["charge"] = int(charge)
-    if spin is not None:
-        relaxed.info["spin"] = int(spin)
-    return relaxed
-
-
-@main.command("embed")
-@click.argument("smiles")
-@click.option(
-    "-o",
-    "--output",
-    "output",
-    type=click.Path(dir_okay=False),
-    default=None,
-    help="Output XYZ path",
-)
-@click.option(
-    "--nconf",
-    type=int,
-    default=1,
-    show_default=True,
-    help="Number of conformers to write",
-)
-@click.option(
-    "--seed", type=int, default=0, show_default=True, help="Random seed for distance sampling"
-)
-@click.option(
-    "--add-h/--no-add-h",
-    default=True,
-    show_default=True,
-    help="Add implicit hydrogens before embedding",
-)
-@click.option(
-    "--relax",
-    type=click.Choice(["none", "uma", "pet"]),
-    default="none",
-    show_default=True,
-    help="Optionally relax the guess with UMA or PET",
-)
-@click.option("--model-name", default=None, help="Model name used when --relax is set")
-@click.option("--device", default=None, help="Device for --relax (cpu or cuda)")
-@_embedder_option
-def embed(
-    smiles: str,
-    output: str | None,
-    nconf: int,
-    seed: int,
-    add_h: bool,
-    relax: str,
-    model_name: str | None,
-    device: str | None,
-    embedder: str,
-) -> None:
-    """Embed a SMILES string in 3D.
-
-    ``--embedder pysmiles`` (default) is UFF distance geometry
-    (``pip install famex[smiles]``). ``--embedder rdkit`` is ETKDGv3
-    (``pip install famex[rdkit]``). Pass ``--relax uma`` or ``--relax pet``
-    to minimize the guess, or run ``famex minima`` on the SMILES afterwards.
-    """
-    if nconf < 1:
-        raise click.BadParameter("--nconf must be >= 1")
-    try:
-        geoms = embed_smiles(smiles, n_conf=nconf, seed=seed, add_h=add_h, embedder=embedder)
-    except ImportError as exc:
-        raise click.ClickException(str(exc)) from exc
-    except (ValueError, RuntimeError) as exc:
-        raise click.BadParameter(str(exc)) from exc
-
-    structures: list[Atoms] = list(geoms)
-    if relax != "none":
-        structures = [_relax_embedded(geom, relax, model_name, device) for geom in structures]
-
-    out = output or f"{input_stem(smiles)}.xyz"
-    payload: Atoms | list[Atoms] = structures[0] if len(structures) == 1 else structures
-    write_atoms(payload, out)
-    click.echo(f"Embedded {len(structures)} conformer(s). Saved: {out}")
-
-
-@main.command("fetch")
-@click.argument("query")
-@click.option(
-    "-o",
-    "--output",
-    "output",
-    type=click.Path(dir_okay=False),
-    default=None,
-    help="Output XYZ path",
-)
-@_embedder_option
-def fetch(query: str, output: str | None, embedder: str) -> None:
-    """Download a 3D structure from PubChem.
-
-    QUERY is a compound name or CID (``2244``, ``cid:2244``). PubChem's
-    computed conformer is saved when one exists. Otherwise the deposited
-    SMILES is embedded with ``--embedder``. ``famex minima`` and ``famex ts``
-    accept the same lookup as ``pubchem:NAME``.
-    """
-    try:
-        geom = pubchem.fetch_pubchem(query, embedder=embedder)
-    except ImportError as exc:
-        raise click.ClickException(str(exc)) from exc
-    except (ValueError, RuntimeError) as exc:
-        raise click.BadParameter(str(exc)) from exc
-
-    out = output or f"{input_stem(query)}.xyz"
-    write_atoms(geom, out)
-    cid = geom.info.get("pubchem_cid", "")
-    title = geom.info.get("pubchem_title") or query
-    coordinates = geom.info.get("coordinates", "pubchem")
-    click.echo(f"PubChem CID {cid} ({title}), coordinates: {coordinates}. Saved: {out}")
-
-
-__all__ = ["main", "minima", "path", "ts", "embed", "fetch"]
+__all__ = ["main", "minima", "path", "ts"]
 
 
 if __name__ == "__main__":

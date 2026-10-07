@@ -52,11 +52,6 @@ def parse_pubchem_query(query: str) -> tuple[QueryKind, str]:
     return "name", text
 
 
-def fetch_structure(query: str, *, embedder: str = "pysmiles") -> Geometry:
-    """Download one 3D geometry from PubChem."""
-    return fetch_pubchem(query, embedder=embedder)
-
-
 def fetch_pubchem(query: str, *, embedder: str = "pysmiles") -> Geometry:
     """Download a PubChem compound by name or CID.
 

@@ -630,10 +630,8 @@ class FrequencyAnalysis:
         # Solvation parameters
         solvent: str = "none",
         concentration: float = 1.0,
-        # Full thermodynamics option
-        complete: bool = False,
     ) -> dict[str, float | int | list[float]]:
-        """Calculate thermodynamic properties at given temperature.
+        """Calculate vibrational thermodynamic properties at given temperature.
 
         Parameters
         ----------
@@ -661,16 +659,11 @@ class FrequencyAnalysis:
             Solvent name (default: 'none' for gas phase)
         concentration : float
             Concentration in mol/L
-        complete : bool
-            If True, calculate complete thermodynamics with all contributions.
-            If False, return vibrational-only properties (backward compatible).
 
         Returns
         -------
         dict[str, float | int | list[float]]
-            Dictionary with thermodynamic properties.
-            If complete=True, includes all contributions (trans, rot, vib, elec).
-            If complete=False, returns vibrational-only (backward compatible).
+            Vibrational thermodynamic properties.
 
         """
         frequencies = self.get_frequencies()
@@ -693,39 +686,15 @@ class FrequencyAnalysis:
             concentration=concentration,
         )
 
-        if complete:
-            # Return complete thermodynamics with all contributions
-            complete_thermo = thermo_props.calculate_complete_thermodynamics()
-
-            # Merge with vibrational-only data for compatibility
-            vibrational_only = {
-                "temperature": temperature,
-                "zero_point_energy": thermo_props.calculate_zero_point_energy(),
-                "internal_energy": thermo_props.internal_energy_vibrational(),
-                "heat_capacity": thermo_props.heat_capacity_vibrational(),
-                "entropy": thermo_props.entropy_vibrational(),
-                "n_vibrational_modes": len(real_frequencies),
-                "frequencies_cm_1": real_frequencies.tolist(),
-            }
-
-            # Combine both dictionaries
-            return {**vibrational_only, **complete_thermo}
-        else:
-            # Backward compatible: return vibrational-only properties
-            zpe = thermo_props.calculate_zero_point_energy()
-            entropy = thermo_props.entropy_vibrational()
-            internal_energy = thermo_props.internal_energy_vibrational()
-            heat_capacity = thermo_props.heat_capacity_vibrational()
-
-            return {
-                "temperature": temperature,
-                "zero_point_energy": zpe,
-                "internal_energy": internal_energy,
-                "heat_capacity": heat_capacity,
-                "entropy": entropy,
-                "n_vibrational_modes": len(real_frequencies),
-                "frequencies_cm_1": real_frequencies.tolist(),
-            }
+        return {
+            "temperature": temperature,
+            "zero_point_energy": thermo_props.calculate_zero_point_energy(),
+            "internal_energy": thermo_props.internal_energy_vibrational(),
+            "heat_capacity": thermo_props.heat_capacity_vibrational(),
+            "entropy": thermo_props.entropy_vibrational(),
+            "n_vibrational_modes": len(real_frequencies),
+            "frequencies_cm_1": real_frequencies.tolist(),
+        }
 
     def write_mode_trajectory(
         self,

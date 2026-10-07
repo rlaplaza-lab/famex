@@ -152,7 +152,7 @@ class TestPubChemDownload:
 
 
 class TestPubChemAPI:
-    def test_helpers_and_cli(self, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    def test_helpers_and_cli(self, monkeypatch: pytest.MonkeyPatch) -> None:
         geom = Geometry(
             atoms=["O", "H", "H"],
             positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]],
@@ -170,12 +170,6 @@ class TestPubChemAPI:
         assert loaded.info["pubchem_cid"] == 962
         explorer = famex.Explorer.from_pubchem("water", backend="mock", target="minima")
         assert len(explorer.atoms_list[0]) == 3
-
-        out = tmp_path / "water.xyz"
-        result = CliRunner().invoke(main, ["fetch", "water", "-o", str(out)])
-        assert result.exit_code == 0, result.output
-        assert "CID 962" in result.output
-        assert out.exists()
 
         dry = CliRunner().invoke(
             main,

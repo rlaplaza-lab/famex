@@ -87,46 +87,36 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
         frequency_results: list[dict[str, Any] | None] = []
 
         for atoms in initial_path:
-            try:
-                run_result = local_minima_strategy.run(
-                    atoms_list=[atoms],
-                    fmax=fmax,
-                    steps=steps,
-                    calculate_frequencies=calculate_frequencies,
-                    **kwargs,
+            run_result = local_minima_strategy.run(
+                atoms_list=[atoms],
+                fmax=fmax,
+                steps=steps,
+                calculate_frequencies=calculate_frequencies,
+                **kwargs,
+            )
+            optimized_atoms = run_result["optimized_atoms"]
+            if isinstance(optimized_atoms, Atoms | list):
+                optimized_structures.append(optimized_atoms)
+            else:
+                msg = (
+                    "Local minima strategy returned unexpected optimized_atoms "
+                    f"type: {type(optimized_atoms)!r}"
                 )
-                optimized_atoms = run_result["optimized_atoms"]
-                # Ensure optimized_atoms is Atoms or list[Atoms]
-                if isinstance(optimized_atoms, Atoms | list):
-                    optimized_structures.append(optimized_atoms)
-                else:
-                    # Fallback to original atoms if type is unexpected
-                    optimized_structures.append(atoms)
-                # Type narrowing for result dict values
-                converged = run_result.get("converged", True)
-                steps_val = run_result.get("steps_taken", 0)
-                converged_flags.append(
-                    bool(converged) if isinstance(converged, bool | int) else True
-                )
-                # Type narrowing: ensure steps is an int
-                if isinstance(steps_val, int | float):
-                    steps_taken.append(int(steps_val))
-                else:
-                    steps_taken.append(0)
-                # Collect frequency analysis results if available
-                if calculate_frequencies and "frequency_analysis" in run_result:
-                    freq_result: Any = run_result["frequency_analysis"]
-                    if isinstance(freq_result, dict):
-                        frequency_results.append(freq_result)
-                    else:
-                        frequency_results.append(None)
+                raise TypeError(msg)
+            converged = run_result.get("converged", True)
+            steps_val = run_result.get("steps_taken", 0)
+            converged_flags.append(bool(converged) if isinstance(converged, bool | int) else True)
+            if isinstance(steps_val, int | float):
+                steps_taken.append(int(steps_val))
+            else:
+                steps_taken.append(0)
+            if calculate_frequencies and "frequency_analysis" in run_result:
+                freq_result: Any = run_result["frequency_analysis"]
+                if isinstance(freq_result, dict):
+                    frequency_results.append(freq_result)
                 else:
                     frequency_results.append(None)
-            except Exception:
-                # If optimization fails for one structure, use the original
-                optimized_structures.append(atoms)
-                converged_flags.append(False)
-                steps_taken.append(0)
+            else:
                 frequency_results.append(None)
 
         # prepare_result expects Atoms | Sequence[Atoms]

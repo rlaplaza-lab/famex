@@ -28,14 +28,13 @@ Install a backend separately:
 | `tblite` | `pip install tblite` | Fast semi-empirical; Hessian via finite differences |
 | `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential (Python 3.11+); analytical Hessian via double-backward |
 
-SMILES input is optional and separate from the ML backends. Pick the embedder with `--embedder` (default `pysmiles`):
+SMILES and PubChem are optional structure inputs (not separate CLI modes). Install an embedder and pass SMILES or `pubchem:NAME` / `cid:` / a numeric CID to `minima`, `ts`, or `path`:
 
 ```bash
-pip install famex[smiles]   # UFF distance geometry
+pip install famex[smiles]   # UFF distance geometry (default --embedder)
 pip install famex[rdkit]    # RDKit ETKDGv3
-famex embed "CCO" -o ethanol.xyz
-famex embed "CCO" --embedder rdkit -o ethanol_rdkit.xyz
-famex fetch aspirin -o aspirin.xyz
+famex minima --strategy local "CCO" --backend aimnet2
+famex minima --strategy local "CCO" --embedder rdkit --backend aimnet2
 famex minima --strategy local pubchem:aspirin --backend aimnet2
 ```
 
@@ -79,8 +78,7 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 - Frequency analysis and thermodynamics
 - Command-line and Python API
 - Supports XYZ, CIF, PDB via ASE
-- SMILES to 3D via pysmiles distance geometry (`pip install famex[smiles]`) or RDKit ETKDGv3 (`pip install famex[rdkit]`)
-- PubChem import (`famex fetch`, or `pubchem:NAME` as a structure input)
+- SMILES / PubChem as structure inputs (`pip install famex[smiles]` or `famex[rdkit]`; use `pubchem:NAME`, `cid:`, or a numeric CID)
 
 ## Documentation
 

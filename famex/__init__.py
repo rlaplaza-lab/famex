@@ -69,7 +69,6 @@ def __getattr__(name: str) -> Any:
         "read_geometry": (f"{__name__}.io.geometry", "read_geometry"),
         "smiles_to_atoms": (f"{__name__}.embed.api", "smiles_to_atoms"),
         "embed_smiles": (f"{__name__}.embed.api", "embed_smiles"),
-        "fetch_structure": (f"{__name__}.io.pubchem", "fetch_structure"),
         "fetch_pubchem": (f"{__name__}.io.pubchem", "fetch_pubchem"),
         "write_geometry": (f"{__name__}.io.geometry", "write_geometry"),
         "read_gaussian_input": (f"{__name__}.io.geometry", "read_gaussian_input"),
@@ -154,7 +153,6 @@ __all__ = [
     "write_geometry",
     "smiles_to_atoms",
     "embed_smiles",
-    "fetch_structure",
     "fetch_pubchem",
 ]
 

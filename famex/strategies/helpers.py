@@ -53,10 +53,6 @@ def validate_ts_structure(
         else:
             if verbose >= 1:
                 logger.info("TS validation passed: structure has exactly 1 imaginary frequency")
-            elif verbose >= 2:
-                logger.info(
-                    "✓ Starting structure validated as transition state (1 imaginary frequency)",
-                )
 
         hessian = getattr(freq_analysis, "_hessian", None) if return_hessian else None
 
@@ -66,16 +62,8 @@ def validate_ts_structure(
 
     except Exception as e:
         if verbose >= 1:
-            logger.warning(
-                f"Could not validate transition state: {e}. "
-                "TS validation will proceed without validation.",
-            )
-        if return_hessian:
-            return {
-                "is_transition_state": False,
-                "assessment": f"Validation failed: {e}",
-            }, None
-        return {"is_transition_state": False, "assessment": f"Validation failed: {e}"}
+            logger.warning("Could not validate transition state: %s", e)
+        raise
 
 
 def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:

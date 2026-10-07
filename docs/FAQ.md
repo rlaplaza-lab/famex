@@ -40,11 +40,11 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: What file formats are supported?
 
-**A:** All ASE-compatible formats (XYZ, CIF, PDB, VASP, and others supported by ASE I/O). `famex minima`, `famex ts`, and `famex path` also accept a SMILES string when the argument is not an existing file, or `pubchem:NAME`, `cid:`, and a bare numeric CID to download a conformer. A bare name on those commands is SMILES. `famex embed` writes an XYZ guess and fails if `--nconf` asks for more conformers than the embedder can build. `famex fetch` downloads a name or CID from PubChem. `--embedder pysmiles` (default, `pip install famex[smiles]`) is distance geometry. `--embedder rdkit` (`pip install famex[rdkit]`) is ETKDGv3.
+**A:** All ASE-compatible formats (XYZ, CIF, PDB, VASP, and others supported by ASE I/O). `famex minima`, `famex ts`, and `famex path` also accept a SMILES string when the argument is not an existing file, or `pubchem:NAME`, `cid:`, and a bare numeric CID to download a conformer. A bare name on those commands is SMILES. `--embedder pysmiles` (default, `pip install famex[smiles]`) is distance geometry. `--embedder rdkit` (`pip install famex[rdkit]`) is ETKDGv3.
 
 ### Q: Can SMILES embedding replace a force-field or ML minimization?
 
-**A:** No. Both embedders produce a starting geometry. Relax with `--relax uma` or `--relax pet`, or run `famex minima`. The pysmiles path uses four-coordinate tetrahedral defaults, no crystals, and generic cis/gauche/trans 1–4 windows. RDKit ETKDGv3 uses experimental torsions for organic molecules and can refuse metals that its force field does not type.
+**A:** No. Both embedders produce a starting geometry for `minima`, `ts`, or `path`. Run `famex minima` (or the Python API) to relax. The pysmiles path uses four-coordinate tetrahedral defaults, no crystals, and generic cis/gauche/trans 1–4 windows. RDKit ETKDGv3 uses experimental torsions for organic molecules and can refuse metals that its force field does not type.
 
 ### Q: How do I specify charge and spin?
 

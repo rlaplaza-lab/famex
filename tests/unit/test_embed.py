@@ -11,7 +11,7 @@ from click.testing import CliRunner
 import famex
 from famex.backends.availability import is_backend_available
 from famex.cli import main
-from famex.cli.cli_helpers import load_structure_or_smiles
+from famex.cli.cli_helpers import load_structure_or_smiles, write_atoms
 from famex.embed.bounds import torsion_distance
 from famex.embed.cleanup import _UFFModel
 from famex.embed.dgeom import embed_coordinates
@@ -226,10 +226,10 @@ class TestEmbedMolecules:
 
 
 class TestEmbedCLI:
-    def test_embed_writes_xyz(self, tmp_path) -> None:
+    def test_smiles_api_writes_xyz(self, tmp_path) -> None:
         out = tmp_path / "ethanol.xyz"
-        result = CliRunner().invoke(main, ["embed", "CCO", "-o", str(out), "--seed", "0"])
-        assert result.exit_code == 0, result.output
+        geom = famex.smiles_to_atoms("CCO", seed=0)
+        write_atoms(geom, str(out))
         assert out.exists()
         loaded = load_structure_or_smiles(str(out))
         assert len(loaded) == 9
@@ -304,8 +304,13 @@ class TestEmbedCLI:
         )
         assert path.exit_code == 0, path.output
 
+        no_embed = runner.invoke(main, ["embed", "CCO"])
+        assert no_embed.exit_code != 0
+        no_fetch = runner.invoke(main, ["fetch", "water"])
+        assert no_fetch.exit_code != 0
+
     @pytest.mark.slow
-    def test_embed_relax_when_mlip_present(self, tmp_path) -> None:
+    def test_minima_smiles_when_mlip_present(self, tmp_path) -> None:
         if is_backend_available("uma"):
             backend = "uma"
         elif is_backend_available("pet"):
@@ -317,16 +322,20 @@ class TestEmbedCLI:
         result = CliRunner().invoke(
             main,
             [
-                "embed",
+                "minima",
+                "--strategy",
+                "local",
                 "O",
-                "-o",
+                "--output",
                 str(out),
-                "--seed",
-                "0",
-                "--relax",
+                "--backend",
                 backend,
                 "--device",
                 "cpu",
+                "--fmax",
+                "0.05",
+                "--steps",
+                "100",
             ],
         )
         assert result.exit_code == 0, result.output
