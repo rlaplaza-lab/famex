@@ -46,22 +46,19 @@ class TestRFOTSOptimizer:
     """Tests for RFO (Rational Function Optimization) transition state optimizer."""
 
     @requires_backend("uma")
-    def test_basic_functionality_with_uma(self, ethylene_twisted_ts_guess):
-        atoms_template = ethylene_twisted_ts_guess
+    def test_basic_functionality_with_uma(self):
+        """Smoke-test RFO on BH28 CRBH_1, a clear first-order UMA saddle."""
+        if not BH28_DATASET.exists():
+            pytest.skip("BH28 dataset missing")
+        if not (BH28_DATASET / "CRBH_1_ts.xyz").exists():
+            pytest.skip("BH28 CRBH_1_ts.xyz missing")
 
-        def fresh_atoms():
-            atoms = atoms_template.copy()
-            atoms.calc = get_uma_calculator(model_name=DEFAULT_UMA_MODEL)
-            return atoms
-
-        # Baseline gradient/energy from the starting geometry.
-        baseline_atoms = fresh_atoms()
+        baseline_atoms = _load_bh28_ts("CRBH_1")
         initial_force = _max_force(baseline_atoms)
         initial_energy = baseline_atoms.get_potential_energy()
         assert initial_force > 1e-6, "Baseline geometry should not be stationary"
 
-        # Run RFO optimizer.
-        atoms_rfo = fresh_atoms()
+        atoms_rfo = _load_bh28_ts("CRBH_1")
         rfo_opt = RFOTransitionState(
             atoms_rfo,
             hessian_update_freq=10,
@@ -73,27 +70,16 @@ class TestRFOTSOptimizer:
         rfo_force = _max_force(atoms_rfo)
         rfo_energy = atoms_rfo.get_potential_energy()
 
-        # RFO should make progress relative to the baseline.
-        # Allow some tolerance for challenging cases where optimization may not converge well
-        # Note: RFO optimizer may not always converge in limited steps,
-        # especially for TS optimization
         assert rfo_force <= initial_force * 2.0, (
             f"RFO should not dramatically increase the force. "
             f"Initial: {initial_force:.6f} eV/Å, Final: {rfo_force:.6f} eV/Å"
         )
-
-        # RFO should reach tight convergence if it made progress.
-        # If optimizer didn't converge well, at least check it didn't get dramatically worse
         if rfo_force < initial_force:
-            # Made progress, should converge to tight threshold
             assert rfo_force < DEFAULT_FMAX, (
                 f"RFO should converge when making progress. "
                 f"Got {rfo_force:.6f} eV/Å (started at {initial_force:.6f} eV/Å)"
             )
-        # Otherwise, just check that it didn't get dramatically worse
-        # (handled by previous assertion)
 
-        # Energy should be in a reasonable range.
         energy_window = max(0.05, 0.05 * abs(initial_energy))
         assert abs(rfo_energy - initial_energy) < energy_window, (
             f"RFO energy {rfo_energy:.6f} should be within {energy_window:.6f} of initial"
