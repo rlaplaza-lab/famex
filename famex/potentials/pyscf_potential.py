@@ -15,9 +15,6 @@ from ase.units import Bohr, Hartree
 from famex.backends.constants import BACKEND_PYSCF, DEFAULT_PYSCF_MODEL
 from famex.backends.dependencies import deps
 from famex.potentials.base_potential import BasePotential
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
 
 DEFAULT_XC, DEFAULT_BASIS = DEFAULT_PYSCF_MODEL.split("/", 1)
 
@@ -38,11 +35,7 @@ def xc_needs_dispersion(xc: str) -> bool:
 
 
 class PySCFPotential(BasePotential):
-    """PySCF DFT calculator (energy and forces).
-
-    Default method: B3LYP-D3BJ / def2-SVP with density fitting.
-    Override with ``model_name="xc/basis"``.
-    """
+    """PySCF DFT calculator (energy and forces). Override with ``model_name="xc/basis"``."""
 
     implemented_properties = ["energy", "forces"]
 
@@ -65,7 +58,8 @@ class PySCFPotential(BasePotential):
         self.default_spin = int(default_spin)
         self.verbose = int(verbose)
         self._calc: Any | None = None
-        self._last_fingerprint: tuple[Any, ...] | None = None
+        self._pyscf_gto: Any | None = None
+        self._pyscf_dft: Any | None = None
 
         super().__init__(
             backend=BACKEND_PYSCF,
@@ -85,7 +79,11 @@ class PySCFPotential(BasePotential):
                 "Install with: pip install famex[pyscf]"
             )
             raise ImportError(msg)
-        self._calc = True
+        from pyscf import dft, gto
+
+        self._pyscf_gto = gto
+        self._pyscf_dft = dft
+        self._calc = dft
 
     def _resolve_charge_mult(self, atoms: Atoms) -> tuple[int, int]:
         charge = (
@@ -104,7 +102,11 @@ class PySCFPotential(BasePotential):
         return charge, mult
 
     def _run_pyscf(self, atoms: Atoms, charge: int, mult: int) -> tuple[float, np.ndarray]:
-        from pyscf import dft, gto
+        gto = self._pyscf_gto
+        dft = self._pyscf_dft
+        if gto is None or dft is None:
+            msg = "PySCF modules not loaded"
+            raise RuntimeError(msg)
 
         spin = mult - 1
         verbose = 4 if self.verbose >= 3 else 0
@@ -148,28 +150,6 @@ class PySCFPotential(BasePotential):
 
         self._require_calc()
         charge, mult = self._resolve_charge_mult(self.atoms)
-        fingerprint = (
-            tuple(self.atoms.get_chemical_symbols()),
-            tuple(np.asarray(self.atoms.get_positions(), dtype=float).ravel()),
-            charge,
-            mult,
-        )
-        if (
-            fingerprint == self._last_fingerprint
-            and "energy" in self.results
-            and "forces" in self.results
-        ):
-            return
-
-        try:
-            energy, forces = self._run_pyscf(self.atoms, charge, mult)
-        except ImportError:
-            raise
-        except (RuntimeError, ValueError, TypeError, np.linalg.LinAlgError) as exc:
-            logger.exception("PySCF calculation failed: %s", exc)
-            msg = f"PySCF calculation failed: {exc}"
-            raise RuntimeError(msg) from exc
-
+        energy, forces = self._run_pyscf(self.atoms, charge, mult)
         self.results["energy"] = energy
         self.results["forces"] = forces
-        self._last_fingerprint = fingerprint

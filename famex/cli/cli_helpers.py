@@ -288,7 +288,9 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
     else:
         click.echo("  Zero-point energy: N/A")
 
-    if free_energy_correction is not None:
+    if free_energy_correction is not None and not (
+        np.isnan(free_energy_correction) or np.isinf(free_energy_correction)
+    ):
         click.echo(
             f"  Free energy correction ({float(temperature):.1f} K): "
             f"{free_energy_correction:.4f} eV"

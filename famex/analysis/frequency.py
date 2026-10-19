@@ -630,7 +630,7 @@ class FrequencyAnalysis:
         # Solvation parameters
         solvent: str = "none",
         concentration: float | None = None,
-    ) -> dict[str, float | int | str | list[float]]:
+    ) -> dict[str, float | int | list[float]]:
         """Calculate vibrational thermodynamic properties at given temperature.
 
         Parameters
@@ -687,11 +687,13 @@ class FrequencyAnalysis:
             concentration=concentration,
         )
         complete = thermo_props.calculate_complete_thermodynamics()
+        # contributions["zero_point"] is 0 for Grimme (ZPE folded into enthalpy_vib).
+        internal_energy = complete["enthalpy_vib"] + complete["contributions"]["zero_point"]
 
         return {
             "temperature": temperature,
             "zero_point_energy": complete["zpe"],
-            "internal_energy": thermo_props.internal_energy_vibrational(),
+            "internal_energy": internal_energy,
             "heat_capacity": thermo_props.heat_capacity_vibrational(),
             "entropy": complete["entropy_vib"],
             "enthalpy_total": complete["enthalpy_total"],

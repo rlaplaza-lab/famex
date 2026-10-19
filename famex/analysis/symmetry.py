@@ -1,16 +1,20 @@
 """Symmetry handling for thermochemistry calculations.
 
 When neither a symmetry number nor a point group is supplied, libmolsymm
-(``molsymm``) detects σ from the geometry.
+(``molsymm``) detects σ from the geometry (Python 3.11+).
 """
 
 from __future__ import annotations
 
 import warnings
 
-import molsymm
 import numpy as np
 from ase import Atoms
+
+try:
+    import molsymm
+except ImportError:  # libmolsymm requires Python >=3.11
+    molsymm = None
 
 __all__ = ["SymmetryHandler", "get_point_group_symmetry_number", "detect_symmetry_from_atoms"]
 
@@ -92,6 +96,15 @@ def get_point_group_symmetry_number(point_group: str) -> int:
 
 def detect_symmetry_from_atoms(atoms: Atoms) -> tuple[int, str]:
     """Return ``(symmetry_number, point_group)`` via molsymm, or ``(1, "C1")``."""
+    if molsymm is None:
+        warnings.warn(
+            "libmolsymm (molsymm) is not installed; assuming C1 symmetry "
+            "(symmetry_number=1). Install with Python >=3.11: pip install libmolsymm.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return 1, "C1"
+
     try:
         analysis = molsymm.analyze(
             np.asarray(atoms.get_atomic_numbers(), dtype=np.int32),
@@ -158,14 +171,12 @@ class SymmetryHandler:
 
     @property
     def symmetry_number(self) -> int:
-        """Get the symmetry number."""
         if self._symmetry_number is None:
             self._symmetry_number = 1
         return self._symmetry_number
 
     @property
     def point_group(self) -> str:
-        """Get the point group."""
         if self._point_group is None:
             self._point_group = "C1"
         return self._point_group

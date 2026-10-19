@@ -29,7 +29,8 @@ dependencies = [
     "click>=8.0.0",
     "requests>=2.25.0",
     "sella>=2.0.0",
-    "libmolsymm>=1.0.0",
+    # libmolsymm wheels are Python 3.11+ only; 3.10 falls back to C1 symmetry.
+    "libmolsymm>=1.0.0; python_version >= '3.11'",
 ]
 
 [project.optional-dependencies]

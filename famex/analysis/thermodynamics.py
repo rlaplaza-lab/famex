@@ -45,7 +45,7 @@ class ThermodynamicProperties:
 
     This class integrates vibrational, translational, rotational, and electronic
     contributions with support for quasi-harmonic corrections, solvation effects,
-    and symmetry corrections. Gas phase defaults to 1 atm; σ defaults to molsymm.
+    and symmetry corrections.
     """
 
     def __init__(
@@ -87,16 +87,14 @@ class ThermodynamicProperties:
             point_group=point_group,
             atoms=atoms if symmetry_number is None and point_group is None else None,
         )
-        resolved_symmetry = self.symmetry_handler.symmetry_number
         self.stat_thermo = StatisticalThermodynamics(
             atoms,
             rotational_temperatures,
             rotational_constants,
-            resolved_symmetry,
+            self.symmetry_handler.symmetry_number,
             linear,
             multiplicity,
         )
-        self.stat_thermo.symmetry_number = resolved_symmetry
 
     def heat_capacity_vibrational(self) -> float:
         """Calculate vibrational heat capacity."""
