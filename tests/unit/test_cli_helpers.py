@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from ase import Atoms
 from click.testing import CliRunner
 
 from famex.cli.cache_commands import cache
+from famex.cli.cli import _run_optimization, main, path, ts
 from famex.cli.cli_helpers import (
     load_atoms_from_xyz,
     parse_kv_pairs,
@@ -438,3 +440,46 @@ class TestLoadNonXYZFile:
             assert len(loaded) == 2
         finally:
             Path(temp_file).unlink(missing_ok=True)
+
+
+def _ran_with(**kwargs: object) -> dict[str, object]:
+    explorer = Mock()
+    _run_optimization(explorer, calculate_frequencies=False, temperature=298.15, **kwargs)
+    return explorer.run.call_args.kwargs
+
+
+class TestStrategyDefaults:
+    def test_unset_options_stay_with_the_strategy(self):
+        ts_defaults = {param.name: param.default for param in ts.params}
+        path_defaults = {param.name: param.default for param in path.params}
+        assert ts_defaults["steps"] is None
+        assert ts_defaults["npoints"] is None
+        assert ts_defaults["max_images"] is None
+        assert path_defaults["steps"] is None
+        assert path_defaults["spring_constant"] == 5.0
+        assert "torchsim_mace" not in CliRunner().invoke(main, ["--help"]).output
+
+        omitted = _ran_with(
+            strategy="growing_string",
+            target="ts",
+            fmax=0.05,
+            steps=None,
+            npoints=None,
+            max_images=None,
+        )
+        assert "steps" not in omitted
+        assert "npoints" not in omitted
+        assert "max_images" not in omitted
+
+        forwarded = _ran_with(
+            strategy="growing_string",
+            target="ts",
+            fmax=0.05,
+            steps=40,
+            npoints=12,
+            max_images=18,
+        )
+        assert forwarded["steps"] == 40
+        assert forwarded["npoints"] == 12
+        assert forwarded["max_images"] == 18
+        assert "steps" not in _ran_with(strategy="irc", target="path", fmax=0.05, steps=None)

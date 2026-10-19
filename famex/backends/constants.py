@@ -17,7 +17,7 @@ BACKEND_PET = "pet"
 DEFAULT_UMA_MODEL = "uma-s-1p2"
 DEFAULT_MACE_MODEL = "mace-omol-0"
 DEFAULT_PET_MODEL = "pet-mad-s"
-FAIRCHEM_INSTALL = "fairchem-core>=2.21.0"
+FAIRCHEM_INSTALL = "fairchem-core>=2.22.0"
 
 # Backend categorization constants
 ALL_BACKENDS = [

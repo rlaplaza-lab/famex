@@ -14,7 +14,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: Which backend should I choose?
 
-**A:** FAMEX defaults to **UMA** (`uma-s-1p2`) via `fairchem-core>=2.21.0`. For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`) and pass `--backend aimnet2`. See the [backend table](USER_GUIDE.md#backend-guide) in the User Guide.
+**A:** FAMEX defaults to **UMA** (`uma-s-1p2`) via `fairchem-core>=2.22.0`. For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`) and pass `--backend aimnet2`. See the [backend table](USER_GUIDE.md#backend-guide) in the User Guide.
 
 ### Q: Can I install multiple backends?
 
@@ -22,11 +22,11 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: What Python version do I need?
 
-**A:** Python 3.10+ required. The **PET** backend (`pip install famex[pet]`) requires Python 3.11+.
+**A:** Python 3.10+ required. The **PET** backend (`pip install famex[pet]`) requires Python 3.11+. The **Orb** backend (`pip install famex[orb]`) requires Python 3.12+.
 
 ### Q: Backend not available after installation?
 
-**A:** Install backend dependencies. UMA: `pip install famex[uma]` or `pip install "fairchem-core>=2.21.0"`. Other backends: see [README](../README.md) and [User Guide](USER_GUIDE.md#backend-guide).
+**A:** Install backend dependencies. UMA: `pip install famex[uma]` or `pip install "fairchem-core>=2.22.0"`. Other backends: see [README](../README.md) and [User Guide](USER_GUIDE.md#backend-guide).
 
 ## Using FAMEX
 
@@ -120,4 +120,4 @@ Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_a
 
 ---
 
-*Last updated: June 2026*
+*Last updated: October 2026*

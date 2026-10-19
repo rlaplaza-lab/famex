@@ -27,6 +27,9 @@ python bh28_benchmark.py --backends so3lr uma
 # Test specific reactions
 python bh28_benchmark.py --reactions BHDIV_3 PXBH_2 CADBH_1
 
+# Single reaction
+python bh28_benchmark.py --quicker
+
 # Analysis only (load existing results)
 python bh28_benchmark.py --analyze
 ```
@@ -34,11 +37,14 @@ python bh28_benchmark.py --analyze
 ### Command Line Options
 
 - `--backends`: Comma-separated list of backends to test
-- `--reactions`: Comma-separated list of specific reactions to test
+- `--reactions`: Specific reactions to test (default: all 28)
 - `--quick`: Run on a representative subset of reactions for faster testing
+- `--quicker`: Run a single reaction
 - `--analyze`: Load and analyze existing results without running new calculations
 - `--device`: Device to use for calculations ("cpu" or "cuda")
-- `--output`: Output file for results (default: benchmark_results/bh28_benchmark_results.json)
+- `--output-dir`: Directory for results (default: `benchmark_results/`). The results file is `bh28_benchmark_results.json`
+- `--minima-optimizer`: Minima optimizer (`LBFGS`, `BFGS`, or `FIRE`; default `LBFGS`)
+- `--ts-optimizer`: Transition-state optimizer (`SELLA` or `rfo`; default `SELLA`)
 
 ## BH28 Dataset
 

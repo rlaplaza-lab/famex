@@ -41,7 +41,7 @@ git clone https://github.com/rlaplaza-lab/famex.git && cd famex && pip install -
 
 # UMA backend (recommended default):
 pip install famex[uma]
-# equivalent to: pip install "fairchem-core>=2.21.0"
+# equivalent to: pip install "fairchem-core>=2.22.0"
 
 # Development / testing:
 pip install -e ".[dev,uma]"
@@ -64,7 +64,7 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
 
 ### Global Options
 
-All commands support these common options:
+`minima`, `ts`, and `path` share these options. `famex cache` does not take them. `--freq`, `--temperature`, and `--cleanup-frequencies` apply to `minima` and `ts` only.
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -74,14 +74,15 @@ All commands support these common options:
 | `--device` | `None` | Device: cpu\|cuda |
 | `--default-charge` | `0` | Default molecular charge |
 | `--default-spin` | `1` | Default spin multiplicity |
-| `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|trust-krylov\|trust-ncg\|trust-exact\|newton-cg\|rfo (default=auto-select based on target) |
+| `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|sella-analytical\|trust-krylov\|trust-ncg\|trust-exact\|newton-cg\|rfo. `default` selects `lbfgs` for minima and path, and `rfo` for TS. `newton-cg` is minima-only. |
 | `--optimizer-kw` | `None` | Optimizer kwargs as key=value, repeatable |
 | `--ts-kw` | `None` | TS optimizer kwargs as key=value, repeatable |
 | `--constraints` | `None` | Constraints spec string; e.g., `'fix 0,1; harmonic_bond 2,3 k=5.0; fixinternals_bond 4,5 value=1.25'` |
 | `--verbose`, `-v` | `1` | Verbosity level: -v=quiet, -vv=normal, -vvv=debug |
-| `--temperature` | `298.15` | Temperature in Kelvin for thermodynamic calculations |
+| `--temperature` | `298.15` | `minima` and `ts` only. Temperature in Kelvin for thermodynamic calculations |
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
-| `--freq`, `--frequencies` | `False` | Perform frequency analysis after optimization (includes thermodynamic properties) |
+| `--freq`, `--frequencies` | `False` | `minima` and `ts` only. Perform frequency analysis after optimization (includes thermodynamic properties) |
+| `--cleanup-frequencies` | `False` | `minima` and `ts` only. After optimization, run Hessian-based cleanup until there are 0 (minimum) or 1 (TS) relevant imaginary frequencies |
 | `--force-finite-diff-hessian` | `False` | Force use of finite difference hessians for TS optimizers and frequency calculations. When disabled (default), backends with analytical Hessian support (`uma`, `mace`, `aimnet2`, `orb` conservative models, `pet`, `so3lr`) use the analytical Hessian automatically. `tblite` and non-conservative Orb models fall back to finite differences (no differentiable energy Hessian). |
 
 ### famex minima - Minima Optimization
@@ -162,11 +163,11 @@ famex ts --strategy {local,interpolate,cineb,growing_string,dhs} INPUT [OPTIONS]
 | `--embedder` | `pysmiles` | SMILES 3D method: `pysmiles` or `rdkit` |
 | `--output` | Auto | Output TS XYZ path |
 | `--fmax` | `0.05` | Convergence threshold for local TS refinement |
-| `--steps` | `1000` | Max optimization steps |
-| `--npoints` | `11` | Number of interpolation points (interpolate/cineb/growing_string) |
+| `--steps` | strategy default | Max optimization steps. `1000` for local, interpolate, and cineb; `200` for growing_string and dhs |
+| `--npoints` | strategy default | Images: `11` for interpolate and cineb; `15` for growing_string |
 | `--interp` | `idpp` | Interpolation method (interpolate/cineb; default IDPP) |
 | `--spring-constant` | `5.0` | Upper spring constant for energy-weighted CI-NEB (`cineb`) |
-| `--max-images` | `100` | Maximum number of images (growing_string strategy only) |
+| `--max-images` | unset | Growing-string image count. Overrides `--npoints`. When both are omitted, growing string uses 15 |
 | `--distance-threshold` | strategy default | growing_string: 0.1; dhs `dist_tol`: 0.5 |
 | `--step-size` | strategy default | growing_string: 0.1; dhs `large_step`: 0.2 |
 | `--dhs-small-step` | `0.05` | DHS small step when images are close |
@@ -236,12 +237,13 @@ famex path --strategy {interpolate,neb,cineb,irc} STRUCTURES... [OPTIONS]
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--strategy` | `neb` | Path optimization strategy: interpolate\|neb\|cineb\|irc |
+| `--embedder` | `pysmiles` | SMILES 3D method: `pysmiles` or `rdkit` |
 | `--output` | Auto | Output trajectory XYZ path |
 | `--fmax` | `0.05` | Convergence threshold |
-| `--steps` | `1000` | Max optimization steps |
+| `--steps` | strategy default | Max optimization steps. `1000` for neb and cineb; `100` for irc. interpolate does not optimize |
 | `--npoints` | `11` | Number of images in path |
 | `--interp` | `geodesic` | Initial interpolation method |
-| `--spring-constant` | `0.5` | Spring constant for NEB/CI-NEB |
+| `--spring-constant` | `5.0` | Spring constant for NEB/CI-NEB (same default as the Python strategies) |
 | `--step-size` | `0.1` | IRC step size (IRC strategy only) |
 | `--direction` | `both` | Direction: forward\|backward\|both (IRC strategy only) |
 
@@ -348,7 +350,7 @@ explorer = Explorer(
 
 **Strategies:** `local`, `interpolate`, `neb`, `cineb`, `irc`, `growing_string`, `dhs` (see [Target/Strategy Matrix](#targetstrategy-matrix))
 
-**Optimizers:** `default` (auto-selects), first-order (`lbfgs`, `bfgs`, `fire`), second-order (`sella`, `trust-krylov`, `trust-ncg`, `trust-exact`, `newton-cg`, `rfo`)
+**Optimizers:** `default` selects `lbfgs` for minima and path, and `rfo` for TS. First-order: `lbfgs`, `bfgs`, `fire`. Second-order: `sella`, `sella-analytical`, `trust-krylov`, `trust-ncg`, `trust-exact`, `newton-cg`, `rfo`. `newton-cg` is minima-only.
 
 ### Key Methods
 
@@ -392,11 +394,13 @@ When `--model-name` / `model_name` is omitted:
 | `mace` | `mace-omol-0` |
 | `pet` | `pet-mad-s` |
 | `orb` | `orb-v3-conservative-omol` |
+| `so3lr` | `so3lr-small` |
+| `tblite` | `GFN2-xTB` |
 | `mock` | `mock-model` |
 
 OrbMol-v2 is selected with `--model-name orbmol-v2`. That checkpoint ships in `orb-models>=0.7.0`, which requires Python 3.12.
 
-For **TBLite**, pass the xTB method via `--model-name` (e.g. `--model-name GFN2-xTB`); the registry maps this to the calculator `method` parameter.
+For **TBLite**, the default method is `GFN2-xTB`. Pass another xTB method via `--model-name` (for example `--model-name GFN1-xTB`); the registry maps this to the calculator `method` parameter.
 
 Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin` (or `Explorer` kwargs). UMA and related backends read `atoms.info["charge"]` and `atoms.info["spin"]` when set.
 
@@ -405,7 +409,7 @@ Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin`
 | Backend | Installation | Best For | Notes |
 |---------|--------------|----------|-------|
 | `aimnet2` | `pip install torch` | Beginners, molecules | No conflicts, fast; analytical Hessian via autograd |
-| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install famex[uma]` | Materials science (default: uma-s-1p2) | Conflicts with MACE; analytical Hessian |
+| `uma` | `pip install "fairchem-core>=2.22.0"` or `pip install famex[uma]` | Materials science (default: uma-s-1p2) | Conflicts with MACE; analytical Hessian |
 | `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA; analytical Hessian |
 | `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | Molecules (`orbmol-v2`) and materials | Python 3.12+; analytical Hessian for conservative models; FD for non-conservative |
 | `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations; Hessian via finite differences |
@@ -443,4 +447,4 @@ See [`examples/README.md`](../examples/README.md) for the full catalog of demos 
 
 ---
 
-*Last updated: June 2026*
+*Last updated: October 2026*

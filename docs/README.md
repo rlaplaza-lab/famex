@@ -6,7 +6,7 @@
 | [Tutorials](TUTORIALS.md) | Step-by-step minima, TS, and path workflows |
 | [FAQ](FAQ.md) | Installation, troubleshooting, performance |
 
-**Defaults:** `backend=uma`, model `uma-s-1p2`, `fairchem-core>=2.21.0` via `pip install famex[uma]`.
+**Version:** 0.5.0. **Defaults:** `backend=uma`, model `uma-s-1p2`, `fairchem-core>=2.22.0` via `pip install famex[uma]`.
 
 **Installation and backend table:** [README](../README.md#quick-start).
 

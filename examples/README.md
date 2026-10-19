@@ -36,7 +36,7 @@ Run commands from the `examples/` directory.
 Common options for all examples:
 - `--backends`: Comma-separated backend list (default: all available)
 - `--device`: cpu or cuda (default: auto-detect)
-- `--verbose`: Detailed progress output
+- `--verbose`: Integer verbosity, `0` quiet, `1` normal (default), `2` verbose
 - `--help`: Show help message
 
 **Quick start:**

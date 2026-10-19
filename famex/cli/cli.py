@@ -245,7 +245,7 @@ def _run_optimization(
     strategy: str,
     target: str,
     fmax: float,
-    steps: int,
+    steps: int | None,
     calculate_frequencies: bool,
     temperature: float,
     npoints: int | None = None,
@@ -358,7 +358,8 @@ def _run_optimization(
                 }
             )
 
-    return exp.run(**run_kwargs)
+    # Omit unset options so each strategy keeps its own default.
+    return exp.run(**{key: value for key, value in run_kwargs.items() if value is not None})
 
 
 def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], Any]:
@@ -501,7 +502,7 @@ def _embedder_option(func: Any) -> Any:
 
 
 @click.group(
-    help='FAMEX CLI: Fast mechanistic explorer with ML potentials.\n\n\b\nCommands:\n  famex minima : Minima optimization (outputs single structure)\n  famex ts     : Transition state optimization (outputs single TS)\n  famex path   : Reaction path optimization (outputs trajectories)\n  famex cache  : Manage model cache\n\n\b\nExamples:\n  # Structure inputs: XYZ file, SMILES, or pubchem:NAME / cid: / numeric CID\n  famex minima --strategy local "CCO" --backend aimnet2\n  famex minima --strategy local pubchem:aspirin --backend aimnet2\n\n\b\n  # Minima optimization (outputs single structure)\n  famex minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  famex minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  famex ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  famex ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  famex ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  famex ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02  # RFO TS optimizer\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  famex path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  famex path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  famex path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  famex path --strategy neb r.xyz intermediate.xyz p.xyz --npoints 11  # Multiple structures\n  famex path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  famex minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  famex cache info  # Show cache information\n  famex cache clear # Clear model cache',
+    help='FAMEX CLI: Fast mechanistic explorer with ML potentials.\n\n\b\nCommands:\n  famex minima : Minima optimization (outputs single structure)\n  famex ts     : Transition state optimization (outputs single TS)\n  famex path   : Reaction path optimization (outputs trajectories)\n  famex cache  : Manage model cache\n\n\b\nExamples:\n  # Structure inputs: XYZ file, SMILES, or pubchem:NAME / cid: / numeric CID\n  famex minima --strategy local "CCO" --backend aimnet2\n  famex minima --strategy local pubchem:aspirin --backend aimnet2\n\n\b\n  # Minima optimization (outputs single structure)\n  famex minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  famex minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  famex ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  famex ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  famex ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  famex ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02  # RFO TS optimizer\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  famex path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  famex path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  famex path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  famex path --strategy neb r.xyz intermediate.xyz p.xyz --npoints 11  # Multiple structures\n  famex path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  famex minima --strategy local molecule.xyz --backend mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  famex cache info  # Show cache information\n  famex cache clear # Clear model cache',
 )
 @click.version_option()
 def main() -> None:
@@ -676,13 +677,19 @@ def minima(
     help="Output TS XYZ path",
 )
 @click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
-@click.option("--steps", type=int, default=1000, show_default=True, help="Max optimization steps")
+@click.option(
+    "--steps",
+    type=int,
+    default=None,
+    show_default="1000 (local, interpolate, cineb); 200 (growing_string, dhs)",
+    help="Max optimization steps. Omit to use the strategy default.",
+)
 @click.option(
     "--npoints",
     type=int,
-    default=11,
-    show_default=True,
-    help="Number of interpolation points (interpolate/cineb/growing_string strategies only)",
+    default=None,
+    show_default="11 (interpolate, cineb); 15 (growing_string)",
+    help="Interpolation images, or growing-string image count when --max-images is omitted.",
 )
 @click.option(
     "--interp",
@@ -701,9 +708,9 @@ def minima(
 @click.option(
     "--max-images",
     type=int,
-    default=100,
-    show_default=True,
-    help="Maximum number of images (growing_string strategy only)",
+    default=None,
+    show_default="npoints, or 15 when both are omitted",
+    help="Growing-string image count. Overrides --npoints when set.",
 )
 @click.option(
     "--distance-threshold",
@@ -749,11 +756,11 @@ def ts(
     embedder: str,
     output: str | None,
     fmax: float,
-    steps: int,
-    npoints: int,
+    steps: int | None,
+    npoints: int | None,
     interp: str,
     spring_constant: float,
-    max_images: int,
+    max_images: int | None,
     distance_threshold: float | None,
     step_size: float | None,
     dhs_small_step: float,
@@ -897,7 +904,13 @@ main.add_command(cache)
     help="Output trajectory XYZ path",
 )
 @click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
-@click.option("--steps", type=int, default=1000, show_default=True, help="Max optimization steps")
+@click.option(
+    "--steps",
+    type=int,
+    default=None,
+    show_default="1000 (neb, cineb); 100 (irc)",
+    help="Max optimization steps. Omit to use the strategy default.",
+)
 @click.option(
     "--npoints",
     type=int,
@@ -915,7 +928,7 @@ main.add_command(cache)
 @click.option(
     "--spring-constant",
     type=float,
-    default=0.5,
+    default=5.0,
     show_default=True,
     help="Spring constant for NEB/CI-NEB",
 )
@@ -939,7 +952,7 @@ def path(
     structures: tuple[str, ...],
     output: str | None,
     fmax: float,
-    steps: int,
+    steps: int | None,
     npoints: int,
     interp: str,
     spring_constant: float,

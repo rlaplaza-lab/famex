@@ -28,17 +28,21 @@ python zimmermann93_benchmark.py
 # Parallel multi-env run (from this directory or repo root)
 python run_zimmermann93_parallel.py
 
-# Analysis only (load existing results)
-python zimmermann93_benchmark.py --analyze
+# Single reaction
+python zimmermann93_benchmark.py --quicker
+
+# Merge existing per-reaction shards into the canonical results file
+python zimmermann93_benchmark.py --merge-only
 ```
 
 ### Command Line Options
 
 - `--backends`: Comma-separated list of backends to test
 - `--quick`: Run on a representative subset of reactions for faster testing
-- `--analyze`: Load and analyze existing results without running new calculations
+- `--quicker`: Run a single reaction
 - `--device`: Device to use for calculations ("cpu" or "cuda")
-- `--output`: Output file for results (default: benchmark_results/zimmermann93_benchmark_results.json)
+- `--output-dir`: Directory for results (default: `benchmark_results/`). The canonical file is `zimmermann93_benchmark_results.json`
+- `--merge-only`: Merge per-reaction shards into the canonical results file and exit
 
 ## Zimmermann-93 Dataset
 

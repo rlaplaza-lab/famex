@@ -77,15 +77,16 @@ explorer = famex.Explorer.from_pubchem("aspirin", backend="aimnet2", target="min
 
 | Optimizer | Type | Best For |
 |-----------|------|----------|
-| `default` | Auto-select | `lbfgs` for minima/path, `sella` for TS |
+| `default` | Auto-select | `lbfgs` for minima/path, `rfo` for TS |
 | `lbfgs` | First-order | Large systems, default for minima |
 | `bfgs` | First-order | General purpose |
 | `fire` | First-order | Fast initial relaxation |
-| `sella` | Second-order | Transition states, robust |
+| `sella` | Second-order | Transition states, finite-difference Hessian |
+| `sella-analytical` | Second-order | Transition states when the backend has an analytical Hessian |
 | `trust-krylov` | Second-order | When Hessians are cheap |
 | `trust-ncg` | Second-order | Trust-region with nonlinear CG |
 | `trust-exact` | Second-order | Trust-region with exact Hessian |
-| `newton-cg` | Second-order | Newton-CG method |
+| `newton-cg` | Second-order | Newton-CG method (minima only) |
 | `rfo` | Second-order | Rational Function Optimization for TS |
 
 ### Convergence
@@ -137,6 +138,8 @@ result = explorer.run(npoints=15)
 
 ### Growing String (DE-GSM)
 
+Omitting `--npoints` and `--steps` uses 15 images and 200 steps, the same defaults as `Explorer.run` for `growing_string`. `--max-images` overrides `--npoints` when you set it.
+
 ```bash
 famex ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
 famex ts --strategy growing_string reactant.xyz --product product.xyz --require-ts --freq
@@ -166,6 +169,8 @@ n_imag = freq_result["ts_analysis"]["n_imaginary_frequencies"]
 
 ### NEB / CI-NEB
 
+The NEB and CI-NEB spring constant defaults to `5.0`, and both default to 1000 steps, on the CLI and in Python.
+
 ```bash
 famex path --strategy neb reactant.xyz product.xyz --npoints 11
 famex path --strategy cineb reactant.xyz product.xyz --spring-constant 5.0
@@ -179,6 +184,8 @@ explorer.save_trajectory(path, "neb_path.xyz")
 ```
 
 ### IRC from a transition state
+
+IRC defaults to 100 steps on the CLI and in Python.
 
 ```bash
 famex path --strategy irc ts.xyz --direction both
@@ -239,4 +246,4 @@ More examples: [`examples/README.md`](../examples/README.md).
 
 ---
 
-*Last updated: June 2026*
+*Last updated: October 2026*
