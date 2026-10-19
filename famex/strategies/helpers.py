@@ -8,6 +8,7 @@ from typing import Any, Literal, cast
 
 from ase import Atoms
 
+from famex.analysis.thermodynamics import read_free_energy_correction
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
 
@@ -154,20 +155,6 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
 
     msg = f"Unknown optimizer name: {name}"
     raise ValueError(msg)
-
-
-def _calculate_free_energy_correction(
-    frequency_result: dict[str, Any] | None, temperature: float
-) -> float | None:
-    if frequency_result is None:
-        return None
-    thermo = frequency_result.get("thermodynamic_properties", {})
-    if not isinstance(thermo, dict):
-        return None
-    entropy = thermo.get("entropy", 0.0)
-    if not isinstance(entropy, int | float):
-        return None
-    return -entropy * temperature / 1000.0
 
 
 def _run_local_optimization_common(
@@ -340,9 +327,7 @@ def _run_local_optimization_common(
         if frequency_results[0] is not None:
             result["frequency_analysis"] = frequency_results[0]
             result[result_key_name] = frequency_results[0].get(result_key_name)
-            result["free_energy_correction"] = _calculate_free_energy_correction(
-                frequency_results[0], temperature
-            )
+            result["free_energy_correction"] = read_free_energy_correction(frequency_results[0])
         if cleanup_summaries[0] is not None:
             result["frequency_cleanup"] = cleanup_summaries[0]
     else:
@@ -358,10 +343,9 @@ def _run_local_optimization_common(
             result[result_key_name] = [
                 f.get(result_key_name) if f is not None else None for f in frequency_results
             ]
-            free_energy_corrections = [
-                _calculate_free_energy_correction(f, temperature) for f in frequency_results
+            result["free_energy_correction"] = [
+                read_free_energy_correction(f) for f in frequency_results
             ]
-            result["free_energy_correction"] = free_energy_corrections
         if any(summary is not None for summary in cleanup_summaries):
             result["frequency_cleanup"] = cleanup_summaries
 

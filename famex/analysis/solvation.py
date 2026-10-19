@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from ase import units
 
+from famex.analysis.physics_constants import gas_phase_concentration_1atm
+
 __all__ = ["SolvationHandler", "get_free_space", "SUPPORTED_SOLVENTS"]
 
 # Physical constants from ASE units
@@ -85,7 +87,8 @@ class SolvationHandler:
     def __init__(
         self,
         solvent: str = "none",
-        concentration: float = 1.0,
+        concentration: float | None = None,
+        temperature: float = 298.15,
     ):
         """Initialize solvation handler.
 
@@ -93,11 +96,19 @@ class SolvationHandler:
         ----------
         solvent : str
             Solvent name (default: 'none' for gas phase)
-        concentration : float
-            Concentration in mol/L (default: 1.0 M)
+        concentration : float, optional
+            Concentration in mol/L. When omitted: GoodVibes 1 atm
+            ``ATMOS / (R T)`` for gas phase, else 1.0 M in solution.
+        temperature : float
+            Temperature in Kelvin used for the gas-phase 1 atm default
         """
         self.solvent = solvent
-        self.concentration = concentration
+        if concentration is not None:
+            self.concentration = concentration
+        elif solvent == "none":
+            self.concentration = gas_phase_concentration_1atm(temperature)
+        else:
+            self.concentration = 1.0
         self.free_space_ml_per_l = get_free_space(solvent)
 
     def is_gas_phase(self) -> bool:

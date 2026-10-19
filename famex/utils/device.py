@@ -9,7 +9,7 @@ from famex.utils.logging import get_famex_logger
 logger = get_famex_logger(__name__)
 
 # Backends that cannot use GPU (semi-empirical / CPU-only stacks).
-CPU_ONLY_BACKENDS: frozenset[str] = frozenset({"tblite"})
+CPU_ONLY_BACKENDS: frozenset[str] = frozenset({"tblite", "pyscf"})
 
 
 def get_optimal_device(device: str | None = None) -> str:

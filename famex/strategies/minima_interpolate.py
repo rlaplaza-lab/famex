@@ -7,6 +7,7 @@ from typing import Any, cast
 
 from ase import Atoms
 
+from famex.analysis.thermodynamics import read_free_energy_correction
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
@@ -149,13 +150,9 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
                 is_minimum = first_valid_freq.get("is_minimum")
                 if isinstance(is_minimum, bool):
                     result["is_minimum"] = is_minimum
-                # Calculate free energy correction from thermodynamic properties
-                thermo = first_valid_freq.get("thermodynamic_properties", {})
-                if isinstance(thermo, dict):
-                    temperature = thermo.get("temperature", 298.15)
-                    entropy = thermo.get("entropy", 0.0)
-                    if isinstance(temperature, int | float) and isinstance(entropy, int | float):
-                        result["free_energy_correction"] = -entropy * temperature / 1000.0
+                correction = read_free_energy_correction(first_valid_freq)
+                if correction is not None:
+                    result["free_energy_correction"] = correction
 
         return result
 

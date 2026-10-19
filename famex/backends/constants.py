@@ -13,10 +13,12 @@ BACKEND_SO3LR = "so3lr"
 BACKEND_ORB = "orb"
 BACKEND_TBLITE = "tblite"
 BACKEND_PET = "pet"
+BACKEND_PYSCF = "pyscf"
 
 DEFAULT_UMA_MODEL = "uma-s-1p2"
 DEFAULT_MACE_MODEL = "mace-omol-0"
 DEFAULT_PET_MODEL = "pet-mad-s"
+DEFAULT_PYSCF_MODEL = "b3lyp-d3bj/def2-svp"
 FAIRCHEM_INSTALL = "fairchem-core>=2.22.0"
 
 # Backend categorization constants
@@ -29,6 +31,7 @@ ALL_BACKENDS = [
     BACKEND_ORB,
     BACKEND_TBLITE,
     BACKEND_PET,
+    BACKEND_PYSCF,
 ]
 
 ML_BACKENDS = [
@@ -50,4 +53,5 @@ REGULAR_BACKENDS = [
     BACKEND_ORB,
     BACKEND_TBLITE,
     BACKEND_PET,
+    BACKEND_PYSCF,
 ]

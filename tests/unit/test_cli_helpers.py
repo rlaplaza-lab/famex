@@ -150,6 +150,7 @@ class TestPrintFrequencySummary:
             "thermodynamic_properties": {
                 "temperature": 298.15,
                 "entropy": 0.1,
+                "free_energy_correction": 0.25,
             },
             "is_minimum": True,
             "minima_analysis": {"n_significant_imaginary_frequencies": 0},
@@ -169,6 +170,7 @@ class TestPrintFrequencySummary:
             "thermodynamic_properties": {
                 "temperature": 298.15,
                 "entropy": 0.1,
+                "free_energy_correction": 0.25,
             },
             "is_ts": True,
             "ts_analysis": {"n_imaginary_frequencies": 1},

@@ -369,7 +369,7 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 "--backend",
                 default="uma",
                 show_default=True,
-                help="Backend: uma|aimnet2|mace|orb|so3lr|tblite|pet|mock",
+                help="Backend: uma|aimnet2|mace|orb|so3lr|tblite|pet|pyscf|mock",
             ),
             click.option("--model-name", default=None, help="Model name for backend"),
             click.option("--model-path", default=None, help="Path to model file (if applicable)"),

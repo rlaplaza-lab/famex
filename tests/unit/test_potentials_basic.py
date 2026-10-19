@@ -95,6 +95,7 @@ class TestPotentialsInitBasic:
             "get_orb_calculator",
             "get_pet_calculator",
             "get_tblite_calculator",
+            "get_pyscf_calculator",
         ],
     )
     def test_calculator_factory_functions_exist(self, factory_name):

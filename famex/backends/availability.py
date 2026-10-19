@@ -17,6 +17,7 @@ from famex.backends.constants import (
     BACKEND_MACE,
     BACKEND_MOCK,
     BACKEND_PET,
+    BACKEND_PYSCF,
     BACKEND_SO3LR,
     BACKEND_UMA,
     ML_BACKENDS,
@@ -85,6 +86,7 @@ class BackendAvailabilityChecker:
             "orb": ["orb_models", "torch"],
             "tblite": ["tblite"],
             BACKEND_PET: ["upet", "torch"],
+            BACKEND_PYSCF: ["pyscf", "pyscf_dispersion"],
         }
 
         # Human-readable package names for error messages
@@ -96,6 +98,7 @@ class BackendAvailabilityChecker:
             "orb": ["orb-models>=0.7.0", "torch"],
             "tblite": ["tblite"],
             BACKEND_PET: ["upet", "torch"],
+            BACKEND_PYSCF: ["pyscf", "pyscf-dispersion"],
         }
 
     def _check_python_version(self, backend: str) -> bool:
@@ -263,6 +266,7 @@ def get_backend_error_message(backend: str) -> str:
         BACKEND_PET: "pip install upet",
         "orb": 'pip install "orb-models>=0.7.0"',
         "tblite": "pip install tblite",
+        BACKEND_PYSCF: "pip install famex[pyscf]",
     }
 
     cmd = install_commands.get(backend, f"pip install {backend}")

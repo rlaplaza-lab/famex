@@ -399,10 +399,8 @@ class QuasiHarmonicHandler:
         real_freqs = filter_positive_frequencies(frequencies)
 
         if self.method == "grimme":
-            # Use qRRHO energy with Grimme's damping
-            e_qRRHO, _ = self._vibrational_energy_qRRHO(real_freqs, temperature)
+            _, e_qRRHO = self._vibrational_energy_qRRHO(real_freqs, temperature)
             damp = calculate_damping_function(real_freqs, self.freq_cutoff, self.alpha)
-            # Interpolate between qRRHO and classical limit (0.5 RT)
             per_mode_energy = e_qRRHO * damp + (1 - damp) * 0.5 * GAS_CONSTANT * temperature
             total_energy = float(np.sum(per_mode_energy))
         elif self.method == "truhlar":

@@ -4,16 +4,20 @@ import numpy as np
 import pytest
 from ase import Atoms
 
+from famex.analysis.molecular_properties import rotational_temperatures_from_atoms
 from famex.analysis.physics_constants import (
+    ATMOS,
     AVOGADRO_CONSTANT,
     GAS_CONSTANT,
     J_PER_MOL_TO_EV,
     PLANCK_CONSTANT,
     SPEED_OF_LIGHT,
+    gas_phase_concentration_1atm,
 )
 from famex.analysis.quasiharmonic import (
     QuasiHarmonicHandler,
     calculate_damping_function,
+    calculate_free_rotor_entropy,
     calculate_qRRHO_energy,
     calculate_rrho_energy,
     calculate_rrho_entropy,
@@ -27,7 +31,12 @@ from famex.analysis.statistical_thermo import (
     calculate_translational_energy,
     calculate_translational_entropy,
 )
-from famex.analysis.symmetry import SymmetryHandler, get_point_group_symmetry_number
+from famex.analysis.symmetry import (
+    SymmetryHandler,
+    detect_symmetry_from_atoms,
+    get_point_group_symmetry_number,
+)
+from famex.analysis.thermodynamics import ThermodynamicProperties, read_free_energy_correction
 
 
 class TestQuasiHarmonic:
@@ -232,6 +241,12 @@ class TestSolvation:
         handler_toluene = SolvationHandler(solvent="toluene")
         assert not handler_toluene.is_gas_phase()
 
+    def test_default_concentration_gas_vs_solution(self):
+        gas = SolvationHandler(solvent="none", temperature=298.15)
+        assert gas.concentration == pytest.approx(gas_phase_concentration_1atm(298.15))
+        assert SolvationHandler(solvent="H2O").concentration == pytest.approx(1.0)
+        assert SolvationHandler(solvent="toluene").concentration == pytest.approx(1.0)
+
 
 class TestSymmetry:
     def test_get_point_group_symmetry_number(self):
@@ -264,32 +279,78 @@ class TestSymmetry:
         assert get_point_group_symmetry_number("Dinfh") == 2
         assert SymmetryHandler(point_group="Dinfh").symmetry_number == 2
 
+    def test_molsymm_detects_water_c2v(self, water_c2v):
+        sigma, point_group = detect_symmetry_from_atoms(water_c2v)
+        assert sigma == 2
+        assert point_group == "C2v"
+        handler = SymmetryHandler(atoms=water_c2v)
+        assert handler.symmetry_number == 2
+        assert handler.point_group == "C2v"
+
 
 @pytest.fixture
 def simple_molecule():
     return Atoms("H2O", positions=[[0, 0, 0], [0, 0, 0.96], [0.82, 0, -0.26]])
 
 
+@pytest.fixture
+def water_c2v():
+    return Atoms(
+        "OHH",
+        positions=[
+            [0.0, 0.0, 0.1173],
+            [0.0, 0.7572, -0.4692],
+            [0.0, -0.7572, -0.4692],
+        ],
+    )
+
+
+def _goodvibes_reference_g_minus_e(
+    frequencies: np.ndarray,
+    atoms: Atoms,
+    temperature: float,
+    symmetry_number: int,
+    method: str,
+    concentration: float | None = None,
+    energy: float = 0.0,
+) -> float:
+    """Independent GoodVibes-formula thermal correction G − E in eV."""
+    conc = gas_phase_concentration_1atm(temperature) if concentration is None else concentration
+    mass = float(np.sum(atoms.get_masses()))
+    rot_temps = rotational_temperatures_from_atoms(atoms, linear=False)
+    u_trans = 1.5 * GAS_CONSTANT * temperature
+    u_rot = 1.5 * GAS_CONSTANT * temperature
+    s_rrho = calculate_rrho_entropy(frequencies, temperature)
+
+    if method == "grimme":
+        damp = calculate_damping_function(frequencies, 100.0)
+        e_qrrho = calculate_qRRHO_energy(frequencies, temperature)
+        u_vib = float(np.sum(e_qrrho * damp + (1 - damp) * 0.5 * GAS_CONSTANT * temperature))
+        s_free = calculate_free_rotor_entropy(frequencies, temperature)
+        s_vib = float(np.sum(s_rrho * damp + (1 - damp) * s_free))
+    else:
+        u_vib = float(np.sum(calculate_rrho_energy(frequencies, temperature)))
+        s_vib = float(np.sum(s_rrho))
+
+    h_j = energy / J_PER_MOL_TO_EV + u_trans + u_rot + u_vib + GAS_CONSTANT * temperature
+    s_j = (
+        calculate_translational_entropy(mass, temperature, conc, 1000.0)
+        + calculate_rotational_entropy(rot_temps, symmetry_number, temperature, linear=False)
+        + s_vib
+        + calculate_electronic_entropy(1)
+    )
+    return (h_j - temperature * s_j) * J_PER_MOL_TO_EV - energy
+
+
 class TestCompleteThermodynamics:
     def test_basic_thermodynamics(self, simple_molecule):
-        from famex.analysis.thermodynamics import ThermodynamicProperties
-
-        # Simple frequencies for water (approximate)
         frequencies = np.array([1000, 1650, 3650])
-
         thermo = ThermodynamicProperties(frequencies, simple_molecule, temperature=298.15)
-
-        zpe = thermo.calculate_zero_point_energy()
-        assert zpe > 0
-
-        entropy = thermo.entropy_vibrational()
-        assert entropy > 0
+        assert thermo.calculate_zero_point_energy() > 0
+        assert thermo.entropy_vibrational() > 0
 
     def test_complete_thermodynamics_gas_phase(self, simple_molecule):
-        from famex.analysis.thermodynamics import ThermodynamicProperties
-
         frequencies = np.array([1000, 1650, 3650])
-
         thermo = ThermodynamicProperties(
             frequencies,
             simple_molecule,
@@ -298,10 +359,8 @@ class TestCompleteThermodynamics:
             multiplicity=1,
             solvent="none",
         )
-
         results = thermo.calculate_complete_thermodynamics(energy=0.0)
 
-        # Check all keys present
         expected_keys = [
             "energy",
             "zpe",
@@ -315,6 +374,7 @@ class TestCompleteThermodynamics:
             "entropy_elec",
             "entropy_total",
             "gibbs_free_energy",
+            "free_energy_correction",
             "temperature",
             "method",
             "contributions",
@@ -322,10 +382,13 @@ class TestCompleteThermodynamics:
         for key in expected_keys:
             assert key in results
 
-        # Check some reasonable values
         assert results["zpe"] > 0
         assert results["entropy_total"] > 0
         assert results["temperature"] == 298.15
+        assert results["free_energy_correction"] == pytest.approx(
+            results["gibbs_free_energy"] - results["energy"], rel=1e-12
+        )
+        assert results["concentration"] == pytest.approx(ATMOS / (GAS_CONSTANT * 298.15), rel=1e-10)
 
         u_vib, _ = thermo.qh_handler.vibrational_energy(frequencies, 298.15)
         expected_h_ev = (
@@ -339,34 +402,75 @@ class TestCompleteThermodynamics:
         )
 
     def test_quasi_harmonic_methods(self, simple_molecule):
-        from famex.analysis.thermodynamics import ThermodynamicProperties
-
         frequencies = np.array([50, 100, 500, 1000, 1650, 3650])
-
-        # RRHO
-        thermo_rrho = ThermodynamicProperties(
+        results_rrho = ThermodynamicProperties(
             frequencies, simple_molecule, temperature=298.15, method="rrho"
-        )
-        results_rrho = thermo_rrho.calculate_complete_thermodynamics(energy=0.0)
-
-        # Grimme
-        thermo_grimme = ThermodynamicProperties(
+        ).calculate_complete_thermodynamics(energy=0.0)
+        results_grimme = ThermodynamicProperties(
             frequencies, simple_molecule, temperature=298.15, method="grimme"
-        )
-        results_grimme = thermo_grimme.calculate_complete_thermodynamics(energy=0.0)
-
-        # Truhlar
-        thermo_truhlar = ThermodynamicProperties(
+        ).calculate_complete_thermodynamics(energy=0.0)
+        results_truhlar = ThermodynamicProperties(
             frequencies, simple_molecule, temperature=298.15, method="truhlar"
-        )
-        results_truhlar = thermo_truhlar.calculate_complete_thermodynamics(energy=0.0)
+        ).calculate_complete_thermodynamics(energy=0.0)
 
-        # All should give positive entropies
         assert results_rrho["entropy_vib"] > 0
-        assert results_grimme["entropy_vib"] > 0
-        assert results_truhlar["entropy_vib"] > 0
-
-        # Methods should give similar but not identical results
-        # Grimme and Truhlar should generally give higher entropies than RRHO for low frequencies
         assert results_grimme["entropy_vib"] >= results_rrho["entropy_vib"] - 0.01
         assert results_truhlar["entropy_vib"] >= results_rrho["entropy_vib"] - 0.01
+
+    def test_goodvibes_compatible_free_energy_correction(self, water_c2v):
+        frequencies = np.array([1595.0, 3657.0, 3756.0])
+        temperature = 298.15
+        rot_temps = rotational_temperatures_from_atoms(water_c2v, linear=False)
+        assert len(rot_temps) == 3
+        assert np.all((rot_temps > 1.0) & (rot_temps < 100.0))
+
+        auto = ThermodynamicProperties(
+            frequencies, water_c2v, temperature=temperature
+        ).calculate_complete_thermodynamics(energy=0.0)
+        assert auto["symmetry_number"] == 2
+        assert auto["point_group"] == "C2v"
+
+        for method in ("rrho", "grimme"):
+            results = ThermodynamicProperties(
+                frequencies,
+                water_c2v,
+                temperature=temperature,
+                method=method,
+                symmetry_number=2,
+            ).calculate_complete_thermodynamics(energy=0.0)
+            expected = _goodvibes_reference_g_minus_e(
+                frequencies, water_c2v, temperature, 2, method
+            )
+            assert results["free_energy_correction"] == pytest.approx(expected, abs=1e-6)
+
+        results_s1 = ThermodynamicProperties(
+            frequencies,
+            water_c2v,
+            temperature=temperature,
+            method="rrho",
+            symmetry_number=1,
+        ).calculate_complete_thermodynamics(energy=0.0)
+        assert results_s1["free_energy_correction"] == pytest.approx(
+            _goodvibes_reference_g_minus_e(frequencies, water_c2v, temperature, 1, "rrho"),
+            abs=1e-6,
+        )
+
+        results_1m = ThermodynamicProperties(
+            frequencies,
+            water_c2v,
+            temperature=temperature,
+            concentration=1.0,
+            symmetry_number=2,
+        ).calculate_complete_thermodynamics(energy=0.0)
+        assert results_1m["concentration"] == pytest.approx(1.0)
+        assert results_1m["free_energy_correction"] == pytest.approx(
+            _goodvibes_reference_g_minus_e(
+                frequencies, water_c2v, temperature, 2, "rrho", concentration=1.0
+            ),
+            abs=1e-6,
+        )
+
+        assert read_free_energy_correction(None) is None
+        assert read_free_energy_correction(
+            {"thermodynamic_properties": {"free_energy_correction": 0.25}}
+        ) == pytest.approx(0.25)

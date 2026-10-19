@@ -6,7 +6,12 @@ from typing import Any
 
 from ase import Atoms
 
-from famex.backends.constants import DEFAULT_MACE_MODEL, DEFAULT_PET_MODEL, DEFAULT_UMA_MODEL
+from famex.backends.constants import (
+    DEFAULT_MACE_MODEL,
+    DEFAULT_PET_MODEL,
+    DEFAULT_PYSCF_MODEL,
+    DEFAULT_UMA_MODEL,
+)
 from famex.backends.registry import create_calculator
 from famex.core.charge_spin import check_missing_charge_spin, extract_charge_spin_from_atoms
 from famex.utils.device import resolve_backend_device
@@ -52,6 +57,8 @@ class CalculatorManager:
             return DEFAULT_PET_MODEL
         if backend_lower == "mock":
             return "mock-model"
+        if backend_lower == "pyscf":
+            return DEFAULT_PYSCF_MODEL
         return "default-model"
 
     def create_and_attach_calculator(

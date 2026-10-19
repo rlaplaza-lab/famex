@@ -29,6 +29,7 @@ dependencies = [
     "click>=8.0.0",
     "requests>=2.25.0",
     "sella>=2.0.0",
+    "libmolsymm>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +41,7 @@ smiles = ["pysmiles>=1.1.0"]
 rdkit = ["rdkit>=2023.9.1"]
 # orb-models 0.7.0 adds OrbMol-v2 and requires Python 3.12+.
 orb = ["orb-models>=0.7.0"]
+pyscf = ["pyscf>=2.4.0", "pyscf-dispersion"]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -97,6 +99,7 @@ omit = [
     "*/potentials/orb_potential.py",
     "*/potentials/so3lr_potential.py",
     "*/potentials/tblite_potential.py",
+    "*/potentials/pyscf_potential.py",
     "*/potentials/uma_potential.py",
 ]
 branch = true
@@ -207,6 +210,9 @@ module = [
     "mace.*",
     "sella.*",
     "tblite.*",
+    "pyscf",
+    "pyscf.*",
+    "molsymm",
     "torch_cluster.*",
     "upet.*",
     "pysmiles",

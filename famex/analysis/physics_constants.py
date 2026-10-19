@@ -14,6 +14,12 @@ AVOGADRO_CONSTANT = units._Nav
 AMU_TO_KG = 1.66053886e-27  # kg/amu
 SPEED_OF_LIGHT = 2.99792458e10  # cm/s
 J_PER_MOL_TO_EV = units.J / units.mol
+ATMOS = 101.325  # kPa; GoodVibes 1 atm concentration is ATMOS/(R T) mol/L
+
+
+def gas_phase_concentration_1atm(temperature: float) -> float:
+    """GoodVibes 1 atm ideal-gas concentration in mol/L."""
+    return ATMOS / (GAS_CONSTANT * temperature)
 
 
 def filter_positive_frequencies(frequencies: NDArray[np.floating]) -> NDArray[np.float64]:
@@ -56,6 +62,7 @@ def normalize_frequencies_cm1(
 
 __all__ = [
     "AMU_TO_KG",
+    "ATMOS",
     "AVOGADRO_CONSTANT",
     "BOLTZMANN_CONSTANT",
     "GAS_CONSTANT",
@@ -64,5 +71,6 @@ __all__ = [
     "PLANCK_CONSTANT",
     "SPEED_OF_LIGHT",
     "filter_positive_frequencies",
+    "gas_phase_concentration_1atm",
     "normalize_frequencies_cm1",
 ]

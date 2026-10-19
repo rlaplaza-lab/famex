@@ -22,7 +22,22 @@ from famex.analysis.solvation import SolvationHandler
 from famex.analysis.statistical_thermo import StatisticalThermodynamics
 from famex.analysis.symmetry import SymmetryHandler
 
-__all__ = ["ThermodynamicProperties"]
+__all__ = ["ThermodynamicProperties", "read_free_energy_correction"]
+
+
+def read_free_energy_correction(
+    frequency_result: dict[str, Any] | None,
+) -> float | None:
+    """Return ``G − E`` (eV) from a frequency-analysis result, or ``None``."""
+    if frequency_result is None:
+        return None
+    thermo = frequency_result.get("thermodynamic_properties", {})
+    if not isinstance(thermo, dict):
+        return None
+    correction = thermo.get("free_energy_correction")
+    if isinstance(correction, bool) or not isinstance(correction, int | float):
+        return None
+    return float(correction)
 
 
 class ThermodynamicProperties:
@@ -30,7 +45,7 @@ class ThermodynamicProperties:
 
     This class integrates vibrational, translational, rotational, and electronic
     contributions with support for quasi-harmonic corrections, solvation effects,
-    and symmetry corrections.
+    and symmetry corrections. Gas phase defaults to 1 atm; σ defaults to molsymm.
     """
 
     def __init__(
@@ -46,13 +61,13 @@ class ThermodynamicProperties:
         # Statistical thermodynamics parameters
         rotational_temperatures: np.ndarray | None = None,
         rotational_constants: np.ndarray | None = None,
-        symmetry_number: int = 1,
+        symmetry_number: int | None = None,
         point_group: str | None = None,
         linear: bool | None = None,
         multiplicity: int = 1,
         # Solvation parameters
         solvent: str = "none",
-        concentration: float = 1.0,
+        concentration: float | None = None,
     ) -> None:
         """Initialize thermodynamic property calculator."""
         self.frequencies = filter_positive_frequencies(frequencies)
@@ -62,17 +77,26 @@ class ThermodynamicProperties:
         self.pressure = pressure
 
         self.qh_handler = QuasiHarmonicHandler(method, freq_cutoff, freq_scale_factor)
-        self.solvation_handler = SolvationHandler(solvent, concentration)
-        self.symmetry_handler = SymmetryHandler(symmetry_number, point_group)
+        self.solvation_handler = SolvationHandler(
+            solvent,
+            concentration=concentration,
+            temperature=temperature,
+        )
+        self.symmetry_handler = SymmetryHandler(
+            symmetry_number=symmetry_number,
+            point_group=point_group,
+            atoms=atoms if symmetry_number is None and point_group is None else None,
+        )
+        resolved_symmetry = self.symmetry_handler.symmetry_number
         self.stat_thermo = StatisticalThermodynamics(
             atoms,
             rotational_temperatures,
             rotational_constants,
-            symmetry_number,
+            resolved_symmetry,
             linear,
             multiplicity,
         )
-        self.stat_thermo.symmetry_number = self.symmetry_handler.symmetry_number
+        self.stat_thermo.symmetry_number = resolved_symmetry
 
     def heat_capacity_vibrational(self) -> float:
         """Calculate vibrational heat capacity."""
@@ -150,6 +174,7 @@ class ThermodynamicProperties:
         enthalpy_total = H_total_J_per_mol * J_PER_MOL_TO_EV
         entropy_total = S_total_J_per_K * J_PER_MOL_TO_EV
         gibbs_free_energy = enthalpy_total - self.temperature * entropy_total
+        free_energy_correction = gibbs_free_energy - energy
 
         return {
             "energy": energy,
@@ -164,8 +189,12 @@ class ThermodynamicProperties:
             "entropy_elec": entropy_elec * J_PER_MOL_TO_EV,
             "entropy_total": entropy_total,
             "gibbs_free_energy": gibbs_free_energy,
+            "free_energy_correction": free_energy_correction,
             "temperature": self.temperature,
             "method": self.qh_handler.method,
+            "symmetry_number": self.symmetry_handler.symmetry_number,
+            "point_group": self.symmetry_handler.point_group,
+            "concentration": self.solvation_handler.concentration,
             "contributions": {
                 "translational": {
                     "enthalpy": enthalpy_trans * J_PER_MOL_TO_EV,

@@ -623,14 +623,14 @@ class FrequencyAnalysis:
         # Statistical thermodynamics parameters
         rotational_temperatures: np.ndarray | None = None,
         rotational_constants: np.ndarray | None = None,
-        symmetry_number: int = 1,
+        symmetry_number: int | None = None,
         point_group: str | None = None,
         linear: bool | None = None,
         multiplicity: int = 1,
         # Solvation parameters
         solvent: str = "none",
-        concentration: float = 1.0,
-    ) -> dict[str, float | int | list[float]]:
+        concentration: float | None = None,
+    ) -> dict[str, float | int | str | list[float]]:
         """Calculate vibrational thermodynamic properties at given temperature.
 
         Parameters
@@ -647,18 +647,19 @@ class FrequencyAnalysis:
             Rotational temperatures in Kelvin
         rotational_constants : array-like, optional
             Rotational constants in GHz
-        symmetry_number : int
-            Symmetry number (default: 1 for C1)
+        symmetry_number : int, optional
+            Symmetry number. When omitted, molsymm detects σ from the geometry.
         point_group : str, optional
-            Point group symbol for automatic symmetry determination
+            Point group symbol for symmetry number lookup
         linear : bool, optional
             Whether molecule is linear (auto-detected if None)
         multiplicity : int
             Spin multiplicity 2S+1 (default: 1)
         solvent : str
             Solvent name (default: 'none' for gas phase)
-        concentration : float
-            Concentration in mol/L
+        concentration : float, optional
+            Concentration in mol/L. When omitted, use the GoodVibes 1 atm
+            ideal-gas molarity.
 
         Returns
         -------
@@ -685,13 +686,17 @@ class FrequencyAnalysis:
             solvent=solvent,
             concentration=concentration,
         )
+        complete = thermo_props.calculate_complete_thermodynamics()
 
         return {
             "temperature": temperature,
-            "zero_point_energy": thermo_props.calculate_zero_point_energy(),
+            "zero_point_energy": complete["zpe"],
             "internal_energy": thermo_props.internal_energy_vibrational(),
             "heat_capacity": thermo_props.heat_capacity_vibrational(),
-            "entropy": thermo_props.entropy_vibrational(),
+            "entropy": complete["entropy_vib"],
+            "enthalpy_total": complete["enthalpy_total"],
+            "entropy_total": complete["entropy_total"],
+            "free_energy_correction": complete["free_energy_correction"],
             "n_vibrational_modes": len(real_frequencies),
             "frequencies_cm_1": real_frequencies.tolist(),
         }

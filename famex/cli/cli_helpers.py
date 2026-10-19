@@ -14,6 +14,7 @@ from ase import Atoms
 from ase.io import read as ase_read
 from ase.io import write as ase_write
 
+from famex.analysis.thermodynamics import read_free_energy_correction
 from famex.embed.api import smiles_to_atoms
 from famex.io import pubchem
 from famex.io.xyz_io import read_xyz_with_metadata, write_xyz_with_metadata
@@ -279,12 +280,7 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
     if not isinstance(thermo, dict):
         thermo = {}
     temperature = thermo.get("temperature", 298.15)
-
-    entropy = thermo.get("entropy", 0.0)
-    if isinstance(entropy, int | float) and isinstance(temperature, int | float):
-        free_energy_correction = -entropy * temperature / 1000.0  # Convert K to eV/K
-    else:
-        free_energy_correction = 0.0
+    free_energy_correction = read_free_energy_correction(frequency_analysis)
 
     click.echo(f"Frequency analysis completed ({n_modes} modes):")
     if isinstance(zpe, int | float) and not (np.isnan(zpe) or np.isinf(zpe)):
@@ -292,14 +288,13 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
     else:
         click.echo("  Zero-point energy: N/A")
 
-    if isinstance(free_energy_correction, int | float) and not (
-        np.isnan(free_energy_correction) or np.isinf(free_energy_correction)
-    ):
+    if free_energy_correction is not None:
         click.echo(
-            f"  Free energy correction ({temperature:.1f} K): {free_energy_correction:.4f} eV"
+            f"  Free energy correction ({float(temperature):.1f} K): "
+            f"{free_energy_correction:.4f} eV"
         )
     else:
-        click.echo(f"  Free energy correction ({temperature:.1f} K): N/A")
+        click.echo(f"  Free energy correction ({float(temperature):.1f} K): N/A")
 
     if target == "ts":
         is_ts = frequency_analysis.get("is_ts", False)

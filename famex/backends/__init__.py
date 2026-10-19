@@ -36,6 +36,7 @@ from famex.backends.constants import (
     BACKEND_MOCK,
     BACKEND_ORB,
     BACKEND_PET,
+    BACKEND_PYSCF,
     BACKEND_SO3LR,
     BACKEND_TBLITE,
     BACKEND_UMA,
@@ -86,4 +87,5 @@ __all__ = [
     "BACKEND_ORB",
     "BACKEND_TBLITE",
     "BACKEND_PET",
+    "BACKEND_PYSCF",
 ]

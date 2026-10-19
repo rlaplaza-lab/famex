@@ -68,7 +68,7 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--backend` | `uma` | Backend: uma\|aimnet2\|mace\|orb\|so3lr\|tblite\|pet\|mock |
+| `--backend` | `uma` | Backend: uma\|aimnet2\|mace\|orb\|so3lr\|tblite\|pet\|pyscf\|mock |
 | `--model-name` | backend default | Override model (see [Default models](#default-models) when omitted) |
 | `--model-path` | `None` | Path to model file (if applicable) |
 | `--device` | `None` | Device: cpu\|cuda |
@@ -83,7 +83,7 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
 | `--freq`, `--frequencies` | `False` | `minima` and `ts` only. Perform frequency analysis after optimization (includes thermodynamic properties) |
 | `--cleanup-frequencies` | `False` | `minima` and `ts` only. After optimization, run Hessian-based cleanup until there are 0 (minimum) or 1 (TS) relevant imaginary frequencies |
-| `--force-finite-diff-hessian` | `False` | Force use of finite difference hessians for TS optimizers and frequency calculations. When disabled (default), backends with analytical Hessian support (`uma`, `mace`, `aimnet2`, `orb` conservative models, `pet`, `so3lr`) use the analytical Hessian automatically. `tblite` and non-conservative Orb models fall back to finite differences (no differentiable energy Hessian). |
+| `--force-finite-diff-hessian` | `False` | Force use of finite difference hessians for TS optimizers and frequency calculations. When disabled (default), backends with analytical Hessian support (`uma`, `mace`, `aimnet2`, `orb` conservative models, `pet`, `so3lr`) use the analytical Hessian automatically. `tblite`, `pyscf`, and non-conservative Orb models fall back to finite differences (no differentiable energy Hessian). |
 
 ### famex minima - Minima Optimization
 
@@ -396,15 +396,18 @@ When `--model-name` / `model_name` is omitted:
 | `orb` | `orb-v3-conservative-omol` |
 | `so3lr` | `so3lr-small` |
 | `tblite` | `GFN2-xTB` |
+| `pyscf` | `b3lyp-d3bj/def2-svp` |
 | `mock` | `mock-model` |
 
 OrbMol-v2 is selected with `--model-name orbmol-v2`. That checkpoint ships in `orb-models>=0.7.0`, which requires Python 3.12.
 
-For **TBLite**, the default method is `GFN2-xTB`. Pass another xTB method via `--model-name` (for example `--model-name GFN1-xTB`); the registry maps this to the calculator `method` parameter.
+For **TBLite**, pass an xTB method via `--model-name` (default `GFN2-xTB`). For **PySCF**, pass `xc/basis` (default `b3lyp-d3bj/def2-svp`).
 
 Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin` (or `Explorer` kwargs). UMA and related backends read `atoms.info["charge"]` and `atoms.info["spin"]` when set.
 
 ## Backend Guide
+
+FAMEX is built around machine learning potentials. Classical QC backends are optional for checks or small systems.
 
 | Backend | Installation | Best For | Notes |
 |---------|--------------|----------|-------|
@@ -412,9 +415,10 @@ Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin`
 | `uma` | `pip install "fairchem-core>=2.22.0"` or `pip install famex[uma]` | Materials science (default: uma-s-1p2) | Conflicts with MACE; analytical Hessian |
 | `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA; analytical Hessian |
 | `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | Molecules (`orbmol-v2`) and materials | Python 3.12+; analytical Hessian for conservative models; FD for non-conservative |
-| `tblite` | `pip install tblite` | Fast semi-empirical | Quick calculations; Hessian via finite differences |
 | `so3lr` | `pip install so3lr` | Research | Custom models; analytical Hessian via JAX |
 | `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential | Python 3.11+; analytical Hessian via double-backward |
+| `tblite` | `pip install tblite` | Optional xTB | Semi-empirical; Hessian via finite differences |
+| `pyscf` | `pip install famex[pyscf]` | Optional DFT | Default B3LYP-D3BJ / def2-SVP; `--model-name xc/basis`; FD Hessian |
 | `mock` | Built-in | Testing | Development only |
 
 ### Dependency Conflicts

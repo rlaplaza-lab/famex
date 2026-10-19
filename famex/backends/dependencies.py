@@ -204,6 +204,7 @@ class DependencyManager:
             BACKEND_MACE,
             BACKEND_ORB,
             BACKEND_PET,
+            BACKEND_PYSCF,
             BACKEND_SO3LR,
             BACKEND_TBLITE,
             BACKEND_UMA,
@@ -223,6 +224,9 @@ class DependencyManager:
             BACKEND_TBLITE: "tblite",
             "upet": "upet",
             BACKEND_PET: "upet",
+            "pyscf": "pyscf",
+            BACKEND_PYSCF: "pyscf",
+            "pyscf_dispersion": "pyscf.dispersion.dftd3",
         }
 
         package_name = package_mapping.get(name.lower(), name.lower())
@@ -248,6 +252,7 @@ class DependencyManager:
             BACKEND_MACE,
             BACKEND_ORB,
             BACKEND_PET,
+            BACKEND_PYSCF,
             BACKEND_SO3LR,
             BACKEND_TBLITE,
         )
@@ -264,6 +269,9 @@ class DependencyManager:
             BACKEND_TBLITE: "tblite",
             "upet": "upet",
             BACKEND_PET: "upet",
+            "pyscf": "famex[pyscf]",
+            BACKEND_PYSCF: "famex[pyscf]",
+            "pyscf_dispersion": "pyscf-dispersion",
         }
         return commands.get(name.lower(), name.lower())
 
