@@ -206,45 +206,6 @@ class StrategyRegistry:
         """
         return strategy_name in self._strategies
 
-    def unregister(self, strategy_name: str) -> None:
-        """Unregister a strategy by name or alias.
-
-        This is useful for testing or plugin systems that need to replace
-        or remove strategies dynamically.
-
-        Parameters
-        ----------
-        strategy_name : str
-            Strategy name or alias to unregister
-
-        Raises
-        ------
-        StrategyNotFoundError
-            If strategy not found
-
-        Notes
-        -----
-        This removes both the main strategy name and all its aliases from
-        the registry. The strategy class itself is not modified.
-
-        """
-        if strategy_name not in self._strategies:
-            available = sorted(
-                {name for name, cls in self._strategies.items() if name == cls.metadata.name}
-            )
-            raise StrategyNotFoundError(strategy_name, available)
-
-        # Get the strategy class to find all its aliases
-        strategy_class = self._strategies[strategy_name]
-        meta = strategy_class.metadata
-
-        # Remove main name and all aliases
-        names_to_remove = [meta.name] + meta.aliases
-        for name in names_to_remove:
-            if name in self._strategies:
-                del self._strategies[name]
-                logger.debug("Unregistered strategy: %s", name)
-
 
 # Global registry instance
 REGISTRY = StrategyRegistry()

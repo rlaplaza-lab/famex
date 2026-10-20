@@ -25,7 +25,7 @@ class _DependencyContext:
             return self.modules
         return tuple(self.modules[name] for name in self.deps_names)
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(self, _exc_type: Any, _exc_val: Any, _exc_tb: Any) -> None:
         # Nothing to clean up for now
         pass
 

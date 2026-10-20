@@ -136,7 +136,6 @@ class TestSciPyOptimizersBasic:
 
         # Increment step counter
         opt.nsteps = 1
-        opt._last_hessian_step = 0
         opt._last_full_hessian_step = 0
 
         # Second call should use BFGS or cache (no new full Hessian)
@@ -422,7 +421,7 @@ class TestSciPyTSOptimizers:
         atoms = h2o_molecule_perturbed_with_mock
         opt = TrustKrylov(atoms, logfile=None, ts_search=True, hessian_update_freq=1)
         assert opt.ts_search is True
-        assert hasattr(opt, "_ts_trust_radius")
+        assert opt.trust_radius == 0.05
         assert opt._ts_step_mode == "matrix_free"
         assert opt._ts_subproblem == "krylov"
 

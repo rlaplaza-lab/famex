@@ -262,9 +262,6 @@ class HessianCalculator:
         # Error recovery settings
         self.max_retries = 3
 
-        # Performance statistics (populated after calculation)
-        self._stats: dict[str, float | int] = {}
-
         if len(self.indices) > 0:
             positions = atoms.positions[self.indices]
             max_distance = np.max(np.linalg.norm(positions, axis=1))
@@ -410,40 +407,12 @@ class HessianCalculator:
                     verbose=self.verbose,
                 )
 
-        # Reset cache and stats at start of calculation
+        # Reset cache at start of calculation
         self._reference_forces = None
-        self._stats.clear()
-        self._stats.update(
-            {
-                "n_force_evaluations": 0,
-                "n_retries": 0,
-                "total_time": 0.0,
-                "time_per_column": 0.0,
-                "time_per_force_eval": 0.0,
-            }
-        )
 
-        start_time = time.time()
-        try:
-            if self.adaptive_delta:
-                result = self._calculate_hessian_adaptive()
-            else:
-                result = self._calculate_hessian_fixed()
-
-            # Update stats with timing
-            elapsed = time.time() - start_time
-            self._stats["total_time"] = elapsed
-            if self._stats["n_force_evaluations"] > 0:
-                self._stats["time_per_force_eval"] = elapsed / self._stats["n_force_evaluations"]
-            n_coords = 3 * len(self.indices)
-            if n_coords > 0:
-                self._stats["time_per_column"] = elapsed / n_coords
-
-            return result
-        except Exception:
-            # Update stats even on failure
-            self._stats["total_time"] = time.time() - start_time
-            raise
+        if self.adaptive_delta:
+            return self._calculate_hessian_adaptive()
+        return self._calculate_hessian_fixed()
 
     def _compute_derivative_at_delta(
         self,
@@ -549,22 +518,6 @@ class HessianCalculator:
         self._reference_forces = cast(NDArray[np.float64], forces[self.indices].flatten())
         return self._reference_forces
 
-    def get_statistics(self) -> dict[str, float | int]:
-        """Get performance statistics from last calculation.
-
-        Returns
-        -------
-        dict[str, float | int]
-            Dictionary containing:
-            - n_force_evaluations: Number of force evaluations performed
-            - n_retries: Total number of retries attempted
-            - total_time: Total calculation time in seconds
-            - time_per_column: Average time per Hessian column in seconds
-            - time_per_force_eval: Average time per force evaluation in seconds
-
-        """
-        return self._stats.copy()
-
     def _get_forces_displaced_with_retry(
         self,
         atom_index: int,
@@ -596,11 +549,7 @@ class HessianCalculator:
         last_error = None
         for attempt in range(self.max_retries):
             try:
-                result = self._get_forces_displaced(atom_index, direction, displacement)
-                # Track retries
-                if attempt > 0:
-                    self._stats["n_retries"] = self._stats.get("n_retries", 0) + attempt
-                return result
+                return self._get_forces_displaced(atom_index, direction, displacement)
             except Exception as e:
                 last_error = e
                 if attempt < self.max_retries - 1:
@@ -694,9 +643,6 @@ class HessianCalculator:
                 f"{nan_count} NaN, {inf_count} Inf values"
             )
             raise RuntimeError(msg)
-
-        # Track force evaluation count
-        self._stats["n_force_evaluations"] = self._stats.get("n_force_evaluations", 0) + 1
 
         result = forces[self.indices].flatten()
         return np.asarray(result)

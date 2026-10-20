@@ -191,14 +191,6 @@ class OrbPotential(BasePotential):
         if hasattr(calc, "results") and isinstance(calc.results, dict):
             self.results = calc.results.copy()
 
-    def set_charge(self, charge: int) -> None:
-        """Set molecular charge."""
-        self.charge = charge
-
-    def set_spin(self, spin: int) -> None:
-        """Set spin multiplicity."""
-        self.spin = spin
-
     def get_potential_energy(
         self,
         atoms: Atoms | None = None,

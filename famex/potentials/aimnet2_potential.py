@@ -162,20 +162,6 @@ def get_model_path(model_name: str) -> str:
         raise RuntimeError(msg) from e
 
 
-def sparse_nb_to_dense_half(idx: np.ndarray, natom: int, max_nb: int) -> np.ndarray:
-    """Convert sparse neighbor list to dense format (from aimnet2calc)."""
-    dense_nb = np.full((natom + 1, max_nb), natom, dtype=np.int32)
-    last_idx = np.zeros((natom,), dtype=np.int32)
-    for k in range(idx.shape[0]):
-        i, j = idx[k]
-        il, jl = last_idx[i], last_idx[j]
-        dense_nb[i, il] = j
-        dense_nb[j, jl] = i
-        last_idx[i] += 1
-        last_idx[j] += 1
-    return dense_nb
-
-
 def maybe_pad_dim0(a: Any, n: int, value: float = 0.0) -> Any:
     """Pad tensor in dimension 0 if needed (from aimnet2calc)."""
     _shape_diff = n - a.shape[0]
@@ -262,8 +248,6 @@ class NativeAIMNet2Calculator:
         self.keys_out = ["energy", "charges", "forces"]
         self.atom_feature_keys = ["coord", "numbers", "charges", "forces"]
 
-        # State variables
-        self._batch = None
         self._padded_coord: Any | None = None
 
     def to_input_tensors(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -591,14 +575,6 @@ class AIMNet2Potential(BasePotential):
         if hessian_needed and "hessian" in results:
             hessian = results["hessian"].detach().cpu().numpy()
             self.results["hessian"] = 0.5 * (hessian + hessian.T)
-
-    def set_charge(self, charge: int) -> None:
-        """Set molecular charge."""
-        self.charge = charge
-
-    def set_mult(self, mult: int) -> None:
-        """Set spin multiplicity."""
-        self.mult = mult
 
     def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get forces."""

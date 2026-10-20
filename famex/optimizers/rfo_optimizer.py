@@ -86,7 +86,6 @@ class RFOTransitionState(Optimizer):
         )
 
         self.hessian = initial_hessian
-        self.force_calls = 0
         self.hessian_calls = 0
         self._last_full_hessian_step = -1
         self._transition_mode: np.ndarray | None = None
@@ -118,7 +117,6 @@ class RFOTransitionState(Optimizer):
 
     def _get_gradient(self, x: np.ndarray) -> np.ndarray:
         self.atoms.set_positions(self._x_to_positions(x))
-        self.force_calls += 1
         forces = self.atoms.get_forces()
         gradient = -forces.ravel()
         basis = build_translation_rotation_basis(

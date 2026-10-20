@@ -71,7 +71,6 @@ class ThermodynamicProperties:
     ) -> None:
         """Initialize thermodynamic property calculator."""
         self.frequencies = filter_positive_frequencies(frequencies)
-        self.all_frequencies = frequencies
         self.atoms = atoms
         self.temperature = temperature
         self.pressure = pressure
@@ -222,8 +221,3 @@ class ThermodynamicProperties:
     def calculate_zero_point_energy_in_J_per_mol(self) -> float:  # noqa: N802
         """Calculate zero-point energy in J/mol."""
         return self.calculate_zero_point_energy() / J_PER_MOL_TO_EV
-
-    def internal_energy_vibrational(self) -> float:
-        """Calculate vibrational internal energy in eV."""
-        total_energy, _ = self.qh_handler.vibrational_energy(self.frequencies, self.temperature)
-        return total_energy * J_PER_MOL_TO_EV

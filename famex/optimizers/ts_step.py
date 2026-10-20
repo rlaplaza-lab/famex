@@ -35,7 +35,6 @@ class TSStepResult:
     step: np.ndarray
     predicted_energy_change: float
     transition_mode: np.ndarray
-    transition_eigenvalue: float
     alpha: float = 1.0
 
 
@@ -239,7 +238,6 @@ def compute_dense_prfo_step(
         step=step,
         predicted_energy_change=predicted,
         transition_mode=transition_mode,
-        transition_eigenvalue=omega_tv,
         alpha=alpha_opt,
     )
 
@@ -464,7 +462,6 @@ def compute_matrix_free_ts_step(
         step=step,
         predicted_energy_change=predicted,
         transition_mode=mode,
-        transition_eigenvalue=lambda_min,
     )
 
 

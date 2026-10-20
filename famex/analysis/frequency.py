@@ -703,57 +703,6 @@ class FrequencyAnalysis:
             "frequencies_cm_1": real_frequencies.tolist(),
         }
 
-    def write_mode_trajectory(
-        self,
-        mode_index: int,
-        filename: str | None = None,
-        amplitude: float = 1.0,
-        nframes: int = 20,
-    ) -> None:
-        """Write trajectory showing normal mode motion.
-
-        Parameters
-        ----------
-        mode_index : int
-            Index of normal mode (0-based, after removing trans/rot modes)
-        filename : str, optional
-            Output filename. If None, uses mode_{index}.traj
-        amplitude : float
-            Amplitude of motion in Å
-        nframes : int
-            Number of frames in trajectory
-
-        """
-        if not self._is_calculated:
-            self.calculate_hessian()
-            self.diagonalize_hessian()
-
-        if filename is None:
-            filename = f"mode_{mode_index}.traj"
-
-        normal_modes = self.get_normal_modes()
-        if mode_index >= normal_modes.shape[1]:
-            msg = f"Mode index {mode_index} out of range"
-            raise ValueError(msg)
-
-        mode_vector = normal_modes[:, mode_index].reshape(-1, 3)
-
-        # Create trajectory
-        from ase.io import write
-
-        trajectory = []
-        for i in range(nframes):
-            phase = 2 * np.pi * i / nframes
-            displacement = amplitude * np.sin(phase) * mode_vector
-
-            atoms_displaced = self.atoms.copy()
-            atoms_displaced.positions[self.indices] += displacement
-            trajectory.append(atoms_displaced)
-
-        write(filename, trajectory)
-        if self.verbose >= 1:
-            logger.info(f"Normal mode trajectory written to {filename}")
-
 
 __all__ = [
     "FrequencyAnalysis",

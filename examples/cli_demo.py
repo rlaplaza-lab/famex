@@ -178,9 +178,7 @@ def verify_frequency_output(
     return len(warnings) == 0, warnings
 
 
-def run_command(
-    cmd: list[str], desc: str, backend: str, timeout: int = 600, verbose: bool = False
-) -> tuple[bool, float, str, str]:
+def run_command(cmd: list[str], timeout: int = 600) -> tuple[bool, float, str, str]:
     """Run a CLI command and report results."""
     try:
         start_time = time.time()
@@ -697,8 +695,6 @@ def demo_cli(
             )
             success, runtime, stdout, stderr = run_command(
                 example["cmd"],
-                example["desc"],
-                backend,
                 timeout=example.get("timeout", timeout),
             )
 

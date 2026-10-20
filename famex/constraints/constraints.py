@@ -36,7 +36,7 @@ class HarmonicAngleASEConstraint(FixConstraint):
         self.theta0 = float(theta0)
         self.k = float(k)
 
-    def adjust_positions(self, atoms: Atoms, newpositions: np.ndarray) -> None:
+    def adjust_positions(self, _atoms: Atoms, _newpositions: np.ndarray) -> None:
         return
 
     def _angle_geometry(
@@ -407,74 +407,3 @@ def validate_atom_indices(atom_indices: list[int], atoms: Atoms) -> bool:
             raise ValueError(msg)
 
     return True
-
-
-def get_constraint_summary(atoms: Atoms) -> dict[str, Any]:
-    """Get summary of applied constraints on an atoms object.
-
-    Parameters
-    ----------
-    - atoms: Atoms object with constraints
-
-    Returns
-    -------
-        Dictionary summarizing constraints
-
-    """
-    summary: dict[str, Any] = {
-        "fixed_atoms": [],
-        "hookean_constraints": [],
-        "fixinternals_constraints": [],
-        "other_constraints": [],
-    }
-
-    constraints = getattr(atoms, "constraints", [])
-
-    for constraint in constraints:
-        if isinstance(constraint, FixAtoms):
-            # Use hasattr to safely access constraint attributes
-            if hasattr(constraint, "index"):
-                # FixAtoms has an 'index' attribute that contains the indices
-                indices = getattr(constraint, "index", [])
-                if isinstance(indices, list | tuple | np.ndarray):
-                    summary["fixed_atoms"].extend(indices)
-                else:
-                    summary["fixed_atoms"].append(indices)
-
-        elif isinstance(constraint, Hookean):
-            # Use hasattr to safely access Hookean constraint attributes
-            constraint_info: dict[str, Any] = {}
-
-            # Get atom indices
-            atoms_list = []
-            if hasattr(constraint, "a1"):
-                atoms_list.append(constraint.a1)
-            if hasattr(constraint, "a2"):
-                a2 = getattr(constraint, "a2", None)
-                if a2 is not None:
-                    atoms_list.append(a2)
-                    constraint_info["type"] = "bond"
-                else:
-                    constraint_info["type"] = "position"
-
-            constraint_info["atoms"] = atoms_list
-
-            # Get reference value and force constant
-            if hasattr(constraint, "rt"):
-                constraint_info["reference"] = constraint.rt
-            if hasattr(constraint, "k"):
-                constraint_info["force_constant"] = constraint.k
-
-            summary["hookean_constraints"].append(constraint_info)
-
-        elif isinstance(constraint, FixInternals):
-            summary["fixinternals_constraints"].append(
-                {"type": type(constraint).__name__, "constraint": constraint},
-            )
-
-        else:
-            summary["other_constraints"].append(
-                {"type": type(constraint).__name__, "constraint": constraint},
-            )
-
-    return summary

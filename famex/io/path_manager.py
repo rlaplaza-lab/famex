@@ -476,56 +476,6 @@ class PathManager:
 
         return struct_list[0].calc if struct_list else None
 
-    def calculate_path_energies(self, path: list[Geometry] | list[Atoms]) -> list[float]:
-        if not path:
-            return []
-
-        energies = []
-        for geom in path:
-            if geom.calc is None:
-                geom.calc = self.calculator
-            energies.append(geom.get_potential_energy())
-        return energies
-
-    def get_rmsd_profile(
-        self,
-        path_geometries: list[Geometry] | list[Atoms],
-    ) -> tuple[list[float], list[float]]:
-        rmsd_from_reactant = []
-        rmsd_from_product = []
-
-        reactant_coords = self.reactant.coords3d
-        product_coords = self.product.coords3d
-
-        for geom in path_geometries:
-            coords = geom.get_positions() if isinstance(geom, Atoms) else geom.coords3d
-            rmsd_r = np.sqrt(np.mean((coords - reactant_coords) ** 2))
-            rmsd_from_reactant.append(rmsd_r)
-            rmsd_p = np.sqrt(np.mean((coords - product_coords) ** 2))
-            rmsd_from_product.append(rmsd_p)
-
-        return rmsd_from_reactant, rmsd_from_product
-
-    def to_xyz_trajectory(self, path_geometries: list[Geometry] | list[Atoms]) -> str:
-        xyz_lines = []
-
-        for i, geom in enumerate(path_geometries):
-            xyz_lines.append(str(len(geom)))
-            try:
-                energy = geom.get_potential_energy()
-                comment = f"Frame {i}, Energy = {energy:.6f} eV"
-            except Exception:
-                comment = f"Frame {i}"
-            xyz_lines.append(comment)
-            symbols = geom.get_chemical_symbols()
-            coords = geom.get_positions()
-
-            for _j, (symbol, pos) in enumerate(zip(symbols, coords, strict=False)):
-                line = f"{symbol:2s} {pos[0]:12.6f} {pos[1]:12.6f} {pos[2]:12.6f}"
-                xyz_lines.append(line)
-
-        return "\n".join(xyz_lines)
-
     def get_path_statistics(self, path: list[Atoms]) -> dict:
         energies = []
         for atoms in path:

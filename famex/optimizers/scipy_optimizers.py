@@ -90,9 +90,7 @@ class SciPyHessianOptimizer(Optimizer):
         )
 
         self.hessian = initial_hessian
-        self.force_calls = 0
         self.hessian_calls = 0
-        self._last_hessian_step = -1
         self._last_full_hessian_step = -1
         self.bfgs_updates = 0
         self._last_positions: np.ndarray | None = None
@@ -103,9 +101,8 @@ class SciPyHessianOptimizer(Optimizer):
         self.trust_radius = trust_radius
         self.max_trust_radius = max_trust_radius
         self.min_trust_radius = min_trust_radius
-        if not hasattr(self, "fmax"):
-            self.fmax = 0.05
-        self.fmax: float = getattr(self, "fmax", 0.05)  # type: ignore[assignment]
+        existing_fmax = getattr(self, "fmax", None)
+        self.fmax: float = 0.05 if existing_fmax is None else float(existing_fmax)  # type: ignore[assignment]
 
         if ts_search:
             if method == "Newton-CG":
@@ -114,7 +111,6 @@ class SciPyHessianOptimizer(Optimizer):
                     "Use 'trust-krylov', 'trust-ncg', 'trust-exact', 'rfo', or 'sella' instead."
                 )
                 raise ValueError(msg)
-            self._ts_trust_radius = trust_radius
             self._transition_mode: np.ndarray | None = None
             self._previous_energy: float | None = None
             if hessian_update_freq is None:
@@ -173,7 +169,6 @@ class SciPyHessianOptimizer(Optimizer):
     def gradient(self, x: np.ndarray) -> np.ndarray:
         """Gradient of objective function (negative forces)."""
         self.atoms.set_positions(self._x_to_positions(x))
-        self.force_calls += 1
 
         forces = self.atoms.get_forces()
         gradient = -forces.ravel()
@@ -219,7 +214,6 @@ class SciPyHessianOptimizer(Optimizer):
         if need_full_update:
             self.atoms.set_positions(self._x_to_positions(x))
             self.hessian_calls += 1
-            self._last_hessian_step = self.nsteps
             self._last_full_hessian_step = self.nsteps
 
             if self.verbose >= 1:
@@ -247,8 +241,6 @@ class SciPyHessianOptimizer(Optimizer):
             and self._last_positions is not None
             and self._last_gradient is not None
         ):
-            self._last_hessian_step = self.nsteps
-
             current_gradient = self.gradient(x)
             s = current_positions - self._last_positions
             y = current_gradient - self._last_gradient
@@ -313,7 +305,6 @@ class SciPyHessianOptimizer(Optimizer):
 
     def _get_ts_gradient(self, x: np.ndarray) -> np.ndarray:
         self.atoms.set_positions(self._x_to_positions(x))
-        self.force_calls += 1
         gradient = -self.atoms.get_forces().ravel()
         basis = build_translation_rotation_basis(
             self.atoms.get_positions(),
@@ -408,7 +399,6 @@ class SciPyHessianOptimizer(Optimizer):
                     self.min_trust_radius,
                     self.max_trust_radius,
                 )
-                self._ts_trust_radius = self.trust_radius
 
                 reject = quality < -1.0 and abs(energy_change) > 10.0
                 if not reject:
