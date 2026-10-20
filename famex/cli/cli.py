@@ -12,6 +12,7 @@ from contextlib import AbstractContextManager, nullcontext
 from typing import Any
 
 import click
+from ase import Atoms
 
 from famex.cli.cache_commands import cache
 from famex.cli.cli_helpers import (
@@ -24,6 +25,7 @@ from famex.cli.cli_helpers import (
     save_results_json,
 )
 from famex.core.explorer import Explorer
+from famex.io.modes import modes_output_dir, write_vibrational_modes
 from famex.io.run_output import select_default_frames, write_run_outputs
 from famex.utils.ml_warnings import quiet_backend_loading
 
@@ -42,6 +44,12 @@ def _handle_frequency_results(
     output_path: str,
     target: str,
     calculate_frequencies: bool,
+    *,
+    write_modes: bool = False,
+    modes_which: str = "all",
+    mode_indices: list[int] | None = None,
+    mode_frames: int = 20,
+    mode_amplitude: float = 0.3,
 ) -> None:
     if not calculate_frequencies:
         return
@@ -58,7 +66,24 @@ def _handle_frequency_results(
         return
 
     freq_analysis = results["frequency_analysis"]
-    if not isinstance(freq_analysis, dict):
+    if isinstance(freq_analysis, dict):
+        try:
+            print_frequency_summary(freq_analysis, target=target)
+            save_results_json(results, output_path)
+        except KeyError as e:
+            click.echo(
+                f"Error: Frequency analysis result is missing required key: {e}. "
+                "The frequency calculation may have been incomplete.",
+                err=True,
+            )
+        except Exception as e:
+            click.echo(
+                f"Error: Failed to process frequency analysis results: {e}\n"
+                "The optimization completed successfully, but frequency analysis output "
+                "could not be processed. Check the error message above for details.",
+                err=True,
+            )
+    elif not (write_modes and isinstance(freq_analysis, list)):
         click.echo(
             f"Warning: Frequency analysis result has unexpected type {type(freq_analysis)}. "
             "Expected a dictionary.",
@@ -66,25 +91,92 @@ def _handle_frequency_results(
         )
         return
 
-    # Type narrowing: freq_analysis is now dict[str, Any]
-    freq_dict: dict[str, Any] = freq_analysis
+    if write_modes:
+        _write_vibrational_mode_files(
+            results,
+            output_path,
+            which=modes_which,
+            mode_indices=mode_indices,
+            nframes=mode_frames,
+            amplitude=mode_amplitude,
+        )
 
-    try:
-        print_frequency_summary(freq_dict, target=target)
-        save_results_json(results, output_path)
-    except KeyError as e:
-        click.echo(
-            f"Error: Frequency analysis result is missing required key: {e}. "
-            "The frequency calculation may have been incomplete.",
-            err=True,
+
+def _prepare_mode_output(
+    write_modes: bool,
+    calculate_frequencies: bool,
+    mode_frames: int,
+    mode_amplitude: float,
+    mode_indices: tuple[int, ...],
+) -> tuple[bool, list[int] | None]:
+    """Turn frequency analysis on when mode animations were requested."""
+    if not write_modes:
+        return calculate_frequencies, None
+    if mode_frames < 2:
+        raise click.BadParameter("--mode-frames must be at least 2")
+    if mode_amplitude <= 0:
+        raise click.BadParameter("--mode-amplitude must be positive")
+    return True, list(mode_indices) or None
+
+
+def _write_vibrational_mode_files(
+    results: dict[str, Any],
+    output_path: str,
+    *,
+    which: str,
+    mode_indices: list[int] | None,
+    nframes: int,
+    amplitude: float,
+) -> None:
+    optimized = results["optimized_atoms"]
+    structures = [optimized] if isinstance(optimized, Atoms) else list(optimized)
+    freq_analysis = results["frequency_analysis"]
+    output_dir = modes_output_dir(output_path)
+
+    if isinstance(freq_analysis, dict):
+        if len(structures) != 1:
+            raise click.ClickException(
+                "Cannot write vibrational modes: expected one optimized structure."
+            )
+        jobs = [(structures[0], freq_analysis, "")]
+    else:
+        if len(structures) != len(freq_analysis):
+            raise click.ClickException(
+                "Cannot write vibrational modes: frequency analyses do not match "
+                "the optimized structures."
+            )
+        jobs = []
+        for image_index, (atoms, item) in enumerate(zip(structures, freq_analysis, strict=True)):
+            if not isinstance(item, dict):
+                click.echo(
+                    f"Warning: Skipping vibrational modes for image {image_index}; "
+                    "frequency analysis is missing.",
+                    err=True,
+                )
+                continue
+            jobs.append((atoms, item, f"image{image_index}_"))
+
+    if not jobs:
+        raise click.ClickException(
+            "Cannot write vibrational modes: no frequency analysis was available."
         )
-    except Exception as e:
-        click.echo(
-            f"Error: Failed to process frequency analysis results: {e}\n"
-            "The optimization completed successfully, but frequency analysis output could not be processed. "
-            "Check the error message above for details.",
-            err=True,
-        )
+
+    for atoms, freq_dict, prefix in jobs:
+        try:
+            written = write_vibrational_modes(
+                atoms,
+                freq_dict,
+                output_dir,
+                which=which,
+                mode_indices=mode_indices,
+                amplitude=amplitude,
+                nframes=nframes,
+                filename_prefix=prefix,
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+        for path in written:
+            click.echo(f"Saved vibrational mode: {path}")
 
 
 def _validate_strategy_requirements(
@@ -450,18 +542,61 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
         )
         # Cleanup is only meaningful for minima/ts (include_freq=True), not path.
         if include_freq:
-            opts.append(
-                click.option(
-                    "--cleanup-frequencies",
-                    "cleanup_frequencies",
-                    is_flag=True,
-                    default=False,
-                    help=(
-                        "After optimization, run Hessian-based cleanup from the final "
-                        "geometry until there are 0 (minima) or 1 (TS) relevant "
-                        "imaginary frequencies"
+            opts.extend(
+                [
+                    click.option(
+                        "--cleanup-frequencies",
+                        "cleanup_frequencies",
+                        is_flag=True,
+                        default=False,
+                        help=(
+                            "After optimization, run Hessian-based cleanup from the final "
+                            "geometry until there are 0 (minima) or 1 (TS) relevant "
+                            "imaginary frequencies"
+                        ),
                     ),
-                )
+                    click.option(
+                        "--write-modes",
+                        is_flag=True,
+                        default=False,
+                        help=(
+                            "Write each vibrational mode as a multi-frame XYZ animation. "
+                            "Implies --freq."
+                        ),
+                    ),
+                    click.option(
+                        "--modes",
+                        "modes_which",
+                        type=click.Choice(["all", "imaginary"]),
+                        default="all",
+                        show_default=True,
+                        help=(
+                            "Which modes to animate when --write-modes is set. "
+                            "Ignored when --mode-index is given."
+                        ),
+                    ),
+                    click.option(
+                        "--mode-index",
+                        "mode_indices",
+                        multiple=True,
+                        type=int,
+                        help=("Vibrational mode index to write, repeatable. Overrides --modes."),
+                    ),
+                    click.option(
+                        "--mode-frames",
+                        type=int,
+                        default=20,
+                        show_default=True,
+                        help="Frames per vibrational-mode animation.",
+                    ),
+                    click.option(
+                        "--mode-amplitude",
+                        type=float,
+                        default=0.3,
+                        show_default=True,
+                        help="Largest atomic displacement in each mode animation, in angstroms.",
+                    ),
+                ]
             )
         for opt in reversed(opts):
             f = opt(f)
@@ -560,8 +695,20 @@ def minima(
     temperature: float,
     force_finite_diff_hessian: bool,
     cleanup_frequencies: bool,
+    write_modes: bool,
+    modes_which: str,
+    mode_indices: tuple[int, ...],
+    mode_frames: int,
+    mode_amplitude: float,
 ) -> None:
     """Minima optimization using various strategies."""
+    calculate_frequencies, selected_modes = _prepare_mode_output(
+        write_modes,
+        calculate_frequencies,
+        mode_frames,
+        mode_amplitude,
+        mode_indices,
+    )
     # Validate strategy-specific requirements
     errors, warnings = _validate_strategy_requirements(
         strategy=strategy, target="minima", product=product, structures_count=1
@@ -641,7 +788,15 @@ def minima(
 
     # Handle frequency analysis results (chained after optimization)
     _handle_frequency_results(
-        results, out, target="minima", calculate_frequencies=calculate_frequencies
+        results,
+        out,
+        target="minima",
+        calculate_frequencies=calculate_frequencies,
+        write_modes=write_modes,
+        modes_which=modes_which,
+        mode_indices=selected_modes,
+        mode_frames=mode_frames,
+        mode_amplitude=mode_amplitude,
     )
 
 
@@ -778,8 +933,20 @@ def ts(
     temperature: float,
     force_finite_diff_hessian: bool,
     cleanup_frequencies: bool,
+    write_modes: bool,
+    modes_which: str,
+    mode_indices: tuple[int, ...],
+    mode_frames: int,
+    mode_amplitude: float,
 ) -> None:
     """Transition state optimization using various strategies."""
+    calculate_frequencies, selected_modes = _prepare_mode_output(
+        write_modes,
+        calculate_frequencies,
+        mode_frames,
+        mode_amplitude,
+        mode_indices,
+    )
     # Validate strategy-specific requirements
     errors, warnings = _validate_strategy_requirements(
         strategy=strategy, target="ts", product=product, structures_count=1
@@ -878,7 +1045,15 @@ def ts(
 
     # Handle frequency analysis results (chained after optimization)
     _handle_frequency_results(
-        results, out, target="ts", calculate_frequencies=calculate_frequencies
+        results,
+        out,
+        target="ts",
+        calculate_frequencies=calculate_frequencies,
+        write_modes=write_modes,
+        modes_which=modes_which,
+        mode_indices=selected_modes,
+        mode_frames=mode_frames,
+        mode_amplitude=mode_amplitude,
     )
 
 

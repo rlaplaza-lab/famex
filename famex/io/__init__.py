@@ -7,6 +7,7 @@ This module provides classes and functions for:
 """
 
 from famex.io.geometry import Geometry, read_geometry, write_geometry
+from famex.io.modes import modes_output_dir, write_vibrational_modes
 from famex.io.path_manager import PathManager
 from famex.io.run_output import (
     default_output_name,
@@ -25,6 +26,8 @@ from famex.io.xyz_io import (
 __all__ = [
     "Geometry",
     "PathManager",
+    "modes_output_dir",
+    "write_vibrational_modes",
     "default_output_name",
     "history_output_name",
     "read_geometry",

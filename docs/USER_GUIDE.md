@@ -64,7 +64,7 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
 
 ### Global Options
 
-`minima`, `ts`, and `path` share these options. `famex cache` does not take them. `--freq`, `--temperature`, and `--cleanup-frequencies` apply to `minima` and `ts` only.
+`minima`, `ts`, and `path` share these options. `famex cache` does not take them. `--freq`, `--temperature`, `--cleanup-frequencies`, and the vibrational-mode animation flags apply to `minima` and `ts` only.
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -82,6 +82,11 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
 | `--temperature` | `298.15` | `minima` and `ts` only. Temperature in Kelvin for thermodynamic calculations |
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
 | `--freq`, `--frequencies` | `False` | `minima` and `ts` only. Perform frequency analysis after optimization (includes thermodynamic properties) |
+| `--write-modes` | `False` | `minima` and `ts` only. Write each vibrational mode as a multi-frame XYZ animation. Implies `--freq` |
+| `--modes` | `all` | `all` or `imaginary`. Which modes `--write-modes` animates. `imaginary` keeps frequencies below -50 cm^-1. Ignored when `--mode-index` is set |
+| `--mode-index` | none | Vibrational mode index to write. Repeatable. Overrides `--modes` |
+| `--mode-frames` | `20` | Frames in each mode animation |
+| `--mode-amplitude` | `0.3` | Largest atomic displacement in each animation, in angstroms |
 | `--cleanup-frequencies` | `False` | `minima` and `ts` only. After optimization, clean up using the Hessian (matrix of second energy derivatives) until there are 0 (minimum) or 1 (TS) relevant imaginary frequencies |
 | `--force-finite-diff-hessian` | `False` | Force finite-difference Hessians for TS optimizers and frequency calculations. When disabled (default), backends with analytical Hessian support (`uma`, `mace`, `aimnet2`, `orb` conservative models, `pet`, `so3lr`, `pyscf`) use the analytical Hessian automatically. `tblite` and non-conservative Orb models fall back to finite differences. |
 
@@ -132,6 +137,9 @@ famex minima --strategy local molecule.xyz --constraints "fix 0,1,2"
 
 # Dry run to check strategy selection
 famex minima --strategy local molecule.xyz --dry-run
+
+# Animate every vibrational mode (also runs the frequency analysis)
+famex minima --strategy local molecule.xyz --write-modes
 ```
 
 #### Output Files
@@ -142,6 +150,8 @@ The default file follows the target. `local` omits the strategy name.
 - Interpolate optimization: `{input}.minima.interpolate.xyz` (one optimized minimum per image)
 
 `--history` also writes optimizer steps: `{input}.minima_trajectory.xyz` or `{input}.minima.interpolate_trajectory.xyz`. Frames from an interpolated minima search are tagged with `image` and `step` in the XYZ comment.
+
+`--write-modes` writes one multi-frame XYZ per vibrational mode in `{output_stem}_modes/`, beside the geometry file. A custom `--output` only changes that parent directory. `water.minima.xyz` produces `water.minima_modes/mode_000_1234.5cm-1.xyz`. Each file is one oscillation: frame 0 is the optimized geometry, and the largest atom moves by `--mode-amplitude` (0.3 Å). The XYZ comment records `mode` and `frequency`. An interpolated minima search prefixes each file with `image{i}_` and skips images that have no frequency analysis. Fixed atoms stay fixed.
 
 ### famex ts - Transition State Optimization
 
@@ -189,6 +199,9 @@ famex ts --strategy local ts_guess.xyz
 # With frequency analysis
 famex ts --strategy local ts_guess.xyz --freq
 
+# Animate the imaginary mode
+famex ts --strategy local ts_guess.xyz --write-modes --modes imaginary
+
 # With custom optimizer
 famex ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02
 
@@ -229,6 +242,8 @@ The default file is always the single optimized saddle.
 
 - Local optimizer steps: `{input}.ts_trajectory.xyz`, or `{input}.ts.{strategy}_trajectory.xyz` for the refinement inside another TS method
 - The search geometry that is not the default file: `{input}.ts.{strategy}_path.xyz` (interpolation guess, CI-NEB band, DHS bracket images, or the growing-string path from reactant to product)
+
+`--write-modes` writes the same mode animations as `minima`, in a directory beside the TS geometry file (`{output_stem}_modes/`).
 
 ### famex path - Reaction Path Optimization
 
@@ -393,6 +408,10 @@ freq_result = explorer.calculate_frequencies(atoms=None, delta=0.01, method="aut
 explorer.save_structure(result["optimized_atoms"], "output.xyz")
 path = result.get("trajectory", result["optimized_atoms"])
 explorer.save_trajectory(path, "path.xyz")
+
+# One multi-frame XYZ per mode. which="imaginary" keeps frequencies below -50 cm^-1.
+# famex.io.write_vibrational_modes writes the same files without an Explorer.
+explorer.save_vibrational_modes(freq_result, "water.minima_modes")
 ```
 
 ### Run result keys

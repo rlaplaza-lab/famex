@@ -80,13 +80,19 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
     if energy is not None:
         parts.append(f"energy={energy:.6f}")
 
-    for key in ("iteration", "image", "step"):
+    for key in ("iteration", "image", "step", "mode"):
         if key not in info:
             continue
         try:
             parts.append(f"{key}={int(info[key])}")
         except (TypeError, ValueError):
             continue
+
+    if "frequency" in info:
+        try:
+            parts.append(f"frequency={float(info['frequency']):.6f}")
+        except (TypeError, ValueError):
+            pass
 
     if not parts:
         parts.append("FAMEX structure")

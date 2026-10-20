@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from ase import Atoms
 
 from famex.core.explorer import Explorer
+from famex.io.modes import modes_output_dir
 from famex.io.run_output import (
     default_output_name,
     history_output_name,
@@ -20,6 +23,11 @@ def test_default_names_drop_local_and_keep_strategy() -> None:
     assert default_output_name("water", "ts", "growing_string") == "water.ts.growing_string.xyz"
     assert default_output_name("reactant", "path", "neb") == "reactant.path.neb.xyz"
     assert default_output_name("ts", "path", "irc") == "ts.path.irc.xyz"
+
+
+def test_mode_directory_sits_beside_the_geometry_file() -> None:
+    assert modes_output_dir("water.minima.xyz") == Path("water.minima_modes")
+    assert modes_output_dir("/tmp/custom/out.xyz") == Path("/tmp/custom/out_modes")
 
 
 def test_history_names_append_tag_to_last_token() -> None:

@@ -76,7 +76,7 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 - GPU acceleration with CUDA
 - Target/strategy commands (`minima`, `ts`, `path`)
 - Path methods: Nudged Elastic Band (NEB), Climbing-Image NEB (CI-NEB), Intrinsic Reaction Coordinate (IRC), growing string
-- Frequency analysis and thermodynamics
+- Frequency analysis, thermodynamics, and vibrational-mode XYZ animations
 - Command-line and Python API
 - Geometry files via the Atomic Simulation Environment (ASE): XYZ, CIF, PDB, and others
 - SMILES / PubChem as structure inputs (`pip install famex[smiles]` or `famex[rdkit]`; use `pubchem:NAME`, `cid:`, or a numeric CID)

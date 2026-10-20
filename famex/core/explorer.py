@@ -18,6 +18,7 @@ from famex.core.exceptions import StrategyNotFoundError
 from famex.core.file_io import write_atoms_safely, write_trajectory_safely
 from famex.core.registry import REGISTRY
 from famex.io.geometry import Geometry, read_geometry
+from famex.io.modes import write_vibrational_modes
 from famex.utils.device import resolve_backend_device
 from famex.utils.profiler import PerformanceProfiler
 
@@ -794,6 +795,54 @@ class Explorer:
 
         """
         write_trajectory_safely(atoms_list, output_file, format)
+
+    def save_vibrational_modes(
+        self,
+        frequency_result: dict[str, Any],
+        output_dir: str | Path,
+        atoms: Atoms | None = None,
+        *,
+        which: str = "all",
+        mode_indices: list[int] | None = None,
+        amplitude: float = 0.3,
+        nframes: int = 20,
+    ) -> list[str]:
+        """Write one multi-frame XYZ animation per selected vibrational mode.
+
+        Parameters
+        ----------
+        frequency_result : dict
+            Result of :meth:`calculate_frequencies`.
+        output_dir : str or Path
+            Directory that receives one XYZ file per mode.
+        atoms : Atoms, optional
+            Equilibrium structure. Uses the first loaded structure when omitted.
+        which : {"all", "imaginary"}
+            Modes to write when ``mode_indices`` is omitted.
+        mode_indices : list of int, optional
+            Vibrational-mode columns. Overrides ``which``.
+        amplitude : float
+            Largest atomic displacement along each mode, in Å.
+        nframes : int
+            Frames in one oscillation.
+
+        Returns
+        -------
+        list of str
+            Paths written, in mode order.
+
+        """
+        if atoms is None:
+            atoms = self.atoms_list[0]
+        return write_vibrational_modes(
+            atoms,
+            frequency_result,
+            output_dir,
+            which=which,
+            mode_indices=mode_indices,
+            amplitude=amplitude,
+            nframes=nframes,
+        )
 
     # --- Analysis Methods ---
 

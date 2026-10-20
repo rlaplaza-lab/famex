@@ -89,6 +89,7 @@ Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_a
 - Multiple imaginary frequencies: poor TS guess — try interpolation, growing string, or `rfo` / `sella`
 - No imaginary frequencies: structure may be a minimum — verify the TS guess
 - Use `--freq` or `calculate_frequencies()`; check `ts_analysis["n_imaginary_frequencies"]`
+- Animate that mode with `--write-modes --modes imaginary`, or `save_vibrational_modes(..., which="imaginary")`
 - Use `--require-ts` to raise if the result is not a first-order saddle
 
 ### Q: UMA and MACE both installed but one fails?

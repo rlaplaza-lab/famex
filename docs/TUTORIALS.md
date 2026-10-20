@@ -155,6 +155,7 @@ sides formally met) do not define validity:
 
 ```bash
 famex ts --strategy local ts_guess.xyz --freq
+famex ts --strategy local ts_guess.xyz --write-modes --modes imaginary
 ```
 
 ```python
@@ -163,6 +164,7 @@ if freq_result["is_ts"]:
     print("Valid transition state")
 # or explicitly:
 n_imag = freq_result["ts_analysis"]["n_imaginary_frequencies"]
+explorer.save_vibrational_modes(freq_result, "ts_modes", which="imaginary")
 ```
 
 ## Reaction Paths
