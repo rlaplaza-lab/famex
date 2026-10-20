@@ -106,7 +106,7 @@ class Explorer:
         Default spin multiplicity used when per-structure metadata is not available.
     local_optimizer : str, default "default"
         Local optimizer for geometry optimization. If "default", auto-selects based
-        on target: "sella" for TS searches, "lbfgs" for minima/path optimizations.
+        on target: "rfo" for TS searches, "lbfgs" for minima/path optimizations.
         Options:
         - "default": Auto-select based on target (default)
         - "sella": SELLA optimizer
