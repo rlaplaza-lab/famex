@@ -231,6 +231,13 @@ class TestPerformanceProfiler:
     def test_gpu_memory_tracking(self, monkeypatch):
         profiler = PerformanceProfiler()
 
+        mock_process = MagicMock()
+        mock_process.memory_info.return_value = MagicMock(rss=64 * 1024 * 1024)
+        mock_process.memory_percent.return_value = 1.0
+        mock_psutil = MagicMock()
+        mock_psutil.Process.return_value = mock_process
+        monkeypatch.setattr("famex.utils.profiler._get_psutil", lambda: mock_psutil)
+
         mock_torch = MagicMock()
         mock_torch.cuda.is_available.return_value = True
         mock_torch.cuda.memory_allocated.return_value = 100 * 1024 * 1024
@@ -240,6 +247,7 @@ class TestPerformanceProfiler:
         with patch.object(profiler, "_gpu_available", True):
             memory_info = profiler._get_memory_info()
 
+        assert memory_info.ram_mb == 64.0
         assert memory_info.gpu_mb == 100.0
         assert memory_info.gpu_percent == 50.0
 
