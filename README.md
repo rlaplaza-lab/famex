@@ -27,7 +27,7 @@ Install an ML backend separately (primary use case):
 | `so3lr` | `pip install so3lr` | Research, custom models; analytical Hessian via JAX |
 | `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential (Python 3.11+); analytical Hessian via double-backward |
 
-Optional classical QC (same CLI; slower, FD Hessians): `tblite` (`pip install tblite`, GFN-xTB) and `pyscf` (`pip install famex[pyscf]`, default B3LYP-D3BJ / def2-SVP).
+Optional classical QC (same CLI; slower): `tblite` (`pip install tblite`, GFN-xTB, FD Hessians) and `pyscf` (`pip install famex[pyscf]`, default B3LYP-D3BJ / def2-SVP, analytical Hessian).
 
 SMILES and PubChem are optional structure inputs (not separate CLI modes). Install an embedder and pass SMILES or `pubchem:NAME` / `cid:` / a numeric CID to `minima`, `ts`, or `path`:
 

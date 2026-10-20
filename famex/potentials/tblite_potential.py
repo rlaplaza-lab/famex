@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 
+from famex.backends.constants import DEFAULT_TBLITE_MODEL
 from famex.backends.dependencies import deps
 from famex.potentials.base_potential import BasePotential
 from famex.utils.logging import get_famex_logger
@@ -81,7 +82,8 @@ class TBLitePotential(BasePotential):
 
     def __init__(
         self,
-        method: str = "GFN2-xTB",
+        method: str | None = None,
+        model_name: str | None = None,
         charge: int | None = None,
         multiplicity: int | None = None,
         accuracy: float = 1.0,
@@ -98,43 +100,11 @@ class TBLitePotential(BasePotential):
     ) -> None:
         """Initialize TBLite potential calculator.
 
-        Parameters
-        ----------
-        method : str, default "GFN2-xTB"
-            TBLite method to use. Available options:
-            - "GFN1-xTB": Fast method for large systems
-            - "GFN2-xTB": More accurate method (default)
-        charge : int, optional
-            Total charge of the system
-        multiplicity : int, optional
-            Total spin multiplicity of the system
-        accuracy : float, default 1.0
-            Numerical accuracy of the calculation
-        electronic_temperature : float, default 300.0
-            Electronic temperature in Kelvin
-        max_iterations : int, default 250
-            Maximum iterations for self-consistent evaluation
-        initial_guess : str, default "sad"
-            Initial guess for wavefunction ("sad" or "eeq")
-        mixer_damping : float, default 0.4
-            Damping parameter for self-consistent mixer
-        electric_field : list[float], optional
-            Uniform electric field vector (in V/A)
-        spin_polarization : float, optional
-            Spin polarization (scaling factor)
-        solvation : tuple[str, ...], optional
-            Solvation model to use (see TBLite docs for details)
-        cache_api : bool, default True
-            Reuse generated API objects (recommended)
-        verbosity : int, default 0
-            Set verbosity of printout (0=quiet, 1=normal, 2=verbose).
-            Note: This is automatically adjusted based on FAMEX verbosity level.
-        **kwargs
-            Additional arguments passed to BasePotential
-
+        Level of theory is ``method`` / ``model_name`` (default ``GFN2-xTB``),
+        matching how PySCF uses ``model_name="xc/basis"``.
         """
-        # Store TBLite-specific parameters
-        self.method = method
+        resolved = method or model_name or DEFAULT_TBLITE_MODEL
+        self.method = resolved
         self.charge = charge
         self.multiplicity = multiplicity
         self.accuracy = accuracy
@@ -147,11 +117,9 @@ class TBLitePotential(BasePotential):
         self.solvation = solvation
         self.cache_api = cache_api
         self.verbosity = verbosity
-
-        # Placeholder for the underlying calculator implementation
         self._calc: Any | None = None
 
-        super().__init__(backend="tblite", **kwargs)
+        super().__init__(backend="tblite", model_name=resolved, **kwargs)
 
     def _load_calculator(self) -> None:
         """Load the TBLite calculator implementation."""

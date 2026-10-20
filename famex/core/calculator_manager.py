@@ -10,6 +10,7 @@ from famex.backends.constants import (
     DEFAULT_MACE_MODEL,
     DEFAULT_PET_MODEL,
     DEFAULT_PYSCF_MODEL,
+    DEFAULT_TBLITE_MODEL,
     DEFAULT_UMA_MODEL,
 )
 from famex.backends.registry import create_calculator
@@ -57,6 +58,8 @@ class CalculatorManager:
             return DEFAULT_PET_MODEL
         if backend_lower == "mock":
             return "mock-model"
+        if backend_lower == "tblite":
+            return DEFAULT_TBLITE_MODEL
         if backend_lower == "pyscf":
             return DEFAULT_PYSCF_MODEL
         return "default-model"

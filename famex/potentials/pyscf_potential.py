@@ -1,6 +1,6 @@
 """PySCF DFT backend (default: B3LYP-D3BJ / def2-SVP with density fitting).
 
-Energy and forces only; Hessian via finite differences (like TBLite).
+Energy, forces, and analytical nuclear Hessian via ``mf.Hessian()``.
 """
 
 from __future__ import annotations
@@ -18,6 +18,8 @@ from famex.potentials.base_potential import BasePotential
 
 DEFAULT_XC, DEFAULT_BASIS = DEFAULT_PYSCF_MODEL.split("/", 1)
 
+_HA_PER_BOHR2_TO_EV_PER_A2 = Hartree / (Bohr**2)
+
 
 def parse_pyscf_model_name(model_name: str | None = None) -> tuple[str, str]:
     """Parse ``xc/basis`` (e.g. ``b3lyp-d3bj/def2-svp``) into ``(xc, basis)``."""
@@ -34,10 +36,19 @@ def xc_needs_dispersion(xc: str) -> bool:
     return "-d3" in lower or "-d4" in lower
 
 
-class PySCFPotential(BasePotential):
-    """PySCF DFT calculator (energy and forces). Override with ``model_name="xc/basis"``."""
+def _atoms_fingerprint(atoms: Atoms, charge: int, mult: int) -> tuple[Any, ...]:
+    return (
+        tuple(atoms.get_chemical_symbols()),
+        tuple(np.asarray(atoms.get_positions(), dtype=float).ravel()),
+        charge,
+        mult,
+    )
 
-    implemented_properties = ["energy", "forces"]
+
+class PySCFPotential(BasePotential):
+    """PySCF DFT calculator. Override method with ``model_name="xc/basis"``."""
+
+    implemented_properties = ["energy", "forces", "hessian"]
 
     def __init__(
         self,
@@ -60,6 +71,9 @@ class PySCFPotential(BasePotential):
         self._calc: Any | None = None
         self._pyscf_gto: Any | None = None
         self._pyscf_dft: Any | None = None
+        self._last_mf: Any | None = None
+        self._last_forces: np.ndarray | None = None
+        self._last_scf_key: tuple[Any, ...] | None = None
 
         super().__init__(
             backend=BACKEND_PYSCF,
@@ -101,12 +115,21 @@ class PySCFPotential(BasePotential):
             raise ValueError(msg)
         return charge, mult
 
-    def _run_pyscf(self, atoms: Atoms, charge: int, mult: int) -> tuple[float, np.ndarray]:
+    def _run_scf(self, atoms: Atoms, charge: int, mult: int) -> tuple[Any, float, np.ndarray]:
+        """Run SCF; return ``(mf, energy_eV, forces_eV_per_A)``."""
         gto = self._pyscf_gto
         dft = self._pyscf_dft
         if gto is None or dft is None:
             msg = "PySCF modules not loaded"
             raise RuntimeError(msg)
+
+        key = _atoms_fingerprint(atoms, charge, mult)
+        if (
+            self._last_mf is not None
+            and self._last_forces is not None
+            and self._last_scf_key == key
+        ):
+            return self._last_mf, float(self._last_mf.e_tot) * Hartree, self._last_forces
 
         spin = mult - 1
         verbose = 4 if self.verbose >= 3 else 0
@@ -135,7 +158,12 @@ class PySCFPotential(BasePotential):
             raise RuntimeError(msg)
 
         grad = np.asarray(mf.nuc_grad_method().kernel(), dtype=float)
-        return energy_ha * Hartree, -grad * (Hartree / Bohr)
+        energy = energy_ha * Hartree
+        forces = -grad * (Hartree / Bohr)
+        self._last_mf = mf
+        self._last_forces = forces
+        self._last_scf_key = key
+        return mf, energy, forces
 
     def calculate(
         self,
@@ -150,6 +178,53 @@ class PySCFPotential(BasePotential):
 
         self._require_calc()
         charge, mult = self._resolve_charge_mult(self.atoms)
-        energy, forces = self._run_pyscf(self.atoms, charge, mult)
+        mf, energy, forces = self._run_scf(self.atoms, charge, mult)
         self.results["energy"] = energy
         self.results["forces"] = forces
+        if properties is not None and "hessian" in properties:
+            self.results["hessian"] = self._hessian_from_mf(mf, len(self.atoms))
+
+    def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
+        """Return analytical Hessian ``(3N, 3N)`` in eV/Å²."""
+        if atoms is not None:
+            self.atoms = atoms
+        if self.atoms is None:
+            msg = "No atoms provided for PySCF Hessian"
+            raise ValueError(msg)
+
+        self._require_calc()
+        charge, mult = self._resolve_charge_mult(self.atoms)
+        mf, energy, forces = self._run_scf(self.atoms, charge, mult)
+        self.results["energy"] = energy
+        self.results["forces"] = forces
+        hessian = self._hessian_from_mf(mf, len(self.atoms))
+        self.results["hessian"] = hessian
+        return hessian
+
+    @staticmethod
+    def _hessian_from_mf(mf: Any, n_atoms: int) -> np.ndarray:
+        hess = np.asarray(mf.Hessian().kernel(), dtype=np.float64)
+        if hess.shape != (n_atoms, n_atoms, 3, 3):
+            msg = (
+                f"Unexpected PySCF Hessian shape {hess.shape}, "
+                f"expected ({n_atoms}, {n_atoms}, 3, 3)"
+            )
+            raise RuntimeError(msg)
+        h = hess.transpose(0, 2, 1, 3).reshape(3 * n_atoms, 3 * n_atoms)
+        h_ev = h * _HA_PER_BOHR2_TO_EV_PER_A2
+        return 0.5 * (h_ev + h_ev.T)
+
+    def get_property(
+        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
+        del allow_calculation
+        if atoms is not None:
+            self.atoms = atoms
+        if prop == "energy":
+            return self.get_potential_energy(atoms)
+        if prop == "forces":
+            return self.get_forces(atoms)
+        if prop == "hessian":
+            return self.get_hessian(atoms)
+        msg = f"Property '{prop}' not supported by PySCFPotential"
+        raise KeyError(msg)

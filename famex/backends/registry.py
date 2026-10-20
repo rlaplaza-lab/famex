@@ -16,6 +16,7 @@ from famex.backends.constants import (
     BACKEND_SO3LR,
     BACKEND_TBLITE,
     BACKEND_UMA,
+    DEFAULT_TBLITE_MODEL,
 )
 from famex.utils.device import resolve_backend_device
 from famex.utils.lazy_imports import get_module_logger
@@ -105,8 +106,8 @@ class CalculatorRegistry:
         calculator_cls = self._registry[backend]
         factory_kwargs = kwargs.copy()
 
-        if backend.lower() == BACKEND_TBLITE and model_name is not None:
-            factory_kwargs["method"] = model_name
+        if backend.lower() == BACKEND_TBLITE:
+            factory_kwargs["method"] = model_name or DEFAULT_TBLITE_MODEL
         elif model_name is not None:
             factory_kwargs["model_name"] = model_name
 

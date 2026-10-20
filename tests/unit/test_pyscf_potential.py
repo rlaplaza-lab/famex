@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from ase import Atoms
 
+from famex.analysis.utils import has_calculator_property
 from famex.potentials.pyscf_potential import (
     DEFAULT_BASIS,
     DEFAULT_XC,
@@ -42,3 +43,14 @@ def test_h2_energy_and_forces():
     assert np.isfinite(energy)
     assert forces.shape == (2, 3)
     assert np.linalg.norm(forces) > 0.0
+
+
+@requires_backend("pyscf")
+def test_h2_analytical_hessian():
+    atoms = Atoms("H2", positions=[[0.0, 0.0, 0.0], [0.74, 0.0, 0.0]])
+    calc = PySCFPotential(verbose=0, model_name="b3lyp/sto-3g", density_fit=False)
+    assert has_calculator_property(calc, "hessian")
+    hessian = calc.get_hessian(atoms)
+    assert hessian.shape == (6, 6)
+    assert np.all(np.isfinite(hessian))
+    assert np.max(np.abs(hessian - hessian.T)) < 1e-10
