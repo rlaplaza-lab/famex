@@ -108,7 +108,8 @@ famex minima --strategy {local,interpolate} INPUT [OPTIONS]
 | `--strategy` | `local` | Optimization strategy: local\|interpolate |
 | `--product` | `None` | Product geometry, SMILES, or PubChem (`pubchem:NAME`, `cid:`, or a bare CID) for interpolate |
 | `--embedder` | `pysmiles` | SMILES 3D method: `pysmiles` or `rdkit` |
-| `--output` | Auto | Output optimized XYZ path |
+| `--output` | Auto | Output optimized XYZ path. Replaces only the default file |
+| `--history` | off | Also write the optimizer step history |
 | `--fmax` | `0.05` | Convergence threshold |
 | `--steps` | `1000` | Max optimization steps |
 | `--npoints` | `11` | Number of interpolation points (interpolate strategy only) |
@@ -135,8 +136,12 @@ famex minima --strategy local molecule.xyz --dry-run
 
 #### Output Files
 
-- Local optimization: `{input}.opt.local.xyz`
-- Interpolate optimization: `{input}.opt.interpolate.xyz`
+The default file follows the target. `local` omits the strategy name.
+
+- Local optimization: `{input}.minima.xyz` (one structure)
+- Interpolate optimization: `{input}.minima.interpolate.xyz` (one optimized minimum per image)
+
+`--history` also writes optimizer steps: `{input}.minima_trajectory.xyz` or `{input}.minima.interpolate_trajectory.xyz`. Frames from an interpolated minima search are tagged with `image` and `step` in the XYZ comment.
 
 ### famex ts - Transition State Optimization
 
@@ -161,7 +166,8 @@ famex ts --strategy {local,interpolate,cineb,growing_string,dhs} INPUT [OPTIONS]
 | `--strategy` | `local` | Optimization strategy: local\|interpolate\|cineb\|growing_string\|dhs |
 | `--product` | `None` | Product geometry, SMILES, or PubChem (`pubchem:NAME`, `cid:`, or a bare CID) for interpolate/cineb/growing_string/dhs |
 | `--embedder` | `pysmiles` | SMILES 3D method: `pysmiles` or `rdkit` |
-| `--output` | Auto | Output TS XYZ path |
+| `--output` | Auto | Output TS XYZ path. Replaces only the default file |
+| `--history` | off | Also write the search path and the local TS optimizer history |
 | `--fmax` | `0.05` | Convergence threshold for local TS refinement |
 | `--steps` | strategy default | Max optimization steps. `1000` for local, interpolate, and cineb; `200` for growing_string and dhs |
 | `--npoints` | strategy default | Images: `11` for interpolate and cineb; `15` for growing_string |
@@ -211,11 +217,18 @@ famex ts --strategy interpolate reactant.xyz --product product.xyz --freq
 
 #### Output Files
 
-- Local TS: `{input}.ts.local.xyz`
+The default file is always the single optimized saddle.
+
+- Local TS: `{input}.ts.xyz`
 - Interpolated TS: `{input}.ts.interpolate.xyz`
 - CI-NEB TS: `{input}.ts.cineb.xyz`
 - DHS TS: `{input}.ts.dhs.xyz`
-- Growing string TS: `{input}.ts.gsm.xyz`
+- Growing string TS: `{input}.ts.growing_string.xyz`
+
+`--history` also writes:
+
+- Local optimizer steps: `{input}.ts_trajectory.xyz`, or `{input}.ts.{strategy}_trajectory.xyz` for the refinement inside another TS method
+- The search geometry that is not the default file: `{input}.ts.{strategy}_path.xyz` (interpolation guess, CI-NEB band, DHS bracket images, or the growing-string path from reactant to product)
 
 ### famex path - Reaction Path Optimization
 
@@ -239,7 +252,8 @@ famex path --strategy {interpolate,neb,cineb,irc} STRUCTURES... [OPTIONS]
 |--------|---------|-------------|
 | `--strategy` | `neb` | Path optimization strategy: interpolate\|neb\|cineb\|irc |
 | `--embedder` | `pysmiles` | SMILES 3D method: `pysmiles` or `rdkit` |
-| `--output` | Auto | Output trajectory XYZ path |
+| `--output` | Auto | Output trajectory XYZ path. Replaces only the default file |
+| `--history` | off | Also write the NEB or CI-NEB iteration history, or IRC forward and reverse branches |
 | `--fmax` | `0.05` | Convergence threshold |
 | `--steps` | strategy default | Max optimization steps. `1000` for neb and cineb; `100` for irc. interpolate does not optimize |
 | `--npoints` | `11` | Number of images in path |
@@ -269,10 +283,14 @@ famex path --strategy irc ts.xyz --direction both
 
 #### Output Files
 
+The default file is the path from one end to the other. NEB, CI-NEB, and interpolation run from reactant to product. IRC with `--direction both` is the reversed backward branch, then the transition state, then the forward branch. A one-sided IRC writes that side plus the transition state under the same default name.
+
 - Interpolation: `{input}.path.interpolate.xyz`
 - NEB: `{input}.path.neb.xyz`
 - CI-NEB: `{input}.path.cineb.xyz`
 - IRC: `{input}.path.irc.xyz`
+
+`--history` also writes `{input}.path.neb_trajectory.xyz` or `{input}.path.cineb_trajectory.xyz` (one frame per image per iteration, with `iteration` and `image` in the XYZ comment), and `{input}.path.irc_forward.xyz` / `{input}.path.irc_reverse.xyz` for the IRC branches that were followed.
 
 ### famex cache - Cache Management
 
@@ -359,6 +377,10 @@ explorer = Explorer(
 # Run optimization
 result = explorer.run(fmax=0.05, steps=1000, calculate_frequencies=False)
 
+# Keep optimizer steps and search paths on the result. Write them with
+# famex.io.run_output.write_run_outputs(..., history=True).
+result = explorer.run(record_history=True)
+
 # Load from file
 explorer = Explorer.from_file("molecule.xyz", backend="uma", target="minima")
 explorer = Explorer.from_smiles("CCO", backend="uma", target="minima", strategy="local")
@@ -379,8 +401,11 @@ Strategy results always include `optimized_atoms` and `strategy`. Common optiona
 
 | Key | When present |
 |-----|----------------|
-| `optimized_atoms` | Single `Atoms` (minima/TS) or `list[Atoms]` (path) |
-| `trajectory` | Path strategies (`neb`, `cineb`, `irc`, `interpolate`) and growing string |
+| `optimized_atoms` | Single `Atoms` (minima/TS) or `list[Atoms]` (path, and minima interpolation) |
+| `trajectory` | End-to-end path for `neb`, `cineb`, `irc`, `interpolate`, and growing string |
+| `optimization_trajectory` | Optimizer steps, or NEB/CI-NEB iteration frames, when `record_history=True` |
+| `search_path` | TS search band or string when `record_history=True`. Growing string also keeps the string on `trajectory` |
+| `forward_path`, `backward_path` | IRC branches |
 | `converged`, `steps_taken` | After optimization |
 | `frequency_analysis` | When `calculate_frequencies=True` or `--freq` (also computed when `--require-ts` needs frequencies) |
 | `ts_validation` | When `validate_ts=True` (soft check; does not raise). `--require-ts` raises instead of only attaching this key |

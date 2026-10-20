@@ -256,6 +256,7 @@ def _run_local_optimization_common(
     cleanup_frequencies: bool = False,
     stationary_point_target: Literal["minima", "ts"] = "minima",
     prepare_cleanup_optimizer_kwargs: Callable[[str, Any], dict[str, Any]] | None = None,
+    record_history: bool = False,
 ) -> dict[str, Any]:
     """Execute common local optimization pattern for minima and TS."""
     atoms_list = list(atoms_list)
@@ -274,8 +275,9 @@ def _run_local_optimization_common(
     results = []
     step_counts = []
     converged_flags = []
+    optimization_trajectory: list[Atoms] = []
 
-    for atoms in atoms_list:
+    for image_index, atoms in enumerate(atoms_list):
         atoms_copy = atoms.copy()
 
         with (
@@ -299,6 +301,9 @@ def _run_local_optimization_common(
             opt_kwargs["profiler"] = strategy.profiler
 
         opt = opt_class(atoms_copy, **opt_kwargs)
+        if record_history:
+            image_tag = image_index if len(atoms_list) > 1 else None
+            attach_step_recorder(opt, atoms_copy, optimization_trajectory, image=image_tag)
 
         with (
             strategy.profiler.profile_section("optimization")
@@ -397,11 +402,16 @@ def _run_local_optimization_common(
         frequency_results = [None] * len(results)
         cleanup_summaries = [None] * len(results)
 
+    recorded: dict[str, list[Atoms]] = {}
+    if optimization_trajectory:
+        recorded["optimization_trajectory"] = optimization_trajectory
+
     if single_input and results:
         result = strategy.prepare_result(
             results[0],
             steps_taken=step_counts[0],
             converged=bool(converged_flags[0]),
+            **recorded,
         )
         if validation_results[0] is not None:
             result["ts_validation"] = validation_results[0]
@@ -416,6 +426,7 @@ def _run_local_optimization_common(
             results,
             steps_taken=step_counts,
             converged=[bool(c) for c in converged_flags],
+            **recorded,
         )
         if any(v is not None for v in validation_results):
             result["ts_validation"] = validation_results
@@ -432,6 +443,54 @@ def _run_local_optimization_common(
 
     merged_result = strategy._merge_profiler_results(result)
     return cast(dict[str, Any], merged_result)
+
+
+def copy_labeled_frame(atoms: Atoms, **tags: int) -> Atoms:
+    """Return a geometry copy annotated with integer XYZ-comment tags."""
+    frame = cast(Atoms, atoms.copy())
+    info = dict(frame.info or {})
+    info.update(tags)
+    frame.info = info
+    return frame
+
+
+def attach_step_recorder(
+    optimizer: Any,
+    atoms: Atoms,
+    frames: list[Atoms],
+    image: int | None = None,
+) -> None:
+    """Record a copy of ``atoms`` each time ``optimizer`` notifies observers.
+
+    ASE wrappers notify on the wrapped optimizer, so the observer is attached
+    there when that object exists.
+    """
+    target = getattr(optimizer, "wrapped_optimizer", optimizer)
+    attach = getattr(target, "attach", None)
+    if not callable(attach):
+        logger.warning(
+            "Optimizer %s cannot record geometry history",
+            type(target).__name__,
+        )
+        return
+
+    counter = {"step": 0}
+
+    def _record() -> None:
+        tags = {"step": counter["step"]}
+        if image is not None:
+            tags["image"] = image
+        frames.append(copy_labeled_frame(atoms, **tags))
+        counter["step"] += 1
+
+    attach(_record)
+
+
+def take_optimization_trajectory(result: dict[str, Any], source: dict[str, Any]) -> None:
+    """Copy a recorded local-optimizer trajectory onto ``result`` when present."""
+    frames = source.get("optimization_trajectory")
+    if isinstance(frames, list) and frames:
+        result["optimization_trajectory"] = frames
 
 
 def filter_interpolation_kwargs(

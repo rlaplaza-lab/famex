@@ -139,6 +139,7 @@ class MultiStructureNEBStrategy(BaseStrategy):
         )
 
         optimized_path = neb_opt.optimize()
+        iteration_frames = list(neb_opt.iteration_frames)
 
         if optimized_path:
             input_atoms = list(atoms_list)
@@ -158,12 +159,15 @@ class MultiStructureNEBStrategy(BaseStrategy):
 
             optimized_path = filtered_path
 
-        return self.prepare_result(
+        result = self.prepare_result(
             optimized_path,
             converged=True,
             trajectory=optimized_path,
             climb=climb,
         )
+        if iteration_frames:
+            result["optimization_trajectory"] = iteration_frames
+        return result
 
 
 class MultiStructureCINEBStrategy(MultiStructureNEBStrategy):

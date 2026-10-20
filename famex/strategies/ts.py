@@ -171,6 +171,7 @@ class LocalTSStrategy(BaseStrategy):
             cleanup_frequencies=cleanup_frequencies,
             stationary_point_target="ts",
             prepare_cleanup_optimizer_kwargs=prepare_ts_optimizer_kwargs,
+            record_history=bool(kwargs.get("record_history", False)),
         )
 
         optimized_atoms = result.get("optimized_atoms")

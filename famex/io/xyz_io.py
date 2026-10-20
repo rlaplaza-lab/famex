@@ -60,17 +60,17 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
         except (ValueError, TypeError):
             pass
 
-    if hasattr(atoms, "info") and atoms.info:
-        if charge is None and "charge" in atoms.info:
-            try:
-                charge = int(atoms.info["charge"])
-            except (ValueError, TypeError):
-                pass
-        if spin is None and "spin" in atoms.info:
-            try:
-                spin = int(atoms.info["spin"])
-            except (ValueError, TypeError):
-                pass
+    info = atoms.info if hasattr(atoms, "info") and atoms.info else {}
+    if charge is None and "charge" in info:
+        try:
+            charge = int(info["charge"])
+        except (ValueError, TypeError):
+            pass
+    if spin is None and "spin" in info:
+        try:
+            spin = int(info["spin"])
+        except (ValueError, TypeError):
+            pass
 
     if charge is not None:
         parts.append(f"charge={charge}")
@@ -79,6 +79,14 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
 
     if energy is not None:
         parts.append(f"energy={energy:.6f}")
+
+    for key in ("iteration", "image", "step"):
+        if key not in info:
+            continue
+        try:
+            parts.append(f"{key}={int(info[key])}")
+        except (TypeError, ValueError):
+            continue
 
     if not parts:
         parts.append("FAMEX structure")

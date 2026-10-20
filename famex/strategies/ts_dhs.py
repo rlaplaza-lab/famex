@@ -10,7 +10,11 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import validate_ts_structure
+from famex.strategies.helpers import (
+    copy_labeled_frame,
+    take_optimization_trajectory,
+    validate_ts_structure,
+)
 from famex.strategies.ts import LocalTSStrategy
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
@@ -115,7 +119,17 @@ class MultiStructureTSDHSStrategy(BaseStrategy):
         )
 
         max_macro = int(kwargs.get("max_macro_steps", steps))
+        record_history = bool(kwargs.get("record_history", False))
         converged_bracket = False
+        search_path: list[Atoms] = []
+
+        def _record_bracket(iteration: int) -> None:
+            if not record_history:
+                return
+            search_path.append(copy_labeled_frame(left, iteration=iteration, image=0))
+            search_path.append(copy_labeled_frame(right, iteration=iteration, image=1))
+
+        _record_bracket(0)
 
         for macro in range(max_macro):
             dist = _euclidean_distance(left, right)
@@ -143,6 +157,7 @@ class MultiStructureTSDHSStrategy(BaseStrategy):
                 max_steps=constrain_steps,
                 trust_radius=min(step_size, trust_radius),
             )
+            _record_bracket(macro + 1)
             logger.info(
                 "DHS macro %d: dist=%.4f Å",
                 macro + 1,
@@ -182,6 +197,10 @@ class MultiStructureTSDHSStrategy(BaseStrategy):
             result["frequency_analysis"] = ts_result["frequency_analysis"]
             result["is_ts"] = ts_result.get("is_ts")
             result["free_energy_correction"] = ts_result.get("free_energy_correction")
+        if search_path:
+            result["search_path"] = search_path
+        if isinstance(ts_result, dict):
+            take_optimization_trajectory(result, ts_result)
         return result
 
 

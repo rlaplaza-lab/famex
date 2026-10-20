@@ -9,10 +9,9 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
-from typing import Any, cast
+from typing import Any
 
 import click
-from ase import Atoms
 
 from famex.cli.cache_commands import cache
 from famex.cli.cli_helpers import (
@@ -23,9 +22,9 @@ from famex.cli.cli_helpers import (
     print_frequency_summary,
     require_same_atom_count,
     save_results_json,
-    write_atoms,
 )
 from famex.core.explorer import Explorer
+from famex.io.run_output import select_default_frames, write_run_outputs
 from famex.utils.ml_warnings import quiet_backend_loading
 
 os.environ.setdefault("MPLBACKEND", "Agg")
@@ -189,55 +188,34 @@ def _handle_dry_run(exp: Explorer) -> None:
     click.echo(f"   Notes: {explanation['notes']}")
 
 
-def _generate_output_path(input_path: str, strategy: str, target: str) -> str:
-    """Generate default output path based on strategy and target.
-
-    Parameters
-    ----------
-    input_path : str
-        Input file path
-    strategy : str
-        Strategy name
-    target : str
-        Target type ("minima", "ts", or "path")
-
-    Returns
-    -------
-    str
-        Default output path
-    """
-    base = input_stem(input_path)
-    if target == "minima":
-        suffix = ".opt.local.xyz" if strategy == "local" else ".opt.interpolate.xyz"
-    elif target == "ts":
-        if strategy == "local":
-            suffix = ".ts.local.xyz"
-        elif strategy == "interpolate":
-            suffix = ".ts.interpolate.xyz"
-        elif strategy == "cineb":
-            suffix = ".ts.cineb.xyz"
-        elif strategy == "dhs":
-            suffix = ".ts.dhs.xyz"
-        else:  # growing_string
-            suffix = ".ts.gsm.xyz"
-    else:  # path
-        if strategy == "interpolate":
-            suffix = ".path.interpolate.xyz"
-        elif strategy == "neb":
-            suffix = ".path.neb.xyz"
-        elif strategy == "cineb":
-            suffix = ".path.cineb.xyz"
-        else:  # irc
-            suffix = ".path.irc.xyz"
-    return base + suffix
-
-
-def _extract_result_atoms(results: dict[str, Any], target: str) -> Atoms | list[Atoms]:
-    if target == "path":
-        if "trajectory" in results:
-            return cast(Atoms | list[Atoms], results["trajectory"])
-        return cast(Atoms | list[Atoms], results.get("optimized_atoms", []))
-    return cast(Atoms, results["optimized_atoms"])
+def _save_run_output(
+    results: dict[str, Any],
+    input_path: str,
+    strategy: str,
+    target: str,
+    output: str | None,
+    history: bool,
+    completed_message: str,
+) -> str:
+    """Write the target's default file and, when asked, geometry history."""
+    stem = input_stem(input_path)
+    written = write_run_outputs(
+        results,
+        stem,
+        target=target,
+        strategy=strategy,
+        output=output,
+        history=history,
+    )
+    default_path = written[0]
+    frames = select_default_frames(results, target)
+    if isinstance(frames, list):
+        click.echo(f"{completed_message} Saved {len(frames)} images to: {default_path}")
+    else:
+        click.echo(f"{completed_message} Saved: {default_path}")
+    for extra in written[1:]:
+        click.echo(f"Saved history: {extra}")
+    return default_path
 
 
 def _run_optimization(
@@ -259,11 +237,13 @@ def _run_optimization(
     cleanup_frequencies: bool = False,
     dhs_small_step: float | None = None,
     dhs_switch_thresh: float | None = None,
+    record_history: bool = False,
 ) -> dict[str, Any]:
     run_kwargs: dict[str, Any] = {
         "calculate_frequencies": calculate_frequencies,
         "cleanup_frequencies": cleanup_frequencies,
         "temperature": temperature,
+        "record_history": record_history,
     }
 
     if target == "path":
@@ -529,6 +509,12 @@ def main() -> None:
     default=None,
     help="Output optimized XYZ path",
 )
+@click.option(
+    "--history",
+    is_flag=True,
+    default=False,
+    help="Also write the optimizer step history",
+)
 @click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
 @click.option("--steps", type=int, default=1000, show_default=True, help="Max optimization steps")
 @click.option(
@@ -553,6 +539,7 @@ def minima(
     product: str | None,
     embedder: str,
     output: str | None,
+    history: bool,
     fmax: float,
     steps: int,
     npoints: int,
@@ -639,16 +626,18 @@ def minima(
             temperature=temperature,
             npoints=npoints if strategy == "interpolate" else None,
             interp=interp if strategy == "interpolate" else None,
+            record_history=history,
         )
 
-        # Extract results and generate output path
-        result_atoms = _extract_result_atoms(results, target="minima")
-        out_default = _generate_output_path(input, strategy, "minima")
-
-    # Save results
-    out = output or out_default
-    write_atoms(result_atoms, out)
-    click.echo(f"Minima optimization completed. Saved: {out}")
+    out = _save_run_output(
+        results,
+        input,
+        strategy,
+        "minima",
+        output,
+        history,
+        "Minima optimization completed.",
+    )
 
     # Handle frequency analysis results (chained after optimization)
     _handle_frequency_results(
@@ -675,6 +664,12 @@ def minima(
     type=click.Path(dir_okay=False),
     default=None,
     help="Output TS XYZ path",
+)
+@click.option(
+    "--history",
+    is_flag=True,
+    default=False,
+    help="Also write the search path and the TS optimizer history",
 )
 @click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
 @click.option(
@@ -755,6 +750,7 @@ def ts(
     product: str | None,
     embedder: str,
     output: str | None,
+    history: bool,
     fmax: float,
     steps: int | None,
     npoints: int | None,
@@ -867,16 +863,18 @@ def ts(
             ),
             dhs_small_step=dhs_small_step if strategy == "dhs" else None,
             dhs_switch_thresh=dhs_switch_thresh if strategy == "dhs" else None,
+            record_history=history,
         )
 
-        # Extract results and generate output path
-        result_atoms = _extract_result_atoms(results, target="ts")
-        out_default = _generate_output_path(input, strategy, "ts")
-
-    # Save results
-    out = output or out_default
-    write_atoms(result_atoms, out)
-    click.echo(f"Transition state optimization completed. Saved: {out}")
+    out = _save_run_output(
+        results,
+        input,
+        strategy,
+        "ts",
+        output,
+        history,
+        "Transition state optimization completed.",
+    )
 
     # Handle frequency analysis results (chained after optimization)
     _handle_frequency_results(
@@ -902,6 +900,12 @@ main.add_command(cache)
     type=click.Path(dir_okay=False),
     default=None,
     help="Output trajectory XYZ path",
+)
+@click.option(
+    "--history",
+    is_flag=True,
+    default=False,
+    help="Also write the NEB iteration history or IRC forward and reverse branches",
 )
 @click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
 @click.option(
@@ -951,6 +955,7 @@ def path(
     strategy: str,
     structures: tuple[str, ...],
     output: str | None,
+    history: bool,
     fmax: float,
     steps: int | None,
     npoints: int,
@@ -1065,14 +1070,18 @@ def path(
             step_size=step_size if strategy == "irc" else None,
             direction=direction if strategy == "irc" else None,
             climb=(strategy == "cineb"),
+            record_history=history,
         )
 
-        trajectory = _extract_result_atoms(result, target="path")
-        out_default = _generate_output_path(first_file, strategy, "path")
-
-    out = output or out_default
-    write_atoms(trajectory, out)
-    click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")
+    _save_run_output(
+        result,
+        first_file,
+        strategy,
+        "path",
+        output,
+        history,
+        "Path optimization completed.",
+    )
 
 
 __all__ = ["main", "minima", "path", "ts"]

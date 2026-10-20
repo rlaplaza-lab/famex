@@ -12,6 +12,7 @@ from typing import Any, cast
 import numpy as np
 from ase import Atoms
 
+from famex.strategies.helpers import copy_labeled_frame
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
 
@@ -220,6 +221,8 @@ class NEBOptimizer:
         self.fmax = fmax
         self.steps = steps
         self.climbing_image: int | None = None
+        self.record_history = bool(kwargs.pop("record_history", False))
+        self.iteration_frames: list[Atoms] = []
 
         for atoms in self.images:
             StrategyUtils.ensure_charge_spin_info(atoms)
@@ -273,9 +276,17 @@ class NEBOptimizer:
         self.climbing_image = climbing_image
         return neb_forces
 
+    def _snapshot_band(self, iteration: int) -> None:
+        if not self.record_history:
+            return
+        for image_index, img in enumerate(self.images):
+            frame = copy_labeled_frame(img, iteration=iteration, image=image_index)
+            self.iteration_frames.append(frame)
+
     def optimize(self) -> list[Atoms]:
         method_name = "CI-NEB" if self.climb else "NEB"
         converged = False
+        self._snapshot_band(0)
 
         for step in range(self.steps):
             energies, forces_list = self._calculate_energies_forces()
@@ -299,6 +310,7 @@ class NEBOptimizer:
                 break
 
             self._fire_update(neb_forces)
+            self._snapshot_band(step + 1)
 
         if not converged:
             logger.warning("%s did not converge within %d steps", method_name, self.steps)

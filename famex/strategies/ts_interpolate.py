@@ -9,7 +9,11 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import filter_interpolation_kwargs, validate_ts_structure
+from famex.strategies.helpers import (
+    filter_interpolation_kwargs,
+    take_optimization_trajectory,
+    validate_ts_structure,
+)
 from famex.strategies.ts import LocalTSStrategy
 from famex.utils.logging import get_famex_logger
 
@@ -69,6 +73,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         self.validate_inputs(atoms_list)
 
         local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
+        record_history = bool(kwargs.get("record_history", False))
 
         # Generate interpolated path using PathManager
         path_mgr = PathManager(atoms_list)
@@ -141,6 +146,9 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
             result["frequency_analysis"] = ts_result["frequency_analysis"]
             result["is_ts"] = ts_result.get("is_ts")
             result["free_energy_correction"] = ts_result.get("free_energy_correction")
+        if record_history:
+            result["search_path"] = [image.copy() for image in path]
+            take_optimization_trajectory(result, ts_result)
         return result
 
 

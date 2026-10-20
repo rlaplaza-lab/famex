@@ -18,6 +18,7 @@ from famex.io.path_manager import PathManager
 from famex.strategies.helpers import (
     enforce_require_ts,
     resolve_require_ts,
+    take_optimization_trajectory,
     ts_has_one_imaginary_mode,
     validate_ts_structure,
 )
@@ -1033,6 +1034,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             backward_string=self.right_string,
             strings_met=strings_met,
         )
+        if kwargs.get("record_history"):
+            result["search_path"] = full_path
 
         freq_analysis: dict[str, Any] | None = None
         if ts_result is not None and isinstance(ts_result, dict):
@@ -1042,6 +1045,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             # Type narrowing: check if it's a dict before assigning
             if freq_analysis_val is not None and isinstance(freq_analysis_val, dict):
                 freq_analysis = freq_analysis_val
+            take_optimization_trajectory(result, ts_result)
 
         temperature = float(kwargs.get("temperature", 298.15))
         # Valid TS := vibrationally a first-order saddle (exactly one imaginary

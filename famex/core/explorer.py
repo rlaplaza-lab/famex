@@ -438,6 +438,7 @@ class Explorer:
         runner: Callable[..., Any] | None = None,
         calculate_frequencies: bool = False,
         cleanup_frequencies: bool | None = None,
+        record_history: bool = False,
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Execute a registered or user-supplied runner.
@@ -454,6 +455,10 @@ class Explorer:
         cleanup_frequencies : bool, optional
             Whether to run post-optimization Hessian-based frequency cleanup.
             Defaults to the Explorer's ``cleanup_frequencies`` setting.
+        record_history : bool, default=False
+            When True, strategies keep optimizer steps and search paths on the
+            result (``optimization_trajectory``, ``search_path``). This does not
+            write files; use :func:`famex.io.run_output.write_run_outputs`.
         **kwargs
             Additional keyword arguments forwarded to the strategy runner.
 
@@ -485,6 +490,9 @@ class Explorer:
         >>> result = explorer.run(fmax=0.01)
 
         """
+        if record_history:
+            kwargs["record_history"] = True
+
         if runner is not None:
             call_kwargs = dict(kwargs)
             call_kwargs.setdefault("explorer", self)
@@ -782,7 +790,7 @@ class Explorer:
         --------
         >>> explorer = Explorer(atoms=[reactant, product], target="path")
         >>> result = explorer.run(npoints=7)
-        >>> explorer.save_trajectory(result, "reaction_path.xyz")
+        >>> explorer.save_trajectory(result["trajectory"], "reaction_path.xyz")
 
         """
         write_trajectory_safely(atoms_list, output_file, format)

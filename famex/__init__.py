@@ -24,8 +24,8 @@ Examples
 
     Reaction path optimization (NEB/CI-NEB):
     >>> explorer = Explorer(atoms=[reactant, product], target="path")
-    >>> path = explorer.run(npoints=7)
-    >>> explorer.save_trajectory(path, "reaction_path.xyz")
+    >>> result = explorer.run(npoints=7)
+    >>> explorer.save_trajectory(result["trajectory"], "reaction_path.xyz")
 
 """
 

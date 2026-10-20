@@ -78,6 +78,7 @@ class LocalMinimaStrategy(BaseStrategy):
             cleanup_frequencies=cleanup_frequencies,
             stationary_point_target="minima",
             prepare_cleanup_optimizer_kwargs=prepare_minima_hessian_optimizer_kwargs,
+            record_history=bool(kwargs.get("record_history", False)),
         )
 
 

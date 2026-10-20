@@ -86,8 +86,10 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
         converged_flags: list[bool] = []
         steps_taken: list[int] = []
         frequency_results: list[dict[str, Any] | None] = []
+        record_history = bool(kwargs.get("record_history", False))
+        optimization_trajectory: list[Atoms] = []
 
-        for atoms in initial_path:
+        for image_index, atoms in enumerate(initial_path):
             run_result = local_minima_strategy.run(
                 atoms_list=[atoms],
                 fmax=fmax,
@@ -111,6 +113,14 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
                 steps_taken.append(int(steps_val))
             else:
                 steps_taken.append(0)
+            if record_history:
+                image_frames = run_result.get("optimization_trajectory")
+                if isinstance(image_frames, list):
+                    for frame in image_frames:
+                        info = dict(frame.info or {})
+                        info["image"] = image_index
+                        frame.info = info
+                        optimization_trajectory.append(frame)
             if calculate_frequencies and "frequency_analysis" in run_result:
                 freq_result: Any = run_result["frequency_analysis"]
                 if isinstance(freq_result, dict):
@@ -138,6 +148,8 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
             steps_taken=steps_taken,
             strategy="minima:interpolate",
         )
+        if optimization_trajectory:
+            result["optimization_trajectory"] = optimization_trajectory
 
         # Add frequency analysis results if available
         if calculate_frequencies and any(f is not None for f in frequency_results):
