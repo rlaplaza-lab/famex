@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 from ase.io import read
@@ -10,6 +12,7 @@ from ase.vibrations.data import VibrationsData
 from famex.analysis.frequency import FrequencyAnalysis, select_vibrational_indices
 from famex.analysis.physics_constants import normalize_frequencies_cm1
 from famex.backends.constants import DEFAULT_UMA_MODEL
+from famex.potentials import get_uma_calculator
 from tests.test_utils import requires_backend
 
 
@@ -74,26 +77,25 @@ class TestNormalizeFrequenciesCm1:
         assert len(vibrational) == 3
 
 
+@pytest.mark.slow
 @requires_backend("uma")
 class TestImaginaryFrequencyDetection:
     def test_bh28_ts_detects_imaginary_mode_with_uma(self):
-        atoms = read("examples/bh28_benchmark/bh28_dataset/BHDIV_3_ts.xyz")
-        from famex.potentials import get_uma_calculator
+        ts_path = Path("examples/bh28_benchmark/bh28_dataset/BHDIV_3_ts.xyz")
+        if not ts_path.exists():
+            pytest.skip("BH28 dataset missing")
 
-        try:
-            atoms.calc = get_uma_calculator(model_name=DEFAULT_UMA_MODEL)
-            freq = FrequencyAnalysis(atoms=atoms, calculator=atoms.calc, verbose=0)
-            freq.calculate_hessian(method="auto")
-            freq.diagonalize_hessian()
-            result = freq.is_transition_state()
-        except Exception as exc:
-            pytest.skip(f"UMA frequency analysis unavailable: {exc}")
+        atoms = read(str(ts_path))
+        atoms.calc = get_uma_calculator(model_name=DEFAULT_UMA_MODEL)
+        freq = FrequencyAnalysis(atoms=atoms, calculator=atoms.calc, verbose=0)
+        freq.calculate_hessian(method="auto")
+        freq.diagonalize_hessian()
+        result = freq.is_transition_state()
 
         assert result["n_imaginary_frequencies"] == 1
         assert result["is_transition_state"] is True
         assert min(result["imaginary_frequencies"]) < -50
 
-        # Cross-check raw ASE complex frequencies normalize the same way
         vib = VibrationsData.from_2d(atoms, freq._hessian, indices=freq.indices)
         raw = vib.get_frequencies()
         assert np.any(np.imag(raw) != 0)

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import sys
 import time
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,6 +13,22 @@ from famex.utils.profiler import (
     profile_call,
     profile_optimizer_step,
 )
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_clock(monkeypatch):
+    """Advance a synthetic clock on sleep; avoid real wall-clock waits."""
+    state = {"t": 1000.0}
+
+    def perf_counter() -> float:
+        return state["t"]
+
+    def sleep(seconds: float) -> None:
+        state["t"] += float(seconds)
+
+    monkeypatch.setattr(time, "perf_counter", perf_counter)
+    monkeypatch.setattr(time, "sleep", sleep)
+    monkeypatch.setattr("famex.utils.profiler.time.perf_counter", perf_counter)
 
 
 class TestTimingEntry:
@@ -25,16 +42,13 @@ class TestTimingEntry:
 
     def test_timing_entry_finish(self):
         entry = TimingEntry(name="test", start_time=time.perf_counter())
-
-        # Wait a bit
         time.sleep(0.01)
-
         duration = entry.finish()
 
         assert entry.end_time is not None
         assert entry.duration is not None
         assert duration == entry.duration
-        assert duration >= 0.01
+        assert duration == pytest.approx(0.01)
 
 
 class TestMemoryInfo:
@@ -57,11 +71,9 @@ class TestPerformanceProfiler:
         profiler = PerformanceProfiler()
 
         assert len(profiler._timings) == 0
-        assert len(profiler._memory_snapshots) > 0  # Initial snapshot
+        assert len(profiler._memory_snapshots) > 0
         assert len(profiler._active_timings) == 0
         assert profiler._start_time > 0
-
-        # Check initial memory snapshot exists
         assert len(profiler._memory_snapshots) == 1
 
     def test_snapshot_memory(self):
@@ -71,8 +83,6 @@ class TestPerformanceProfiler:
         memory_info = profiler.snapshot_memory()
 
         assert isinstance(memory_info, MemoryInfo)
-        # In CI environments, psutil may not be available, so ram_mb could be 0.0
-        # Just verify the method completes successfully
         assert memory_info.ram_mb >= 0
         assert len(profiler._memory_snapshots) == initial_count + 1
 
@@ -100,7 +110,7 @@ class TestPerformanceProfiler:
         timing = profiler._timings["test_section"][0]
         assert timing.name == "test_section"
         assert timing.duration is not None
-        assert timing.duration >= 0.01
+        assert timing.duration == pytest.approx(0.01)
 
     def test_profile_section_nested(self):
         profiler = PerformanceProfiler()
@@ -128,7 +138,7 @@ class TestPerformanceProfiler:
 
         duration = profiler.end_timing("manual_section")
         assert duration is not None
-        assert duration >= 0.01
+        assert duration == pytest.approx(0.01)
         assert "manual_section" not in profiler._active_timings
         assert "manual_section" in profiler._timings
 
@@ -141,7 +151,6 @@ class TestPerformanceProfiler:
     def test_get_summary(self):
         profiler = PerformanceProfiler()
 
-        # Add some activity
         profiler.increment_call("energy", count=5)
         profiler.increment_call("forces", count=3)
 
@@ -167,7 +176,6 @@ class TestPerformanceProfiler:
     def test_get_summary_timing_stats(self):
         profiler = PerformanceProfiler()
 
-        # Run same section multiple times
         for _ in range(3):
             with profiler.profile_section("repeated"):
                 time.sleep(0.01)
@@ -185,7 +193,6 @@ class TestPerformanceProfiler:
     def test_calculate_memory_stats(self):
         profiler = PerformanceProfiler()
 
-        # Take multiple snapshots
         for _ in range(3):
             profiler.snapshot_memory()
 
@@ -198,7 +205,7 @@ class TestPerformanceProfiler:
         assert "delta_mb" in memory_stats
         assert "avg_mb" in memory_stats
         assert "snapshots" in memory_stats
-        assert memory_stats["snapshots"] >= 4  # Initial + 3 we added
+        assert memory_stats["snapshots"] >= 4
 
     def test_calculate_resource_stats(self):
         profiler = PerformanceProfiler()
@@ -208,7 +215,6 @@ class TestPerformanceProfiler:
         resource_stats = summary["resources"]
         assert isinstance(resource_stats, dict)
 
-        # Should have CPU and memory stats
         if "error" not in resource_stats:
             assert "cpu_percent" in resource_stats
             assert "process_memory_mb" in resource_stats
@@ -217,69 +223,45 @@ class TestPerformanceProfiler:
     def test_gpu_detection(self):
         profiler = PerformanceProfiler()
 
-        # GPU availability depends on environment
         assert isinstance(profiler._gpu_available, bool)
 
         summary = profiler.get_summary()
         assert isinstance(summary["gpu_available"], bool)
 
-    def test_gpu_memory_tracking(self):
+    def test_gpu_memory_tracking(self, monkeypatch):
         profiler = PerformanceProfiler()
 
-        # Mock GPU as available and import torch in the method
+        mock_torch = MagicMock()
+        mock_torch.cuda.is_available.return_value = True
+        mock_torch.cuda.memory_allocated.return_value = 100 * 1024 * 1024
+        mock_torch.cuda.max_memory_allocated.return_value = 200 * 1024 * 1024
+        monkeypatch.setitem(sys.modules, "torch", mock_torch)
+
         with patch.object(profiler, "_gpu_available", True):
-            # Need to patch torch at the point where it's imported (inside _get_memory_info)
-            # Since torch is imported inside the method, we need to patch it differently
-            import sys
-            from unittest.mock import MagicMock
+            memory_info = profiler._get_memory_info()
 
-            # Create a mock torch module
-            mock_torch = MagicMock()
-            mock_torch.cuda.is_available.return_value = True
-            mock_torch.cuda.memory_allocated.return_value = 100 * 1024 * 1024  # 100 MB
-            mock_torch.cuda.max_memory_allocated.return_value = 200 * 1024 * 1024  # 200 MB
-
-            # Patch torch in sys.modules for the duration of the call
-            original_torch = sys.modules.get("torch")
-            sys.modules["torch"] = mock_torch
-
-            try:
-                memory_info = profiler._get_memory_info()
-
-                # GPU tracking may or may not work depending on implementation
-                # Just verify the method completes without error
-                assert memory_info is not None
-            finally:
-                # Restore original torch if it existed
-                if original_torch is not None:
-                    sys.modules["torch"] = original_torch
-                elif "torch" in sys.modules:
-                    del sys.modules["torch"]
+        assert memory_info.gpu_mb == 100.0
+        assert memory_info.gpu_percent == 50.0
 
     def test_memory_snapshots_ordering(self):
         profiler = PerformanceProfiler()
 
-        # Take snapshots with delays
         profiler.snapshot_memory()
         time.sleep(0.01)
         profiler.snapshot_memory()
         time.sleep(0.01)
         profiler.snapshot_memory()
 
-        # Check ordering
         for i in range(len(profiler._memory_snapshots) - 1):
             assert profiler._memory_snapshots[i][0] <= profiler._memory_snapshots[i + 1][0]
 
     def test_profile_section_exception_handling(self):
         profiler = PerformanceProfiler()
 
-        # Cannot combine pytest.raises with profile_section - they serve different purposes
-        # pytest.raises must be the outer context to catch exceptions
         with pytest.raises(ValueError):  # noqa: SIM117
             with profiler.profile_section("exception_test"):
                 raise ValueError("Test exception")
 
-        # Timing should still be recorded
         assert "exception_test" in profiler._timings
         assert len(profiler._timings["exception_test"]) == 1
 
@@ -299,7 +281,6 @@ class TestProfilerDecorators:
         result = obj.test_method()
 
         assert result == "result"
-        # Check that timing was recorded
         summary = obj.profiler.get_summary()
         assert len(summary["timings"]) > 0
 
@@ -329,11 +310,8 @@ class TestProfilerDecorators:
 
         assert result == "step_result"
 
-        # Check that optimizer step was counted
         summary = optimizer.profiler.get_summary()
         assert summary["calculator_calls"]["optimizer_steps"] == 1
-
-        # Check that timing was recorded
         assert "optimizer_step" in summary["timings"]
 
     def test_profile_optimizer_step_multiple(self):

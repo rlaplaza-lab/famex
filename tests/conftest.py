@@ -126,9 +126,9 @@ def ethylene_twisted_ts_guess():
 # ============================================================================
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def uma_backend():
-    """UMA backend calculator fixture."""
+    """Session-scoped UMA calculator (model load is expensive)."""
     from famex.backends.availability import is_backend_available
     from famex.backends.constants import DEFAULT_UMA_MODEL
 
@@ -142,9 +142,9 @@ def uma_backend():
     return calc
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def mace_backend():
-    """MACE backend calculator fixture."""
+    """Session-scoped MACE calculator (model load is expensive)."""
     from famex.backends.availability import is_backend_available
 
     if not is_backend_available("mace"):

@@ -30,13 +30,10 @@ class TestExplorerPathTraversal:
     def test_save_structure_allows_safe_paths(self, explorer, test_atoms, safe_path):  # noqa: F811
         with tempfile.TemporaryDirectory() as tmpdir:
             path = str(Path(tmpdir) / safe_path)
-            try:
-                explorer.save_structure(test_atoms, path)
-                assert Path(path).exists()
-                Path(path).unlink()
-            except Exception:
-                # Some paths might legitimately fail for non-security reasons
-                pass
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            explorer.save_structure(test_atoms, path)
+            assert Path(path).exists()
+            Path(path).unlink()
 
     @pytest.mark.parametrize("safe_path", SAFE_PATHS[:3])
     def test_save_trajectory_allows_safe_paths(self, test_atoms, safe_path):  # noqa: F811
@@ -44,13 +41,10 @@ class TestExplorerPathTraversal:
         explorer = Explorer(test_atoms, backend="mock", target="path", strategy="neb")
         with tempfile.TemporaryDirectory() as tmpdir:
             path = str(Path(tmpdir) / safe_path)
-            try:
-                explorer.save_trajectory(trajectory, path)
-                assert Path(path).exists()
-                Path(path).unlink()
-            except Exception:
-                # Some paths might legitimately fail for non-security reasons
-                pass
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            explorer.save_trajectory(trajectory, path)
+            assert Path(path).exists()
+            Path(path).unlink()
 
     @pytest.mark.parametrize("null_byte_path", NULL_BYTE_PATHS)
     def test_explorer_rejects_null_bytes(self, test_atoms, null_byte_path):  # noqa: F811

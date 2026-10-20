@@ -294,12 +294,11 @@ class TestParseConstraintsFunction:
         """Test verbose logging."""
         from famex.constraints.parser import parse_constraints
 
-        with caplog.at_level("INFO"):
-            parse_constraints("fix 0; harmonic_bond 1,2 k=5.0", h2o_molecule, verbose=1)
+        with caplog.at_level("INFO", logger="famex.constraints.parser"):
+            result = parse_constraints("fix 0; harmonic_bond 1,2 k=5.0", h2o_molecule, verbose=1)
 
-        # Verbose logging may or may not be captured depending on logger configuration
-        # Just verify the function completes successfully with verbose=1
-        assert True  # Function executed without error
+        assert result is not None
+        assert "Applied constraints" in caplog.text
 
     def test_parse_constraints_quiet_mode(self, h2o_molecule, caplog):
         """Test that verbose=0 doesn't log."""

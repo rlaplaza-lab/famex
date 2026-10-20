@@ -16,11 +16,9 @@ from famex.optimizers.scipy_optimizers import (
     TrustNCG,
 )
 from tests.test_constants import (
-    COMPREHENSIVE_STEPS,
     DEFAULT_DELTA,
     DEFAULT_FMAX,
     DEFAULT_STEPS,
-    LONG_STEPS,
     LOOSE_FMAX,
     QUICK_STEPS,
     QUICK_STEPS_EXTENDED,
@@ -242,9 +240,8 @@ class TestSciPyOptimizersBasic:
         initial_energy = atoms.get_potential_energy()
         initial_positions = atoms.get_positions().copy()
 
-        # Test optimizer with tighter convergence
         opt = optimizer_class(atoms, logfile=None)
-        opt.run(fmax=DEFAULT_FMAX, steps=LONG_STEPS)
+        opt.run(fmax=DEFAULT_FMAX, steps=DEFAULT_STEPS)
 
         final_energy = atoms.get_potential_energy()
         final_positions = atoms.get_positions()
@@ -349,23 +346,19 @@ class TestRunMethodEdgeCases:
 
         opt = TrustKrylov(atoms, logfile=None, verbose=1)
 
-        # Use very loose convergence
-        result = opt.run(fmax=VERY_LOOSE_FMAX, steps=COMPREHENSIVE_STEPS)
+        result = opt.run(fmax=VERY_LOOSE_FMAX, steps=DEFAULT_STEPS)
 
         assert isinstance(result, bool)
-        # Might converge or not depending on forces
 
     def test_run_not_converged_warning(self, h2o_molecule_with_mock):
         atoms = h2o_molecule_with_mock
 
         opt = TrustKrylov(atoms, logfile=None, verbose=1)
 
-        # Use tight convergence with few steps
         result = opt.run(fmax=TIGHT_FMAX, steps=QUICK_STEPS)
 
-        # Result can be bool or numpy.bool_, just check it's a boolean-like value
-        assert bool(result) in (True, False)
-        # Likely won't converge in 2 steps
+        assert result is False
+        assert opt.nsteps == QUICK_STEPS
 
 
 class TestOptimizerErrors:
@@ -434,8 +427,7 @@ class TestSciPyTSOptimizers:
     def test_ts_search_runs_without_scipy_minimize(self, h2o_molecule_perturbed_with_mock):
         atoms = h2o_molecule_perturbed_with_mock
         opt = TrustKrylov(atoms, logfile=None, ts_search=True, hessian_update_freq=1)
-        result = opt.run(fmax=0.5, steps=3)
-        assert bool(result) in (True, False)
+        opt.run(fmax=0.5, steps=3)
         assert opt.nsteps > 0
         assert opt.hessian_calls == 0  # matrix-free path
 
@@ -456,8 +448,7 @@ class TestSciPyTSOptimizers:
     ):
         atoms = h2o_molecule_perturbed_with_mock
         opt = TrustNCG(atoms, logfile=None, ts_search=True, hessian_update_freq=1)
-        result = opt.run(fmax=0.5, steps=3)
-        assert bool(result) in (True, False)
+        opt.run(fmax=0.5, steps=3)
         assert opt.nsteps > 0
         assert opt.hessian_calls == 0
 

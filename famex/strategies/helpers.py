@@ -40,18 +40,21 @@ def ts_has_one_imaginary_mode(freq_analysis: dict[str, Any] | None) -> bool:
     """Return True when frequency analysis confirms a first-order saddle."""
     if not freq_analysis:
         return False
-    ts_info = freq_analysis.get("ts_analysis") or {}
-    n_imaginary = (
-        freq_analysis.get("n_imaginary_frequencies")
-        or freq_analysis.get("num_imaginary_modes")
-        or freq_analysis.get("n_imaginary_modes")
-        or (ts_info.get("n_imaginary_frequencies") if isinstance(ts_info, dict) else None)
-    )
-    if n_imaginary == 1:
-        return True
+    raw_ts = freq_analysis.get("ts_analysis")
+    ts_info: dict[str, Any] = raw_ts if isinstance(raw_ts, dict) else {}
+    n_imaginary: int | None = None
+    for key in ("n_imaginary_frequencies", "num_imaginary_modes", "n_imaginary_modes"):
+        if freq_analysis.get(key) is not None:
+            n_imaginary = int(freq_analysis[key])
+            break
+    if n_imaginary is None and ts_info.get("n_imaginary_frequencies") is not None:
+        n_imaginary = int(ts_info["n_imaginary_frequencies"])
+    # Explicit imag-count wins over boolean is_ts flags (0 must not be treated as missing).
+    if n_imaginary is not None:
+        return n_imaginary == 1
     if freq_analysis.get("is_ts") is True:
         return True
-    return isinstance(ts_info, dict) and ts_info.get("is_transition_state") is True
+    return ts_info.get("is_transition_state") is True
 
 
 def enforce_require_ts(

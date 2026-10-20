@@ -54,6 +54,7 @@ class _Session:
         self.calls: list[str] = []
 
     def get(self, url: str, timeout: float | None = None) -> _Response:
+        _ = timeout  # match requests.Session.get signature
         self.calls.append(url)
         if not self._responses:
             raise AssertionError(f"unexpected request {url}")

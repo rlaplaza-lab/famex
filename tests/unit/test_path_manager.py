@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from ase import Atoms
 
 import famex
@@ -8,20 +9,15 @@ from tests.test_utils import StandardTestAssertions
 
 class TestPathManager:
     def test_linear_interpolation_and_lengths(self, mock_backend):
-        # Use H2O -> H2O (slightly different geometry) for meaningful testing
         reactant = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         product = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
 
         path_mgr = famex.PathManager([reactant, product], calculator=mock_backend)
         path = path_mgr.interpolate(npoints=5, method="linear")
 
-        # Check path length
         assert len(path) == 5
-
-        # Check that all structures have correct number of atoms
         for structure in path:
-            assert len(structure) == 3  # H2O has 3 atoms
-            # Check that structure is reasonable
+            assert len(structure) == 3
             StandardTestAssertions.assert_reasonable_geometry(structure, "mock")
 
     def test_reaction_energy_calculation(self, mock_backend):
@@ -30,26 +26,17 @@ class TestPathManager:
 
         path_mgr = famex.PathManager([reactant, product], calculator=mock_backend)
 
-        # Test energy calculation using the reaction_energy property
         reaction_energy = path_mgr.reaction_energy
+        assert reaction_energy is not None
+        StandardTestAssertions.assert_energy_reasonable(reaction_energy, "mock")
+        assert isinstance(reaction_energy, int | float)
 
-        # Check that reaction energy is reasonable
-        if reaction_energy is not None:
-            StandardTestAssertions.assert_energy_reasonable(reaction_energy, "mock")
-            assert isinstance(reaction_energy, int | float)
-
-        # Test individual geometry energies
         reactant_energy = path_mgr.reactant.energy
         product_energy = path_mgr.product.energy
-
-        # Check that energies are reasonable
-        if reactant_energy is not None:
-            StandardTestAssertions.assert_energy_reasonable(reactant_energy, "mock")
-            assert isinstance(reactant_energy, int | float)
-
-        if product_energy is not None:
-            StandardTestAssertions.assert_energy_reasonable(product_energy, "mock")
-            assert isinstance(product_energy, int | float)
+        assert reactant_energy is not None
+        assert product_energy is not None
+        StandardTestAssertions.assert_energy_reasonable(reactant_energy, "mock")
+        StandardTestAssertions.assert_energy_reasonable(product_energy, "mock")
 
     def test_multi_segment_interpolation(self, mock_backend):
         struct1 = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
@@ -120,7 +107,8 @@ class TestPathManager:
         assert isinstance(filtered, list)
         assert isinstance(removed, list)
         assert isinstance(warnings, list)
-        assert len(filtered) <= 3
+        assert len(filtered) == 2
+        assert len(removed) == 1
 
     def test_path_statistics(self, mock_backend):
         reactant = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
@@ -129,7 +117,6 @@ class TestPathManager:
         path_mgr = famex.PathManager([reactant, product], calculator=mock_backend)
         path = path_mgr.interpolate(npoints=5, method="linear")
 
-        # Attach calculator to path
         for atoms in path:
             atoms.calc = mock_backend
 
@@ -141,3 +128,55 @@ class TestPathManager:
         assert "min_energy" in stats
         assert "max_energy" in stats
         assert stats["num_structures"] == 5
+
+    def test_initialization_requires_multiple_structures(self):
+        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        with pytest.raises(ValueError, match="requires at least 2 structures"):
+            famex.PathManager(atoms)
+        with pytest.raises(ValueError, match="requires at least 2 structures"):
+            famex.PathManager([])
+
+    def test_initialization_rejects_incompatible_structures(self):
+        atoms1 = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms2 = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
+        with pytest.raises(ValueError, match="Incompatible atoms"):
+            famex.PathManager([atoms1, atoms2])
+
+    def test_get_path_statistics_with_missing_energies(self, mock_backend):
+        path = []
+        for i in range(5):
+            atoms = Atoms("H2", positions=[[0, 0, 0], [0.7 + i * 0.1, 0, 0]])
+            if i % 2 == 0:
+                atoms.calc = mock_backend
+            path.append(atoms)
+
+        path_mgr = famex.PathManager([path[0], path[-1]], calculator=mock_backend)
+        stats = path_mgr.get_path_statistics(path)
+
+        assert stats["num_structures"] == 5
+        assert len(stats["energies"]) == 5
+
+    def test_short_path_ts_and_extrema(self, mock_backend):
+        path = [
+            Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]]),
+            Atoms("H2", positions=[[0, 0, 0], [0.8, 0, 0]]),
+        ]
+        for atoms in path:
+            atoms.calc = mock_backend
+
+        ts_structure, ts_index = famex.PathManager.find_ts_guess(path)
+        assert ts_structure is not None
+        assert 0 <= ts_index < len(path)
+
+        minima = famex.PathManager.find_local_minima(path)
+        maxima = famex.PathManager.find_local_maxima(path)
+        assert len(minima) >= 1
+        assert len(maxima) >= 1
+        assert all(0 <= i < len(path) for i in minima)
+        assert all(0 <= i < len(path) for i in maxima)
+
+        path_mgr = famex.PathManager([path[0], path[-1]], calculator=mock_backend)
+        stats = path_mgr.get_path_statistics(path)
+        assert "ts_index" in stats
+        assert "minima_indices" in stats
+        assert "maxima_indices" in stats

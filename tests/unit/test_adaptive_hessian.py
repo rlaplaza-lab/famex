@@ -20,9 +20,9 @@ from tests.test_utils import HarmonicCalculator, NoisyCalculator, requires_backe
 
 class TestNoiseEstimation:
     def test_estimate_richardson_noise(self):
-        # Create two slightly different Hessians
-        h1 = np.eye(3) + 0.01 * np.random.randn(3, 3)
-        h2 = np.eye(3) + 0.01 * np.random.randn(3, 3)
+        rng = np.random.default_rng(0)
+        h1 = np.eye(3) + 0.01 * rng.standard_normal((3, 3))
+        h2 = np.eye(3) + 0.01 * rng.standard_normal((3, 3))
 
         noise = estimate_richardson_noise(h1, h2)
         assert isinstance(noise, float)
@@ -226,6 +226,7 @@ class TestAutoselectMethod:
         assert hessian is not None
         assert hessian.shape == (6, 6)
 
+    @pytest.mark.slow
     @requires_backend("uma")
     def test_autoselect_uma_integration(self, water_molecule):
         atoms = water_molecule.copy()

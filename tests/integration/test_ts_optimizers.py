@@ -42,6 +42,8 @@ def _load_bh28_ts(reaction):
     return atoms
 
 
+@pytest.mark.slow
+@pytest.mark.integration
 class TestRFOTSOptimizer:
     """Tests for RFO (Rational Function Optimization) transition state optimizer."""
 

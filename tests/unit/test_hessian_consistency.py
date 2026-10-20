@@ -34,25 +34,22 @@ from tests.test_utils import HarmonicCalculator, parametrize_backends
 # ============================================================================
 
 
+_HESSIAN_CALC_CACHE: dict[str, object] = {}
+
+
 def get_backend_calculator_with_hessian(backend_name: str, model_name: str | None = None):
     """Get a calculator for a backend if it's available and supports analytical hessian.
 
-    Args:
-        backend_name: Name of the backend ('mace' or 'uma')
-        model_name: Optional model name. If None, uses default for backend.
-
-    Returns
-    -------
-    Calculator instance if backend is available and supports hessian.
-
-    Raises
-    ------
-    pytest.skip: If backend is not available or doesn't support hessian.
+    Calculators are cached by backend/model so expensive model loads happen once
+    per process.
     """
+    cache_key = f"{backend_name}:{model_name or ''}"
+    if cache_key in _HESSIAN_CALC_CACHE:
+        return _HESSIAN_CALC_CACHE[cache_key]
+
     if not is_backend_available(backend_name):
         pytest.skip(f"{backend_name} backend not available")
 
-    # Create calculator
     if backend_name == "mace":
         calc = famex.get_mace_calculator(model_name=model_name or "mace-omol-0")
     elif backend_name == "uma":
@@ -65,10 +62,10 @@ def get_backend_calculator_with_hessian(backend_name: str, model_name: str | Non
 
     calc.ensure_loaded()
 
-    # Check if calculator supports analytical hessian
     if not has_calculator_property(calc, "hessian"):
         pytest.skip(f"{backend_name} does not support analytical Hessian")
 
+    _HESSIAN_CALC_CACHE[cache_key] = calc
     return calc
 
 
@@ -188,6 +185,7 @@ class TestBackendHessianConsistency:
         )
 
 
+@pytest.mark.slow
 class TestUMAHessianMethods:
     """Tests specific to UMA backend's different hessian computation methods."""
 
@@ -463,6 +461,7 @@ class TestRichardsonExtrapolation:
             error_rich, error_no_rich, rtol=TIGHT_TOL[0]
         )
 
+    @pytest.mark.slow
     def test_richardson_central_uma(self, water_molecule):
         """Test Richardson extrapolation with UMA backend."""
         atoms = water_molecule.copy()
@@ -501,6 +500,7 @@ class TestRichardsonExtrapolation:
 # ============================================================================
 
 
+@pytest.mark.slow
 class TestFrequencyAnalysisMethods:
     def test_frequency_analysis_methods(self, water_molecule):
         """Test different frequency analysis methods."""
@@ -580,6 +580,7 @@ class TestFrequencyAnalysisMethods:
 # ============================================================================
 
 
+@pytest.mark.slow
 class TestHessianAdvancedFeatures:
     def test_hessian_with_indices(self, water_molecule):
         """Test hessian calculation with partial atom indices."""

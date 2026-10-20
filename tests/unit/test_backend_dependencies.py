@@ -179,10 +179,8 @@ class TestDependencyContext:
         """Test context manager exit doesn't raise errors."""
         manager = DependencyManager()
         context = manager.need("sella")
-        with context:
-            pass
-        # Should exit cleanly
-        assert True
+        assert context.__enter__() is not None
+        assert context.__exit__(None, None, None) is None
 
     def test_context_manager_raises_on_missing(self):
         """Test context manager raises DependencyError for missing dependencies."""

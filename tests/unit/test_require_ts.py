@@ -9,6 +9,7 @@ import pytest
 from ase import Atoms
 
 from famex.core.explorer import Explorer
+from famex.strategies.growing_string import MultiStructureGrowingStringStrategy
 from famex.strategies.helpers import (
     enforce_require_ts,
     resolve_require_ts,
@@ -47,7 +48,16 @@ class TestRequireTsHelpers:
         assert ts_has_one_imaginary_mode({"is_ts": True}) is True
         assert ts_has_one_imaginary_mode({"n_imaginary_frequencies": 1}) is True
         assert ts_has_one_imaginary_mode({"n_imaginary_frequencies": 0}) is False
+        assert ts_has_one_imaginary_mode({"n_imaginary_frequencies": 2}) is False
+        assert ts_has_one_imaginary_mode({"is_ts": True, "n_imaginary_frequencies": 0}) is False
+        assert ts_has_one_imaginary_mode({"is_ts": True, "n_imaginary_frequencies": 2}) is False
         assert ts_has_one_imaginary_mode({"ts_analysis": {"is_transition_state": True}}) is True
+        assert (
+            ts_has_one_imaginary_mode(
+                {"is_ts": True, "ts_analysis": {"n_imaginary_frequencies": 0}}
+            )
+            is False
+        )
 
     def test_enforce_raises_when_not_saddle(self) -> None:
         explorer = MagicMock()
@@ -96,14 +106,13 @@ class TestRequireTsHelpers:
             check_converged=True,
         )
         explorer.calculate_frequencies.assert_called_once()
-        assert result is not None
         assert result["is_ts"] is True
 
 
 class TestLocalTSRequireTs:
     def test_raises_when_require_ts_and_not_saddle(self) -> None:
         atoms = _water()
-        explorer = Explorer(atoms, backend="uma", target="ts", strategy="local")
+        explorer = Explorer(atoms, backend="mock", target="ts", strategy="local")
         strategy = LocalTSStrategy(explorer)
         fake_result: dict[str, Any] = {
             "optimized_atoms": atoms,
@@ -124,7 +133,7 @@ class TestLocalTSRequireTs:
 
     def test_does_not_raise_when_allow_ts(self) -> None:
         atoms = _water()
-        explorer = Explorer(atoms, backend="uma", target="ts", strategy="local")
+        explorer = Explorer(atoms, backend="mock", target="ts", strategy="local")
         strategy = LocalTSStrategy(explorer)
         fake_result: dict[str, Any] = {
             "optimized_atoms": atoms,
@@ -147,7 +156,7 @@ class TestLocalTSRequireTs:
         atoms = _water()
         explorer = Explorer(
             atoms,
-            backend="uma",
+            backend="mock",
             target="ts",
             strategy="local",
             ts_kwargs={"require_ts": True},
@@ -174,7 +183,7 @@ class TestLocalTSRequireTs:
         atoms = _water()
         explorer = Explorer(
             atoms,
-            backend="uma",
+            backend="mock",
             target="ts",
             strategy="local",
             ts_kwargs={"require_ts": True, "trust_radius": 0.02},
@@ -213,7 +222,7 @@ class TestInterpolateInheritsRequireTs:
         product.positions[0, 0] += 0.1
         explorer = Explorer(
             [reactant, product],
-            backend="uma",
+            backend="mock",
             target="ts",
             strategy="interpolate",
             ts_kwargs={"require_ts": True},
@@ -248,8 +257,6 @@ class TestInterpolateInheritsRequireTs:
 
 class TestGrowingStringRequireTs:
     def test_growing_string_passes_require_ts_false_to_local_refine(self) -> None:
-        from famex.strategies.growing_string import MultiStructureGrowingStringStrategy
-
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
         explorer = Explorer(
@@ -286,9 +293,7 @@ class TestGrowingStringRequireTs:
         assert all(kw.get("require_ts") is False for kw in captured_kwargs)
         assert result.get("is_ts") is True
 
-    def test_growing_string_raises_when_not_saddle_ignores_strings_met(self) -> None:
-        from famex.strategies.growing_string import MultiStructureGrowingStringStrategy
-
+    def test_growing_string_raises_when_not_saddle_even_if_strings_not_met(self) -> None:
         reactant = Atoms("H2", positions=[(0, 0, 0), (0.7, 0, 0)])
         product = Atoms("H2", positions=[(0, 0, 0), (1.5, 0, 0)])
         explorer = Explorer(
@@ -306,6 +311,7 @@ class TestGrowingStringRequireTs:
                 "strategy": "ts:local",
                 "steps_taken": 1,
                 "frequency_analysis": {"is_ts": False, "n_imaginary_frequencies": 0},
+                "strings_met": False,
             }
 
         with (
