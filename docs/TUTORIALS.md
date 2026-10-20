@@ -55,7 +55,7 @@ explorer = famex.Explorer.from_smiles("CCO", backend="aimnet2", target="minima",
 result = explorer.run(fmax=0.05, steps=1000)
 ```
 
-The pysmiles embedder covers the periodic table: tabulated UFF types for common main-group atoms, and covalent-radius fallbacks otherwise. It does not encode square-planar versus tetrahedral preference, crystal periodicity, or dative-bond arrows. Treat either embedder's coordinates as a guess and minimize them.
+The pysmiles embedder covers the periodic table: tabulated Universal Force Field (UFF) types for common main-group atoms, and covalent-radius fallbacks otherwise. It does not encode square-planar versus tetrahedral preference, crystal periodicity, or dative-bond arrows. Treat either embedder's coordinates as a guess and minimize them.
 
 ### From PubChem
 
@@ -75,7 +75,7 @@ explorer = famex.Explorer.from_pubchem("aspirin", backend="aimnet2", target="min
 
 ### Optimizers
 
-| Optimizer | Type | Best For |
+| Optimizer | Type | Use when |
 |-----------|------|----------|
 | `default` | Auto-select | `lbfgs` for minima/path, `rfo` for TS |
 | `lbfgs` | First-order | Large systems, default for minima |
@@ -84,9 +84,9 @@ explorer = famex.Explorer.from_pubchem("aspirin", backend="aimnet2", target="min
 | `sella` | Second-order | Transition states, finite-difference Hessian |
 | `sella-analytical` | Second-order | Transition states when the backend has an analytical Hessian |
 | `trust-krylov` | Second-order | When Hessians are cheap |
-| `trust-ncg` | Second-order | Trust-region with nonlinear CG |
+| `trust-ncg` | Second-order | Trust-region with nonlinear conjugate gradient |
 | `trust-exact` | Second-order | Trust-region with exact Hessian |
-| `newton-cg` | Second-order | Newton-CG method (minima only) |
+| `newton-cg` | Second-order | Newton–CG method (minima only) |
 | `rfo` | Second-order | Rational Function Optimization for TS |
 
 ### Convergence
@@ -136,7 +136,7 @@ explorer = famex.Explorer([reactant, product], target="ts", strategy="interpolat
 result = explorer.run(npoints=15)
 ```
 
-### Growing String (DE-GSM)
+### Growing String (double-ended growing string / DE-GSM)
 
 Omitting `--npoints` and `--steps` uses 15 images and 200 steps, the same defaults as `Explorer.run` for `growing_string`. `--max-images` overrides `--npoints` when you set it.
 
@@ -167,7 +167,7 @@ n_imag = freq_result["ts_analysis"]["n_imaginary_frequencies"]
 
 ## Reaction Paths
 
-### NEB / CI-NEB
+### Nudged Elastic Band (NEB) / Climbing-Image NEB (CI-NEB)
 
 The NEB and CI-NEB spring constant defaults to `5.0`, and both default to 1000 steps, on the CLI and in Python.
 
@@ -183,7 +183,7 @@ path = result.get("trajectory", result["optimized_atoms"])
 explorer.save_trajectory(path, "neb_path.xyz")
 ```
 
-### IRC from a transition state
+### Intrinsic Reaction Coordinate (IRC) from a transition state
 
 IRC defaults to 100 steps on the CLI and in Python.
 

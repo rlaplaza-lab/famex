@@ -14,6 +14,87 @@ from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
 
+# Not an optimizer keyword; stored on explorer.ts_kwargs by the CLI for strategy use.
+_REQUIRE_TS_KWARG = "require_ts"
+
+
+def resolve_require_ts(require_ts: bool | None, explorer: Any) -> bool:
+    """Resolve whether a first-order saddle is required.
+
+    An explicit ``require_ts`` argument wins. Otherwise read
+    ``explorer.ts_kwargs["require_ts"]`` (set by ``--require-ts``).
+    """
+    if require_ts is not None:
+        return bool(require_ts)
+    explorer_ts_kwargs = getattr(explorer, "ts_kwargs", None) or {}
+    return bool(explorer_ts_kwargs.get(_REQUIRE_TS_KWARG, False))
+
+
+def strip_require_ts_from_optimizer_kwargs(opt_kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Remove ``require_ts`` so it is not forwarded to TS optimizers."""
+    opt_kwargs.pop(_REQUIRE_TS_KWARG, None)
+    return opt_kwargs
+
+
+def ts_has_one_imaginary_mode(freq_analysis: dict[str, Any] | None) -> bool:
+    """Return True when frequency analysis confirms a first-order saddle."""
+    if not freq_analysis:
+        return False
+    ts_info = freq_analysis.get("ts_analysis") or {}
+    n_imaginary = (
+        freq_analysis.get("n_imaginary_frequencies")
+        or freq_analysis.get("num_imaginary_modes")
+        or freq_analysis.get("n_imaginary_modes")
+        or (ts_info.get("n_imaginary_frequencies") if isinstance(ts_info, dict) else None)
+    )
+    if n_imaginary == 1:
+        return True
+    if freq_analysis.get("is_ts") is True:
+        return True
+    return isinstance(ts_info, dict) and ts_info.get("is_transition_state") is True
+
+
+def enforce_require_ts(
+    *,
+    require_ts: bool,
+    atoms: Atoms | None,
+    explorer: Any,
+    freq_analysis: dict[str, Any] | None = None,
+    check_converged: bool | None = None,
+    temperature: float = 298.15,
+) -> dict[str, Any] | None:
+    """Raise if ``require_ts`` and the structure is not a first-order saddle.
+
+    When ``check_converged`` is ``False``, treat failed local refinement as an
+    error. ``None``/``True`` skips that check. Returns ``freq_analysis``,
+    computing it via ``explorer.calculate_frequencies`` when missing.
+    """
+    if not require_ts:
+        return freq_analysis
+
+    errors: list[str] = []
+    if check_converged is False:
+        errors.append("Local TS refinement failed to converge.")
+
+    if freq_analysis is None and atoms is not None and explorer is not None:
+        freq_analysis = explorer.calculate_frequencies(
+            atoms=atoms,
+            temperature=temperature,
+            save_hessian=False,
+        )
+
+    if freq_analysis is None:
+        errors.append("Frequency analysis unavailable for TS validation.")
+    elif not ts_has_one_imaginary_mode(freq_analysis):
+        errors.append(
+            "Refined structure is not a first-order saddle "
+            "(vibrational characterization failed: need exactly one imaginary mode)."
+        )
+
+    if errors:
+        raise RuntimeError("TS validation failed with require_ts=True:\n- " + "\n- ".join(errors))
+    return freq_analysis
+
 
 def validate_ts_structure(
     atoms: Atoms,

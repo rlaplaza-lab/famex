@@ -15,7 +15,12 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import validate_ts_structure
+from famex.strategies.helpers import (
+    enforce_require_ts,
+    resolve_require_ts,
+    ts_has_one_imaginary_mode,
+    validate_ts_structure,
+)
 from famex.strategies.minima import LocalMinimaStrategy
 from famex.strategies.ts import LocalTSStrategy
 from famex.strategies.utils import StrategyUtils
@@ -586,23 +591,6 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         )
         return valid_energies
 
-    def _ts_has_one_imaginary_mode(self, freq_analysis: dict[str, Any] | None) -> bool:
-        """Return True when frequency analysis confirms a first-order saddle."""
-        if not freq_analysis:
-            return False
-        ts_info = freq_analysis.get("ts_analysis") or {}
-        n_imaginary = (
-            freq_analysis.get("n_imaginary_frequencies")
-            or freq_analysis.get("num_imaginary_modes")
-            or freq_analysis.get("n_imaginary_modes")
-            or (ts_info.get("n_imaginary_frequencies") if isinstance(ts_info, dict) else None)
-        )
-        if n_imaginary == 1:
-            return True
-        if freq_analysis.get("is_ts") is True:
-            return True
-        return isinstance(ts_info, dict) and ts_info.get("is_transition_state") is True
-
     def _refine_ts_candidates(
         self,
         ts_candidates: list[tuple[int, float]],
@@ -649,12 +637,14 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     f"(E = {candidate_energy:.6f} eV)"
                 )
 
+            # Defer require_ts enforcement until after candidate selection.
             ts_result = ts_strategy.run(
                 [ts_guess],
                 fmax=ts_refinement_fmax,
                 steps=ts_refinement_steps,
                 local_optimizer_name=ts_refinement_optimizer,
                 calculate_frequencies=True,
+                require_ts=False,
                 **ts_call_kwargs,
             )
             ts_structure = ensure_atoms(ts_result["optimized_atoms"], "TS refinement")
@@ -667,7 +657,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 best_structure = ts_structure
                 best_converged = ts_converged
 
-            if self._ts_has_one_imaginary_mode(freq_analysis):
+            if ts_has_one_imaginary_mode(freq_analysis):
                 logger.info(
                     f"Growing String: Valid TS found from image {candidate_index} after refinement"
                 )
@@ -806,13 +796,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         """
         self.validate_inputs(atoms_list)
 
-        # Parse parameters
-        if require_ts is None:
-            explorer_ts_kwargs = getattr(self.explorer, "ts_kwargs", {}) or {}
-            require_ts = bool(explorer_ts_kwargs.get("require_ts", False))
-        else:
-            require_ts = bool(require_ts)
-
+        require_ts = resolve_require_ts(require_ts, self.explorer)
         kwargs.pop("require_ts", None)
 
         self.max_nodes = kwargs.get("max_images") or kwargs.get("npoints", 15)
@@ -1059,39 +1043,29 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             if freq_analysis_val is not None and isinstance(freq_analysis_val, dict):
                 freq_analysis = freq_analysis_val
 
-        if (
-            (require_ts or calculate_frequencies)
-            and freq_analysis is None
-            and isinstance(ts_structure, Atoms)
-        ):
-            if self.explorer is not None:
-                freq_analysis = self.explorer.calculate_frequencies(
-                    atoms=ts_structure,
-                    temperature=kwargs.get("temperature", 298.15),
-                    save_hessian=False,
-                )
-
+        temperature = float(kwargs.get("temperature", 298.15))
         # Valid TS := vibrationally a first-order saddle (exactly one imaginary
         # mode). ``strings_met`` is path-growth metadata only and must not gate
         # TS validity (strings often hit max images before formally meeting).
-        validation_error_messages: list[str] = []
         if require_ts:
-            if refine_ts and not ts_converged:
-                validation_error_messages.append("Local TS refinement failed to converge.")
-            if freq_analysis is None:
-                validation_error_messages.append(
-                    "Frequency analysis unavailable for TS validation."
-                )
-            elif not self._ts_has_one_imaginary_mode(freq_analysis):
-                validation_error_messages.append(
-                    "Refined structure is not a first-order saddle "
-                    "(vibrational characterization failed: need exactly one imaginary mode)."
-                )
-
-        if validation_error_messages:
-            raise RuntimeError(
-                "TS validation failed with require_ts=True:\n- "
-                + "\n- ".join(validation_error_messages)
+            freq_analysis = enforce_require_ts(
+                require_ts=True,
+                atoms=ts_structure if isinstance(ts_structure, Atoms) else None,
+                explorer=self.explorer,
+                freq_analysis=freq_analysis,
+                check_converged=(False if (refine_ts and not ts_converged) else None),
+                temperature=temperature,
+            )
+        elif (
+            calculate_frequencies
+            and freq_analysis is None
+            and isinstance(ts_structure, Atoms)
+            and self.explorer is not None
+        ):
+            freq_analysis = self.explorer.calculate_frequencies(
+                atoms=ts_structure,
+                temperature=temperature,
+                save_hessian=False,
             )
 
         if validation_result is not None:

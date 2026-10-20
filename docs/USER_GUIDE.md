@@ -22,14 +22,14 @@ Reference for CLI, Python API, and backends.
 |--------|----------|-------------|
 | `minima` | `local` | Direct local optimization |
 | `minima` | `interpolate` | Minima from interpolated path |
-| `ts` | `local` | Local TS search |
-| `ts` | `interpolate` | TS guess from IDPP interpolation + local refinement |
-| `ts` | `cineb` | IDPP path, energy-weighted CI-NEB (looser band `fmax`), then local TS refinement |
-| `ts` | `dhs` | Dewar–Healy–Stewart two-image bracket + local TS refinement |
-| `ts` | `growing_string` | Growing string method (DE-GSM) |
-| `path` | `neb` | NEB path optimization |
+| `ts` | `local` | Local transition-state (TS) search |
+| `ts` | `interpolate` | TS guess from Image-Dependent Pair Potential (IDPP) interpolation + local refinement |
+| `ts` | `cineb` | IDPP path, energy-weighted Climbing-Image Nudged Elastic Band (CI-NEB; looser band `fmax`), then local TS refinement |
+| `ts` | `dhs` | Dewar–Healy–Stewart (DHS) two-image bracket + local TS refinement |
+| `ts` | `growing_string` | Double-ended growing string method (DE-GSM) |
+| `path` | `neb` | Nudged Elastic Band (NEB) path optimization |
 | `path` | `cineb` | CI-NEB path optimization |
-| `path` | `irc` | IRC path from transition state |
+| `path` | `irc` | Intrinsic Reaction Coordinate (IRC) path from transition state |
 | `path` | `interpolate` | Generate path only (no optimization) |
 
 ## Installation
@@ -60,7 +60,7 @@ See [README.md](../README.md) for the full backend table.
 - `famex path` - Reaction path optimization (outputs trajectories)
 - `famex cache` - Cache management
 
-Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES string, `pubchem:NAME`, `cid:`, or a bare numeric CID. A bare non-numeric name on those commands is treated as SMILES. Use `--embedder pysmiles` (default, `pip install famex[smiles]`) or `--embedder rdkit` (`pip install famex[rdkit]`) when coordinates are built from SMILES.
+Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES string (a text encoding of molecular connectivity), `pubchem:NAME`, `cid:`, or a bare numeric CID. A bare non-numeric name on those commands is treated as SMILES. Use `--embedder pysmiles` (default, `pip install famex[smiles]`) or `--embedder rdkit` (`pip install famex[rdkit]`) when coordinates are built from SMILES.
 
 ### Global Options
 
@@ -82,8 +82,8 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
 | `--temperature` | `298.15` | `minima` and `ts` only. Temperature in Kelvin for thermodynamic calculations |
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
 | `--freq`, `--frequencies` | `False` | `minima` and `ts` only. Perform frequency analysis after optimization (includes thermodynamic properties) |
-| `--cleanup-frequencies` | `False` | `minima` and `ts` only. After optimization, run Hessian-based cleanup until there are 0 (minimum) or 1 (TS) relevant imaginary frequencies |
-| `--force-finite-diff-hessian` | `False` | Force use of finite difference hessians for TS optimizers and frequency calculations. When disabled (default), backends with analytical Hessian support (`uma`, `mace`, `aimnet2`, `orb` conservative models, `pet`, `so3lr`, `pyscf`) use the analytical Hessian automatically. `tblite` and non-conservative Orb models fall back to finite differences (no differentiable energy Hessian). |
+| `--cleanup-frequencies` | `False` | `minima` and `ts` only. After optimization, clean up using the Hessian (matrix of second energy derivatives) until there are 0 (minimum) or 1 (TS) relevant imaginary frequencies |
+| `--force-finite-diff-hessian` | `False` | Force finite-difference Hessians for TS optimizers and frequency calculations. When disabled (default), backends with analytical Hessian support (`uma`, `mace`, `aimnet2`, `orb` conservative models, `pet`, `so3lr`, `pyscf`) use the analytical Hessian automatically. `tblite` and non-conservative Orb models fall back to finite differences. |
 
 ### famex minima - Minima Optimization
 
@@ -172,7 +172,7 @@ famex ts --strategy {local,interpolate,cineb,growing_string,dhs} INPUT [OPTIONS]
 | `--step-size` | strategy default | growing_string: 0.1; dhs `large_step`: 0.2 |
 | `--dhs-small-step` | `0.05` | DHS small step when images are close |
 | `--dhs-switch-thresh` | `1.5` | DHS distance below which small_step is used |
-| `--require-ts/--allow-ts` | `--allow-ts` | Require a vibrationally validated first-order saddle (exactly one imaginary mode; raises if characterization fails). Growing-string sides meeting is not required. |
+| `--require-ts/--allow-ts` | `--allow-ts` | For all `famex ts` strategies: raise unless the result is vibrationally a first-order saddle (exactly one imaginary mode). For growing string, whether the two sides formally met does not affect this check. |
 
 #### Examples
 
@@ -202,6 +202,7 @@ famex ts --strategy dhs reactant.xyz --product product.xyz
 famex ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
 
 # Strict validation (raises unless vibrationally a first-order saddle)
+famex ts --strategy local ts_guess.xyz --require-ts
 famex ts --strategy growing_string reactant.xyz --product product.xyz --require-ts
 
 # With frequency analysis
@@ -293,8 +294,8 @@ When the input is SMILES (or PubChem has no 3D conformer), coordinates are built
 
 | Embedder | Install | What it does |
 |----------|---------|--------------|
-| `pysmiles` (default) | `pip install famex[smiles]` | UFF distance geometry, then a short UFF-like cleanup |
-| `rdkit` | `pip install famex[rdkit]` | RDKit ETKDGv3 |
+| `pysmiles` (default) | `pip install famex[smiles]` | Universal Force Field (UFF) distance geometry, then a short UFF-like cleanup |
+| `rdkit` | `pip install famex[rdkit]` | RDKit ETKDGv3 distance-geometry embedder |
 
 Either result is a starting geometry: pass it straight into optimization (for example `famex minima`).
 
@@ -379,9 +380,10 @@ Strategy results always include `optimized_atoms` and `strategy`. Common optiona
 | Key | When present |
 |-----|----------------|
 | `optimized_atoms` | Single `Atoms` (minima/TS) or `list[Atoms]` (path) |
-| `trajectory` | Path strategies (`neb`, `cineb`, `irc`, `interpolate`, `growing_string`) |
+| `trajectory` | Path strategies (`neb`, `cineb`, `irc`, `interpolate`) and growing string |
 | `converged`, `steps_taken` | After optimization |
-| `frequency_analysis`, `ts_validation` | When `calculate_frequencies=True` or `--freq` |
+| `frequency_analysis` | When `calculate_frequencies=True` or `--freq` (also computed when `--require-ts` needs frequencies) |
+| `ts_validation` | When `validate_ts=True` (soft check; does not raise). `--require-ts` raises instead of only attaching this key |
 
 ### Default models
 
@@ -401,24 +403,24 @@ When `--model-name` / `model_name` is omitted:
 
 OrbMol-v2 is selected with `--model-name orbmol-v2`. That checkpoint ships in `orb-models>=0.7.0`, which requires Python 3.12.
 
-For **TBLite**, pass the xTB level via `--model-name` (default `GFN2-xTB`, e.g. `GFN1-xTB`). For **PySCF**, pass the DFT level as `xc/basis` (default `b3lyp-d3bj/def2-svp`).
+For **TBLite**, pass the extended tight-binding (xTB) method via `--model-name` (default `GFN2-xTB`, e.g. `GFN1-xTB`). For **PySCF**, pass the density functional theory (DFT) level as `xc/basis` (default `b3lyp-d3bj/def2-svp`).
 
 Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin` (or `Explorer` kwargs). UMA and related backends read `atoms.info["charge"]` and `atoms.info["spin"]` when set.
 
 ## Backend Guide
 
-FAMEX is built around machine learning potentials. Classical QC backends are optional for checks or small systems.
+FAMEX is built around machine learning potentials. Classical quantum-chemistry backends are optional for checks or small systems.
 
-| Backend | Installation | Best For | Notes |
+| Backend | Installation | Use when | Notes |
 |---------|--------------|----------|-------|
-| `aimnet2` | `pip install torch` | Beginners, molecules | No conflicts, fast; analytical Hessian via autograd |
-| `uma` | `pip install "fairchem-core>=2.22.0"` or `pip install famex[uma]` | Materials science (default: uma-s-1p2) | Conflicts with MACE; analytical Hessian |
-| `mace` | `pip install mace-torch` | High accuracy molecules | Conflicts with UMA; analytical Hessian |
-| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | Molecules (`orbmol-v2`) and materials | Python 3.12+; analytical Hessian for conservative models; FD for non-conservative |
-| `so3lr` | `pip install so3lr` | Research | Custom models; analytical Hessian via JAX |
-| `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential | Python 3.11+; analytical Hessian via double-backward |
-| `tblite` | `pip install tblite` | Optional xTB | `--model-name` method (default `GFN2-xTB`); FD Hessian |
-| `pyscf` | `pip install famex[pyscf]` | Optional DFT | `--model-name xc/basis` (default `b3lyp-d3bj/def2-svp`); analytical Hessian |
+| `aimnet2` | `pip install torch` | Molecules; simplest install | No `e3nn` conflict with other backends; analytical Hessian |
+| `uma` | `pip install "fairchem-core>=2.22.0"` or `pip install famex[uma]` | Materials and molecules (default: uma-s-1p2) | Conflicts with MACE; analytical Hessian |
+| `mace` | `pip install mace-torch` | Molecules | Conflicts with UMA; analytical Hessian |
+| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | Molecules (`orbmol-v2`) and materials | Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
+| `so3lr` | `pip install so3lr` | Custom / research models | Analytical Hessian via JAX |
+| `pet` | `pip install upet` or `pip install famex[pet]` | PET-MAD potential | Python 3.11+; analytical Hessian |
+| `tblite` | `pip install tblite` | Semi-empirical xTB | `--model-name` method (default `GFN2-xTB`); finite-difference Hessian |
+| `pyscf` | `pip install famex[pyscf]` | Small-system DFT | `--model-name xc/basis` (default `b3lyp-d3bj/def2-svp`); analytical Hessian |
 | `mock` | Built-in | Testing | Development only |
 
 ### Dependency Conflicts
@@ -437,11 +439,11 @@ conda activate famex-mace && pip install famex mace-torch
 
 ### Interpolation Methods
 
-| Method | Description | Best For |
+| Method | Description | Use when |
 |--------|-------------|----------|
-| `geodesic` | Distance-preserving with bond refinement | Default, chemically reasonable |
+| `geodesic` | Distance-preserving with bond refinement | Default path guesses |
 | `idpp` | Image-Dependent Pair Potential | Large geometry changes |
-| `linear` | Simple linear interpolation | Quick initial guesses |
+| `linear` | Straight-line interpolation in Cartesian coordinates | Quick initial guesses |
 
 Usage: `famex path --strategy neb reactant.xyz product.xyz --interp idpp`
 

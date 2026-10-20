@@ -1,6 +1,6 @@
 # BH28 Benchmark
 
-Comprehensive evaluation of FAMEX backends on the BH28 database of chemical reaction barrier heights.
+Evaluation of FAMEX backends on the BH28 database of chemical reaction barrier heights.
 
 ## Overview
 
@@ -15,7 +15,7 @@ Evaluates FAMEX backends on the BH28 database (28 chemical reactions) to test ML
 ## Usage
 
 ```bash
-# Run comprehensive benchmark on all available backends
+# Run full benchmark on all available backends
 python bh28_benchmark.py
 
 # Quick test with representative subset of reactions
@@ -114,11 +114,11 @@ For TS optimizer comparison on BH28 structures, use `../ts_optimizer_benchmark.p
 - **RMSE (Root Mean Square Error)**: Root mean square difference from reference
 - **Timing**: Average time per reaction optimization
 
-### Backend Recommendations
+### Backend notes
 
-- **High Accuracy**: AIMNet2 typically shows lowest errors
-- **Speed**: UMA often provides good speed/accuracy balance
-- **Robustness**: SO3LR may be more stable for difficult cases
+- AIMNet2 often shows the lowest barrier errors on this set
+- UMA is usually a good speed/accuracy compromise
+- Results vary by reaction; check the generated tables for your backends
 
 ## Citation
 

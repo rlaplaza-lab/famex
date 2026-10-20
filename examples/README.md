@@ -1,31 +1,27 @@
 # FAMEX Examples
 
-Examples and benchmarks demonstrating FAMEX capabilities.
+Examples and benchmarks for FAMEX.
 
 ## Available Examples
 
-### Demos (User-Facing Examples)
-
-These examples demonstrate how to use FAMEX's Python API and CLI interface:
+### Demos
 
 | Example | Description | API Usage | Notes |
 |---------|-------------|-----------|-------|
-| `cli_demo.py` | CLI interface demo with backend comparison | CLI commands | Comprehensive CLI testing |
-| `irc_demo.py` | IRC path calculation from transition state | `famex.Explorer` API | Uses `target="path"`, `strategy="irc"` |
-| `growing_string_demo.py` | Growing string method (DE-GSM) for TS search | `famex.Explorer` API | Uses `target="ts"`, `strategy="growing_string"` |
-| `thermochemistry_demo.py` | Thermochemistry capabilities (quasi-harmonic, solvation, etc.) | Analysis modules | Demonstrates analysis features |
+| `cli_demo.py` | Runs representative CLI commands across backends | CLI commands | Compares backends via CLI |
+| `irc_demo.py` | Intrinsic Reaction Coordinate (IRC) path from a transition state | `famex.Explorer` API | `target="path"`, `strategy="irc"` |
+| `growing_string_demo.py` | Growing string (DE-GSM) for TS search | `famex.Explorer` API | `target="ts"`, `strategy="growing_string"` |
+| `thermochemistry_demo.py` | Thermochemistry helpers (quasi-harmonic, solvation, and related) | Analysis modules | |
 
-### Benchmarks (Performance & Comparison)
-
-These scripts compare performance and accuracy across different backends and optimizers:
+### Benchmarks
 
 | Example | Description |
 |---------|-------------|
-| `timing_benchmark.py` | ML backend performance comparison |
+| `timing_benchmark.py` | Machine learning backend timing comparison |
 | `minima_optimizer_benchmark.py` | Minima optimizer comparison (lbfgs, bfgs, fire, trust-krylov) |
-| `ts_optimizer_benchmark.py` | Unified TS optimizer comparison: local TS (example, BH28 subset/full), hessian/trust sweeps, two-ended strategies |
-| `hessian_benchmark.py` | Hessian method comparison (FD schemes and backend methods; `--mode fd`, `backend`, or `both`) |
-| `bh28_benchmark/` | Chemical accuracy evaluation (28 reactions) |
+| `ts_optimizer_benchmark.py` | TS optimizer comparison: local TS (example, BH28 subset/full), hessian/trust sweeps, two-ended strategies |
+| `hessian_benchmark.py` | Hessian method comparison (finite-difference schemes and backend methods; `--mode fd`, `backend`, or `both`) |
+| `bh28_benchmark/` | Barrier-height accuracy on 28 reactions |
 | `zimmermann93_benchmark/` | Two-ended TS search benchmark; long-running — use `--quick` for testing |
 | `maiti30_benchmark/` | Metal-catalyzed growing-string TS search (30 reactions) |
 
@@ -76,20 +72,20 @@ python bh28_benchmark/bh28_benchmark.py --quick
 python zimmermann93_benchmark/zimmermann93_benchmark.py --quick
 
 # Hessian benchmark
-python hessian_benchmark.py --mode fd  # FD schemes only
+python hessian_benchmark.py --mode fd  # finite-difference schemes only
 python hessian_benchmark.py --mode backend --backends uma  # Backend methods only
 python hessian_benchmark.py --mode both --backends uma,mace  # Both
 python hessian_benchmark.py --quick  # Quick test with water only
 ```
 
 **Note:**
-- `hessian_benchmark.py` consolidates all Hessian comparison functionality (FD schemes, backend methods, adaptive features) into a single benchmark-style script following the pattern of other benchmarks.
-- All examples use the updated `famex.Explorer` API with the `target`/`strategy` paradigm where appropriate (CLI and analysis demos are exceptions by design).
+- `hessian_benchmark.py` covers finite-difference schemes, backend Hessian methods, and adaptive options in one script.
+- Demo and benchmark scripts use `famex.Explorer` with `target`/`strategy` where that API applies (CLI and analysis demos are exceptions).
 
 ## Requirements
 
 - FAMEX package installed
-- At least one ML backend (see [README](../README.md))
+- At least one machine learning backend (see [README](../README.md))
 - SELLA optimizer is included with FAMEX (core dependency)
 
 ## Supporting Files

@@ -14,7 +14,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: Which backend should I choose?
 
-**A:** Prefer an ML potential: FAMEX defaults to **UMA** (`uma-s-1p2`) via `fairchem-core>=2.22.0`. For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`) and pass `--backend aimnet2`. Optional classical QC (`tblite`, `pyscf`) is available for small systems but is not the primary path. See the [backend table](USER_GUIDE.md#backend-guide) in the User Guide.
+**A:** Prefer a machine learning potential: FAMEX defaults to **UMA** (`uma-s-1p2`) via `fairchem-core>=2.22.0`. For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`) and pass `--backend aimnet2`. Optional classical quantum chemistry (`tblite`, `pyscf`) is available for small systems but is not the primary path. See the [backend table](USER_GUIDE.md#backend-guide) in the User Guide.
 
 ### Q: Can I install multiple backends?
 
@@ -40,7 +40,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: What file formats are supported?
 
-**A:** All ASE-compatible formats (XYZ, CIF, PDB, VASP, and others supported by ASE I/O). `famex minima`, `famex ts`, and `famex path` also accept a SMILES string when the argument is not an existing file, or `pubchem:NAME`, `cid:`, and a bare numeric CID to download a conformer. A bare name on those commands is SMILES. `--embedder pysmiles` (default, `pip install famex[smiles]`) is distance geometry. `--embedder rdkit` (`pip install famex[rdkit]`) is ETKDGv3.
+**A:** Formats supported by the Atomic Simulation Environment (ASE) I/O layer (XYZ, CIF, PDB, VASP, and others). `famex minima`, `famex ts`, and `famex path` also accept a SMILES string when the argument is not an existing file, or `pubchem:NAME`, `cid:`, and a bare numeric CID to download a conformer. A bare name on those commands is SMILES. `--embedder pysmiles` (default, `pip install famex[smiles]`) is distance geometry. `--embedder rdkit` (`pip install famex[rdkit]`) is ETKDGv3.
 
 ### Q: Can SMILES embedding replace a force-field or ML minimization?
 
@@ -89,6 +89,7 @@ Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_a
 - Multiple imaginary frequencies: poor TS guess — try interpolation, growing string, or `rfo` / `sella`
 - No imaginary frequencies: structure may be a minimum — verify the TS guess
 - Use `--freq` or `calculate_frequencies()`; check `ts_analysis["n_imaginary_frequencies"]`
+- Use `--require-ts` to raise if the result is not a first-order saddle
 
 ### Q: UMA and MACE both installed but one fails?
 
@@ -98,11 +99,11 @@ Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_a
 
 ### Q: How do I speed up calculations?
 
-**A:** Use GPU (`--device cuda`) when available, or relax `--fmax` / `--steps` while prototyping.
+**A:** Use a GPU (`--device cuda`) when available, or relax `--fmax` / `--steps` while prototyping.
 
 ### Q: Which backend is fastest?
 
-**A:** Depends on system size, hardware, and task. AIMNet2 is typically fast for small organic molecules; UMA is the default general-purpose MLIP. Profile your workload with [`examples/timing_benchmark.py`](../examples/timing_benchmark.py).
+**A:** Depends on system size, hardware, and task. AIMNet2 is typically fast for small organic molecules; UMA is the default machine learning potential. Profile your workload with [`examples/timing_benchmark.py`](../examples/timing_benchmark.py).
 
 ## Getting Help
 

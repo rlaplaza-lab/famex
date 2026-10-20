@@ -1,6 +1,6 @@
 # FAMEX: Fast Mechanistic Explorer
 
-**FAMEX** provides a unified interface for molecular geometry optimization using machine learning potentials. It supports minima optimization, transition state searches, and reaction path calculations through both a command-line interface and Python API.
+**FAMEX** is a command-line and Python API for molecular geometry optimization with machine learning potentials. It supports minima optimization, transition state searches, and reaction path calculations.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI](https://img.shields.io/pypi/v/famex.svg)](https://pypi.org/project/famex/)
@@ -16,18 +16,18 @@ pip install famex
 git clone https://github.com/rlaplaza-lab/famex.git && cd famex && pip install -e .
 ```
 
-Install an ML backend separately (primary use case):
+Install a machine learning backend separately (primary use case):
 
 | Backend | Installation | Notes |
 |---------|--------------|-------|
-| `aimnet2` | `pip install torch` | Recommended for beginners, no conflicts; supports analytical Hessian |
-| `uma` | `pip install "fairchem-core>=2.22.0"` or `pip install famex[uma]` | Materials science (default model: uma-s-1p2); supports analytical Hessian |
-| `mace` | `pip install mace-torch` | High accuracy, conflicts with UMA; supports analytical Hessian |
-| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | OrbMol-v2 and Orb-v3; Python 3.12+; analytical Hessian for conservative models; FD for non-conservative |
-| `so3lr` | `pip install so3lr` | Research, custom models; analytical Hessian via JAX |
-| `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential (Python 3.11+); analytical Hessian via double-backward |
+| `aimnet2` | `pip install torch` | Simplest install; no dependency conflicts; analytical Hessian |
+| `uma` | `pip install "fairchem-core>=2.22.0"` or `pip install famex[uma]` | Default backend (model: uma-s-1p2); analytical Hessian |
+| `mace` | `pip install mace-torch` | Conflicts with UMA; analytical Hessian |
+| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | OrbMol-v2 and Orb-v3; Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
+| `so3lr` | `pip install so3lr` | Custom models; analytical Hessian via JAX |
+| `pet` | `pip install upet` or `pip install famex[pet]` | PET-MAD potential (Python 3.11+); analytical Hessian |
 
-Optional classical QC (same CLI; slower): `tblite` (`pip install tblite`, GFN-xTB, FD Hessians) and `pyscf` (`pip install famex[pyscf]`, default B3LYP-D3BJ / def2-SVP, analytical Hessian).
+Optional classical quantum chemistry (same CLI; slower): `tblite` (`pip install tblite`, GFN-xTB, finite-difference Hessians) and `pyscf` (`pip install famex[pyscf]`, default B3LYP-D3BJ / def2-SVP, analytical Hessian).
 
 SMILES and PubChem are optional structure inputs (not separate CLI modes). Install an embedder and pass SMILES or `pubchem:NAME` / `cid:` / a numeric CID to `minima`, `ts`, or `path`:
 
@@ -72,13 +72,13 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 
 ## Key Features
 
-- Multiple ML backends (UMA, AIMNet2, MACE, SO3LR, Orb, PET); optional xTB/DFT via TBLite/PySCF
-- GPU acceleration with CUDA support
-- Semantic target/strategy interface (minima, ts, path)
-- Advanced methods (NEB, CI-NEB, IRC, growing string)
+- Multiple machine learning backends (UMA, AIMNet2, MACE, SO3LR, Orb, PET); optional xTB/DFT via TBLite/PySCF
+- GPU acceleration with CUDA
+- Target/strategy commands (`minima`, `ts`, `path`)
+- Path methods: Nudged Elastic Band (NEB), Climbing-Image NEB (CI-NEB), Intrinsic Reaction Coordinate (IRC), growing string
 - Frequency analysis and thermodynamics
 - Command-line and Python API
-- Supports XYZ, CIF, PDB via ASE
+- Geometry files via the Atomic Simulation Environment (ASE): XYZ, CIF, PDB, and others
 - SMILES / PubChem as structure inputs (`pip install famex[smiles]` or `famex[rdkit]`; use `pubchem:NAME`, `cid:`, or a numeric CID)
 
 ## Documentation

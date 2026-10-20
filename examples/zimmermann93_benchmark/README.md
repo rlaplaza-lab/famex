@@ -1,6 +1,6 @@
 # Zimmermann-93 NEB / Two-ended TS Benchmark
 
-Comprehensive evaluation of FAMEX backends for two-ended transition state searches using the Zimmermann-93 dataset.
+Evaluation of FAMEX backends for two-ended transition state searches using the Zimmermann-93 dataset.
 
 ## Overview
 
@@ -22,7 +22,7 @@ python zimmermann93_benchmark.py --quick
 # Test specific backends
 python zimmermann93_benchmark.py --backends uma,mace
 
-# Run comprehensive benchmark on all available backends
+# Run full benchmark on all available backends
 python zimmermann93_benchmark.py
 
 # Parallel multi-env run (from this directory or repo root)

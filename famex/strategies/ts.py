@@ -13,6 +13,9 @@ from famex.optimizers.sella_utils import is_sella_optimizer
 from famex.strategies.helpers import (
     _run_local_optimization_common,
     _validate_ts_optimization_setup,
+    enforce_require_ts,
+    resolve_require_ts,
+    strip_require_ts_from_optimizer_kwargs,
     validate_ts_structure,
 )
 from famex.strategies.utils import StrategyUtils
@@ -41,6 +44,7 @@ class LocalTSStrategy(BaseStrategy):
         validate_ts: bool = False,
         calculate_frequencies: bool = False,
         cleanup_frequencies: bool = False,
+        require_ts: bool | None = None,
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
@@ -49,11 +53,15 @@ class LocalTSStrategy(BaseStrategy):
         if cleanup_frequencies is False:
             cleanup_frequencies = bool(getattr(self.explorer, "cleanup_frequencies", False))
 
+        require_ts = resolve_require_ts(require_ts, self.explorer)
+        kwargs.pop("require_ts", None)
+
         _validate_ts_optimization_setup(self.explorer.backend, local_optimizer_name)
 
         def prepare_ts_optimizer_kwargs(optimizer_name: str, explorer: Any) -> dict[str, Any]:
             opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
             opt_kwargs = dict(opt_kwargs)
+            strip_require_ts_from_optimizer_kwargs(opt_kwargs)
 
             normalized_name = optimizer_name.lower()
             if is_sella_optimizer(normalized_name):
@@ -145,7 +153,7 @@ class LocalTSStrategy(BaseStrategy):
                 freq_kwargs["method"] = "finite_differences"
             return freq_kwargs
 
-        return _run_local_optimization_common(
+        result = _run_local_optimization_common(
             strategy=self,
             atoms_list=atoms_list,
             fmax=fmax,
@@ -164,6 +172,22 @@ class LocalTSStrategy(BaseStrategy):
             stationary_point_target="ts",
             prepare_cleanup_optimizer_kwargs=prepare_ts_optimizer_kwargs,
         )
+
+        optimized_atoms = result.get("optimized_atoms")
+        freq_val = result.get("frequency_analysis")
+        freq_analysis = freq_val if isinstance(freq_val, dict) else None
+        freq_analysis = enforce_require_ts(
+            require_ts=require_ts,
+            atoms=optimized_atoms if isinstance(optimized_atoms, Atoms) else None,
+            explorer=self.explorer,
+            freq_analysis=freq_analysis,
+            check_converged=(False if not result.get("converged") else None),
+            temperature=temperature,
+        )
+        if require_ts and freq_analysis is not None:
+            result["frequency_analysis"] = freq_analysis
+            result["is_ts"] = freq_analysis.get("is_ts")
+        return result
 
 
 REGISTRY.register(LocalTSStrategy)
