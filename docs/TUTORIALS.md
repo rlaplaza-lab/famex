@@ -87,7 +87,7 @@ explorer = famex.Explorer.from_pubchem("aspirin", backend="aimnet2", target="min
 | `trust-ncg` | Second-order | Trust-region with nonlinear conjugate gradient |
 | `trust-exact` | Second-order | Trust-region with exact Hessian |
 | `newton-cg` | Second-order | Newton–CG method (minima only) |
-| `rfo` | Second-order | Rational Function Optimization for TS |
+| `rfo` | Second-order | Restricted-step partitioned RFO for TS. The trust radius sets the step length |
 
 ### Convergence
 
@@ -167,11 +167,13 @@ n_imag = freq_result["ts_analysis"]["n_imaginary_frequencies"]
 explorer.save_vibrational_modes(freq_result, "ts_modes", which="imaginary")
 ```
 
+Gas-phase free energies: [Frequencies and thermochemistry](USER_GUIDE.md#frequencies-and-thermochemistry). See `examples/thermochemistry.py`.
+
 ## Reaction Paths
 
 ### Nudged Elastic Band (NEB) / Climbing-Image NEB (CI-NEB)
 
-The NEB and CI-NEB spring constant defaults to `5.0`, and both default to 1000 steps, on the CLI and in Python.
+The NEB and CI-NEB spring constant defaults to `5.0`, and both default to 1000 steps, on the CLI and in Python. `result["converged"]` is whether the band reached `fmax`.
 
 ```bash
 famex path --strategy neb reactant.xyz product.xyz --npoints 11

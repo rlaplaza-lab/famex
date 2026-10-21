@@ -276,7 +276,11 @@ def _restricted_subspace_lambda(
     tv_index: int,
     alpha: float,
 ) -> float:
-    """Lowest augmented-Hessian eigenvalue on the minimization subspace."""
+    """Lowest eigenvalue of the scaled augmented Hessian.
+
+    ``alpha`` scales the geometry block. The minimization step is
+    ``-g / (ω − α λ)``.
+    """
     mask = np.ones(len(eigenvalues), dtype=bool)
     mask[tv_index] = False
     omega_ot = eigenvalues[mask]
@@ -289,8 +293,8 @@ def _restricted_subspace_lambda(
     aug[:n_ot, :n_ot] = np.diag(omega_ot)
     aug[:n_ot, n_ot] = g_ot
     aug[n_ot, :n_ot] = g_ot
-    metric = np.eye(n_ot + 1)
-    metric[n_ot, n_ot] = alpha
+    metric = np.eye(n_ot + 1) * alpha
+    metric[n_ot, n_ot] = 1.0
     eigvals = scipy_eigh(aug, metric, eigvals_only=True)
     return float(np.min(eigvals))
 

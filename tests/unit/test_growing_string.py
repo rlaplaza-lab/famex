@@ -155,7 +155,7 @@ def _bare_string() -> MultiStructureGrowingStringStrategy:
     gsm = MultiStructureGrowingStringStrategy.__new__(MultiStructureGrowingStringStrategy)
     gsm.explorer = None
     gsm.max_nodes = 9
-    gsm.sk = 1.0 / (gsm.max_nodes + 1)
+    gsm.sk = 1.0 / (gsm.max_nodes - 1)
     gsm.all_energies = []
     gsm.all_forces = []
     return gsm
@@ -218,3 +218,22 @@ class TestGrowingStringGeometry:
         crossed = v_next - v_prev
         crossed = crossed / np.linalg.norm(crossed)
         assert abs(float(np.dot(tangent, crossed))) < 0.2
+
+    def test_reparametrization_anchors_the_product_end(self):
+        gsm = _bare_string()
+        gsm.max_nodes = 11
+        gsm.sk = 1.0 / (gsm.max_nodes - 1)
+        reactant = Atoms("H", positions=[[0.0, 0.0, 0.0]])
+        left = Atoms("H", positions=[[1.0, 0.0, 0.0]])
+        right = Atoms("H", positions=[[8.0, 0.0, 0.0]])
+        product = Atoms("H", positions=[[10.0, 0.0, 0.0]])
+        gsm.left_string = [reactant, left]
+        gsm.right_string = [product, right]
+        gsm._set_images_from_strings()
+
+        assert list(gsm.full_string_image_inds) == [0, 1, 9, 10]
+        gsm.reparam_cart(gsm.sk * gsm.full_string_image_inds)
+
+        assert float(left.positions[0, 0]) == pytest.approx(1.0, abs=1e-6)
+        assert float(right.positions[0, 0]) == pytest.approx(9.0, abs=1e-6)
+        assert float(product.positions[0, 0]) == pytest.approx(10.0)

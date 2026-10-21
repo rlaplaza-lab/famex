@@ -7,7 +7,8 @@ Examples and benchmarks for FAMEX.
 ### Workflows
 
 Short Python scripts that mirror everyday `famex` usage. Each file docstring
-shows the equivalent CLI command.
+shows the equivalent CLI command. A script exits with status 1 unless the
+run converged with finite energies and, where requested, usable frequencies.
 
 | Example | Description |
 |---------|-------------|

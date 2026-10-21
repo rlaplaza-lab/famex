@@ -34,6 +34,14 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 **A:** See [Core Concepts](USER_GUIDE.md#core-concepts). Target (`minima`, `ts`, `path`) is what you want; strategy (`local`, `interpolate`, `neb`, etc.) is how to get there.
 
+### Q: How is the free energy computed?
+
+**A:** See [Frequencies and thermochemistry](USER_GUIDE.md#frequencies-and-thermochemistry). The default is RRHO at 298.15 K and 1 atm.
+
+### Q: NEB finished but the path is not converged?
+
+**A:** The band did not reach `--fmax` within `--steps`. The images are still written. Raise `--steps` or loosen `--fmax`.
+
 ### Q: How do I choose convergence criteria?
 
 **A:** See [Convergence](TUTORIALS.md#convergence) in the Tutorials. Quick reference: `--fmax 0.1 --steps 100` (testing), `--fmax 0.05 --steps 1000` (default), `--fmax 0.01 --steps 2000` (high precision).

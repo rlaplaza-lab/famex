@@ -134,8 +134,14 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
     @property
     def full_string_image_inds(self) -> np.ndarray:
-        """Array of image indices for the full string (0 to string_size-1)."""
-        return np.arange(self.string_size)
+        """Finished-string indices, with the product at the last node.
+
+        The left string keeps the leading indices and the right string the
+        trailing ones, so the gap stays between the frontiers.
+        """
+        left_inds = np.arange(self.left_size, dtype=int)
+        right_inds = np.arange(self.max_nodes, dtype=int)[-self.right_size :]
+        return np.concatenate((left_inds, right_inds))
 
     def get_cur_param_density(self) -> np.ndarray:
         """Arc-length parametrization of the current band, normalized to [0, 1]."""
@@ -784,8 +790,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         self.reparam_check = kwargs.get("reparam_check", "rms")  # "rms" or "norm"
         self.perp_thresh_relaxed = perp_thresh_relaxed
 
-        # Desired spacing on normalized arclength
-        self.sk = 1.0 / (self.max_nodes + 1)
+        # Index max_nodes - 1 is the product, at arc length 1.
+        self.sk = 1.0 / max(self.max_nodes - 1, 1)
 
         # Enforce exactly two structures
         if len(atoms_list) != 2:

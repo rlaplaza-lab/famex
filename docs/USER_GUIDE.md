@@ -425,9 +425,37 @@ Strategy results always include `optimized_atoms` and `strategy`. Common optiona
 | `optimization_trajectory` | Optimizer steps, or NEB/CI-NEB iteration frames, when `record_history=True` |
 | `search_path` | TS search band or string when `record_history=True`. Growing string also keeps the string on `trajectory` |
 | `forward_path`, `backward_path` | IRC branches |
-| `converged`, `steps_taken` | After optimization |
+| `converged`, `steps_taken` | After optimization. Path NEB/CI-NEB: the band reached `fmax` (images are still returned). `ts` CI-NEB and growing string: the local refinement |
 | `frequency_analysis` | When `calculate_frequencies=True` or `--freq` (also computed when `--require-ts` needs frequencies) |
 | `ts_validation` | When `validate_ts=True` (soft check; does not raise). `--require-ts` raises instead of only attaching this key |
+
+### Frequencies and thermochemistry
+
+`--freq` and `calculate_frequencies=True` attach `frequency_analysis`. Frequencies are in cm⁻¹, with imaginary modes negative. `zero_point_energy` is the harmonic value in eV. Imaginary and zero modes are omitted from the vibrational sums.
+
+```python
+from famex.analysis import ThermodynamicProperties
+
+thermo = ThermodynamicProperties(
+    freq["frequencies"],
+    optimized,
+    temperature=298.15,
+    pressure=101325.0,
+    method="rrho",
+    solvent="none",
+)
+props = thermo.calculate_complete_thermodynamics(energy=energy)
+```
+
+`pressure` is in pascal (default 1 atm). `method` is `rrho`, `grimme`, or `truhlar`. `freq_scale_factor` (default 1) is applied before the zero-point energy, vibrational entropy, and heat capacity. `gibbs_free_energy` is the enthalpy minus temperature times entropy, in eV. `free_energy_correction` is that value minus the electronic energy.
+
+| `method` | Vibrational treatment |
+|----------|------------------------|
+| `rrho` | Harmonic oscillator. `zpe` is the scaled zero-point energy; `enthalpy_vib` is the thermal part |
+| `truhlar` | Same energy as `rrho`. Modes at or below `freq_cutoff` (default 100 cm⁻¹) use that cutoff for entropy, after scaling |
+| `grimme` | Low modes are damped toward a free rotor (cutoff 100 cm⁻¹). `zpe` here is 0; that energy is already in `enthalpy_vib`. The frequency report keeps the harmonic zero-point energy |
+
+Gas phase uses the ideal-gas concentration at `pressure`. Solution defaults to 1.0 mol/L. A set `concentration` overrides both. Solvents: `none`, `H2O`, `toluene`, `DMF`, `AcOH`, `chloroform`. The symmetry number comes from the geometry unless `symmetry_number` is set. A linear molecule uses one rotational temperature. See `examples/thermochemistry.py`.
 
 ### Default models
 
@@ -493,7 +521,7 @@ Usage: `famex path --strategy neb reactant.xyz product.xyz --interp idpp`
 
 ## Examples
 
-See [`examples/README.md`](../examples/README.md) for the catalog of workflow scripts and benchmarks (`optimize_minimum.py`, `irc.py`, `timing_benchmark.py`, `bh28_benchmark/`, `zimmermann93_benchmark/`, and others).
+See [`examples/README.md`](../examples/README.md) for the catalog of workflow scripts and benchmarks (`optimize_minimum.py`, `thermochemistry.py`, `irc.py`, `timing_benchmark.py`, `bh28_benchmark/`, `zimmermann93_benchmark/`, and others).
 
 ---
 

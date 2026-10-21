@@ -7,6 +7,7 @@ import pytest
 
 from famex.optimizers.ts_step import (
     NULL_MODE_THRESHOLD,
+    _restricted_prfo_step,
     adjust_trust_radius,
     build_translation_rotation_basis,
     compute_dense_prfo_step,
@@ -180,6 +181,39 @@ class TestTSStep:
         assert cosine > 0.999
         assert np.linalg.norm(capped) == pytest.approx(0.02)
         assert np.linalg.norm(baker) > 0.02
+
+    def test_restricted_prfo_matches_scaled_augmented_hessian(self):
+        """Minimization components use the scaled augmented Hessian at alpha ≠ 1."""
+        eigenvalues = np.array([-0.2, 0.5, 800.0])
+        eigenvectors = np.eye(3)
+        gradient = np.array([0.05, 2.0, 4.0])
+        alpha = 0.25
+
+        step = _restricted_prfo_step(gradient, eigenvalues, eigenvectors, 0, alpha)
+
+        def augmented_step(omega: np.ndarray, force: np.ndarray, kind: str) -> np.ndarray:
+            size = len(omega)
+            matrix = np.zeros((size + 1, size + 1))
+            matrix[:size, :size] = np.diag(omega / alpha)
+            matrix[-1, :-1] = force
+            matrix[:-1, -1] = force / alpha
+            values, vectors = np.linalg.eig(matrix)
+            values = values.real
+            vectors = vectors.real
+            chosen = int(np.argmax(values) if kind == "max" else np.argmin(values))
+            return vectors[:-1, chosen] / vectors[-1, chosen]
+
+        expected = np.concatenate(
+            [
+                augmented_step(eigenvalues[:1], gradient[:1], "max"),
+                augmented_step(eigenvalues[1:], gradient[1:], "min"),
+            ]
+        )
+        assert step == pytest.approx(expected, rel=1e-10, abs=1e-12)
+        baker = _restricted_prfo_step(gradient, eigenvalues, eigenvectors, 0, 1.0)
+        assert baker == pytest.approx(
+            compute_dense_prfo_step(gradient, np.diag(eigenvalues), trust_radius=10.0).step
+        )
 
     def test_restricted_step_moves_stiff_modes_inside_the_trust_radius(self):
         hessian = np.diag([-0.2, 800.0, 800.0])
