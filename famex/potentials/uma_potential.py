@@ -238,8 +238,10 @@ class UMAPotential(BasePotential):
 
         if symmetrize:
             asymmetry = np.abs(hessian_np - hessian_np.T)
-            max_asymmetry = np.max(asymmetry)
-            if max_asymmetry > 1e-5:
+            max_asymmetry = float(np.max(asymmetry))
+            # ML analytical Hessians are typically noisy at ~1e-5; only warn when
+            # asymmetry is large enough to suggest a real problem.
+            if max_asymmetry > 1e-3:
                 warnings.warn(
                     f"Hessian asymmetry detected (max deviation: {max_asymmetry:.2e}). "
                     "Symmetrization will be applied.",

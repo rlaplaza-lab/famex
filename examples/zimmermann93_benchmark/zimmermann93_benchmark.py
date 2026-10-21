@@ -42,6 +42,7 @@ from famex import Explorer, calculator_registry
 from famex.example_utils import (
     FAMEXExampleInterface,
     create_standard_epilog,
+    release_cuda_memory,
     setup_example_environment,
 )
 
@@ -616,6 +617,8 @@ class Zimmermann93Benchmark:
 
                     backend_results[reaction] = reaction_data
                     self.save_shard(result_key, reaction, reaction_data)
+                    explorer = None
+                    release_cuda_memory()
 
             except Exception as e:
                 backend_results = {"_backend_error": {"error": str(e)}}

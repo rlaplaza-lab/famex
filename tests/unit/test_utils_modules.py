@@ -2,13 +2,20 @@ from __future__ import annotations
 
 import logging
 import sys
+import warnings
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 import famex
+from famex.utils import ml_warnings as ml_warnings_mod
 from famex.utils.logging import print_model_info
-from famex.utils.ml_warnings import VerboseFilter, quiet_backend_loading, suppress_ml_warnings
+from famex.utils.ml_warnings import (
+    VerboseFilter,
+    install_runtime_ml_filters,
+    quiet_backend_loading,
+    suppress_ml_warnings,
+)
 from famex.utils.profiler import (
     MemoryInfo,
     PerformanceProfiler,
@@ -290,6 +297,82 @@ class TestMLWarnings:
 
         # Should allow normal messages
         assert filter_obj.filter(record) is True
+
+    def test_install_filters_suppresses_fairchem_torch_triton_noise(self):
+        """Exact third-party lines users see must be silent at normal verbosity."""
+        noisy = [
+            (
+                "fairchem.core.models.uma.escn_moe",
+                UserWarning,
+                "index_reduce() is in beta and the API may change at any time. "
+                "(Triggered internally at /__w/pytorch/pytorch/aten/src/ATen/native/cuda/Indexing.cu:1478.)",
+            ),
+            (
+                "torch.jit._script",
+                DeprecationWarning,
+                "`torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.",
+            ),
+            (
+                "triton.compiler.code_generator",
+                DeprecationWarning,
+                "AnnAssign.__init__ missing 1 required positional argument: 'simple'. "
+                "This will become an error in Python 3.15.",
+            ),
+        ]
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            # Re-apply after simplefilter("always") so our ignores win for matching messages.
+            ml_warnings_mod._configured_quiet = None
+            install_runtime_ml_filters(verbosity=0)
+            for module, category, message in noisy:
+                warnings.warn_explicit(
+                    message,
+                    category,
+                    filename=f"/site-packages/{module.replace('.', '/')}.py",
+                    lineno=150,
+                    module=module,
+                )
+
+        assert caught == [], [str(w.message) for w in caught]
+
+        # Root / torch logging lines
+        root = logging.getLogger()
+        torch_log = logging.getLogger("torch._logging._internal")
+        filter_obj = VerboseFilter()
+        compile_rec = logging.LogRecord(
+            "root",
+            logging.WARNING,
+            "",
+            0,
+            "Model is being compiled this might take a while for the first time",
+            (),
+            None,
+        )
+        profiler_rec = logging.LogRecord(
+            "torch._logging._internal",
+            logging.WARNING,
+            "",
+            0,
+            "Profiler record function <class 'torch.autograd.profiler.record_function'> will be ignored",
+            (),
+            None,
+        )
+        assert filter_obj.filter(compile_rec) is False
+        assert filter_obj.filter(profiler_rec) is False
+        assert any(isinstance(f, VerboseFilter) for f in root.filters)
+        assert torch_log.getEffectiveLevel() >= logging.ERROR
+
+    def test_high_verbosity_restores_showwarning(self):
+        ml_warnings_mod._configured_quiet = None
+        try:
+            install_runtime_ml_filters(verbosity=0)
+            assert warnings.showwarning is ml_warnings_mod._quiet_showwarning
+            install_runtime_ml_filters(verbosity=2)
+            assert warnings.showwarning is ml_warnings_mod._original_showwarning
+        finally:
+            ml_warnings_mod._configured_quiet = None
+            install_runtime_ml_filters(verbosity=0)
 
     def test_suppress_ml_warnings_context(self):
         original_stderr = sys.stderr

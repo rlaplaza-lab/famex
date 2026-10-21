@@ -145,7 +145,7 @@ famex ts --strategy growing_string reactant.xyz --product product.xyz --npoints 
 famex ts --strategy growing_string reactant.xyz --product product.xyz --require-ts --freq
 ```
 
-See also `examples/growing_string_demo.py`.
+See also `examples/growing_string.py`.
 
 ### Validation
 
@@ -193,7 +193,7 @@ IRC defaults to 100 steps on the CLI and in Python.
 famex path --strategy irc ts.xyz --direction both
 ```
 
-See `examples/irc_demo.py`.
+See `examples/irc.py`.
 
 ### Interpolation only (no optimization)
 

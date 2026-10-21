@@ -43,6 +43,7 @@ from famex import Explorer, calculator_registry
 from famex.example_utils import (
     FAMEXExampleInterface,
     create_standard_epilog,
+    release_cuda_memory,
     setup_example_environment,
 )
 
@@ -129,11 +130,20 @@ class Maiti30Benchmark:
             rxn = stem.replace("_reactant", "")
             self.reactions.append(rxn)
 
-        # Quick subset
-        self.quick_reactions = self.reactions[:8]
+        # Prefer smaller systems for --quick/--quicker (UMA on 16 GB GPUs).
+        def _reactant_natoms(reaction: str) -> int:
+            for suffix in (".xyz", ".mol", ".pdb"):
+                path = self.dataset_dir / f"{reaction}_reactant{suffix}"
+                if path.exists():
+                    return len(read(path))
+            return 10**9
 
-        # Quicker subset for very fast testing (single reaction)
-        self.quicker_reactions = self.reactions[:1]
+        natoms = {r: _reactant_natoms(r) for r in self.reactions}
+        by_size = sorted(self.reactions, key=natoms.__getitem__)
+        self.quick_reactions = [r for r in by_size if natoms[r] <= 24][:8]
+        if not self.quick_reactions:
+            self.quick_reactions = by_size[:3]
+        self.quicker_reactions = by_size[:1]
 
         self.results: dict[str, dict] = {}
 
@@ -645,6 +655,8 @@ class Maiti30Benchmark:
 
                     backend_results[reaction] = reaction_data
                     self.save_shard(result_key, reaction, reaction_data)
+                    explorer = None
+                    release_cuda_memory()
 
             except Exception as e:
                 backend_results = {"_backend_error": {"error": str(e)}}

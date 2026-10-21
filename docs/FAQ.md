@@ -118,7 +118,7 @@ Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_a
 
 ### Q: Where can I find examples?
 
-**A:** See [`examples/README.md`](../examples/README.md). Quick start: `python examples/cli_demo.py` from the repo root.
+**A:** See [`examples/README.md`](../examples/README.md). Quick start: `python examples/optimize_minimum.py` from the `examples/` directory.
 
 ---
 

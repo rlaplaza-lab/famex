@@ -34,6 +34,8 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
+from famex.utils.ml_warnings import install_runtime_ml_filters as _install_ml_filters
+
 __version__ = "0.5.0"
 __author__ = "FAMEX Development Team"
 
@@ -49,6 +51,9 @@ try:
 except Exception:
     # Environment setting is best-effort; ignore failures
     pass
+
+# Quiet FairChem/torch/triton noise as soon as famex is imported (verbosity < 2).
+_install_ml_filters(verbosity=0)
 
 
 def __getattr__(name: str) -> Any:

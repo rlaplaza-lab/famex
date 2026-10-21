@@ -6,6 +6,8 @@ import logging
 import sys
 import threading
 
+from famex.utils.ml_warnings import install_runtime_ml_filters
+
 _quiet_context_local = threading.local()
 
 _famex_logging_configured = False
@@ -14,6 +16,9 @@ _famex_log_level = logging.INFO
 
 def setup_famex_logging(verbosity: int = 1, force: bool = False) -> None:
     global _famex_logging_configured, _famex_log_level
+
+    # Suppress FairChem/torch/triton noise at normal verbosity; show at >=2.
+    install_runtime_ml_filters(verbosity=verbosity)
 
     if _famex_logging_configured and not force:
         return

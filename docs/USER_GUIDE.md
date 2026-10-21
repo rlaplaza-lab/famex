@@ -493,7 +493,7 @@ Usage: `famex path --strategy neb reactant.xyz product.xyz --interp idpp`
 
 ## Examples
 
-See [`examples/README.md`](../examples/README.md) for the full catalog of demos and benchmarks (`cli_demo.py`, `irc_demo.py`, `timing_benchmark.py`, `bh28_benchmark/`, `zimmermann93_benchmark/`, and others).
+See [`examples/README.md`](../examples/README.md) for the catalog of workflow scripts and benchmarks (`optimize_minimum.py`, `irc.py`, `timing_benchmark.py`, `bh28_benchmark/`, `zimmermann93_benchmark/`, and others).
 
 ---
 

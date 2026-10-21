@@ -460,7 +460,7 @@ class SciPyHessianOptimizer(Optimizer):
                     options["maxiter"] = int(steps)
                     options["inexact"] = True
 
-            self._scipy_result = minimize(  # type: ignore[call-overload]
+            self._scipy_result = minimize(
                 fun=self.objective,
                 x0=x0,
                 method=self.method,

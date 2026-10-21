@@ -8,6 +8,7 @@ functionality across all FAMEX examples to ensure consistency.
 import argparse
 import contextlib
 import functools
+import gc
 import json
 import os
 import time
@@ -20,6 +21,7 @@ from ase.io import write as ase_write
 
 # Import FAMEX components
 from famex.backends.availability import is_backend_available
+from famex.backends.cache import get_unified_cache
 from famex.backends.constants import DEFAULT_UMA_MODEL
 from famex.backends.registry import calculator_registry
 
@@ -28,6 +30,21 @@ from famex.utils.device import get_optimal_device, print_device_info
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
+
+
+def release_cuda_memory() -> None:
+    """Drop cached calculators and return free blocks to the CUDA allocator."""
+    get_unified_cache().calculator_cache.clear()
+    gc.collect()
+    try:
+        import torch
+    except ImportError:
+        return
+    if not torch.cuda.is_available():
+        return
+    if hasattr(torch, "_dynamo"):
+        torch._dynamo.reset()
+    torch.cuda.empty_cache()
 
 
 class FAMEXExampleInterface:
@@ -206,17 +223,6 @@ class FAMEXExampleInterface:
 def create_standard_epilog(example_type: str) -> str:
     """Create standardized epilog for different example types."""
     epilogs = {
-        "demo": """
-Examples:
-  # Run with all available backends
-  python cli_demo.py
-
-  # Run with specific backends
-  python cli_demo.py --backends uma,aimnet2
-
-  # Run with verbose output
-  python cli_demo.py --verbose 2
-        """,
         "timing": """
 Examples:
   # Run with all available backends

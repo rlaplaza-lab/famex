@@ -109,7 +109,7 @@ class GeodesicInterpolation(InterpolationStrategy):
 
     def _get_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
         """Get pairwise distance matrix using vectorized operations."""
-        return cdist(coords, coords, metric="euclidean")
+        return np.asarray(cdist(coords, coords, metric="euclidean"))
 
     def _refine_coordinates(
         self,

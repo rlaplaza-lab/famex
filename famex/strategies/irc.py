@@ -95,6 +95,13 @@ class LocalIRCStrategy(BaseStrategy):
         forward_path = []
         backward_path = []
 
+        def snapshot(atoms: Atoms) -> Atoms:
+            """Copy a frame and keep its potential energy after the calculator is dropped."""
+            energy = float(atoms.get_potential_energy())
+            saved = cast(Atoms, atoms.copy())
+            saved.info["potential_energy"] = energy
+            return saved
+
         def displace_along_mode(sign: float) -> Atoms:
             # ASE stubs type Atoms.copy() as Any; cast restores Atoms for mypy.
             displaced = cast(Atoms, ts_atoms.copy())
@@ -128,7 +135,7 @@ class LocalIRCStrategy(BaseStrategy):
                     self.explorer._apply_constraints(opt_copy)
                     opt = opt_class(opt_copy)
                     opt.run(fmax=fmax, steps=100)
-                    path.append(opt_copy)
+                    path.append(snapshot(opt_copy))
                     break
 
                 mw_forces = current_forces / np.sqrt(current_masses[:, np.newaxis])
@@ -137,12 +144,13 @@ class LocalIRCStrategy(BaseStrategy):
                     break
 
                 step_direction = mw_forces / mw_forces_norm
-                displacement = step_size * step_direction * np.sqrt(current_masses[:, np.newaxis])
+                # Δq has length step_size; Cartesian step is Δq / sqrt(m).
+                displacement = step_size * step_direction / np.sqrt(current_masses[:, np.newaxis])
                 next_atoms = current.copy()
                 next_atoms.set_positions(current.get_positions() + displacement)
                 self.explorer._create_and_attach_calculator(next_atoms)
                 self.explorer._apply_constraints(next_atoms)
-                path.append(next_atoms.copy())
+                path.append(snapshot(next_atoms))
                 current = next_atoms
 
             return path
@@ -158,16 +166,17 @@ class LocalIRCStrategy(BaseStrategy):
                     logger.debug("Following IRC in backward direction")
                 backward_path = follow_irc_downhill(displace_along_mode(-1.0), steps)
 
+        ts_snapshot = snapshot(ts_atoms)
         if direction.lower() == "both":
             trajectory = [
                 *list(reversed(backward_path)),
-                ts_atoms.copy(),
+                ts_snapshot,
                 *forward_path,
             ]
         elif direction.lower() == "forward":
-            trajectory = [ts_atoms.copy(), *forward_path]
+            trajectory = [ts_snapshot, *forward_path]
         elif direction.lower() == "backward":
-            trajectory = [*list(reversed(backward_path)), ts_atoms.copy()]
+            trajectory = [*list(reversed(backward_path)), ts_snapshot]
         else:
             msg = f"Invalid direction: {direction}. Must be 'forward', 'backward', or 'both'"
             raise ValueError(
