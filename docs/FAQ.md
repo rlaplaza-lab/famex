@@ -22,7 +22,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: What Python version do I need?
 
-**A:** Python 3.10+ required. The **PET** backend (`pip install famex[pet]`) requires Python 3.11+. The **Orb** backend (`pip install famex[orb]`) requires Python 3.12+.
+**A:** Python 3.11+ required. The **Orb** backend (`pip install famex[orb]`) requires Python 3.12+.
 
 ### Q: Backend not available after installation?
 

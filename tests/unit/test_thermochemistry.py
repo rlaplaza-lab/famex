@@ -35,7 +35,6 @@ from famex.analysis.symmetry import (
     SymmetryHandler,
     detect_symmetry_from_atoms,
     get_point_group_symmetry_number,
-    molsymm,
 )
 from famex.analysis.thermodynamics import ThermodynamicProperties, read_free_energy_correction
 
@@ -281,7 +280,6 @@ class TestSymmetry:
         assert SymmetryHandler(point_group="Dinfh").symmetry_number == 2
 
     def test_molsymm_detects_water_c2v(self, water_c2v):
-        pytest.importorskip("molsymm")
         sigma, point_group = detect_symmetry_from_atoms(water_c2v)
         assert sigma == 2
         assert point_group == "C2v"
@@ -426,12 +424,11 @@ class TestCompleteThermodynamics:
         assert len(rot_temps) == 3
         assert np.all((rot_temps > 1.0) & (rot_temps < 100.0))
 
-        if molsymm is not None:
-            auto = ThermodynamicProperties(
-                frequencies, water_c2v, temperature=temperature
-            ).calculate_complete_thermodynamics(energy=0.0)
-            assert auto["symmetry_number"] == 2
-            assert auto["point_group"] == "C2v"
+        auto = ThermodynamicProperties(
+            frequencies, water_c2v, temperature=temperature
+        ).calculate_complete_thermodynamics(energy=0.0)
+        assert auto["symmetry_number"] == 2
+        assert auto["point_group"] == "C2v"
 
         for method in ("rrho", "grimme"):
             results = ThermodynamicProperties(

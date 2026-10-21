@@ -2,7 +2,7 @@
 
 **FAMEX** is a command-line and Python API for molecular geometry optimization with machine learning potentials. It supports minima optimization, transition state searches, and reaction path calculations.
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI](https://img.shields.io/pypi/v/famex.svg)](https://pypi.org/project/famex/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -39,7 +39,7 @@ famex minima --strategy local "CCO" --embedder rdkit --backend aimnet2
 famex minima --strategy local pubchem:aspirin --backend aimnet2
 ```
 
-> **Note**: Python 3.10+ required. MACE and UMA conflict - use separate environments.
+> **Note**: Python 3.11+ required. MACE and UMA conflict - use separate environments.
 
 ### Your First Optimization
 

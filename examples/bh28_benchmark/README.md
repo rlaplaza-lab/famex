@@ -103,7 +103,7 @@ For TS optimizer comparison on BH28 structures, use `../ts_optimizer_benchmark.p
 - FAMEX package installed
 - At least one ML backend (see [README](../../README.md))
 - SELLA optimizer is included with FAMEX (core dependency)
-- Python 3.10+
+- Python 3.11+
 
 ## Understanding Results
 

@@ -95,7 +95,7 @@ zimmermann93_benchmark/
 - FAMEX package installed
 - At least one ML backend (see [README](../../README.md))
 - SELLA optimizer is included with FAMEX (core dependency)
-- Python 3.10+
+- Python 3.11+
 
 ## Understanding Results
 

@@ -49,7 +49,7 @@ pip install -e ".[dev,uma]"
 
 See [README.md](../README.md) for the full backend table.
 
-> **Note**: Python 3.10+ required. UMA and MACE conflict on `e3nn` versions — use separate conda environments.
+> **Note**: Python 3.11+ required. UMA and MACE conflict on `e3nn` versions — use separate conda environments.
 
 > **Default backend**: CLI and `Explorer` default to `uma` with model `uma-s-1p2`. For a conflict-free quick start, pass `--backend aimnet2` or install only `torch`.
 

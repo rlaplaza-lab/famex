@@ -116,7 +116,7 @@ def _resolve_python() -> list[str]:
 
 
 def _safe_extractall(tar: tarfile.TarFile, path: Path) -> None:
-    # Python 3.12+ (project minimum is 3.10; Kaggle GPU images are 3.12) provides
+    # Python 3.12+ (project minimum is 3.11; Kaggle GPU images are 3.12) provides
     # tarfile.data_filter.
     tar.extractall(path=path, filter="data")
 
