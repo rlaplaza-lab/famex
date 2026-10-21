@@ -460,7 +460,8 @@ class SciPyHessianOptimizer(Optimizer):
                     options["maxiter"] = int(steps)
                     options["inexact"] = True
 
-            self._scipy_result = minimize(
+            # method is a runtime string, so it cannot match scipy-stubs' Literal overloads.
+            self._scipy_result = minimize(  # type: ignore[call-overload]
                 fun=self.objective,
                 x0=x0,
                 method=self.method,
