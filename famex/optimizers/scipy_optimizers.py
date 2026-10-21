@@ -12,8 +12,8 @@ from scipy.optimize import minimize
 from famex.optimizers.ts_step import (
     adjust_trust_radius,
     build_translation_rotation_basis,
-    compute_dense_prfo_step,
     compute_matrix_free_ts_step,
+    compute_restricted_prfo_step,
     compute_step_quality,
     make_atoms_hessp,
     prepare_ts_hessian,
@@ -112,6 +112,7 @@ class SciPyHessianOptimizer(Optimizer):
                 )
                 raise ValueError(msg)
             self._transition_mode: np.ndarray | None = None
+            self._rfo_alpha = 1.0
             self._previous_energy: float | None = None
             if hessian_update_freq is None:
                 self.hessian_update_freq = 1
@@ -166,12 +167,15 @@ class SciPyHessianOptimizer(Optimizer):
         energy = self.atoms.get_potential_energy()
         return energy / self.alpha  # type: ignore[no-any-return]
 
+    def _cartesian_gradient(self, x: np.ndarray) -> np.ndarray:
+        """Unscaled Cartesian gradient, ``-forces``."""
+        self.atoms.set_positions(self._x_to_positions(x))
+        forces = self.atoms.get_forces()
+        return cast(np.ndarray, -forces.ravel())
+
     def gradient(self, x: np.ndarray) -> np.ndarray:
         """Gradient of objective function (negative forces)."""
-        self.atoms.set_positions(self._x_to_positions(x))
-
-        forces = self.atoms.get_forces()
-        gradient = -forces.ravel()
+        gradient = self._cartesian_gradient(x)
 
         if self.use_bfgs_update:
             if self._last_gradient is None:
@@ -179,7 +183,7 @@ class SciPyHessianOptimizer(Optimizer):
             if self._last_positions is None:
                 self._last_positions = x.copy()
 
-        return gradient / self.alpha  # type: ignore[no-any-return]
+        return gradient / self.alpha
 
     def hessian_func(self, x: np.ndarray) -> np.ndarray:
         """Compute Hessian matrix with adaptive updates and BFGS approximation."""
@@ -241,7 +245,7 @@ class SciPyHessianOptimizer(Optimizer):
             and self._last_positions is not None
             and self._last_gradient is not None
         ):
-            current_gradient = self.gradient(x)
+            current_gradient = self._cartesian_gradient(x)
             s = current_positions - self._last_positions
             y = current_gradient - self._last_gradient
 
@@ -351,13 +355,14 @@ class SciPyHessianOptimizer(Optimizer):
 
                 if self._ts_step_mode == "dense":
                     hessian = self._compute_ts_hessian(x)
-                    step_result = compute_dense_prfo_step(
+                    step_result = compute_restricted_prfo_step(
                         gradient=gradient,
                         hessian=hessian,
                         trust_radius=self.trust_radius,
                         previous_mode=self._transition_mode,
-                        alpha=self.alpha,
+                        alpha=self._rfo_alpha,
                     )
+                    self._rfo_alpha = step_result.alpha
                 else:
                     basis = build_translation_rotation_basis(
                         self.atoms.get_positions(),

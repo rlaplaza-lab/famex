@@ -82,7 +82,6 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         path = path_mgr.interpolate(
             npoints=npoints,
             method=method,
-            optimize_path=False,  # Raw interpolation
             explorer=self.explorer,
             **interpolate_kwargs,
         )

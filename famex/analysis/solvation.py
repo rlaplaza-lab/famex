@@ -6,14 +6,9 @@ based on the accessible free space in solution.
 
 from __future__ import annotations
 
-from ase import units
-
-from famex.analysis.physics_constants import gas_phase_concentration_1atm
+from famex.analysis.physics_constants import AVOGADRO_CONSTANT, ideal_gas_concentration
 
 __all__ = ["SolvationHandler", "get_free_space", "SUPPORTED_SOLVENTS"]
-
-# Physical constants from ASE units
-AVOGADRO_CONSTANT = units._Nav  # 1/mol
 
 # Supported solvents and their properties
 # Based on Shakhnovich & Whitesides, J. Org. Chem. 1998, 63, 3821-3830
@@ -89,6 +84,7 @@ class SolvationHandler:
         solvent: str = "none",
         concentration: float | None = None,
         temperature: float = 298.15,
+        pressure: float = 101325.0,
     ):
         """Initialize solvation handler.
 
@@ -97,16 +93,19 @@ class SolvationHandler:
         solvent : str
             Solvent name (default: 'none' for gas phase)
         concentration : float, optional
-            Concentration in mol/L. When omitted: GoodVibes 1 atm
-            ``ATMOS / (R T)`` for gas phase, else 1.0 M in solution.
+            Concentration in mol/L. When omitted, gas phase uses the ideal-gas
+            concentration at ``pressure`` and solution phase uses 1.0 M.
         temperature : float
-            Temperature in Kelvin used for the gas-phase 1 atm default
+            Temperature in Kelvin used for the gas-phase default
+        pressure : float
+            Gas-phase pressure in pascal. Ignored when ``concentration`` is set
+            and ignored in solution.
         """
         self.solvent = solvent
         if concentration is not None:
             self.concentration = concentration
         elif solvent == "none":
-            self.concentration = gas_phase_concentration_1atm(temperature)
+            self.concentration = ideal_gas_concentration(temperature, pressure)
         else:
             self.concentration = 1.0
         self.free_space_ml_per_l = get_free_space(solvent)

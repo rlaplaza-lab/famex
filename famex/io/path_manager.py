@@ -95,7 +95,6 @@ class PathManager:
         self,
         npoints: int = 10,
         method: str = "linear",
-        optimize_path: bool = False,
         calculator: Any | None = None,
         explorer: Any | None = None,
     ) -> list[Geometry]:
@@ -109,8 +108,6 @@ class PathManager:
                 self.product,
                 npoints,
                 method,
-                optimize_path,
-                calculator,
             )
 
         segments = len(self.structures) - 1
@@ -134,8 +131,6 @@ class PathManager:
                 end_struct,
                 nseg,
                 method,
-                optimize_path,
-                calculator,
             )
 
             if i == 0:
@@ -151,8 +146,6 @@ class PathManager:
         end: Geometry,
         npoints: int,
         method: str,
-        optimize_path: bool,
-        calculator: Any | None,
     ) -> list[Geometry]:
         start_coords = start.coords3d
         end_coords = end.coords3d
@@ -176,25 +169,6 @@ class PathManager:
             if self.calculator is not None:
                 geom.calc = self.calculator
             path_geometries.append(geom)
-
-        if optimize_path:
-            calc = calculator or self.calculator
-            if calc is None:
-                msg = "Need calculator for path optimization"
-                raise ValueError(msg)
-            path_geometries = self._optimize_path(path_geometries, calc)
-
-        return path_geometries
-
-    def _optimize_path(
-        self, path_geometries: list[Geometry], calculator: Any | None
-    ) -> list[Geometry]:
-        logger.info("Note: Using simplified NEB-like algorithm for path optimization")
-
-        for geom in path_geometries:
-            geom.calc = calculator
-            energy = geom.get_potential_energy()
-            geom.energy = energy
 
         return path_geometries
 

@@ -96,25 +96,15 @@ def _smooth(lower: np.ndarray, upper: np.ndarray) -> None:
     np.fill_diagonal(upper, 0.0)
 
     for _pass in range(4):
-        changed = False
+        before = lower.copy()
         for k in range(n):
-            for i in range(n):
-                if i == k:
-                    continue
-                lik = float(lower[i, k])
-                uik = float(upper[i, k])
-                for j in range(i + 1, n):
-                    if j == k:
-                        continue
-                    cand = lik - float(upper[k, j])
-                    if cand > float(lower[i, j]):
-                        lower[i, j] = lower[j, i] = cand
-                        changed = True
-                    cand = float(lower[j, k]) - uik
-                    if cand > float(lower[i, j]):
-                        lower[i, j] = lower[j, i] = cand
-                        changed = True
-        if not changed:
+            column = lower[:, k].copy()
+            cand = column[:, None] - upper[k, :][None, :]
+            np.maximum(lower, cand, out=lower)
+            cand = column[None, :] - upper[:, k][:, None]
+            np.maximum(lower, cand, out=lower)
+            np.fill_diagonal(lower, 0.0)
+        if np.array_equal(lower, before):
             break
     np.fill_diagonal(lower, 0.0)
 

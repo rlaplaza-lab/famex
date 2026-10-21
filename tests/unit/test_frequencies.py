@@ -5,6 +5,8 @@ import pytest
 
 import famex
 from famex.analysis.frequency import FrequencyAnalysis, HessianCalculator
+from famex.analysis.physics_constants import filter_positive_frequencies
+from famex.analysis.quasiharmonic import harmonic_zero_point_energy_ev
 from tests.test_constants import DEFAULT_DELTA
 from tests.test_utils import StandardTestAssertions
 
@@ -58,8 +60,9 @@ class TestFrequencyAnalysis:
         fa.diagonalize_hessian()
 
         zpe = fa.get_zero_point_energy()
-        assert isinstance(zpe, float)
-        assert zpe >= 0, "Zero-point energy should be non-negative"
+        positive = filter_positive_frequencies(np.asarray(fa.get_frequencies(), dtype=float))
+        assert zpe == pytest.approx(harmonic_zero_point_energy_ev(positive))
+        assert zpe > 0.0
 
     def test_atoms_not_modified_in_place(self, h2o_molecule, mock_backend):
         h2o_molecule.calc = mock_backend

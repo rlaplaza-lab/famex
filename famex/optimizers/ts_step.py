@@ -16,6 +16,7 @@ from typing import Any, cast
 
 import numpy as np
 from ase import Atoms
+from scipy.linalg import eigh as scipy_eigh
 from scipy.sparse.linalg import LinearOperator, eigsh
 
 from famex.utils.logging import get_famex_logger
@@ -141,22 +142,20 @@ def select_transition_mode(
     return tv_index, mode, float(eigenvalues[tv_index])
 
 
-def _solve_rfo_2x2(
-    gradient_proj: float, omega: float, alpha: float, maximize: bool
-) -> tuple[float, float]:
-    """Solve 2x2 RFO for a single mode. Returns (step_component, eigenvalue)."""
-    rfo = np.array([[0.0, gradient_proj], [gradient_proj, omega]])
-    metric = np.array([[1.0, 0.0], [0.0, alpha]])
-    from scipy.linalg import eigh as scipy_eigh
+def _solve_rfo_2x2(gradient_proj: float, omega: float, maximize: bool) -> tuple[float, float]:
+    """Solve the 2×2 Baker RFO problem for one mode.
 
-    eigvals, eigvecs = scipy_eigh(rfo, metric)
+    Returns the step component and the selected augmented-Hessian eigenvalue.
+    """
+    rfo = np.array([[0.0, gradient_proj], [gradient_proj, omega]])
+    eigvals, eigvecs = np.linalg.eigh(rfo)
     idx = int(np.argmax(eigvals) if maximize else np.argmin(eigvals))
     lam = float(eigvals[idx])
     v = eigvecs[:, idx]
     if abs(v[0]) > 1e-12:
         step_comp = float(v[1] / v[0])
     else:
-        denom = omega - alpha * lam
+        denom = omega - lam
         step_comp = -gradient_proj / denom if abs(denom) > 1e-12 else 0.0
     return step_comp, lam
 
@@ -165,9 +164,8 @@ def _solve_other_subspace_lambda(
     eigenvalues: np.ndarray,
     gradient_eigen: np.ndarray,
     tv_index: int,
-    alpha: float,
 ) -> float:
-    """Solve the augmented RFO problem for the minimization subspace."""
+    """Lowest eigenvalue of the augmented Hessian on the minimization subspace."""
     mask = np.ones(len(eigenvalues), dtype=bool)
     mask[tv_index] = False
     omega_ot = eigenvalues[mask]
@@ -182,12 +180,7 @@ def _solve_other_subspace_lambda(
     aug[:n_ot, n_ot] = g_ot
     aug[n_ot, :n_ot] = g_ot
 
-    metric = np.eye(n_ot + 1)
-    metric[n_ot, n_ot] = alpha
-
-    from scipy.linalg import eigh as scipy_eigh
-
-    eigvals, _ = scipy_eigh(aug, metric)
+    eigvals = np.linalg.eigvalsh(aug)
     return float(np.min(eigvals))
 
 
@@ -196,36 +189,26 @@ def compute_dense_prfo_step(
     hessian: np.ndarray,
     trust_radius: float,
     previous_mode: np.ndarray | None = None,
-    alpha: float = 1.0,
-    max_alpha_iter: int = 20,
 ) -> TSStepResult:
-    """Compute a dense RS-P-RFO step for transition-state optimization."""
+    """Compute a Baker P-RFO step, scaled onto the trust sphere when too long.
+
+    The unscaled step is partitioned rational-function optimization at α = 1.
+    Scaling preserves that direction. The trust radius is a cap, not a target.
+    """
     sym_hessian = 0.5 * (hessian + hessian.T)
     eigenvalues, eigenvectors = np.linalg.eigh(sym_hessian)
 
-    tv_index, transition_mode, omega_tv = select_transition_mode(
+    tv_index, transition_mode, _omega_tv = select_transition_mode(
         eigenvalues,
         eigenvectors,
         previous_mode,
     )
 
-    alpha_opt = _find_alpha_for_trust_radius(
+    step = _prfo_step_from_eigensystem(
         gradient=gradient,
         eigenvalues=eigenvalues,
         eigenvectors=eigenvectors,
         tv_index=tv_index,
-        trust_radius=trust_radius,
-        alpha=alpha,
-        max_iter=max_alpha_iter,
-    )
-
-    step, predicted = _prfo_step_from_eigensystem(
-        gradient=gradient,
-        eigenvalues=eigenvalues,
-        eigenvectors=eigenvectors,
-        tv_index=tv_index,
-        alpha=alpha_opt,
-        scale_to_radius=False,
     )
 
     step_norm = float(np.linalg.norm(step))
@@ -238,7 +221,7 @@ def compute_dense_prfo_step(
         step=step,
         predicted_energy_change=predicted,
         transition_mode=transition_mode,
-        alpha=alpha_opt,
+        alpha=1.0,
     )
 
 
@@ -247,41 +230,98 @@ def _prfo_step_from_eigensystem(
     eigenvalues: np.ndarray,
     eigenvectors: np.ndarray,
     tv_index: int,
-    alpha: float,
-    scale_to_radius: bool,
-    trust_radius: float = 1.0,
-) -> tuple[np.ndarray, float]:
-    """Build RS-P-RFO step from Hessian eigensystem."""
+) -> np.ndarray:
+    """Build the Baker P-RFO step (α = 1) from a Hessian eigensystem."""
     n = len(gradient)
     gradient_eigen = eigenvectors.T @ gradient
 
     g_tv = float(gradient_eigen[tv_index])
     omega_tv = float(eigenvalues[tv_index])
-    y_tv, _ = _solve_rfo_2x2(g_tv, omega_tv, alpha, maximize=True)
+    y_tv, _lambda_tv = _solve_rfo_2x2(g_tv, omega_tv, maximize=True)
 
-    lambda_ot = _solve_other_subspace_lambda(eigenvalues, gradient_eigen, tv_index, alpha)
+    lambda_ot = _solve_other_subspace_lambda(eigenvalues, gradient_eigen, tv_index)
 
     y_eigen = np.zeros(n)
     for k in range(n):
         if k == tv_index:
             y_eigen[k] = y_tv
         else:
-            denom = eigenvalues[k] - alpha * lambda_ot
+            denom = eigenvalues[k] - lambda_ot
             y_eigen[k] = -gradient_eigen[k] / denom if abs(denom) > 1e-12 else 0.0
 
-    step = eigenvectors @ y_eigen
-    if scale_to_radius:
-        step_norm = float(np.linalg.norm(step))
-        if step_norm > 1e-12 and step_norm > trust_radius:
-            step = step / step_norm * trust_radius
+    return eigenvectors @ y_eigen
 
-    predicted = _predict_energy_change(
-        step, gradient, eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
+
+def _solve_restricted_rfo_2x2(
+    gradient_proj: float, omega: float, alpha: float, maximize: bool
+) -> float:
+    """Step component from the 2×2 RFO problem with metric scale ``alpha``."""
+    rfo = np.array([[0.0, gradient_proj], [gradient_proj, omega]])
+    metric = np.array([[1.0, 0.0], [0.0, alpha]])
+    eigvals, eigvecs = scipy_eigh(rfo, metric)
+    idx = int(np.argmax(eigvals) if maximize else np.argmin(eigvals))
+    lam = float(eigvals[idx])
+    v = eigvecs[:, idx]
+    if abs(v[0]) > 1e-12:
+        return float(v[1] / v[0])
+    denom = omega - alpha * lam
+    if abs(denom) <= 1e-12:
+        return 0.0
+    return float(-gradient_proj / denom)
+
+
+def _restricted_subspace_lambda(
+    eigenvalues: np.ndarray,
+    gradient_eigen: np.ndarray,
+    tv_index: int,
+    alpha: float,
+) -> float:
+    """Lowest augmented-Hessian eigenvalue on the minimization subspace."""
+    mask = np.ones(len(eigenvalues), dtype=bool)
+    mask[tv_index] = False
+    omega_ot = eigenvalues[mask]
+    g_ot = gradient_eigen[mask]
+    n_ot = len(omega_ot)
+    if n_ot == 0:
+        return 0.0
+
+    aug = np.zeros((n_ot + 1, n_ot + 1))
+    aug[:n_ot, :n_ot] = np.diag(omega_ot)
+    aug[:n_ot, n_ot] = g_ot
+    aug[n_ot, :n_ot] = g_ot
+    metric = np.eye(n_ot + 1)
+    metric[n_ot, n_ot] = alpha
+    eigvals = scipy_eigh(aug, metric, eigvals_only=True)
+    return float(np.min(eigvals))
+
+
+def _restricted_prfo_step(
+    gradient: np.ndarray,
+    eigenvalues: np.ndarray,
+    eigenvectors: np.ndarray,
+    tv_index: int,
+    alpha: float,
+) -> np.ndarray:
+    """RS-P-RFO step. Smaller ``alpha`` lengthens the step."""
+    n = len(gradient)
+    gradient_eigen = eigenvectors.T @ gradient
+    y_eigen = np.zeros(n)
+    y_eigen[tv_index] = _solve_restricted_rfo_2x2(
+        float(gradient_eigen[tv_index]),
+        float(eigenvalues[tv_index]),
+        alpha,
+        maximize=True,
     )
-    return step, predicted
+    lambda_ot = _restricted_subspace_lambda(eigenvalues, gradient_eigen, tv_index, alpha)
+    for k in range(n):
+        if k == tv_index:
+            continue
+        denom = eigenvalues[k] - alpha * lambda_ot
+        y_eigen[k] = -gradient_eigen[k] / denom if abs(denom) > 1e-12 else 0.0
+    return eigenvectors @ y_eigen
 
 
-def _find_alpha_for_trust_radius(
+def _alpha_for_trust_radius(
     gradient: np.ndarray,
     eigenvalues: np.ndarray,
     eigenvectors: np.ndarray,
@@ -290,21 +330,14 @@ def _find_alpha_for_trust_radius(
     alpha: float,
     max_iter: int,
 ) -> float:
-    """Bisection search for alpha that yields a step near the trust radius."""
+    """Find ``alpha`` whose RS-P-RFO step lies near the trust radius."""
     alpha_min = 1e-4
     alpha_max = 1e4
     alpha = float(np.clip(alpha, alpha_min, alpha_max))
     tolerance = 0.05 * trust_radius
 
     for _ in range(max_iter):
-        step, _ = _prfo_step_from_eigensystem(
-            gradient=gradient,
-            eigenvalues=eigenvalues,
-            eigenvectors=eigenvectors,
-            tv_index=tv_index,
-            alpha=alpha,
-            scale_to_radius=False,
-        )
+        step = _restricted_prfo_step(gradient, eigenvalues, eigenvectors, tv_index, alpha)
         step_norm = float(np.linalg.norm(step))
         if abs(step_norm - trust_radius) < tolerance:
             break
@@ -317,8 +350,50 @@ def _find_alpha_for_trust_radius(
         alpha = float(np.clip(alpha, alpha_min, alpha_max))
         if alpha_min >= alpha_max - 1e-10:
             break
-
     return alpha
+
+
+def compute_restricted_prfo_step(
+    gradient: np.ndarray,
+    hessian: np.ndarray,
+    trust_radius: float,
+    previous_mode: np.ndarray | None = None,
+    alpha: float = 1.0,
+    max_alpha_iter: int = 20,
+) -> TSStepResult:
+    """RS-P-RFO step whose length matches ``trust_radius``.
+
+    Plain Baker P-RFO (``alpha`` = 1) leaves stiff modes almost unmoved when the
+    gradient is large. The metric scale is chosen so the step reaches the trust
+    sphere, then capped if the search still overshoots.
+    """
+    sym_hessian = 0.5 * (hessian + hessian.T)
+    eigenvalues, eigenvectors = np.linalg.eigh(sym_hessian)
+    tv_index, transition_mode, _omega_tv = select_transition_mode(
+        eigenvalues,
+        eigenvectors,
+        previous_mode,
+    )
+    alpha_opt = _alpha_for_trust_radius(
+        gradient=gradient,
+        eigenvalues=eigenvalues,
+        eigenvectors=eigenvectors,
+        tv_index=tv_index,
+        trust_radius=trust_radius,
+        alpha=alpha,
+        max_iter=max_alpha_iter,
+    )
+    step = _restricted_prfo_step(gradient, eigenvalues, eigenvectors, tv_index, alpha_opt)
+    step_norm = float(np.linalg.norm(step))
+    if step_norm > 1e-12 and step_norm > trust_radius:
+        step = step / step_norm * trust_radius
+    predicted = _predict_energy_change(step, gradient, sym_hessian)
+    return TSStepResult(
+        step=step,
+        predicted_energy_change=predicted,
+        transition_mode=transition_mode,
+        alpha=alpha_opt,
+    )
 
 
 def _predict_energy_change(step: np.ndarray, gradient: np.ndarray, hessian: np.ndarray) -> float:
@@ -357,8 +432,14 @@ def lowest_eigenpair(
     n: int,
     previous_mode: np.ndarray | None = None,
     n_iter: int = 30,
+    null_threshold: float = NULL_MODE_THRESHOLD,
 ) -> tuple[float, np.ndarray]:
-    """Find the lowest Hessian eigenpair via matrix-free Lanczos (eigsh)."""
+    """Lowest vibrational Hessian eigenpair, or the previous mode by overlap.
+
+    Requests enough Lanczos pairs to see past rigid-body null modes, then drops
+    eigenvalues inside ``null_threshold``. With a previous mode, the vibrational
+    pair of largest absolute overlap is kept.
+    """
     op = LinearOperator((n, n), matvec=hessp, dtype=float)
 
     if previous_mode is not None and np.linalg.norm(previous_mode) > 1e-12:
@@ -367,8 +448,29 @@ def lowest_eigenpair(
         v0 = np.random.default_rng(0).standard_normal(n)
         v0 /= np.linalg.norm(v0)
 
-    eigenvalues, eigenvectors = eigsh(op, k=1, which="SA", tol=1e-4, maxiter=n_iter, v0=v0)
-    return float(eigenvalues[0]), eigenvectors[:, 0]
+    # Six rigid-body modes plus the softest vibrations. eigsh needs k < n.
+    n_pairs = min(7, n - 1) if n > 1 else 1
+    eigenvalues, eigenvectors = eigsh(op, k=n_pairs, which="SA", tol=1e-4, maxiter=n_iter, v0=v0)
+    order = np.argsort(eigenvalues)
+    eigenvalues = eigenvalues[order]
+    eigenvectors = eigenvectors[:, order]
+
+    vibrational = np.abs(eigenvalues) > null_threshold
+    if not np.any(vibrational):
+        msg = (
+            "Cannot determine transition mode: no vibrational eigenvalues "
+            f"above null threshold ({null_threshold} eV/Å²)"
+        )
+        raise RuntimeError(msg)
+
+    candidates = np.flatnonzero(vibrational)
+    if previous_mode is not None and np.linalg.norm(previous_mode) > 1e-12:
+        previous = previous_mode / np.linalg.norm(previous_mode)
+        overlaps = np.abs(eigenvectors[:, candidates].T @ previous)
+        chosen = int(candidates[int(np.argmax(overlaps))])
+    else:
+        chosen = int(candidates[int(np.argmin(eigenvalues[candidates]))])
+    return float(eigenvalues[chosen]), eigenvectors[:, chosen]
 
 
 def build_image_operators(

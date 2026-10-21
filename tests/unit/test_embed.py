@@ -7,16 +7,17 @@ import math
 import numpy as np
 import pytest
 from click.testing import CliRunner
+from scipy.linalg import orthogonal_procrustes
 
 import famex
 from famex.backends.availability import is_backend_available
 from famex.cli import main
 from famex.cli.cli_helpers import load_structure_or_smiles, write_atoms
-from famex.embed.bounds import torsion_distance
+from famex.embed.bounds import _smooth, torsion_distance
 from famex.embed.cleanup import _UFFModel
-from famex.embed.dgeom import embed_coordinates
+from famex.embed.dgeom import _classical_mds, embed_coordinates
 from famex.embed.parse import parse_smiles
-from famex.embed.typing import AtomParams, assign_parameters, bond_length
+from famex.embed.typing import AtomParams, angle_force_constant, assign_parameters, bond_length
 from famex.io.geometry import Geometry
 
 pytest.importorskip("pysmiles")
@@ -38,18 +39,118 @@ def _min_distance(atoms: Geometry) -> float:
     return float(dmat.min())
 
 
+def _closed_form_bond(r_i: float, chi_i: float, r_j: float, chi_j: float, order: float) -> float:
+    lam = 0.1332
+    rij = r_i + r_j
+    if abs(order - 1.0) > 1e-8:
+        rij -= lam * (r_i + r_j) * math.log(order)
+    denom = chi_i * r_i + chi_j * r_j
+    ren = r_i * r_j * (math.sqrt(chi_i) - math.sqrt(chi_j)) ** 2 / denom
+    return rij - ren
+
+
+def _closed_form_angle_k(
+    z_i: float, z_k: float, r_ij: float, r_jk: float, theta_deg: float
+) -> float:
+    k_scale = 664.12
+    theta = math.radians(theta_deg)
+    cos_t = math.cos(theta)
+    rik2 = r_ij * r_ij + r_jk * r_jk - 2.0 * r_ij * r_jk * cos_t
+    rik = math.sqrt(rik2)
+    return (
+        k_scale
+        * z_i
+        * z_k
+        / rik**5
+        * r_ij
+        * r_jk
+        * (3.0 * r_ij * r_jk * (1.0 - cos_t * cos_t) - rik2 * cos_t)
+    )
+
+
+def _parsed_volume(geom: Geometry, center: int, neighbors: tuple[int, int, int, int]) -> float:
+    pos = geom.positions
+    a, b, c = neighbors[:3]
+    v1 = pos[a] - pos[center]
+    v2 = pos[b] - pos[center]
+    v3 = pos[c] - pos[center]
+    return float(np.dot(v1, np.cross(v2, v3)))
+
+
+def _assert_numeric_gradient(smiles: str) -> None:
+    graph = parse_smiles(smiles)
+    params = assign_parameters(graph)
+    coords = embed_coordinates(graph, params, np.random.default_rng(0), deterministic=True)
+    model = _UFFModel(graph, params)
+    x = np.asarray(coords, dtype=float).reshape(-1).copy()
+    _energy, grad = model.energy_grad(x)
+    eps = 1e-6
+    numeric = np.zeros_like(grad)
+    for index in range(len(x)):
+        x[index] += eps
+        energy_plus, _g = model.energy_grad(x)
+        x[index] -= 2.0 * eps
+        energy_minus, _g = model.energy_grad(x)
+        x[index] += eps
+        numeric[index] = (energy_plus - energy_minus) / (2.0 * eps)
+    assert np.allclose(grad, numeric, rtol=1e-4, atol=1e-4)
+
+
 class TestUFFParameters:
     def test_single_bond_lengths(self) -> None:
         carbon = AtomParams("C_3", 6, 0.757, 109.471, 3.851, 0.105, 1.912, 5.343, 4)
+        alkene = AtomParams("C_2", 6, 0.732, 120.0, 3.851, 0.105, 1.912, 5.343, 3)
         hydrogen = AtomParams("H_", 1, 0.354, 180.0, 2.886, 0.044, 0.712, 4.528, 1)
         oxygen = AtomParams("O_3", 8, 0.658, 104.51, 3.500, 0.060, 2.300, 8.741, 2)
-        assert 1.50 < bond_length(carbon, carbon, 1.0) < 1.54
-        assert 0.94 < bond_length(oxygen, hydrogen, 1.0) < 1.05
+        assert bond_length(carbon, carbon, 1.0) == pytest.approx(
+            _closed_form_bond(0.757, 5.343, 0.757, 5.343, 1.0)
+        )
+        assert bond_length(alkene, alkene, 2.0) == pytest.approx(
+            _closed_form_bond(0.732, 5.343, 0.732, 5.343, 2.0)
+        )
+        assert bond_length(oxygen, hydrogen, 1.0) == pytest.approx(
+            _closed_form_bond(0.658, 8.741, 0.354, 4.528, 1.0)
+        )
 
-    def test_trans_distance_exceeds_cis(self) -> None:
+    def test_linear_angle_constant(self) -> None:
+        linear = angle_force_constant(1.912, 1.912, 1.2, 1.2, 180.0)
+        near = angle_force_constant(1.912, 1.912, 1.2, 1.2, 179.0)
+        assert linear == pytest.approx(_closed_form_angle_k(1.912, 1.912, 1.2, 1.2, 180.0))
+        assert near == pytest.approx(_closed_form_angle_k(1.912, 1.912, 1.2, 1.2, 179.0))
+        assert abs(linear - near) < 1.0
+
+    def test_torsion_distances(self) -> None:
         cis = torsion_distance(1.5, 1.34, 1.5, 120.0, 120.0, 0.0)
         trans = torsion_distance(1.5, 1.34, 1.5, 120.0, 120.0, math.pi)
-        assert trans > cis + 0.5
+        assert cis == pytest.approx(2.84)
+        assert trans == pytest.approx(math.sqrt((1.5 * math.sqrt(3.0)) ** 2 + 2.84**2))
+
+    def test_classical_mds_recovers_points(self) -> None:
+        points = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [1.5, 0.0, 0.0],
+                [0.4, 1.2, 0.0],
+                [0.2, 0.3, 1.1],
+            ]
+        )
+        dist = np.linalg.norm(points[:, None, :] - points[None, :, :], axis=-1)
+        embedded = _classical_mds(dist)
+        left = embedded - embedded.mean(axis=0)
+        right = points - points.mean(axis=0)
+        rotation, _scale = orthogonal_procrustes(left, right)
+        assert np.allclose(left @ rotation, right, atol=1e-8)
+
+    def test_smoothing_raises_triangle_violation(self) -> None:
+        lower = np.zeros((3, 3))
+        upper = np.full((3, 3), 10.0)
+        np.fill_diagonal(upper, 0.0)
+        lower[0, 1] = lower[1, 0] = 4.0
+        upper[0, 1] = upper[1, 0] = 4.0
+        upper[1, 2] = upper[2, 1] = 1.0
+        _smooth(lower, upper)
+        assert lower[0, 2] == pytest.approx(3.0)
+        assert lower[2, 0] == pytest.approx(3.0)
 
 
 class TestEmbedMolecules:
@@ -172,6 +273,14 @@ class TestEmbedMolecules:
             return float(np.dot(v1, np.cross(v2, v3)))
 
         assert volume(embedded_at) * volume(embedded_at_at) < 0.0
+        assert (
+            _parsed_volume(embedded_at, clockwise.chiral[0].center, clockwise.chiral[0].neighbors)
+            > 0.0
+        )
+        assert (
+            _parsed_volume(embedded_at_at, counter.chiral[0].center, counter.chiral[0].neighbors)
+            > 0.0
+        )
 
         trans = parse_smiles(r"F/C=C/F")
         cis = parse_smiles(r"F/C=C\F")
@@ -188,6 +297,31 @@ class TestEmbedMolecules:
 
         assert fluorine_distance(trans_geom) > fluorine_distance(cis_geom) + 0.4
 
+    def test_three_stereocenters(self) -> None:
+        smiles = "C[C@H](F)[C@H](F)[C@H](F)C"
+        graph = parse_smiles(smiles)
+        for seed in range(4):
+            geom = famex.smiles_to_atoms(smiles, seed=seed)
+            assert isinstance(geom, Geometry)
+            symbols = _symbols(geom)
+            for spec in graph.chiral:
+                assert _parsed_volume(geom, spec.center, spec.neighbors) > 0.2
+                hydrogens = [nb for nb in spec.neighbors if symbols[nb] == "H"]
+                assert hydrogens
+                for hydrogen in hydrogens:
+                    assert 0.95 < _dist(geom, spec.center, hydrogen) < 1.25
+
+    def test_diastereomers_keep_opposite_configuration(self) -> None:
+        same = "C[C@H](F)[C@H](F)C"
+        other = "C[C@H](F)[C@@H](F)C"
+        spec = parse_smiles(same).chiral[1]
+        same_geom = famex.smiles_to_atoms(same, seed=0)
+        other_geom = famex.smiles_to_atoms(other, seed=0)
+        assert isinstance(same_geom, Geometry)
+        assert isinstance(other_geom, Geometry)
+        assert _parsed_volume(same_geom, spec.center, spec.neighbors) > 0.2
+        assert _parsed_volume(other_geom, spec.center, spec.neighbors) < -0.2
+
     def test_invalid_smiles_and_repeatability(self) -> None:
         with pytest.raises(ValueError, match="Invalid SMILES"):
             famex.smiles_to_atoms("[C")
@@ -197,23 +331,9 @@ class TestEmbedMolecules:
         assert isinstance(second, Geometry)
         assert np.allclose(first.positions, second.positions)
 
-    def test_cleanup_gradient(self) -> None:
-        graph = parse_smiles("O")
-        params = assign_parameters(graph)
-        coords = embed_coordinates(graph, params, np.random.default_rng(0), deterministic=True)
-        model = _UFFModel(graph, params)
-        x = np.asarray(coords, dtype=float).reshape(-1).copy()
-        _energy, grad = model.energy_grad(x)
-        eps = 1e-6
-        numeric = np.zeros_like(grad)
-        for index in range(len(x)):
-            x[index] += eps
-            energy_plus, _g = model.energy_grad(x)
-            x[index] -= 2.0 * eps
-            energy_minus, _g = model.energy_grad(x)
-            x[index] += eps
-            numeric[index] = (energy_plus - energy_minus) / (2.0 * eps)
-        assert np.allclose(grad, numeric, rtol=1e-3, atol=1e-3)
+    @pytest.mark.parametrize("smiles", ["O", "CCCC", "O=C=O", "[S](F)(F)(F)(F)(F)F"])
+    def test_cleanup_gradient(self, smiles: str) -> None:
+        _assert_numeric_gradient(smiles)
 
     def test_geometry_and_explorer_helpers(self) -> None:
         geom = Geometry.from_smiles("O", seed=0)

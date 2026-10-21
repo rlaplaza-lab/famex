@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 from ase import Atoms
 
 from famex.core.explorer import Explorer
+from famex.strategies.growing_string import MultiStructureGrowingStringStrategy
 from tests.test_constants import (
     COMPREHENSIVE_STEPS,
     DEFAULT_STEPS,
@@ -146,3 +148,73 @@ class TestGrowingStringMethod:
         total_images = len(result["forward_string"]) + len(result["backward_string"])
         assert total_images <= 10
         assert len(result["trajectory"]) >= 2
+
+
+def _bare_string() -> MultiStructureGrowingStringStrategy:
+    """Strategy object with string geometry only; no explorer or calculator."""
+    gsm = MultiStructureGrowingStringStrategy.__new__(MultiStructureGrowingStringStrategy)
+    gsm.explorer = None
+    gsm.max_nodes = 9
+    gsm.sk = 1.0 / (gsm.max_nodes + 1)
+    gsm.all_energies = []
+    gsm.all_forces = []
+    return gsm
+
+
+class TestGrowingStringGeometry:
+    def test_right_frontier_advances_away_from_the_product(self):
+        reactant = Atoms("H3", positions=[[0.0, 0.0, 0.0], [0.9, 0.2, 0.0], [1.6, 0.8, 0.1]])
+        product = Atoms("H3", positions=[[0.2, 1.5, 0.0], [1.1, 1.6, 0.2], [2.0, 1.2, 0.4]])
+        gsm = _bare_string()
+        gsm.left_string = [reactant]
+        gsm.right_string = [product]
+        gsm._set_images_from_strings()
+
+        gsm.left_string.append(gsm.get_new_image(gsm.lf_ind))
+        gsm._set_images_from_strings()
+        gsm.right_string.append(gsm.get_new_image(gsm.rf_ind))
+        gsm._set_images_from_strings()
+        first_right = gsm.right_string[-1]
+        gsm.right_string.append(gsm.get_new_image(gsm.rf_ind))
+        gsm._set_images_from_strings()
+        newest = gsm.right_string[-1]
+        product_node = gsm.right_string[0]
+
+        newest_gap = float(np.linalg.norm(newest.positions - product_node.positions))
+        first_gap = float(np.linalg.norm(first_right.positions - product_node.positions))
+        assert newest_gap > first_gap
+
+        assert gsm.images[gsm.rf_ind] is newest
+        frontier_gap = float(
+            np.linalg.norm(gsm.left_string[-1].positions - gsm.right_string[-1].positions)
+        )
+        product_gap = float(
+            np.linalg.norm(gsm.left_string[-1].positions - gsm.right_string[0].positions)
+        )
+        neighbor_gap = float(
+            np.linalg.norm(gsm.images[gsm.lf_ind].positions - gsm.images[gsm.rf_ind].positions)
+        )
+        assert frontier_gap == pytest.approx(neighbor_gap)
+        assert frontier_gap < product_gap
+
+    def test_interior_tangent_blends_both_chords_at_equal_energy_drops(self):
+        gsm = _bare_string()
+        reactant = Atoms("H", positions=[[0.0, 0.0, 0.0]])
+        left = Atoms("H", positions=[[1.0, 0.0, 0.0]])
+        middle = Atoms("H", positions=[[1.0, 1.0, 0.0]])
+        right = Atoms("H", positions=[[2.0, 1.0, 0.0]])
+        product = Atoms("H", positions=[[3.0, 0.0, 0.0]])
+        gsm.left_string = [reactant, left, middle]
+        gsm.right_string = [product, right]
+        gsm._set_images_from_strings()
+        gsm.all_energies = [[0.0, 1.0, 0.0, 0.0, 0.0]]
+
+        tangent = gsm.get_tangent(1)
+        v_prev = (left.positions - reactant.positions).ravel()
+        v_next = (middle.positions - left.positions).ravel()
+        expected = v_prev + v_next
+        expected = expected / np.linalg.norm(expected)
+        assert tangent == pytest.approx(expected)
+        crossed = v_next - v_prev
+        crossed = crossed / np.linalg.norm(crossed)
+        assert abs(float(np.dot(tangent, crossed))) < 0.2

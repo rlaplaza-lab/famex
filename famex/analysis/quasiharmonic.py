@@ -8,15 +8,14 @@ behave more like free rotors at typical reaction temperatures.
 from __future__ import annotations
 
 import math
-from typing import cast
 
 import numpy as np
-from numpy.typing import NDArray
 
 from famex.analysis.physics_constants import (
     AVOGADRO_CONSTANT,
     BOLTZMANN_CONSTANT,
     GAS_CONSTANT,
+    J_PER_MOL_TO_EV,
     PLANCK_CONSTANT,
     SPEED_OF_LIGHT,
     filter_positive_frequencies,
@@ -34,7 +33,11 @@ __all__ = [
     "calculate_free_rotor_entropy",
     "calculate_qRRHO_entropy",
     "calculate_qRRHO_energy",
+    "harmonic_zero_point_energy_ev",
 ]
+
+# Above this reduced frequency, exp(x) overflows and the thermal terms vanish.
+_X_STABLE = 40.0
 
 
 def calculate_damping_function(
@@ -68,6 +71,60 @@ def calculate_damping_function(
     return damp
 
 
+def _as_frequency_array(frequencies: np.ndarray) -> np.ndarray:
+    return np.atleast_1d(np.asarray(frequencies, dtype=np.float64))
+
+
+def _scale_frequencies(frequencies: np.ndarray, freq_scale_factor: float = 1.0) -> np.ndarray:
+    return _as_frequency_array(frequencies) * freq_scale_factor
+
+
+def vibrational_thermal_factor(frequencies_cm1: np.ndarray, temperature: float) -> np.ndarray:
+    """Return x = hν/kT for frequencies in cm^-1."""
+    return (PLANCK_CONSTANT * np.asarray(frequencies_cm1) * SPEED_OF_LIGHT) / (
+        BOLTZMANN_CONSTANT * temperature
+    )
+
+
+def _rrho_entropy_from_x(x: np.ndarray) -> np.ndarray:
+    """RRHO entropy in J/(mol·K). Large x uses the zero thermal-entropy limit."""
+    entropy = np.zeros(x.shape, dtype=np.float64)
+    stable = x < _X_STABLE
+    if np.any(stable):
+        xs = x[stable]
+        entropy[stable] = GAS_CONSTANT * (xs / np.expm1(xs) - np.log(-np.expm1(-xs)))
+    return entropy
+
+
+def _rrho_energy_from_x(x: np.ndarray, temperature: float) -> np.ndarray:
+    """RRHO energy in J/mol, including the zero-point term."""
+    thermal = np.zeros(x.shape, dtype=np.float64)
+    stable = x < _X_STABLE
+    if np.any(stable):
+        thermal[stable] = x[stable] / np.expm1(x[stable])
+    return GAS_CONSTANT * temperature * (0.5 * x + thermal)
+
+
+def harmonic_heat_capacity_factor(x: np.ndarray) -> np.ndarray:
+    """Return x² e^x / (e^x − 1)². The high-frequency limit is 0."""
+    values = np.asarray(x, dtype=np.float64)
+    factor = np.zeros_like(values)
+    stable = values < _X_STABLE
+    if np.any(stable):
+        xs = values[stable]
+        factor[stable] = xs**2 * np.exp(xs) / np.expm1(xs) ** 2
+    return factor
+
+
+def harmonic_zero_point_energy_ev(frequencies_cm1: np.ndarray) -> float:
+    """Harmonic zero-point energy in eV from the same hν as the RRHO energy."""
+    freqs = _as_frequency_array(frequencies_cm1)
+    zpe_j_per_mol = (
+        0.5 * PLANCK_CONSTANT * float(np.sum(freqs)) * SPEED_OF_LIGHT * AVOGADRO_CONSTANT
+    )
+    return float(zpe_j_per_mol * J_PER_MOL_TO_EV)
+
+
 def calculate_rrho_entropy(
     frequencies: np.ndarray,
     temperature: float,
@@ -91,22 +148,8 @@ def calculate_rrho_entropy(
     np.ndarray
         RRHO entropy in J/(mol·K) for each mode
     """
-    # Scale frequencies
-    frequencies_scaled = frequencies * freq_scale_factor
-
-    # Calculate x = hν/(kT)
-    factor = (
-        PLANCK_CONSTANT * frequencies_scaled * SPEED_OF_LIGHT / (BOLTZMANN_CONSTANT * temperature)
-    )
-
-    # Sv = R [x/(exp(x)-1) - ln(1-exp(-x))]
-    entropy = np.where(
-        factor < 50,  # Avoid overflow
-        factor * GAS_CONSTANT / (np.exp(factor) - 1) - GAS_CONSTANT * np.log(1 - np.exp(-factor)),
-        GAS_CONSTANT * factor / (np.exp(factor) - 1),  # High frequency limit
-    )
-
-    return cast(NDArray[np.float64], entropy)
+    scaled = _scale_frequencies(frequencies, freq_scale_factor)
+    return _rrho_entropy_from_x(vibrational_thermal_factor(scaled, temperature))
 
 
 def calculate_rrho_energy(
@@ -132,22 +175,8 @@ def calculate_rrho_energy(
     np.ndarray
         RRHO energy in J/mol for each mode
     """
-    # Scale frequencies
-    frequencies_scaled = frequencies * freq_scale_factor
-
-    # Calculate x = hν/(kT)
-    factor = (
-        PLANCK_CONSTANT * frequencies_scaled * SPEED_OF_LIGHT / (BOLTZMANN_CONSTANT * temperature)
-    )
-
-    # Evib = RT [0.5 + 1/(exp(x)-1)]
-    energy = np.where(
-        factor < 50,  # Avoid overflow
-        factor * GAS_CONSTANT * temperature * (0.5 + 1.0 / (np.exp(factor) - 1.0)),
-        factor * GAS_CONSTANT * temperature * 0.5,  # High frequency limit
-    )
-
-    return energy
+    scaled = _scale_frequencies(frequencies, freq_scale_factor)
+    return _rrho_energy_from_x(vibrational_thermal_factor(scaled, temperature), temperature)
 
 
 def calculate_free_rotor_entropy(
@@ -177,20 +206,11 @@ def calculate_free_rotor_entropy(
     np.ndarray
         Free rotor entropy in J/(mol·K) for each mode
     """
-    # Scale frequencies
-    frequencies_scaled = frequencies * freq_scale_factor
-
-    # Calculate reduced mass μ = h/(8π²ν)
+    frequencies_scaled = _scale_frequencies(frequencies, freq_scale_factor)
     mu = PLANCK_CONSTANT / (8 * math.pi**2 * frequencies_scaled * SPEED_OF_LIGHT)
-
-    # Calculate modified reduced mass μ' = μb/(μ+b)
     mu_primed = mu * average_moment_of_inertia / (mu + average_moment_of_inertia)
-
-    # Calculate entropy Sr = R [1/2 + 1/2 ln(8π³μ'kT/h²)]
     factor = 8 * math.pi**3 * mu_primed * BOLTZMANN_CONSTANT * temperature / PLANCK_CONSTANT**2
-    entropy = (0.5 + np.log(np.sqrt(factor))) * GAS_CONSTANT
-
-    return np.asarray(entropy, dtype=np.float64)
+    return (0.5 + np.log(np.sqrt(factor))) * GAS_CONSTANT
 
 
 def calculate_qRRHO_entropy(  # noqa: N802
@@ -220,18 +240,12 @@ def calculate_qRRHO_entropy(  # noqa: N802
     np.ndarray
         Quasi-RRHO entropy in J/(mol·K) for each mode
     """
-    # Calculate full RRHO entropy
-    entropy_full = calculate_rrho_entropy(frequencies, temperature, freq_scale_factor)
-
-    # For modes below cutoff, use cutoff frequency in RRHO calculation
-    entropy_cutoff = calculate_rrho_entropy(
-        np.full_like(frequencies, freq_cutoff), temperature, freq_scale_factor
+    scaled = _scale_frequencies(frequencies, freq_scale_factor)
+    entropy_full = _rrho_entropy_from_x(vibrational_thermal_factor(scaled, temperature))
+    entropy_cutoff = _rrho_entropy_from_x(
+        vibrational_thermal_factor(np.full_like(scaled, freq_cutoff), temperature)
     )
-
-    # Use cutoff entropy for frequencies below cutoff
-    entropy = np.where(frequencies > freq_cutoff, entropy_full, entropy_cutoff)
-
-    return entropy
+    return np.where(scaled > freq_cutoff, entropy_full, entropy_cutoff)
 
 
 def calculate_qRRHO_energy(  # noqa: N802
@@ -239,40 +253,8 @@ def calculate_qRRHO_energy(  # noqa: N802
     temperature: float,
     freq_scale_factor: float = 1.0,
 ) -> np.ndarray:
-    """Calculate Head-Gordon quasi-RRHO energy.
-
-    E_qRRHO = 1/2 N_A hν + RT (hν/kT) e^(-hν/kT) / (1 - e^(-hν/kT))
-
-    Parameters
-    ----------
-    frequencies : np.ndarray
-        Vibrational frequencies in cm⁻¹
-    temperature : float
-        Temperature in Kelvin
-    freq_scale_factor : float
-        Frequency scaling factor (default: 1.0)
-
-    Returns
-    -------
-    np.ndarray
-        Quasi-RRHO energy in J/mol for each mode
-    """
-    frequencies_scaled = frequencies * freq_scale_factor
-
-    # Photon energy (J); factor = hν/kT is dimensionless.
-    hnu = PLANCK_CONSTANT * frequencies_scaled * SPEED_OF_LIGHT
-    kT = BOLTZMANN_CONSTANT * temperature
-    factor = hnu / kT
-    zpe_J_per_mol = 0.5 * hnu * AVOGADRO_CONSTANT
-
-    energy = np.where(
-        factor < 50,
-        zpe_J_per_mol
-        + GAS_CONSTANT * temperature * factor * np.exp(-factor) / (1 - np.exp(-factor)),
-        zpe_J_per_mol,
-    )
-
-    return energy
+    """Harmonic vibrational energy, including the zero-point term."""
+    return calculate_rrho_energy(frequencies, temperature, freq_scale_factor)
 
 
 class QuasiHarmonicHandler:
@@ -312,6 +294,9 @@ class QuasiHarmonicHandler:
         self.alpha = alpha
         self.average_moment_of_inertia = average_moment_of_inertia
 
+    def _positive_scaled_frequencies(self, frequencies: np.ndarray) -> np.ndarray:
+        return _scale_frequencies(filter_positive_frequencies(frequencies), self.freq_scale_factor)
+
     def vibrational_entropy(
         self,
         frequencies: np.ndarray,
@@ -331,48 +316,23 @@ class QuasiHarmonicHandler:
         tuple[float, np.ndarray]
             Total entropy and per-mode entropies in J/(mol·K)
         """
-        # Remove zero or negative frequencies
-        # Handle complex frequencies (imaginary frequencies for TS)
-        # Take real part and filter out non-positive values
-        real_freqs = filter_positive_frequencies(frequencies)
+        real_freqs = self._positive_scaled_frequencies(frequencies)
 
-        if self.method == "rrho":
-            per_mode_entropy = calculate_rrho_entropy(
-                real_freqs,
-                temperature,
-                self.freq_scale_factor,
-            )
-        elif self.method == "grimme":
-            # Grimme's method: interpolate between RRHO and free rotor
-            s_rrho = calculate_rrho_entropy(
-                real_freqs,
-                temperature,
-                self.freq_scale_factor,
-            )
+        if self.method == "grimme":
+            s_rrho = calculate_rrho_entropy(real_freqs, temperature)
             s_free_rot = calculate_free_rotor_entropy(
                 real_freqs,
                 temperature,
-                self.freq_scale_factor,
-                self.average_moment_of_inertia,
+                average_moment_of_inertia=self.average_moment_of_inertia,
             )
             damp = calculate_damping_function(real_freqs, self.freq_cutoff, self.alpha)
             per_mode_entropy = s_rrho * damp + (1 - damp) * s_free_rot
         elif self.method == "truhlar":
-            # Truhlar's method: use quasi-RRHO below cutoff
-            per_mode_entropy = calculate_qRRHO_entropy(
-                real_freqs,
-                temperature,
-                self.freq_cutoff,
-                self.freq_scale_factor,
-            )
+            per_mode_entropy = calculate_qRRHO_entropy(real_freqs, temperature, self.freq_cutoff)
         else:
-            msg = f"Unknown method: {self.method}"
-            logger.error(msg)
-            raise RuntimeError(msg)
+            per_mode_entropy = calculate_rrho_entropy(real_freqs, temperature)
 
-        total_entropy = float(np.sum(per_mode_entropy))
-
-        return total_entropy, per_mode_entropy
+        return float(np.sum(per_mode_entropy)), per_mode_entropy
 
     def vibrational_energy(
         self,
@@ -393,60 +353,12 @@ class QuasiHarmonicHandler:
         tuple[float, np.ndarray]
             Total energy and per-mode energies in J/mol
         """
-        # Remove zero or negative frequencies
-        # Handle complex frequencies (imaginary frequencies for TS)
-        # Take real part and filter out non-positive values
-        real_freqs = filter_positive_frequencies(frequencies)
-
+        real_freqs = self._positive_scaled_frequencies(frequencies)
+        per_mode_energy = calculate_rrho_energy(real_freqs, temperature)
         if self.method == "grimme":
-            _, e_qRRHO = self._vibrational_energy_qRRHO(real_freqs, temperature)
             damp = calculate_damping_function(real_freqs, self.freq_cutoff, self.alpha)
-            per_mode_energy = e_qRRHO * damp + (1 - damp) * 0.5 * GAS_CONSTANT * temperature
-            total_energy = float(np.sum(per_mode_energy))
-        elif self.method == "truhlar":
-            # Truhlar method doesn't apply to energy, use standard RRHO
-            per_mode_energy = calculate_rrho_energy(
-                real_freqs,
-                temperature,
-                self.freq_scale_factor,
-            )
-            total_energy = float(np.sum(per_mode_energy))
-        else:  # rrho
-            per_mode_energy = calculate_rrho_energy(
-                real_freqs,
-                temperature,
-                self.freq_scale_factor,
-            )
-            total_energy = float(np.sum(per_mode_energy))
-
-        return total_energy, per_mode_energy
-
-    def _vibrational_energy_qRRHO(  # noqa: N802
-        self,
-        frequencies: np.ndarray,
-        temperature: float,
-    ) -> tuple[float, np.ndarray]:
-        """Calculate qRRHO energy (helper method).
-
-        Parameters
-        ----------
-        frequencies : np.ndarray
-            Vibrational frequencies in cm⁻¹
-        temperature : float
-            Temperature in Kelvin
-
-        Returns
-        -------
-        tuple[float, np.ndarray]
-            Total energy and per-mode energies in J/mol
-        """
-        per_mode_energy = calculate_qRRHO_energy(
-            frequencies,
-            temperature,
-            self.freq_scale_factor,
-        )
-        total_energy = float(np.sum(per_mode_energy))
-        return total_energy, per_mode_energy
+            per_mode_energy = per_mode_energy * damp + (1 - damp) * 0.5 * GAS_CONSTANT * temperature
+        return float(np.sum(per_mode_energy)), per_mode_energy
 
     def __repr__(self) -> str:
         """Return string representation."""

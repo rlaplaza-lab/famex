@@ -11,7 +11,9 @@ from famex.optimizers.ts_step import (
     build_translation_rotation_basis,
     compute_dense_prfo_step,
     compute_matrix_free_ts_step,
+    compute_restricted_prfo_step,
     compute_step_quality,
+    lowest_eigenpair,
     make_atoms_hessp,
     project_gradient,
     project_hessian,
@@ -144,6 +146,74 @@ class TestTSStep:
         hessp1 = make_atoms_hessp(atoms, x1, lambda arr: arr.reshape(-1, 3))
         hessp1(vec)
         assert call_count == 4
+
+    def test_baker_prfo_components_on_diagonal_saddle(self):
+        hessian = np.diag([-0.4, 0.8, 1.5])
+        gradient = np.array([0.2, -0.3, 0.1])
+        step = compute_dense_prfo_step(gradient, hessian, trust_radius=10.0).step
+
+        curvature, force = -0.4, 0.2
+        baker_ts = (curvature + np.sqrt(curvature**2 + 4.0 * force**2)) / (2.0 * force)
+        assert step[0] == pytest.approx(baker_ts)
+
+        omega = np.array([0.8, 1.5])
+        g_min = np.array([-0.3, 0.1])
+        aug = np.zeros((3, 3))
+        aug[:2, :2] = np.diag(omega)
+        aug[:2, 2] = g_min
+        aug[2, :2] = g_min
+        lam = float(np.min(np.linalg.eigvalsh(aug)))
+        assert step[1:] == pytest.approx(-g_min / (omega - lam))
+
+    def test_trust_cap_preserves_baker_direction(self):
+        rng = np.random.default_rng(0)
+        n = 90
+        curvature = np.concatenate([[-0.3], np.linspace(0.2, 5.0, n - 1)])
+        hessian = np.diag(curvature)
+        gradient = rng.normal(scale=0.05, size=n)
+        gradient[0] = 0.4
+
+        baker = compute_dense_prfo_step(gradient, hessian, trust_radius=1e6).step
+        capped = compute_dense_prfo_step(gradient, hessian, trust_radius=0.02).step
+        cosine = float(np.dot(baker, capped) / (np.linalg.norm(baker) * np.linalg.norm(capped)))
+
+        assert cosine > 0.999
+        assert np.linalg.norm(capped) == pytest.approx(0.02)
+        assert np.linalg.norm(baker) > 0.02
+
+    def test_restricted_step_moves_stiff_modes_inside_the_trust_radius(self):
+        hessian = np.diag([-0.2, 800.0, 800.0])
+        gradient = np.array([0.05, 4.0, -3.0])
+        trust_radius = 0.05
+        capped = compute_dense_prfo_step(gradient, hessian, trust_radius=trust_radius).step
+        restricted = compute_restricted_prfo_step(gradient, hessian, trust_radius=trust_radius).step
+        assert np.linalg.norm(restricted) == pytest.approx(trust_radius, rel=0.1)
+        assert np.linalg.norm(restricted[1:]) > 2.0 * np.linalg.norm(capped[1:])
+
+    def test_matrix_free_skips_null_mode(self):
+        hessian = np.diag([0.0, 0.05, 1.0, 2.0, 3.0, 4.0])
+        gradient = np.zeros(6)
+        gradient[1] = 0.2
+
+        result = compute_matrix_free_ts_step(
+            gradient=gradient,
+            hessp=lambda vec: hessian @ vec,
+            trust_radius=0.1,
+        )
+        soft = np.zeros(6)
+        soft[1] = 1.0
+        overlap = abs(float(np.dot(result.transition_mode, soft)))
+        assert overlap == pytest.approx(1.0, abs=1e-6)
+
+    def test_matrix_free_follows_previous_vibrational_mode(self):
+        hessian = np.diag([-0.5, 0.2, 1.0, 2.0])
+        previous = np.array([0.0, 1.0, 0.0, 0.0])
+        _eigenvalue, mode = lowest_eigenpair(
+            lambda vec: hessian @ vec,
+            n=4,
+            previous_mode=previous,
+        )
+        assert abs(float(mode[1])) == pytest.approx(1.0, abs=1e-6)
 
     def test_dense_prfo_step_respects_trust_radius(self):
         n = 6

@@ -12,7 +12,9 @@ Requires an embedder for SMILES (and for PubChem when no 3D conformer exists)::
     pip install famex[smiles]
 """
 
+import math
 from pathlib import Path
+from typing import Any
 
 import famex
 
@@ -21,11 +23,28 @@ SMILES_OUTPUT = HERE / "ethanol_from_smiles.xyz"
 PUBCHEM_OUTPUT = HERE / "aspirin_from_pubchem.xyz"
 
 
+def _require_frequencies(frequency_analysis: Any) -> None:
+    frequencies = (
+        frequency_analysis.get("frequencies") if isinstance(frequency_analysis, dict) else None
+    )
+    usable = (
+        isinstance(frequencies, list)
+        and len(frequencies) > 0
+        and all(isinstance(value, int | float) and math.isfinite(value) for value in frequencies)
+    )
+    if not usable:
+        raise SystemExit("Frequency analysis did not return finite frequencies")
+
+
 def _minimize_and_save(explorer: famex.Explorer, output: Path) -> float:
     result = explorer.run(fmax=0.05, steps=500, calculate_frequencies=True)
     optimized = result["optimized_atoms"]
     explorer.save_structure(optimized, str(output))
-    return float(optimized.get_potential_energy())
+    energy = float(optimized.get_potential_energy())
+    _require_frequencies(result.get("frequency_analysis"))
+    if not result.get("converged") or not math.isfinite(energy):
+        raise SystemExit(1)
+    return energy
 
 
 def main() -> None:

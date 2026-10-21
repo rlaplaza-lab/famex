@@ -240,7 +240,7 @@ def angle_force_constant(
     theta = math.radians(theta_deg)
     cos_t = math.cos(theta)
     rik2 = r_ij * r_ij + r_jk * r_jk - 2.0 * r_ij * r_jk * cos_t
-    if rik2 < 1e-4 or abs(theta_deg - 180.0) < 2.0:
+    if rik2 < 1e-4:
         k = 200.0 * math.sqrt(max(z_i * z_k, 1e-6))
     else:
         rik = math.sqrt(rik2)

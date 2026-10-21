@@ -1,23 +1,27 @@
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
-from ase import Atoms
+from ase import Atoms, units
 
+from famex.analysis.frequency import FrequencyAnalysis
 from famex.analysis.molecular_properties import rotational_temperatures_from_atoms
 from famex.analysis.physics_constants import (
-    ATMOS,
+    AMU_TO_KG,
     AVOGADRO_CONSTANT,
+    BOLTZMANN_CONSTANT,
     GAS_CONSTANT,
     J_PER_MOL_TO_EV,
     PLANCK_CONSTANT,
     SPEED_OF_LIGHT,
     gas_phase_concentration_1atm,
+    ideal_gas_concentration,
 )
 from famex.analysis.quasiharmonic import (
     QuasiHarmonicHandler,
     calculate_damping_function,
-    calculate_free_rotor_entropy,
     calculate_qRRHO_energy,
     calculate_rrho_energy,
     calculate_rrho_entropy,
@@ -38,214 +42,241 @@ from famex.analysis.symmetry import (
 )
 from famex.analysis.thermodynamics import ThermodynamicProperties, read_free_energy_correction
 
+_TEMPERATURE = 298.15
+
+
+def _thermal_factor(frequency_cm: float, temperature: float = _TEMPERATURE) -> float:
+    return PLANCK_CONSTANT * frequency_cm * SPEED_OF_LIGHT / (BOLTZMANN_CONSTANT * temperature)
+
+
+def _rrho_entropy(frequency_cm: float, temperature: float = _TEMPERATURE) -> float:
+    x = _thermal_factor(frequency_cm, temperature)
+    return GAS_CONSTANT * (x / math.expm1(x) - math.log(-math.expm1(-x)))
+
+
+def _rrho_energy(frequency_cm: float, temperature: float = _TEMPERATURE) -> float:
+    x = _thermal_factor(frequency_cm, temperature)
+    return GAS_CONSTANT * temperature * (0.5 * x + x / math.expm1(x))
+
+
+def _sackur_tetrode(
+    mass_amu: float,
+    temperature: float,
+    concentration: float,
+    free_space_ml_per_l: float = 1000.0,
+) -> float:
+    mass_kg = mass_amu * AMU_TO_KG
+    inverse_wavelength_cubed = (
+        2.0 * math.pi * mass_kg * BOLTZMANN_CONSTANT * temperature / PLANCK_CONSTANT**2
+    ) ** 1.5
+    number_density = concentration * 1000.0 * AVOGADRO_CONSTANT / (free_space_ml_per_l / 1000.0)
+    return GAS_CONSTANT * (math.log(inverse_wavelength_cubed / number_density) + 2.5)
+
+
+def _free_rotor_entropy(
+    frequency_cm: float,
+    temperature: float = _TEMPERATURE,
+    average_moment: float = 1.0e-44,
+) -> float:
+    mu = PLANCK_CONSTANT / (8.0 * math.pi**2 * frequency_cm * SPEED_OF_LIGHT)
+    mu_primed = mu * average_moment / (mu + average_moment)
+    factor = 8.0 * math.pi**3 * mu_primed * BOLTZMANN_CONSTANT * temperature / PLANCK_CONSTANT**2
+    return (0.5 + math.log(math.sqrt(factor))) * GAS_CONSTANT
+
+
+def _damping(frequency_cm: float, cutoff: float, alpha: float = 4.0) -> float:
+    return 1.0 / (1.0 + (cutoff / frequency_cm) ** alpha)
+
+
+def _h2() -> Atoms:
+    return Atoms("H2", positions=[[0.0, 0.0, 0.0], [0.74, 0.0, 0.0]])
+
+
+def _h2_rotational_temperature(atoms: Atoms) -> float:
+    mass_kg = float(atoms.get_masses()[0]) * AMU_TO_KG
+    inertia = 0.5 * mass_kg * (0.74e-10) ** 2
+    return (PLANCK_CONSTANT**2) / (8.0 * math.pi**2 * inertia * BOLTZMANN_CONSTANT)
+
+
+@pytest.fixture
+def simple_molecule():
+    return Atoms("H2O", positions=[[0, 0, 0], [0, 0, 0.96], [0.82, 0, -0.26]])
+
+
+@pytest.fixture
+def water_c2v():
+    return Atoms(
+        "OHH",
+        positions=[
+            [0.0, 0.0, 0.1173],
+            [0.0, 0.7572, -0.4692],
+            [0.0, -0.7572, -0.4692],
+        ],
+    )
+
 
 class TestQuasiHarmonic:
-    def test_rrho_entropy(self):
-        frequencies = np.array([100, 500, 1000])  # cm^-1
-        temperature = 298.15  # K
-        entropy = calculate_rrho_entropy(frequencies, temperature)
+    def test_rrho_entropy_matches_partition_function(self):
+        frequencies = np.array([100.0, 500.0, 1000.0])
+        entropy = calculate_rrho_entropy(frequencies, _TEMPERATURE)
 
-        # Should return per-mode entropies
-        assert len(entropy) == 3
-        assert np.all(entropy > 0)  # All entropies should be positive
-        # Higher frequencies should have lower entropy
+        expected = np.array([_rrho_entropy(freq) for freq in frequencies])
+        assert entropy == pytest.approx(expected, rel=1e-12)
         assert entropy[2] < entropy[1] < entropy[0]
 
-    def test_qrrho_energy_high_frequency_includes_avogadro(self):
-        frequencies = np.array([10000.0])
-        energy = calculate_qRRHO_energy(frequencies, 298.15)
-        expected_zpe = 0.5 * PLANCK_CONSTANT * frequencies[0] * SPEED_OF_LIGHT * AVOGADRO_CONSTANT
-        assert energy[0] == pytest.approx(expected_zpe, rel=1e-6)
+    def test_rrho_energy_matches_zero_point_plus_thermal(self):
+        energy = calculate_rrho_energy(np.array([1000.0]), _TEMPERATURE)
+        assert energy[0] == pytest.approx(_rrho_energy(1000.0), rel=1e-12)
 
-    def test_rrho_energy_contains_zpe(self):
-        frequencies = np.array([1000.0])
-        energy = calculate_rrho_energy(frequencies, 298.15)
-        expected_zpe = 0.5 * PLANCK_CONSTANT * frequencies[0] * SPEED_OF_LIGHT * AVOGADRO_CONSTANT
-        assert energy[0] >= expected_zpe - 1e-6
+    def test_qrrho_energy_is_harmonic_energy(self):
+        frequencies = np.array([50.0, 1000.0, 10000.0])
+        assert calculate_qRRHO_energy(frequencies, _TEMPERATURE) == pytest.approx(
+            calculate_rrho_energy(frequencies, _TEMPERATURE)
+        )
 
-    def test_damping_function(self):
-        frequencies = np.array([50, 100, 500, 1000])  # cm^-1
-        freq_cutoff = 100.0  # cm^-1
-        damp = calculate_damping_function(frequencies, freq_cutoff)
+    def test_high_frequency_entropy_is_finite_and_vanishes(self):
+        entropy = calculate_rrho_entropy(np.array([1.0e6]), _TEMPERATURE)
+        energy = calculate_rrho_energy(np.array([1.0e6]), _TEMPERATURE)
+        zpe = 0.5 * PLANCK_CONSTANT * 1.0e6 * SPEED_OF_LIGHT * AVOGADRO_CONSTANT
+        assert np.isfinite(entropy[0])
+        assert entropy[0] == pytest.approx(0.0, abs=1e-12)
+        assert energy[0] == pytest.approx(zpe, rel=1e-12)
 
-        # Damping should decrease with decreasing frequency
-        assert np.all(damp >= 0) and np.all(damp <= 1)
-        assert damp[3] > damp[2] > damp[1] > damp[0]  # Higher freq -> more damping (closer to RRHO)
+    def test_damping_is_half_at_the_cutoff(self):
+        damp = calculate_damping_function(np.array([50.0, 100.0, 500.0, 1000.0]), 100.0)
+        assert damp[1] == pytest.approx(0.5)
+        assert damp[3] > damp[2] > damp[1] > damp[0]
+        assert np.all((damp >= 0.0) & (damp <= 1.0))
 
-    def test_quasi_harmonic_handler(self):
-        handler = QuasiHarmonicHandler(method="grimme", freq_cutoff=100.0)
+    def test_truhlar_raises_low_frequency_entropy_only(self):
+        low = np.array([50.0])
+        cutoff = 100.0
+        handler = QuasiHarmonicHandler(method="truhlar", freq_cutoff=cutoff)
+        entropy, _ = handler.vibrational_entropy(low, _TEMPERATURE)
+        _, per_mode = handler.vibrational_energy(low, _TEMPERATURE)
 
-        frequencies = np.array([50, 100, 500, 1000])  # cm^-1
-        temperature = 298.15
+        assert entropy == pytest.approx(_rrho_entropy(cutoff))
+        assert per_mode[0] == pytest.approx(_rrho_energy(50.0))
 
-        entropy, per_mode = handler.vibrational_entropy(frequencies, temperature)
-        assert entropy > 0
-        assert len(per_mode) == 4
+    def test_scale_factor_is_applied_before_the_truhlar_cutoff(self):
+        handler = QuasiHarmonicHandler(method="truhlar", freq_cutoff=100.0, freq_scale_factor=0.5)
+        entropy, _ = handler.vibrational_entropy(np.array([150.0]), _TEMPERATURE)
+        assert entropy == pytest.approx(_rrho_entropy(100.0))
 
-        energy, per_mode_energy = handler.vibrational_energy(frequencies, temperature)
-        assert energy > 0
-        assert len(per_mode_energy) == 4
+    def test_grimme_damping_uses_scaled_frequencies(self):
+        cutoff = 100.0
+        scaled_frequency = 150.0 * 0.5
+        weight = _damping(scaled_frequency, cutoff)
+        expected_entropy = weight * _rrho_entropy(scaled_frequency) + (
+            1.0 - weight
+        ) * _free_rotor_entropy(scaled_frequency)
+        expected_energy = (
+            weight * _rrho_energy(scaled_frequency)
+            + (1.0 - weight) * 0.5 * GAS_CONSTANT * _TEMPERATURE
+        )
+        handler = QuasiHarmonicHandler(
+            method="grimme",
+            freq_cutoff=cutoff,
+            freq_scale_factor=0.5,
+        )
+        entropy, _ = handler.vibrational_entropy(np.array([150.0]), _TEMPERATURE)
+        energy, _ = handler.vibrational_energy(np.array([150.0]), _TEMPERATURE)
+        assert entropy == pytest.approx(expected_entropy, rel=1e-12)
+        assert energy == pytest.approx(expected_energy, rel=1e-12)
 
 
 class TestStatisticalThermodynamics:
     def test_translational_energy(self):
-        temperature = 298.15  # K
-        energy = calculate_translational_energy(temperature)
+        energy = calculate_translational_energy(_TEMPERATURE)
+        assert energy == pytest.approx(1.5 * GAS_CONSTANT * _TEMPERATURE)
 
-        # Translational energy should be 3/2 RT
-        expected = 1.5 * 8.3144621 * temperature
-        assert abs(energy - expected) < 0.002  # Slight tolerance for constant precision differences
-
-    def test_translational_entropy(self):
-        molecular_mass = 18.0  # H2O
-        temperature = 298.15
-        entropy = calculate_translational_entropy(molecular_mass, temperature)
-
-        assert entropy > 0
+    def test_translational_entropy_matches_sackur_tetrode(self):
+        concentration = gas_phase_concentration_1atm(_TEMPERATURE)
+        entropy = calculate_translational_entropy(18.0, _TEMPERATURE, concentration)
+        assert entropy == pytest.approx(_sackur_tetrode(18.0, _TEMPERATURE, concentration))
 
     def test_rotational_energy(self):
-        temperature = 298.15
+        assert calculate_rotational_energy(_TEMPERATURE, linear=True) == pytest.approx(
+            GAS_CONSTANT * _TEMPERATURE
+        )
+        assert calculate_rotational_energy(_TEMPERATURE, linear=False) == pytest.approx(
+            1.5 * GAS_CONSTANT * _TEMPERATURE
+        )
+        assert calculate_rotational_energy(_TEMPERATURE, is_atom=True) == pytest.approx(0.0)
 
-        # Linear molecule
-        energy_linear = calculate_rotational_energy(temperature, linear=True)
-        assert (
-            abs(energy_linear - 8.3144621 * temperature) < 0.002
-        )  # Tolerance for constant precision
+    def test_rotational_entropy_linear_pair_matches_unique_temperature(self):
+        theta = 10.0
+        one = calculate_rotational_entropy([theta], 2, _TEMPERATURE, linear=True)
+        pair = calculate_rotational_entropy([theta, theta], 2, _TEMPERATURE, linear=True)
+        with_axis = calculate_rotational_entropy([0.0, theta, theta], 2, _TEMPERATURE, linear=True)
+        near_axis = calculate_rotational_entropy(
+            [1.0e-4, theta, theta], 2, _TEMPERATURE, linear=True
+        )
+        expected = GAS_CONSTANT * (math.log((_TEMPERATURE / theta) / 2) + 1.0)
+        assert one == pytest.approx(expected)
+        assert pair == pytest.approx(one)
+        assert with_axis == pytest.approx(one)
+        assert near_axis == pytest.approx(one)
 
-        # Non-linear molecule
-        energy_nonlinear = calculate_rotational_energy(temperature, linear=False)
-        assert (
-            abs(energy_nonlinear - 1.5 * 8.3144621 * temperature) < 0.002
-        )  # Tolerance for constant precision
+    def test_nonlinear_rotational_entropy_requires_three_temperatures(self):
+        temps = np.array([10.0, 20.0, 30.0])
+        entropy = calculate_rotational_entropy(temps, 1, _TEMPERATURE, linear=False)
+        q_rot = math.sqrt(math.pi * _TEMPERATURE**3 / float(np.prod(temps)))
+        assert entropy == pytest.approx(GAS_CONSTANT * (math.log(q_rot) + 1.5))
+        with pytest.raises(ValueError, match="3 positive"):
+            calculate_rotational_entropy([10.0, 10.0], 1, _TEMPERATURE, linear=False)
 
-        # Atom
-        energy_atom = calculate_rotational_energy(temperature, is_atom=True)
-        assert abs(energy_atom) < 1e-10
-
-    def test_rotational_entropy(self):
-        temperature = 298.15
-        symmetry_number = 1
-
-        # Non-linear molecule
-        rot_temps = np.array([10.0, 10.0, 10.0])
+    def test_atom_rotational_entropy_is_zero(self):
         entropy = calculate_rotational_entropy(
-            rot_temps, symmetry_number, temperature, linear=False
+            np.array([0.0, 0.0, 0.0]), 1, _TEMPERATURE, is_atom=True
         )
-        assert entropy > 0
-
-        # Linear molecule
-        rot_temps_linear = np.array([10.0])
-        entropy_linear = calculate_rotational_entropy(
-            rot_temps_linear, symmetry_number, temperature, linear=True
-        )
-        assert entropy_linear > 0
-
-        # Atom
-        entropy_atom = calculate_rotational_entropy(
-            np.array([0.0, 0.0, 0.0]), symmetry_number, temperature, is_atom=True
-        )
-        assert abs(entropy_atom) < 1e-10
+        assert entropy == pytest.approx(0.0)
 
     def test_electronic_entropy(self):
-        # Singlet (multiplicity = 1)
-        entropy = calculate_electronic_entropy(1)
-        assert abs(entropy) < 1e-10
+        assert calculate_electronic_entropy(1) == pytest.approx(0.0)
+        assert calculate_electronic_entropy(3) == pytest.approx(GAS_CONSTANT * math.log(3))
 
-        # Triplet (multiplicity = 3)
-        entropy_triplet = calculate_electronic_entropy(3)
-        expected = 8.3144621 * np.log(3)
-        assert abs(entropy_triplet - expected) < 1e-5  # Tolerance for constant precision
-
-    def test_statistical_thermodynamics(self):
-        atoms = Atoms("H2O", positions=[[0, 0, 0], [0, 0, 0.96], [0.82, 0, -0.26]])
-
-        stat_thermo = StatisticalThermodynamics(atoms)
-
-        energy_trans = stat_thermo.translational_energy(298.15)
-        assert energy_trans > 0
-
-        entropy_trans = stat_thermo.translational_entropy(298.15)
-        assert entropy_trans > 0
+    def test_rotational_constants_use_exact_gigahertz_conversion(self):
+        atoms = _h2()
+        stat = StatisticalThermodynamics(atoms, rotational_constants=[100.0], linear=True)
+        wavenumber = 100.0 * 1e9 / SPEED_OF_LIGHT
+        expected = PLANCK_CONSTANT * SPEED_OF_LIGHT * wavenumber / BOLTZMANN_CONSTANT
+        assert stat.rotational_temperatures[0] == pytest.approx(expected)
 
 
 class TestSolvation:
     def test_get_free_space(self):
-        # Gas phase
-        free_space_gas = get_free_space("none")
-        assert abs(free_space_gas - 1000.0) < 0.1
-
-        # Water
-        free_space_water = get_free_space("H2O")
-        assert free_space_water < 1000.0  # Less accessible space than gas phase
-        assert free_space_water > 0
-
-        # Unknown solvent should raise error
-        with pytest.raises(ValueError):
+        assert get_free_space("none") == pytest.approx(1000.0)
+        assert 0.0 < get_free_space("H2O") < 1000.0
+        for solvent in ("toluene", "DMF", "AcOH", "chloroform"):
+            assert get_free_space(solvent) > 0.0
+        with pytest.raises(ValueError, match="Unknown solvent"):
             get_free_space("unknown_solvent")
 
-    def test_get_free_space_invalid_solvent(self):
-        """Test get_free_space with invalid solvent raises ValueError."""
-        with pytest.raises(ValueError, match="Unknown solvent"):
-            get_free_space("invalid_solvent_name")
+    def test_effective_concentration(self):
+        assert SolvationHandler(solvent="none", concentration=1.0).effective_concentration() == (
+            pytest.approx(1.0)
+        )
+        water = SolvationHandler(solvent="H2O", concentration=1.0)
+        assert water.effective_concentration() == pytest.approx(
+            1.0 / (water.free_space_ml_per_l / 1000.0)
+        )
 
-    def test_get_free_space_all_supported_solvents(self):
-        """Test get_free_space with all supported solvents."""
-        supported = ["none", "H2O", "toluene", "DMF", "AcOH", "chloroform"]
-        for solvent in supported:
-            free_space = get_free_space(solvent)
-            assert free_space > 0
-            # Gas phase should have maximum free space
-            if solvent == "none":
-                assert abs(free_space - 1000.0) < 0.1
-
-    def test_solvation_handler(self):
-        handler = SolvationHandler(solvent="H2O", concentration=1.0)
-        assert not handler.is_gas_phase()
-        assert handler.concentration == 1.0
-
-        handler_gas = SolvationHandler(solvent="none")
-        assert handler_gas.is_gas_phase()
-
-    def test_solvation_handler_effective_concentration_gas_phase(self):
-        """Test effective_concentration for gas phase (should equal nominal)."""
-        handler = SolvationHandler(solvent="none", concentration=1.0)
-        assert handler.is_gas_phase()
-        effective = handler.effective_concentration()
-        assert abs(effective - 1.0) < 1e-10
-
-    def test_solvation_handler_effective_concentration_solution(self):
-        """Test effective_concentration for solution phase."""
-        handler = SolvationHandler(solvent="H2O", concentration=1.0)
-        assert not handler.is_gas_phase()
-        effective = handler.effective_concentration()
-        # Effective concentration should be higher than nominal in solution
-        # due to reduced accessible volume
-        assert effective > 1.0
-
-    def test_solvation_handler_effective_concentration_different_concentrations(self):
-        """Test effective_concentration with different nominal concentrations."""
-        for concentration in [0.1, 0.5, 1.0, 2.0]:
-            handler = SolvationHandler(solvent="H2O", concentration=concentration)
-            effective = handler.effective_concentration()
-            # Effective should be proportionally higher
-            assert effective > concentration
-
-    def test_solvation_handler_is_gas_phase(self):
-        """Test is_gas_phase() method with different solvents."""
-        handler_none = SolvationHandler(solvent="none")
-        assert handler_none.is_gas_phase()
-
-        handler_water = SolvationHandler(solvent="H2O")
-        assert not handler_water.is_gas_phase()
-
-        handler_toluene = SolvationHandler(solvent="toluene")
-        assert not handler_toluene.is_gas_phase()
-
-    def test_default_concentration_gas_vs_solution(self):
-        gas = SolvationHandler(solvent="none", temperature=298.15)
-        assert gas.concentration == pytest.approx(gas_phase_concentration_1atm(298.15))
-        assert SolvationHandler(solvent="H2O").concentration == pytest.approx(1.0)
-        assert SolvationHandler(solvent="toluene").concentration == pytest.approx(1.0)
+    def test_default_concentration_and_pressure(self):
+        gas = SolvationHandler(solvent="none", temperature=_TEMPERATURE)
+        assert gas.concentration == pytest.approx(ideal_gas_concentration(_TEMPERATURE, 101325.0))
+        pressurized = SolvationHandler(solvent="none", temperature=_TEMPERATURE, pressure=1.0e6)
+        assert pressurized.concentration == pytest.approx(
+            ideal_gas_concentration(_TEMPERATURE, 1.0e6)
+        )
+        explicit = SolvationHandler(
+            solvent="none",
+            concentration=1.0,
+            temperature=_TEMPERATURE,
+            pressure=1.0e6,
+        )
+        assert explicit.concentration == pytest.approx(1.0)
+        assert SolvationHandler(solvent="H2O", pressure=1.0e6).concentration == pytest.approx(1.0)
 
 
 class TestSymmetry:
@@ -255,7 +286,6 @@ class TestSymmetry:
         assert get_point_group_symmetry_number("Td") == 12
         assert get_point_group_symmetry_number("Oh") == 24
 
-        # Unknown point group should raise error
         with pytest.raises(ValueError):
             get_point_group_symmetry_number("unknown")
 
@@ -288,188 +318,218 @@ class TestSymmetry:
         assert handler.point_group == "C2v"
 
 
-@pytest.fixture
-def simple_molecule():
-    return Atoms("H2O", positions=[[0, 0, 0], [0, 0, 0.96], [0.82, 0, -0.26]])
-
-
-@pytest.fixture
-def water_c2v():
-    return Atoms(
-        "OHH",
-        positions=[
-            [0.0, 0.0, 0.1173],
-            [0.0, 0.7572, -0.4692],
-            [0.0, -0.7572, -0.4692],
-        ],
-    )
-
-
-def _goodvibes_reference_g_minus_e(
-    frequencies: np.ndarray,
-    atoms: Atoms,
-    temperature: float,
-    symmetry_number: int,
-    method: str,
-    concentration: float | None = None,
-    energy: float = 0.0,
-) -> float:
-    """Independent GoodVibes-formula thermal correction G − E in eV."""
-    conc = gas_phase_concentration_1atm(temperature) if concentration is None else concentration
-    mass = float(np.sum(atoms.get_masses()))
-    rot_temps = rotational_temperatures_from_atoms(atoms, linear=False)
-    u_trans = 1.5 * GAS_CONSTANT * temperature
-    u_rot = 1.5 * GAS_CONSTANT * temperature
-    s_rrho = calculate_rrho_entropy(frequencies, temperature)
-
-    if method == "grimme":
-        damp = calculate_damping_function(frequencies, 100.0)
-        e_qrrho = calculate_qRRHO_energy(frequencies, temperature)
-        u_vib = float(np.sum(e_qrrho * damp + (1 - damp) * 0.5 * GAS_CONSTANT * temperature))
-        s_free = calculate_free_rotor_entropy(frequencies, temperature)
-        s_vib = float(np.sum(s_rrho * damp + (1 - damp) * s_free))
-    else:
-        u_vib = float(np.sum(calculate_rrho_energy(frequencies, temperature)))
-        s_vib = float(np.sum(s_rrho))
-
-    h_j = energy / J_PER_MOL_TO_EV + u_trans + u_rot + u_vib + GAS_CONSTANT * temperature
-    s_j = (
-        calculate_translational_entropy(mass, temperature, conc, 1000.0)
-        + calculate_rotational_entropy(rot_temps, symmetry_number, temperature, linear=False)
-        + s_vib
-        + calculate_electronic_entropy(1)
-    )
-    return (h_j - temperature * s_j) * J_PER_MOL_TO_EV - energy
-
-
 class TestCompleteThermodynamics:
-    def test_basic_thermodynamics(self, simple_molecule):
-        frequencies = np.array([1000, 1650, 3650])
-        thermo = ThermodynamicProperties(frequencies, simple_molecule, temperature=298.15)
-        assert thermo.calculate_zero_point_energy() > 0
-        assert thermo.entropy_vibrational() > 0
+    def test_h2_rotational_temperature_and_thermochemistry(self):
+        atoms = _h2()
+        theta = _h2_rotational_temperature(atoms)
+        assert rotational_temperatures_from_atoms(atoms, linear=True)[0] == pytest.approx(theta)
 
-    def test_complete_thermodynamics_gas_phase(self, simple_molecule):
-        frequencies = np.array([1000, 1650, 3650])
-        thermo = ThermodynamicProperties(
+        frequencies = np.array([4401.0])
+        results = ThermodynamicProperties(
             frequencies,
-            simple_molecule,
-            temperature=298.15,
-            method="rrho",
-            multiplicity=1,
-            solvent="none",
-        )
-        results = thermo.calculate_complete_thermodynamics(energy=0.0)
-
-        expected_keys = [
-            "energy",
-            "zpe",
-            "enthalpy_trans",
-            "enthalpy_rot",
-            "enthalpy_vib",
-            "enthalpy_total",
-            "entropy_trans",
-            "entropy_rot",
-            "entropy_vib",
-            "entropy_elec",
-            "entropy_total",
-            "gibbs_free_energy",
-            "free_energy_correction",
-            "temperature",
-            "method",
-            "contributions",
-        ]
-        for key in expected_keys:
-            assert key in results
-
-        assert results["zpe"] > 0
-        assert results["entropy_total"] > 0
-        assert results["temperature"] == 298.15
-        assert results["free_energy_correction"] == pytest.approx(
-            results["gibbs_free_energy"] - results["energy"], rel=1e-12
-        )
-        assert results["concentration"] == pytest.approx(ATMOS / (GAS_CONSTANT * 298.15), rel=1e-10)
-
-        u_vib, _ = thermo.qh_handler.vibrational_energy(frequencies, 298.15)
-        expected_h_ev = (
-            (u_vib + GAS_CONSTANT * 298.15) * J_PER_MOL_TO_EV
-            + results["enthalpy_trans"]
-            + results["enthalpy_rot"]
-        )
-        assert results["enthalpy_total"] == pytest.approx(expected_h_ev, rel=1e-8)
-        assert results["zpe"] + results["enthalpy_vib"] == pytest.approx(
-            u_vib * J_PER_MOL_TO_EV, rel=1e-8
-        )
-
-    def test_quasi_harmonic_methods(self, simple_molecule):
-        frequencies = np.array([50, 100, 500, 1000, 1650, 3650])
-        results_rrho = ThermodynamicProperties(
-            frequencies, simple_molecule, temperature=298.15, method="rrho"
-        ).calculate_complete_thermodynamics(energy=0.0)
-        results_grimme = ThermodynamicProperties(
-            frequencies, simple_molecule, temperature=298.15, method="grimme"
-        ).calculate_complete_thermodynamics(energy=0.0)
-        results_truhlar = ThermodynamicProperties(
-            frequencies, simple_molecule, temperature=298.15, method="truhlar"
+            atoms,
+            temperature=_TEMPERATURE,
+            symmetry_number=2,
+            linear=True,
         ).calculate_complete_thermodynamics(energy=0.0)
 
-        assert results_rrho["entropy_vib"] > 0
-        assert results_grimme["entropy_vib"] >= results_rrho["entropy_vib"] - 0.01
-        assert results_truhlar["entropy_vib"] >= results_rrho["entropy_vib"] - 0.01
+        assert results["enthalpy_rot"] == pytest.approx(
+            GAS_CONSTANT * _TEMPERATURE * J_PER_MOL_TO_EV
+        )
+        expected_s_rot = GAS_CONSTANT * (math.log((_TEMPERATURE / theta) / 2.0) + 1.0)
+        assert results["entropy_rot"] == pytest.approx(expected_s_rot * J_PER_MOL_TO_EV)
 
-    def test_goodvibes_compatible_free_energy_correction(self, water_c2v):
+        mass = float(np.sum(atoms.get_masses()))
+        concentration = ideal_gas_concentration(_TEMPERATURE, 101325.0)
+        u_vib = _rrho_energy(frequencies[0])
+        enthalpy = (
+            1.5 * GAS_CONSTANT * _TEMPERATURE
+            + GAS_CONSTANT * _TEMPERATURE
+            + u_vib
+            + GAS_CONSTANT * _TEMPERATURE
+        )
+        entropy = (
+            _sackur_tetrode(mass, _TEMPERATURE, concentration)
+            + expected_s_rot
+            + _rrho_entropy(frequencies[0])
+        )
+        assert results["enthalpy_total"] == pytest.approx(enthalpy * J_PER_MOL_TO_EV, rel=1e-12)
+        assert results["entropy_total"] == pytest.approx(entropy * J_PER_MOL_TO_EV, rel=1e-12)
+        assert results["gibbs_free_energy"] == pytest.approx(
+            (enthalpy - _TEMPERATURE * entropy) * J_PER_MOL_TO_EV,
+            rel=1e-12,
+        )
+
+    def test_symmetry_number_changes_free_energy_by_rt_log_sigma(self, water_c2v):
         frequencies = np.array([1595.0, 3657.0, 3756.0])
-        temperature = 298.15
-        rot_temps = rotational_temperatures_from_atoms(water_c2v, linear=False)
-        assert len(rot_temps) == 3
-        assert np.all((rot_temps > 1.0) & (rot_temps < 100.0))
+        common = {
+            "temperature": _TEMPERATURE,
+            "method": "rrho",
+            "linear": False,
+        }
+        g_sigma1 = ThermodynamicProperties(
+            frequencies, water_c2v, symmetry_number=1, **common
+        ).calculate_complete_thermodynamics(energy=0.0)["gibbs_free_energy"]
+        g_sigma2 = ThermodynamicProperties(
+            frequencies, water_c2v, symmetry_number=2, **common
+        ).calculate_complete_thermodynamics(energy=0.0)["gibbs_free_energy"]
+        delta = GAS_CONSTANT * _TEMPERATURE * math.log(2.0) * J_PER_MOL_TO_EV
+        assert g_sigma2 - g_sigma1 == pytest.approx(delta, rel=1e-10)
 
-        auto = ThermodynamicProperties(
-            frequencies, water_c2v, temperature=temperature
-        ).calculate_complete_thermodynamics(energy=0.0)
-        assert auto["symmetry_number"] == 2
-        assert auto["point_group"] == "C2v"
-
-        for method in ("rrho", "grimme"):
-            results = ThermodynamicProperties(
-                frequencies,
-                water_c2v,
-                temperature=temperature,
-                method=method,
-                symmetry_number=2,
-            ).calculate_complete_thermodynamics(energy=0.0)
-            expected = _goodvibes_reference_g_minus_e(
-                frequencies, water_c2v, temperature, 2, method
-            )
-            assert results["free_energy_correction"] == pytest.approx(expected, abs=1e-6)
-
-        results_s1 = ThermodynamicProperties(
+    def test_pressure_changes_gas_phase_free_energy(self, water_c2v):
+        frequencies = np.array([1595.0, 3657.0, 3756.0])
+        low = ThermodynamicProperties(
             frequencies,
             water_c2v,
-            temperature=temperature,
-            method="rrho",
-            symmetry_number=1,
+            temperature=_TEMPERATURE,
+            pressure=101325.0,
+            symmetry_number=2,
         ).calculate_complete_thermodynamics(energy=0.0)
-        assert results_s1["free_energy_correction"] == pytest.approx(
-            _goodvibes_reference_g_minus_e(frequencies, water_c2v, temperature, 1, "rrho"),
-            abs=1e-6,
-        )
-
-        results_1m = ThermodynamicProperties(
+        high = ThermodynamicProperties(
             frequencies,
             water_c2v,
-            temperature=temperature,
+            temperature=_TEMPERATURE,
+            pressure=1013250.0,
+            symmetry_number=2,
+        ).calculate_complete_thermodynamics(energy=0.0)
+        delta = GAS_CONSTANT * _TEMPERATURE * math.log(10.0) * J_PER_MOL_TO_EV
+        assert high["concentration"] == pytest.approx(10.0 * low["concentration"])
+        assert high["gibbs_free_energy"] - low["gibbs_free_energy"] == pytest.approx(delta)
+
+        fixed = ThermodynamicProperties(
+            frequencies,
+            water_c2v,
+            temperature=_TEMPERATURE,
+            pressure=1013250.0,
             concentration=1.0,
             symmetry_number=2,
         ).calculate_complete_thermodynamics(energy=0.0)
-        assert results_1m["concentration"] == pytest.approx(1.0)
-        assert results_1m["free_energy_correction"] == pytest.approx(
-            _goodvibes_reference_g_minus_e(
-                frequencies, water_c2v, temperature, 2, "rrho", concentration=1.0
-            ),
-            abs=1e-6,
+        reference = ThermodynamicProperties(
+            frequencies,
+            water_c2v,
+            temperature=_TEMPERATURE,
+            pressure=101325.0,
+            concentration=1.0,
+            symmetry_number=2,
+        ).calculate_complete_thermodynamics(energy=0.0)
+        assert fixed["gibbs_free_energy"] == pytest.approx(reference["gibbs_free_energy"])
+
+        solution_low = ThermodynamicProperties(
+            frequencies, water_c2v, solvent="H2O", pressure=101325.0, symmetry_number=2
+        ).calculate_complete_thermodynamics(energy=0.0)
+        solution_high = ThermodynamicProperties(
+            frequencies, water_c2v, solvent="H2O", pressure=1.0e6, symmetry_number=2
+        ).calculate_complete_thermodynamics(energy=0.0)
+        assert solution_low["concentration"] == pytest.approx(1.0)
+        assert solution_high["gibbs_free_energy"] == pytest.approx(
+            solution_low["gibbs_free_energy"]
         )
 
+    def test_imaginary_modes_are_excluded_and_scale_factor_scales_zpe(self, simple_molecule):
+        real = np.array([1000.0])
+        with_imaginary = np.array([1000.0, -200.0, 0.0, 0.0 + 250.0j])
+        baseline = ThermodynamicProperties(real, simple_molecule, symmetry_number=1)
+        contaminated = ThermodynamicProperties(with_imaginary, simple_molecule, symmetry_number=1)
+        assert contaminated.calculate_zero_point_energy() == pytest.approx(
+            baseline.calculate_zero_point_energy()
+        )
+        assert contaminated.entropy_vibrational() == pytest.approx(baseline.entropy_vibrational())
+        assert contaminated.heat_capacity_vibrational() == pytest.approx(
+            baseline.heat_capacity_vibrational()
+        )
+
+        scaled = ThermodynamicProperties(
+            real, simple_molecule, symmetry_number=1, freq_scale_factor=0.96
+        )
+        scaled_frequency = 1000.0 * 0.96
+        x_scaled = _thermal_factor(scaled_frequency)
+        assert scaled.calculate_zero_point_energy() == pytest.approx(
+            0.96 * baseline.calculate_zero_point_energy()
+        )
+        assert scaled.entropy_vibrational() == pytest.approx(
+            _rrho_entropy(scaled_frequency) * J_PER_MOL_TO_EV
+        )
+        assert scaled.heat_capacity_vibrational() == pytest.approx(
+            units.kB * x_scaled**2 * math.exp(x_scaled) / math.expm1(x_scaled) ** 2
+        )
+
+    def test_vibrational_breakdown_reconstructs_enthalpy(self, simple_molecule):
+        frequencies = np.array([50.0, 100.0, 500.0, 1000.0, 1650.0, 3650.0])
+        for method in ("rrho", "truhlar", "grimme"):
+            thermo = ThermodynamicProperties(
+                frequencies,
+                simple_molecule,
+                temperature=_TEMPERATURE,
+                method=method,
+                symmetry_number=1,
+            )
+            results = thermo.calculate_complete_thermodynamics(energy=0.0)
+            u_vib, _ = thermo.qh_handler.vibrational_energy(frequencies, _TEMPERATURE)
+            assert results["zpe"] + results["enthalpy_vib"] == pytest.approx(
+                u_vib * J_PER_MOL_TO_EV, rel=1e-12
+            )
+            assert results["contributions"]["zero_point"] == pytest.approx(results["zpe"])
+            if method == "grimme":
+                assert results["zpe"] == pytest.approx(0.0)
+                assert thermo.calculate_zero_point_energy() > 0.0
+            else:
+                assert results["zpe"] == pytest.approx(thermo.calculate_zero_point_energy())
+
+    def test_heat_capacity_matches_harmonic_oscillator(self, simple_molecule):
+        frequency = 1000.0
+        thermo = ThermodynamicProperties(
+            np.array([frequency]), simple_molecule, temperature=_TEMPERATURE, symmetry_number=1
+        )
+        x = _thermal_factor(frequency)
+        expected = units.kB * x**2 * math.exp(x) / math.expm1(x) ** 2
+        assert thermo.heat_capacity_vibrational() == pytest.approx(expected, rel=1e-12)
+
+    def test_atom_has_no_rotational_contribution(self):
+        atom = Atoms("H", positions=[[0.0, 0.0, 0.0]])
+        results = ThermodynamicProperties(
+            np.array([]),
+            atom,
+            temperature=_TEMPERATURE,
+            symmetry_number=1,
+            linear=True,
+        ).calculate_complete_thermodynamics(energy=0.0)
+        assert results["enthalpy_rot"] == pytest.approx(0.0)
+        assert results["entropy_rot"] == pytest.approx(0.0)
+        assert results["zpe"] == pytest.approx(0.0)
+
+    def test_frequency_report_keeps_harmonic_zpe_for_grimme(self):
+        atoms = _h2()
+        frequencies = np.array([4401.0])
+
+        class _FixedFrequencies(FrequencyAnalysis):
+            def get_frequencies(
+                self,
+                unit: str = "cm-1",
+                imag_threshold: float = 50.0,
+            ) -> np.ndarray:
+                return frequencies
+
+        reported = _FixedFrequencies(
+            atoms, calculator=object(), nfree=0
+        ).get_thermodynamic_properties(
+            temperature=_TEMPERATURE,
+            method="grimme",
+            symmetry_number=2,
+            linear=True,
+        )
+        thermo = ThermodynamicProperties(
+            frequencies,
+            atoms,
+            temperature=_TEMPERATURE,
+            method="grimme",
+            symmetry_number=2,
+            linear=True,
+        )
+        assert reported["zero_point_energy"] == pytest.approx(thermo.calculate_zero_point_energy())
+        assert reported["zero_point_energy"] > 0.0
+        assert thermo.calculate_complete_thermodynamics(energy=0.0)["zpe"] == pytest.approx(0.0)
+
+    def test_read_free_energy_correction(self):
         assert read_free_energy_correction(None) is None
         assert read_free_energy_correction(
             {"thermodynamic_properties": {"free_energy_correction": 0.25}}

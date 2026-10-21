@@ -290,15 +290,10 @@ def _enforce_ez(coords: np.ndarray, graph: MolGraph) -> None:
         delta = _wrap(target - phi)
         if abs(delta) < 1e-3:
             continue
-        probe = np.array(coords, copy=True)
         axis = coords[spec.anchor_b] - coords[spec.anchor_a]
         atoms = _side(neigh, spec.anchor_b, spec.anchor_a)
-        _rotate(probe, atoms, coords[spec.anchor_a], axis, 0.02)
-        phi2 = _dihedral(probe, spec.ligand_a, spec.anchor_a, spec.anchor_b, spec.ligand_b)
-        direction = _wrap(phi2 - phi) / 0.02
-        if abs(direction) < 1e-6:
-            continue
-        _rotate(coords, atoms, coords[spec.anchor_a], axis, delta / direction)
+        # A right-handed rotation about the bond changes the dihedral by the opposite angle.
+        _rotate(coords, atoms, coords[spec.anchor_a], axis, -delta)
 
 
 def _chiral_volume(coords: np.ndarray, center: int, a: int, b: int, c: int) -> float:
@@ -308,31 +303,78 @@ def _chiral_volume(coords: np.ndarray, center: int, a: int, b: int, c: int) -> f
     return float(np.dot(v1, np.cross(v2, v3)))
 
 
+def _spec_volume(coords: np.ndarray, center: int, neighbors: tuple[int, ...]) -> float:
+    return _chiral_volume(coords, center, neighbors[0], neighbors[1], neighbors[2])
+
+
 def _chiral_violations(coords: np.ndarray, graph: MolGraph) -> int:
     bad = 0
     for spec in graph.chiral:
-        volume = _chiral_volume(
-            coords,
-            spec.center,
-            spec.neighbors[0],
-            spec.neighbors[1],
-            spec.neighbors[2],
-        )
-        if volume <= 0.02:
+        if _spec_volume(coords, spec.center, spec.neighbors) <= 0.02:
             bad += 1
     return bad
 
 
-def _fix_chirality(coords: np.ndarray, graph: MolGraph) -> None:
-    if not graph.chiral:
-        return
-    bad = _chiral_violations(coords, graph)
-    if bad == 0:
-        return
+def _reflect_through_plane(
+    coords: np.ndarray, indices: Sequence[int], plane: Sequence[int]
+) -> bool:
+    origin = coords[plane[0]]
+    normal = np.cross(coords[plane[1]] - origin, coords[plane[2]] - origin)
+    norm = float(np.linalg.norm(normal))
+    if norm < 1e-8:
+        return False
+    normal /= norm
+    for idx in indices:
+        vector = coords[idx] - origin
+        coords[idx] = coords[idx] - 2.0 * normal * float(np.dot(normal, vector))
+    return True
+
+
+def _reflect_one_center(
+    coords: np.ndarray,
+    center: int,
+    neighbors: tuple[int, int, int, int],
+    neigh: list[list[int]],
+    centers: set[int],
+) -> bool:
+    ranked: list[tuple[bool, bool, int, int, list[int]]] = []
+    neighbor_set = set(neighbors)
+    for neighbor in neighbors:
+        branch = _side(neigh, neighbor, center)
+        others = neighbor_set - {neighbor}
+        contains_center = any(atom in centers for atom in branch)
+        hits_other_ligand = any(atom in others for atom in branch)
+        ranked.append((contains_center, hits_other_ligand, len(branch), neighbor, branch))
+    ranked.sort()
+    for _contains, _ring, _size, neighbor, branch in ranked:
+        saved = np.array(coords[branch], copy=True)
+        plane = [atom for atom in neighbors if atom != neighbor]
+        if not _reflect_through_plane(coords, branch, plane):
+            continue
+        if _spec_volume(coords, center, neighbors) > 0.02:
+            return True
+        coords[branch] = saved
+    return False
+
+
+def _fix_chirality(coords: np.ndarray, graph: MolGraph) -> bool:
+    """Return True when a substituent reflection needs a recovery minimization."""
+    if not graph.chiral or _chiral_violations(coords, graph) == 0:
+        return False
     flipped = np.array(coords, copy=True)
     flipped[:, 0] *= -1.0
-    if _chiral_violations(flipped, graph) < bad:
+    if _chiral_violations(flipped, graph) == 0:
         coords[:, 0] *= -1.0
+        return False
+    centers = {spec.center for spec in graph.chiral}
+    neigh = graph.neighbor_lists()
+    reflected = False
+    for spec in graph.chiral:
+        if _spec_volume(coords, spec.center, spec.neighbors) > 0.02:
+            continue
+        if _reflect_one_center(coords, spec.center, spec.neighbors, neigh, centers):
+            reflected = True
+    return reflected
 
 
 def _ez_penalty(coords: np.ndarray, graph: MolGraph) -> float:
@@ -389,6 +431,13 @@ def embed_coordinates(
     if not np.isfinite(coords).all():
         coords = _pack(graph, params, pieces)
     _enforce_ez(coords, graph)
-    _fix_chirality(coords, graph)
+    for _attempt in range(2):
+        if not _fix_chirality(coords, graph):
+            break
+        coords = relax_coordinates(coords, graph, params)
+        if not np.isfinite(coords).all():
+            coords = _pack(graph, params, pieces)
+            break
+        _enforce_ez(coords, graph)
     coords -= coords.mean(axis=0)
     return coords

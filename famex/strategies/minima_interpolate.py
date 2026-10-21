@@ -74,7 +74,6 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
         initial_path = path_mgr.interpolate(
             npoints=npoints,
             method=method,
-            optimize_path=False,
             explorer=self.explorer,
             **interpolate_kwargs,
         )

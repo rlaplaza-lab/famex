@@ -91,7 +91,6 @@ class MultiStructureNEBStrategy(BaseStrategy):
         path = path_mgr.interpolate(
             npoints=npoints,
             method=method,
-            optimize_path=False,
             explorer=self.explorer,
             **interpolate_kwargs,
         )
@@ -138,7 +137,7 @@ class MultiStructureNEBStrategy(BaseStrategy):
             **kwargs,
         )
 
-        optimized_path = neb_opt.optimize()
+        optimized_path, converged = neb_opt.optimize()
         iteration_frames = list(neb_opt.iteration_frames)
 
         if optimized_path:
@@ -161,7 +160,7 @@ class MultiStructureNEBStrategy(BaseStrategy):
 
         result = self.prepare_result(
             optimized_path,
-            converged=True,
+            converged=converged,
             trajectory=optimized_path,
             climb=climb,
         )

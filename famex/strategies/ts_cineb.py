@@ -58,7 +58,6 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
         path = path_mgr.interpolate(
             npoints=npoints,
             method=method,
-            optimize_path=False,
             explorer=self.explorer,
             **interpolate_kwargs,
         )
@@ -84,7 +83,7 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
             steps=steps,
             **neb_kwargs,
         )
-        optimized_path = neb_opt.optimize()
+        optimized_path, _band_converged = neb_opt.optimize()
 
         if neb_opt.climbing_image is not None:
             ts_guess = optimized_path[neb_opt.climbing_image]

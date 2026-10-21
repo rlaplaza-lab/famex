@@ -21,6 +21,7 @@ from famex.analysis.physics_constants import (
     BOLTZMANN_CONSTANT,
     GAS_CONSTANT,
     PLANCK_CONSTANT,
+    SPEED_OF_LIGHT,
 )
 
 __all__ = [
@@ -32,8 +33,7 @@ __all__ = [
     "calculate_electronic_entropy",
 ]
 
-# Re-export for callers that imported constants from this module.
-AMU_to_KG = AMU_TO_KG
+_ROTATIONAL_TEMPERATURE_FLOOR = 1e-8
 
 
 def calculate_translational_energy(temperature: float) -> float:
@@ -78,20 +78,14 @@ def calculate_translational_entropy(
     float
         Translational entropy in J/(mol·K)
     """
-    # Calculate de Broglie wavelength
-    # λ = h / sqrt(2πm kT)
-    de_broglie = (
-        (2.0 * math.pi * molecular_mass * AMU_to_KG * BOLTZMANN_CONSTANT * temperature) ** 0.5
-    ) / PLANCK_CONSTANT
+    inverse_thermal_wavelength = (
+        math.sqrt(2.0 * math.pi * molecular_mass * AMU_TO_KG * BOLTZMANN_CONSTANT * temperature)
+        / PLANCK_CONSTANT
+    )
 
-    # Convert concentration from mol/L to number density (molecules/m³)
-    # For gas phase or solution phase, use free space to calculate accessible volume
-    ndens = concentration * 1000.0 * AVOGADRO_CONSTANT / (free_space_ml_per_l / 1000.0)
-
-    # Sackur-Tetrode equation: S = R (ln((2πmkT/h²)^(3/2) / n) + 5/2)
-    entropy = GAS_CONSTANT * (2.5 + math.log(de_broglie**3 / ndens))
-
-    return entropy
+    # mol/L -> molecules/m³, reduced by the accessible volume fraction.
+    number_density = concentration * 1000.0 * AVOGADRO_CONSTANT / (free_space_ml_per_l / 1000.0)
+    return GAS_CONSTANT * (2.5 + math.log(inverse_thermal_wavelength**3 / number_density))
 
 
 def calculate_rotational_energy(
@@ -155,39 +149,52 @@ def calculate_rotational_entropy(
 
     Notes
     -----
-    If rotational_temperatures is empty or all zero, returns 0.0 (atoms).
-    For linear molecules with 2 rotational temperatures (rare), returns 0.0
-    to avoid errors.
+    Atoms and an empty temperature list contribute nothing. A linear molecule
+    uses one rotational temperature: a degenerate pair is averaged, and a third
+    near-zero or outlying axis temperature is dropped. A non-linear molecule
+    requires three positive rotational temperatures.
     """
-    rotational_temps = np.asarray(rotational_temperatures)
-
-    # Check for atoms
-    if is_atom or len(rotational_temps) == 0 or np.allclose(rotational_temps, 0.0):
-        return 0.0
-
-    # Handle edge case of 2 rotational temperatures
-    if len(rotational_temps) == 2:
-        # Gaussian sometimes reports only 2 temps for linear molecules
+    rotational_temps = np.asarray(rotational_temperatures, dtype=np.float64).reshape(-1)
+    if is_atom or bool(np.allclose(rotational_temps, 0.0)):
         return 0.0
 
     if linear:
-        # Linear molecule: q_rot = T / Θ_rot
-        if len(rotational_temps) == 1:
-            q_rot = temperature / rotational_temps[0]
-            entropy = GAS_CONSTANT * (math.log(q_rot / symmetry_number) + 1)
-        else:
-            # Shouldn't happen, but fallback
-            entropy = 0.0
-    else:
-        # Non-linear molecule: q_rot = π^(1/2) (T^3 / (Θ_A Θ_B Θ_C))^(1/2)
-        if len(rotational_temps) == 3:
-            q_rot = math.sqrt(math.pi * temperature**3 / np.prod(rotational_temps))
-            entropy = GAS_CONSTANT * (math.log(q_rot / symmetry_number) + 1.5)
-        else:
-            # Fallback for non-standard cases
-            entropy = 0.0
+        theta = _linear_rotational_temperature(rotational_temps)
+        if theta == 0.0:
+            return 0.0
+        q_rot = temperature / theta
+        return GAS_CONSTANT * (math.log(q_rot / symmetry_number) + 1.0)
 
-    return entropy
+    positive = rotational_temps[rotational_temps > _ROTATIONAL_TEMPERATURE_FLOOR]
+    if positive.size != 3:
+        msg = (
+            "Non-linear rotational entropy expects 3 positive rotational temperatures, "
+            f"got {positive.size}"
+        )
+        raise ValueError(msg)
+
+    q_rot = math.sqrt(math.pi * temperature**3 / float(np.prod(positive)))
+    return GAS_CONSTANT * (math.log(q_rot / symmetry_number) + 1.5)
+
+
+def _linear_rotational_temperature(rotational_temperatures: np.ndarray) -> float:
+    """Return the unique linear-rotor temperature in kelvin.
+
+    Three positive values mean a near-zero axis temperature is still present.
+    That smallest value is dropped and the degenerate pair is averaged.
+    """
+    positive = rotational_temperatures[rotational_temperatures > _ROTATIONAL_TEMPERATURE_FLOOR]
+    if positive.size == 0:
+        return 0.0
+    if positive.size > 3:
+        msg = (
+            "Linear rotational entropy expects at most 3 rotational temperatures, "
+            f"got {positive.size} positive values"
+        )
+        raise ValueError(msg)
+    if positive.size == 3:
+        positive = np.sort(positive)[1:]
+    return float(np.mean(positive))
 
 
 def calculate_electronic_entropy(multiplicity: int) -> float:
@@ -285,18 +292,11 @@ class StatisticalThermodynamics:
             return np.asarray(rotational_temperatures)
 
         if rotational_constants is not None:
-            # Convert rotational constants (GHz) to rotational temperatures (K)
-            # Θ = hcB / k_B, where B is in cm^-1
-            # 1 GHz = 0.033356 cm^-1
-            GHz_to_cm1 = 0.033356
-            rotational_constants_cm1 = np.asarray(rotational_constants) * GHz_to_cm1
-            rotational_temps = (
-                PLANCK_CONSTANT
-                * 2.99792458e10  # speed of light in cm/s
-                * rotational_constants_cm1
-                / BOLTZMANN_CONSTANT
+            # Θ = hcB/k_B. 1 GHz = 1e9 / c(cm/s) cm^-1.
+            rotational_constants_cm1 = np.asarray(rotational_constants, dtype=np.float64) * (
+                1e9 / SPEED_OF_LIGHT
             )
-            return rotational_temps
+            return PLANCK_CONSTANT * SPEED_OF_LIGHT * rotational_constants_cm1 / BOLTZMANN_CONSTANT
 
         return rotational_temperatures_from_atoms(self.atoms, self.linear)
 

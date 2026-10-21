@@ -15,7 +15,7 @@ from ase.optimize.optimize import Optimizer
 from famex.optimizers.ts_step import (
     adjust_trust_radius,
     build_translation_rotation_basis,
-    compute_dense_prfo_step,
+    compute_restricted_prfo_step,
     compute_step_quality,
     prepare_ts_hessian,
     project_gradient,
@@ -48,7 +48,6 @@ class RFOTransitionState(Optimizer):
         trust_radius: float = 0.02,
         max_trust_radius: float = 0.06,
         min_trust_radius: float = 0.001,
-        alpha: float = 1.0,
         verbose: int = 1,
         **kwargs: Any,
     ) -> None:
@@ -71,7 +70,6 @@ class RFOTransitionState(Optimizer):
         self.trust_radius = trust_radius
         self.max_trust_radius = max_trust_radius
         self.min_trust_radius = min_trust_radius
-        self.alpha = alpha
 
         if atoms.calc is None:
             raise ValueError("Atoms object must have a calculator attached")
@@ -89,6 +87,7 @@ class RFOTransitionState(Optimizer):
         self.hessian_calls = 0
         self._last_full_hessian_step = -1
         self._transition_mode: np.ndarray | None = None
+        self._rfo_alpha = 1.0
         self._previous_energy: float | None = None
         self._step_quality_history: list[float] = []
 
@@ -177,15 +176,15 @@ class RFOTransitionState(Optimizer):
                 gradient = self._get_gradient(x)
                 hessian = self._compute_hessian(x)
 
-                step_result = compute_dense_prfo_step(
+                step_result = compute_restricted_prfo_step(
                     gradient=gradient,
                     hessian=hessian,
                     trust_radius=self.trust_radius,
                     previous_mode=self._transition_mode,
-                    alpha=self.alpha,
+                    alpha=self._rfo_alpha,
                 )
-                self.alpha = step_result.alpha
                 self._transition_mode = step_result.transition_mode
+                self._rfo_alpha = step_result.alpha
 
                 step = step_result.step
                 step_norm = float(np.linalg.norm(step))

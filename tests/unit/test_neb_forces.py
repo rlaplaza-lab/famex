@@ -121,3 +121,31 @@ class TestNEBForcesMatchASE:
         opt_plain = NEBOptimizer(images, spring_constant=5.0, climb=False, fmax=1.0, steps=1)
         k_plain = opt_plain.get_spring_constants(energies)
         np.testing.assert_allclose(k_plain, 5.0)
+
+
+class TestNEBConvergenceFlag:
+    def test_optimize_reports_exhausted_steps(self):
+        images, _, _ = _make_band()
+        for atoms in images:
+            atoms.calc = SinglePointCalculator(
+                atoms,
+                energy=0.0,
+                forces=np.ones((len(atoms), 3)),
+            )
+        _optimized, converged = NEBOptimizer(images, fmax=1e-8, steps=1).optimize()
+        assert converged is False
+
+    def test_strategy_reports_exhausted_steps(self):
+        from famex.core.explorer import Explorer
+        from famex.strategies.neb import MultiStructureNEBStrategy
+
+        reactant = Atoms("H2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]])
+        product = Atoms("H2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 1.5]])
+        explorer = Explorer([reactant, product], backend="mock", target="path", strategy="neb")
+        result = MultiStructureNEBStrategy(explorer).run(
+            [reactant, product],
+            npoints=3,
+            steps=1,
+            fmax=1e-8,
+        )
+        assert result["converged"] is False

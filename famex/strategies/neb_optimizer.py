@@ -48,7 +48,7 @@ def energy_weighted_spring_constants(
 
 def improved_tangent(
     positions: Sequence[np.ndarray],
-    energies: Sequence[float],
+    energies: Sequence[float] | np.ndarray,
     i: int,
 ) -> np.ndarray:
     """Return normalized improved NEB tangent at interior image ``i`` (ASE)."""
@@ -283,7 +283,7 @@ class NEBOptimizer:
             frame = copy_labeled_frame(img, iteration=iteration, image=image_index)
             self.iteration_frames.append(frame)
 
-    def optimize(self) -> list[Atoms]:
+    def optimize(self) -> tuple[list[Atoms], bool]:
         method_name = "CI-NEB" if self.climb else "NEB"
         converged = False
         self._snapshot_band(0)
@@ -314,7 +314,7 @@ class NEBOptimizer:
 
         if not converged:
             logger.warning("%s did not converge within %d steps", method_name, self.steps)
-        return self.images
+        return self.images, converged
 
     def _calculate_energies_forces(self) -> tuple[list[float], list[np.ndarray]]:
         calculator = self.images[0].calc if self.images[0].calc is not None else None

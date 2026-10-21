@@ -23,6 +23,7 @@ from famex.strategies.helpers import (
     validate_ts_structure,
 )
 from famex.strategies.minima import LocalMinimaStrategy
+from famex.strategies.neb_optimizer import improved_tangent
 from famex.strategies.ts import LocalTSStrategy
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
@@ -48,7 +49,6 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
     - Perpendicular force convergence checking
     - Arc length-based reparametrization
     - Node growth based on parametrization density
-    - Energy-weighted parametrization option
     """
 
     metadata = StrategyMetadata(
@@ -108,27 +108,37 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
     @property
     def rf_ind(self) -> int:
-        """Index of the right frontier node (first node of right string)."""
+        """Index of the right frontier in the reactant-to-product band."""
         return self.left_size
+
+    def _set_images_from_strings(self) -> None:
+        """Rebuild the working band in reactant-to-product order.
+
+        ``right_string`` is stored product-first, ``[product, ..., frontier]``.
+        """
+        self.images = self.left_string + self.right_string[::-1]
+
+    def _evaluate_band(self) -> tuple[list[float], list[np.ndarray]]:
+        """Return potential energies and forces for the current band."""
+        energies: list[float] = []
+        forces_list: list[np.ndarray] = []
+        for atoms in self.images:
+            try:
+                energies.append(float(atoms.get_potential_energy()))
+                forces_list.append(atoms.get_forces())
+            except Exception as exc:
+                logger.warning(f"Failed to calculate energy/forces: {exc}")
+                energies.append(float("inf"))
+                forces_list.append(np.zeros((len(atoms), 3)))
+        return energies, forces_list
 
     @property
     def full_string_image_inds(self) -> np.ndarray:
         """Array of image indices for the full string (0 to string_size-1)."""
         return np.arange(self.string_size)
 
-    def get_cur_param_density(self, kind: str | None = None) -> np.ndarray:
-        """Calculate current parametrization density (arc length or energy-weighted).
-
-        Parameters
-        ----------
-        kind : str, optional
-            "energy" for energy-weighted, None for equal spacing
-
-        Returns
-        -------
-        np.ndarray
-            Normalized parametrization density (0 to 1)
-        """
+    def get_cur_param_density(self) -> np.ndarray:
+        """Arc-length parametrization of the current band, normalized to [0, 1]."""
         if len(self.images) < 2:
             return np.array([0.0, 1.0])
 
@@ -145,41 +155,19 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         param_density = np.cumsum(norms)
         total_length = param_density[-1]
 
-        if total_length > 0:
-            logger.debug(f"Current string length={total_length:.6f} Å")
-        else:
+        if total_length <= 0:
             logger.warning("String length is zero, using equal spacing")
             return np.linspace(0.0, 1.0, len(self.images))
 
-        # Energy weighted parametrization density
-        if kind == "energy" and len(self.all_energies) > 0:
-            prev_energies = np.array(self.all_energies[-1])
-            if len(prev_energies) == len(self.images):
-                mean_energies = (prev_energies[1:] + prev_energies[:-1]) / 2
-                weights = mean_energies - prev_energies.min()
-                # Damp everything a bit
-                weights = np.sqrt(np.maximum(weights, 1e-10))  # Avoid negative weights
-                param_density = np.array([0.0])
-                for weight, norm in zip(weights, norms[1:], strict=False):
-                    param_density = np.append(param_density, param_density[-1] + weight * norm)
-                total_length = param_density[-1]
-                if total_length > 0:
-                    param_density /= total_length
-                    return param_density
-
-        # Normalize to [0, 1]
-        if total_length > 0:
-            param_density /= total_length
-        else:
-            param_density = np.linspace(0.0, 1.0, len(self.images))
-
+        logger.debug(f"Current string length={total_length:.6f} Å")
+        param_density /= total_length
         return param_density
 
     def get_tangent(self, i: int) -> np.ndarray:
         """Calculate tangent vector for image i.
 
         For frontier nodes, uses simple normalized coordinate difference.
-        For internal nodes, uses energy-weighted tangent.
+        For internal nodes, uses the improved NEB tangent.
 
         Parameters
         ----------
@@ -219,7 +207,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 return normalized
             return tangent_flat
 
-        # For internal nodes, use energy-weighted tangent
+        # For internal nodes, use the improved NEB tangent
         if len(self.all_energies) > 0 and len(self.all_energies[-1]) == nimages:
             energies = np.array(self.all_energies[-1])
 
@@ -228,19 +216,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             elif i == nimages - 1:
                 tangent = self.images[nimages - 1].positions - self.images[nimages - 2].positions
             else:
-                # Energy-weighted tangent
-                v_prev = self.images[i].positions - self.images[i - 1].positions
-                v_next = self.images[i + 1].positions - self.images[i].positions
-
-                dE_prev = abs(energies[i] - energies[i - 1])
-                dE_next = abs(energies[i + 1] - energies[i])
-
-                if dE_prev > dE_next:
-                    tangent = v_prev
-                elif dE_next > dE_prev:
-                    tangent = v_next
-                else:
-                    tangent = v_next - v_prev
+                positions = [image.positions for image in self.images]
+                return improved_tangent(positions, energies, i)
 
             tangent_flat = tangent.flatten()
             norm = np.linalg.norm(tangent_flat)
@@ -361,15 +338,13 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
         return new_img
 
-    def reparam_cart(self, desired_param_density: np.ndarray, image_energies: list[float]) -> None:
+    def reparam_cart(self, desired_param_density: np.ndarray) -> None:
         """Reparametrize images in cartesian coordinates.
 
         Parameters
         ----------
         desired_param_density : np.ndarray
             Desired parametrization density (0 to 1)
-        image_energies : list[float]
-            Current energies for all images
         """
         max_micro_cycles = 5
         for i in range(1, len(self.images) - 1):  # Skip endpoints
@@ -408,8 +383,6 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
     def reparametrize(
         self,
-        image_energies: list[float],
-        forces: list[np.ndarray],
         perp_thresh: float = 0.05,
         reparam_every: int = 2,
         reparam_every_full: int = 3,
@@ -421,10 +394,6 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
         Parameters
         ----------
-        image_energies : list[float]
-            Energies for all images
-        forces : list[np.ndarray]
-            Forces for all images
         perp_thresh : float
             Perpendicular force threshold for frontier convergence
         reparam_every : int
@@ -502,7 +471,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     new_left_frontier = self.get_new_image(self.lf_ind)
                     self.new_image_inds.append(self.left_size)
                     self.left_string.append(new_left_frontier)
-                    self.images = self.left_string + self.right_string
+                    self._set_images_from_strings()
                     logger.info("Added new left frontier node.")
                     self.reparam_in = 0
 
@@ -514,7 +483,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     new_right_frontier = self.get_new_image(self.rf_ind)
                     self.new_image_inds.append(self.left_size)
                     self.right_string.append(new_right_frontier)
-                    self.images = self.left_string + self.right_string
+                    self._set_images_from_strings()
                     logger.info("Added new right frontier node.")
                     self.reparam_in = 0
 
@@ -539,7 +508,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             logger.debug(f"Desired param density: {pd_str}")
 
             # Reparametrize images
-            self.reparam_cart(desired_param_density, image_energies)
+            self.reparam_cart(desired_param_density)
 
             self.reparam_in = reparam_every_full if self.fully_grown else reparam_every
             reparametrized = True
@@ -862,7 +831,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         # Initialize strings
         self.left_string = [reactant.copy()]
         self.right_string = [product.copy()]
-        self.images = self.left_string + self.right_string
+        self._set_images_from_strings()
 
         # Ensure calculators are attached using PathManager
         if self.explorer is not None:
@@ -884,13 +853,10 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             # Grow left frontier first (from reactant toward center)
             left_frontier = self.get_new_image(self.lf_ind)
             self.left_string.append(left_frontier)
-            # Update images after left growth
-            self.images = self.left_string + self.right_string
-            # Now grow right frontier (from product toward center)
-            # rf_ind is now valid after updating images
+            self._set_images_from_strings()
             right_frontier = self.get_new_image(self.rf_ind)
             self.right_string.append(right_frontier)
-            self.images = self.left_string + self.right_string
+            self._set_images_from_strings()
 
             # Ensure calculators are attached to new images
             if self.explorer is not None:
@@ -913,28 +879,20 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 )
                 break
 
-            # Calculate energies and forces
-            energies = []
-            forces_list = []
-            for atoms in self.images:
-                try:
-                    energy = atoms.get_potential_energy()
-                    forces = atoms.get_forces()
-                    energies.append(energy)
-                    forces_list.append(forces)
-                except Exception as e:
-                    logger.warning(f"Failed to calculate energy/forces: {e}")
-                    energies.append(float("inf"))
-                    forces_list.append(np.zeros((len(atoms), 3)))
-
+            energies, forces_list = self._evaluate_band()
             self.all_energies.append(energies)
             self.all_forces.append(forces_list)
 
-            # Check if strings have met (distance between tips)
-            # Only consider strings met if we have enough images to form a reasonable path
+            # Optimize perpendicular to path first, then judge growth on the relaxed forces.
+            self.optimize_perpendicular(fmax, max_steps=20)
+            energies, forces_list = self._evaluate_band()
+            self.all_energies[-1] = energies
+            self.all_forces[-1] = forces_list
+
+            # Check if strings have met (distance between frontiers)
             if len(self.left_string) > 0 and len(self.right_string) > 0:
                 forward_tip = self.left_string[-1].positions
-                backward_tip = self.right_string[0].positions
+                backward_tip = self.right_string[-1].positions
                 distance = np.linalg.norm(forward_tip - backward_tip)
 
                 distance_threshold = kwargs.get("distance_threshold", 0.05)
@@ -950,13 +908,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                         f"string_size={self.string_size}"
                     )
 
-            # Optimize perpendicular to path first
-            self.optimize_perpendicular(fmax, max_steps=20)
-
             # Reparametrize and potentially add new nodes
-            self.reparametrize(
-                energies, forces_list, perp_thresh, reparam_every, reparam_every_full
-            )
+            self.reparametrize(perp_thresh, reparam_every, reparam_every_full)
 
             # Log progress
             if (iteration + 1) % 10 == 0:

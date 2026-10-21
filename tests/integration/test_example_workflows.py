@@ -16,6 +16,8 @@ from click.testing import CliRunner
 
 import famex
 from famex.analysis import ThermodynamicProperties
+from famex.analysis.physics_constants import filter_positive_frequencies, ideal_gas_concentration
+from famex.analysis.quasiharmonic import harmonic_zero_point_energy_ev
 from famex.backends.availability import is_backend_available
 from famex.cli import main
 
@@ -461,3 +463,12 @@ def test_thermochemistry_from_uma_frequencies() -> None:
         solvent="none",
     ).calculate_complete_thermodynamics(energy=optimized.get_potential_energy())
     assert np.isfinite(props["gibbs_free_energy"])
+    positive = filter_positive_frequencies(np.asarray(freq["frequencies"], dtype=float))
+    assert props["zpe"] == pytest.approx(harmonic_zero_point_energy_ev(positive))
+    assert props["concentration"] == pytest.approx(ideal_gas_concentration(298.15))
+    assert props["gibbs_free_energy"] == pytest.approx(
+        props["enthalpy_total"] - 298.15 * props["entropy_total"]
+    )
+    assert props["free_energy_correction"] == pytest.approx(
+        props["gibbs_free_energy"] - optimized.get_potential_energy()
+    )

@@ -5,13 +5,14 @@ from __future__ import annotations
 from typing import Any, cast
 
 import numpy as np
-from ase import Atoms, units
+from ase import Atoms
 from numpy.typing import NDArray
 
 from famex.analysis.hessian import HessianCalculator
 from famex.analysis.molecular_properties import determine_degrees_of_freedom
 from famex.analysis.normal_modes import convert_frequency_unit, diagonalize_mass_weighted_hessian
 from famex.analysis.physics_constants import filter_positive_frequencies, normalize_frequencies_cm1
+from famex.analysis.quasiharmonic import harmonic_zero_point_energy_ev
 from famex.analysis.thermodynamics import ThermodynamicProperties
 from famex.analysis.utils import has_calculator_property, validate_indices
 from famex.analysis.validation import validate_hessian
@@ -605,9 +606,7 @@ class FrequencyAnalysis:
 
         frequencies = self.get_frequencies()
         real_frequencies = filter_positive_frequencies(frequencies)
-
-        freq_eV = real_frequencies * units.invcm
-        zpe = float(0.5 * np.sum(freq_eV))  # ZPE in eV, ensure float type
+        zpe = harmonic_zero_point_energy_ev(real_frequencies)
 
         self._zero_point_energy = zpe
         return zpe
@@ -692,7 +691,7 @@ class FrequencyAnalysis:
 
         return {
             "temperature": temperature,
-            "zero_point_energy": complete["zpe"],
+            "zero_point_energy": thermo_props.calculate_zero_point_energy(),
             "internal_energy": internal_energy,
             "heat_capacity": thermo_props.heat_capacity_vibrational(),
             "entropy": complete["entropy_vib"],

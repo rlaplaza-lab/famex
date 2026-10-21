@@ -42,15 +42,6 @@ class _AngleTerm:
     cn: int
 
 
-@dataclass(frozen=True)
-class _PairTerm:
-    i: int
-    j: int
-    x: float
-    d: float
-    weight: float
-
-
 def _topo_distance(neigh: list[list[int]], start: int) -> list[int]:
     dist = [-1] * len(neigh)
     dist[start] = 0
@@ -66,25 +57,51 @@ def _topo_distance(neigh: list[list[int]], start: int) -> list[int]:
     return dist
 
 
-def _lj(r: float, x_ij: float, depth: float) -> tuple[float, float]:
-    """Lennard-Jones energy and dE/dr, with a smooth wall inside ``0.7 * x``."""
-    r_floor = 0.7 * x_ij
+def _length3(vec: np.ndarray) -> float:
+    return math.hypot(float(vec[0]), float(vec[1]), float(vec[2]))
 
-    def at(rv: float) -> tuple[float, float]:
-        sr6 = (x_ij / rv) ** 6
-        sr12 = sr6 * sr6
-        energy = depth * (sr12 - 2.0 * sr6)
-        deriv = 12.0 * depth * (sr6 - sr12) / rv
-        return energy, deriv
 
-    if r >= r_floor:
-        return at(r)
-    e_floor, d_floor = at(r_floor)
-    delta = r - r_floor
+def _nonbonded_energy(
+    coords: np.ndarray,
+    grad: np.ndarray,
+    pair_i: np.ndarray,
+    pair_j: np.ndarray,
+    pair_x: np.ndarray,
+    pair_d: np.ndarray,
+    pair_w: np.ndarray,
+) -> float:
+    """Lennard-Jones energy and forces, with a smooth wall inside ``0.7 * x``."""
+    if pair_i.size == 0:
+        return 0.0
+    vec = coords[pair_j] - coords[pair_i]
+    dist = np.sqrt(np.einsum("ij,ij->i", vec, vec))
+    tiny = dist < 1e-6
+    dist_use = np.maximum(dist, 1e-6)
+    r_floor = 0.7 * pair_x
+    rv = np.maximum(dist_use, r_floor)
+    sr6 = (pair_x / rv) ** 6
+    sr12 = sr6 * sr6
+    energy_at = pair_d * (sr12 - 2.0 * sr6)
+    deriv_at = 12.0 * pair_d * (sr6 - sr12) / rv
+    inside = dist_use < r_floor
+    delta = dist_use - r_floor
     k_wall = 200.0
-    energy = e_floor + d_floor * delta + 0.5 * k_wall * delta * delta
-    deriv = d_floor + k_wall * delta
-    return energy, deriv
+    energy = np.where(
+        inside,
+        energy_at + deriv_at * delta + 0.5 * k_wall * delta * delta,
+        energy_at,
+    )
+    deriv = np.where(inside, deriv_at + k_wall * delta, deriv_at)
+    energy *= pair_w
+    deriv *= pair_w
+    hat = np.zeros_like(vec)
+    safe = ~tiny
+    hat[safe] = vec[safe] / dist_use[safe, None]
+    hat[tiny, 0] = 1.0
+    force = deriv[:, None] * hat
+    np.add.at(grad, pair_j, force)
+    np.add.at(grad, pair_i, -force)
+    return float(np.sum(energy))
 
 
 class _UFFModel:
@@ -130,7 +147,11 @@ class _UFFModel:
             )
 
         neigh = graph.neighbor_lists()
-        self.pairs: list[_PairTerm] = []
+        pair_i: list[int] = []
+        pair_j: list[int] = []
+        pair_x: list[float] = []
+        pair_d: list[float] = []
+        pair_w: list[float] = []
         n = graph.n_atoms
         topo = [_topo_distance(neigh, i) for i in range(n)]
         for i in range(n):
@@ -140,10 +161,18 @@ class _UFFModel:
                     continue
                 x_ij = math.sqrt(max(params[i].x * params[j].x, 1e-8))
                 depth = math.sqrt(max(params[i].d * params[j].d, 0.0))
-                weight = 0.5 if separation == 4 else 1.0
                 if x_ij <= 0.0 or depth <= 0.0:
                     continue
-                self.pairs.append(_PairTerm(i=i, j=j, x=x_ij, d=depth, weight=weight))
+                pair_i.append(i)
+                pair_j.append(j)
+                pair_x.append(x_ij)
+                pair_d.append(depth)
+                pair_w.append(0.5 if separation == 4 else 1.0)
+        self.pair_i = np.asarray(pair_i, dtype=np.intp)
+        self.pair_j = np.asarray(pair_j, dtype=np.intp)
+        self.pair_x = np.asarray(pair_x, dtype=float)
+        self.pair_d = np.asarray(pair_d, dtype=float)
+        self.pair_w = np.asarray(pair_w, dtype=float)
 
     def energy_grad(self, x: np.ndarray) -> tuple[float, np.ndarray]:
         coords = np.asarray(x, dtype=float).reshape(self.n_atoms, 3)
@@ -152,7 +181,7 @@ class _UFFModel:
 
         for bond in self.bonds:
             vec = coords[bond.j] - coords[bond.i]
-            dist = float(np.linalg.norm(vec))
+            dist = _length3(vec)
             if dist < 1e-8:
                 hat = np.array([1.0, 0.0, 0.0])
                 dist = 1e-8
@@ -167,8 +196,8 @@ class _UFFModel:
         for angle in self.angles:
             v1 = coords[angle.i] - coords[angle.j]
             v2 = coords[angle.k] - coords[angle.j]
-            n1 = float(np.linalg.norm(v1))
-            n2 = float(np.linalg.norm(v2))
+            n1 = _length3(v1)
+            n2 = _length3(v2)
             if n1 < 1e-8 or n2 < 1e-8:
                 continue
             u1 = v1 / n1
@@ -179,7 +208,7 @@ class _UFFModel:
             delta = theta - target
             energy += 0.5 * angle.k_ang * delta * delta
             sin_t = math.sin(theta)
-            sin_use = math.copysign(max(abs(sin_t), 0.05), sin_t if sin_t != 0.0 else 1.0)
+            sin_use = math.copysign(max(abs(sin_t), 1e-8), sin_t if sin_t != 0.0 else 1.0)
             d_theta = angle.k_ang * delta
             g1 = d_theta * (cos_t * u1 - u2) / (n1 * sin_use)
             g2 = d_theta * (cos_t * u2 - u1) / (n2 * sin_use)
@@ -187,19 +216,9 @@ class _UFFModel:
             grad[angle.k] += g2
             grad[angle.j] -= g1 + g2
 
-        for pair in self.pairs:
-            vec = coords[pair.j] - coords[pair.i]
-            dist = float(np.linalg.norm(vec))
-            if dist < 1e-6:
-                hat = np.array([1.0, 0.0, 0.0])
-                dist = 1e-6
-            else:
-                hat = vec / dist
-            pair_e, pair_d = _lj(dist, pair.x, pair.d)
-            energy += pair.weight * pair_e
-            d_e = pair.weight * pair_d
-            grad[pair.j] += d_e * hat
-            grad[pair.i] -= d_e * hat
+        energy += _nonbonded_energy(
+            coords, grad, self.pair_i, self.pair_j, self.pair_x, self.pair_d, self.pair_w
+        )
 
         flat = np.ascontiguousarray(grad.reshape(-1))
         return float(energy), flat
