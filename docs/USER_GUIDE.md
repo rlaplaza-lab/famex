@@ -47,11 +47,11 @@ pip install famex[uma]
 pip install -e ".[dev,uma]"
 ```
 
-See [README.md](../README.md) for the full backend table.
+See [README.md](../README.md) for the install table (with default checkpoints) and [Default models](#default-models) below.
 
 > **Note**: Python 3.11+ required. UMA and MACE conflict on `e3nn` versions — use separate conda environments.
 
-> **Default backend**: CLI and `Explorer` default to `uma` with model `uma-s-1p2`. For a conflict-free quick start, pass `--backend aimnet2` or install only `torch`.
+> **Default backend**: CLI and `Explorer` default to `uma` with checkpoint `uma-s-1p2`. For a conflict-free quick start, pass `--backend aimnet2` (loads `aimnet2_wb97m_0`) or install only `torch`. See [Default models](#default-models) for every backend keyword.
 
 ## Command Line Interface
 
@@ -459,41 +459,39 @@ Gas phase uses the ideal-gas concentration at `pressure`. Solution defaults to 1
 
 ### Default models
 
-When `--model-name` / `model_name` is omitted:
+When `--model-name` / `model_name` is omitted, each backend keyword loads this checkpoint (or method / DFT level):
 
-| Backend | Default model |
-|---------|---------------|
-| `uma` | `uma-s-1p2` |
-| `aimnet2` | `aimnet2` |
-| `mace` | `mace-omol-0` |
-| `pet` | `pet-mad-s` |
-| `orb` | `orb-v3-conservative-omol` |
-| `so3lr` | `so3lr-small` |
-| `tblite` | `GFN2-xTB` |
-| `pyscf` | `b3lyp-d3bj/def2-svp` |
-| `mock` | `mock-model` |
+| Backend keyword | Default `--model-name` | Checkpoint / method loaded |
+|-----------------|------------------------|----------------------------|
+| `uma` | `uma-s-1p2` | fairchem UMA-S 1.2 |
+| `aimnet2` | `aimnet2` | `aimnet2_wb97m_0` (aliases: `aimnet2_wb97m`; also `aimnet2_b973c`, `aimnet2-qr`) |
+| `mace` | `mace-omol-0` | MACE omol pretrained (molecules / TMs) |
+| `pet` | `pet-mad-s` | PET-MAD small |
+| `orb` | `orb-v3-conservative-omol` | Orb-v3 conservative molecular |
+| `so3lr` | `so3lr-small` | SO3LR small pretrained |
+| `tblite` | `GFN2-xTB` | xTB method (also e.g. `GFN1-xTB`) |
+| `pyscf` | `b3lyp-d3bj/def2-svp` | DFT as `xc/basis` |
+| `mock` | `mock-model` | Built-in harmonic mock (testing) |
 
 OrbMol-v2 is selected with `--model-name orbmol-v2`. That checkpoint ships in `orb-models>=0.7.0`, which requires Python 3.12.
-
-For **TBLite**, pass the extended tight-binding (xTB) method via `--model-name` (default `GFN2-xTB`, e.g. `GFN1-xTB`). For **PySCF**, pass the density functional theory (DFT) level as `xc/basis` (default `b3lyp-d3bj/def2-svp`).
 
 Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin` (or `Explorer` kwargs). UMA and related backends read `atoms.info["charge"]` and `atoms.info["spin"]` when set.
 
 ## Backend Guide
 
-FAMEX is built around machine learning potentials. Classical quantum-chemistry backends are optional for checks or small systems.
+FAMEX is built around machine learning potentials. Classical quantum-chemistry backends are optional for checks or small systems. Default checkpoints match [Default models](#default-models).
 
-| Backend | Installation | Use when | Notes |
-|---------|--------------|----------|-------|
-| `aimnet2` | `pip install torch` | Molecules; simplest install | No `e3nn` conflict with other backends; analytical Hessian |
-| `uma` | `pip install "fairchem-core>=2.24.0"` or `pip install famex[uma]` | Materials and molecules (default: uma-s-1p2) | Conflicts with MACE; analytical Hessian |
-| `mace` | `pip install mace-torch` | Molecules | Conflicts with UMA; analytical Hessian |
-| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | Molecules (`orbmol-v2`) and materials | Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
-| `so3lr` | `pip install so3lr` | Custom / research models | Analytical Hessian via JAX |
-| `pet` | `pip install upet` or `pip install famex[pet]` | PET-MAD potential | Python 3.11+; analytical Hessian |
-| `tblite` | `pip install tblite` | Semi-empirical xTB | `--model-name` method (default `GFN2-xTB`); finite-difference Hessian |
-| `pyscf` | `pip install famex[pyscf]` | Small-system DFT | `--model-name xc/basis` (default `b3lyp-d3bj/def2-svp`); analytical Hessian |
-| `mock` | Built-in | Testing | Development only |
+| Backend | Installation | Default checkpoint | Use when | Notes |
+|---------|--------------|--------------------|----------|-------|
+| `aimnet2` | `pip install torch` | `aimnet2` → `aimnet2_wb97m_0` | Molecules; simplest install | No `e3nn` conflict with other backends; analytical Hessian |
+| `uma` | `pip install "fairchem-core>=2.24.0"` or `pip install famex[uma]` | `uma-s-1p2` | Materials and molecules (CLI default) | Conflicts with MACE; analytical Hessian |
+| `mace` | `pip install mace-torch` | `mace-omol-0` | Molecules | Conflicts with UMA; analytical Hessian |
+| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | `orb-v3-conservative-omol` | Molecules (`orbmol-v2`) and materials | Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
+| `so3lr` | `pip install so3lr` | `so3lr-small` | Custom / research models | Analytical Hessian via JAX |
+| `pet` | `pip install upet` or `pip install famex[pet]` | `pet-mad-s` | PET-MAD potential | Python 3.11+; analytical Hessian |
+| `tblite` | `pip install tblite` | `GFN2-xTB` | Semi-empirical xTB | `--model-name` selects the xTB method; finite-difference Hessian |
+| `pyscf` | `pip install famex[pyscf]` | `b3lyp-d3bj/def2-svp` | Small-system DFT | `--model-name` as `xc/basis`; analytical Hessian |
+| `mock` | Built-in | `mock-model` | Testing | Development only |
 
 ### Dependency Conflicts
 

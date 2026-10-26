@@ -16,18 +16,18 @@ pip install famex
 git clone https://github.com/rlaplaza-lab/famex.git && cd famex && pip install -e .
 ```
 
-Install a machine learning backend separately (primary use case):
+Install a machine learning backend separately (primary use case). When `--model-name` is omitted, each backend keyword loads the checkpoint below:
 
-| Backend | Installation | Notes |
-|---------|--------------|-------|
-| `aimnet2` | `pip install torch` | Simplest install; no dependency conflicts; analytical Hessian |
-| `uma` | `pip install "fairchem-core>=2.24.0"` or `pip install famex[uma]` | Default backend (model: uma-s-1p2); analytical Hessian |
-| `mace` | `pip install mace-torch` | Conflicts with UMA; analytical Hessian |
-| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | OrbMol-v2 and Orb-v3; Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
-| `so3lr` | `pip install so3lr` | Custom models; analytical Hessian via JAX |
-| `pet` | `pip install upet` or `pip install famex[pet]` | PET-MAD potential (Python 3.11+); analytical Hessian |
+| Backend | Installation | Default checkpoint | Notes |
+|---------|--------------|--------------------|-------|
+| `aimnet2` | `pip install torch` | `aimnet2` → `aimnet2_wb97m_0` | Simplest install; no dependency conflicts; analytical Hessian |
+| `uma` | `pip install "fairchem-core>=2.24.0"` or `pip install famex[uma]` | `uma-s-1p2` | Default CLI/`Explorer` backend; analytical Hessian |
+| `mace` | `pip install mace-torch` | `mace-omol-0` | Conflicts with UMA; analytical Hessian |
+| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | `orb-v3-conservative-omol` | Also `orbmol-v2`; Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
+| `so3lr` | `pip install so3lr` | `so3lr-small` | Custom models; analytical Hessian via JAX |
+| `pet` | `pip install upet` or `pip install famex[pet]` | `pet-mad-s` | PET-MAD potential (Python 3.11+); analytical Hessian |
 
-Optional classical quantum chemistry (same CLI; slower): `tblite` (`pip install tblite`, GFN-xTB, finite-difference Hessians) and `pyscf` (`pip install famex[pyscf]`, default B3LYP-D3BJ / def2-SVP, analytical Hessian).
+Optional classical quantum chemistry (same CLI; slower): `tblite` (`pip install tblite`, default method `GFN2-xTB`, finite-difference Hessians) and `pyscf` (`pip install famex[pyscf]`, default `b3lyp-d3bj/def2-svp`, analytical Hessian).
 
 SMILES and PubChem are optional structure inputs (not separate CLI modes). Install an embedder and pass SMILES or `pubchem:NAME` / `cid:` / a numeric CID to `minima`, `ts`, or `path`:
 

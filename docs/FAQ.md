@@ -14,7 +14,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: Which backend should I choose?
 
-**A:** Prefer a machine learning potential: FAMEX defaults to **UMA** (`uma-s-1p2`) via `fairchem-core>=2.24.0`. For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`) and pass `--backend aimnet2`. Optional classical quantum chemistry (`tblite`, `pyscf`) is available for small systems but is not the primary path. See the [backend table](USER_GUIDE.md#backend-guide) in the User Guide.
+**A:** Prefer a machine learning potential: CLI/`Explorer` default to **UMA** with checkpoint `uma-s-1p2` (`fairchem-core>=2.24.0`). For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`, default checkpoint `aimnet2` → `aimnet2_wb97m_0`) via `--backend aimnet2`. Other keywords and their defaults (`mace-omol-0`, `orb-v3-conservative-omol`, `pet-mad-s`, `so3lr-small`, `GFN2-xTB`, `b3lyp-d3bj/def2-svp`, …) are listed under [Default models](USER_GUIDE.md#default-models).
 
 ### Q: Can I install multiple backends?
 
