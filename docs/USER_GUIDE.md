@@ -41,7 +41,7 @@ git clone https://github.com/rlaplaza-lab/famex.git && cd famex && pip install -
 
 # UMA backend (recommended default):
 pip install famex[uma]
-# equivalent to: pip install "fairchem-core>=2.22.0"
+# equivalent to: pip install "fairchem-core>=2.24.0"
 
 # Development / testing:
 pip install -e ".[dev,uma]"
@@ -51,7 +51,7 @@ See [README.md](../README.md) for the full backend table.
 
 > **Note**: Python 3.11+ required. UMA and MACE conflict on `e3nn` versions — use separate conda environments.
 
-> **Default backend**: CLI and `Explorer` default to `uma` with model `uma-s-1p2`. For a conflict-free quick start, pass `--backend aimnet2` or install only `torch`.
+> **Default backend**: CLI and `Explorer` default to `uma` with model `uma-s-1p2p1`. For a conflict-free quick start, pass `--backend aimnet2` or install only `torch`.
 
 ## Command Line Interface
 
@@ -463,7 +463,7 @@ When `--model-name` / `model_name` is omitted:
 
 | Backend | Default model |
 |---------|---------------|
-| `uma` | `uma-s-1p2` |
+| `uma` | `uma-s-1p2p1` |
 | `aimnet2` | `aimnet2` |
 | `mace` | `mace-omol-0` |
 | `pet` | `pet-mad-s` |
@@ -486,7 +486,7 @@ FAMEX is built around machine learning potentials. Classical quantum-chemistry b
 | Backend | Installation | Use when | Notes |
 |---------|--------------|----------|-------|
 | `aimnet2` | `pip install torch` | Molecules; simplest install | No `e3nn` conflict with other backends; analytical Hessian |
-| `uma` | `pip install "fairchem-core>=2.22.0"` or `pip install famex[uma]` | Materials and molecules (default: uma-s-1p2) | Conflicts with MACE; analytical Hessian |
+| `uma` | `pip install "fairchem-core>=2.24.0"` or `pip install famex[uma]` | Materials and molecules (default: uma-s-1p2p1) | Conflicts with MACE; analytical Hessian |
 | `mace` | `pip install mace-torch` | Molecules | Conflicts with UMA; analytical Hessian |
 | `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | Molecules (`orbmol-v2`) and materials | Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
 | `so3lr` | `pip install so3lr` | Custom / research models | Analytical Hessian via JAX |

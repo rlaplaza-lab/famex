@@ -8,7 +8,7 @@ name: Kaggle GPU tests
 # mode=full: entire tests/ suite (manual only; burns Kaggle GPU quota).
 #
 # UMA needs HuggingFace auth for fairchem weights. Set secrets.HF_TOKEN if the
-# uma suite should download uma-s-1p2; otherwise that suite fails at weight load.
+# uma suite should download uma-s-1p2p1; otherwise that suite fails at weight load.
 
 on:
   workflow_dispatch:

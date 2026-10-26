@@ -2,7 +2,7 @@
 
 Hands-on tutorials for molecular geometry optimization and transition state searches using FAMEX.
 
-> **Defaults:** CLI and `Explorer` use `backend="uma"` and model `uma-s-1p2`. Tutorials below often show `--backend aimnet2` for a minimal `torch`-only install; omit it when using UMA.
+> **Defaults:** CLI and `Explorer` use `backend="uma"` and model `uma-s-1p2p1`. Tutorials below often show `--backend aimnet2` for a minimal `torch`-only install; omit it when using UMA.
 
 ## Table of Contents
 
