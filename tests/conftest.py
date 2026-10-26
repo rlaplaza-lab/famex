@@ -287,12 +287,14 @@ def clear_famex_logger():
     logger = logging.getLogger("famex")
     original_handlers = logger.handlers[:]
     original_level = logger.level
+    original_propagate = logger.propagate
 
     # Clear handlers
     logger.handlers.clear()
 
     yield logger
 
-    # Restore handlers and level
+    # Restore handlers, level, and propagate (setup_famex_logging sets propagate=False)
     logger.handlers[:] = original_handlers
     logger.level = original_level
+    logger.propagate = original_propagate
