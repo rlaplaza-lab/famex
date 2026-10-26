@@ -1083,7 +1083,7 @@ def main() -> int:
     parser.add_argument(
         "--model-name",
         default=None,
-        help="Backend model name (default: uma-s-1p2p1 for UMA)",
+        help="Backend model name (default: uma-s-1p2 for UMA)",
     )
     parser.add_argument(
         "--skip-example",

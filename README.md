@@ -21,7 +21,7 @@ Install a machine learning backend separately (primary use case):
 | Backend | Installation | Notes |
 |---------|--------------|-------|
 | `aimnet2` | `pip install torch` | Simplest install; no dependency conflicts; analytical Hessian |
-| `uma` | `pip install "fairchem-core>=2.24.0"` or `pip install famex[uma]` | Default backend (model: uma-s-1p2p1); analytical Hessian |
+| `uma` | `pip install "fairchem-core>=2.24.0"` or `pip install famex[uma]` | Default backend (model: uma-s-1p2); analytical Hessian |
 | `mace` | `pip install mace-torch` | Conflicts with UMA; analytical Hessian |
 | `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | OrbMol-v2 and Orb-v3; Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
 | `so3lr` | `pip install so3lr` | Custom models; analytical Hessian via JAX |

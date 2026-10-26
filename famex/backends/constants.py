@@ -15,7 +15,7 @@ BACKEND_TBLITE = "tblite"
 BACKEND_PET = "pet"
 BACKEND_PYSCF = "pyscf"
 
-DEFAULT_UMA_MODEL = "uma-s-1p2p1"
+DEFAULT_UMA_MODEL = "uma-s-1p2"
 DEFAULT_MACE_MODEL = "mace-omol-0"
 DEFAULT_PET_MODEL = "pet-mad-s"
 DEFAULT_TBLITE_MODEL = "GFN2-xTB"
