@@ -11,20 +11,30 @@ from famex.backends.cache import CalculatorCache
 from famex.backends.constants import DEFAULT_UMA_MODEL, DEFAULT_UMA_TASK
 from famex.backends.registry import create_calculator
 from famex.core.calculator_manager import CalculatorManager
-from famex.potentials.uma_potential import UMAPotential
+
+
+def _import_uma_potential():
+    # uma_potential imports torch at module scope; keep collection torch-free.
+    pytest.importorskip("torch")
+    from famex.potentials.uma_potential import UMAPotential
+
+    return UMAPotential
 
 
 class TestUMATaskNameDefaults:
     def test_default_task_is_omol(self):
+        UMAPotential = _import_uma_potential()
         pot = UMAPotential(model_name=DEFAULT_UMA_MODEL, device="cpu")
         assert pot.task_name == DEFAULT_UMA_TASK
         assert pot.dftd3_functional is None
 
     def test_custom_task_name_normalized(self):
+        UMAPotential = _import_uma_potential()
         pot = UMAPotential(model_name=DEFAULT_UMA_MODEL, task_name="OMAT", device="cpu")
         assert pot.task_name == "omat"
 
     def test_invalid_dftd3_functional_raises(self):
+        UMAPotential = _import_uma_potential()
         with pytest.raises(ValueError, match="Unsupported dftd3_functional"):
             UMAPotential(
                 model_name=DEFAULT_UMA_MODEL,
@@ -33,6 +43,7 @@ class TestUMATaskNameDefaults:
             )
 
     def test_non_omol_effective_spin_defaults_to_zero(self):
+        UMAPotential = _import_uma_potential()
         pot = UMAPotential(
             model_name=DEFAULT_UMA_MODEL,
             task_name="omat",
@@ -42,6 +53,7 @@ class TestUMATaskNameDefaults:
         assert pot._effective_default_spin() == 0
 
     def test_omol_keeps_default_spin(self):
+        UMAPotential = _import_uma_potential()
         pot = UMAPotential(
             model_name=DEFAULT_UMA_MODEL,
             task_name="omol",
@@ -53,6 +65,7 @@ class TestUMATaskNameDefaults:
 
 class TestUMATaskNameLoad:
     def test_load_passes_task_name_to_fairchem(self):
+        UMAPotential = _import_uma_potential()
         pot = UMAPotential(
             model_name=DEFAULT_UMA_MODEL,
             task_name="omat",
@@ -89,6 +102,7 @@ class TestUMATaskNameLoad:
         mock_fairchem_cls.assert_called_once_with(mock_predictor, task_name="omat")
 
     def test_load_wraps_dftd3_when_requested(self):
+        UMAPotential = _import_uma_potential()
         pot = UMAPotential(
             model_name=DEFAULT_UMA_MODEL,
             task_name="omat",
