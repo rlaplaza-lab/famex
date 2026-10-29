@@ -41,7 +41,7 @@ git clone https://github.com/rlaplaza-lab/famex.git && cd famex && pip install -
 
 # UMA backend (recommended default):
 pip install famex[uma]
-# equivalent to: pip install "fairchem-core>=2.24.0"
+# equivalent to: pip install "fairchem-core>=2.25.0"
 
 # Development / testing:
 pip install -e ".[dev,uma]"
@@ -51,7 +51,7 @@ See [README.md](../README.md) for the install table (with default checkpoints) a
 
 > **Note**: Python 3.11+ required. UMA and MACE conflict on `e3nn` versions — use separate conda environments.
 
-> **Default backend**: CLI and `Explorer` default to `uma` with checkpoint `uma-s-1p2`. For a conflict-free quick start, pass `--backend aimnet2` (loads `aimnet2_wb97m_0`) or install only `torch`. See [Default models](#default-models) for every backend keyword.
+> **Default backend**: CLI and `Explorer` default to `uma` with checkpoint `uma-s-1p2` and task head `omol`. For a conflict-free quick start, pass `--backend aimnet2` (loads `aimnet2_wb97m_0`) or install only `torch`. See [Default models](#default-models) for every backend keyword.
 
 ## Command Line Interface
 
@@ -72,8 +72,10 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
 | `--model-name` | backend default | Override model (see [Default models](#default-models) when omitted) |
 | `--model-path` | `None` | Path to model file (if applicable) |
 | `--device` | `None` | Device: cpu\|cuda |
+| `--task-name` | `omol` (UMA) | UMA task head: `omol`\|`omat`\|`omc`\|`oc20`\|`oc25`\|`odac`\|`oc22` (ignored for other backends) |
+| `--dftd3-functional` | `None` | Optional FairChem DFT-D3(BJ) wrap for UMA: `r2scan` or `pbe` |
 | `--default-charge` | `0` | Default molecular charge |
-| `--default-spin` | `1` | Default spin multiplicity |
+| `--default-spin` | `1` | Default spin multiplicity (use `0` for non-`omol` UMA tasks) |
 | `--local-optimizer` | `default` | Local optimizer: default\|lbfgs\|bfgs\|fire\|sella\|sella-analytical\|trust-krylov\|trust-ncg\|trust-exact\|newton-cg\|rfo. `default` selects `lbfgs` for minima and path, and `rfo` for TS. `newton-cg` is minima-only. |
 | `--optimizer-kw` | `None` | Optimizer kwargs as key=value, repeatable |
 | `--ts-kw` | `None` | TS optimizer kwargs as key=value, repeatable |
@@ -463,7 +465,7 @@ When `--model-name` / `model_name` is omitted, each backend keyword loads this c
 
 | Backend keyword | Default `--model-name` | Checkpoint / method loaded |
 |-----------------|------------------------|----------------------------|
-| `uma` | `uma-s-1p2` | fairchem UMA-S 1.2 |
+| `uma` | `uma-s-1p2` | fairchem UMA-S 1.2 (task head default `omol`) |
 | `aimnet2` | `aimnet2` | `aimnet2_wb97m_0` (aliases: `aimnet2_wb97m`; also `aimnet2_b973c`, `aimnet2-qr`) |
 | `mace` | `mace-omol-0` | MACE omol pretrained (molecules / TMs) |
 | `pet` | `pet-mad-s` | PET-MAD small |
@@ -475,7 +477,39 @@ When `--model-name` / `model_name` is omitted, each backend keyword loads this c
 
 OrbMol-v2 is selected with `--model-name orbmol-v2`. That checkpoint ships in `orb-models>=0.7.0`, which requires Python 3.12.
 
-Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin` (or `Explorer` kwargs). UMA and related backends read `atoms.info["charge"]` and `atoms.info["spin"]` when set.
+Charge and spin default to `0` and `1` via `--default-charge` / `--default-spin` (or `Explorer` kwargs). UMA and related backends read `atoms.info["charge"]` and `atoms.info["spin"]` when set. For non-`omol` UMA tasks, prefer `--default-spin 0`.
+
+#### UMA task heads and fine-tunes
+
+UMA routes through a Mixture-of-Linear-Experts head selected by `--task-name` / `task_name` (default `omol`). Requires `fairchem-core>=2.25.0`.
+
+| Task | Typical use | Notes |
+|------|-------------|-------|
+| `omol` | Molecules, organics, homogeneous catalysis | Needs charge/spin; FAMEX default |
+| `omat` | Inorganic materials | Prefer spin `0`; no dispersion in base labels |
+| `omc` | Molecular crystals / organic electronics | Prefer spin `0` |
+| `oc20` | Heterogeneous catalysis | Prefer spin `0` |
+| `oc25` | (Electro)catalysis (UMA-1.2+) | Prefer spin `0` |
+| `oc22` | Oxide catalysis (UMA-1.2+) | Prefer spin `0`; validated by the checkpoint |
+| `odac` | MOFs / direct air capture | Prefer spin `0` |
+
+Optional newer checkpoints (defaults stay `uma-s-1p2` + `omol`):
+
+```bash
+# Patch release of UMA-S 1.2 (multi-task)
+famex minima --strategy local mol.xyz --model-name uma-s-1p2p1 --task-name omol
+
+# Fine-tune: ωB97M-D4rev molecules (dispersion included — do not add D3)
+famex minima --strategy local mol.xyz \
+  --model-name uma-s-1p2p1-ft-d4rev --task-name omol
+
+# Fine-tune: r²SCAN materials + recommended D3(BJ)
+famex minima --strategy local crystal.xyz \
+  --model-name uma-s-1p2p1-ft-r2scan --task-name omat \
+  --dftd3-functional r2scan --default-spin 0
+```
+
+Python equivalents: `Explorer(..., task_name="omat", dftd3_functional="r2scan", default_spin=0)` or `get_uma_calculator(task_name=..., dftd3_functional=...)`.
 
 ## Backend Guide
 
@@ -484,7 +518,7 @@ FAMEX is built around machine learning potentials. Classical quantum-chemistry b
 | Backend | Installation | Default checkpoint | Use when | Notes |
 |---------|--------------|--------------------|----------|-------|
 | `aimnet2` | `pip install torch` | `aimnet2` → `aimnet2_wb97m_0` | Molecules; simplest install | No `e3nn` conflict with other backends; analytical Hessian |
-| `uma` | `pip install "fairchem-core>=2.24.0"` or `pip install famex[uma]` | `uma-s-1p2` | Materials and molecules (CLI default) | Conflicts with MACE; analytical Hessian |
+| `uma` | `pip install "fairchem-core>=2.25.0"` or `pip install famex[uma]` | `uma-s-1p2` | Materials and molecules (CLI default; task `omol`) | Conflicts with MACE; analytical Hessian; see [UMA task heads](#uma-task-heads-and-fine-tunes) |
 | `mace` | `pip install mace-torch` | `mace-omol-0` | Molecules | Conflicts with UMA; analytical Hessian |
 | `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | `orb-v3-conservative-omol` | Molecules (`orbmol-v2`) and materials | Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
 | `so3lr` | `pip install so3lr` | `so3lr-small` | Custom / research models | Analytical Hessian via JAX |

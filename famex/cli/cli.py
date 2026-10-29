@@ -14,6 +14,7 @@ from typing import Any
 import click
 from ase import Atoms
 
+from famex.backends.constants import UMA_TASKS
 from famex.cli.cache_commands import cache
 from famex.cli.cli_helpers import (
     input_stem,
@@ -230,6 +231,8 @@ def _create_explorer(
     verbose: int,
     force_finite_diff_hessian: bool,
     cleanup_frequencies: bool,
+    task_name: str | None = None,
+    dftd3_functional: str | None = None,
 ) -> tuple[Explorer, AbstractContextManager[list[str]]]:
     verbosity = max(0, verbose - 1)
 
@@ -258,6 +261,8 @@ def _create_explorer(
         verbose=verbosity,
         force_finite_diff_hessian=force_finite_diff_hessian,
         cleanup_frequencies=cleanup_frequencies,
+        task_name=task_name,
+        dftd3_functional=dftd3_functional,
     )
 
     return exp, ctx
@@ -447,6 +452,23 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
             click.option("--model-path", default=None, help="Path to model file (if applicable)"),
             click.option("--device", default=None, help="Device: cpu|cuda"),
             click.option(
+                "--task-name",
+                default=None,
+                help=(
+                    f"UMA task head: {'|'.join(UMA_TASKS)} "
+                    "(default: omol; ignored for non-UMA backends)"
+                ),
+            ),
+            click.option(
+                "--dftd3-functional",
+                default=None,
+                type=click.Choice(["r2scan", "pbe"], case_sensitive=False),
+                help=(
+                    "Optional FairChem DFT-D3(BJ) wrap for UMA "
+                    "(e.g. r2scan with uma-s-1p2p1-ft-r2scan)"
+                ),
+            ),
+            click.option(
                 "--default-charge",
                 type=int,
                 default=0,
@@ -458,7 +480,7 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 type=int,
                 default=1,
                 show_default=True,
-                help="Default spin multiplicity",
+                help="Default spin multiplicity (use 0 for non-omol UMA tasks)",
             ),
             click.option(
                 "--local-optimizer",
@@ -683,6 +705,8 @@ def minima(
     model_name: str | None,
     model_path: str | None,
     device: str | None,
+    task_name: str | None,
+    dftd3_functional: str | None,
     default_charge: int,
     default_spin: int,
     local_optimizer: str,
@@ -754,6 +778,8 @@ def minima(
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
         cleanup_frequencies=cleanup_frequencies,
+        task_name=task_name,
+        dftd3_functional=dftd3_functional,
     )
 
     with ctx:
@@ -921,6 +947,8 @@ def ts(
     model_name: str | None,
     model_path: str | None,
     device: str | None,
+    task_name: str | None,
+    dftd3_functional: str | None,
     default_charge: int,
     default_spin: int,
     local_optimizer: str,
@@ -996,6 +1024,8 @@ def ts(
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
         cleanup_frequencies=cleanup_frequencies,
+        task_name=task_name,
+        dftd3_functional=dftd3_functional,
     )
 
     with ctx:
@@ -1143,6 +1173,8 @@ def path(
     model_name: str | None,
     model_path: str | None,
     device: str | None,
+    task_name: str | None,
+    dftd3_functional: str | None,
     default_charge: int,
     default_spin: int,
     local_optimizer: str,
@@ -1223,6 +1255,8 @@ def path(
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
         cleanup_frequencies=False,
+        task_name=task_name,
+        dftd3_functional=dftd3_functional,
     )
     first_file = structures[0]
 

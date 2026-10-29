@@ -101,10 +101,16 @@ class Explorer:
     device : str, optional
         Device for computations ("cpu" or "cuda"). For MLIP backends, defaults
         to CUDA when available. TBLite is CPU-only and raises if CUDA is requested.
+    task_name : str, optional
+        UMA task head (``omol``, ``omat``, ``oc20``, …). Ignored for other backends.
+        Defaults to ``omol`` when using UMA.
+    dftd3_functional : str, optional
+        Optional FairChem DFT-D3(BJ) wrap for UMA (``r2scan`` or ``pbe``).
     default_charge : int, default 0
         Default total charge used when per-structure metadata is not available.
     default_spin : int, default 1
         Default spin multiplicity used when per-structure metadata is not available.
+        For non-``omol`` UMA tasks, prefer ``0`` (FairChem materials/catalysis heads).
     local_optimizer : str, default "default"
         Local optimizer for geometry optimization. If "default", auto-selects based
         on target: "rfo" for TS searches, "lbfgs" for minima/path optimizations.
@@ -224,6 +230,8 @@ class Explorer:
         profile: bool = False,
         force_finite_diff_hessian: bool = False,
         cleanup_frequencies: bool = False,
+        task_name: str | None = None,
+        dftd3_functional: str | None = None,
     ) -> None:
         """Initialize the Explorer with molecular structure and configuration.
 
@@ -270,6 +278,10 @@ class Explorer:
             stationary-point character is wrong, run a Hessian-based cleanup
             optimizer from the current geometry until there are 0 (minima) or 1 (TS)
             relevant imaginary frequencies, or the attempt limit is reached.
+        task_name : str | None, default None
+            UMA task head (``omol``, ``omat``, …). Defaults to ``omol`` for UMA.
+        dftd3_functional : str | None, default None
+            Optional FairChem DFT-D3(BJ) functional for UMA (``r2scan`` or ``pbe``).
         """
         if isinstance(atoms, Atoms):
             self.atoms_list: list[Atoms] = [atoms]
@@ -282,6 +294,8 @@ class Explorer:
         self.device = resolve_backend_device(backend, device)
         self.default_charge = default_charge
         self.default_spin = default_spin
+        self.task_name = task_name
+        self.dftd3_functional = dftd3_functional
         self.verbose = verbose
 
         # Initialize performance profiler if requested
@@ -312,6 +326,8 @@ class Explorer:
             default_charge=default_charge,
             default_spin=default_spin,
             verbose=verbose,
+            task_name=task_name,
+            dftd3_functional=dftd3_functional,
         )
         self.constraint_manager = ConstraintManager(
             constraints_spec=constraints,

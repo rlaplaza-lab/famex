@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from ase.calculators.calculator import all_changes
 
-from famex.backends.constants import DEFAULT_UMA_MODEL, FAIRCHEM_INSTALL
+from famex.backends.constants import DEFAULT_UMA_MODEL, DEFAULT_UMA_TASK, FAIRCHEM_INSTALL
 from famex.backends.dependencies import deps
 from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
@@ -22,6 +22,8 @@ if TYPE_CHECKING:
     from ase import Atoms
 
 logger = get_famex_logger(__name__)
+
+_DFTD3_FUNCTIONALS = frozenset({"r2scan", "pbe"})
 
 
 class UMAPotential(BasePotential):
@@ -36,6 +38,8 @@ class UMAPotential(BasePotential):
         default_charge: int = 0,
         default_spin: int = 1,
         needs_hessian: bool = False,
+        task_name: str = DEFAULT_UMA_TASK,
+        dftd3_functional: str | None = None,
         **kwargs: Any,
     ) -> None:
         if device is None:
@@ -45,12 +49,49 @@ class UMAPotential(BasePotential):
 
         self.predictor: Any = None
         self._calc: Any = None
+        self._fairchem_calc: Any = None
         self.default_charge = default_charge
         self.default_spin = default_spin
         self.needs_hessian = needs_hessian
         self._hessian_capable = False
+        self.task_name = str(task_name or DEFAULT_UMA_TASK).lower()
+        self.dftd3_functional = self._normalize_dftd3_functional(dftd3_functional)
 
         super().__init__(model_name=model_name, device=device, **kwargs)
+
+    @staticmethod
+    def _normalize_dftd3_functional(dftd3_functional: str | None) -> str | None:
+        if dftd3_functional is None:
+            return None
+        functional = str(dftd3_functional).strip().lower()
+        if functional not in _DFTD3_FUNCTIONALS:
+            raise ValueError(
+                f"Unsupported dftd3_functional={dftd3_functional!r}. "
+                f"Valid options: {sorted(_DFTD3_FUNCTIONALS)}"
+            )
+        return functional
+
+    def _effective_default_spin(self) -> int:
+        """Spin default for the active task; non-omol FairChem heads expect 0."""
+        if self.task_name == DEFAULT_UMA_TASK or self.default_spin != 1:
+            return self.default_spin
+        return 0
+
+    def _prepare_atoms_charge_spin(self, atoms: Atoms) -> None:
+        spin = self._effective_default_spin()
+        if (
+            self.task_name != DEFAULT_UMA_TASK
+            and self.default_spin == 1
+            and "spin" not in atoms.info
+        ):
+            warnings.warn(
+                f"UMA task_name={self.task_name!r} typically expects spin=0; "
+                "overriding FAMEX molecular default spin=1. Pass default_spin=0 "
+                "explicitly for materials/catalysis heads.",
+                UserWarning,
+                stacklevel=3,
+            )
+        self._set_atoms_charge_spin(atoms, self.default_charge, spin)
 
     def _set_model_precision(self, precision: str = "float32") -> None:
         if self.predictor is None:
@@ -73,9 +114,24 @@ class UMAPotential(BasePotential):
                 compile=False,
                 merge_mole=False,
                 execution_mode="general",
-                predict_untrained_hessian={"omol"},
+                predict_untrained_hessian={self.task_name},
             )
         return "default"
+
+    def _wrap_dftd3(self, fairchem_calc: Any) -> Any:
+        if self.dftd3_functional is None:
+            return fairchem_calc
+        DFTD3Calculator = deps.get("fairchem_dftd3_calculator")
+        if not DFTD3Calculator:
+            raise RuntimeError(
+                f"DFTD3Calculator is unavailable. Install with: pip install {FAIRCHEM_INSTALL}"
+            )
+        device_param = "cuda" if self.device == "cuda" else "cpu"
+        return DFTD3Calculator(
+            fairchem_calc,
+            functional=self.dftd3_functional,
+            device=device_param,
+        )
 
     def _load_calculator(self) -> None:
         if getattr(self, "_calc", None) is not None:
@@ -112,7 +168,8 @@ class UMAPotential(BasePotential):
                     model_name, inference_settings=settings, device=device_param
                 )
                 self._set_model_precision("float32")
-                self._calc = fairchem_calculator(self.predictor, task_name="omol")
+                self._fairchem_calc = fairchem_calculator(self.predictor, task_name=self.task_name)
+                self._calc = self._wrap_dftd3(self._fairchem_calc)
                 self._hessian_capable = self.needs_hessian
             except (ImportError, ValueError, TypeError, KeyError, OSError, RuntimeError) as exc:
                 raise_backend_load_error("UMA", self.model_name, exc)
@@ -126,6 +183,12 @@ class UMAPotential(BasePotential):
             raise RuntimeError(msg)
         return self._calc
 
+    def _ensure_fairchem_calc(self) -> Any:
+        self._ensure_uma_calc()
+        if self._fairchem_calc is None:
+            raise RuntimeError("FairChem calculator not loaded")
+        return self._fairchem_calc
+
     def _reload_for_hessian(self) -> None:
         """Drop a compiled predictor and load Hessian-capable settings once."""
         logger.info(
@@ -134,6 +197,7 @@ class UMAPotential(BasePotential):
         )
         self.predictor = None
         self._calc = None
+        self._fairchem_calc = None
         self.needs_hessian = True
         self._hessian_capable = False
         gc.collect()
@@ -158,7 +222,7 @@ class UMAPotential(BasePotential):
         if atoms is None:
             raise ValueError("atoms cannot be None")
 
-        self._set_atoms_charge_spin(atoms, self.default_charge, self.default_spin)
+        self._prepare_atoms_charge_spin(atoms)
         calc = self._ensure_uma_calc()
 
         try:
@@ -198,12 +262,13 @@ class UMAPotential(BasePotential):
 
         Uses fairchem's Hessian task. Reloads once without compile if needed;
         falls back to finite differences if the analytical path still fails.
+        With DFT-D3, analytical Hessian omits D3 second derivatives; FD includes them.
         """
         if atoms is not None:
             self.atoms = atoms
 
         assert self.atoms is not None
-        self._set_atoms_charge_spin(self.atoms, self.default_charge, self.default_spin)
+        self._prepare_atoms_charge_spin(self.atoms)
 
         try:
             self._ensure_hessian_capable()
@@ -253,7 +318,8 @@ class UMAPotential(BasePotential):
         return np.asarray(hessian_np, dtype=np.float64)
 
     def _hessian_via_fairchem_task(self) -> np.ndarray:
-        calc = self._ensure_uma_calc()
+        # Unwrapped FairChem calc: DFTD3Calculator does not expose hessian.
+        calc = self._ensure_fairchem_calc()
         assert self.atoms is not None
         calc.calculate(self.atoms, ["energy", "forces", "hessian"], all_changes)
         if "hessian" not in calc.results:
@@ -285,11 +351,11 @@ class UMAPotential(BasePotential):
         device = next(self.predictor.model.parameters()).device
         atoms_copy = self.atoms.copy()
         atoms_copy.info["charge"] = int(self.atoms.info.get("charge", self.default_charge))
-        atoms_copy.info["spin"] = int(self.atoms.info.get("spin", self.default_spin))
+        atoms_copy.info["spin"] = int(self.atoms.info.get("spin", self._effective_default_spin()))
 
         data = AtomicData.from_ase(
             atoms_copy,
-            task_name="omol",
+            task_name=self.task_name,
             r_edges=False,
             r_data_keys=["spin", "charge"],
         ).to(device)

@@ -14,7 +14,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: Which backend should I choose?
 
-**A:** Prefer a machine learning potential: CLI/`Explorer` default to **UMA** with checkpoint `uma-s-1p2` (`fairchem-core>=2.24.0`). For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`, default checkpoint `aimnet2` → `aimnet2_wb97m_0`) via `--backend aimnet2`. Other keywords and their defaults (`mace-omol-0`, `orb-v3-conservative-omol`, `pet-mad-s`, `so3lr-small`, `GFN2-xTB`, `b3lyp-d3bj/def2-svp`, …) are listed under [Default models](USER_GUIDE.md#default-models).
+**A:** Prefer a machine learning potential: CLI/`Explorer` default to **UMA** with checkpoint `uma-s-1p2` and task `omol` (`fairchem-core>=2.25.0`). For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`, default checkpoint `aimnet2` → `aimnet2_wb97m_0`) via `--backend aimnet2`. Other keywords and their defaults (`mace-omol-0`, `orb-v3-conservative-omol`, `pet-mad-s`, `so3lr-small`, `GFN2-xTB`, `b3lyp-d3bj/def2-svp`, …) are listed under [Default models](USER_GUIDE.md#default-models).
 
 ### Q: Can I install multiple backends?
 
@@ -26,7 +26,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: Backend not available after installation?
 
-**A:** Install backend dependencies. UMA: `pip install famex[uma]` or `pip install "fairchem-core>=2.24.0"`. Other backends: see [README](../README.md) and [User Guide](USER_GUIDE.md#backend-guide).
+**A:** Install backend dependencies. UMA: `pip install famex[uma]` or `pip install "fairchem-core>=2.25.0"`. Other backends: see [README](../README.md) and [User Guide](USER_GUIDE.md#backend-guide).
 
 ## Using FAMEX
 
@@ -56,7 +56,11 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: How do I specify charge and spin?
 
-**A:** CLI: `--default-charge` and `--default-spin`. Python: `Explorer(..., default_charge=0, default_spin=1)`. Values are written to `atoms.info` when missing. Required for consistent UMA/MACE/Orb results on charged or open-shell systems.
+**A:** CLI: `--default-charge` and `--default-spin`. Python: `Explorer(..., default_charge=0, default_spin=1)`. Values are written to `atoms.info` when missing. Required for consistent UMA/MACE/Orb results on charged or open-shell systems. For non-`omol` UMA tasks (`omat`, `oc20`, …), use `--default-spin 0`.
+
+### Q: How do I choose a UMA task or fine-tune?
+
+**A:** Defaults stay `uma-s-1p2` + `--task-name omol`. Pass `--task-name` for materials/catalysis heads, or `--model-name uma-s-1p2p1-ft-d4rev` / `uma-s-1p2p1-ft-r2scan` for the 1.2.1 fine-tunes. Use `--dftd3-functional r2scan` with the r²SCAN fine-tune; do **not** add D3 to `ft-d4rev`. See [UMA task heads and fine-tunes](USER_GUIDE.md#uma-task-heads-and-fine-tunes).
 
 ### Q: How do I use constraints?
 

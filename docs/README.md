@@ -6,7 +6,7 @@
 | [Tutorials](TUTORIALS.md) | Step-by-step minima, TS, and path workflows |
 | [FAQ](FAQ.md) | Installation, troubleshooting, performance |
 
-**Version:** 0.2.3. **CLI/`Explorer` defaults:** `backend=uma`, model `uma-s-1p2` (`fairchem-core>=2.24.0` via `pip install famex[uma]`).
+**Version:** 0.3.0. **CLI/`Explorer` defaults:** `backend=uma`, model `uma-s-1p2`, task `omol` (`fairchem-core>=2.25.0` via `pip install famex[uma]`).
 
 **Installation and default checkpoints per backend keyword:** [README](../README.md#quick-start) and [User Guide → Default models](USER_GUIDE.md#default-models).
 

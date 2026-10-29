@@ -114,6 +114,10 @@ class DependencyManager:
                     from fairchem.core import FAIRChemCalculator
 
                     self._cache["fairchem_calculator"] = FAIRChemCalculator
+                elif name == "fairchem_dftd3_calculator":
+                    from fairchem.core import DFTD3Calculator
+
+                    self._cache["fairchem_dftd3_calculator"] = DFTD3Calculator
                 elif name == "fairchem_inference_settings":
                     from fairchem.core.units.mlip_unit.api.inference import (
                         InferenceSettings,

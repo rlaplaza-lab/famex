@@ -2,7 +2,7 @@
 
 Hands-on tutorials for molecular geometry optimization and transition state searches using FAMEX.
 
-> **Defaults:** CLI and `Explorer` use `backend="uma"` with checkpoint `uma-s-1p2`. Tutorials below often show `--backend aimnet2` (default checkpoint `aimnet2` → `aimnet2_wb97m_0`) for a minimal `torch`-only install; omit `--backend` when using UMA. Full default-checkpoint table: [User Guide](USER_GUIDE.md#default-models).
+> **Defaults:** CLI and `Explorer` use `backend="uma"` with checkpoint `uma-s-1p2` and task `omol`. Tutorials below often show `--backend aimnet2` (default checkpoint `aimnet2` → `aimnet2_wb97m_0`) for a minimal `torch`-only install; omit `--backend` when using UMA. Full default-checkpoint table: [User Guide](USER_GUIDE.md#default-models). UMA tasks and fine-tunes: [User Guide](USER_GUIDE.md#uma-task-heads-and-fine-tunes).
 
 ## Table of Contents
 

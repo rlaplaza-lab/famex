@@ -30,6 +30,8 @@ class CalculatorManager:
         default_charge: int = 0,
         default_spin: int = 1,
         verbose: int = 1,
+        task_name: str | None = None,
+        dftd3_functional: str | None = None,
     ) -> None:
         self.backend = backend
         self.model_name = model_name
@@ -38,6 +40,8 @@ class CalculatorManager:
         self.default_charge = default_charge
         self.default_spin = default_spin
         self.verbose = verbose
+        self.task_name = task_name
+        self.dftd3_functional = dftd3_functional
         self._calculator_created = False
         self._warned_about_defaults = False
 
@@ -129,6 +133,8 @@ class CalculatorManager:
             mult=spin,
             verbose=self.verbose,
             needs_hessian=needs_hessian,
+            task_name=self.task_name,
+            dftd3_functional=self.dftd3_functional,
         )
         atoms.calc = calc
         return calc

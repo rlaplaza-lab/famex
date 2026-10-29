@@ -140,6 +140,8 @@ def create_calculator(
     use_cache: bool = True,
     verbose: int = 1,
     needs_hessian: bool = False,
+    task_name: str | None = None,
+    dftd3_functional: str | None = None,
 ) -> Any:
     factory_kwargs: dict[str, Any] = {
         "default_charge": default_charge,
@@ -153,6 +155,17 @@ def create_calculator(
     backend_lower = backend.lower()
     if backend_lower == BACKEND_UMA:
         factory_kwargs["needs_hessian"] = needs_hessian
+        if task_name is not None:
+            factory_kwargs["task_name"] = task_name
+        if dftd3_functional is not None:
+            factory_kwargs["dftd3_functional"] = dftd3_functional
+    elif task_name is not None or dftd3_functional is not None:
+        logger.warning(
+            "Ignoring UMA-only options task_name=%r dftd3_functional=%r for backend=%r",
+            task_name,
+            dftd3_functional,
+            backend,
+        )
 
     if use_cache and backend_lower != BACKEND_SO3LR:
         try:

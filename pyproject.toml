@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "famex"
-version = "0.2.3"
+version = "0.3.0"
 description = "Fast mechanistic explorer using machine learning potentials with Sella optimizer"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -34,7 +34,7 @@ dependencies = [
 [project.optional-dependencies]
 # Development dependencies only
 # ML backends must be installed separately - see README for details
-uma = ["fairchem-core>=2.24.0"]
+uma = ["fairchem-core>=2.25.0"]
 pet = ["upet"]
 smiles = ["pysmiles>=1.1.0"]
 rdkit = ["rdkit>=2023.9.1"]
