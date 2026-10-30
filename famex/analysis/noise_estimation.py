@@ -7,34 +7,15 @@ calculation strategies to select optimal methods and parameters.
 
 from __future__ import annotations
 
-from typing import Protocol
-
 import numpy as np
 from ase import Atoms
 from numpy.typing import NDArray
 
+from famex.analysis.hessian import CalculatorProtocol
 from famex.analysis.utils import validate_indices
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
-
-
-class CalculatorProtocol(Protocol):
-    """Protocol for calculator objects compatible with ASE Atoms.
-
-    Any object that can be assigned to ``atoms.calc`` and provides
-    ``get_forces()`` and ``get_potential_energy()`` methods is compatible.
-    """
-
-    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Compute forces for the given atoms structure."""
-        ...
-
-    def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
-    ) -> float:
-        """Compute potential energy for the given atoms structure."""
-        ...
 
 
 def estimate_richardson_noise(
@@ -339,5 +320,4 @@ __all__ = [
     "estimate_richardson_noise",
     "estimate_force_noise",
     "estimate_optimal_delta",
-    "CalculatorProtocol",
 ]

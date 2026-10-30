@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from famex.backends.dependencies import DependencyManager
-from famex.utils.validation import DependencyError
 
 
 class TestDependencyManager:
@@ -96,43 +95,6 @@ class TestDependencyManager:
         with pytest.raises(ImportError, match="is required for"):
             manager.require("nonexistent_package_xyz123", purpose="testing")
 
-    def test_require_multiple_single_available(self):
-        """Test require_multiple() with single available dependency."""
-        manager = DependencyManager()
-        result = manager.require_multiple("sella", purpose="testing")
-        # Should return module directly, not dict
-        assert result is not None
-        assert not isinstance(result, dict)
-
-    def test_require_multiple_single_missing(self):
-        """Test require_multiple() with single missing dependency raises DependencyError."""
-        manager = DependencyManager()
-        with pytest.raises(DependencyError, match="nonexistent_package_xyz123"):
-            manager.require_multiple("nonexistent_package_xyz123", purpose="testing")
-
-    def test_require_multiple_multiple_available(self):
-        """Test require_multiple() with multiple available dependencies."""
-        manager = DependencyManager()
-        # sella should be available
-        result = manager.require_multiple("sella", "sella", purpose="testing")
-        # Should return dict when multiple (even if same name)
-        # Actually, if same name, might return single module
-        assert result is not None
-
-    def test_require_multiple_with_missing(self):
-        """Test require_multiple() with some missing dependencies."""
-        manager = DependencyManager()
-        with pytest.raises(DependencyError, match="nonexistent_package_xyz123"):
-            manager.require_multiple("sella", "nonexistent_package_xyz123", purpose="testing")
-
-    def test_require_multiple_all_missing(self):
-        """Test require_multiple() with all dependencies missing."""
-        manager = DependencyManager()
-        with pytest.raises(DependencyError):
-            manager.require_multiple(
-                "nonexistent_package_xyz123", "another_nonexistent_xyz456", purpose="testing"
-            )
-
     def test_cache_behavior(self):
         """Test that dependencies are cached after loading."""
         manager = DependencyManager()
@@ -152,49 +114,6 @@ class TestDependencyManager:
         # Should be same (cached)
         assert result1 == result2
         assert "nonexistent_package_xyz123" in manager._availability_cache
-
-
-class TestDependencyContext:
-    """Tests for _DependencyContext context manager."""
-
-    def test_context_manager_single_dependency(self):
-        """Test context manager with single dependency."""
-        manager = DependencyManager()
-        context = manager.need("sella")
-        with context as sella:
-            assert sella is not None
-            # Should return module directly, not tuple
-            assert not isinstance(sella, tuple)
-
-    def test_context_manager_multiple_dependencies(self):
-        """Test context manager with multiple dependencies."""
-        manager = DependencyManager()
-        context = manager.need("sella", "sella")  # Same dependency twice
-        with context as result:
-            # Should return tuple when multiple
-            assert isinstance(result, tuple)
-            assert len(result) == 2
-
-    def test_context_manager_exit(self):
-        """Test context manager exit doesn't raise errors."""
-        manager = DependencyManager()
-        context = manager.need("sella")
-        assert context.__enter__() is not None
-        assert context.__exit__(None, None, None) is None
-
-    def test_context_manager_raises_on_missing(self):
-        """Test context manager raises DependencyError for missing dependencies."""
-        manager = DependencyManager()
-        context = manager.need("nonexistent_package_xyz123")
-        with pytest.raises(DependencyError), context:
-            pass
-
-    def test_context_manager_multiple_with_missing(self):
-        """Test context manager with multiple dependencies where some are missing."""
-        manager = DependencyManager()
-        context = manager.need("sella", "nonexistent_package_xyz123")
-        with pytest.raises(DependencyError), context:
-            pass
 
 
 class TestDependencyManagerErrorHandling:

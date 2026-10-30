@@ -336,10 +336,6 @@ class Explorer:
 
     # --- Calculator & Constraints Management ---
 
-    def _get_effective_model_name(self) -> str:
-        """Get effective model name after applying backend defaults."""
-        return self.calculator_manager.get_effective_model_name()
-
     def _get_effective_optimizer(self) -> str:
         """Get effective optimizer name after applying defaults."""
         if self.local_optimizer_name != "default":

@@ -10,28 +10,16 @@ Energy-based FD computes second derivatives directly:
 
 from __future__ import annotations
 
-from typing import Protocol, cast
+from typing import cast
 
 import numpy as np
 from ase import Atoms
 
+from famex.analysis.hessian import CalculatorProtocol
 from famex.analysis.utils import validate_indices
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
-
-
-class CalculatorProtocol(Protocol):
-    """Protocol for calculator objects compatible with ASE Atoms.
-
-    Any object that can be assigned to ``atoms.calc`` and provides
-    ``get_potential_energy()`` method is compatible.
-    """
-
-    def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
-    ) -> float:
-        """Compute potential energy for the given atoms structure."""
 
 
 class EnergyBasedHessianCalculator:
@@ -309,5 +297,4 @@ class EnergyBasedHessianCalculator:
 
 __all__ = [
     "EnergyBasedHessianCalculator",
-    "CalculatorProtocol",
 ]

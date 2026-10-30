@@ -85,12 +85,6 @@ class PathManager:
     def product(self) -> Geometry:
         return self.structures[-1]
 
-    @property
-    def reaction_energy(self) -> float | None:
-        if self.reactant.energy is not None and self.product.energy is not None:
-            return self.product.energy - self.reactant.energy
-        return None
-
     def interpolate(
         self,
         npoints: int = 10,
@@ -190,38 +184,6 @@ class PathManager:
         energies = PathManager._path_energies(path)
         ts_index = energies.index(max(energies))
         return path[ts_index], ts_index
-
-    @staticmethod
-    def find_local_minima(path: Sequence[Atoms]) -> list[int]:
-        energies = PathManager._path_energies(path)
-
-        minima_idxs = []
-        for i, e in enumerate(energies):
-            left = energies[i - 1] if i - 1 >= 0 else float("inf")
-            right = energies[i + 1] if i + 1 < len(energies) else float("inf")
-            if e < left and e < right:
-                minima_idxs.append(i)
-
-        if not minima_idxs:
-            minima_idxs = [min(range(len(energies)), key=lambda i: energies[i])]
-
-        return minima_idxs
-
-    @staticmethod
-    def find_local_maxima(path: Sequence[Atoms]) -> list[int]:
-        energies = PathManager._path_energies(path)
-
-        maxima_idxs = []
-        for i, e in enumerate(energies):
-            left = energies[i - 1] if i - 1 >= 0 else float("-inf")
-            right = energies[i + 1] if i + 1 < len(energies) else float("-inf")
-            if e > left and e > right:
-                maxima_idxs.append(i)
-
-        if not maxima_idxs:
-            maxima_idxs = [max(range(len(energies)), key=lambda i: energies[i])]
-
-        return maxima_idxs
 
     @staticmethod
     def calculate_rmsd(
@@ -449,45 +411,6 @@ class PathManager:
             explorer._apply_constraints(struct)
 
         return struct_list[0].calc if struct_list else None
-
-    def get_path_statistics(self, path: list[Atoms]) -> dict:
-        energies = []
-        for atoms in path:
-            try:
-                energy = atoms.get_potential_energy()
-                energies.append(energy)
-            except Exception:
-                energies.append(float("nan"))
-
-        import math
-
-        valid_energies = [e for e in energies if not math.isnan(e)]
-
-        stats = {
-            "num_structures": len(path),
-            "energies": energies,
-            "min_energy": min(valid_energies) if valid_energies else None,
-            "max_energy": max(valid_energies) if valid_energies else None,
-            "energy_range": (max(valid_energies) - min(valid_energies) if valid_energies else None),
-        }
-
-        try:
-            _, ts_idx = PathManager.find_ts_guess(path)
-            stats["ts_index"] = ts_idx
-        except Exception:
-            stats["ts_index"] = None
-
-        try:
-            stats["minima_indices"] = PathManager.find_local_minima(path)
-        except Exception:
-            stats["minima_indices"] = []
-
-        try:
-            stats["maxima_indices"] = PathManager.find_local_maxima(path)
-        except Exception:
-            stats["maxima_indices"] = []
-
-        return stats
 
     def __str__(self) -> str:
         return f"PathManager({len(self.reactant)} atoms, {len(self.structures)} structures)"

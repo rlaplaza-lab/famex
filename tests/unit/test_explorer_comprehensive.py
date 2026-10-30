@@ -690,24 +690,6 @@ class TestExplorerSaveMethods:
 
 class TestExplorerEffectiveMethods:
     @pytest.mark.parametrize(
-        ("backend", "model_name", "expected"),
-        [
-            ("mock", "custom_model", "custom_model"),
-            ("uma", None, None),  # Will check contains "uma" below
-        ],
-        ids=["explicit_model", "backend_default"],
-    )
-    def test_get_effective_model_name(self, water_molecule, backend, model_name, expected):
-        atoms = water_molecule.copy()
-        kwargs = {"model_name": model_name} if model_name else {}
-        explorer = Explorer(atoms, backend=backend, **kwargs)
-        result = explorer._get_effective_model_name()
-        if expected:
-            assert result == expected
-        else:
-            assert "uma" in result.lower()
-
-    @pytest.mark.parametrize(
         ("target", "local_optimizer", "expected_optimizer"),
         [
             ("minima", "default", "lbfgs"),

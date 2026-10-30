@@ -109,11 +109,6 @@ class ThermodynamicProperties:
         thermal_factor = vibrational_thermal_factor(frequencies, self.temperature)
         return float(np.sum(units.kB * harmonic_heat_capacity_factor(thermal_factor)))
 
-    def entropy_vibrational(self) -> float:
-        """Calculate vibrational entropy with quasi-harmonic corrections."""
-        total_entropy, _ = self.qh_handler.vibrational_entropy(self.frequencies, self.temperature)
-        return total_entropy * J_PER_MOL_TO_EV
-
     def calculate_complete_thermodynamics(
         self,
         energy: float | None = None,

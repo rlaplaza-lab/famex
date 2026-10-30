@@ -78,9 +78,6 @@ class Geometry(Atoms):
         coords = np.array(coords)
         self.coords3d = coords.reshape(-1, 3)
 
-    def get_symbols(self) -> list[str]:
-        return list(super().get_chemical_symbols())
-
     @property
     def energy(self) -> float | None:
         if self.calc is not None:
@@ -110,21 +107,6 @@ class Geometry(Atoms):
         new_geom._energy = self._energy
         new_geom._forces = self._forces
         return new_geom
-
-    def get_distance_between(self, atom1: int, atom2: int) -> float:
-        return float(self.get_distance(atom1, atom2))
-
-    def get_all_pairwise_distances(self) -> np.ndarray:
-        return np.array(super().get_all_distances())
-
-    def get_angle_degrees(self, atom1: int, atom2: int, atom3: int) -> float:
-        return float(self.get_angle(atom1, atom2, atom3))
-
-    def get_dihedral_degrees(self, atom1: int, atom2: int, atom3: int, atom4: int) -> float:
-        return float(self.get_dihedral(atom1, atom2, atom3, atom4))
-
-    def center_of_mass(self) -> np.ndarray:
-        return np.array(self.get_center_of_mass())
 
     def __str__(self) -> str:
         return f"Geometry({len(self)} atoms, charge={self.charge}, mult={self.mult})"

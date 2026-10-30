@@ -120,25 +120,6 @@ class SolvationHandler:
         """
         return self.solvent == "none"
 
-    def effective_concentration(self) -> float:
-        """Calculate effective concentration accounting for free space.
-
-        This is the concentration that would give the same number density
-        in the accessible free space as the nominal concentration in the
-        total solution volume.
-
-        Returns
-        -------
-        float
-            Effective concentration in mol/L
-        """
-        if self.is_gas_phase():
-            return self.concentration
-
-        # Effective concentration = nominal concentration / (free_space / 1000)
-        # This accounts for the reduced accessible volume in solution
-        return self.concentration / (self.free_space_ml_per_l / 1000.0)
-
     def __repr__(self) -> str:
         """Return string representation."""
         phase = "gas" if self.is_gas_phase() else f"solution ({self.solvent})"

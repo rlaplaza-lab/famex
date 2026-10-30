@@ -12,6 +12,7 @@ import numpy as np
 from ase import Atoms
 from ase.optimize.optimize import Optimizer
 
+from famex.optimizers.scipy_optimizers import ConvergedError
 from famex.optimizers.ts_step import (
     adjust_trust_radius,
     build_translation_rotation_basis,
@@ -23,10 +24,6 @@ from famex.optimizers.ts_step import (
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
-
-
-class ConvergedError(Exception):
-    """Exception raised when optimizer has converged."""
 
 
 class RFOTransitionState(Optimizer):

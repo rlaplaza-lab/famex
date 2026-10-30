@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from famex.core.exceptions import (
-    InvalidInputError,
-    InvalidStrategyError,
     StrategyError,
     StrategyNotFoundError,
 )
@@ -48,31 +46,3 @@ class TestStrategyNotFoundError:
         assert error.strategy_name == "nonexistent:strategy"
         assert error.available_strategies == []
         assert "nonexistent:strategy" in str(error)
-
-
-class TestInvalidStrategyError:
-    """Tests for InvalidStrategyError."""
-
-    def test_invalid_strategy_error(self):
-        """Test InvalidStrategyError."""
-        error = InvalidStrategyError("test:strategy", "missing required parameter")
-        assert isinstance(error, StrategyError)
-        assert error.strategy_name == "test:strategy"
-        assert error.reason == "missing required parameter"
-        assert "test:strategy" in str(error)
-        assert "missing required parameter" in str(error)
-        assert "Invalid strategy" in str(error)
-
-
-class TestInvalidInputError:
-    """Tests for InvalidInputError."""
-
-    def test_invalid_input_error(self):
-        """Test InvalidInputError."""
-        error = InvalidInputError("test:strategy", "requires at least 2 structures")
-        assert isinstance(error, StrategyError)
-        assert error.strategy_name == "test:strategy"
-        assert error.reason == "requires at least 2 structures"
-        assert "test:strategy" in str(error)
-        assert "requires at least 2 structures" in str(error)
-        assert "Invalid input" in str(error)

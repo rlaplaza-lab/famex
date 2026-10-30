@@ -92,15 +92,3 @@ class StrategyUtils:
                     forces_list.append(np.zeros((len(atoms), 3)))
 
         return energies, forces_list
-
-    @staticmethod
-    def check_convergence(forces_list: list[np.ndarray], fmax: float, step: int) -> bool:
-        max_force = max(np.linalg.norm(forces, axis=1).max() for forces in forces_list)
-        if max_force < fmax:
-            logger.info(
-                "Optimization converged after %d steps (max force: %.6f)",
-                step + 1,
-                max_force,
-            )
-            return True
-        return False

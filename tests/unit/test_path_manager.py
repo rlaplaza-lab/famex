@@ -20,16 +20,11 @@ class TestPathManager:
             assert len(structure) == 3
             StandardTestAssertions.assert_reasonable_geometry(structure, "mock")
 
-    def test_reaction_energy_calculation(self, mock_backend):
+    def test_reactant_product_energies(self, mock_backend):
         reactant = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
         product = Atoms("H2O", positions=[[0, 0, 0], [1.0, 0, 0], [-0.3, 0.9, 0]])
 
         path_mgr = famex.PathManager([reactant, product], calculator=mock_backend)
-
-        reaction_energy = path_mgr.reaction_energy
-        assert reaction_energy is not None
-        StandardTestAssertions.assert_energy_reasonable(reaction_energy, "mock")
-        assert isinstance(reaction_energy, int | float)
 
         reactant_energy = path_mgr.reactant.energy
         product_energy = path_mgr.product.energy
@@ -76,19 +71,6 @@ class TestPathManager:
         assert 0 <= ts_index < len(path)
         assert ts_structure == path[ts_index]
 
-    def test_find_local_minima(self, mock_backend):
-        path = []
-        for i in range(7):
-            atoms = Atoms("H2", positions=[[0, 0, 0], [0.7 + i * 0.1, 0, 0]])
-            atoms.calc = mock_backend
-            path.append(atoms)
-
-        minima_indices = famex.PathManager.find_local_minima(path)
-
-        assert isinstance(minima_indices, list)
-        assert len(minima_indices) > 0
-        assert all(0 <= idx < len(path) for idx in minima_indices)
-
     def test_filter_redundant_structures(self, mock_backend):
         # Create some structures, some redundant
         struct1 = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
@@ -110,25 +92,6 @@ class TestPathManager:
         assert len(filtered) == 2
         assert len(removed) == 1
 
-    def test_path_statistics(self, mock_backend):
-        reactant = Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]])
-        product = Atoms("H2", positions=[[0, 0, 0], [1.5, 0, 0]])
-
-        path_mgr = famex.PathManager([reactant, product], calculator=mock_backend)
-        path = path_mgr.interpolate(npoints=5, method="linear")
-
-        for atoms in path:
-            atoms.calc = mock_backend
-
-        stats = path_mgr.get_path_statistics(path)
-
-        assert isinstance(stats, dict)
-        assert "num_structures" in stats
-        assert "energies" in stats
-        assert "min_energy" in stats
-        assert "max_energy" in stats
-        assert stats["num_structures"] == 5
-
     def test_initialization_requires_multiple_structures(self):
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         with pytest.raises(ValueError, match="requires at least 2 structures"):
@@ -142,21 +105,7 @@ class TestPathManager:
         with pytest.raises(ValueError, match="Incompatible atoms"):
             famex.PathManager([atoms1, atoms2])
 
-    def test_get_path_statistics_with_missing_energies(self, mock_backend):
-        path = []
-        for i in range(5):
-            atoms = Atoms("H2", positions=[[0, 0, 0], [0.7 + i * 0.1, 0, 0]])
-            if i % 2 == 0:
-                atoms.calc = mock_backend
-            path.append(atoms)
-
-        path_mgr = famex.PathManager([path[0], path[-1]], calculator=mock_backend)
-        stats = path_mgr.get_path_statistics(path)
-
-        assert stats["num_structures"] == 5
-        assert len(stats["energies"]) == 5
-
-    def test_short_path_ts_and_extrema(self, mock_backend):
+    def test_short_path_ts_guess(self, mock_backend):
         path = [
             Atoms("H2", positions=[[0, 0, 0], [0.7, 0, 0]]),
             Atoms("H2", positions=[[0, 0, 0], [0.8, 0, 0]]),
@@ -167,16 +116,3 @@ class TestPathManager:
         ts_structure, ts_index = famex.PathManager.find_ts_guess(path)
         assert ts_structure is not None
         assert 0 <= ts_index < len(path)
-
-        minima = famex.PathManager.find_local_minima(path)
-        maxima = famex.PathManager.find_local_maxima(path)
-        assert len(minima) >= 1
-        assert len(maxima) >= 1
-        assert all(0 <= i < len(path) for i in minima)
-        assert all(0 <= i < len(path) for i in maxima)
-
-        path_mgr = famex.PathManager([path[0], path[-1]], calculator=mock_backend)
-        stats = path_mgr.get_path_statistics(path)
-        assert "ts_index" in stats
-        assert "minima_indices" in stats
-        assert "maxima_indices" in stats

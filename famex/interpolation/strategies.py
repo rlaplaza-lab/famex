@@ -282,24 +282,3 @@ def get_interpolation_strategy(method: str) -> InterpolationStrategy:
     # All classes in registry are concrete implementations
     strategy_class = INTERPOLATION_REGISTRY[method_lower]
     return strategy_class()
-
-
-def list_interpolation_methods() -> dict[str, str]:
-    """List available interpolation methods and their descriptions.
-
-    Returns
-    -------
-    dict[str, str]
-        Dictionary mapping method names to descriptions
-
-    """
-    descriptions = {
-        "linear": "Simple linear interpolation between coordinates",
-        "geodesic": "Distance-preserving interpolation with bond length refinement",
-        "idpp": "Image-Dependent Pair Potential interpolation (robust for large changes)",
-    }
-
-    return {
-        method: descriptions.get(method, "No description available")
-        for method in INTERPOLATION_REGISTRY
-    }

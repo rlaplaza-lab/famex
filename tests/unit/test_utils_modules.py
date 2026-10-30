@@ -20,8 +20,6 @@ from famex.utils.profiler import (
     MemoryInfo,
     PerformanceProfiler,
     TimingEntry,
-    profile_call,
-    profile_optimizer_step,
 )
 
 
@@ -132,24 +130,6 @@ class TestProfiler:
         child_timing = profiler._timings["child"][0]
         assert child_timing.parent == "parent"
 
-    def test_start_end_timing(self):
-        profiler = PerformanceProfiler()
-
-        timing = profiler.start_timing("manual_timing")
-        assert timing.name == "manual_timing"
-        assert timing.start_time > 0
-
-        duration = profiler.end_timing("manual_timing")
-        assert duration is not None
-        assert duration >= 0
-        assert "manual_timing" in profiler._timings
-
-    def test_end_timing_nonexistent(self):
-        profiler = PerformanceProfiler()
-
-        duration = profiler.end_timing("nonexistent")
-        assert duration is None
-
     def test_snapshot_memory(self):
         profiler = PerformanceProfiler()
 
@@ -214,54 +194,6 @@ class TestProfiler:
         assert timing.duration is not None
         assert duration == timing.duration
         assert duration >= 0
-
-    def test_profile_call_decorator_with_profiler(self):
-        profiler = PerformanceProfiler()
-
-        class TestClass:
-            def __init__(self):
-                self.profiler = profiler
-
-            @profile_call
-            def test_method(self):
-                return "result"
-
-        obj = TestClass()
-        result = obj.test_method()
-
-        assert result == "result"
-        # Check that timing was recorded
-        summary = profiler.get_summary()
-        assert len(summary["timings"]) > 0
-
-    def test_profile_call_decorator_without_profiler(self):
-        class TestClass:
-            @profile_call
-            def test_method(self):
-                return "result"
-
-        obj = TestClass()
-        result = obj.test_method()
-
-        assert result == "result"
-
-    def test_profile_optimizer_step_decorator(self):
-        profiler = PerformanceProfiler()
-
-        class Optimizer:
-            def __init__(self):
-                self.profiler = profiler
-
-            @profile_optimizer_step
-            def step(self):
-                pass
-
-        optimizer = Optimizer()
-        optimizer.step()
-
-        summary = profiler.get_summary()
-        assert summary["calculator_calls"]["optimizer_steps"] == 1
-        assert "optimizer_step" in summary["timings"]
 
 
 class TestMLWarnings:

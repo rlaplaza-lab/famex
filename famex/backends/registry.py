@@ -80,9 +80,6 @@ class CalculatorRegistry:
     def register(self, backend_name: str, factory_func: Callable[..., Any]) -> None:
         self._registry[backend_name] = factory_func
 
-    def get_registered_backends(self) -> list[str]:
-        return list(BACKEND_CLASSES.keys())
-
     def create_calculator(
         self,
         backend: str,

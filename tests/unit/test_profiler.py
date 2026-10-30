@@ -10,8 +10,6 @@ from famex.utils.profiler import (
     MemoryInfo,
     PerformanceProfiler,
     TimingEntry,
-    profile_call,
-    profile_optimizer_step,
 )
 
 
@@ -126,27 +124,6 @@ class TestPerformanceProfiler:
 
         child_timing = profiler._timings["child"][0]
         assert child_timing.parent == "parent"
-
-    def test_start_end_timing_manual(self):
-        profiler = PerformanceProfiler()
-
-        timing = profiler.start_timing("manual_section")
-        assert timing.name == "manual_section"
-        assert "manual_section" in profiler._active_timings
-
-        time.sleep(0.01)
-
-        duration = profiler.end_timing("manual_section")
-        assert duration is not None
-        assert duration == pytest.approx(0.01)
-        assert "manual_section" not in profiler._active_timings
-        assert "manual_section" in profiler._timings
-
-    def test_end_timing_not_started(self):
-        profiler = PerformanceProfiler()
-
-        duration = profiler.end_timing("nonexistent")
-        assert duration is None
 
     def test_get_summary(self):
         profiler = PerformanceProfiler()
@@ -272,69 +249,3 @@ class TestPerformanceProfiler:
 
         assert "exception_test" in profiler._timings
         assert len(profiler._timings["exception_test"]) == 1
-
-
-class TestProfilerDecorators:
-    def test_profile_call_decorator_with_profiler(self):
-        class TestClass:
-            def __init__(self):
-                self.profiler = PerformanceProfiler()
-
-            @profile_call
-            def test_method(self):
-                time.sleep(0.01)
-                return "result"
-
-        obj = TestClass()
-        result = obj.test_method()
-
-        assert result == "result"
-        summary = obj.profiler.get_summary()
-        assert len(summary["timings"]) > 0
-
-    def test_profile_call_decorator_without_profiler(self):
-        class TestClass:
-            @profile_call
-            def test_method(self):
-                return "result"
-
-        obj = TestClass()
-        result = obj.test_method()
-
-        assert result == "result"
-
-    def test_profile_optimizer_step_decorator(self):
-        class TestOptimizer:
-            def __init__(self):
-                self.profiler = PerformanceProfiler()
-
-            @profile_optimizer_step
-            def step(self):
-                time.sleep(0.01)
-                return "step_result"
-
-        optimizer = TestOptimizer()
-        result = optimizer.step()
-
-        assert result == "step_result"
-
-        summary = optimizer.profiler.get_summary()
-        assert summary["calculator_calls"]["optimizer_steps"] == 1
-        assert "optimizer_step" in summary["timings"]
-
-    def test_profile_optimizer_step_multiple(self):
-        class TestOptimizer:
-            def __init__(self):
-                self.profiler = PerformanceProfiler()
-
-            @profile_optimizer_step
-            def step(self):
-                pass
-
-        optimizer = TestOptimizer()
-
-        for _ in range(5):
-            optimizer.step()
-
-        summary = optimizer.profiler.get_summary()
-        assert summary["calculator_calls"]["optimizer_steps"] == 5

@@ -4,7 +4,6 @@
 import sys
 import time
 import warnings
-from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -36,14 +35,6 @@ def create_benchmark_molecule() -> Atoms:
     # Use the ACABAC reactant structure from example files
     script_dir = os.path.dirname(os.path.abspath(__file__))
     return read(os.path.join(script_dir, "example_files", "A_C_A_B_A_C_reactant.xyz"))
-
-
-def time_function(func: Callable[..., Any], *args: Any, **kwargs: Any) -> tuple[Any, float]:
-    """Time a function call and return result and timing."""
-    start_time = time.perf_counter()
-    result = func(*args, **kwargs)
-    end_time = time.perf_counter()
-    return result, end_time - start_time
 
 
 def benchmark_backend(

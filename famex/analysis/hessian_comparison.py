@@ -7,34 +7,17 @@ their results, useful for validation and method selection.
 from __future__ import annotations
 
 import time
-from typing import Any, Protocol
+from typing import Any
 
 import numpy as np
 from ase import Atoms
 
+from famex.analysis.hessian import CalculatorProtocol
 from famex.analysis.utils import has_calculator_property, validate_indices
 from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
-
-
-class CalculatorProtocol(Protocol):
-    """Protocol for calculator objects compatible with ASE Atoms."""
-
-    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Compute forces for the given atoms structure."""
-        ...
-
-    def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
-    ) -> float:
-        """Compute potential energy for the given atoms structure."""
-        ...
-
-    def get_hessian(self, atoms: Atoms | None = None, **kwargs: Any) -> np.ndarray:
-        """Compute Hessian matrix (optional)."""
-        ...
 
 
 def compare_hessian_methods(
@@ -454,5 +437,4 @@ class HessianComparisonReport:
 __all__ = [
     "compare_hessian_methods",
     "HessianComparisonReport",
-    "CalculatorProtocol",
 ]

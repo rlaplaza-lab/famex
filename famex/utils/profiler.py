@@ -10,7 +10,6 @@ import os
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
-from functools import wraps
 from types import ModuleType
 from typing import Any, cast
 
@@ -173,26 +172,6 @@ class PerformanceProfiler:
                 self._timings[name] = []
             self._timings[name].append(timing)
 
-    def start_timing(self, name: str, parent: str | None = None) -> TimingEntry:
-        """Start timing a section (manual control)."""
-        timing = TimingEntry(name=name, start_time=time.perf_counter(), parent=parent)
-        self._active_timings[name] = timing
-        return timing
-
-    def end_timing(self, name: str) -> float | None:
-        """End timing a section (manual control)."""
-        if name in self._active_timings:
-            timing = self._active_timings[name]
-            duration = timing.finish()
-            del self._active_timings[name]
-
-            if name not in self._timings:
-                self._timings[name] = []
-            self._timings[name].append(timing)
-
-            return duration
-        return None
-
     def get_summary(self) -> dict[str, Any]:
         """Get comprehensive performance summary."""
         total_time = time.perf_counter() - self._start_time
@@ -315,45 +294,3 @@ class PerformanceProfiler:
 
         except Exception:
             return {"error": "Could not calculate resource stats"}
-
-
-def profile_call(func: Any) -> Any:
-    """Profile individual function calls."""
-
-    @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        # Check if profiler is available in the instance
-        profiler = None
-        if args and hasattr(args[0], "profiler"):
-            profiler = args[0].profiler
-
-        if profiler is None:
-            return func(*args, **kwargs)
-
-        func_name = f"{func.__module__}.{func.__name__}"
-        with profiler.profile_section(func_name):
-            return func(*args, **kwargs)
-
-    return wrapper
-
-
-def profile_optimizer_step(func: Any) -> Any:
-    """Profile optimizer step functions."""
-
-    @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        # Check if profiler is available
-        profiler = None
-        if args and hasattr(args[0], "profiler"):
-            profiler = args[0].profiler
-
-        if profiler is None:
-            return func(*args, **kwargs)
-
-        # Increment optimizer step counter
-        profiler.increment_call("optimizer_steps")
-
-        with profiler.profile_section("optimizer_step"):
-            return func(*args, **kwargs)
-
-    return wrapper

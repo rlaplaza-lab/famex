@@ -55,7 +55,7 @@ class CalculatorProtocol(Protocol):
     """Protocol for calculator objects compatible with ASE Atoms.
 
     Any object that can be assigned to ``atoms.calc`` and provides
-    ``get_forces()`` method is compatible. This includes:
+    ``get_forces()`` / ``get_potential_energy()`` is compatible. This includes:
     - FAMEX calculators (BasePotential subclasses)
     - ASE Calculator instances
     - Any object with compatible interface
@@ -75,6 +75,12 @@ class CalculatorProtocol(Protocol):
             Forces array of shape (N, 3) where N is number of atoms.
 
         """
+        ...
+
+    def get_potential_energy(
+        self, atoms: Atoms | None = None, force_consistent: bool = False
+    ) -> float:
+        """Compute potential energy for the given atoms structure."""
         ...
 
 

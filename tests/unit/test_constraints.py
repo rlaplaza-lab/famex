@@ -14,7 +14,6 @@ from famex.constraints.constraints import (
     HarmonicBondConstraint,
     HarmonicPositionConstraint,
     parse_constraint_string,
-    validate_atom_indices,
 )
 from famex.constraints.parser import parse_constraints
 from famex.potentials.mock_potential import MockCalculator
@@ -133,25 +132,6 @@ class TestConstraintParsing:
             assert parsed["type"] == expected_type
             assert parsed["atoms"] == expected_atoms
             assert parsed["target_value"] == expected_val
-
-
-class TestConstraintValidation:
-    def test_validate_valid_indices(self, h2o_molecule):
-        valid_cases = [[0], [2], [0, 1], [1, 2], [0, 1, 2]]
-        for indices in valid_cases:
-            assert validate_atom_indices(indices, h2o_molecule) is True
-
-    def test_validate_invalid_indices(self, h2o_molecule):
-        invalid_cases = [[0, 3], [1, 4], [0, 1, 3]]
-        for invalid_indices in invalid_cases:
-            with pytest.raises(ValueError):
-                validate_atom_indices(invalid_indices, h2o_molecule)
-
-    def test_validate_non_integer(self, h2o_molecule):
-        non_integer_cases = [[0, 1.5], [1.0, 2], [0.5]]
-        for non_integer_indices in non_integer_cases:
-            with pytest.raises(AssertionError):
-                validate_atom_indices(non_integer_indices, h2o_molecule)  # type: ignore
 
 
 class TestHarmonicConstraintInternals:

@@ -13,13 +13,8 @@ from famex.backends.availability import (
     get_available_backends_with_logging,
     get_available_ml_backends,
     get_backend_error_message,
-    get_backend_pairs,
     is_backend_available,
-    print_backend_summary,
-    require_any_backend,
     require_backend,
-    require_ml_backends,
-    validate_backends,
 )
 from famex.backends.cache import (
     cache_calculator,
@@ -41,7 +36,6 @@ from famex.backends.constants import (
     BACKEND_TBLITE,
     BACKEND_UMA,
     ML_BACKENDS,
-    REGULAR_BACKENDS,
 )
 from famex.backends.dependencies import deps
 from famex.backends.registry import CalculatorRegistry, calculator_registry, create_calculator
@@ -56,12 +50,7 @@ __all__ = [
     "get_backend_error_message",
     "clear_availability_cache",
     "filter_available_backends",
-    "validate_backends",
-    "print_backend_summary",
     "require_backend",
-    "require_any_backend",
-    "require_ml_backends",
-    "get_backend_pairs",
     # Calculator registry and creation
     "CalculatorRegistry",
     "calculator_registry",
@@ -78,7 +67,6 @@ __all__ = [
     # Constants
     "ALL_BACKENDS",
     "ML_BACKENDS",
-    "REGULAR_BACKENDS",
     "BACKEND_MOCK",
     "BACKEND_AIMNET2",
     "BACKEND_UMA",

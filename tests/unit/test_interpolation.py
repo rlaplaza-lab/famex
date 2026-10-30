@@ -8,7 +8,6 @@ from famex.interpolation.strategies import (
     IDPPInterpolation,
     LinearInterpolation,
     get_interpolation_strategy,
-    list_interpolation_methods,
 )
 from tests.test_constants import INTERP_EXACT_TOL, INTERP_ITERATIVE_TOL
 
@@ -140,21 +139,6 @@ class TestInterpolationRegistry:
     def test_get_interpolation_strategy_unknown(self):
         with pytest.raises(ValueError, match="Unknown interpolation method"):
             get_interpolation_strategy("unknown_method")
-
-    def test_list_interpolation_methods(self):
-        methods = list_interpolation_methods()
-
-        assert isinstance(methods, dict)
-        assert "linear" in methods
-        assert "geodesic" in methods
-        assert "idpp" in methods
-        assert "quadratic" not in methods
-        assert "spline" not in methods
-
-        # Check that all methods have descriptions
-        for _method, description in methods.items():
-            assert isinstance(description, str)
-            assert len(description) > 0
 
 
 class TestInterpolationPathQuality:

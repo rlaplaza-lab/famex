@@ -253,15 +253,6 @@ class TestSolvation:
         with pytest.raises(ValueError, match="Unknown solvent"):
             get_free_space("unknown_solvent")
 
-    def test_effective_concentration(self):
-        assert SolvationHandler(solvent="none", concentration=1.0).effective_concentration() == (
-            pytest.approx(1.0)
-        )
-        water = SolvationHandler(solvent="H2O", concentration=1.0)
-        assert water.effective_concentration() == pytest.approx(
-            1.0 / (water.free_space_ml_per_l / 1000.0)
-        )
-
     def test_default_concentration_and_pressure(self):
         gas = SolvationHandler(solvent="none", temperature=_TEMPERATURE)
         assert gas.concentration == pytest.approx(ideal_gas_concentration(_TEMPERATURE, 101325.0))
@@ -433,7 +424,13 @@ class TestCompleteThermodynamics:
         assert contaminated.calculate_zero_point_energy() == pytest.approx(
             baseline.calculate_zero_point_energy()
         )
-        assert contaminated.entropy_vibrational() == pytest.approx(baseline.entropy_vibrational())
+        s_cont, _ = contaminated.qh_handler.vibrational_entropy(
+            contaminated.frequencies, contaminated.temperature
+        )
+        s_base, _ = baseline.qh_handler.vibrational_entropy(
+            baseline.frequencies, baseline.temperature
+        )
+        assert s_cont == pytest.approx(s_base)
         assert contaminated.heat_capacity_vibrational() == pytest.approx(
             baseline.heat_capacity_vibrational()
         )
@@ -446,9 +443,8 @@ class TestCompleteThermodynamics:
         assert scaled.calculate_zero_point_energy() == pytest.approx(
             0.96 * baseline.calculate_zero_point_energy()
         )
-        assert scaled.entropy_vibrational() == pytest.approx(
-            _rrho_entropy(scaled_frequency) * J_PER_MOL_TO_EV
-        )
+        s_scaled, _ = scaled.qh_handler.vibrational_entropy(scaled.frequencies, scaled.temperature)
+        assert s_scaled == pytest.approx(_rrho_entropy(scaled_frequency))
         assert scaled.heat_capacity_vibrational() == pytest.approx(
             units.kB * x_scaled**2 * math.exp(x_scaled) / math.expm1(x_scaled) ** 2
         )
