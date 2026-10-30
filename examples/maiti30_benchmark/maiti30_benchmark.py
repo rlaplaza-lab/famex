@@ -1,19 +1,10 @@
 #!/usr/bin/env python3
-"""FAMEX Maiti-30 Benchmark - Two-Ended Transition State Search.
-
-This benchmark runs two-ended (reactant → product) transition state searches
-across available ML backends in FAMEX using the standardized Explorer API.
+"""Two-ended growing-string TS search on the Maiti-30 set.
 
 Usage:
     python maiti30_benchmark.py [--quick|--quicker]
     python maiti30_benchmark.py --backends uma,mace,pet,orb
-    python maiti30_benchmark.py --backends uma,mace
     python maiti30_benchmark.py --npoints 15
-
-Features:
-    - Two-ended transition state search evaluation using Explorer API
-    - Geometry comparison with reference structures
-    - Comprehensive backend performance analysis
 
 Valid TS (``ts_success``):
     A refined structure that is vibrationally characterized as a first-order
@@ -36,10 +27,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-# Import FAMEX components
 from famex import Explorer, calculator_registry
-
-# Import common interface
 from famex.example_utils import (
     FAMEXExampleInterface,
     create_standard_epilog,
@@ -47,7 +35,6 @@ from famex.example_utils import (
     setup_example_environment,
 )
 
-# Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -327,8 +314,6 @@ class Maiti30Benchmark:
         for backend in requested_backends:
             if calculator_registry.is_backend_available(backend):
                 available.append(backend)
-            elif verbose:
-                pass
         return available
 
     def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
@@ -631,16 +616,6 @@ class Maiti30Benchmark:
                         )
                         reaction_data["timings"]["total"] = total_time
 
-                        # Print status
-                        freq_info = reaction_data["frequency_results"]
-                        if "is_transition_state" in freq_info:
-                            freq_info["is_transition_state"]
-                        else:
-                            pass
-
-                        if verbose and avg_time_per_step:
-                            pass
-
                     except Exception as e:
                         reaction_data = {
                             "success": False,
@@ -678,35 +653,16 @@ class Maiti30Benchmark:
             failed_count = 0
             converged_count = 0
             ts_verified_count = 0
-            timing_stats = {"total": [], "optimization": [], "frequency": []}
-            step_stats = []
 
             for data in backend_data.values():
                 if isinstance(data, dict) and not data.get("skipped"):
                     if not data.get("success", True):
                         failed_count += 1
                     else:
-                        # Check convergence
                         opt_results = data.get("optimization_results", {})
                         if opt_results.get("converged"):
                             converged_count += 1
                             successful_ts.append(data)
-
-                            # Collect timing statistics
-                            timings = data.get("timings", {})
-                            if timings.get("total"):
-                                timing_stats["total"].append(timings["total"])
-                            if timings.get("optimization"):
-                                timing_stats["optimization"].append(timings["optimization"])
-                            if timings.get("frequency_analysis"):
-                                timing_stats["frequency"].append(timings["frequency_analysis"])
-
-                            # Collect step statistics
-                            steps = opt_results.get("steps_taken", 0)
-                            if steps > 0:
-                                step_stats.append(steps)
-
-                            # Check TS verification
                             freq_results = data.get("frequency_results", {})
                             if freq_results.get("is_transition_state"):
                                 ts_verified_count += 1
@@ -739,24 +695,6 @@ class Maiti30Benchmark:
                     "std_rmsd": np.std(rmsds) if rmsds else 0,
                 }
 
-                ts_stats["convergence_rate"]
-                ts_stats["verification_rate"]
-
-                # Timing statistics
-                if timing_stats["total"]:
-                    np.mean(timing_stats["total"])
-                    np.std(timing_stats["total"])
-                    if timing_stats["optimization"]:
-                        np.mean(timing_stats["optimization"])
-                        np.std(timing_stats["optimization"])
-                    if timing_stats["frequency"]:
-                        np.mean(timing_stats["frequency"])
-                        np.std(timing_stats["frequency"])
-
-                # Step statistics
-                if step_stats:
-                    pass
-
             else:
                 ts_stats = {
                     "total_reactions": total_reactions,
@@ -768,16 +706,6 @@ class Maiti30Benchmark:
                 }
 
             analysis[backend] = {"ts_statistics": ts_stats}
-
-        # Comprehensive summary table
-
-        # Print legend
-
-        # Header
-
-        # Results
-        for backend in backends:
-            analysis.get(backend, {}).get("ts_statistics", {})
 
         return analysis
 
@@ -826,11 +754,10 @@ class Maiti30Benchmark:
 @setup_example_environment
 def main() -> int:
     """Run the benchmark."""
-    # Create standardized interface
     interface = FAMEXExampleInterface(
         name="Maiti-30 Benchmark",
         description="Two-Ended Transition State Search",
-        epilog=create_standard_epilog("benchmark_quick"),
+        epilog=create_standard_epilog("maiti30_benchmark.py", quick=True),
     )
 
     parser = interface.create_parser()
@@ -897,7 +824,7 @@ def main() -> int:
         "--npoints",
         type=int,
         default=11,
-        help="Number of points in interpolated path (default: 11)",
+        help="Number of nodes on the growing string (default: 11)",
     )
     parser.add_argument(
         "--fmax",

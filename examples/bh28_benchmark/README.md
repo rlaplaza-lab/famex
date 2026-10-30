@@ -1,36 +1,15 @@
 # BH28 Benchmark
 
-Evaluation of FAMEX backends on the BH28 database of chemical reaction barrier heights.
-
-## Overview
-
-Evaluates FAMEX backends on the BH28 database (28 chemical reactions) to test ML potential accuracy for predicting reaction barrier heights.
-
-**Methodology:**
-1. Optimizes reactant minima
-2. Optimizes transition states (script default: SELLA; FAMEX TS default is `rfo`)
-3. Calculates barrier heights
-4. Compares against reference values (CCSDT(Q)/CBS)
+Barrier heights on the BH28 set (28 reactions, CCSDT(Q)/CBS references).
 
 ## Usage
 
 ```bash
-# Run full benchmark on all available backends
 python bh28_benchmark.py
-
-# Quick test with representative subset of reactions
 python bh28_benchmark.py --quick
-
-# Test specific backends
-python bh28_benchmark.py --backends so3lr uma
-
-# Test specific reactions
+python bh28_benchmark.py --backends so3lr,uma
 python bh28_benchmark.py --reactions BHDIV_3 PXBH_2 CADBH_1
-
-# Single reaction
 python bh28_benchmark.py --quicker
-
-# Analysis only (load existing results)
 python bh28_benchmark.py --analyze
 ```
 
@@ -46,9 +25,9 @@ python bh28_benchmark.py --analyze
 - `--minima-optimizer`: Minima optimizer (`LBFGS`, `BFGS`, or `FIRE`; default `LBFGS`)
 - `--ts-optimizer`: Transition-state optimizer (`SELLA` or `rfo`; default `SELLA` for this script)
 
-## BH28 Dataset
+## Dataset
 
-The benchmark uses the BH28 dataset containing 28 diverse chemical reactions with reference barrier heights from CCSDT(Q)/CBS calculations:
+28 reactions with reference barrier heights from CCSDT(Q)/CBS:
 
 - **PXBH**: Proton exchange barriers (H-abstraction reactions)
 - **BHPERI**: Pericyclic reactions (Diels-Alder, Cope rearrangement, etc.)
@@ -56,75 +35,12 @@ The benchmark uses the BH28 dataset containing 28 diverse chemical reactions wit
 - **CRBH**: Cyclic radical barriers
 - **BHDIV**: Diverse barrier heights (various reaction types)
 
-Each reaction includes:
-- Reactant minimum structure (`*_min.xyz`)
-- Transition state structure (`*_ts.xyz`)
-- Reference barrier height from high-level quantum chemistry
+Each reaction has a reactant minimum (`*_min.xyz`), a transition state (`*_ts.xyz`), and a reference barrier in `reference_barrier_heights.json`.
 
-## Output
+Results go to `benchmark_results/bh28_benchmark_results.json`.
 
-Results are saved to `benchmark_results/bh28_benchmark_results.json` and include:
-
-- **Optimized structures** for all reactants and transition states
-- **Energy values** and calculated barrier heights
-- **Performance metrics** (MAE, RMSE, timing statistics)
-- **Detailed analysis** comparing backend accuracy
-- **Success rates** for optimization convergence
-
-### Example Output
-
-```
-🏆 BACKEND COMPARISON
-Backend      Success  MAE (eV)   RMSE (eV)   Avg Time
------------------------------------------------------------------
-so3lr        4/6      0.324      0.456       4.4s
-uma          5/6      0.245      0.312       2.1s
-aimnet2      6/6      0.156      0.198       1.8s
-```
-
-## Directory Structure
-
-```
-bh28_benchmark/
-├── bh28_benchmark.py          # Main benchmark script
-├── README.md                  # This file
-├── bh28_dataset/             # Dataset files
-│   ├── *_min.xyz            # Reactant minimum structures
-│   ├── *_ts.xyz             # Transition state structures
-│   └── reference_barrier_heights.json  # Reference values
-└── benchmark_results/        # Output directory
-    └── bh28_benchmark_results.json     # Results file
-```
-
-For TS optimizer comparison on BH28 structures, use `../ts_optimizer_benchmark.py` with `--bh28-subset` or `--full-bh28`.
-
-## Requirements
-
-- FAMEX package installed
-- At least one ML backend (see [README](../../README.md))
-- Python 3.11+
-
-## Understanding Results
-
-### Performance Metrics
-
-- **Success Rate**: Percentage of reactions where optimization converged
-- **MAE (Mean Absolute Error)**: Average absolute difference from reference barrier heights
-- **RMSE (Root Mean Square Error)**: Root mean square difference from reference
-- **Timing**: Average time per reaction optimization
-
-### Backend notes
-
-- AIMNet2 often shows the lowest barrier errors on this set
-- UMA is usually a good speed/accuracy compromise
-- Results vary by reaction; check the generated tables for your backends
+For TS optimizer comparison on these structures, use `../ts_optimizer_benchmark.py` with `--bh28-subset` or `--full-bh28`.
 
 ## Citation
 
 A. Karton, "Highly Accurate CCSDT(Q)/CBS Reaction Barrier Heights for a Diverse Set of Transition Structures", J. Phys. Chem. A 2019, 123, 6720-6729.
-
-## Notes
-
-- Automatically detects available backends
-- Failed optimizations are reported but don't stop the benchmark
-- Use `--analyze` flag to analyze existing results

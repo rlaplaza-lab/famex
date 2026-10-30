@@ -32,6 +32,8 @@ run converged with finite energies and, where requested, usable frequencies.
 | `zimmermann93_benchmark/` | Growing-string two-ended TS search; long-running — use `--quick` for testing |
 | `maiti30_benchmark/` | Metal-catalyzed growing-string TS search (30 reactions) |
 
+`run_zimmermann93_parallel.py` and `run_maiti30_parallel.py` are started from the repo root and write under `benchmark_runs/`. The single-process scripts default to `benchmark_results/` in the working directory.
+
 ## Usage
 
 Run commands from the `examples/` directory (or pass absolute paths). Prefer the

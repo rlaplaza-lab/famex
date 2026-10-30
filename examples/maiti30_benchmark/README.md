@@ -27,13 +27,16 @@ Explorer call.
 
 ## Run
 
-```bash
-# Single backend, full set
-conda run -n famex-uma python maiti30_benchmark.py --backends uma --device cuda
+From this directory, results go to `benchmark_results/maiti30_benchmark_results.json`:
 
-# Parallel across OMol backends (from this directory or repo root)
-python run_maiti30_parallel.py
-# python examples/maiti30_benchmark/run_maiti30_parallel.py
+```bash
+conda run -n famex-uma python maiti30_benchmark.py --backends uma --device cuda
+```
+
+From the repo root, the parallel runner writes `benchmark_runs/{subdir}/maiti30_benchmark_results.json` (`uma`, `mace`, `pet_omol_s`, `orbmol_v2`), shards under `benchmark_runs/maiti30_shards/`, and logs under `benchmark_runs/logs/maiti30_parallel/`:
+
+```bash
+python examples/maiti30_benchmark/run_maiti30_parallel.py
 ```
 
 AIMNet2 is not included: its ωB97M checkpoint has no transition metals.

@@ -432,11 +432,6 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None
     print("TRANSITION STATE VALIDATION SUMMARY")
     print(f"{'=' * 120}")
     print(
-        "A valid TS must have exactly 1 imaginary frequency (saddle point). "
-        "Optimizers that fail to find a TS are marked as failed."
-    )
-
-    print(
         f"\n{'Backend':<12} {'Optimizer':<15} {'Imag. Freq':<12} {'Status':<15} {'Lowest 3 Freq (cm⁻¹)':<25}"
     )
     print("=" * 120)
@@ -530,17 +525,11 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
     print(f"\n{'=' * 120}")
     print("TS OPTIMIZER COMPARISON")
     print(f"{'=' * 120}")
-    print("Legend: ✅ = Success, ❌ = Failed, ⚠️ = Warning, ⏱️ = Time")
-
     print(
         f"\n{'Backend':<12} {'Optimizer':<15} {'Status':<10} {'Total Time':<12} {'Opt Steps':<10} "
         f"{'Time/Step':<12} {'Final Energy':<15} {'Max Force':<12} {'TS Valid':<10}"
     )
     print("=" * 120)
-    print(
-        "Note: Status shows convergence + TS validation. '✅ TS' = converged & valid TS, "
-        "'⚠️ No TS' = converged but not a TS (failed), '❌' = didn't converge"
-    )
 
     for results in results_list:
         if not _should_show_backend(results):
@@ -1014,7 +1003,7 @@ def main() -> int:
     interface = FAMEXExampleInterface(
         name="TS Optimizer Benchmark",
         description="Unified transition state optimizer comparison (local + two-ended)",
-        epilog=create_standard_epilog("benchmark"),
+        epilog=create_standard_epilog("ts_optimizer_benchmark.py"),
     )
 
     parser = interface.create_parser()

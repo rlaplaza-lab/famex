@@ -123,7 +123,7 @@ class FAMEXExampleInterface:
 
     def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
         """Print standardized backend summary."""
-        logger.info("\n📋 %s", title)
+        logger.info("\n%s", title)
         logger.info("-" * 50)
         for i, backend in enumerate(backends, 1):
             logger.info("  %d. %s", i, backend)
@@ -220,61 +220,16 @@ class FAMEXExampleInterface:
         )
 
 
-def create_standard_epilog(example_type: str) -> str:
-    """Create standardized epilog for different example types."""
-    epilogs = {
-        "timing": """
-Examples:
-  # Run with all available backends
-  python timing_benchmark.py
-
-  # Run with specific backends
-  python timing_benchmark.py --backends uma,aimnet2
-
-  # Run on GPU
-  python timing_benchmark.py --device cuda --verbose 2
-        """,
-        "benchmark": """
-Examples:
-  # Run with all available backends
-  python benchmark.py
-
-  # Run with specific backends
-  python benchmark.py --backends uma,aimnet2
-
-  # Run with verbose output
-  python benchmark.py --verbose 2
-        """,
-        "benchmark_quick": """
-Examples:
-  # Run with all available backends
-  python benchmark.py
-
-  # Run with specific backends
-  python benchmark.py --backends uma,aimnet2
-
-  # Quick test with subset of data
-  python benchmark.py --quick --verbose 2
-
-  # Very quick test with minimal data
-  python benchmark.py --quicker --verbose 2
-        """,
-    }
-
-    return epilogs.get(
-        example_type,
-        """
-Examples:
-  # Run with default settings
-  python example.py
-
-  # Run with specific backends
-  python example.py --backends uma,aimnet2
-
-  # Run with verbose output
-  python example.py --verbose 2
-        """,
-    )
+def create_standard_epilog(script: str, *, quick: bool = False) -> str:
+    """Examples block for a benchmark script's ``--help``."""
+    lines = [
+        "Examples:",
+        f"  python {script}",
+        f"  python {script} --backends uma,aimnet2",
+    ]
+    if quick:
+        lines.append(f"  python {script} --quick")
+    return "\n".join(lines) + "\n"
 
 
 def benchmark_optimization(

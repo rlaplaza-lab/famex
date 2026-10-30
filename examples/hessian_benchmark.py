@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""FAMEX Hessian Benchmark - Hessian Method Comparison and Analysis.
-
-This benchmark consolidates functionality from:
-- hessian_comparison.py (FD schemes and backend method comparison)
-- adaptive_hessian_demo.py (adaptive features demonstration)
-- hessian_method_comparison_base.py (support functions)
-
-It provides comprehensive comparison of:
-- Finite difference schemes (3-point, 5-point, 7-point, Richardson, adaptive)
-- Backend analytical methods (double_backward, vmap, fairchem, etc.)
-- Adaptive features (autoselect, adaptive delta, noise estimation)
-"""
+"""Compare finite-difference Hessian schemes, backend analytical methods, and adaptive step sizes."""
 
 import sys
 import time
@@ -56,11 +45,6 @@ class HarmonicCalculator:
         """Compute analytical harmonic Hessian: H = k * I."""
         n_atoms = len(atoms)
         return self.k * np.eye(3 * n_atoms)
-
-
-# ============================================================================
-# Support functions (merged from hessian_method_comparison_base.py)
-# ============================================================================
 
 
 def compute_finite_difference_hessian(
@@ -644,11 +628,10 @@ def benchmark_hessian(
 @setup_example_environment
 def main() -> int:
     """Run the Hessian benchmark."""
-    # Create standardized interface
     interface = FAMEXExampleInterface(
         name="Hessian Benchmark",
         description="Hessian Method Comparison and Analysis",
-        epilog=create_standard_epilog("benchmark"),
+        epilog=create_standard_epilog("hessian_benchmark.py", quick=True),
     )
 
     parser = interface.create_parser()

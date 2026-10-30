@@ -1,21 +1,12 @@
 #!/usr/bin/env python3
-"""FAMEX BH28 Benchmark - Chemical Accuracy Evaluation.
-
-This benchmark evaluates FAMEX backends on the BH28 database of 28 diverse
-chemical reaction barrier heights with reference values from high-level quantum
-chemistry calculations (CCSDT(Q)/CBS level).
+"""BH28 barrier-height benchmark (CCSDT(Q)/CBS references).
 
 Usage:
     python bh28_benchmark.py [--quick|--quicker]
     python bh28_benchmark.py --backends uma,mace
     python bh28_benchmark.py --analyze
 
-Features:
-    - Optimizes reactant minima using various FAMEX backends
-    - Optimizes transition states (when SELLA is available)
-    - Calculates barrier heights from optimized structures
-    - Compares accuracy against reference values
-    - Provides comprehensive performance analysis
+Transition states use ``--ts-optimizer`` (default ``SELLA``; also accepts ``rfo``).
 
 Reference: A. Karton, J. Phys. Chem. A 2019, 123, 6720-6729
 """
@@ -34,10 +25,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-# Import FAMEX components
 from famex import Explorer, calculator_registry
-
-# Import common interface
 from famex.example_utils import (
     FAMEXExampleInterface,
     create_standard_epilog,
@@ -45,7 +33,6 @@ from famex.example_utils import (
 )
 from famex.io.path_manager import PathManager
 
-# Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -190,8 +177,6 @@ class BH28Benchmark:
         for backend in requested_backends:
             if calculator_registry.is_backend_available(backend):
                 available.append(backend)
-            elif verbose:
-                pass
         return available
 
     def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
@@ -349,10 +334,6 @@ class BH28Benchmark:
                                 }
                             )
 
-                            (f"reactant_{i + 1}" if len(reactants) > 1 else "reactant")
-                            if verbose and steps_taken:
-                                pass
-
                         total_reactant_energy = sum(reactant_energies)
                         minima_time = time.perf_counter() - minima_start
 
@@ -367,10 +348,7 @@ class BH28Benchmark:
                                 )
                                 reactant_rmsds.append(float(rmsd))
                             except Exception:
-                                # If RMSD calculation fails, store None
                                 reactant_rmsds.append(None)
-                                if verbose:
-                                    pass
 
                         reaction_data["timings"]["minima_optimization"] = minima_time
                         reaction_data["timings"]["reactant_timings"] = reactant_timings
@@ -453,10 +431,7 @@ class BH28Benchmark:
                                 )
                                 ts_rmsd = float(ts_rmsd)
                             except Exception:
-                                # If RMSD calculation fails, store None
                                 ts_rmsd = None
-                                if verbose:
-                                    pass
 
                             reaction_data["timings"]["ts_optimization"] = ts_time
                             reaction_data["timings"]["ts_calculator_init"] = ts_calc_init_time
@@ -516,16 +491,6 @@ class BH28Benchmark:
                                 reaction_data["frequency_results"] = {
                                     "skipped": "TS optimization failed",
                                 }
-
-                            # Print status
-                            freq_info = reaction_data["frequency_results"]
-                            if "is_transition_state" in freq_info:
-                                freq_info["is_transition_state"]
-                            else:
-                                pass
-
-                            if verbose and ts_steps:
-                                pass
 
                         except Exception as e:
                             reaction_data["optimization_results"].update(
@@ -618,8 +583,6 @@ class BH28Benchmark:
             minima_converged_count = 0
             ts_converged_count = 0
             ts_verified_count = 0
-            timing_stats = {"total": [], "minima": [], "ts": [], "frequency": []}
-            step_stats = {"minima": [], "ts": []}
 
             for data in backend_data.values():
                 if isinstance(data, dict) and not data.get("skipped"):
@@ -628,37 +591,17 @@ class BH28Benchmark:
                     else:
                         opt_results = data.get("optimization_results", {})
 
-                        # Check minima convergence
                         if opt_results.get("minima_converged"):
                             minima_converged_count += 1
-                            if opt_results.get("minima_steps"):
-                                step_stats["minima"].append(opt_results["minima_steps"])
 
-                        # Check TS convergence
                         if opt_results.get("ts_converged"):
                             ts_converged_count += 1
-                            if opt_results.get("ts_steps"):
-                                step_stats["ts"].append(opt_results["ts_steps"])
-
-                            # Check TS verification
                             freq_results = data.get("frequency_results", {})
                             if freq_results.get("is_transition_state"):
                                 ts_verified_count += 1
 
-                        # Collect barrier height data
                         if opt_results.get("barrier_success"):
                             successful_barriers.append(opt_results)
-
-                        # Collect timing data
-                        timings = data.get("timings", {})
-                        if timings.get("total"):
-                            timing_stats["total"].append(timings["total"])
-                        if timings.get("minima_optimization"):
-                            timing_stats["minima"].append(timings["minima_optimization"])
-                        if timings.get("ts_optimization"):
-                            timing_stats["ts"].append(timings["ts_optimization"])
-                        if timings.get("frequency_analysis"):
-                            timing_stats["frequency"].append(timings["frequency_analysis"])
                 elif isinstance(data, dict) and data.get("skipped"):
                     skipped_count += 1
 
@@ -703,37 +646,6 @@ class BH28Benchmark:
                     "std_error": np.std(errors),
                 }
 
-                barrier_stats["minima_converged"]
-                barrier_stats["minima_rate"]
-                barrier_stats["ts_converged"]
-                barrier_stats["ts_rate"]
-                ts_verified_count = barrier_stats["ts_verified"]
-                barrier_stats["verification_rate"]
-                if skipped_count > 0:
-                    pass
-
-                # Timing statistics
-                if timing_stats["total"]:
-                    np.mean(timing_stats["total"])
-                    np.std(timing_stats["total"])
-                    if timing_stats["minima"]:
-                        np.mean(timing_stats["minima"])
-                        np.std(timing_stats["minima"])
-                    if timing_stats["ts"]:
-                        np.mean(timing_stats["ts"])
-                        np.std(timing_stats["ts"])
-                    if timing_stats["frequency"]:
-                        np.mean(timing_stats["frequency"])
-                        np.std(timing_stats["frequency"])
-
-                # Step statistics
-                if step_stats["minima"]:
-                    np.mean(step_stats["minima"])
-                    np.std(step_stats["minima"])
-                if step_stats["ts"]:
-                    np.mean(step_stats["ts"])
-                    np.std(step_stats["ts"])
-
             else:
                 barrier_stats = {
                     "total_reactions": total_reactions,
@@ -746,16 +658,6 @@ class BH28Benchmark:
                 }
 
             analysis[backend] = {"barrier_statistics": barrier_stats}
-
-        # Comprehensive summary table
-
-        # Print legend
-
-        # Header
-
-        # Results
-        for backend in backends:
-            analysis.get(backend, {}).get("barrier_statistics", {})
 
         return analysis
 
@@ -816,11 +718,10 @@ class BH28Benchmark:
 @setup_example_environment
 def main() -> int:
     """Run the benchmark."""
-    # Create standardized interface
     interface = FAMEXExampleInterface(
         name="BH28 Benchmark",
         description="Chemical Accuracy Evaluation",
-        epilog=create_standard_epilog("benchmark_quick"),
+        epilog=create_standard_epilog("bh28_benchmark.py", quick=True),
     )
 
     parser = interface.create_parser()

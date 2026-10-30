@@ -48,7 +48,6 @@ def _minimize_and_save(explorer: famex.Explorer, output: Path) -> float:
 
 
 def main() -> None:
-    # SMILES to embedded guess to local minimum
     smiles_explorer = famex.Explorer.from_smiles(
         "CCO",
         target="minima",
@@ -58,7 +57,6 @@ def main() -> None:
     print(f"SMILES CCO energy: {smiles_energy:.6f} eV")
     print(f"Wrote {SMILES_OUTPUT}")
 
-    # PubChem name or CID (uses a 3D conformer when available)
     pubchem_explorer = famex.Explorer.from_pubchem(
         "aspirin",
         target="minima",

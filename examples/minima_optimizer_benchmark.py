@@ -8,16 +8,12 @@ from typing import Any
 
 from ase import Atoms
 
-# Import FAMEX components (via benchmark_optimization function)
-# Backend availability helpers
-# Common interface and device utils
 from famex.example_utils import (
     FAMEXExampleInterface,
     benchmark_optimization,
     create_standard_epilog,
 )
 
-# Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -26,7 +22,6 @@ def create_minima_structure() -> Atoms:
     """Create a structure for minima optimization using example files."""
     from ase.io import read
 
-    # Use the smaller A_C_A_B_A_C reactant structure as starting point for minima optimization
     script_dir = Path(__file__).parent
     return read(script_dir / "example_files" / "A_C_A_B_A_C_reactant.xyz")
 
@@ -62,11 +57,6 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None
     print(f"\n{'=' * 120}")
     print("MINIMA VALIDATION SUMMARY")
     print(f"{'=' * 120}")
-    print(
-        "A valid minimum should have 0 imaginary frequencies. Optimizers that produce imaginary modes "
-        "are marked as failed."
-    )
-
     print(
         f"\n{'Backend':<12} {'Optimizer':<15} {'Imag. Freq':<12} {'Status':<15} {'Lowest 3 Freq (cm⁻¹)':<25}"
     )
@@ -142,20 +132,15 @@ def print_frequency_analysis_summary(results_list: list[dict[str, Any]]) -> None
 
 def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
     """Print a summary table focused on minima optimizer comparison."""
-    # Print legend first, before the table
     print(f"\n{'=' * 120}")
     print("MINIMA OPTIMIZER COMPARISON")
     print(f"{'=' * 120}")
-    print("Legend: ✅ = Success, ❌ = Failed, ⚠️ = Warning, ⏱️ = Time")
-
-    # Header
     print(
         f"\n{'Backend':<12} {'Optimizer':<15} {'Status':<8} {'Total Time':<12} {'Opt Steps':<10} "
         f"{'Time/Step':<12} {'Final Energy':<15} {'Max Force':<12} {'Valid':<8}"
     )
     print("=" * 120)
 
-    # Results
     for results in results_list:
         if results["available"]:
             timings = results["timings"]
@@ -255,50 +240,13 @@ def print_optimizer_summary(results_list: list[dict[str, Any]]) -> None:
                     f"  Average Total Time: {avg_total_time:.3f}s (min: {min_total_time:.3f}s, max: {max_total_time:.3f}s)"
                 )
 
-            # Quality analysis for minima optimization (computed but not displayed)
-
-
-def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
-    """Print comprehensive performance profiler data."""
-    # Check for performance data
-    has_performance_data = any(
-        results.get("available") and "performance" in results for results in results_list
-    )
-
-    if not has_performance_data:
-        return
-
-    # Section 2: Detailed Timing Breakdown
-
-    # Collect all unique timing sections from all results
-    all_sections = set()
-    for results in results_list:
-        if results.get("available") and "performance" in results:
-            perf = results["performance"]
-            timings = perf.get("timings", {})
-            all_sections.update(timings.keys())
-
-    if not all_sections:
-        return
-
-    # Show timing statistics for each section
-    for section in sorted(all_sections):
-        section_stats = []
-        for results in results_list:
-            if results.get("available") and "performance" in results:
-                perf = results["performance"]
-                timings = perf.get("timings", {})
-                if section in timings:
-                    section_stats.append(timings[section])
-
 
 def main() -> int:
     """Run the minima optimizer comparison benchmark."""
-    # Create standardized interface
     interface = FAMEXExampleInterface(
         name="Minima Optimizer Benchmark",
         description="Minima Optimization Comparison",
-        epilog=create_standard_epilog("benchmark"),
+        epilog=create_standard_epilog("minima_optimizer_benchmark.py"),
     )
 
     parser = interface.create_parser()
@@ -431,7 +379,6 @@ def main() -> int:
     # Print summaries
     print_frequency_analysis_summary(results_list)
     print_optimizer_summary(results_list)
-    print_performance_summary(results_list)
 
     # Save results
     interface.save_results(results_list, args.output or interface.get_default_output_file())

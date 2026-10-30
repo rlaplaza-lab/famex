@@ -9,21 +9,13 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 
-# Use consolidated backend availability from famex.backend_availability
-# Import FAMEX components
 from famex.backends.registry import calculator_registry
 from famex.core.explorer import Explorer
-
-# Import common interface
 from famex.example_utils import FAMEXExampleInterface, create_standard_epilog
 from famex.utils.device import get_optimal_device, print_device_info
 
-# Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
-
-
-# FAMEXExampleInterface already imported above
 
 
 def create_benchmark_molecule() -> Atoms:
@@ -32,7 +24,6 @@ def create_benchmark_molecule() -> Atoms:
 
     from ase.io import read
 
-    # Use the ACABAC reactant structure from example files
     script_dir = os.path.dirname(os.path.abspath(__file__))
     return read(os.path.join(script_dir, "example_files", "A_C_A_B_A_C_reactant.xyz"))
 
@@ -44,7 +35,6 @@ def benchmark_backend(
     verbose: bool = True,
 ) -> dict[str, Any]:
     """Benchmark a single backend for optimization and frequency analysis."""
-    # Auto-detect optimal device
     device = get_optimal_device(device)
 
     if verbose:
@@ -62,17 +52,14 @@ def benchmark_backend(
     }
 
     try:
-        # Check if backend is available
         if not calculator_registry.is_backend_available(backend):
             results["error"] = f"Backend {backend} not available (dependencies missing)"
             return results
 
         results["available"] = True
 
-        # Create benchmark molecule
         molecule = create_benchmark_molecule()
 
-        # Initialize FAMEX optimizer
         init_start = time.perf_counter()
 
         explorer = Explorer(
@@ -91,16 +78,12 @@ def benchmark_backend(
         init_time = time.perf_counter() - init_start
         results["timings"]["initialization"] = init_time
 
-        # Attach calculator to atoms object
         load_start = time.perf_counter()
-
-        # Attach calculator using Explorer's method
         explorer._create_and_attach_calculator(explorer.atoms_list[0])
 
         load_time = time.perf_counter() - load_start
         results["timings"]["structure_loading"] = load_time
 
-        # Test single energy calculation (first call - includes calculator initialization)
         energy_first_start = time.perf_counter()
 
         explorer.atoms_list[0].get_potential_energy()
@@ -108,7 +91,6 @@ def benchmark_backend(
         energy_first_time = time.perf_counter() - energy_first_start
         results["timings"]["single_energy_first"] = energy_first_time
 
-        # Test single energy calculation (second call - pure evaluation)
         energy_second_start = time.perf_counter()
 
         explorer.atoms_list[0].get_potential_energy()
@@ -116,10 +98,8 @@ def benchmark_backend(
         energy_second_time = time.perf_counter() - energy_second_start
         results["timings"]["single_energy_second"] = energy_second_time
 
-        # Store the pure evaluation time as the main single_energy metric
         results["timings"]["single_energy"] = energy_second_time
 
-        # Test single force calculation
         force_start = time.perf_counter()
 
         forces = explorer.atoms_list[0].get_forces()
@@ -128,10 +108,7 @@ def benchmark_backend(
         force_time = time.perf_counter() - force_start
         results["timings"]["single_forces"] = force_time
 
-        # Geometry optimization using Explorer strategies
         opt_start = time.perf_counter()
-
-        # Use Explorer's run method with proper strategy
         run_results = explorer.run(
             fmax=0.01,
             steps=1000,
@@ -139,25 +116,20 @@ def benchmark_backend(
 
         opt_time = time.perf_counter() - opt_start
 
-        # Handle results from Explorer's run method
-        # The run() method returns a dictionary with standardized results
         if isinstance(run_results, dict):
             steps_taken = run_results.get("steps_taken", 0)
             converged = run_results.get("converged", False)
             optimized_atoms = run_results.get("optimized_atoms", explorer.atoms_list[0])
         else:
-            # Fallback for unexpected format
             steps_taken = 0
             converged = True
             optimized_atoms = run_results
 
-        # Calculate average time per optimization step
         if isinstance(steps_taken, int | float) and steps_taken > 0:
             avg_time_per_step = opt_time / steps_taken
         else:
             avg_time_per_step = None
 
-        # Get optimization results
         forces = optimized_atoms.get_forces()
         max_force = float(np.max(np.abs(forces)))
 
@@ -178,11 +150,9 @@ def benchmark_backend(
             "steps_taken": steps_taken,
         }
 
-        # Extract performance data from profiler if available
         if isinstance(run_results, dict) and "performance" in run_results:
             results["performance"] = run_results["performance"]
 
-        # Frequency analysis
         freq_start = time.perf_counter()
 
         freq_results = explorer.calculate_frequencies(
@@ -204,7 +174,6 @@ def benchmark_backend(
             "method_used": freq_results["method_used"],
         }
 
-        # Calculate total time (excluding None values)
         total_time = sum(v for v in results["timings"].values() if v is not None)
         results["timings"]["total"] = total_time
 
@@ -216,20 +185,15 @@ def benchmark_backend(
 
 def print_summary(results_list: list[dict[str, Any]]) -> None:
     """Print a summary table of all benchmark results."""
-    # Print legend first, before the table
     print(f"\n{'=' * 120}")
     print("BENCHMARK SUMMARY")
     print(f"{'=' * 120}")
-    print("Legend: ✅ = Success, ❌ = Failed, ⚠️ = Warning, ⏱️ = Time")
-
-    # Header
     print(
         f"\n{'Backend':<12} {'Status':<8} {'Total Time':<12} {'Opt Steps':<10} "
         f"{'Time/Step':<12} {'Final Energy':<15} {'Max Force':<12}"
     )
     print("=" * 120)
 
-    # Results
     for results in results_list:
         if results["available"]:
             timings = results["timings"]
@@ -255,13 +219,6 @@ def print_summary(results_list: list[dict[str, Any]]) -> None:
                 f"{backend:<12} {status:<8} {'N/A':<12} {'N/A':<10} "
                 f"{'N/A':<12} {'N/A':<15} {'N/A':<12}"
             )
-
-    # Note about detailed breakdown
-    available_results = [r for r in results_list if r["available"]]
-    if available_results:
-        print(
-            "\nNote: Detailed timing breakdown is now available in the Performance Profiler section below."
-        )
 
 
 def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
@@ -360,11 +317,10 @@ def print_performance_summary(results_list: list[dict[str, Any]]) -> None:
 
 def main() -> int:
     """Run the timing benchmark."""
-    # Create standardized interface
     interface = FAMEXExampleInterface(
         name="Timing Benchmark",
         description="Performance Analysis",
-        epilog=create_standard_epilog("timing"),
+        epilog=create_standard_epilog("timing_benchmark.py"),
     )
 
     parser = interface.create_parser()
@@ -372,10 +328,8 @@ def main() -> int:
 
     interface.print_header()
 
-    # Set up logging based on verbosity level
     interface.setup_logging(args.verbose)
 
-    # Backend handling
     requested = [b.strip() for b in args.backends.split(",")] if args.backends else None
     _, available_backends = interface.select_backend(
         requested_backends=requested,
@@ -387,7 +341,6 @@ def main() -> int:
 
     interface.print_backend_summary(available_backends, "Benchmarking Backends")
 
-    # Get device info
     device = interface.get_device_info(args.device)
 
     config = {
@@ -397,7 +350,6 @@ def main() -> int:
     }
     interface.print_configuration(config)
 
-    # Run benchmarks
     results_list = []
     for backend in available_backends:
         try:
@@ -418,11 +370,9 @@ def main() -> int:
                 },
             )
 
-    # Print summary
     print_summary(results_list)
     print_performance_summary(results_list)
 
-    # Save results
     interface.save_results(results_list, args.output or interface.get_default_output_file())
 
     interface.print_success()
