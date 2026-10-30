@@ -34,7 +34,7 @@ from typing import Any
 
 from famex.utils.ml_warnings import install_runtime_ml_filters as _install_ml_filters
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 __author__ = "FAMEX Development Team"
 
 # Ensure headless operation by default to avoid GUI popups from ASE/matplotlib
