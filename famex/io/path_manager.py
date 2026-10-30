@@ -295,8 +295,8 @@ class PathManager:
             is_similar = is_similar and energy_diff < energy_threshold
         elif is_similar:
             logger.debug(
-                f"Structure similarity check: RMSD={rmsd:.3f} Å < threshold, "
-                "but energy unavailable for comparison",
+                "Structure similarity check: RMSD=%.3f Å < threshold, but energy unavailable for comparison",
+                rmsd,
             )
 
         return StructureSimilarity(
@@ -330,7 +330,7 @@ class PathManager:
                 energies.append(energy)
             except (RuntimeError, ValueError, AttributeError):
                 energies.append(None)
-                logger.debug(f"Energy unavailable for structure {i + 1}")
+                logger.debug("Energy unavailable for structure %s", i + 1)
 
         if input_structures is not None and input_structures:
             input_only = True

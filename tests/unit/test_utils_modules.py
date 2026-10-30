@@ -29,19 +29,23 @@ class TestLogging:
     # Logging setup tests are consolidated in test_logging.py
     # Only keeping print_model_info tests here as they use mocks and test different aspects
 
-    @patch("click.echo")
+    @patch("famex.utils.logging.get_famex_logger")
     @patch("famex.utils.device.get_device_info")
-    def test_print_model_info_minimal(self, mock_get_device_info, mock_echo):
+    def test_print_model_info_minimal(self, mock_get_device_info, mock_get_logger):
+        mock_logger = MagicMock()
+        mock_get_logger.return_value = mock_logger
+
         print_model_info("test_backend")
 
-        # Should have printed backend name
-        assert mock_echo.call_count >= 2  # Header and separator at minimum
-        call_args = [str(call) for call in mock_echo.call_args_list]
-        assert any("test_backend" in arg.upper() or "TEST_BACKEND" in arg for arg in call_args)
+        assert mock_logger.info.call_count >= 2
+        call_args = [str(call) for call in mock_logger.info.call_args_list]
+        assert any("TEST_BACKEND" in arg for arg in call_args)
 
-    @patch("click.echo")
+    @patch("famex.utils.logging.get_famex_logger")
     @patch("famex.utils.device.get_device_info")
-    def test_print_model_info_full(self, mock_get_device_info, mock_echo):
+    def test_print_model_info_full(self, mock_get_device_info, mock_get_logger):
+        mock_logger = MagicMock()
+        mock_get_logger.return_value = mock_logger
         mock_get_device_info.return_value = {"gpu_name": "Test GPU", "cuda_available": True}
 
         print_model_info(
@@ -51,25 +55,33 @@ class TestLogging:
             device="cuda",
         )
 
-        # Should have printed all information
-        call_args = [str(call) for call in mock_echo.call_args_list]
-        assert any("test_backend" in arg.upper() or "TEST_BACKEND" in arg for arg in call_args)
+        call_args = [str(call) for call in mock_logger.info.call_args_list]
+        assert any("TEST_BACKEND" in arg for arg in call_args)
         assert any("test_model" in arg for arg in call_args)
         assert any("/path/to/model" in arg for arg in call_args)
         assert any("cuda" in arg.lower() for arg in call_args)
 
-    @patch("click.echo")
+    @patch("famex.utils.logging.get_famex_logger")
     @patch("famex.utils.device.get_device_info")
     def test_print_model_info_device_error_handling(
         self,
         mock_get_device_info,
-        mock_echo,
+        mock_get_logger,
     ):
+        mock_logger = MagicMock()
+        mock_get_logger.return_value = mock_logger
         mock_get_device_info.side_effect = Exception("GPU info error")
 
-        # Should not raise exception
         print_model_info(backend="test", device="cuda")
-        assert mock_echo.called
+        assert mock_logger.info.called
+
+    @patch("famex.utils.logging.get_famex_logger")
+    def test_print_model_info_quiet(self, mock_get_logger):
+        mock_logger = MagicMock()
+        mock_get_logger.return_value = mock_logger
+
+        print_model_info("test_backend", verbose=0)
+        mock_logger.info.assert_not_called()
 
 
 class TestProfiler:

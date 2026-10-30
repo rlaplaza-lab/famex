@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "famex"
 version = "0.3.0"
-description = "Fast mechanistic explorer using machine learning potentials with Sella optimizer"
+description = "Fast mechanistic explorer using machine learning potentials"
 readme = "README.md"
 requires-python = ">=3.11"
 # Note: Python 3.11+ required. libmolsymm wheels start at 3.11.

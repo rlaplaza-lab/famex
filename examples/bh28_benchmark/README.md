@@ -8,7 +8,7 @@ Evaluates FAMEX backends on the BH28 database (28 chemical reactions) to test ML
 
 **Methodology:**
 1. Optimizes reactant minima
-2. Optimizes transition states (SELLA)
+2. Optimizes transition states (script default: SELLA; FAMEX TS default is `rfo`)
 3. Calculates barrier heights
 4. Compares against reference values (CCSDT(Q)/CBS)
 
@@ -44,7 +44,7 @@ python bh28_benchmark.py --analyze
 - `--device`: Device to use for calculations ("cpu" or "cuda")
 - `--output-dir`: Directory for results (default: `benchmark_results/`). The results file is `bh28_benchmark_results.json`
 - `--minima-optimizer`: Minima optimizer (`LBFGS`, `BFGS`, or `FIRE`; default `LBFGS`)
-- `--ts-optimizer`: Transition-state optimizer (`SELLA` or `rfo`; default `SELLA`)
+- `--ts-optimizer`: Transition-state optimizer (`SELLA` or `rfo`; default `SELLA` for this script)
 
 ## BH28 Dataset
 
@@ -102,7 +102,6 @@ For TS optimizer comparison on BH28 structures, use `../ts_optimizer_benchmark.p
 
 - FAMEX package installed
 - At least one ML backend (see [README](../../README.md))
-- SELLA optimizer is included with FAMEX (core dependency)
 - Python 3.11+
 
 ## Understanding Results

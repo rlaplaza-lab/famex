@@ -132,9 +132,10 @@ class LocalTSStrategy(BaseStrategy):
             if hasattr(opt, "hessian_calls"):
                 if self.explorer.verbose >= 1:
                     logger.info(
-                        f"Hessian computed {opt.hessian_calls} time(s) "
-                        f"over {StrategyUtils.get_step_count(opt)} steps "
-                        f"(update_freq={opt_kwargs.get('hessian_update_freq', 'default')})"
+                        "Hessian computed %s time(s) over %s steps (update_freq=%s)",
+                        opt.hessian_calls,
+                        StrategyUtils.get_step_count(opt),
+                        opt_kwargs.get("hessian_update_freq", "default"),
                     )
 
         def ts_validation_hook(results: list[Atoms]) -> list[dict[str, Any] | None]:

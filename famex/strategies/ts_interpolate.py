@@ -15,9 +15,6 @@ from famex.strategies.helpers import (
     validate_ts_structure,
 )
 from famex.strategies.ts import LocalTSStrategy
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
 
 
 class MultiStructureTSGuessStrategy(BaseStrategy):

@@ -82,7 +82,7 @@ def validate_hessian(
     if hessian.shape[0] != hessian.shape[1]:
         if warn_on_issues:
             logger.warning(
-                f"Hessian is not square: shape {hessian.shape}. Expected square matrix (3N x 3N)."
+                "Hessian is not square: shape %s. Expected square matrix (3N x 3N).", hessian.shape
             )
         results["is_valid"] = False
         return results
@@ -107,9 +107,9 @@ def validate_hessian(
         results["is_symmetric"] = is_symmetric
         if not is_symmetric and warn_on_issues:
             logger.warning(
-                f"Hessian is not symmetric. Maximum asymmetry: {max_asymmetry:.2e}. "
-                f"Tolerance: {tolerance_symmetry:.2e}. "
-                "This may indicate numerical errors or non-stationary geometry."
+                "Hessian is not symmetric. Maximum asymmetry: %.2e. Tolerance: %.2e. This may indicate numerical errors or non-stationary geometry.",
+                max_asymmetry,
+                tolerance_symmetry,
             )
 
         matrix = 0.5 * (hessian + hessian.T)
@@ -154,9 +154,9 @@ def validate_hessian(
                 results["condition_number"] = condition_number
                 if condition_number > max_condition_number and warn_on_issues:
                     logger.warning(
-                        f"Hessian is ill-conditioned. Condition number: {condition_number:.2e}. "
-                        f"Maximum acceptable: {max_condition_number:.2e}. "
-                        "This may lead to numerical instability in frequency calculations."
+                        "Hessian is ill-conditioned. Condition number: %.2e. Maximum acceptable: %.2e. This may lead to numerical instability in frequency calculations.",
+                        condition_number,
+                        max_condition_number,
                     )
 
     HIGH_NOISE_THRESHOLD = 0.01  # eV/Å²
@@ -164,9 +164,9 @@ def validate_hessian(
 
     if estimated_noise is not None and estimated_noise > HIGH_NOISE_THRESHOLD and warn_on_issues:
         logger.warning(
-            f"Hessian has high estimated noise: {estimated_noise:.2e} eV/Å². "
-            f"Threshold: {HIGH_NOISE_THRESHOLD:.2e}. "
-            "This may indicate numerical errors or PES instability."
+            "Hessian has high estimated noise: %.2e eV/Å². Threshold: %.2e. This may indicate numerical errors or PES instability.",
+            estimated_noise,
+            HIGH_NOISE_THRESHOLD,
         )
 
     if (
@@ -175,9 +175,9 @@ def validate_hessian(
         and warn_on_issues
     ):
         logger.warning(
-            f"High force noise detected: {force_noise_estimate:.2e} eV/Å. "
-            f"Threshold: {HIGH_FORCE_NOISE_THRESHOLD:.2e}. "
-            "This may contaminate finite difference Hessians."
+            "High force noise detected: %.2e eV/Å. Threshold: %.2e. This may contaminate finite difference Hessians.",
+            force_noise_estimate,
+            HIGH_FORCE_NOISE_THRESHOLD,
         )
 
     if not results["is_symmetric"] or has_nan or has_inf:

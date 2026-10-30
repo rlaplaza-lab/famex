@@ -80,7 +80,7 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
 | `--optimizer-kw` | `None` | Optimizer kwargs as key=value, repeatable |
 | `--ts-kw` | `None` | TS optimizer kwargs as key=value, repeatable |
 | `--constraints` | `None` | Constraints spec string; e.g., `'fix 0,1; harmonic_bond 2,3 k=5.0; fixinternals_bond 4,5 value=1.25'` |
-| `--verbose`, `-v` | quiet (no flag) | CLI count: no flag = quiet, `-v` = normal, `-vv` or more = debug. Same scale as Python `Explorer(verbose=0|1|2)`. |
+| `--verbose`, `-v` | quiet (no flag) | `0` quiet / `1` normal / `2+` debug. Same scale as `Explorer(verbose=…)`; CLI default is `0`, Python default is `1`. |
 | `--temperature` | `298.15` | `minima` and `ts` only. Temperature in Kelvin for thermodynamic calculations |
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
 | `--freq`, `--frequencies` | `False` | `minima` and `ts` only. Perform frequency analysis after optimization (includes thermodynamic properties) |
@@ -153,7 +153,7 @@ The default file follows the target. `local` omits the strategy name.
 
 `--history` also writes optimizer steps: `{input}.minima_trajectory.xyz` or `{input}.minima.interpolate_trajectory.xyz`. Frames from an interpolated minima search are tagged with `image` and `step` in the XYZ comment.
 
-`--write-modes` writes one multi-frame XYZ per vibrational mode in `{output_stem}_modes/`, beside the geometry file. A custom `--output` only changes that parent directory. `water.minima.xyz` produces `water.minima_modes/mode_000_1234.5cm-1.xyz`. Each file is one oscillation: frame 0 is the optimized geometry, and the largest atom moves by `--mode-amplitude` (0.3 Å). The XYZ comment records `mode` and `frequency`. An interpolated minima search prefixes each file with `image{i}_` and skips images that have no frequency analysis. Fixed atoms stay fixed.
+`--write-modes` writes one multi-frame XYZ per mode under `{output_stem}_modes/` (e.g. `water.minima_modes/mode_000_1234.5cm-1.xyz`). Frame 0 is the optimized geometry; peak displacement is `--mode-amplitude`. Interpolated minima use an `image{i}_` prefix and skip images without frequency analysis.
 
 ### famex ts - Transition State Optimization
 
@@ -429,7 +429,7 @@ Strategy results always include `optimized_atoms` and `strategy`. Common optiona
 | `forward_path`, `backward_path` | IRC branches |
 | `converged`, `steps_taken` | After optimization. Path NEB/CI-NEB: the band reached `fmax` (images are still returned). `ts` CI-NEB and growing string: the local refinement |
 | `frequency_analysis` | When `calculate_frequencies=True` or `--freq` (also computed when `--require-ts` needs frequencies) |
-| `ts_validation` | When `validate_ts=True` (soft check; does not raise). `--require-ts` raises instead of only attaching this key |
+| `ts_validation` | When `validate_ts=True` (soft check; does not raise). CLI `--require-ts` / `run(require_ts=True)` raises instead of only attaching this key |
 
 ### Frequencies and thermochemistry
 

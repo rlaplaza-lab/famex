@@ -19,10 +19,6 @@ from ase import Atoms
 from scipy.linalg import eigh as scipy_eigh
 from scipy.sparse.linalg import LinearOperator, eigsh
 
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
-
 HessianVectorProduct = Callable[[np.ndarray], np.ndarray]
 
 # Eigenvalues below this (eV/Å²) are treated as trans/rot null modes, not TS modes.

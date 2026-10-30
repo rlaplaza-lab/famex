@@ -12,9 +12,6 @@ from famex.core.registry import REGISTRY
 from famex.optimizers.sella_utils import is_sella_optimizer
 from famex.strategies.frequency_cleanup import prepare_minima_hessian_optimizer_kwargs
 from famex.strategies.helpers import _run_local_optimization_common
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
 
 
 class LocalMinimaStrategy(BaseStrategy):

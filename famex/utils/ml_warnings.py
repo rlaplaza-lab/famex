@@ -220,6 +220,7 @@ def quiet_backend_loading(
     model_path: str | None = None,
     device: str | None = None,
     show_model_info: bool = True,
+    verbose: int = 1,
 ) -> Generator[list[str], None, None]:
     """Context manager for quiet backend loading with optional model info display."""
     from famex.utils.logging import is_in_quiet_context, print_model_info, set_quiet_context
@@ -229,7 +230,7 @@ def quiet_backend_loading(
 
     try:
         if show_model_info and not was_already_in_context:
-            print_model_info(backend, model_name, model_path, device)
+            print_model_info(backend, model_name, model_path, device, verbose=verbose)
 
         with suppress_ml_warnings() as captured:
             yield captured

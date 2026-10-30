@@ -14,45 +14,53 @@ _famex_logging_configured = False
 _famex_log_level = logging.INFO
 
 
+class FAMEXFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        if record.levelno == logging.INFO:
+            return record.getMessage()
+        if record.levelno == logging.DEBUG:
+            return f"[DEBUG] {record.getMessage()}"
+        if record.levelno == logging.WARNING:
+            return f"⚠️  {record.getMessage()}"
+        if record.levelno >= logging.ERROR:
+            return f"❌ {record.getMessage()}"
+        return record.getMessage()
+
+
+def _verbosity_to_log_level(verbosity: int) -> int:
+    # 0=WARNING, 1=INFO; anything higher (incl. CLI -vvv) → DEBUG
+    return {0: logging.WARNING, 1: logging.INFO}.get(verbosity, logging.DEBUG)
+
+
 def setup_famex_logging(verbosity: int = 1, force: bool = False) -> None:
     global _famex_logging_configured, _famex_log_level
 
     # Suppress FairChem/torch/triton noise at normal verbosity; show at >=2.
     install_runtime_ml_filters(verbosity=verbosity)
 
-    if _famex_logging_configured and not force:
-        return
-
-    # 0=WARNING, 1=INFO; anything higher (incl. CLI -vvv) → DEBUG
-    log_level = {0: logging.WARNING, 1: logging.INFO}.get(verbosity, logging.DEBUG)
+    log_level = _verbosity_to_log_level(verbosity)
     _famex_log_level = log_level
 
     famex_logger = logging.getLogger("famex")
     famex_logger.setLevel(log_level)
 
-    famex_logger.handlers.clear()
+    ase_level = logging.DEBUG if verbosity >= 2 else logging.WARNING
+    logging.getLogger("ase").setLevel(ase_level)
 
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(log_level)
+    rebuild_handlers = force or not _famex_logging_configured
+    if rebuild_handlers:
+        famex_logger.handlers.clear()
 
-    class FAMEXFormatter(logging.Formatter):
-        def format(self, record: logging.LogRecord) -> str:
-            if record.levelno == logging.INFO:
-                return record.getMessage()
-            if record.levelno == logging.DEBUG:
-                return f"[DEBUG] {record.getMessage()}"
-            if record.levelno == logging.WARNING:
-                return f"⚠️  {record.getMessage()}"
-            if record.levelno >= logging.ERROR:
-                return f"❌ {record.getMessage()}"
-            return record.getMessage()
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(log_level)
+        handler.setFormatter(FAMEXFormatter())
+        famex_logger.addHandler(handler)
 
-    handler.setFormatter(FAMEXFormatter())
-    famex_logger.addHandler(handler)
-
-    famex_logger.propagate = False
-
-    _famex_logging_configured = True
+        famex_logger.propagate = False
+        _famex_logging_configured = True
+    else:
+        for existing in famex_logger.handlers:
+            existing.setLevel(log_level)
 
 
 def get_famex_logger(name: str) -> logging.Logger:
@@ -85,27 +93,27 @@ def print_model_info(
     if verbose == 0:
         return
 
-    import click
+    logger = get_famex_logger("famex")
 
-    click.echo(f"\n🔧 Initializing {backend.upper()} Backend")
-    click.echo("─" * 40)
+    logger.info("\n🔧 Initializing %s Backend", backend.upper())
+    logger.info("─" * 40)
 
     if model_name:
-        click.echo(f"Model: {model_name}")
+        logger.info("Model: %s", model_name)
 
     if model_path:
-        click.echo(f"Model Path: {model_path}")
+        logger.info("Model Path: %s", model_path)
 
     if device:
-        click.echo(f"Device: {device}")
+        logger.info("Device: %s", device)
         if device == "cuda":
             try:
                 from famex.utils.device import get_device_info
 
                 device_info = get_device_info(device)
                 if device_info["gpu_name"]:
-                    click.echo(f"GPU: {device_info['gpu_name']}")
+                    logger.info("GPU: %s", device_info["gpu_name"])
             except Exception:
                 pass  # Don't let GPU info fail the whole process
 
-    click.echo("─" * 40)
+    logger.info("─" * 40)

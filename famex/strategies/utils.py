@@ -74,7 +74,8 @@ class StrategyUtils:
 
             except (RuntimeError, AttributeError, TypeError) as e:
                 logger.warning(
-                    f"Batch evaluation failed, falling back to individual calculations: {e}",
+                    "Batch evaluation failed, falling back to individual calculations: %s",
+                    e,
                 )
                 supports_batch = False
 
@@ -86,7 +87,7 @@ class StrategyUtils:
                     energies.append(energy)
                     forces_list.append(forces)
                 except (RuntimeError, ValueError, AttributeError) as e:
-                    logger.warning(f"Failed to calculate energy/forces: {e}")
+                    logger.warning("Failed to calculate energy/forces: %s", e)
                     energies.append(float("inf"))
                     forces_list.append(np.zeros((len(atoms), 3)))
 

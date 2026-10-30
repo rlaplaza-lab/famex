@@ -236,7 +236,9 @@ def _create_explorer(
 ) -> tuple[Explorer, AbstractContextManager[list[str]]]:
     ctx: AbstractContextManager[list[str]]
     if verbose == 0:
-        ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
+        ctx = quiet_backend_loading(
+            backend, model_name, model_path, device, show_model_info=True, verbose=verbose
+        )
     else:
         ctx = nullcontext([])
 

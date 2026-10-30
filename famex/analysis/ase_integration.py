@@ -150,7 +150,7 @@ def hessian_via_ase(
         vib.clean()
 
     if verbose >= 2:
-        logger.debug(f"Hessian computed via ASE: shape {hessian.shape}")
+        logger.debug("Hessian computed via ASE: shape %s", hessian.shape)
 
     return hessian
 

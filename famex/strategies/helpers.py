@@ -133,7 +133,8 @@ def validate_ts_structure(
                 imaginary_freqs = validation_result.get("imaginary_frequencies")
                 if imaginary_freqs and isinstance(imaginary_freqs, list | tuple):
                     logger.warning(
-                        f"Imaginary frequencies (cm^-1): {[f'{f:.1f}' for f in imaginary_freqs]}",
+                        "Imaginary frequencies (cm^-1): %s",
+                        [f"{f:.1f}" for f in imaginary_freqs],
                     )
         else:
             if verbose >= 1:
@@ -269,8 +270,10 @@ def _run_local_optimization_common(
         strategy.profiler.snapshot_memory()
 
     if verbose >= 1:
-        logger.info(f"Starting local {log_prefix.lower()} optimization with {local_optimizer_name}")
-        logger.info(f"Force threshold: {fmax} eV/Å, Max steps: {steps}")
+        logger.info(
+            "Starting local %s optimization with %s", log_prefix.lower(), local_optimizer_name
+        )
+        logger.info("Force threshold: %s eV/Å, Max steps: %s", fmax, steps)
 
     opt_class = _get_local_optimizer_class(local_optimizer_name)
     single_input = len(atoms_list) == 1
@@ -333,14 +336,19 @@ def _run_local_optimization_common(
             converged = bool(converged_flags[0])
             steps_taken = step_counts[0]
             logger.info(
-                f"{log_prefix} optimization completed: converged={converged}, steps={steps_taken}",
+                "%s optimization completed: converged=%s, steps=%s",
+                log_prefix,
+                converged,
+                steps_taken,
             )
         else:
             total_converged = sum(converged_flags)
             total_structures = len(converged_flags)
             logger.info(
-                f"{log_prefix} optimization completed: "
-                f"{total_converged}/{total_structures} structures converged",
+                "%s optimization completed: %s/%s structures converged",
+                log_prefix,
+                total_converged,
+                total_structures,
             )
 
     validation_results: list[dict[str, Any] | None] = []

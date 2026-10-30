@@ -153,8 +153,8 @@ class FrequencyAnalysis:
             self._hessian_validation_warned = True
             if not results["is_valid"]:
                 logger.warning(
-                    "Hessian validation detected issues. Results may be unreliable. "
-                    f"Validation results: {results}"
+                    "Hessian validation detected issues. Results may be unreliable. Validation results: %s",
+                    results,
                 )
 
         return self._hessian
@@ -194,7 +194,7 @@ class FrequencyAnalysis:
                 displaced_structures.append(atoms_neg)
 
         if self.verbose >= 2:
-            logger.debug(f"Generated {len(displaced_structures)} structures for batch calculation")
+            logger.debug("Generated %s structures for batch calculation", len(displaced_structures))
 
         return displaced_structures
 

@@ -90,11 +90,13 @@ class CalculatorManager:
 
             if self.verbose >= 2:
                 logger.debug(
-                    f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
+                    "Charge and/or spin not specified in atoms. Using defaults: %s",
+                    ", ".join(missing_parts),
                 )
             elif charge != 0 or spin != 1:
                 logger.warning(
-                    f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
+                    "Charge and/or spin not specified in atoms. Using defaults: %s",
+                    ", ".join(missing_parts),
                 )
             self._warned_about_defaults = True
 

@@ -17,9 +17,6 @@ from ase.calculators.calculator import all_changes
 from famex.backends.dependencies import deps
 from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
 
 _ORB_HESSIAN_PATCH_LOCK = threading.Lock()
 

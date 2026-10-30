@@ -100,7 +100,7 @@ def compare_hessian_methods(
 
     for method in methods:
         if verbose >= 1:
-            logger.info(f"Testing method: {method}")
+            logger.info("Testing method: %s", method)
 
         try:
             start_time = time.time()
@@ -120,13 +120,13 @@ def compare_hessian_methods(
             metrics[method] = metric
 
             if verbose >= 1:
-                logger.info(f"  ✓ Completed in {elapsed_time:.3f} s")
-                logger.info(f"  RMS value: {metric['rms_value']:.6e} eV/Å²")
-                logger.info(f"  Max asymmetry: {metric['max_asymmetry']:.6e} eV/Å²")
+                logger.info("  ✓ Completed in %.3f s", elapsed_time)
+                logger.info("  RMS value: %.6e eV/Å²", metric["rms_value"])
+                logger.info("  Max asymmetry: %.6e eV/Å²", metric["max_asymmetry"])
 
         except Exception as e:
             if verbose >= 1:
-                logger.error(f"  ✗ Failed: {e}")
+                logger.error("  ✗ Failed: %s", e)
             continue
 
     # Generate recommendations
@@ -343,7 +343,7 @@ def _generate_recommendations(
     if verbose >= 1 and len(valid_methods) > 0:
         logger.info("\nMethod recommendations (best to worst):")
         for i, method in enumerate(valid_methods, 1):
-            logger.info(f"  {i}. {method} (score: {scores[method]:.1f})")
+            logger.info("  %s. %s (score: %.1f)", i, method, scores[method])
 
     return valid_methods
 
@@ -420,7 +420,7 @@ class HessianComparisonReport:
                 frequencies, _ = diagonalize_mass_weighted_hessian(hessian, atoms, self.indices)
                 frequencies_dict[method] = frequencies
             except Exception as e:
-                logger.warning(f"Failed to compute frequencies for {method}: {e}")
+                logger.warning("Failed to compute frequencies for %s: %s", method, e)
                 continue
 
         if len(frequencies_dict) < 2:

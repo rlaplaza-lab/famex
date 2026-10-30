@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import redirect_stdout
 from typing import IO, Any, TextIO, cast
 
@@ -17,13 +18,8 @@ logger = get_famex_logger(__name__)
 
 class LoggingFile:
     def __init__(self) -> None:
-        import logging
-        import sys
-
-        self.log_level = logging.INFO
         self.buffer = ""
         self.should_output = logger.getEffectiveLevel() <= logging.INFO
-        self.stdout: TextIO = sys.stdout
 
     def write(self, text: str) -> int:
         if not text:
@@ -37,15 +33,14 @@ class LoggingFile:
         while "\n" in self.buffer:
             line, self.buffer = self.buffer.split("\n", 1)
             if line.strip():
-                self.stdout.write(line.strip() + "\n")
+                logger.info("%s", line.strip())
 
         return len(text)
 
     def flush(self) -> None:
         if self.should_output and self.buffer.strip():
-            self.stdout.write(self.buffer.strip() + "\n")
+            logger.info("%s", self.buffer.strip())
             self.buffer = ""
-            self.stdout.flush()
 
     def close(self) -> None:
         self.flush()
@@ -178,14 +173,14 @@ class VerboseOptimizerWrapper(Optimizer):
 
         if self.verbose >= 2:
             optimizer_name = wrapped_optimizer_class.__name__
-            logger.info(f"Initialized {optimizer_name} optimizer with verbosity control")
+            logger.info("Initialized %s optimizer with verbosity control", optimizer_name)
 
     def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:
         if self.verbose >= 2:
             optimizer_name = self.wrapped_optimizer.__class__.__name__
-            logger.info(f"Starting {optimizer_name} optimization")
-            logger.info(f"Convergence criterion: fmax = {fmax} eV/Å")
-            logger.info(f"Maximum steps: {steps}")
+            logger.info("Starting %s optimization", optimizer_name)
+            logger.info("Convergence criterion: fmax = %s eV/Å", fmax)
+            logger.info("Maximum steps: %s", steps)
         if self._logging_file is not None:
             with redirect_stdout(cast(TextIO, self._logging_file)):
                 result = self.wrapped_optimizer.run(fmax=fmax, steps=steps)
@@ -206,13 +201,13 @@ class VerboseOptimizerWrapper(Optimizer):
                     scipy_reason = str(getattr(self.wrapped_optimizer._scipy_result, "message", ""))
 
                 logger.warning(
-                    f"Optimization stopped after {actual_steps} steps without converging"
+                    "Optimization stopped after %s steps without converging", actual_steps
                 )
                 if scipy_reason and "Maximum number of iterations" not in scipy_reason:
-                    logger.warning(f"  SciPy reason: {scipy_reason}")
-                logger.warning(f"  (Max outer iterations limit: {steps})")
+                    logger.warning("  SciPy reason: %s", scipy_reason)
+                logger.warning("  (Max outer iterations limit: %s)", steps)
                 forces = self.atoms.get_forces()
-                logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
+                logger.warning("Final max force: %.6f eV/Å", np.max(np.abs(forces)))
 
         return result  # type: ignore[no-any-return]
 

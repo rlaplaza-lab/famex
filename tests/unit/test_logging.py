@@ -38,17 +38,23 @@ class TestSetupFamexLogging:
         assert get_famex_log_level() == expected_level
 
     def test_setup_logging_no_force(self, clear_famex_logger):
-        # First setup
         setup_famex_logging(verbosity=1, force=True)
-        initial_handler_count = len(clear_famex_logger.handlers)
+        initial_handlers = list(clear_famex_logger.handlers)
 
-        # Second setup without force
         setup_famex_logging(verbosity=2, force=False)
 
-        # Should not reconfigure
-        assert clear_famex_logger.level == logging.INFO  # Should remain INFO
-        # Handler count might stay same or be different depending on implementation
-        assert len(clear_famex_logger.handlers) == initial_handler_count
+        assert clear_famex_logger.level == logging.DEBUG
+        assert get_famex_log_level() == logging.DEBUG
+        assert clear_famex_logger.handlers == initial_handlers
+        for handler in clear_famex_logger.handlers:
+            assert handler.level == logging.DEBUG
+
+    def test_setup_logging_sets_ase_logger_level(self, clear_famex_logger):
+        setup_famex_logging(verbosity=0, force=True)
+        assert logging.getLogger("ase").level == logging.WARNING
+
+        setup_famex_logging(verbosity=2, force=False)
+        assert logging.getLogger("ase").level == logging.DEBUG
 
     def test_setup_logging_with_force(self, clear_famex_logger):
         # First setup
@@ -170,32 +176,21 @@ class TestQuietContext:
 
 
 class TestPrintModelInfo:
-    def test_print_model_info_basic(self):
-        # This function uses click.echo, so we test that it doesn't raise
-        try:
-            print_model_info("uma", model_name=DEFAULT_UMA_MODEL, device="cpu")
-        except Exception:
-            # If click is not available or there's an import error, that's okay
-            # We're just testing the function structure
-            pytest.skip("click not available or import error")
+    def test_print_model_info_basic(self, clear_famex_logger):
+        setup_famex_logging(verbosity=1, force=True)
+        print_model_info("uma", model_name=DEFAULT_UMA_MODEL, device="cpu")
 
-    def test_print_model_info_with_path(self):
-        try:
-            print_model_info("so3lr", model_path="/path/to/model", device="cpu")
-        except Exception:
-            pytest.skip("click not available or import error")
+    def test_print_model_info_with_path(self, clear_famex_logger):
+        setup_famex_logging(verbosity=1, force=True)
+        print_model_info("so3lr", model_path="/path/to/model", device="cpu")
 
-    def test_print_model_info_with_gpu(self):
-        try:
-            print_model_info("uma", model_name="test", device="cuda")
-        except Exception:
-            pytest.skip("click not available or import error")
+    def test_print_model_info_with_gpu(self, clear_famex_logger):
+        setup_famex_logging(verbosity=1, force=True)
+        print_model_info("uma", model_name="test", device="cuda")
 
-    def test_print_model_info_minimal(self):
-        try:
-            print_model_info("mock")
-        except Exception:
-            pytest.skip("click not available or import error")
+    def test_print_model_info_minimal(self, clear_famex_logger):
+        setup_famex_logging(verbosity=1, force=True)
+        print_model_info("mock")
 
 
 class TestLoggingIntegration:

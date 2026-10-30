@@ -89,8 +89,8 @@ class LocalIRCStrategy(BaseStrategy):
 
         if verbose >= 1:
             logger.info("Starting IRC calculation from transition state")
-            logger.info(f"Direction: {direction}, Max steps: {steps}, Step size: {step_size}")
-            logger.info(f"Force threshold: {fmax} eV/Å")
+            logger.info("Direction: %s, Max steps: %s, Step size: %s", direction, steps, step_size)
+            logger.info("Force threshold: %s eV/Å", fmax)
 
         forward_path = []
         backward_path = []
@@ -184,9 +184,11 @@ class LocalIRCStrategy(BaseStrategy):
             )
 
         if verbose >= 1:
-            logger.info(f"IRC calculation completed: {len(trajectory)} images generated")
+            logger.info("IRC calculation completed: %s images generated", len(trajectory))
             logger.info(
-                f"Forward path: {len(forward_path)} images, Backward path: {len(backward_path)} images",
+                "Forward path: %s images, Backward path: %s images",
+                len(forward_path),
+                len(backward_path),
             )
 
         result = self.prepare_result(

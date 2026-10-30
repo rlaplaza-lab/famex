@@ -89,7 +89,7 @@ def get_model_path(model_name: str) -> str:
 
     # Direct file path
     if os.path.isfile(model_name):
-        logger.info(f"Found model file: {model_name}")
+        logger.info("Found model file: %s", model_name)
         return model_name
 
     # Check aliases
@@ -120,12 +120,12 @@ def get_model_path(model_name: str) -> str:
     local_path.parent.mkdir(parents=True, exist_ok=True)
 
     if local_path.is_file():
-        logger.info(f"Found model file: {local_path}")
+        logger.info("Found model file: %s", local_path)
         return str(local_path)
 
     # Download from model zoo
     url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
-    logger.info(f"Downloading model from {url}")
+    logger.info("Downloading model from %s", url)
 
     try:
         response = requests.get(url, timeout=30)
@@ -136,7 +136,7 @@ def get_model_path(model_name: str) -> str:
             f.write(response.content)
         os.replace(tmp_path, local_path)
 
-        logger.info(f"Saved to {local_path}")
+        logger.info("Saved to %s", local_path)
         return str(local_path)
 
     except requests.RequestException as e:

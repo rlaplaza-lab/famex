@@ -220,7 +220,7 @@ famex path --strategy neb reactant.xyz product.xyz --npoints 11
 # IRC from TS
 famex path --strategy irc ts.xyz --direction both
 
-# Cache (AIMNet2 model downloads)
+# Model cache
 famex cache info
 ```
 

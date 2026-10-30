@@ -859,7 +859,7 @@ def main() -> int:
         "--npoints",
         type=int,
         default=11,
-        help="Number of points in interpolated path (default: 11)",
+        help="Number of nodes on the growing string (default: 11)",
     )
     parser.add_argument(
         "--fmax",

@@ -278,12 +278,14 @@ class HessianCalculator:
             )
             if delta > 0.1 * min_distance:
                 logger.warning(
-                    f"delta ({delta:.4f} Å) is large compared to minimum interatomic distance "
-                    f"({min_distance:.4f} Å). Consider using delta < {0.1 * min_distance:.4f} Å"
+                    "delta (%.4f Å) is large compared to minimum interatomic distance (%.4f Å). Consider using delta < %.4f Å",
+                    delta,
+                    min_distance,
+                    0.1 * min_distance,
                 )
             if delta < 1e-5:
                 logger.warning(
-                    f"delta ({delta:.4f} Å) is very small. Numerical precision may be limited."
+                    "delta (%.4f Å) is very small. Numerical precision may be limited.", delta
                 )
 
         if method == "central":
@@ -323,8 +325,9 @@ class HessianCalculator:
                 raise ValueError(msg)
             if self.delta2 >= self.delta:
                 logger.warning(
-                    "For Richardson extrapolation, typically delta2 < delta. "
-                    f"Got delta={self.delta}, delta2={self.delta2}"
+                    "For Richardson extrapolation, typically delta2 < delta. Got delta=%s, delta2=%s",
+                    self.delta,
+                    self.delta2,
                 )
         else:
             self._richardson_order = None
@@ -557,8 +560,13 @@ class HessianCalculator:
                     if self.verbose >= 2:
                         coord_name = ["x", "y", "z"][direction]
                         logger.debug(
-                            f"Retry {attempt + 1}/{self.max_retries} for atom {atom_index}, "
-                            f"{coord_name}-displacement {displacement:+.4f} Å: {e}"
+                            "Retry %s/%s for atom %s, %s-displacement %s Å: %s",
+                            attempt + 1,
+                            self.max_retries,
+                            atom_index,
+                            coord_name,
+                            displacement,
+                            e,
                         )
                     continue
                 # Final attempt failed
@@ -756,7 +764,7 @@ class HessianCalculator:
         for iteration in range(self.max_iterations):
             if self.verbose >= 1:
                 logger.info(
-                    f"Adaptive delta iteration {iteration + 1}: trying δ={current_delta:.4f} Å"
+                    "Adaptive delta iteration %s: trying δ=%.4f Å", iteration + 1, current_delta
                 )
 
             # Compute Hessian at current delta
@@ -764,7 +772,7 @@ class HessianCalculator:
                 hessian_current = self._calculate_hessian_at_delta(current_delta)
             except Exception as e:
                 if self.verbose >= 1:
-                    logger.warning(f"  Failed at delta={current_delta:.4f}: {e}")
+                    logger.warning("  Failed at delta=%.4f: %s", current_delta, e)
                 # Try smaller delta
                 current_delta = current_delta / 2.0
                 if current_delta < min_delta:
@@ -777,7 +785,7 @@ class HessianCalculator:
                 hessian_half = self._calculate_hessian_at_delta(half_delta)
             except Exception as e:
                 if self.verbose >= 1:
-                    logger.warning(f"  Failed at half-delta={half_delta:.4f}: {e}")
+                    logger.warning("  Failed at half-delta=%.4f: %s", half_delta, e)
                 # Use current result
                 return hessian_current
 
@@ -785,7 +793,7 @@ class HessianCalculator:
             noise_estimate = estimate_richardson_noise(hessian_current, hessian_half)
 
             if self.verbose >= 1:
-                logger.info(f"  Noise estimate: {noise_estimate:.2e} eV/Å²")
+                logger.info("  Noise estimate: %.2e eV/Å²", noise_estimate)
 
             # Track best result
             if noise_estimate < best_noise:
@@ -796,7 +804,7 @@ class HessianCalculator:
             # Check convergence
             if noise_estimate < self.target_noise:
                 if self.verbose >= 1:
-                    logger.info(f"  Converged! Noise below threshold {self.target_noise:.2e}")
+                    logger.info("  Converged! Noise below threshold %.2e", self.target_noise)
                 return hessian_current
 
             if noise_estimate > self.target_noise * 100:  # Way too noisy
@@ -805,7 +813,7 @@ class HessianCalculator:
                 if current_delta < min_delta:
                     if self.verbose >= 1:
                         logger.warning(
-                            f"  Delta {current_delta:.4f} below minimum, using best result."
+                            "  Delta %.4f below minimum, using best result.", current_delta
                         )
                     break
             else:
@@ -813,7 +821,7 @@ class HessianCalculator:
                 break
 
         if self.verbose >= 1:
-            logger.info(f"Final delta: {best_delta:.4f} Å, noise: {best_noise:.2e} eV/Å²")
+            logger.info("Final delta: %.4f Å, noise: %.2e eV/Å²", best_delta, best_noise)
 
         if best_hessian is None:
             msg = "Adaptive delta selection failed to produce any valid Hessian"
@@ -888,10 +896,10 @@ class HessianCalculator:
 
         if self.verbose >= 2:
             logger.info(
-                f"Calculating Hessian for {n_atoms} atoms using {type(self.scheme).__name__}"
+                "Calculating Hessian for %s atoms using %s", n_atoms, type(self.scheme).__name__
             )
             if self.n_workers and self.n_workers > 1:
-                logger.info(f"Using {self.n_workers} parallel workers")
+                logger.info("Using %s parallel workers", self.n_workers)
 
         forces_ref = None
         if isinstance(self.scheme, ForwardDifferenceScheme):
@@ -916,7 +924,7 @@ class HessianCalculator:
                 # Collect results as they complete with progress tracking
                 completed = 0
                 if self.verbose >= 1:
-                    logger.info(f"Computing {n_coords} columns in parallel...")
+                    logger.info("Computing %s columns in parallel...", n_coords)
 
                 for future in as_completed(futures):
                     j = futures[future]  # Get column index from future mapping
@@ -929,8 +937,11 @@ class HessianCalculator:
                             rate = completed / elapsed if elapsed > 0 else 0
                             eta = (n_coords - completed) / rate if rate > 0 else 0
                             logger.debug(
-                                f"Completed {completed}/{n_coords} columns "
-                                f"({rate:.1f} cols/s, ETA: {eta:.1f}s)"
+                                "Completed %s/%s columns (%.1f cols/s, ETA: %.1fs)",
+                                completed,
+                                n_coords,
+                                rate,
+                                eta,
                             )
                     except Exception as e:
                         coord_j = j % 3
@@ -972,8 +983,11 @@ class HessianCalculator:
                     rate = (j + 1) / elapsed if elapsed > 0 else 0
                     eta = (n_coords - j - 1) / rate if rate > 0 else 0
                     logger.debug(
-                        f"Completed coordinate {j + 1}/{n_coords} "
-                        f"({rate:.2f} cols/s, ETA: {eta:.1f}s)"
+                        "Completed coordinate %s/%s (%.2f cols/s, ETA: %.1fs)",
+                        j + 1,
+                        n_coords,
+                        rate,
+                        eta,
                     )
 
         # Symmetrize Hessian: H_sym = (H + H^T) / 2
@@ -982,7 +996,7 @@ class HessianCalculator:
 
         if self.verbose >= 1:
             elapsed = time.time() - (start_time or 0) if start_time else 0
-            logger.info(f"Hessian calculation completed in {elapsed:.2f} seconds")
+            logger.info("Hessian calculation completed in %.2f seconds", elapsed)
         elif self.verbose >= 2:
             logger.info("Hessian calculation completed")
         return symmetrized

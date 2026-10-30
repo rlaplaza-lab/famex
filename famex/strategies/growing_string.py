@@ -127,7 +127,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 energies.append(float(atoms.get_potential_energy()))
                 forces_list.append(atoms.get_forces())
             except Exception as exc:
-                logger.warning(f"Failed to calculate energy/forces: {exc}")
+                logger.warning("Failed to calculate energy/forces: %s", exc)
                 energies.append(float("inf"))
                 forces_list.append(np.zeros((len(atoms), 3)))
         return energies, forces_list
@@ -165,7 +165,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             logger.warning("String length is zero, using equal spacing")
             return np.linspace(0.0, 1.0, len(self.images))
 
-        logger.debug(f"Current string length={total_length:.6f} Å")
+        logger.debug("Current string length=%.6f Å", total_length)
         param_density /= total_length
         return param_density
 
@@ -297,8 +297,10 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         if tangent_ind < 0 or tangent_ind >= len(self.images):
             # Fallback: just copy the reference
             logger.warning(
-                f"get_new_image: Invalid tangent_ind {tangent_ind} for ref_index {ref_index}, "
-                f"string_size={self.string_size}"
+                "get_new_image: Invalid tangent_ind %s for ref_index %s, string_size=%s",
+                tangent_ind,
+                ref_index,
+                self.string_size,
             )
             return new_img
 
@@ -309,7 +311,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         try:
             distance = -(new_img.positions - tangent_img.positions)
         except Exception as e:
-            logger.warning(f"get_new_image: Error calculating distance: {e}")
+            logger.warning("get_new_image: Error calculating distance: %s", e)
             return new_img
 
         # Calculate step based on desired spacing
@@ -325,13 +327,13 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 # Fallback: use a reasonable step size
                 step_length = self.sk * 10.0
                 logger.debug(
-                    f"get_new_image: Small param_dens_diff ({param_dens_diff:.2e}), "
-                    f"using fallback step_length"
+                    "get_new_image: Small param_dens_diff (%.2e), using fallback step_length",
+                    param_dens_diff,
                 )
         else:
             step_length = self.sk * 10.0
             logger.debug(
-                f"get_new_image: Invalid cpd length ({len(cpd)}), using fallback step_length"
+                "get_new_image: Invalid cpd length (%s), using fallback step_length", len(cpd)
             )
 
         step = step_length * distance
@@ -385,7 +387,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
                 # Recalculate after shift
 
-        logger.debug(f"Reparametrization complete. Param density: {self.get_cur_param_density()}")
+        logger.debug("Reparametrization complete. Param density: %s", self.get_cur_param_density())
 
     def reparametrize(
         self,
@@ -431,7 +433,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     "rms": np.sqrt(np.mean(perp_forces_reshaped**2, axis=1)),
                 }
 
-                logger.debug(f"Checking frontier node convergence, threshold={perp_thresh:.6f}")
+                logger.debug("Checking frontier node convergence, threshold=%.6f", perp_thresh)
 
                 # We can add a new node if the norm/rms of the perpendicular force is below
                 # the threshold. Also allow growth if string is small and forces are improving.
@@ -465,7 +467,11 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     is_converged = is_converged_strict or is_converged_relaxed
                     conv_str = ", converged" if is_converged else ""
                     logger.debug(
-                        f"\tnode {i:02d}: {self.reparam_check}(perp_forces)={cur_val:.6f}{conv_str}"
+                        "	node %02d: %s(perp_forces)=%.6f%s",
+                        i,
+                        self.reparam_check,
+                        cur_val,
+                        conv_str,
                     )
                     return bool(is_converged)
 
@@ -493,7 +499,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     logger.info("Added new right frontier node.")
                     self.reparam_in = 0
 
-                logger.debug(f"New image indices: {self.new_image_inds}")
+                logger.debug("New image indices: %s", self.new_image_inds)
 
         logger.debug(
             f"Current string size is {self.left_size}+{self.right_size}="
@@ -505,13 +511,13 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
         if self.reparam_in > 0:
             logger.debug(
-                f"Skipping reparametrization. Next reparametrization in {self.reparam_in} cycles."
+                "Skipping reparametrization. Next reparametrization in %s cycles.", self.reparam_in
             )
         else:
             # Prepare image reparametrization
             desired_param_density = self.sk * self.full_string_image_inds
             pd_str = np.array2string(desired_param_density, precision=4)
-            logger.debug(f"Desired param density: {pd_str}")
+            logger.debug("Desired param density: %s", pd_str)
 
             # Reparametrize images
             self.reparam_cart(desired_param_density)
@@ -562,8 +568,11 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         valid_energies.sort(key=lambda x: x[1], reverse=True)
         best_index, best_energy = valid_energies[0]
         logger.info(
-            f"Growing String: Selected TS guess at image {best_index} "
-            f"(E = {best_energy:.6f} eV, search range {search_start}-{search_end - 1})"
+            "Growing String: Selected TS guess at image %s (E = %.6f eV, search range %s-%s)",
+            best_index,
+            best_energy,
+            search_start,
+            search_end - 1,
         )
         return valid_energies
 
@@ -609,8 +618,9 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             ts_guess = full_path[candidate_index]
             if rank > 0:
                 logger.info(
-                    f"Growing String: Trying fallback TS guess at image {candidate_index} "
-                    f"(E = {candidate_energy:.6f} eV)"
+                    "Growing String: Trying fallback TS guess at image %s (E = %.6f eV)",
+                    candidate_index,
+                    candidate_energy,
                 )
 
             # Defer require_ts enforcement until after candidate selection.
@@ -635,7 +645,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
             if ts_has_one_imaginary_mode(freq_analysis):
                 logger.info(
-                    f"Growing String: Valid TS found from image {candidate_index} after refinement"
+                    "Growing String: Valid TS found from image %s after refinement", candidate_index
                 )
                 return ts_result, ts_structure, ts_converged
 
@@ -846,7 +856,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 StrategyUtils.ensure_charge_spin_info(atoms)
 
         logger.info(
-            f"Growing String: Starting with {len(self.images)} images, max {self.max_nodes}"
+            "Growing String: Starting with %s images, max %s", len(self.images), self.max_nodes
         )
 
         # Initialize reparametrization counter
@@ -871,7 +881,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     StrategyUtils.ensure_charge_spin_info(atoms)
 
             logger.info(
-                f"Growing String: Initial growth complete. Now have {len(self.images)} images"
+                "Growing String: Initial growth complete. Now have %s images", len(self.images)
             )
 
         # Main GSM loop
@@ -880,8 +890,11 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             # Check if fully grown
             if self.fully_grown:
                 logger.info(
-                    f"Growing String: Reached maximum images ({self.max_nodes}). "
-                    f"String size: {self.left_size}+{self.right_size}={self.string_size}"
+                    "Growing String: Reached maximum images (%s). String size: %s+%s=%s",
+                    self.max_nodes,
+                    self.left_size,
+                    self.right_size,
+                    self.string_size,
                 )
                 break
 
@@ -910,8 +923,10 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 ):
                     strings_met = True
                     logger.info(
-                        f"Strings met: distance={distance:.6f} Å < threshold={distance_threshold:.6f} Å, "
-                        f"string_size={self.string_size}"
+                        "Strings met: distance=%.6f Å < threshold=%.6f Å, string_size=%s",
+                        distance,
+                        distance_threshold,
+                        self.string_size,
                     )
 
             # Reparametrize and potentially add new nodes
@@ -943,7 +958,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 if hei_info:
                     strs.append(hei_info)
 
-                logger.info(f"Growing String: Iteration {iteration + 1}, " + "\t".join(strs))
+                logger.info("Growing String: Iteration %s, %s", iteration + 1, "\t".join(strs))
 
         # Combine strings into full path
         # right_string grows forward from product [P, R1, R2, ...] where R2 is closest to center
@@ -951,9 +966,11 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         full_path = self.left_string + self.right_string[::-1]
 
         logger.info(
-            f"Growing String: Complete with {len(full_path)} images "
-            f"(left: {len(self.left_string)}, right: {len(self.right_string)}, "
-            f"strings_met={strings_met})"
+            "Growing String: Complete with %s images (left: %s, right: %s, strings_met=%s)",
+            len(full_path),
+            len(self.left_string),
+            len(self.right_string),
+            strings_met,
         )
 
         # Filter redundant structures for consistency with other path strategies

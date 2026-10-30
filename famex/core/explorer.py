@@ -93,7 +93,7 @@ class Explorer:
         Single ASE Atoms object or a sequence of Atoms to operate on.
         For multi-structure strategies (NEB, CI-NEB), provide multiple structures.
     backend : str, default "uma"
-        Calculator backend: uma, aimnet2, mace, orb, so3lr, tblite, mock
+        Calculator backend: uma, aimnet2, mace, orb, so3lr, pet, tblite, pyscf, mock
     model_name : str, optional
         Name of the specific model to use. If None, uses backend defaults.
     model_path : str, optional
@@ -881,7 +881,7 @@ class Explorer:
         delta : float
             Finite difference step size for Hessian calculation
         method : str
-            Method for Hessian calculation ("auto", "numerical")
+            Method for Hessian calculation ("auto", "finite_differences")
         temperature : float
             Temperature for thermodynamic properties (K)
         save_hessian : bool

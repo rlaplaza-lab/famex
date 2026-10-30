@@ -144,7 +144,7 @@ def estimate_force_noise(
             noise = np.abs(0.5 * (forces_plus + forces_minus) - forces_ref)
             noise_samples.append(noise)
         except Exception:
-            logger.debug(f"Force calculation failed for perturbation sample {i}, skipping")
+            logger.debug("Force calculation failed for perturbation sample %s, skipping", i)
             continue
 
     if len(noise_samples) == 0:
@@ -241,8 +241,10 @@ def estimate_optimal_delta(
 
         if verbose >= 1:
             logger.debug(
-                f"Iteration {iteration + 1}: trying delta={current_delta:.4f}, "
-                f"half={half_delta:.4f}"
+                "Iteration %s: trying delta=%.4f, half=%.4f",
+                iteration + 1,
+                current_delta,
+                half_delta,
             )
 
         # Compute Hessians at both deltas
@@ -258,7 +260,7 @@ def estimate_optimal_delta(
             noise_estimate = estimate_richardson_noise(hessian_current, hessian_half)
 
             if verbose >= 1:
-                logger.debug(f"  Noise estimate: {noise_estimate:.2e} eV/Å²")
+                logger.debug("  Noise estimate: %.2e eV/Å²", noise_estimate)
 
             # Track best result
             if noise_estimate < best_noise:
@@ -268,7 +270,7 @@ def estimate_optimal_delta(
             # Check convergence
             if noise_estimate < target_noise:
                 if verbose >= 1:
-                    logger.debug(f"  Converged! Noise below target {target_noise:.2e}")
+                    logger.debug("  Converged! Noise below target %.2e", target_noise)
                 return current_delta, noise_estimate
 
             # Binary search: if too noisy, try smaller delta
@@ -283,12 +285,12 @@ def estimate_optimal_delta(
 
         except Exception as e:
             if verbose >= 1:
-                logger.warning(f"  Failed to compute at delta={current_delta:.4f}: {e}")
+                logger.warning("  Failed to compute at delta=%.4f: %s", current_delta, e)
             # If calculation fails, try smaller delta
             current_high = current_delta
 
     if verbose >= 1:
-        logger.debug(f"Final delta: {best_delta:.4f}, noise: {best_noise:.2e} eV/Å²")
+        logger.debug("Final delta: %.4f, noise: %.2e eV/Å²", best_delta, best_noise)
 
     return best_delta, best_noise
 

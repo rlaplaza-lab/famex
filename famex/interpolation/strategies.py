@@ -15,10 +15,6 @@ from abc import ABC, abstractmethod
 import numpy as np
 from scipy.spatial.distance import cdist
 
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
-
 
 class InterpolationStrategy(ABC):
     """Base class for interpolation strategies."""

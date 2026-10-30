@@ -13,9 +13,6 @@ from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
 from famex.strategies.helpers import filter_interpolation_kwargs
 from famex.strategies.minima import LocalMinimaStrategy
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
 
 
 class MultiStructureMinimaInterpolateStrategy(BaseStrategy):

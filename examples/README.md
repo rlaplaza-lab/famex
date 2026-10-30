@@ -17,7 +17,7 @@ run converged with finite energies and, where requested, usable frequencies.
 | `find_transition_state.py` | Local TS refine of a guess (`--require-ts`) |
 | `reaction_path.py` | NEB path between reactant and product |
 | `irc.py` | Intrinsic reaction coordinate from a TS |
-| `growing_string.py` | Growing-string (DE-GSM) TS search (Zimmermann 002) |
+| `growing_string.py` | Growing-string TS search on Zimmermann reaction 002 |
 | `thermochemistry.py` | Minimize, then gas-phase free energy at 298.15 K |
 
 ### Benchmarks
@@ -29,7 +29,7 @@ run converged with finite energies and, where requested, usable frequencies.
 | `ts_optimizer_benchmark.py` | TS optimizer comparison: local TS (example, BH28 subset/full), hessian/trust sweeps, two-ended strategies |
 | `hessian_benchmark.py` | Hessian method comparison (finite-difference schemes and backend methods; `--mode fd`, `backend`, or `both`) |
 | `bh28_benchmark/` | Barrier-height accuracy on 28 reactions |
-| `zimmermann93_benchmark/` | Two-ended TS search benchmark; long-running — use `--quick` for testing |
+| `zimmermann93_benchmark/` | Growing-string two-ended TS search; long-running — use `--quick` for testing |
 | `maiti30_benchmark/` | Metal-catalyzed growing-string TS search (30 reactions) |
 
 ## Usage

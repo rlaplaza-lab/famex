@@ -1,17 +1,16 @@
-# Zimmermann-93 NEB / Two-ended TS Benchmark
+# Zimmermann-93 Growing-String TS Benchmark
 
 Evaluation of FAMEX backends for two-ended transition state searches using the Zimmermann-93 dataset.
 
 ## Overview
 
-Tests FAMEX backends on two-ended (reactant→product) transition state searches, evaluating how well ML potentials locate TS when given both reactant and product structures.
+Tests FAMEX backends on two-ended (reactant→product) transition state searches, evaluating how well ML potentials locate a TS when given both reactant and product structures.
 
 **Methodology:**
-1. Interpolates reaction paths (geodesic)
-2. Identifies TS candidates (highest-energy images)
-3. Optimizes transition states
-4. Compares geometries (RMSD vs reference)
-5. Analyzes success rates and accuracy
+1. Growing-string search between reactant and product
+2. Refines the TS candidate (`rfo`)
+3. Compares geometries (RMSD vs reference)
+4. Reports success rates and timing
 
 ## Usage
 
@@ -43,6 +42,7 @@ python zimmermann93_benchmark.py --merge-only
 - `--device`: Device to use for calculations ("cpu" or "cuda")
 - `--output-dir`: Directory for results (default: `benchmark_results/`). The canonical file is `zimmermann93_benchmark_results.json`
 - `--merge-only`: Merge per-reaction shards into the canonical results file and exit
+- `--npoints`: Number of nodes on the growing string (default: 11)
 
 ## Zimmermann-93 Dataset
 
@@ -94,7 +94,6 @@ zimmermann93_benchmark/
 
 - FAMEX package installed
 - At least one ML backend (see [README](../../README.md))
-- SELLA optimizer is included with FAMEX (core dependency)
 - Python 3.11+
 
 ## Understanding Results
@@ -111,17 +110,16 @@ Approximate heuristics for this dataset (not universal cutoffs):
 
 - **Low RMSD (< 0.5 Å)**: close geometric match to the reference
 - **Medium RMSD (0.5–1.0 Å)**: often still chemically useful
-- **High RMSD (> 1.0 Å)**: weak agreement; check the path or TS guess
+- **High RMSD (> 1.0 Å)**: weak agreement; check the string path or TS guess
 
 ### Backend Comparison
 
 This benchmark complements the BH28 benchmark by focusing on:
 - **Geometric accuracy** rather than energetic accuracy
 - **Two-ended searches** rather than single-ended optimization
-- **Path finding capabilities** of different ML potentials
+- **Path finding** with the growing-string strategy
 
 ## Notes
 
 - Focuses on geometric accuracy (RMSD) vs BH28's energetic accuracy
-- SELLA optimizer (included with FAMEX) is used by default for TS optimization
-- Results may vary with interpolation quality and initial TS guesses
+- Results may vary with `--npoints`, force thresholds, and endpoint quality

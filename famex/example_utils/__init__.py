@@ -437,7 +437,7 @@ def benchmark_optimization(
             except Exception as e:
                 if verbose >= 1:
                     logger.warning(
-                        f"Failed to compute initial Hessian: {e}. Continuing without it."
+                        "Failed to compute initial Hessian: %s. Continuing without it.", e
                     )
 
         # Initialize FAMEX optimizer
@@ -655,7 +655,7 @@ def benchmark_optimization(
                 )
             except Exception as e:
                 if verbose >= 1:
-                    logger.warning(f"Frequency analysis failed: {e}")
+                    logger.warning("Frequency analysis failed: %s", e)
                 freq_results = {}
 
         freq_time = time.perf_counter() - freq_start

@@ -120,8 +120,8 @@ class MultiStructureNEBStrategy(BaseStrategy):
             PathManager.attach_calculators(self.explorer, path)
             if any(getattr(img, "calc", None) is None for img in path):
                 logger.error(
-                    f"Failed to attach calculators to {method_name} images. "
-                    "Check backend/model availability."
+                    "Failed to attach calculators to %s images. Check backend/model availability.",
+                    method_name,
                 )
                 raise RuntimeError(
                     f"Failed to attach calculators to {method_name} images. "

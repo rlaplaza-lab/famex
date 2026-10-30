@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,48 +27,55 @@ class TestLoggingFile:
     """Test LoggingFile class."""
 
     def test_write_with_newlines(self):
-        """Test write() method with newlines in text (lines 67-75)."""
         with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
-            mock_logger.getEffectiveLevel.return_value = 10  # INFO level
+            mock_logger.getEffectiveLevel.return_value = logging.INFO
             logging_file = LoggingFile()
-            # Write text with newlines
             result = logging_file.write("line1\nline2\nline3")
             assert result == len("line1\nline2\nline3")
-            # Buffer should contain only incomplete line
             assert logging_file.buffer == "line3"
+            mock_logger.info.assert_any_call("%s", "line1")
+            mock_logger.info.assert_any_call("%s", "line2")
 
     def test_write_multiple_lines(self):
-        """Test write() method with multiple complete lines."""
         with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
-            mock_logger.getEffectiveLevel.return_value = 10  # INFO level
+            mock_logger.getEffectiveLevel.return_value = logging.INFO
             logging_file = LoggingFile()
             logging_file.write("line1\nline2\n")
-            # All lines should be processed, buffer should be empty
             assert logging_file.buffer == ""
+            assert mock_logger.info.call_count == 2
 
     def test_write_partial_line(self):
-        """Test write() method with partial line (no newline)."""
         with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
-            mock_logger.getEffectiveLevel.return_value = 10  # INFO level
+            mock_logger.getEffectiveLevel.return_value = logging.INFO
             logging_file = LoggingFile()
             logging_file.write("partial line")
-            # Should accumulate in buffer
             assert logging_file.buffer == "partial line"
+            mock_logger.info.assert_not_called()
 
     def test_write_empty_lines(self):
-        """Test write() method with empty lines."""
-        logging_file = LoggingFile()
-        logging_file.write("\n\n\n")
-        # Empty lines should be skipped
-        assert logging_file.buffer == ""
+        with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
+            mock_logger.getEffectiveLevel.return_value = logging.INFO
+            logging_file = LoggingFile()
+            logging_file.write("\n\n\n")
+            assert logging_file.buffer == ""
+            mock_logger.info.assert_not_called()
 
     def test_flush(self):
-        """Test flush() method."""
-        logging_file = LoggingFile()
-        logging_file.write("partial")
-        logging_file.flush()
-        # Buffer should be cleared after flush
-        assert logging_file.buffer == ""
+        with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
+            mock_logger.getEffectiveLevel.return_value = logging.INFO
+            logging_file = LoggingFile()
+            logging_file.write("partial")
+            logging_file.flush()
+            assert logging_file.buffer == ""
+            mock_logger.info.assert_called_once_with("%s", "partial")
+
+    def test_write_suppressed_when_quiet(self):
+        with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
+            mock_logger.getEffectiveLevel.return_value = logging.WARNING
+            logging_file = LoggingFile()
+            logging_file.write("line1\nline2\n")
+            assert logging_file.buffer == ""
+            mock_logger.info.assert_not_called()
 
 
 class TestProfilerCalculatorWrapper:
