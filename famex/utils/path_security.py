@@ -21,17 +21,23 @@ def sanitize_filename(filename: str, allow_path_sep: bool = False) -> str:
     This is the most aggressive sanitization - strips ALL directory components
     and returns only the base filename with safe characters.
 
-    Args:
-        filename: Input filename (may contain path components)
-        allow_path_sep: If False, removes all path separators (default: False)
+    Parameters
+    ----------
+    filename : str
+        Input filename (may contain path components).
+    allow_path_sep : bool, optional
+        If False, removes all path separators. Default is False.
 
     Returns
     -------
-        Safe filename with only basename and safe characters
+    str
+        Safe filename with only basename and safe characters.
 
     Raises
     ------
-        PathSecurityError: If filename is empty after sanitization
+    PathSecurityError
+        If filename is empty after sanitization.
+
     """
     # First, get just the basename (removes all directory components)
     safe = os.path.basename(filename)
@@ -71,19 +77,27 @@ def validate_safe_path(
     - Ensures path is within base_dir if provided
     - Validates against various bypass techniques
 
-    Args:
-        path: Path to validate
-        base_dir: Base directory that path must be within (optional)
-        must_exist: If True, path must exist (default: False)
-        allow_absolute: If True, allows absolute paths (default: False)
+    Parameters
+    ----------
+    path : Path or str
+        Path to validate.
+    base_dir : Path or str, optional
+        Base directory that path must be within.
+    must_exist : bool, optional
+        If True, path must exist. Default is False.
+    allow_absolute : bool, optional
+        If True, allows absolute paths. Default is False.
 
     Returns
     -------
-        Validated Path object (absolute, resolved)
+    Path
+        Validated path (absolute, resolved).
 
     Raises
     ------
-        PathSecurityError: If path fails security checks
+    PathSecurityError
+        If path fails security checks.
+
     """
     try:
         path_obj = Path(path)
@@ -139,12 +153,16 @@ def is_safe_relative_path(path: str) -> bool:
     This is a lightweight check for use in validators.
     For actual file operations, use validate_safe_path().
 
-    Args:
-        path: Path string to check
+    Parameters
+    ----------
+    path : str
+        Path string to check.
 
     Returns
     -------
-        True if path appears safe, False otherwise
+    bool
+        True if path appears safe, False otherwise.
+
     """
     if not path or not isinstance(path, str):
         return False

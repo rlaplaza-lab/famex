@@ -80,7 +80,21 @@ class CalculatorProtocol(Protocol):
     def get_potential_energy(
         self, atoms: Atoms | None = None, force_consistent: bool = False
     ) -> float:
-        """Compute potential energy for the given atoms structure."""
+        """Compute potential energy for the given atoms structure.
+
+        Parameters
+        ----------
+        atoms : Atoms, optional
+            Atoms structure. If None, uses previously set atoms.
+        force_consistent : bool, optional
+            If True, request a force-consistent energy. Default is False.
+
+        Returns
+        -------
+        float
+            Potential energy of the structure.
+
+        """
         ...
 
 

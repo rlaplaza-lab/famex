@@ -248,12 +248,15 @@ def clear_availability_cache() -> None:
 def get_backend_error_message(backend: str) -> str:
     """Get a clear error message for why backend is unavailable.
 
-    Args:
-        backend: Backend name
+    Parameters
+    ----------
+    backend : str
+        Backend name.
 
     Returns
     -------
-        str: Human-readable error message with installation instructions
+    str
+        Human-readable error message with installation instructions.
 
     """
     reason = get_availability_reason(backend)
@@ -274,20 +277,23 @@ def get_backend_error_message(backend: str) -> str:
     return f"Backend '{backend}' is not available.\nReason: {reason}\nInstall with: {cmd}"
 
 
-# Extended convenience functions with logging (from utils/backend_utils.py)
 def get_available_backends_with_logging(
     include_mock: bool = True,
     verbose: bool = False,
 ) -> list[str]:
     """Get list of backends that are actually available in the current environment.
 
-    Args:
-        include_mock: Whether to include the mock backend
-        verbose: Whether to print availability status for each backend
+    Parameters
+    ----------
+    include_mock : bool, optional
+        Whether to include the mock backend. Default is True.
+    verbose : bool, optional
+        Whether to print availability status for each backend. Default is False.
 
     Returns
     -------
-        List of available backend names
+    list[str]
+        Available backend names.
 
     """
     available = get_available_backends(include_mock=include_mock)
@@ -317,13 +323,17 @@ def get_available_ml_backends(verbose: bool = False) -> list[str]:
 def filter_available_backends(requested_backends: list[str], verbose: bool = False) -> list[str]:
     """Filter a list of requested backends to only include those that are available.
 
-    Args:
-        requested_backends: List of backend names to check
-        verbose: Whether to print status messages
+    Parameters
+    ----------
+    requested_backends : list[str]
+        Backend names to check.
+    verbose : bool, optional
+        Whether to print status messages. Default is False.
 
     Returns
     -------
-        List of available backends from the requested list
+    list[str]
+        Available backends from the requested list.
 
     """
     available = []
@@ -346,17 +356,22 @@ def filter_available_backends(requested_backends: list[str], verbose: bool = Fal
 
 
 def require_backend(backend: str) -> None:
-    """Decorator/function to require a specific backend for a test.
+    """Skip the current test unless a backend is available.
 
-    Usage:
-        @require_backend("mace")
-        def test_something():
-            pass
+    Call this inside a test. If the backend is unavailable and pytest is
+    installed, the test is skipped. If pytest is absent, an ImportError is
+    raised instead.
 
-    Or:
-        def test_something():
-            require_backend("mace")
-            # test code here
+    Parameters
+    ----------
+    backend : str
+        Backend name that the test requires.
+
+    Raises
+    ------
+    ImportError
+        If pytest is not installed and the backend is unavailable.
+
     """
     try:
         import pytest
