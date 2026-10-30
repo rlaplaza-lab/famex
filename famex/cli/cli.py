@@ -234,10 +234,8 @@ def _create_explorer(
     task_name: str | None = None,
     dftd3_functional: str | None = None,
 ) -> tuple[Explorer, AbstractContextManager[list[str]]]:
-    verbosity = max(0, verbose - 1)
-
     ctx: AbstractContextManager[list[str]]
-    if verbosity == 0:
+    if verbose == 0:
         ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
     else:
         ctx = nullcontext([])
@@ -258,7 +256,7 @@ def _create_explorer(
         strategy=strategy,
         ts_kwargs=ts_kwargs,
         constraints=constraints,
-        verbose=verbosity,
+        verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
         cleanup_frequencies=cleanup_frequencies,
         task_name=task_name,
@@ -516,8 +514,8 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 "--verbose",
                 "-v",
                 count=True,
-                default=1,
-                help="Verbosity level: -v=quiet, -vv=normal, -vvv=debug",
+                default=0,
+                help="Verbosity: default quiet, -v normal, -vv or more debug",
             ),
             click.option(
                 "--dry-run",

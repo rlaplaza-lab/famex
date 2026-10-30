@@ -107,9 +107,11 @@ zimmermann93_benchmark/
 
 ### Interpretation
 
-- **Low RMSD (< 0.5 Å)**: Excellent geometric agreement with reference
-- **Medium RMSD (0.5-1.0 Å)**: Good agreement, likely chemically meaningful
-- **High RMSD (> 1.0 Å)**: Poor agreement, may indicate optimization issues
+Approximate heuristics for this dataset (not universal cutoffs):
+
+- **Low RMSD (< 0.5 Å)**: close geometric match to the reference
+- **Medium RMSD (0.5–1.0 Å)**: often still chemically useful
+- **High RMSD (> 1.0 Å)**: weak agreement; check the path or TS guess
 
 ### Backend Comparison
 

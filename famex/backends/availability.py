@@ -299,10 +299,9 @@ def get_available_backends_with_logging(
         for backend in backends_to_check:
             is_available = backend in available
             if is_available:
-                logger.info("  ✅ %s", backend)
+                logger.info("  %s", backend)
             else:
-                reason = get_availability_reason(backend)
-                logger.info("  ❌ %s (%s)", backend, reason)
+                logger.info("  %s (%s)", backend, get_availability_reason(backend))
 
     return available
 
@@ -338,10 +337,10 @@ def filter_available_backends(requested_backends: list[str], verbose: bool = Fal
             unavailable.append(backend)
 
     if verbose and unavailable:
-        logger.info("⚠️  Unavailable backends (skipped): %s", unavailable)
+        logger.info("Unavailable backends (skipped): %s", unavailable)
 
     if verbose and available:
-        logger.info("✅ Available backends: %s", available)
+        logger.info("Available backends: %s", available)
 
     return available
 
@@ -391,7 +390,9 @@ def require_ml_backends(min_count: int = 1) -> list[str]:
 
     if len(available) < min_count:
         logger.warning(
-            f"❌ Need at least {min_count} ML backend(s), but only {len(available)} available.",
+            "Need at least %s ML backend(s), but only %s available.",
+            min_count,
+            len(available),
         )
         logger.info("Please install additional ML backends:")
         logger.info("  - UMA: pip install fairchem-core")

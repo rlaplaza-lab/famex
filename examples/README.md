@@ -49,7 +49,7 @@ conda run -n famex-uma python growing_string.py
 conda run -n famex-uma python thermochemistry.py
 ```
 
-**Benchmarks** (common options: `--backends`, `--device`, `--verbose`, `--help`):
+**Benchmarks** (flags vary by script — use each script’s `--help`; many support `--backends`, `--device`, `--verbose`):
 
 ```bash
 python timing_benchmark.py --device cuda

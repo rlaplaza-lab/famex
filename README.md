@@ -75,7 +75,8 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 - Multiple machine learning backends (UMA, AIMNet2, MACE, SO3LR, Orb, PET); optional xTB/DFT via TBLite/PySCF
 - GPU acceleration with CUDA
 - Target/strategy commands (`minima`, `ts`, `path`)
-- Path methods: Nudged Elastic Band (NEB), Climbing-Image NEB (CI-NEB), Intrinsic Reaction Coordinate (IRC), growing string
+- Transition-state strategies: local, interpolate, CI-NEB, DHS, growing string
+- Path strategies: NEB, CI-NEB, IRC, interpolate
 - Frequency analysis, thermodynamics, and vibrational-mode XYZ animations
 - Command-line and Python API
 - Geometry files via the Atomic Simulation Environment (ASE): XYZ, CIF, PDB, and others

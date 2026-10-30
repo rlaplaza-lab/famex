@@ -14,7 +14,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: Which backend should I choose?
 
-**A:** Prefer a machine learning potential: CLI/`Explorer` default to **UMA** with checkpoint `uma-s-1p2` and task `omol` (`fairchem-core>=2.25.0`). For the simplest install with no `e3nn` conflicts, use **AIMNet2** (`pip install torch`, default checkpoint `aimnet2` → `aimnet2_wb97m_0`) via `--backend aimnet2`. Other keywords and their defaults (`mace-omol-0`, `orb-v3-conservative-omol`, `pet-mad-s`, `so3lr-small`, `GFN2-xTB`, `b3lyp-d3bj/def2-svp`, …) are listed under [Default models](USER_GUIDE.md#default-models).
+**A:** CLI/`Explorer` default to UMA. For the simplest torch-only install, use `--backend aimnet2`. Full keyword and checkpoint list: [Default models](USER_GUIDE.md#default-models).
 
 ### Q: Can I install multiple backends?
 
@@ -52,7 +52,7 @@ Common questions about FAMEX usage, installation, and troubleshooting.
 
 ### Q: Can SMILES embedding replace a force-field or ML minimization?
 
-**A:** No. Both embedders produce a starting geometry for `minima`, `ts`, or `path`. Run `famex minima` (or the Python API) to relax. The pysmiles path uses four-coordinate tetrahedral defaults, no crystals, and generic cis/gauche/trans 1–4 windows. RDKit ETKDGv3 uses experimental torsions for organic molecules and can refuse metals that its force field does not type.
+**A:** No. Both embedders only produce a starting geometry — run `famex minima` (or the Python API) to relax. Details: [Structure inputs](USER_GUIDE.md#structure-inputs-file-smiles-pubchem).
 
 ### Q: How do I specify charge and spin?
 

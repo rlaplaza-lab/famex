@@ -138,16 +138,16 @@ class FAMEXExampleInterface:
     def print_success(self, message: str = "Completed successfully!") -> None:
         """Print standardized success message."""
         elapsed = time.time() - self.start_time
-        logger.info("\n✅ %s", message)
-        logger.info("⏱️  Total time: %.1f seconds", elapsed)
+        logger.info("\n%s", message)
+        logger.info("Total time: %.1f seconds", elapsed)
 
     def print_error(self, message: str) -> None:
         """Print standardized error message."""
-        logger.error("\n❌ %s", message)
+        logger.error("\n%s", message)
 
     def print_warning(self, message: str) -> None:
         """Print standardized warning message."""
-        logger.warning("\n⚠️  %s", message)
+        logger.warning("\n%s", message)
 
     def save_results(
         self,

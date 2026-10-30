@@ -28,12 +28,14 @@ class TestSetupFamexLogging:
             (0, logging.WARNING),
             (1, logging.INFO),
             (2, logging.DEBUG),
+            (3, logging.DEBUG),  # CLI -vvv maps to internal 3; clamp to DEBUG
         ],
     )
     def test_setup_logging_verbosity(self, clear_famex_logger, verbosity, expected_level):
         setup_famex_logging(verbosity=verbosity, force=True)
 
         assert clear_famex_logger.level == expected_level
+        assert get_famex_log_level() == expected_level
 
     def test_setup_logging_no_force(self, clear_famex_logger):
         # First setup

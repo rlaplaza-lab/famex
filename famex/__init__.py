@@ -1,18 +1,16 @@
 """FAMEX: Fast Mechanistic Explorer using machine learning potentials.
 
-This package provides a unified interface for molecular geometry optimization
-using ASE (Atomic Simulation Environment) and SELLA optimizers combined with
-machine learning potentials.
+Unified CLI and Python API for geometry optimization with ASE, optional SELLA,
+and ML or classical potentials.
 
-Key Features:
-- Minimum energy geometry optimization
-- Transition state searches
-- Reaction path optimization (NEB/CI-NEB)
-- Multi-structure optimization workflows
-- Support for various file formats (xyz, cif, pdb, etc.)
-- Integration with UMA, SO3LR, AIMNET2, and MACE machine learning potentials
-- Mock calculator for testing without ML dependencies
-- Trajectory saving for complete reaction pathways
+Key features:
+- Minima, transition-state, and reaction-path workflows
+- Path strategies: NEB, CI-NEB, IRC, and interpolation
+- TS strategies: local, interpolate, CI-NEB, DHS, and growing string
+- Frequency analysis and thermochemistry
+- Backends: UMA, AIMNet2, MACE, Orb, SO3LR, PET; optional TBLite and PySCF
+- Geometry I/O via ASE (XYZ, CIF, PDB, and others); SMILES and PubChem inputs
+- Mock calculator for tests without ML dependencies
 
 Examples
 --------

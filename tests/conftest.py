@@ -284,17 +284,22 @@ def clear_famex_logger():
     """Clear FAMEX logger handlers before test, restore after."""
     import logging
 
+    import famex.utils.logging as famex_logging
+
     logger = logging.getLogger("famex")
     original_handlers = logger.handlers[:]
     original_level = logger.level
     original_propagate = logger.propagate
+    original_configured = famex_logging._famex_logging_configured
+    original_famex_level = famex_logging._famex_log_level
 
-    # Clear handlers
     logger.handlers.clear()
+    famex_logging._famex_logging_configured = False
 
     yield logger
 
-    # Restore handlers, level, and propagate (setup_famex_logging sets propagate=False)
     logger.handlers[:] = original_handlers
     logger.level = original_level
     logger.propagate = original_propagate
+    famex_logging._famex_logging_configured = original_configured
+    famex_logging._famex_log_level = original_famex_level

@@ -1,8 +1,8 @@
 # FAMEX Tutorials
 
-Hands-on tutorials for molecular geometry optimization and transition state searches using FAMEX.
+Hands-on tutorials for minima, transition states, and reaction paths.
 
-> **Defaults:** CLI and `Explorer` use `backend="uma"` with checkpoint `uma-s-1p2` and task `omol`. Tutorials below often show `--backend aimnet2` (default checkpoint `aimnet2` → `aimnet2_wb97m_0`) for a minimal `torch`-only install; omit `--backend` when using UMA. Full default-checkpoint table: [User Guide](USER_GUIDE.md#default-models). UMA tasks and fine-tunes: [User Guide](USER_GUIDE.md#uma-task-heads-and-fine-tunes).
+> **Defaults:** CLI/`Explorer` use UMA (`uma-s-1p2`, task `omol`). Examples below often pass `--backend aimnet2` for a torch-only install. Checkpoint table and UMA tasks: [User Guide](USER_GUIDE.md#default-models).
 
 ## Table of Contents
 
@@ -55,7 +55,7 @@ explorer = famex.Explorer.from_smiles("CCO", backend="aimnet2", target="minima",
 result = explorer.run(fmax=0.05, steps=1000)
 ```
 
-The pysmiles embedder covers the periodic table: tabulated Universal Force Field (UFF) types for common main-group atoms, and covalent-radius fallbacks otherwise. It does not encode square-planar versus tetrahedral preference, crystal periodicity, or dative-bond arrows. Treat either embedder's coordinates as a guess and minimize them.
+Embedding only builds a starting guess — always minimize afterward. Limitations and embedder details: [User Guide](USER_GUIDE.md#structure-inputs-file-smiles-pubchem).
 
 ### From PubChem
 

@@ -259,52 +259,40 @@ class FrequencyAnalysis:
         )
 
     def _calculate_hessian_autoselect(self) -> np.ndarray:
-        if self.verbose >= 1:
-            logger.info("Hessian autoselect: choosing optimal method...")
-
         if has_calculator_property(self.calculator, "hessian"):
-            if self.verbose >= 1:
-                logger.info("  Trying analytical Hessian...")
             try:
                 analytical_hessian = self._calculate_direct_hessian()
                 if np.any(np.isnan(analytical_hessian)) or np.any(np.isinf(analytical_hessian)):
                     logger.warning(
-                        "  Analytical Hessian contains NaN/Inf, falling back to finite differences"
+                        "Analytical Hessian contains NaN/Inf, falling back to finite differences"
                     )
                 else:
                     asymmetry = np.max(np.abs(analytical_hessian - analytical_hessian.T))
                     if asymmetry >= 1e-4:
                         logger.warning(
-                            f"  Analytical Hessian has high asymmetry ({asymmetry:.2e}), "
-                            "falling back to finite differences"
+                            "Analytical Hessian has high asymmetry (%.2e), "
+                            "falling back to finite differences",
+                            asymmetry,
                         )
                     else:
-                        if self.verbose >= 1:
-                            logger.info("  ✓ Using analytical Hessian")
+                        logger.info("Using analytical Hessian")
                         self._hessian = analytical_hessian
                         return analytical_hessian
             except (AttributeError, RuntimeError) as e:
-                logger.warning(f"  Analytical Hessian failed: {e}, falling back to FD")
+                logger.warning("Analytical Hessian failed: %s, falling back to FD", e)
 
-        # Estimate force noise
-        if self.verbose >= 1:
-            logger.info("  Estimating force noise...")
         try:
             from famex.analysis.noise_estimation import estimate_force_noise
 
             force_noise = estimate_force_noise(
                 self.atoms, self.calculator, n_samples=5, indices=self.indices
             )
-            if self.verbose >= 1:
-                logger.info(f"  Force noise: {force_noise:.2e} eV/Å")
+            logger.debug("Force noise: %.2e eV/Å", force_noise)
         except (AttributeError, RuntimeError, TypeError, ValueError) as e:
-            logger.warning(f"  Force noise estimation failed: {e}, assuming moderate noise")
-            force_noise = 1e-5  # Default moderate noise
+            logger.warning("Force noise estimation failed: %s, assuming moderate noise", e)
+            force_noise = 1e-5
 
-        # Step 3: Try energy-based FD if force noise is very high
         if force_noise > 1e-4:
-            if self.verbose >= 1:
-                logger.info("  High force noise detected, trying energy-based FD...")
             try:
                 from famex.analysis.hessian_energy import EnergyBasedHessianCalculator
 
@@ -317,34 +305,27 @@ class FrequencyAnalysis:
                 )
                 energy_hessian = energy_calc.calculate_energy_hessian()
                 if np.any(np.isnan(energy_hessian)) or np.any(np.isinf(energy_hessian)):
-                    logger.warning("  Energy-based FD failed: invalid Hessian, falling back")
+                    logger.warning("Energy-based FD failed: invalid Hessian, falling back")
                 else:
-                    if self.verbose >= 1:
-                        logger.info("  ✓ Using energy-based FD Hessian")
+                    logger.info("Using energy-based finite-difference Hessian")
                     self._hessian = energy_hessian
                     return energy_hessian
             except (RuntimeError, ValueError) as e:
-                logger.warning(f"  Energy-based FD failed: {e}, falling back to force-based FD")
-        elif self.verbose >= 1:
-            logger.info("  Force noise acceptable, using force-based FD")
+                logger.warning("Energy-based FD failed: %s, falling back to force-based FD", e)
 
-        if self.verbose >= 1:
-            logger.info("  Using high-quality force-based FD (5-point + Richardson)...")
         hessian_calc = HessianCalculator(
             self.atoms,
             self.calculator,
             self.delta,
-            method="5point",  # Higher order for better accuracy
+            method="5point",
             richardson=True,
             delta2=self.delta / 2.0 if self.delta2 is None else self.delta2,
             indices=self.indices,
             verbose=self.verbose,
-            adaptive_delta=False,  # Fixed delta with Richardson is optimal cost/accuracy
+            adaptive_delta=False,
         )
         self._hessian = hessian_calc.calculate_numerical_hessian()
-
-        if self.verbose >= 1:
-            logger.info("  ✓ Force-based FD Hessian computed")
+        logger.info("Using force-based finite-difference Hessian")
         return self._hessian
 
     def diagonalize_hessian(self) -> tuple[np.ndarray, np.ndarray]:

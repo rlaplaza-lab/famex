@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 from ase.io import read
 from click.testing import CliRunner
 
 import famex
 from famex.cli import main
+from famex.utils.logging import get_famex_log_level
 from tests.test_constants import COMPREHENSIVE_STEPS, DEFAULT_FMAX, LOOSE_FMAX, QUICK_STEPS
 from tests.test_utils import BackendTestRunner, StandardTestAssertions, TestResultHandler
 
@@ -366,13 +369,22 @@ class TestCLIMockBackend:
 
         assert result.exit_code == 0
 
-    def test_verbose_options(self, tmp_path, water_molecule):
+    @pytest.mark.parametrize(
+        ("verbose_flags", "expected_level"),
+        [
+            ([], logging.WARNING),  # default quiet
+            (["-v"], logging.INFO),
+            (["-vv"], logging.DEBUG),
+            (["-vvv"], logging.DEBUG),  # clamped
+        ],
+    )
+    def test_verbose_options(
+        self, tmp_path, water_molecule, clear_famex_logger, verbose_flags, expected_level
+    ):
         runner = CliRunner()
         xyz_path = tmp_path / "test.xyz"
-        atoms = water_molecule.copy()
-        atoms.write(str(xyz_path))
+        water_molecule.copy().write(str(xyz_path))
 
-        # Test -vv (verbose=2)
         result = runner.invoke(
             main,
             [
@@ -384,11 +396,19 @@ class TestCLIMockBackend:
                 "mock",
                 "--steps",
                 "1",
-                "-vv",
+                *verbose_flags,
             ],
         )
 
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.output
+        assert get_famex_log_level() == expected_level
+        assert clear_famex_logger.level == expected_level
+
+    def test_verbose_help_text(self):
+        help_result = CliRunner().invoke(main, ["minima", "--help"])
+        assert help_result.exit_code == 0
+        assert "default quiet" in help_result.output
+        assert "-v=quiet" not in help_result.output
 
     def test_constraints_option(self, tmp_path, water_molecule):
         runner = CliRunner()

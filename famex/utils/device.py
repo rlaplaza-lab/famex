@@ -105,15 +105,15 @@ def print_device_info(device: str) -> None:
                 torch = deps.get("torch")
                 if torch.cuda.is_available():
                     gpu_name = torch.cuda.get_device_name(0)
-                    logger.info(f"🚀 Using CUDA device: {gpu_name}")
+                    logger.info("Using CUDA device: %s", gpu_name)
                 else:
-                    logger.warning("⚠️  CUDA requested but not available, falling back to CPU")
+                    logger.warning("CUDA requested but not available, falling back to CPU")
             else:
-                logger.warning("⚠️  PyTorch not available, using CPU")
+                logger.warning("PyTorch not available, using CPU")
         except ImportError:
-            logger.warning("⚠️  PyTorch not available, using CPU")
+            logger.warning("PyTorch not available, using CPU")
     else:
-        logger.info("💻 Using CPU device")
+        logger.info("Using CPU device")
 
 
 def validate_device(device: str | None) -> str:

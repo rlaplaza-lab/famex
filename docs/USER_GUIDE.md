@@ -80,7 +80,7 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
 | `--optimizer-kw` | `None` | Optimizer kwargs as key=value, repeatable |
 | `--ts-kw` | `None` | TS optimizer kwargs as key=value, repeatable |
 | `--constraints` | `None` | Constraints spec string; e.g., `'fix 0,1; harmonic_bond 2,3 k=5.0; fixinternals_bond 4,5 value=1.25'` |
-| `--verbose`, `-v` | `1` | Verbosity level: -v=quiet, -vv=normal, -vvv=debug |
+| `--verbose`, `-v` | quiet (no flag) | CLI count: no flag = quiet, `-v` = normal, `-vv` or more = debug. Same scale as Python `Explorer(verbose=0|1|2)`. |
 | `--temperature` | `298.15` | `minima` and `ts` only. Temperature in Kelvin for thermodynamic calculations |
 | `--dry-run` | `False` | Validate inputs and show strategy selection without running |
 | `--freq`, `--frequencies` | `False` | `minima` and `ts` only. Perform frequency analysis after optimization (includes thermodynamic properties) |
@@ -311,7 +311,7 @@ The default file is the path from one end to the other. NEB, CI-NEB, and interpo
 
 ### famex cache - Cache Management
 
-Manages the on-disk model cache (primarily AIMNet2 downloads). Calculator instances are cached separately in memory during a session.
+Manages the on-disk model cache (downloaded checkpoints for any backend that uses it). Calculator instances are cached separately in memory for the session.
 
 ```bash
 famex cache info              # Show cache directory, size, and cached models

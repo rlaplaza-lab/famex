@@ -23,12 +23,8 @@ def setup_famex_logging(verbosity: int = 1, force: bool = False) -> None:
     if _famex_logging_configured and not force:
         return
 
-    level_map = {
-        0: logging.WARNING,
-        1: logging.INFO,
-        2: logging.DEBUG,
-    }
-    log_level = level_map.get(verbosity, logging.INFO)
+    # 0=WARNING, 1=INFO; anything higher (incl. CLI -vvv) → DEBUG
+    log_level = {0: logging.WARNING, 1: logging.INFO}.get(verbosity, logging.DEBUG)
     _famex_log_level = log_level
 
     famex_logger = logging.getLogger("famex")
