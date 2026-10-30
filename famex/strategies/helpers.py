@@ -502,11 +502,3 @@ def take_optimization_trajectory(result: dict[str, Any], source: dict[str, Any])
     frames = source.get("optimization_trajectory")
     if isinstance(frames, list) and frames:
         result["optimization_trajectory"] = frames
-
-
-def filter_interpolation_kwargs(
-    kwargs: dict[str, Any], allowed_keys: set[str] | None = None
-) -> dict[str, Any]:
-    if allowed_keys is None:
-        allowed_keys = {"rmsd_threshold", "energy_threshold", "calculator"}
-    return {k: v for k, v in kwargs.items() if k in allowed_keys}

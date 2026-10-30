@@ -9,7 +9,6 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import filter_interpolation_kwargs
 
 
 class PathInterpolateStrategy(BaseStrategy):
@@ -36,14 +35,7 @@ class PathInterpolateStrategy(BaseStrategy):
 
         # Use PathManager to interpolate; do not optimize path
         path_mgr = PathManager(atoms_list)
-        # Filter kwargs to only include parameters accepted by PathManager.interpolate
-        interpolate_kwargs = filter_interpolation_kwargs(kwargs)
-        path = path_mgr.interpolate(
-            npoints=npoints,
-            method=method,
-            explorer=self.explorer,
-            **interpolate_kwargs,
-        )
+        path = path_mgr.interpolate(npoints=npoints, method=method)
 
         # No calculator needed for pure interpolation; do not attach by default.
 

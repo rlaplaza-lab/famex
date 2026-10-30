@@ -87,7 +87,7 @@ def compare_hessian_methods(
 
         try:
             start_time = time.time()
-            hessian = _compute_hessian_method(atoms, calculator, method, delta, indices, verbose)
+            hessian = _compute_hessian_method(atoms, calculator, method, delta, indices)
             elapsed_time = time.time() - start_time
 
             hessians[method] = hessian
@@ -132,7 +132,6 @@ def _compute_hessian_method(
     method: str,
     delta: float,
     indices: list[int] | None,
-    verbose: int,
 ) -> np.ndarray:
     """Compute Hessian using specified method."""
     from famex.analysis.frequency import FrequencyAnalysis

@@ -468,18 +468,16 @@ class FrequencyAnalysis:
             "n_near_zero_frequencies": n_near_zero,
             "all_frequencies": frequencies.tolist(),  # Note: vibrational frequencies (trans/rot removed)
             "threshold": threshold,
-            "assessment": self._assess_stationary_point(n_imaginary, n_near_zero, threshold),
+            "assessment": self._assess_stationary_point(n_imaginary),
         }
 
-    def _assess_stationary_point(self, n_imaginary: int, n_near_zero: int, threshold: float) -> str:
+    def _assess_stationary_point(self, n_imaginary: int) -> str:
         """Assess type of stationary point based on frequency analysis."""
         if n_imaginary == 0:
             return "Minimum (no imaginary frequencies)"
         if n_imaginary == 1:
             return "First-order transition state (one imaginary frequency)"
-        if n_imaginary > 1:
-            return f"Higher-order saddle point ({n_imaginary} imaginary frequencies)"
-        return "Undetermined stationary point type"
+        return f"Higher-order saddle point ({n_imaginary} imaginary frequencies)"
 
     def is_minima(
         self,
@@ -542,9 +540,6 @@ class FrequencyAnalysis:
             "assessment": self._assess_stationary_point_minima(
                 n_significant_imaginary,
                 n_small_negative,
-                n_near_zero,
-                threshold,
-                small_negative_cutoff,
             ),
         }
 
@@ -552,9 +547,6 @@ class FrequencyAnalysis:
         self,
         n_significant_imaginary: int,
         n_small_negative: int,
-        n_near_zero: int,
-        threshold: float,
-        small_negative_cutoff: float,
     ) -> str:
         """Assess type of stationary point for minima validation."""
         if n_significant_imaginary == 0:
@@ -566,12 +558,10 @@ class FrequencyAnalysis:
             return "Minimum (no imaginary frequencies)"
         if n_significant_imaginary == 1:
             return "First-order transition state (one significant imaginary frequency)"
-        if n_significant_imaginary > 1:
-            return (
-                f"Higher-order saddle point "
-                f"({n_significant_imaginary} significant imaginary frequencies)"
-            )
-        return "Undetermined stationary point type"
+        return (
+            f"Higher-order saddle point "
+            f"({n_significant_imaginary} significant imaginary frequencies)"
+        )
 
     def get_zero_point_energy(self) -> float:
         """Calculate zero-point vibrational energy.

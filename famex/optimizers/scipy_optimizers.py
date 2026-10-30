@@ -348,7 +348,7 @@ class SciPyHessianOptimizer(Optimizer):
             raise RuntimeError("Hessian is None after update logic")
         return self.hessian
 
-    def _run_ts_search(self, fmax: float, steps: int) -> bool:
+    def _run_ts_search(self) -> bool:
         """Run transition-state search with Hessian usage aligned to the SciPy method."""
         x = self._positions_to_x()
         self._previous_energy = float(self.atoms.get_potential_energy())
@@ -451,7 +451,7 @@ class SciPyHessianOptimizer(Optimizer):
             self.nsteps += 1
 
         if self.ts_search:
-            return self._run_ts_search(fmax, steps)
+            return self._run_ts_search()
 
         if self.verbose >= 2:
             logger.info("Starting %s optimization", self.method)

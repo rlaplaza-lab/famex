@@ -35,7 +35,6 @@ def can_use_ase(
     method: str,
     richardson: bool,
     adaptive_delta: bool,
-    n_workers: int | None,
 ) -> bool:
     """Check if ASE can handle this Hessian calculation case.
 
@@ -47,7 +46,6 @@ def can_use_ase(
     - 5-point or 7-point schemes
     - Richardson extrapolation
     - Adaptive delta selection
-    - Parallelization (though ASE has its own parallel support)
 
     Parameters
     ----------
@@ -57,8 +55,6 @@ def can_use_ase(
         Whether Richardson extrapolation is requested
     adaptive_delta : bool
         Whether adaptive delta selection is requested
-    n_workers : int | None
-        Number of parallel workers (not used by ASE directly)
 
     Returns
     -------
@@ -72,10 +68,6 @@ def can_use_ase(
     # ASE doesn't support Richardson extrapolation
     if richardson:
         return False
-
-    # ASE doesn't support adaptive delta
-    # Note: n_workers is ignored - ASE has its own parallelization
-    # but we don't use it here since FAMEX doesn't leverage GPU parallelization
 
     return not adaptive_delta
 

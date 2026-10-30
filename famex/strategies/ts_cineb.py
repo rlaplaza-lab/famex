@@ -10,7 +10,6 @@ from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
 from famex.strategies.helpers import (
-    filter_interpolation_kwargs,
     take_optimization_trajectory,
     validate_ts_structure,
 )
@@ -54,13 +53,7 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
         band_fmax = 0.10 if path_fmax is None else float(path_fmax)
 
         path_mgr = PathManager(atoms_list)
-        interpolate_kwargs = filter_interpolation_kwargs(kwargs, allowed_keys={"calculator"})
-        path = path_mgr.interpolate(
-            npoints=npoints,
-            method=method,
-            explorer=self.explorer,
-            **interpolate_kwargs,
-        )
+        path = path_mgr.interpolate(npoints=npoints, method=method)
 
         if len(path) < 3:
             msg = "CI-NEB requires at least 3 images (npoints >= 3)"

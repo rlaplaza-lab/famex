@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import os
-import tempfile
 import warnings
 
 import numpy as np
 import pytest
 from ase import Atoms
 from ase.build import molecule
-from ase.io import write
 
-from tests.test_constants import DEFAULT_FMAX, HARMONIC_TOL
+from tests.test_constants import HARMONIC_TOL
 
 
 class TestMoleculeFactory:
@@ -56,21 +53,6 @@ class TestMoleculeFactory:
         return molecule("C6H6")
 
     @staticmethod
-    def get_ethylene_twisted_ts_guess():
-        """Ethylene twisted TS guess (90-degree rotation around C=C bond)."""
-        return Atoms(
-            ["C", "C", "H", "H", "H", "H"],
-            positions=[
-                [0.0, 0.0, 0.0],  # C
-                [1.34, 0.0, 0.0],  # C (C=C bond)
-                [-0.7, 0.0, 1.0],  # H (twisted up)
-                [-0.7, 0.0, -1.0],  # H (twisted down)
-                [2.04, 0.0, 1.0],  # H (twisted up)
-                [2.04, 0.0, -1.0],  # H (twisted down)
-            ],
-        )
-
-    @staticmethod
     def get_water_dissociation_ts_guess():
         """Water dissociation TS guess (H2O -> H + OH)."""
         return Atoms(
@@ -79,21 +61,6 @@ class TestMoleculeFactory:
                 [0.0, 0.0, 0.0],  # O
                 [2.5, 0.0, 0.0],  # H (dissociating, far)
                 [-0.5, 0.8, 0.0],  # H (staying)
-            ],
-        )
-
-    @staticmethod
-    def get_sn2_like_ts_guess():
-        """Return simple SN2-like transition state guess (F- + CH3Cl -> FCH3 + Cl-)."""
-        return Atoms(
-            "CH3FCl",
-            positions=[
-                [0.0, 0.0, 0.0],  # C (center)
-                [-2.0, 0.0, 0.0],  # F (approaching nucleophile)
-                [2.0, 0.0, 0.0],  # Cl (leaving group)
-                [0.0, 1.1, 0.0],  # H
-                [0.0, -0.5, 1.0],  # H
-                [0.0, -0.5, -1.0],  # H
             ],
         )
 
@@ -124,23 +91,6 @@ class TestMoleculeFactory:
         rng = np.random.RandomState(seed)
         atoms.positions += rng.normal(0, magnitude, atoms.positions.shape)
         return atoms
-
-
-class TestFileManager:
-    @staticmethod
-    def create_temp_xyz(atoms, filename="test.xyz"):
-        """Create a temporary XYZ file and return (filepath, tempdir)."""
-        tempdir = tempfile.mkdtemp()
-        filepath = os.path.join(tempdir, filename)
-        write(filepath, atoms)
-        return filepath, tempdir
-
-    @staticmethod
-    def cleanup_temp_dir(tempdir):
-        """Clean up temporary directory."""
-        import shutil
-
-        shutil.rmtree(tempdir, ignore_errors=True)
 
 
 def get_available_backends(include_mock=False):
@@ -187,12 +137,6 @@ class TestResultHandler:
         """Normalize optimization result to standard dictionary format."""
         # Handle list return format from run() method
         return result[0] if isinstance(result, list) and len(result) > 0 else result
-
-    @staticmethod
-    def extract_atoms(result):
-        """Extract Atoms object from optimization result."""
-        normalized_result = TestResultHandler.normalize_result(result)
-        return normalized_result["optimized_atoms"]
 
     @staticmethod
     def process_result(result, backend):
@@ -391,26 +335,6 @@ class StandardTestAssertions:
         assert not np.any(np.isnan(frequencies)), "Frequencies should not contain NaN"
         assert not np.any(np.isinf(frequencies)), "Frequencies should not contain infinity"
 
-    @staticmethod
-    def assert_convergence_quality(atoms, fmax=DEFAULT_FMAX):
-        """Assert that optimization converged with reasonable quality.
-
-        Args:
-            atoms: Optimized atoms object
-            fmax: Maximum force threshold for convergence
-        """
-        from ase import Atoms
-
-        assert isinstance(atoms, Atoms), "Input should be Atoms object"
-
-        forces = atoms.get_forces()
-        max_force = abs(forces).max()
-
-        # Check that forces are below threshold
-        assert max_force <= fmax * 1.1, (
-            f"Max force {max_force:.6f} exceeds threshold {fmax:.6f} eV/Å"
-        )
-
 
 def assert_error_contains(error, text):
     """Assert that error message contains expected text.
@@ -446,15 +370,6 @@ def test_molecules():
 def available_backends():
     """Provide list of available backends."""
     return BackendTestMixin.get_available_backends()
-
-
-@pytest.fixture
-def temp_xyz_file():
-    """Provide a temporary XYZ file for testing."""
-    atoms = TestMoleculeFactory.get_water_distorted()
-    filepath, tempdir = TestFileManager.create_temp_xyz(atoms)
-    yield filepath
-    TestFileManager.cleanup_temp_dir(tempdir)
 
 
 class BackendTestWarning(UserWarning):
@@ -591,91 +506,6 @@ def requires_backend(backend_name):
     )
 
 
-@pytest.fixture
-def backend_test_fixture():
-    """Fixture providing backend testing utilities and common patterns.
-
-    This fixture provides a namespace with:
-    - get_backends(): Get available backends
-    - require_backend(backend): Skip if backend unavailable
-    - run_with_all_backends(func): Run function with all backends
-
-    Example:
-        def test_something(backend_test_fixture):
-            backends = backend_test_fixture.get_backends()
-            for backend in backends:
-                # test code
-    """
-
-    class BackendTestFixture:
-        def __init__(self):
-            self._available_backends = get_available_backends(include_mock=False)
-
-        def get_backends(self, include_mock=False):
-            """Get list of available backends."""
-            return get_available_backends(include_mock=include_mock)
-
-        def require_backend(self, backend):
-            """Skip test if backend is not available."""
-            if not check_backend_availability(backend):
-                pytest.skip(f"Backend {backend} not available")
-
-        def run_with_all_backends(self, test_func, include_mock=False, **kwargs):
-            """Run test function with all available backends."""
-            return BackendTestRunner.run_with_warnings(
-                test_func, backends=None, include_mock=include_mock, **kwargs
-            )
-
-    return BackendTestFixture()
-
-
-def create_backend_test_atoms(backend):
-    """Create appropriate test atoms for a given backend.
-
-    Some backends have limitations on supported elements or system sizes.
-    This helper selects appropriate test molecules.
-
-    Args:
-        backend: Backend name
-
-    Returns
-    -------
-    Atoms
-        Atoms object suitable for testing with the backend.
-
-    """
-    # Most backends support small molecules
-    return TestMoleculeFactory.get_water_distorted()
-
-
-def setup_atoms_with_calculator(atoms, calculator):
-    """Set up atoms with a calculator (common test pattern).
-
-    This reduces repetition of the pattern:
-        atoms = molecule.copy()
-        atoms.calc = calculator
-
-    Args:
-        atoms: Atoms object (will be copied)
-        calculator: Calculator to attach
-
-    Returns
-    -------
-    Atoms
-        Copy of atoms with calculator attached.
-
-    Examples
-    --------
-        atoms = setup_atoms_with_calculator(h2o_molecule, mock_backend)
-        # Equivalent to:
-        # atoms = h2o_molecule.copy()
-        # atoms.calc = mock_backend
-    """
-    atoms_copy = atoms.copy()
-    atoms_copy.calc = calculator
-    return atoms_copy
-
-
 def assert_backend_calculator(calculator, backend="mock"):
     """Assert that a calculator has the expected interface.
 
@@ -716,9 +546,8 @@ def handle_backend_errors(
 
     Example:
         @handle_backend_errors()
-        def test_something(any_real_backend_explorer, water_molecule):
-            explorer = any_real_backend_explorer(water_molecule)
-            result = strategy.run(...)
+        def test_something(water_molecule):
+            result = strategy.run(water_molecule)
             assert result is not None
     """
     import functools

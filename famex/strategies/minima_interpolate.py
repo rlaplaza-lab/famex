@@ -11,7 +11,6 @@ from famex.analysis.thermodynamics import read_free_energy_correction
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import filter_interpolation_kwargs
 from famex.strategies.minima import LocalMinimaStrategy
 
 
@@ -66,14 +65,7 @@ class MultiStructureMinimaInterpolateStrategy(BaseStrategy):
 
         # Use PathManager to interpolate initial path
         path_mgr = PathManager(atoms_list)
-        # Filter kwargs to only include parameters accepted by PathManager.interpolate
-        interpolate_kwargs = filter_interpolation_kwargs(kwargs)
-        initial_path = path_mgr.interpolate(
-            npoints=npoints,
-            method=method,
-            explorer=self.explorer,
-            **interpolate_kwargs,
-        )
+        initial_path = path_mgr.interpolate(npoints=npoints, method=method)
 
         # Now optimize each structure in the path to minima
         local_minima_strategy = LocalMinimaStrategy(explorer=self.explorer, profiler=self.profiler)

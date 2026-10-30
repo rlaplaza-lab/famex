@@ -89,8 +89,6 @@ class PathManager:
         self,
         npoints: int = 10,
         method: str = "linear",
-        calculator: Any | None = None,
-        explorer: Any | None = None,
     ) -> list[Geometry]:
         if npoints < 2:
             msg = "Need at least 2 points for interpolation"

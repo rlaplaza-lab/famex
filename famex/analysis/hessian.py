@@ -416,7 +416,6 @@ class HessianCalculator:
             method=method_str,
             richardson=self.richardson,
             adaptive_delta=self.adaptive_delta,
-            n_workers=self.n_workers,
         ):
             # Only use ASE for central differences (ASE doesn't support forward well)
             if method_str == "central":

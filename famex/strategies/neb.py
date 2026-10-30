@@ -10,7 +10,6 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import filter_interpolation_kwargs
 from famex.strategies.neb_optimizer import NEBOptimizer
 from famex.utils.logging import get_famex_logger
 
@@ -87,25 +86,7 @@ class MultiStructureNEBStrategy(BaseStrategy):
         method_name = "CI-NEB" if climb else "NEB"
 
         path_mgr = PathManager(atoms_list)
-        interpolate_kwargs = filter_interpolation_kwargs(kwargs, allowed_keys={"calculator"})
-        path = path_mgr.interpolate(
-            npoints=npoints,
-            method=method,
-            explorer=self.explorer,
-            **interpolate_kwargs,
-        )
-
-        if path and hasattr(path[0], "__iter__") and not isinstance(path[0], Atoms):
-            try:  # type: ignore[unreachable]
-                flat = []
-                for seg in path:
-                    if isinstance(seg, (list, tuple)):  # noqa: UP038
-                        flat.extend(seg)
-                    else:
-                        flat.append(seg)
-                path = flat
-            except (TypeError, AttributeError):
-                pass
+        path = path_mgr.interpolate(npoints=npoints, method=method)
 
         if len(path) < 3:
             logger.error(

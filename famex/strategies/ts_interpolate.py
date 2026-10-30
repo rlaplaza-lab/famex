@@ -10,7 +10,6 @@ from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
 from famex.strategies.helpers import (
-    filter_interpolation_kwargs,
     take_optimization_trajectory,
     validate_ts_structure,
 )
@@ -74,14 +73,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
 
         # Generate interpolated path using PathManager
         path_mgr = PathManager(atoms_list)
-        # Filter kwargs to only include parameters accepted by PathManager.interpolate
-        interpolate_kwargs = filter_interpolation_kwargs(kwargs, allowed_keys={"calculator"})
-        path = path_mgr.interpolate(
-            npoints=npoints,
-            method=method,
-            explorer=self.explorer,
-            **interpolate_kwargs,
-        )
+        path = path_mgr.interpolate(npoints=npoints, method=method)
 
         # Attach calculators to all images
         if self.explorer is not None:

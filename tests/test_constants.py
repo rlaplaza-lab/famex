@@ -19,9 +19,6 @@ TIGHT_DELTA = 0.001
 # Loose delta for quick tests or noisy systems
 LOOSE_DELTA = 0.02
 
-# Very tight delta for analytical comparisons
-VERY_TIGHT_DELTA = 0.0001
-
 # ============================================================================
 # Convergence Thresholds
 # ============================================================================
@@ -51,9 +48,6 @@ MODERATE_TOL = (0.001, 0.01)
 # Loose tolerances for noisy systems or quick tests
 LOOSE_TOL = (0.05, 2.0)
 
-# Very tight tolerances for exact methods
-VERY_TIGHT_TOL = (1e-10, 1e-10)
-
 # Extra tight tolerances for Richardson extrapolation comparisons
 EXTRA_TIGHT_TOL = (1e-8, 1e-8)
 
@@ -75,21 +69,6 @@ COMPREHENSIVE_STEPS = 50
 
 # Long-running tests
 LONG_STEPS = 200
-
-# ============================================================================
-# Test Molecule Names (for reference)
-# ============================================================================
-
-# Standard test molecules available via TestMoleculeFactory
-MOLECULE_H2_STRETCHED = "h2_stretched"
-MOLECULE_H2_EQUILIBRIUM = "h2_equilibrium"
-MOLECULE_WATER_DISTORTED = "water_distorted"
-MOLECULE_WATER_EQUILIBRIUM = "h2o_equilibrium"
-MOLECULE_METHANE_DISTORTED = "methane_distorted"
-MOLECULE_BENZENE = "benzene"
-MOLECULE_WATER_DISSOCIATION_TS = "water_dissociation_ts_guess"
-MOLECULE_ETHYLENE_TWISTED_TS = "ethylene_twisted_ts_guess"
-MOLECULE_SN2_LIKE_TS = "sn2_like_ts_guess"
 
 # ============================================================================
 # Backend-Specific Tolerances
@@ -124,9 +103,6 @@ INTERP_ITERATIVE_TOL = 1e-3
 # ============================================================================
 # Frequency Comparison Tolerances
 # ============================================================================
-
-# Mode matching tolerance (cm^-1)
-FREQUENCY_MODE_TOL = 5.0
 
 # Frequency comparison tolerance
 FREQUENCY_COMPARE_TOL = (0.01, 5.0)  # rtol, atol in cm^-1
