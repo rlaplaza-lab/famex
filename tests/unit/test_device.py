@@ -200,7 +200,7 @@ class TestDeviceUtilities:
     def test_print_device_info_cpu(self, mock_deps, mock_logger):
         print_device_info("cpu")
 
-        mock_logger.info.assert_called_with("💻 Using CPU device")
+        mock_logger.info.assert_called_with("Using CPU device")
 
     @patch("famex.utils.device.logger")
     @patch("famex.backends.dependencies.deps")
