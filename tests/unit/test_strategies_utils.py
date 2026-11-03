@@ -235,31 +235,3 @@ class TestStrategyUtils:
 
         assert len(energies) == 2
         assert len(forces_list) == 2
-
-    def test_check_convergence_true(self):
-        """Test check_convergence when converged."""
-        forces_list = [
-            np.array([[0.01, 0.0, 0.0], [0.01, 0.0, 0.0]]),
-            np.array([[0.02, 0.0, 0.0], [0.02, 0.0, 0.0]]),
-        ]
-        from tests.test_constants import DEFAULT_FMAX
-
-        fmax = DEFAULT_FMAX
-
-        result = StrategyUtils.check_convergence(forces_list, fmax, step=0)
-
-        assert result is True
-
-    def test_check_convergence_false(self):
-        """Test check_convergence when not converged."""
-        from tests.test_constants import DEFAULT_FMAX
-
-        forces_list = [
-            np.array([[0.1, 0.0, 0.0], [0.1, 0.0, 0.0]]),
-            np.array([[0.2, 0.0, 0.0], [0.2, 0.0, 0.0]]),
-        ]
-        fmax = DEFAULT_FMAX
-
-        result = StrategyUtils.check_convergence(forces_list, fmax, step=0)
-
-        assert result is False

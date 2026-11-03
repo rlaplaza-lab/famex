@@ -1,8 +1,8 @@
 # FAMEX: Fast Mechanistic Explorer
 
-**FAMEX** provides a unified interface for molecular geometry optimization using machine learning potentials. It supports minima optimization, transition state searches, and reaction path calculations through both a command-line interface and Python API.
+**FAMEX** is a command-line and Python API for molecular geometry optimization with machine learning potentials. It supports minima optimization, transition state searches, and reaction path calculations.
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI](https://img.shields.io/pypi/v/famex.svg)](https://pypi.org/project/famex/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -16,19 +16,30 @@ pip install famex
 git clone https://github.com/rlaplaza-lab/famex.git && cd famex && pip install -e .
 ```
 
-Install a backend separately:
+Install a machine learning backend separately (primary use case). When `--model-name` is omitted, each backend keyword loads the checkpoint below:
 
-| Backend | Installation | Notes |
-|---------|--------------|-------|
-| `aimnet2` | `pip install torch` | Recommended for beginners, no conflicts |
-| `uma` | `pip install "fairchem-core>=2.21.0"` or `pip install famex[uma]` | Materials science (default model: uma-s-1p2) |
-| `mace` | `pip install mace-torch` | High accuracy, conflicts with UMA |
-| `orb` | `pip install orb-models` | Universal forcefield |
-| `so3lr` | `pip install so3lr` | Research, custom models |
-| `tblite` | `pip install tblite` | Fast semi-empirical |
-| `pet` | `pip install upet` or `pip install famex[pet]` | Universal PET-MAD potential (Python 3.11+) |
+| Backend | Installation | Default checkpoint | Notes |
+|---------|--------------|--------------------|-------|
+| `aimnet2` | `pip install torch` | `aimnet2` → `aimnet2_wb97m_0` | Simplest install; no dependency conflicts; analytical Hessian |
+| `uma` | `pip install "fairchem-core>=2.25.0"` or `pip install famex[uma]` | `uma-s-1p2` | Default CLI/`Explorer` backend (task `omol`); analytical Hessian; see [UMA tasks](docs/USER_GUIDE.md#uma-task-heads-and-fine-tunes) |
+| `mace` | `pip install mace-torch` | `mace-omol-0` | Conflicts with UMA; analytical Hessian |
+| `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | `orb-v3-conservative-omol` | Also `orbmol-v2`; Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
+| `so3lr` | `pip install so3lr` | `so3lr-small` | Custom models; analytical Hessian via JAX |
+| `pet` | `pip install upet` or `pip install famex[pet]` | `pet-mad-s` | PET-MAD potential (Python 3.11+); analytical Hessian |
 
-> **Note**: Python 3.10+ required. MACE and UMA conflict - use separate environments.
+Optional classical quantum chemistry (same CLI; slower): `tblite` (`pip install tblite`, default method `GFN2-xTB`, finite-difference Hessians) and `pyscf` (`pip install famex[pyscf]`, default `b3lyp-d3bj/def2-svp`, analytical Hessian).
+
+SMILES and PubChem are optional structure inputs (not separate CLI modes). Install an embedder and pass SMILES or `pubchem:NAME` / `cid:` / a numeric CID to `minima`, `ts`, or `path`:
+
+```bash
+pip install famex[smiles]   # UFF distance geometry (default --embedder)
+pip install famex[rdkit]    # RDKit ETKDGv3
+famex minima --strategy local "CCO" --backend aimnet2
+famex minima --strategy local "CCO" --embedder rdkit --backend aimnet2
+famex minima --strategy local pubchem:aspirin --backend aimnet2
+```
+
+> **Note**: Python 3.11+ required. MACE and UMA conflict - use separate environments.
 
 ### Your First Optimization
 
@@ -61,13 +72,15 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 
 ## Key Features
 
-- Multiple ML backends (UMA, AIMNet2, MACE, SO3LR, Orb, TBLite, PET)
-- GPU acceleration with CUDA support
-- Semantic target/strategy interface (minima, ts, path)
-- Advanced methods (NEB, CI-NEB, IRC, growing string)
-- Frequency analysis and thermodynamics
+- Multiple machine learning backends (UMA, AIMNet2, MACE, SO3LR, Orb, PET); optional xTB/DFT via TBLite/PySCF
+- GPU acceleration with CUDA
+- Target/strategy commands (`minima`, `ts`, `path`)
+- Transition-state strategies: local, interpolate, CI-NEB, DHS, growing string
+- Path strategies: NEB, CI-NEB, IRC, interpolate
+- Frequency analysis, thermodynamics, and vibrational-mode XYZ animations
 - Command-line and Python API
-- Supports XYZ, CIF, PDB via ASE
+- Geometry files via the Atomic Simulation Environment (ASE): XYZ, CIF, PDB, and others
+- SMILES / PubChem as structure inputs (`pip install famex[smiles]` or `famex[rdkit]`; use `pubchem:NAME`, `cid:`, or a numeric CID)
 
 ## Documentation
 

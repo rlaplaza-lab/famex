@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from famex.analysis.hessian_comparison import (
     HessianComparisonReport,
@@ -120,19 +119,15 @@ class TestQualityMetrics:
         assert metrics["rms_value"] > 0
 
     def test_nan_inf_detection(self):
-        """Test NaN/Inf detection - function raises error before detection."""
+        """Test NaN/Inf are reported without raising."""
         hessian = np.eye(9)
         hessian[0, 0] = np.nan
         hessian[1, 1] = np.inf
 
-        # The function computes operations that generate warnings before checking NaN/Inf,
-        # then raises LinAlgError. This is expected behavior - the function doesn't
-        # handle NaN/Inf gracefully. Suppress the expected RuntimeWarning.
-        with (
-            pytest.warns(RuntimeWarning, match="invalid value"),
-            pytest.raises(np.linalg.LinAlgError, match="Array must not contain infs or NaNs"),
-        ):
-            _compute_quality_metrics(hessian)
+        metrics = _compute_quality_metrics(hessian)
+        assert metrics["has_nan"]
+        assert metrics["has_inf"]
+        assert metrics["condition_number"] == float("inf")
 
     def test_condition_number(self):
         """Test condition number calculation."""

@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "famex"
-version = "0.2.2"
-description = "Fast mechanistic explorer using machine learning potentials with Sella optimizer"
+version = "0.3.1"
+description = "Fast mechanistic explorer using machine learning potentials"
 readme = "README.md"
-requires-python = ">=3.10"
-# Note: Python 3.10+ required for all backends
+requires-python = ">=3.11"
+# Note: Python 3.11+ required. libmolsymm wheels start at 3.11.
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -18,7 +18,6 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Chemistry",
@@ -29,13 +28,19 @@ dependencies = [
     "click>=8.0.0",
     "requests>=2.25.0",
     "sella>=2.0.0",
+    "libmolsymm>=1.0.0",
 ]
 
 [project.optional-dependencies]
 # Development dependencies only
 # ML backends must be installed separately - see README for details
-uma = ["fairchem-core>=2.21.0"]
+uma = ["fairchem-core>=2.25.0"]
 pet = ["upet"]
+smiles = ["pysmiles>=1.1.0"]
+rdkit = ["rdkit>=2023.9.1"]
+# orb-models 0.7.0 adds OrbMol-v2 and requires Python 3.12+.
+orb = ["orb-models>=0.7.0"]
+pyscf = ["pyscf>=2.4.0", "pyscf-dispersion"]
 docs = [
     "sphinx>=7.0",
     "myst-parser>=2.0",
@@ -50,6 +55,7 @@ dev = [
     "types-requests>=2.25.0",
     "types-tqdm>=4.66.0",
     "types-psutil>=5.9.0",
+    "pysmiles>=1.1.0",
 ]
 
 [project.scripts]
@@ -65,7 +71,7 @@ Issues = "https://github.com/rlaplaza-lab/famex/issues"
 include = ["famex*"]
 
 [tool.setuptools.package-data]
-famex = ["*.yml", "*.yaml", "*.json"]
+famex = ["*.yml", "*.yaml", "*.json", "embed/*.json"]
 
 [tool.isort]
 profile = "black"
@@ -97,6 +103,7 @@ omit = [
     "*/potentials/orb_potential.py",
     "*/potentials/so3lr_potential.py",
     "*/potentials/tblite_potential.py",
+    "*/potentials/pyscf_potential.py",
     "*/potentials/uma_potential.py",
 ]
 branch = true
@@ -123,7 +130,7 @@ fail_under = 70
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 exclude = [
     ".git",
     "__pycache__",
@@ -170,7 +177,9 @@ ignore = [
 convention = "numpy"  # Standardize on NumPy-style docstrings
 
 [tool.mypy]
-python_version = "3.10"
+# Match the CI lint runtime (Python 3.12). NumPy >=2.3 stubs use PEP 695 `type`
+# aliases that mypy only accepts when python_version >= 3.12.
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -195,9 +204,6 @@ exclude = [
     "examples/",
 ]
 
-# Type checking runs on Python 3.12 (see lint job in CI and pre-commit hook).
-# Mypy is configured for python_version = "3.10" syntax but executed with 3.12+ runtime.
-
 # Ignore missing imports for external libraries without stubs
 [[tool.mypy.overrides]]
 module = [
@@ -208,8 +214,16 @@ module = [
     "mace.*",
     "sella.*",
     "tblite.*",
+    "pyscf",
+    "pyscf.*",
+    "molsymm",
     "torch_cluster.*",
     "upet.*",
+    "pysmiles",
+    "rdkit",
+    "rdkit.*",
+    "metatomic.*",
+    "metatomic_ase.*",
     "tqdm.*",
     "torch.*",
     "scipy.*",

@@ -9,11 +9,11 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import filter_interpolation_kwargs, validate_ts_structure
+from famex.strategies.helpers import (
+    take_optimization_trajectory,
+    validate_ts_structure,
+)
 from famex.strategies.ts import LocalTSStrategy
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
 
 
 class MultiStructureTSGuessStrategy(BaseStrategy):
@@ -32,7 +32,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         self,
         atoms_list: list[Atoms],
         npoints: int = 11,
-        method: str = "geodesic",
+        method: str = "idpp",
         fmax: float = 0.05,
         steps: int = 1000,
         validate_ts: bool = False,
@@ -47,7 +47,7 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
             List of structures defining the path endpoints
         npoints : int, default=11
             Number of images in the interpolated path
-        method : str, default="geodesic"
+        method : str, default="idpp"
             Interpolation method for initial path generation
         fmax : float, default=0.05
             Force convergence threshold
@@ -69,18 +69,11 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         self.validate_inputs(atoms_list)
 
         local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
+        record_history = bool(kwargs.get("record_history", False))
 
         # Generate interpolated path using PathManager
         path_mgr = PathManager(atoms_list)
-        # Filter kwargs to only include parameters accepted by PathManager.interpolate
-        interpolate_kwargs = filter_interpolation_kwargs(kwargs, allowed_keys={"calculator"})
-        path = path_mgr.interpolate(
-            npoints=npoints,
-            method=method,
-            optimize_path=False,  # Raw interpolation
-            explorer=self.explorer,
-            **interpolate_kwargs,
-        )
+        path = path_mgr.interpolate(npoints=npoints, method=method)
 
         # Attach calculators to all images
         if self.explorer is not None:
@@ -141,6 +134,9 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
             result["frequency_analysis"] = ts_result["frequency_analysis"]
             result["is_ts"] = ts_result.get("is_ts")
             result["free_energy_correction"] = ts_result.get("free_energy_correction")
+        if record_history:
+            result["search_path"] = [image.copy() for image in path]
+            take_optimization_trajectory(result, ts_result)
         return result
 
 

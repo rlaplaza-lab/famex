@@ -85,6 +85,20 @@ class MockCalculator(Calculator):
         self.lj_cutoff = float(kwargs.get("lj_cutoff", LJ_CUTOFF))
         self.use_nonbonded = kwargs.get("use_nonbonded", True)
 
+    def copy(self) -> MockCalculator:
+        """Return an independent calculator with the same physics parameters."""
+        return MockCalculator(
+            backend=self.backend,
+            force_constant=self.force_constant,
+            charge=self.charge,
+            mult=self.mult,
+            k_angle=self.k_angle,
+            epsilon=self.epsilon,
+            sigma=self.sigma,
+            lj_cutoff=self.lj_cutoff,
+            use_nonbonded=self.use_nonbonded,
+        )
+
     def _lennard_jones_energy_force(
         self,
         dist: float,
@@ -209,16 +223,8 @@ class MockCalculator(Calculator):
         k = float(self.force_constant)
         k_angle = float(self.k_angle)
 
-        # If no bonds found, fall back to weak positional springs to preserve shape
+        # If no bonds found, use non-bonded interactions only
         if not pairs:
-            # positional springs to initial positions (no centering)
-            ref = positions.copy()
-            for i in range(natoms):
-                disp = positions[i] - ref[i]
-                energy += 0.5 * k * np.dot(disp, disp)
-                forces[i] -= k * disp
-
-            # Add non-bonded interactions even when no bonds are found
             if self.use_nonbonded:
                 for i in range(natoms):
                     for j in range(i + 1, natoms):
@@ -344,9 +350,6 @@ class MockCalculator(Calculator):
                             fij = lj_force_mag * (rij / dist)
                             forces[i] += fij
                             forces[j] -= fij
-
-        # Remove any net translational force (prevents global drift in tests)
-        forces = forces - np.mean(forces, axis=0)
 
         self.results = {"energy": float(energy), "forces": forces}
         return

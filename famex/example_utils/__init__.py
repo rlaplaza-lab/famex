@@ -8,6 +8,7 @@ functionality across all FAMEX examples to ensure consistency.
 import argparse
 import contextlib
 import functools
+import gc
 import json
 import os
 import time
@@ -20,6 +21,7 @@ from ase.io import write as ase_write
 
 # Import FAMEX components
 from famex.backends.availability import is_backend_available
+from famex.backends.cache import get_unified_cache
 from famex.backends.constants import DEFAULT_UMA_MODEL
 from famex.backends.registry import calculator_registry
 
@@ -28,6 +30,21 @@ from famex.utils.device import get_optimal_device, print_device_info
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
+
+
+def release_cuda_memory() -> None:
+    """Drop cached calculators and return free blocks to the CUDA allocator."""
+    get_unified_cache().calculator_cache.clear()
+    gc.collect()
+    try:
+        import torch
+    except ImportError:
+        return
+    if not torch.cuda.is_available():
+        return
+    if hasattr(torch, "_dynamo"):
+        torch._dynamo.reset()
+    torch.cuda.empty_cache()
 
 
 class FAMEXExampleInterface:
@@ -106,7 +123,7 @@ class FAMEXExampleInterface:
 
     def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
         """Print standardized backend summary."""
-        logger.info("\n📋 %s", title)
+        logger.info("\n%s", title)
         logger.info("-" * 50)
         for i, backend in enumerate(backends, 1):
             logger.info("  %d. %s", i, backend)
@@ -121,16 +138,16 @@ class FAMEXExampleInterface:
     def print_success(self, message: str = "Completed successfully!") -> None:
         """Print standardized success message."""
         elapsed = time.time() - self.start_time
-        logger.info("\n✅ %s", message)
-        logger.info("⏱️  Total time: %.1f seconds", elapsed)
+        logger.info("\n%s", message)
+        logger.info("Total time: %.1f seconds", elapsed)
 
     def print_error(self, message: str) -> None:
         """Print standardized error message."""
-        logger.error("\n❌ %s", message)
+        logger.error("\n%s", message)
 
     def print_warning(self, message: str) -> None:
         """Print standardized warning message."""
-        logger.warning("\n⚠️  %s", message)
+        logger.warning("\n%s", message)
 
     def save_results(
         self,
@@ -203,72 +220,16 @@ class FAMEXExampleInterface:
         )
 
 
-def create_standard_epilog(example_type: str) -> str:
-    """Create standardized epilog for different example types."""
-    epilogs = {
-        "demo": """
-Examples:
-  # Run with all available backends
-  python cli_demo.py
-
-  # Run with specific backends
-  python cli_demo.py --backends uma,aimnet2
-
-  # Run with verbose output
-  python cli_demo.py --verbose 2
-        """,
-        "timing": """
-Examples:
-  # Run with all available backends
-  python timing_benchmark.py
-
-  # Run with specific backends
-  python timing_benchmark.py --backends uma,aimnet2
-
-  # Run on GPU
-  python timing_benchmark.py --device cuda --verbose 2
-        """,
-        "benchmark": """
-Examples:
-  # Run with all available backends
-  python benchmark.py
-
-  # Run with specific backends
-  python benchmark.py --backends uma,aimnet2
-
-  # Run with verbose output
-  python benchmark.py --verbose 2
-        """,
-        "benchmark_quick": """
-Examples:
-  # Run with all available backends
-  python benchmark.py
-
-  # Run with specific backends
-  python benchmark.py --backends uma,aimnet2
-
-  # Quick test with subset of data
-  python benchmark.py --quick --verbose 2
-
-  # Very quick test with minimal data
-  python benchmark.py --quicker --verbose 2
-        """,
-    }
-
-    return epilogs.get(
-        example_type,
-        """
-Examples:
-  # Run with default settings
-  python example.py
-
-  # Run with specific backends
-  python example.py --backends uma,aimnet2
-
-  # Run with verbose output
-  python example.py --verbose 2
-        """,
-    )
+def create_standard_epilog(script: str, *, quick: bool = False) -> str:
+    """Examples block for a benchmark script's ``--help``."""
+    lines = [
+        "Examples:",
+        f"  python {script}",
+        f"  python {script} --backends uma,aimnet2",
+    ]
+    if quick:
+        lines.append(f"  python {script} --quick")
+    return "\n".join(lines) + "\n"
 
 
 def benchmark_optimization(
@@ -431,7 +392,7 @@ def benchmark_optimization(
             except Exception as e:
                 if verbose >= 1:
                     logger.warning(
-                        f"Failed to compute initial Hessian: {e}. Continuing without it."
+                        "Failed to compute initial Hessian: %s. Continuing without it.", e
                     )
 
         # Initialize FAMEX optimizer
@@ -649,7 +610,7 @@ def benchmark_optimization(
                 )
             except Exception as e:
                 if verbose >= 1:
-                    logger.warning(f"Frequency analysis failed: {e}")
+                    logger.warning("Frequency analysis failed: %s", e)
                 freq_results = {}
 
         freq_time = time.perf_counter() - freq_start

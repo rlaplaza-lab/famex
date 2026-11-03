@@ -17,13 +17,67 @@ from famex.core.constraint_manager import ConstraintManager
 from famex.core.exceptions import StrategyNotFoundError
 from famex.core.file_io import write_atoms_safely, write_trajectory_safely
 from famex.core.registry import REGISTRY
-from famex.io.geometry import read_geometry
+from famex.io.geometry import Geometry, read_geometry
+from famex.io.modes import write_vibrational_modes
+from famex.utils.device import resolve_backend_device
 from famex.utils.profiler import PerformanceProfiler
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
     import numpy as np
+
+# Optimizers that build a dense Hessian for minima searches.
+_MINIMA_DENSE_HESSIAN_OPTS = frozenset(
+    {
+        "trust-krylov",
+        "trustkrylov",
+        "trust_krylov",
+        "trust-exact",
+        "trustexact",
+        "trust_exact",
+        "trust-ncg",
+        "trustncg",
+        "trust_ncg",
+        "newton-cg",
+        "newtoncg",
+        "newton_cg",
+    }
+)
+
+_SADDLE_DENSE_HESSIAN_OPTS = frozenset(
+    {
+        "rfo",
+        "rfo-ts",
+        "rational-function",
+        "rational_function",
+        "sella-analytical",
+        "sella_analytical",
+        "sellaanalytical",
+        "trust-exact",
+        "trustexact",
+        "trust_exact",
+    }
+)
+
+
+def compute_needs_hessian(
+    target: str,
+    local_optimizer: str,
+    *,
+    calculate_frequencies: bool = False,
+    cleanup_frequencies: bool = False,
+) -> bool:
+    """Whether the calculator should load Hessian-capable inference settings."""
+    if calculate_frequencies or cleanup_frequencies:
+        return True
+
+    target_norm = (target or "minima").strip().lower()
+    opt = (local_optimizer or "").strip().lower()
+
+    if target_norm in {"ts", "saddle"} and opt in _SADDLE_DENSE_HESSIAN_OPTS:
+        return True
+    return target_norm == "minima" and opt in _MINIMA_DENSE_HESSIAN_OPTS
 
 
 class Explorer:
@@ -32,7 +86,7 @@ class Explorer:
     Uses a target/strategy paradigm:
 
     - ``target``: What you want (minima, ts, path)
-    - ``strategy``: How to get there (local, neb, cineb, interpolate, growing_string, irc)
+    - ``strategy``: How to get there (local, neb, cineb, interpolate, growing_string, dhs, irc)
 
     Parameters
     ----------
@@ -40,20 +94,27 @@ class Explorer:
         Single ASE Atoms object or a sequence of Atoms to operate on.
         For multi-structure strategies (NEB, CI-NEB), provide multiple structures.
     backend : str, default "uma"
-        Calculator backend: uma, aimnet2, mace, orb, so3lr, tblite, mock
+        Calculator backend: uma, aimnet2, mace, orb, so3lr, pet, tblite, pyscf, mock
     model_name : str, optional
         Name of the specific model to use. If None, uses backend defaults.
     model_path : str, optional
         Path to local model file (required for SO3LR, optional for others).
     device : str, optional
-        Device for computations ("cpu" or "cuda"). Auto-detected if None.
+        Device for computations ("cpu" or "cuda"). For MLIP backends, defaults
+        to CUDA when available. TBLite is CPU-only and raises if CUDA is requested.
+    task_name : str, optional
+        UMA task head (``omol``, ``omat``, ``oc20``, …). Ignored for other backends.
+        Defaults to ``omol`` when using UMA.
+    dftd3_functional : str, optional
+        Optional FairChem DFT-D3(BJ) wrap for UMA (``r2scan`` or ``pbe``).
     default_charge : int, default 0
         Default total charge used when per-structure metadata is not available.
     default_spin : int, default 1
         Default spin multiplicity used when per-structure metadata is not available.
+        For non-``omol`` UMA tasks, prefer ``0`` (FairChem materials/catalysis heads).
     local_optimizer : str, default "default"
         Local optimizer for geometry optimization. If "default", auto-selects based
-        on target: "sella" for TS searches, "lbfgs" for minima/path optimizations.
+        on target: "rfo" for TS searches, "lbfgs" for minima/path optimizations.
         Options:
 
         - ``default``: Auto-select based on target (default)
@@ -76,6 +137,7 @@ class Explorer:
         - ``cineb``: Climbing Image NEB
         - ``interpolate``: Path interpolation only
         - ``growing_string``: Growing string method
+        - ``dhs``: Dewar-Healy-Stewart bracket method
         - ``irc``: Intrinsic Reaction Coordinate
     target : str, optional, default "minima"
         Target type for optimization. Options:
@@ -127,6 +189,8 @@ class Explorer:
         profile: bool = False,
         force_finite_diff_hessian: bool = False,
         cleanup_frequencies: bool = False,
+        task_name: str | None = None,
+        dftd3_functional: str | None = None,
     ) -> None:
         """Initialize the Explorer with molecular structure and configuration.
 
@@ -173,6 +237,10 @@ class Explorer:
             stationary-point character is wrong, run a Hessian-based cleanup
             optimizer from the current geometry until there are 0 (minima) or 1 (TS)
             relevant imaginary frequencies, or the attempt limit is reached.
+        task_name : str | None, default None
+            UMA task head (``omol``, ``omat``, …). Defaults to ``omol`` for UMA.
+        dftd3_functional : str | None, default None
+            Optional FairChem DFT-D3(BJ) functional for UMA (``r2scan`` or ``pbe``).
         """
         if isinstance(atoms, Atoms):
             self.atoms_list: list[Atoms] = [atoms]
@@ -182,9 +250,11 @@ class Explorer:
         self.backend = backend
         self.model_name = model_name
         self.model_path = model_path
-        self.device = device
+        self.device = resolve_backend_device(backend, device)
         self.default_charge = default_charge
         self.default_spin = default_spin
+        self.task_name = task_name
+        self.dftd3_functional = dftd3_functional
         self.verbose = verbose
 
         # Initialize performance profiler if requested
@@ -211,10 +281,12 @@ class Explorer:
             backend=backend,
             model_name=model_name,
             model_path=model_path,
-            device=device,
+            device=self.device,
             default_charge=default_charge,
             default_spin=default_spin,
             verbose=verbose,
+            task_name=task_name,
+            dftd3_functional=dftd3_functional,
         )
         self.constraint_manager = ConstraintManager(
             constraints_spec=constraints,
@@ -222,10 +294,6 @@ class Explorer:
         )
 
     # --- Calculator & Constraints Management ---
-
-    def _get_effective_model_name(self) -> str:
-        """Get effective model name after applying backend defaults."""
-        return self.calculator_manager.get_effective_model_name()
 
     def _get_effective_optimizer(self) -> str:
         """Get effective optimizer name after applying defaults."""
@@ -235,9 +303,32 @@ class Explorer:
             return "rfo"
         return "lbfgs"
 
-    def _create_and_attach_calculator(self, atoms: Atoms) -> Any:
+    def _needs_hessian(
+        self,
+        *,
+        calculate_frequencies: bool = False,
+        cleanup_frequencies: bool | None = None,
+    ) -> bool:
+        """Decide whether the calculator should load Hessian-capable settings."""
+        cleanup = self.cleanup_frequencies if cleanup_frequencies is None else cleanup_frequencies
+        return compute_needs_hessian(
+            target=self.target or "minima",
+            local_optimizer=self._get_effective_optimizer(),
+            calculate_frequencies=calculate_frequencies,
+            cleanup_frequencies=cleanup,
+        )
+
+    def _create_and_attach_calculator(
+        self,
+        atoms: Atoms,
+        *,
+        needs_hessian: bool = False,
+    ) -> Any:
         """Create and attach calculator to atoms."""
-        return self.calculator_manager.create_and_attach_calculator(atoms)
+        return self.calculator_manager.create_and_attach_calculator(
+            atoms,
+            needs_hessian=needs_hessian,
+        )
 
     def _apply_constraints(self, atoms: Atoms) -> list[Any]:
         """Apply constraints to atoms."""
@@ -319,6 +410,7 @@ class Explorer:
         runner: Callable[..., Any] | None = None,
         calculate_frequencies: bool = False,
         cleanup_frequencies: bool | None = None,
+        record_history: bool = False,
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         """Execute a registered or user-supplied runner.
@@ -335,6 +427,10 @@ class Explorer:
         cleanup_frequencies : bool, optional
             Whether to run post-optimization Hessian-based frequency cleanup.
             Defaults to the Explorer's ``cleanup_frequencies`` setting.
+        record_history : bool, default=False
+            When True, strategies keep optimizer steps and search paths on the
+            result (``optimization_trajectory``, ``search_path``). This does not
+            write files; use :func:`famex.io.run_output.write_run_outputs`.
         **kwargs
             Additional keyword arguments forwarded to the strategy runner.
 
@@ -367,6 +463,9 @@ class Explorer:
         >>> result = explorer.run(fmax=0.01)
 
         """
+        if record_history:
+            kwargs["record_history"] = True
+
         if runner is not None:
             call_kwargs = dict(kwargs)
             call_kwargs.setdefault("explorer", self)
@@ -492,6 +591,107 @@ class Explorer:
             **kwargs,
         )
 
+    @classmethod
+    def from_smiles(
+        cls,
+        smiles: str,
+        backend: str = "uma",
+        model_name: str | None = None,
+        model_path: str | None = None,
+        device: str | None = None,
+        default_charge: int = 0,
+        default_spin: int = 1,
+        verbose: int = 1,
+        profile: bool = False,
+        *,
+        seed: int = 0,
+        add_h: bool = True,
+        embedder: str = "pysmiles",
+        **kwargs: Any,
+    ) -> Explorer:
+        """Create an Explorer from a SMILES string.
+
+        The string is embedded before the Explorer is built. ``embedder``
+        selects ``pysmiles`` (``pip install famex[smiles]``) or ``rdkit``
+        (``pip install famex[rdkit]``). Charge and spin written on the
+        embedded geometry override ``default_charge`` and ``default_spin``.
+
+        Parameters
+        ----------
+        smiles : str
+            OpenSMILES string.
+        seed : int, default 0
+            Seed for distance sampling.
+        add_h : bool, default True
+            Add implicit hydrogens before embedding.
+        embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+            Distance geometry via pysmiles, or RDKit ETKDGv3.
+        **kwargs
+            Passed to :class:`Explorer`, including ``target`` and ``strategy``.
+
+        Returns
+        -------
+        Explorer
+        """
+        geom = Geometry.from_smiles(smiles, seed=seed, add_h=add_h, embedder=embedder)
+        return cls(
+            atoms=geom,
+            backend=backend,
+            model_name=model_name,
+            model_path=model_path,
+            device=device,
+            default_charge=default_charge,
+            default_spin=default_spin,
+            verbose=verbose,
+            profile=profile,
+            **kwargs,
+        )
+
+    @classmethod
+    def from_pubchem(
+        cls,
+        query: str,
+        backend: str = "uma",
+        model_name: str | None = None,
+        model_path: str | None = None,
+        device: str | None = None,
+        default_charge: int = 0,
+        default_spin: int = 1,
+        verbose: int = 1,
+        profile: bool = False,
+        *,
+        embedder: str = "pysmiles",
+        **kwargs: Any,
+    ) -> Explorer:
+        """Create an Explorer from a PubChem compound name or CID.
+
+        A computed 3D conformer is used when PubChem has one. Otherwise the
+        deposited SMILES is embedded with ``embedder``. Charge and spin on the
+        downloaded geometry override ``default_charge`` and ``default_spin``.
+
+        Parameters
+        ----------
+        query : str
+            Compound name, CID, or a ``pubchem:`` / ``cid:`` prefixed form.
+        embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+            Used when PubChem has no 3D conformer.
+        **kwargs
+            Passed to :class:`Explorer`, including ``target`` and ``strategy``.
+        """
+        geom = Geometry.from_pubchem(query, embedder=embedder)
+        return cls(
+            atoms=geom,
+            backend=backend,
+            model_name=model_name,
+            model_path=model_path,
+            device=device,
+            default_charge=default_charge,
+            default_spin=default_spin,
+            verbose=verbose,
+            profile=profile,
+            **kwargs,
+        )
+
     def load_structure(self, filename_or_geom: str | Path | Atoms) -> Atoms:
         """Load structure from file or geometry object and update atoms_list."""
         if isinstance(filename_or_geom, str | Path):
@@ -564,10 +764,58 @@ class Explorer:
         --------
         >>> explorer = Explorer(atoms=[reactant, product], target="path")
         >>> result = explorer.run(npoints=7)
-        >>> explorer.save_trajectory(result, "reaction_path.xyz")
+        >>> explorer.save_trajectory(result["trajectory"], "reaction_path.xyz")
 
         """
         write_trajectory_safely(atoms_list, output_file, format)
+
+    def save_vibrational_modes(
+        self,
+        frequency_result: dict[str, Any],
+        output_dir: str | Path,
+        atoms: Atoms | None = None,
+        *,
+        which: str = "all",
+        mode_indices: list[int] | None = None,
+        amplitude: float = 0.3,
+        nframes: int = 20,
+    ) -> list[str]:
+        """Write one multi-frame XYZ animation per selected vibrational mode.
+
+        Parameters
+        ----------
+        frequency_result : dict
+            Result of :meth:`calculate_frequencies`.
+        output_dir : str or Path
+            Directory that receives one XYZ file per mode.
+        atoms : Atoms, optional
+            Equilibrium structure. Uses the first loaded structure when omitted.
+        which : {"all", "imaginary"}
+            Modes to write when ``mode_indices`` is omitted.
+        mode_indices : list of int, optional
+            Vibrational-mode columns. Overrides ``which``.
+        amplitude : float
+            Largest atomic displacement along each mode, in Å.
+        nframes : int
+            Frames in one oscillation.
+
+        Returns
+        -------
+        list of str
+            Paths written, in mode order.
+
+        """
+        if atoms is None:
+            atoms = self.atoms_list[0]
+        return write_vibrational_modes(
+            atoms,
+            frequency_result,
+            output_dir,
+            which=which,
+            mode_indices=mode_indices,
+            amplitude=amplitude,
+            nframes=nframes,
+        )
 
     # --- Analysis Methods ---
 
@@ -590,7 +838,7 @@ class Explorer:
         delta : float
             Finite difference step size for Hessian calculation
         method : str
-            Method for Hessian calculation ("auto", "numerical")
+            Method for Hessian calculation ("auto", "finite_differences")
         temperature : float
             Temperature for thermodynamic properties (K)
         save_hessian : bool
@@ -631,7 +879,7 @@ class Explorer:
             atoms = self.atoms_list[0]
 
         if getattr(atoms, "calc", None) is None:
-            self._create_and_attach_calculator(atoms)
+            self._create_and_attach_calculator(atoms, needs_hessian=True)
 
         freq_analysis = FrequencyAnalysis(
             atoms=atoms,

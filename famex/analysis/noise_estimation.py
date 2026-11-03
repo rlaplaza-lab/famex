@@ -7,34 +7,15 @@ calculation strategies to select optimal methods and parameters.
 
 from __future__ import annotations
 
-from typing import Protocol
-
 import numpy as np
 from ase import Atoms
 from numpy.typing import NDArray
 
+from famex.analysis.hessian import CalculatorProtocol
 from famex.analysis.utils import validate_indices
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
-
-
-class CalculatorProtocol(Protocol):
-    """Protocol for calculator objects compatible with ASE Atoms.
-
-    Any object that can be assigned to ``atoms.calc`` and provides
-    ``get_forces()`` and ``get_potential_energy()`` methods is compatible.
-    """
-
-    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Compute forces for the given atoms structure."""
-        ...
-
-    def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
-    ) -> float:
-        """Compute potential energy for the given atoms structure."""
-        ...
 
 
 def estimate_richardson_noise(
@@ -124,33 +105,33 @@ def estimate_force_noise(
     atoms_ref.calc = calculator
     forces_ref = atoms_ref.get_forces()[indices].flatten()
 
-    # Make small perturbations and recompute
     noise_samples = []
 
     for i in range(n_samples):
-        # Random small perturbation
-        perturbed_atoms = atoms.copy()
-        perturb = np.random.normal(0, perturbation_size, perturbed_atoms.positions.shape)
-        perturbed_atoms.positions += perturb
-        perturbed_atoms.calc = calculator
+        perturb = np.random.normal(0, perturbation_size, atoms.positions.shape)
 
         try:
-            forces_perturbed = perturbed_atoms.get_forces()
-            forces_perturbed_flat = forces_perturbed[indices].flatten()
+            atoms_plus = atoms.copy()
+            atoms_plus.positions = atoms.positions + perturb
+            atoms_plus.calc = calculator
+            forces_plus = atoms_plus.get_forces()[indices].flatten()
 
-            # Estimate noise from difference
-            noise = np.abs(forces_perturbed_flat - forces_ref)
+            atoms_minus = atoms.copy()
+            atoms_minus.positions = atoms.positions - perturb
+            atoms_minus.calc = calculator
+            forces_minus = atoms_minus.get_forces()[indices].flatten()
+
+            # Symmetric ±δ cancels H·δ; residual is noise / higher-order terms.
+            noise = np.abs(0.5 * (forces_plus + forces_minus) - forces_ref)
             noise_samples.append(noise)
         except Exception:
-            # If calculation fails, skip this sample
-            logger.debug(f"Force calculation failed for perturbation sample {i}, skipping")
+            logger.debug("Force calculation failed for perturbation sample %s, skipping", i)
             continue
 
     if len(noise_samples) == 0:
         msg = "All force noise samples failed. Cannot estimate noise."
         raise RuntimeError(msg)
 
-    # RMS noise across all samples
     noise_array = np.array(noise_samples)
     rms_noise = np.sqrt(np.mean(noise_array**2))
 
@@ -241,8 +222,10 @@ def estimate_optimal_delta(
 
         if verbose >= 1:
             logger.debug(
-                f"Iteration {iteration + 1}: trying delta={current_delta:.4f}, "
-                f"half={half_delta:.4f}"
+                "Iteration %s: trying delta=%.4f, half=%.4f",
+                iteration + 1,
+                current_delta,
+                half_delta,
             )
 
         # Compute Hessians at both deltas
@@ -258,7 +241,7 @@ def estimate_optimal_delta(
             noise_estimate = estimate_richardson_noise(hessian_current, hessian_half)
 
             if verbose >= 1:
-                logger.debug(f"  Noise estimate: {noise_estimate:.2e} eV/Å²")
+                logger.debug("  Noise estimate: %.2e eV/Å²", noise_estimate)
 
             # Track best result
             if noise_estimate < best_noise:
@@ -268,7 +251,7 @@ def estimate_optimal_delta(
             # Check convergence
             if noise_estimate < target_noise:
                 if verbose >= 1:
-                    logger.debug(f"  Converged! Noise below target {target_noise:.2e}")
+                    logger.debug("  Converged! Noise below target %.2e", target_noise)
                 return current_delta, noise_estimate
 
             # Binary search: if too noisy, try smaller delta
@@ -283,12 +266,12 @@ def estimate_optimal_delta(
 
         except Exception as e:
             if verbose >= 1:
-                logger.warning(f"  Failed to compute at delta={current_delta:.4f}: {e}")
+                logger.warning("  Failed to compute at delta=%.4f: %s", current_delta, e)
             # If calculation fails, try smaller delta
             current_high = current_delta
 
     if verbose >= 1:
-        logger.debug(f"Final delta: {best_delta:.4f}, noise: {best_noise:.2e} eV/Å²")
+        logger.debug("Final delta: %.4f, noise: %.2e eV/Å²", best_delta, best_noise)
 
     return best_delta, best_noise
 
@@ -337,5 +320,4 @@ __all__ = [
     "estimate_richardson_noise",
     "estimate_force_noise",
     "estimate_optimal_delta",
-    "CalculatorProtocol",
 ]

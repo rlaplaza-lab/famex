@@ -204,12 +204,6 @@ class TestGeometryProperties:
         forces = geom.get_forces()
         assert forces is None
 
-    def test_get_symbols(self):
-        geom = Geometry(atoms=["H", "O", "H"], positions=[[0, 0, 0], [1, 0, 0], [2, 0, 0]])
-
-        symbols = geom.get_symbols()
-        assert symbols == ["H", "O", "H"]
-
 
 class TestGeometryMethods:
     def test_copy(self):
@@ -231,54 +225,6 @@ class TestGeometryMethods:
         # Modify copy and verify original unchanged
         geom_copy.charge = 2
         assert geom.charge == 1
-
-    def test_get_distance_between(self):
-        geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [1, 0, 0]])
-
-        distance = geom.get_distance_between(0, 1)
-        assert abs(distance - 1.0) < 1e-6
-
-    def test_get_all_pairwise_distances(self):
-        geom = Geometry(atoms=["H", "H"], positions=[[0, 0, 0], [1, 0, 0]])
-
-        distances = geom.get_all_pairwise_distances()
-        assert distances.shape == (2, 2)
-        assert abs(distances[0, 1] - 1.0) < 1e-6
-
-    def test_get_angle_degrees(self):
-        # Create a simple structure
-        geom = Geometry(
-            atoms=["H", "H", "H"],
-            positions=[[0, 0, 0], [1.0, 0, 0], [0, 1.0, 0]],
-        )
-
-        # Test that method returns a numeric value
-        angle = geom.get_angle_degrees(1, 0, 2)
-        assert isinstance(angle, int | float)
-        # Note: ASE's get_angle can return unexpected large values for certain geometries
-        # We just verify it's numeric and callable, not the specific value
-        assert np.isfinite(angle) or (np.isnan(angle) is False and np.isinf(angle) is False)
-
-    def test_get_dihedral_degrees(self):
-        # Simple planar structure
-        geom = Geometry(
-            atoms=["C", "C", "H", "H"],
-            positions=[[0, 0, 0], [1, 0, 0], [0, 0, 1], [1, 0, 1]],
-        )
-
-        dihedral = geom.get_dihedral_degrees(2, 0, 1, 3)
-        # Should be 0 or 180 for planar structure
-        assert 0 <= abs(dihedral) <= 180
-
-    def test_center_of_mass(self):
-        geom = Geometry(
-            atoms=["H", "H"],
-            positions=[[0, 0, 0], [2, 0, 0]],
-        )
-
-        com = geom.center_of_mass()
-        assert com.shape == (3,)
-        assert abs(com[0] - 1.0) < 1e-6  # Should be at midpoint
 
 
 class TestGeometryStringRepresentation:

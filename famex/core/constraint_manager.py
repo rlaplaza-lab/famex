@@ -52,11 +52,3 @@ class ConstraintManager:
             self._cached_atoms_hash = atoms_hash
 
         return constraints
-
-    def clear_cache(self) -> None:
-        self._cached_constraints = None
-        self._cached_atoms_hash = None
-
-    def update_constraints(self, constraints_spec: str | list | dict | None) -> None:
-        self.constraints_spec = constraints_spec
-        self.clear_cache()

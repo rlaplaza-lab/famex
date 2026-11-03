@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from famex.backends import availability as availability_mod
 from famex.backends.availability import (
     BackendAvailabilityChecker,
     clear_availability_cache,
@@ -213,16 +214,12 @@ class TestConvenienceFunctions:
         assert BACKEND_MOCK not in backends_no_mock
 
     def test_clear_availability_cache_function(self):
-        # Populate cache
         is_backend_available(BACKEND_MOCK)
+        assert BACKEND_MOCK in availability_mod._checker._cache
 
-        # Clear it
         clear_availability_cache()
-
-        # Create new checker to verify cache is cleared
-        # (We can't directly check the global instance's cache)
-        # But we can verify the function works without error
-        assert True  # Function should complete without error
+        assert availability_mod._checker._cache == {}
+        assert availability_mod._checker._conflict_cache == {}
 
     def test_get_backend_error_message(self):
         message = get_backend_error_message(BACKEND_MOCK)

@@ -13,11 +13,17 @@ BACKEND_SO3LR = "so3lr"
 BACKEND_ORB = "orb"
 BACKEND_TBLITE = "tblite"
 BACKEND_PET = "pet"
+BACKEND_PYSCF = "pyscf"
 
 DEFAULT_UMA_MODEL = "uma-s-1p2"
+DEFAULT_UMA_TASK = "omol"
+# oc22/oc25 need UMA-1.2+ checkpoints; fine-tunes use model_name (not allowlisted).
+UMA_TASKS = ("omol", "omat", "omc", "oc20", "oc25", "odac", "oc22")
 DEFAULT_MACE_MODEL = "mace-omol-0"
 DEFAULT_PET_MODEL = "pet-mad-s"
-FAIRCHEM_INSTALL = "fairchem-core>=2.21.0"
+DEFAULT_TBLITE_MODEL = "GFN2-xTB"
+DEFAULT_PYSCF_MODEL = "b3lyp-d3bj/def2-svp"
+FAIRCHEM_INSTALL = "fairchem-core>=2.25.0"
 
 # Backend categorization constants
 ALL_BACKENDS = [
@@ -29,20 +35,10 @@ ALL_BACKENDS = [
     BACKEND_ORB,
     BACKEND_TBLITE,
     BACKEND_PET,
+    BACKEND_PYSCF,
 ]
 
 ML_BACKENDS = [
-    BACKEND_AIMNET2,
-    BACKEND_MACE,
-    BACKEND_UMA,
-    BACKEND_SO3LR,
-    BACKEND_ORB,
-    BACKEND_TBLITE,
-    BACKEND_PET,
-]
-
-REGULAR_BACKENDS = [
-    BACKEND_MOCK,
     BACKEND_AIMNET2,
     BACKEND_MACE,
     BACKEND_UMA,

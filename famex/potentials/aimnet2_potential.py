@@ -89,7 +89,7 @@ def get_model_path(model_name: str) -> str:
 
     # Direct file path
     if os.path.isfile(model_name):
-        logger.info(f"Found model file: {model_name}")
+        logger.info("Found model file: %s", model_name)
         return model_name
 
     # Check aliases
@@ -112,7 +112,7 @@ def get_model_path(model_name: str) -> str:
             must_exist=False,
             allow_absolute=False,
         )
-    except Exception as e:
+    except PathSecurityError as e:
         msg = f"Invalid model path {model_path}: {e}"
         raise RuntimeError(msg) from e
 
@@ -120,21 +120,23 @@ def get_model_path(model_name: str) -> str:
     local_path.parent.mkdir(parents=True, exist_ok=True)
 
     if local_path.is_file():
-        logger.info(f"Found model file: {local_path}")
+        logger.info("Found model file: %s", local_path)
         return str(local_path)
 
     # Download from model zoo
     url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
-    logger.info(f"Downloading model from {url}")
+    logger.info("Downloading model from %s", url)
 
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=30)
         response.raise_for_status()
 
-        with open(local_path, "wb") as f:
+        tmp_path = local_path.with_suffix(local_path.suffix + ".tmp")
+        with open(tmp_path, "wb") as f:
             f.write(response.content)
+        os.replace(tmp_path, local_path)
 
-        logger.info(f"Saved to {local_path}")
+        logger.info("Saved to %s", local_path)
         return str(local_path)
 
     except requests.RequestException as e:
@@ -158,20 +160,6 @@ def get_model_path(model_name: str) -> str:
             f"Error: {e}. The downloaded model may be corrupted."
         )
         raise RuntimeError(msg) from e
-
-
-def sparse_nb_to_dense_half(idx: np.ndarray, natom: int, max_nb: int) -> np.ndarray:
-    """Convert sparse neighbor list to dense format (from aimnet2calc)."""
-    dense_nb = np.full((natom + 1, max_nb), natom, dtype=np.int32)
-    last_idx = np.zeros((natom,), dtype=np.int32)
-    for k in range(idx.shape[0]):
-        i, j = idx[k]
-        il, jl = last_idx[i], last_idx[j]
-        dense_nb[i, il] = j
-        dense_nb[j, jl] = i
-        last_idx[i] += 1
-        last_idx[j] += 1
-    return dense_nb
 
 
 def maybe_pad_dim0(a: Any, n: int, value: float = 0.0) -> Any:
@@ -260,9 +248,7 @@ class NativeAIMNet2Calculator:
         self.keys_out = ["energy", "charges", "forces"]
         self.atom_feature_keys = ["coord", "numbers", "charges", "forces"]
 
-        # State variables
-        self._batch = None
-        self._saved_for_grad: dict[str, Any] | None = None
+        self._padded_coord: Any | None = None
 
     def to_input_tensors(self, data: dict[str, Any]) -> dict[str, Any]:
         """Convert input data to PyTorch tensors."""
@@ -358,24 +344,71 @@ class NativeAIMNet2Calculator:
                 data[k] = maybe_unpad_dim0(data[k], original_n_atoms)
         return data
 
-    def set_grad_tensors(self, data: dict[str, Any], forces: bool = False) -> dict[str, Any]:
-        """Set up gradients for force calculation."""
-        self._saved_for_grad = {}
+    def _run_model(
+        self,
+        data: dict[str, Any],
+        forces: bool = False,
+        create_graph: bool = False,
+    ) -> dict[str, Any]:
+        """Run the AIMNet2 inference pipeline and optionally compute forces."""
+        # Store original number of atoms for unpadding later
+        original_n_atoms = len(data["coord"]) if "coord" in data else 0
+
+        data = self.to_input_tensors(data)
+        data = self.prepare_mol_idx(data)
+        data = self.make_nbmat(data)
+        data = self.pad_input(data)
+
         if forces:
             data["coord"].requires_grad_(True)
-            self._saved_for_grad["coord"] = data["coord"]
-        return data
+            self._padded_coord = data["coord"]
 
-    def calculate_forces(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Calculate forces using automatic differentiation."""
-        if "forces" not in data and self._saved_for_grad and "coord" in self._saved_for_grad:
+        with torch.jit.optimized_execution(False):
+            data = self.model(data)
+
+        if forces:
             energy = data["energy"].sum()
-            grad = torch.autograd.grad(energy, self._saved_for_grad["coord"], create_graph=False)[0]
+            grad = torch.autograd.grad(energy, data["coord"], create_graph=create_graph)[0]
             data["forces"] = -grad
+
+        data = self.unpad_output(data, original_n_atoms)
         return data
 
-    def __call__(self, data: dict[str, Any], forces: bool = False) -> dict[str, Any]:
-        """Calculate energy and optionally forces.
+    def calculate_hessian(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Calculate the analytical Hessian using double-backward autograd.
+
+        Returns input dict updated with ``hessian`` (3N x 3N torch Tensor, eV/A^2).
+        """
+        data = self._run_model(data, forces=True, create_graph=True)
+
+        forces = data["forces"]
+        n = forces.shape[0]
+        nf = 3 * n
+
+        padded_coord = self._padded_coord
+        forces_flat = forces.reshape(-1)
+        rows = []
+        for i in range(nf):
+            (g,) = torch.autograd.grad(
+                forces_flat[i].sum(),
+                padded_coord,
+                retain_graph=True,
+                allow_unused=True,
+            )
+            if g is None:
+                g = torch.zeros_like(padded_coord)
+            rows.append((-g[:n]).reshape(-1))
+
+        data["hessian"] = torch.stack(rows)
+        return data
+
+    def __call__(
+        self,
+        data: dict[str, Any],
+        forces: bool = False,
+        hessian: bool = False,
+    ) -> dict[str, Any]:
+        """Calculate energy and optionally forces / Hessian.
 
         Parameters
         ----------
@@ -383,47 +416,28 @@ class NativeAIMNet2Calculator:
             Input data with keys 'coord', 'numbers', 'charge', optionally 'mult'
         forces : bool
             Whether to calculate forces
+        hessian : bool
+            Whether to calculate the analytical Hessian (forces implied)
 
         Returns
         -------
         dict
-            Results with 'energy' and optionally 'forces'
-
+            Results with 'energy' and optionally 'forces' and 'hessian'
         """
-        # Store original number of atoms for unpadding later
-        original_n_atoms = len(data["coord"]) if "coord" in data else 0
+        if hessian:
+            data = self.calculate_hessian(data)
+        elif forces:
+            data = self._run_model(data, forces=True, create_graph=False)
+        else:
+            data = self._run_model(data, forces=False, create_graph=False)
 
-        # Convert to tensors
-        data = self.to_input_tensors(data)
+        out_keys = list(self.keys_out)
+        if hessian:
+            out_keys.append("hessian")
 
-        # Prepare molecule indices
-        data = self.prepare_mol_idx(data)
-
-        # Generate neighbor list
-        data = self.make_nbmat(data)
-
-        # Pad inputs to match neighbor list dimensions
-        data = self.pad_input(data)
-
-        # Set up gradients if forces needed
-        if forces:
-            data = self.set_grad_tensors(data, forces=forces)
-
-        # Run model inference
-        with torch.jit.optimized_execution(False):
-            data = self.model(data)
-
-        # Calculate forces if requested
-        if forces:
-            data = self.calculate_forces(data)
-
-        # Unpad outputs
-        data = self.unpad_output(data, original_n_atoms)
-
-        # Filter output keys
-        result = {}
+        result: dict[str, Any] = {}
         for k, v in data.items():
-            if k in self.keys_out:
+            if k in out_keys:
                 result[k] = v
 
         return result
@@ -475,20 +489,17 @@ class AIMNet2Potential(BasePotential):
             Additional arguments passed to parent Calculator
 
         """
-        # Check dependencies
         if not deps.has("torch"):
             msg = "PyTorch is required for AIMNET2 potentials. Install with: pip install torch"
             raise ImportError(
                 msg,
             )
 
-        # Set device if not provided
         if device is None:
             from famex.utils.device import get_optimal_device
 
             device = get_optimal_device()
 
-        # Initialize base class
         self._calc: Any | None = None
         self.charge = charge
         self.mult = mult
@@ -501,7 +512,7 @@ class AIMNet2Potential(BasePotential):
         )
 
     # ASE-compatible properties (class attribute like other potentials)
-    implemented_properties = ["energy", "forces"]
+    implemented_properties = ["energy", "forces", "hessian"]
 
     def _load_calculator(self) -> None:
         """Load the AIMNET2 model directly."""
@@ -510,9 +521,6 @@ class AIMNet2Potential(BasePotential):
         try:
             if self.model_name is None:
                 self.model_name = "aimnet2"
-
-            if self.device is None:
-                self.device = "cpu"
 
             model_path = get_model_path(self.model_name)
 
@@ -539,15 +547,11 @@ class AIMNet2Potential(BasePotential):
             properties = ["energy", "forces"]
         super().calculate(atoms, properties, system_changes)
 
-        # Use self.atoms if atoms is None (standard ASE behavior)
-        if atoms is None:
-            atoms = self.atoms
-
+        atoms = atoms if atoms is not None else self.atoms
         if atoms is None:
             msg = "No atoms provided for calculation"
             raise ValueError(msg)
 
-        # Prepare input data
         data = {
             "coord": atoms.positions,
             "numbers": atoms.numbers,
@@ -555,12 +559,10 @@ class AIMNet2Potential(BasePotential):
             "mult": float(self.mult),
         }
 
-        # Calculate with forces if requested
-        forces_needed = "forces" in properties
-        calc = self._require_calc()
-        results = calc(data, forces=forces_needed)
+        hessian_needed = "hessian" in properties
+        forces_needed = hessian_needed or "forces" in properties
+        results = self._require_calc()(data, forces=forces_needed, hessian=hessian_needed)
 
-        # Convert results to numpy arrays and store
         if "energy" in properties:
             energy = results["energy"].detach().cpu().numpy()
             if energy.ndim > 0:
@@ -568,16 +570,11 @@ class AIMNet2Potential(BasePotential):
             self.results["energy"] = energy
 
         if "forces" in properties and "forces" in results:
-            forces = results["forces"].detach().cpu().numpy()
-            self.results["forces"] = forces
+            self.results["forces"] = results["forces"].detach().cpu().numpy()
 
-    def set_charge(self, charge: int) -> None:
-        """Set molecular charge."""
-        self.charge = charge
-
-    def set_mult(self, mult: int) -> None:
-        """Set spin multiplicity."""
-        self.mult = mult
+        if hessian_needed and "hessian" in results:
+            hessian = results["hessian"].detach().cpu().numpy()
+            self.results["hessian"] = 0.5 * (hessian + hessian.T)
 
     def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get forces."""
@@ -586,3 +583,54 @@ class AIMNet2Potential(BasePotential):
             msg = "Forces calculation returned None"
             raise RuntimeError(msg)
         return np.asarray(forces)
+
+    def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
+        """Get analytical Hessian matrix (3N x 3N) from AIMNet2's autograd."""
+        if atoms is not None:
+            self.atoms = atoms
+
+        calc = self._require_calc()
+
+        if self.atoms is None:
+            msg = "No atoms available for Hessian calculation"
+            raise ValueError(msg)
+
+        data = {
+            "coord": self.atoms.positions,
+            "numbers": self.atoms.numbers,
+            "charge": float(self.charge),
+            "mult": float(self.mult),
+        }
+
+        results = calc(data, forces=True, hessian=True)
+
+        hessian: np.ndarray = np.asarray(
+            results["hessian"].detach().cpu().numpy(), dtype=np.float64
+        )
+        expected_shape = (3 * len(self.atoms), 3 * len(self.atoms))
+        if hessian.shape != expected_shape:
+            if hessian.size == expected_shape[0] * expected_shape[1]:
+                hessian = hessian.reshape(expected_shape)
+            else:
+                msg = f"Hessian has unexpected shape {hessian.shape}, expected {expected_shape}"
+                raise ValueError(msg)
+
+        hessian = 0.5 * (hessian + hessian.T)
+        self.results["hessian"] = hessian
+        return hessian
+
+    def get_property(
+        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
+        """Get a specific property (energy, forces, hessian) from the calculator."""
+        if atoms is not None:
+            self.atoms = atoms
+
+        if prop == "energy":
+            return self.get_potential_energy(atoms)
+        if prop == "forces":
+            return self.get_forces(atoms)
+        if prop == "hessian":
+            return self.get_hessian(atoms)
+        msg = f"Property '{prop}' not supported by AIMNet2Potential"
+        raise KeyError(msg)

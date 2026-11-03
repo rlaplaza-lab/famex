@@ -7,6 +7,7 @@ from unittest.mock import patch
 import numpy as np
 
 from famex.analysis.validation import validate_hessian
+from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
 
 
 class TestValidateHessian:
@@ -28,7 +29,8 @@ class TestValidateHessian:
 
     def test_validate_hessian_non_square(self):
         """Test validate_hessian with non-square matrix."""
-        hessian = np.random.rand(9, 6)  # Non-square
+        rng = np.random.default_rng(0)
+        hessian = rng.random((9, 6))
 
         results = validate_hessian(hessian, warn_on_issues=False)
 
@@ -41,17 +43,10 @@ class TestValidateHessian:
         hessian = np.eye(n) * 2.0
         hessian[0, 0] = np.nan
 
-        # Function detects NaN but then tries to compute eigenvalues which fails
-        # This is a limitation of the current implementation
-        try:
-            results = validate_hessian(hessian, warn_on_issues=False)
-            assert bool(results["is_valid"]) is False
-            assert bool(results["has_nan"]) is True
-            assert bool(results["has_inf"]) is False
-        except np.linalg.LinAlgError:
-            # The function detects NaN but eigenvalue calculation still fails
-            # This tests that NaN detection happens (coverage)
-            pass
+        results = validate_hessian(hessian, warn_on_issues=False)
+        assert results["is_valid"] is False
+        assert results["has_nan"] is True
+        assert results["has_inf"] is False
 
     def test_validate_hessian_with_inf(self):
         """Test validate_hessian with Inf values."""
@@ -59,19 +54,10 @@ class TestValidateHessian:
         hessian = np.eye(n) * 2.0
         hessian[0, 0] = np.inf
 
-        # Function will fail on eigenvalue calculation, but should detect Inf first
-        # The function checks for NaN/Inf before computing eigenvalues
-        # but numpy.linalg.eigvals will still raise, so we need to handle this
-        try:
-            results = validate_hessian(hessian, warn_on_issues=False)
-            assert bool(results["is_valid"]) is False
-            assert bool(results["has_nan"]) is False
-            assert bool(results["has_inf"]) is True
-        except np.linalg.LinAlgError:
-            # If eigenvalue calculation fails, that's also acceptable
-            # The function should detect Inf before this, but if it doesn't,
-            # the error is still a valid outcome
-            pass
+        results = validate_hessian(hessian, warn_on_issues=False)
+        assert results["is_valid"] is False
+        assert results["has_nan"] is False
+        assert results["has_inf"] is True
 
     def test_validate_hessian_asymmetric(self):
         """Test validate_hessian with asymmetric matrix."""
@@ -98,18 +84,15 @@ class TestValidateHessian:
         assert results["is_valid"] is True  # Still valid, just ill-conditioned
 
     def test_validate_hessian_no_finite_eigenvalues(self):
-        """Test validate_hessian with no finite eigenvalues."""
+        """All-zero Hessian has no non-zero finite eigenvalues."""
         n = 9
-        hessian = np.full((n, n), np.nan)
+        hessian = np.zeros((n, n))
 
-        # Function detects NaN but eigenvalue calculation will fail
-        try:
-            results = validate_hessian(hessian, warn_on_issues=False)
-            assert bool(results["is_valid"]) is False
-            assert bool(results["has_nan"]) is True
-        except np.linalg.LinAlgError:
-            # Eigenvalue calculation fails, but NaN detection code is covered
-            pass
+        results = validate_hessian(hessian, warn_on_issues=False)
+        assert results["is_valid"] is False
+        assert results["has_nan"] is False
+        assert results["has_inf"] is False
+        assert results["condition_number"] == 0.0
 
     def test_validate_hessian_with_noise_estimates(self):
         """Test validate_hessian with noise estimates."""
@@ -180,3 +163,43 @@ class TestValidateHessian:
 
             # Should have logged warning about high force noise
             assert mock_logger.warning.called
+
+    def test_projected_condition_number_with_geometry(self):
+        """Projected vibrational block is well-conditioned; raw Cartesian is not."""
+        positions = np.array(
+            [[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]],
+            dtype=np.float64,
+        )
+        masses = np.array([16.0, 1.0, 1.0], dtype=np.float64)
+        hessian = project_hessian(
+            np.eye(9) * 2.0, build_translation_rotation_basis(positions, masses)
+        )
+
+        results_raw = validate_hessian(hessian, warn_on_issues=False)
+        assert results_raw["condition_number"] > 1e10
+
+        with patch("famex.analysis.validation.logger") as mock_logger:
+            results_proj = validate_hessian(
+                hessian, positions=positions, masses=masses, warn_on_issues=True
+            )
+            mock_logger.warning.assert_not_called()
+
+        assert results_proj["condition_number"] < 10.0
+        assert bool(results_proj["is_valid"]) is True
+
+    def test_empty_vibrational_subspace_no_warning(self):
+        """Single atom has only translations; empty vib block must not warn."""
+        positions = np.array([[0.0, 0.0, 0.0]], dtype=np.float64)
+        masses = np.array([1.0], dtype=np.float64)
+
+        with patch("famex.analysis.validation.logger") as mock_logger:
+            results = validate_hessian(
+                np.zeros((3, 3)),
+                positions=positions,
+                masses=masses,
+                warn_on_issues=True,
+            )
+            mock_logger.warning.assert_not_called()
+
+        assert results["condition_number"] == 0.0
+        assert bool(results["is_valid"]) is True

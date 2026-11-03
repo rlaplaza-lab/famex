@@ -19,14 +19,11 @@ class TestCLIPathTraversal:
     def test_write_atoms_allows_safe_paths(self, test_atoms, safe_path):  # noqa: F811
         with tempfile.TemporaryDirectory() as tmpdir:
             full_path = str(Path(tmpdir) / safe_path)
-            try:
-                result = write_atoms(test_atoms, full_path)
-                assert result == full_path
-                assert Path(full_path).exists()
-                Path(full_path).unlink()
-            except Exception:
-                # Some paths might legitimately fail for non-security reasons
-                pass
+            Path(full_path).parent.mkdir(parents=True, exist_ok=True)
+            result = write_atoms(test_atoms, full_path)
+            assert result == full_path
+            assert Path(full_path).exists()
+            Path(full_path).unlink()
 
     @pytest.mark.parametrize("null_byte_path", NULL_BYTE_PATHS)
     def test_write_atoms_rejects_null_bytes(self, test_atoms, null_byte_path):  # noqa: F811

@@ -11,25 +11,6 @@ import importlib.util
 from typing import Any
 
 
-class _DependencyContext:
-    """Context manager for dependency access."""
-
-    def __init__(self, manager: Any, deps_names: list[str]) -> None:
-        self.manager = manager
-        self.deps_names = deps_names
-        self.modules: dict[str, Any] | None = None
-
-    def __enter__(self) -> Any | tuple:
-        self.modules = self.manager.require_multiple(*self.deps_names)
-        if len(self.deps_names) == 1:
-            return self.modules
-        return tuple(self.modules[name] for name in self.deps_names)
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        # Nothing to clean up for now
-        pass
-
-
 class DependencyManager:
     """Manages optional dependencies with lazy loading and consistent error handling.
 
@@ -114,6 +95,16 @@ class DependencyManager:
                     from fairchem.core import FAIRChemCalculator
 
                     self._cache["fairchem_calculator"] = FAIRChemCalculator
+                elif name == "fairchem_dftd3_calculator":
+                    from fairchem.core import DFTD3Calculator
+
+                    self._cache["fairchem_dftd3_calculator"] = DFTD3Calculator
+                elif name == "fairchem_inference_settings":
+                    from fairchem.core.units.mlip_unit.api.inference import (
+                        InferenceSettings,
+                    )
+
+                    self._cache["fairchem_inference_settings"] = InferenceSettings
                 elif name == "fairchem_load_predict_unit":
                     from fairchem.core.units.mlip_unit import load_predict_unit
 
@@ -125,65 +116,6 @@ class DependencyManager:
             except ImportError:
                 self._cache[name] = fallback_value
         return self._cache[name]
-
-    def require_multiple(
-        self,
-        *deps_names: str,
-        purpose: str = "this functionality",
-    ) -> dict[str, Any] | Any:
-        """Require multiple dependencies, raising DependencyError if any are missing.
-
-        Parameters
-        ----------
-        *deps_names : str
-            Names of required dependencies
-        purpose : str, default "this functionality"
-            Description of what the dependencies are needed for
-
-        Returns
-        -------
-        dict or module
-            If one dependency, returns the module directly.
-            If multiple, returns dict mapping name -> module.
-
-        Raises
-        ------
-        DependencyError
-            If any required dependencies are missing
-
-        """
-        from famex.utils.validation import DependencyError
-
-        if len(deps_names) == 1:
-            name = deps_names[0]
-            if not self.has(name):
-                install_cmd = self._get_install_command(name)
-                raise DependencyError(name, purpose, install_cmd)
-            return self.get(name.lower())
-        results = {}
-        missing = []
-        for name in deps_names:
-            if not self.has(name):
-                missing.append(name)
-            else:
-                results[name] = self.get(name.lower())
-
-        if missing:
-            install_cmds = [self._get_install_command(name) for name in missing]
-            install_command = " ".join(install_cmds)
-            raise DependencyError(", ".join(missing), purpose, install_command)
-        return results
-
-    def need(self, *deps_names: str) -> _DependencyContext:
-        """Context manager that ensures dependencies are available within a block.
-
-        Usage:
-        ------
-        with deps.need("torch", "fairchem") as (torch, fairchem_modules):
-            # Use torch and fairchem_modules here
-            ...
-        """
-        return _DependencyContext(self, list(deps_names))
 
     def get(self, name: str, default: Any = None) -> Any:
         """Get a dependency, loading it lazily if needed."""
@@ -198,6 +130,7 @@ class DependencyManager:
             BACKEND_MACE,
             BACKEND_ORB,
             BACKEND_PET,
+            BACKEND_PYSCF,
             BACKEND_SO3LR,
             BACKEND_TBLITE,
             BACKEND_UMA,
@@ -217,6 +150,9 @@ class DependencyManager:
             BACKEND_TBLITE: "tblite",
             "upet": "upet",
             BACKEND_PET: "upet",
+            "pyscf": "pyscf",
+            BACKEND_PYSCF: "pyscf",
+            "pyscf_dispersion": "pyscf.dispersion.dftd3",
         }
 
         package_name = package_mapping.get(name.lower(), name.lower())
@@ -242,6 +178,7 @@ class DependencyManager:
             BACKEND_MACE,
             BACKEND_ORB,
             BACKEND_PET,
+            BACKEND_PYSCF,
             BACKEND_SO3LR,
             BACKEND_TBLITE,
         )
@@ -258,39 +195,12 @@ class DependencyManager:
             BACKEND_TBLITE: "tblite",
             "upet": "upet",
             BACKEND_PET: "upet",
+            "pyscf": "famex[pyscf]",
+            BACKEND_PYSCF: "famex[pyscf]",
+            "pyscf_dispersion": "pyscf-dispersion",
         }
         return commands.get(name.lower(), name.lower())
 
 
 # Global dependency manager instance
 deps = DependencyManager()
-
-
-# Function to get lazy globals - everything is now lazy
-def __getattr__(name: str) -> Any:
-    """Support for lazy loading of module-level attributes."""
-    from famex.backends.constants import (
-        BACKEND_AIMNET2,
-        BACKEND_MACE,
-        BACKEND_SO3LR,
-        BACKEND_TBLITE,
-    )
-
-    if name == "HAS_SELLA":
-        return deps.has("sella")
-    if name == "HAS_TORCH":
-        return deps.has("torch")
-    if name == "HAS_AIMNET2":
-        return deps.has(BACKEND_AIMNET2)
-    if name == "HAS_FAIRCHEM":
-        return deps.has("fairchem")
-    if name == "HAS_SO3LR":
-        return deps.has(BACKEND_SO3LR)
-    if name == "HAS_MACE":
-        return deps.has(BACKEND_MACE)
-    if name == "HAS_TBLITE":
-        return deps.has(BACKEND_TBLITE)
-    if name == "torch":
-        return deps.get("torch")
-    msg = f"module '{__name__}' has no attribute '{name}'"
-    raise AttributeError(msg)

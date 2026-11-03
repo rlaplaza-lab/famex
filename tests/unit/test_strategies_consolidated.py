@@ -24,6 +24,19 @@ from tests.test_constants import (
 )
 from tests.test_utils import StandardTestAssertions
 
+
+def _stub_irc_transition_mode(monkeypatch, strategy: LocalIRCStrategy, n_atoms: int) -> None:
+    mode = np.zeros(3 * n_atoms)
+    mode[3] = 1.0
+    mode /= np.linalg.norm(mode)
+    hessian = np.eye(3 * n_atoms, dtype=np.float64)
+
+    def _fake_transition_vector(*_a, **_k):
+        return mode, hessian
+
+    monkeypatch.setattr(strategy, "_get_transition_vector", _fake_transition_vector)
+
+
 # ============================================================================
 # Shared Fixtures
 # ============================================================================
@@ -97,6 +110,7 @@ class TestSingleStructureStrategies:
     def test_strategy_run_basic(
         self,
         request,
+        monkeypatch,
         strategy_class,
         atoms_fixture,
         expected_strategy_name,
@@ -108,9 +122,13 @@ class TestSingleStructureStrategies:
         atoms = request.getfixturevalue(atoms_fixture)
         explorer = Explorer(atoms, backend="mock")
         strategy = strategy_class(explorer)
+        run_kwargs: dict = {"steps": QUICK_STEPS, "fmax": LOOSE_FMAX}
+        if strategy_class is LocalIRCStrategy:
+            _stub_irc_transition_mode(monkeypatch, strategy, len(atoms))
+            run_kwargs["validate_ts"] = False
 
         try:
-            result = strategy.run([atoms], steps=QUICK_STEPS, fmax=LOOSE_FMAX)
+            result = strategy.run([atoms], **run_kwargs)
             StandardTestAssertions.assert_optimization_result(result)
             assert result["strategy"] == expected_strategy_name
         except ValueError as e:
@@ -464,7 +482,7 @@ class TestMultiStructureInterpolateStrategies:
             assert "frequency_analysis" in result
             assert "is_minimum" in result
 
-    def test_minima_interpolate_handles_optimization_failure(self, reactant_product_pair):
+    def test_minima_interpolate_propagates_optimization_failure(self, reactant_product_pair):
         reactant, product = reactant_product_pair
         explorer = Explorer([reactant, product], backend="mock")
         strategy = MultiStructureMinimaInterpolateStrategy(explorer)
@@ -475,13 +493,8 @@ class TestMultiStructureInterpolateStrategies:
                 ValueError("Error"),
             ]
 
-            result = strategy.run(
-                [reactant, product], npoints=3, steps=QUICK_STEPS, fmax=LOOSE_FMAX
-            )
-
-            assert "optimized_atoms" in result
-            assert isinstance(result["optimized_atoms"], list)
-            assert len(result["optimized_atoms"]) >= 2
+            with pytest.raises(ValueError, match="Error"):
+                strategy.run([reactant, product], npoints=3, steps=QUICK_STEPS, fmax=LOOSE_FMAX)
 
     def test_minima_interpolate_requires_multiple_structures(self, water_molecule):
         atoms = water_molecule
@@ -593,31 +606,45 @@ class TestMultiStructureInterpolateStrategies:
 
 
 class TestLocalIRCStrategy:
-    def test_irc_basic_functionality(self, water_dissociation_ts_guess):
+    def test_irc_basic_functionality(self, water_dissociation_ts_guess, monkeypatch):
         atoms = water_dissociation_ts_guess.copy()
         explorer = Explorer(atoms, backend="mock")
         strategy = LocalIRCStrategy(explorer)
+        _stub_irc_transition_mode(monkeypatch, strategy, len(atoms))
 
         result = strategy.run(
-            [atoms], steps=QUICK_STEPS, step_size=0.1, fmax=LOOSE_FMAX, direction="both"
+            [atoms],
+            steps=QUICK_STEPS,
+            step_size=0.1,
+            fmax=LOOSE_FMAX,
+            direction="both",
+            validate_ts=False,
         )
 
         assert "trajectory" in result
-        assert "strategy" in result
         assert result["strategy"] == "path:irc"
         assert isinstance(result["trajectory"], list)
         assert len(result["trajectory"]) > 0
+        assert result["hessian_computed"] is True
+        assert isinstance(result["hessian"], np.ndarray)
+        assert result["hessian"].shape == (3 * len(atoms), 3 * len(atoms))
 
     @pytest.mark.parametrize(
         "direction", ["forward", "backward", "both"], ids=["forward", "backward", "both"]
     )
-    def test_irc_directions(self, water_dissociation_ts_guess, direction):
+    def test_irc_directions(self, water_dissociation_ts_guess, direction, monkeypatch):
         atoms = water_dissociation_ts_guess.copy()
         explorer = Explorer(atoms, backend="mock")
         strategy = LocalIRCStrategy(explorer)
+        _stub_irc_transition_mode(monkeypatch, strategy, len(atoms))
 
         result = strategy.run(
-            [atoms], steps=QUICK_STEPS, step_size=0.1, fmax=LOOSE_FMAX, direction=direction
+            [atoms],
+            steps=QUICK_STEPS,
+            step_size=0.1,
+            fmax=LOOSE_FMAX,
+            direction=direction,
+            validate_ts=False,
         )
 
         assert "trajectory" in result
@@ -634,6 +661,20 @@ class TestLocalIRCStrategy:
 
         with pytest.raises(ValueError, match="single structure"):
             strategy.run([atoms1, atoms2], steps=QUICK_STEPS, step_size=0.1, fmax=LOOSE_FMAX)
+
+    def test_irc_requires_imaginary_mode(self, h2_equilibrium_molecule):
+        atoms = h2_equilibrium_molecule.copy()
+        explorer = Explorer(atoms, backend="mock")
+        strategy = LocalIRCStrategy(explorer)
+
+        with pytest.raises(RuntimeError, match="imaginary mode"):
+            strategy.run(
+                [atoms],
+                steps=QUICK_STEPS,
+                step_size=0.1,
+                fmax=LOOSE_FMAX,
+                validate_ts=False,
+            )
 
 
 class TestPathInterpolateStrategy:

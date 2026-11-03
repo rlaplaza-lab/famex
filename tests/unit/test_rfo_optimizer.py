@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from famex.optimizers.rfo_optimizer import RFOTransitionState
+from famex.optimizers.rfo_optimizer import ConvergedError, RFOTransitionState
 from famex.optimizers.ts_step import adjust_trust_radius, compute_step_quality
 from tests.test_constants import (
     DEFAULT_FMAX,
@@ -132,12 +132,8 @@ class TestRFOTransitionState:
         atoms.calc = mock_backend
         opt = RFOTransitionState(atoms, logfile=None, hessian_update_freq=5)
 
-        # Run with relaxed convergence for speed
-        converged = opt.run(fmax=LOOSE_FMAX, steps=QUICK_STEPS)
+        opt.run(fmax=LOOSE_FMAX, steps=QUICK_STEPS)
 
-        # Should complete without errors (may or may not converge in 5 steps)
-        # RFO returns np.bool_, convert to bool for assertion
-        assert bool(converged) in (True, False)
         assert opt.nsteps > 0
 
     def test_rfo_step_counting(self, mock_backend, water_dissociation_ts_guess):
@@ -158,9 +154,8 @@ class TestRFOTransitionState:
         initial_energy = atoms.get_potential_energy()
         initial_positions = atoms.get_positions().copy()
 
-        # Test optimizer with tighter convergence
         opt = RFOTransitionState(atoms, logfile=None, hessian_update_freq=5, trust_radius=0.02)
-        opt.run(fmax=LOOSE_FMAX * 2, steps=DEFAULT_STEPS * 5)
+        opt.run(fmax=LOOSE_FMAX * 2, steps=DEFAULT_STEPS)
 
         final_energy = atoms.get_potential_energy()
         final_positions = atoms.get_positions()
@@ -223,17 +218,59 @@ class TestRFOTransitionState:
         x = opt._positions_to_x()
         gradient = opt._get_gradient(x)
         hessian = opt._compute_hessian(x)
-        step = np.random.randn(len(x)) * 0.01
+        rng = np.random.default_rng(0)
+        step = rng.standard_normal(len(x)) * 0.01
 
-        # Good step: actual matches predicted (simulate by using predicted)
         predicted_quadratic = 0.5 * np.dot(step, hessian @ step)
         predicted_linear = np.dot(step, gradient)
         predicted_change = predicted_quadratic + predicted_linear
         quality = compute_step_quality(predicted_change, predicted_change)
         assert 0.5 <= quality <= 1.0
 
-        # Poor step: actual much different from predicted
         poor_actual = predicted_change * 2.5
         quality = compute_step_quality(poor_actual, predicted_change)
-        # quality can be negative for very poor steps, so just check it's less than good
-        assert quality < 0.5  # Should be poor (quality < 0.5) or very poor (quality < 0)
+        assert quality < 0.5
+
+    def test_converged_error_handling(self, mock_backend, water_dissociation_ts_guess):
+        atoms = water_dissociation_ts_guess.copy()
+        atoms.calc = mock_backend
+        opt = RFOTransitionState(atoms, logfile=None, hessian_update_freq=5)
+        original_converged = opt.converged
+
+        def mock_converged(forces):
+            if opt.nsteps > 0:
+                raise ConvergedError
+            return original_converged(forces)
+
+        opt.converged = mock_converged
+        result = opt.run(fmax=LOOSE_FMAX, steps=QUICK_STEPS_EXTENDED)
+        assert result is True
+        assert opt.nsteps > 0
+
+    def test_trust_radius_clamped_to_bounds(self, mock_backend, water_dissociation_ts_guess):
+        atoms = water_dissociation_ts_guess.copy()
+        atoms.calc = mock_backend
+        opt = RFOTransitionState(
+            atoms,
+            logfile=None,
+            trust_radius=0.001,
+            max_trust_radius=0.01,
+        )
+
+        increased = adjust_trust_radius(
+            opt.trust_radius,
+            1.0,
+            0.0001,
+            opt.min_trust_radius,
+            opt.max_trust_radius,
+        )
+        assert increased <= opt.max_trust_radius
+
+        decreased = adjust_trust_radius(
+            opt.trust_radius,
+            0.0,
+            0.0001,
+            opt.min_trust_radius,
+            opt.max_trust_radius,
+        )
+        assert decreased >= opt.min_trust_radius

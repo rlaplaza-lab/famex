@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,9 @@ from ase import Atoms
 from ase.io import read as ase_read
 from ase.io import write as ase_write
 
+from famex.analysis.thermodynamics import read_free_energy_correction
+from famex.embed.api import smiles_to_atoms
+from famex.io import pubchem
 from famex.io.xyz_io import read_xyz_with_metadata, write_xyz_with_metadata
 
 
@@ -36,6 +40,86 @@ def parse_kv_pairs(pairs: list[str]) -> dict[str, object]:
     return result
 
 
+_GEOM_SUFFIXES = {".xyz", ".cif", ".pdb", ".vasp", ".json", ".com", ".gjf", ".mol", ".sdf"}
+
+
+def input_stem(text: str) -> str:
+    """File stem for an existing geometry, or a filesystem-safe SMILES slug."""
+    path = Path(text)
+    try:
+        is_file = path.is_file()
+    except OSError:
+        is_file = False
+    if is_file:
+        return os.path.splitext(text)[0]
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", text).strip("_")
+    return (slug or "smiles")[:48]
+
+
+def _is_pubchem_query(text: str) -> bool:
+    """Return whether ``text`` is ``pubchem:``, ``cid:``, or a bare numeric CID.
+
+    A bare compound name is not detected. Pass ``pubchem:NAME`` for that.
+    """
+    lowered = text.strip().lower()
+    if lowered.startswith(("pubchem:", "cid:")):
+        return True
+    return text.strip().isdigit()
+
+
+def require_same_atom_count(structures: list[Atoms], labels: list[str]) -> None:
+    """Reject a reactant/product set whose structures have different sizes."""
+    if len(structures) < 2:
+        return
+    counts = [len(atoms) for atoms in structures]
+    if len(set(counts)) == 1:
+        return
+    detail = ", ".join(
+        f"{label} ({count} atoms)" for label, count in zip(labels, counts, strict=True)
+    )
+    raise ValueError(f"Atom counts do not match: {detail}")
+
+
+def load_structure_or_smiles(text: str, *, embedder: str = "pysmiles") -> Atoms:
+    """Load a geometry file, a PubChem compound, or a SMILES string.
+
+    Paths that look like geometry files and do not exist are reported as
+    missing files. ``pubchem:NAME``, ``cid:2244``, and a bare CID download
+    from PubChem. Any other missing path is parsed as SMILES.
+    ``embedder`` is ``pysmiles`` or ``rdkit``. An existing file is loaded as a
+    geometry even if its name looks like a CID.
+    """
+    path = Path(text)
+    try:
+        is_file = path.is_file()
+    except OSError as exc:
+        raise click.BadParameter(f"Cannot read {text!r}: {exc}") from exc
+    if is_file:
+        return load_atoms_from_xyz(text)
+
+    looks_like_file = path.suffix.lower() in _GEOM_SUFFIXES or text.startswith(("/", "./", "../"))
+    if looks_like_file:
+        raise click.BadParameter(f"File not found: {text}")
+
+    stripped = text.strip()
+    if _is_pubchem_query(stripped):
+        try:
+            return pubchem.fetch_pubchem(stripped, embedder=embedder)
+        except ImportError as exc:
+            raise click.ClickException(str(exc)) from exc
+        except (ValueError, RuntimeError) as exc:
+            raise click.BadParameter(str(exc)) from exc
+
+    try:
+        return smiles_to_atoms(text, embedder=embedder)
+    except ImportError as exc:
+        raise click.ClickException(str(exc)) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise click.BadParameter(
+            f"{text!r} is not an existing file or a valid SMILES string ({exc})"
+        ) from exc
+
+
 def load_atoms_from_xyz(path: str) -> Atoms:
     """Load atoms from an XYZ file."""
     if path.lower().endswith(".xyz"):
@@ -52,36 +136,33 @@ def load_atoms_from_xyz(path: str) -> Atoms:
     return atoms
 
 
-def load_path_structures(structures: tuple[str, ...]) -> list[Atoms]:
-    """Load structures for path optimization from variadic file inputs."""
+def load_path_structures(structures: tuple[str, ...], *, embedder: str = "pysmiles") -> list[Atoms]:
+    """Load path endpoints from files, PubChem IDs, or SMILES strings.
+
+    One existing XYZ may be a multi-frame trajectory. Two or more inputs are
+    loaded one by one, so a reactant file can be paired with a product SMILES
+    or ``cid:``.
+    """
     if not structures:
-        raise ValueError("At least one structure file must be provided")
+        raise ValueError("At least one structure must be provided")
 
-    atoms_list: list[Atoms] = []
-
-    if len(structures) > 1:
-        for path in structures:
-            atoms = load_atoms_from_xyz(path)
-            atoms_list.append(atoms)
-        return atoms_list
-
-    single_path = structures[0]
-
-    if single_path.lower().endswith(".xyz"):
+    if len(structures) == 1 and structures[0].lower().endswith(".xyz"):
+        path = Path(structures[0])
         try:
-            geom_result = read_xyz_with_metadata(single_path, frame="all")
+            is_file = path.is_file()
+        except OSError:
+            is_file = False
+        if is_file:
+            try:
+                geom_result = read_xyz_with_metadata(structures[0], frame="all")
+            except Exception:
+                geom_result = None
             if isinstance(geom_result, list):
-                atoms_list.extend(geom_result)
-                return atoms_list
-            else:
-                atoms_list.append(geom_result)
-                return atoms_list
-        except Exception:
-            pass
+                return list(geom_result)
+            if geom_result is not None:
+                return [geom_result]
 
-    atoms = load_atoms_from_xyz(single_path)
-    atoms_list.append(atoms)
-    return atoms_list
+    return [load_structure_or_smiles(text, embedder=embedder) for text in structures]
 
 
 def _coerce_to_atoms(obj: Any) -> Atoms:
@@ -199,12 +280,7 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
     if not isinstance(thermo, dict):
         thermo = {}
     temperature = thermo.get("temperature", 298.15)
-
-    entropy = thermo.get("entropy", 0.0)
-    if isinstance(entropy, int | float) and isinstance(temperature, int | float):
-        free_energy_correction = -entropy * temperature / 1000.0  # Convert K to eV/K
-    else:
-        free_energy_correction = 0.0
+    free_energy_correction = read_free_energy_correction(frequency_analysis)
 
     click.echo(f"Frequency analysis completed ({n_modes} modes):")
     if isinstance(zpe, int | float) and not (np.isnan(zpe) or np.isinf(zpe)):
@@ -212,14 +288,15 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
     else:
         click.echo("  Zero-point energy: N/A")
 
-    if isinstance(free_energy_correction, int | float) and not (
+    if free_energy_correction is not None and not (
         np.isnan(free_energy_correction) or np.isinf(free_energy_correction)
     ):
         click.echo(
-            f"  Free energy correction ({temperature:.1f} K): {free_energy_correction:.4f} eV"
+            f"  Free energy correction ({float(temperature):.1f} K): "
+            f"{free_energy_correction:.4f} eV"
         )
     else:
-        click.echo(f"  Free energy correction ({temperature:.1f} K): N/A")
+        click.echo(f"  Free energy correction ({float(temperature):.1f} K): N/A")
 
     if target == "ts":
         is_ts = frequency_analysis.get("is_ts", False)

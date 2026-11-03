@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
+from ase.io import read
 from click.testing import CliRunner
 
 import famex
 from famex.cli import main
+from famex.utils.logging import get_famex_log_level
 from tests.test_constants import COMPREHENSIVE_STEPS, DEFAULT_FMAX, LOOSE_FMAX, QUICK_STEPS
 from tests.test_utils import BackendTestRunner, StandardTestAssertions, TestResultHandler
 
@@ -36,7 +40,7 @@ class TestCLIMockBackend:
 
         # Verify success
         assert result.exit_code == 0, f"CLI failed: {result.output}"
-        out_path = xyz_path.with_suffix(".opt.local.xyz")
+        out_path = xyz_path.with_suffix(".minima.xyz")
         assert out_path.exists(), f"Output file not created: {out_path}"
 
     def test_opt_twoended_runs_with_mock_backend(self, tmp_path, water_molecule):
@@ -75,7 +79,7 @@ class TestCLIMockBackend:
 
         # Verify success
         assert result.exit_code == 0, f"CLI failed: {result.output}"
-        out_path = reactant_path.with_suffix(".opt.interpolate.xyz")
+        out_path = reactant_path.with_suffix(".minima.interpolate.xyz")
         assert out_path.exists(), f"Output file not created: {out_path}"
 
     def test_minima_dry_run(self, tmp_path, water_molecule):
@@ -125,7 +129,7 @@ class TestCLIMockBackend:
         )
 
         assert result.exit_code == 0
-        out_path = xyz_path.with_suffix(".opt.local.json")
+        out_path = xyz_path.with_suffix(".minima.json")
         assert out_path.exists()
 
     def test_minima_with_custom_output(self, tmp_path, water_molecule):
@@ -153,6 +157,44 @@ class TestCLIMockBackend:
 
         assert result.exit_code == 0
         assert custom_out.exists()
+
+    def test_minima_history_writes_step_file(self, tmp_path, water_molecule):
+        runner = CliRunner()
+        xyz_path = tmp_path / "test.xyz"
+        atoms = water_molecule.copy()
+        positions = atoms.get_positions()
+        positions[1, 0] += 0.4
+        atoms.set_positions(positions)
+        atoms.write(str(xyz_path))
+
+        result = runner.invoke(
+            main,
+            [
+                "minima",
+                "--strategy",
+                "local",
+                str(xyz_path),
+                "--backend",
+                "mock",
+                "--local-optimizer",
+                "lbfgs",
+                "--steps",
+                "2",
+                "--fmax",
+                "1e-8",
+                "--history",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        default_path = xyz_path.with_suffix(".minima.xyz")
+        history_path = tmp_path / "test.minima_trajectory.xyz"
+        assert default_path.exists()
+        assert history_path.exists()
+        frames = read(history_path, index=":")
+        assert len(frames) > 1
+        comment = history_path.read_text().splitlines()[1]
+        assert "step=" in comment
 
     def test_ts_command_with_mock(self, tmp_path, water_dissociation_ts_guess):
         runner = CliRunner()
@@ -327,13 +369,22 @@ class TestCLIMockBackend:
 
         assert result.exit_code == 0
 
-    def test_verbose_options(self, tmp_path, water_molecule):
+    @pytest.mark.parametrize(
+        ("verbose_flags", "expected_level"),
+        [
+            ([], logging.WARNING),  # default quiet
+            (["-v"], logging.INFO),
+            (["-vv"], logging.DEBUG),
+            (["-vvv"], logging.DEBUG),  # clamped
+        ],
+    )
+    def test_verbose_options(
+        self, tmp_path, water_molecule, clear_famex_logger, verbose_flags, expected_level
+    ):
         runner = CliRunner()
         xyz_path = tmp_path / "test.xyz"
-        atoms = water_molecule.copy()
-        atoms.write(str(xyz_path))
+        water_molecule.copy().write(str(xyz_path))
 
-        # Test -vv (verbose=2)
         result = runner.invoke(
             main,
             [
@@ -345,11 +396,19 @@ class TestCLIMockBackend:
                 "mock",
                 "--steps",
                 "1",
-                "-vv",
+                *verbose_flags,
             ],
         )
 
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.output
+        assert get_famex_log_level() == expected_level
+        assert clear_famex_logger.level == expected_level
+
+    def test_verbose_help_text(self):
+        help_result = CliRunner().invoke(main, ["minima", "--help"])
+        assert help_result.exit_code == 0
+        assert "default quiet" in help_result.output
+        assert "-v=quiet" not in help_result.output
 
     def test_constraints_option(self, tmp_path, water_molecule):
         runner = CliRunner()

@@ -17,6 +17,7 @@ from famex.backends.constants import (
     BACKEND_MACE,
     BACKEND_MOCK,
     BACKEND_PET,
+    BACKEND_PYSCF,
     BACKEND_SO3LR,
     BACKEND_UMA,
     ML_BACKENDS,
@@ -85,6 +86,7 @@ class BackendAvailabilityChecker:
             "orb": ["orb_models", "torch"],
             "tblite": ["tblite"],
             BACKEND_PET: ["upet", "torch"],
+            BACKEND_PYSCF: ["pyscf", "pyscf_dispersion"],
         }
 
         # Human-readable package names for error messages
@@ -93,9 +95,10 @@ class BackendAvailabilityChecker:
             BACKEND_UMA: ["fairchem-core", "torch"],
             BACKEND_SO3LR: ["so3lr"],
             BACKEND_MACE: ["mace-torch", "torch"],
-            "orb": ["orb-models", "torch"],
+            "orb": ["orb-models>=0.7.0", "torch"],
             "tblite": ["tblite"],
             BACKEND_PET: ["upet", "torch"],
+            BACKEND_PYSCF: ["pyscf", "pyscf-dispersion"],
         }
 
     def _check_python_version(self, backend: str) -> bool:
@@ -248,12 +251,12 @@ def get_backend_error_message(backend: str) -> str:
     Parameters
     ----------
     backend : str
-        Backend name
+        Backend name.
 
     Returns
     -------
     str
-        Human-readable error message with installation instructions
+        Human-readable error message with installation instructions.
 
     """
     reason = get_availability_reason(backend)
@@ -264,8 +267,9 @@ def get_backend_error_message(backend: str) -> str:
         BACKEND_MACE: "pip install mace-torch",
         BACKEND_SO3LR: "pip install so3lr",
         BACKEND_PET: "pip install upet",
-        "orb": "pip install orb-models",
+        "orb": 'pip install "orb-models>=0.7.0"',
         "tblite": "pip install tblite",
+        BACKEND_PYSCF: "pip install famex[pyscf]",
     }
 
     cmd = install_commands.get(backend, f"pip install {backend}")
@@ -273,7 +277,6 @@ def get_backend_error_message(backend: str) -> str:
     return f"Backend '{backend}' is not available.\nReason: {reason}\nInstall with: {cmd}"
 
 
-# Extended convenience functions with logging (from utils/backend_utils.py)
 def get_available_backends_with_logging(
     include_mock: bool = True,
     verbose: bool = False,
@@ -282,15 +285,15 @@ def get_available_backends_with_logging(
 
     Parameters
     ----------
-    include_mock : bool, default True
-        Whether to include the mock backend
-    verbose : bool, default False
-        Whether to print availability status for each backend
+    include_mock : bool, optional
+        Whether to include the mock backend. Default is True.
+    verbose : bool, optional
+        Whether to print availability status for each backend. Default is False.
 
     Returns
     -------
     list[str]
-        List of available backend names
+        Available backend names.
 
     """
     available = get_available_backends(include_mock=include_mock)
@@ -302,10 +305,9 @@ def get_available_backends_with_logging(
         for backend in backends_to_check:
             is_available = backend in available
             if is_available:
-                logger.info("  ✅ %s", backend)
+                logger.info("  %s", backend)
             else:
-                reason = get_availability_reason(backend)
-                logger.info("  ❌ %s (%s)", backend, reason)
+                logger.info("  %s (%s)", backend, get_availability_reason(backend))
 
     return available
 
@@ -324,14 +326,14 @@ def filter_available_backends(requested_backends: list[str], verbose: bool = Fal
     Parameters
     ----------
     requested_backends : list[str]
-        List of backend names to check
-    verbose : bool, default False
-        Whether to print status messages
+        Backend names to check.
+    verbose : bool, optional
+        Whether to print status messages. Default is False.
 
     Returns
     -------
     list[str]
-        List of available backends from the requested list
+        Available backends from the requested list.
 
     """
     available = []
@@ -345,112 +347,30 @@ def filter_available_backends(requested_backends: list[str], verbose: bool = Fal
             unavailable.append(backend)
 
     if verbose and unavailable:
-        logger.info("⚠️  Unavailable backends (skipped): %s", unavailable)
+        logger.info("Unavailable backends (skipped): %s", unavailable)
 
     if verbose and available:
-        logger.info("✅ Available backends: %s", available)
+        logger.info("Available backends: %s", available)
 
     return available
-
-
-def validate_backends(requested_backends: list[str]) -> tuple[list[str], list[str]]:
-    """Validate a list of requested backends.
-
-    Parameters
-    ----------
-    requested_backends : list[str]
-        List of backend names to validate
-
-    Returns
-    -------
-    tuple[list[str], list[str]]
-        Tuple of (available_backends, invalid_backends)
-
-    """
-    available = []
-    invalid = []
-
-    for backend in requested_backends:
-        if backend in ALL_BACKENDS:
-            if is_backend_available(backend):
-                available.append(backend)
-            # Note: valid but unavailable backends are not considered "invalid"
-        else:
-            invalid.append(backend)
-
-    return available, invalid
-
-
-def require_ml_backends(min_count: int = 1) -> list[str]:
-    """Require that at least a minimum number of ML backends are available.
-
-    Parameters
-    ----------
-    min_count : int, default 1
-        Minimum number of ML backends required
-
-    Returns
-    -------
-    list[str]
-        List of available ML backends
-
-    Raises
-    ------
-    SystemExit
-        If insufficient ML backends are available
-
-    """
-    available = get_available_ml_backends()
-    logger = _get_logger()
-
-    if len(available) < min_count:
-        logger.warning(
-            f"❌ Need at least {min_count} ML backend(s), but only {len(available)} available.",
-        )
-        logger.info("Please install additional ML backends:")
-        logger.info("  - UMA: pip install fairchem-core")
-        logger.info("  - MACE: pip install mace-torch")
-        logger.info("  - AIMNet2: pip install torch")
-        logger.info("  - SO3LR: pip install so3lr")
-        sys.exit(1)
-
-    return available
-
-
-def print_backend_summary(backends: list[str], title: str = "Backend Summary") -> None:
-    """Print a formatted summary of backend availability."""
-    logger = _get_logger()
-    logger.info("\n%s", title)
-    logger.info("=" * len(title))
-
-    if not backends:
-        logger.info("No backends available!")
-        return
-
-    # Categorize backends
-    mock_backends = [b for b in backends if b == "mock"]
-    ml_backends = [b for b in backends if b in ML_BACKENDS]
-
-    if mock_backends:
-        logger.info("Mock: %s", ", ".join(mock_backends))
-    if ml_backends:
-        logger.info("ML: %s", ", ".join(ml_backends))
-
-    logger.info("Total: %d backend(s)", len(backends))
 
 
 def require_backend(backend: str) -> None:
-    """Decorator/function to require a specific backend for a test.
+    """Skip the current test unless a backend is available.
 
-    Examples
-    --------
-    >>> @require_backend("mace")
-    ... def test_something():
-    ...     pass
+    Call this inside a test. If the backend is unavailable and pytest is
+    installed, the test is skipped. If pytest is absent, an ImportError is
+    raised instead.
 
-    >>> def test_something():
-    ...     require_backend("mace")
-    ...     # test code here
+    Parameters
+    ----------
+    backend : str
+        Backend name that the test requires.
+
+    Raises
+    ------
+    ImportError
+        If pytest is not installed and the backend is unavailable.
 
     """
     try:
@@ -464,40 +384,3 @@ def require_backend(backend: str) -> None:
 
     if not is_backend_available(backend):
         pytest.skip(f"Backend {backend} not available in this environment")
-
-
-def require_any_backend(backends: list[str]) -> list[str] | None:
-    """Require that at least one of the specified backends is available.
-
-    Usage:
-    >>> require_any_backend(["mace", "uma"])
-    """
-    try:
-        import pytest
-    except ImportError:
-        # If pytest not available, just check availability
-        available = [b for b in backends if is_backend_available(b)]
-        if not available:
-            msg = f"None of the required backends are available: {backends}"
-            raise ImportError(msg)
-        return available
-
-    available = [b for b in backends if is_backend_available(b)]
-    if not available:
-        pytest.skip(f"None of the required backends are available: {backends}")
-
-    return available
-
-
-def get_backend_pairs() -> list[tuple[str, str]]:
-    """Get pairs of backends for comparison testing.
-
-    Returns
-    -------
-    list[tuple[str, str]]
-        List of tuples of (backend1, backend2) pairs where both backends are available.
-        Currently returns an empty list as there are no defined pairs.
-
-    """
-    # No backend pairs defined currently
-    return []

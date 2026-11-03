@@ -7,33 +7,17 @@ their results, useful for validation and method selection.
 from __future__ import annotations
 
 import time
-from typing import Any, Protocol
+from typing import Any
 
 import numpy as np
 from ase import Atoms
 
+from famex.analysis.hessian import CalculatorProtocol
 from famex.analysis.utils import has_calculator_property, validate_indices
+from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
-
-
-class CalculatorProtocol(Protocol):
-    """Protocol for calculator objects compatible with ASE Atoms."""
-
-    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Compute forces for the given atoms structure."""
-        ...
-
-    def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
-    ) -> float:
-        """Compute potential energy for the given atoms structure."""
-        ...
-
-    def get_hessian(self, atoms: Atoms | None = None, **kwargs: Any) -> np.ndarray:
-        """Compute Hessian matrix (optional)."""
-        ...
 
 
 def compare_hessian_methods(
@@ -99,28 +83,33 @@ def compare_hessian_methods(
 
     for method in methods:
         if verbose >= 1:
-            logger.info(f"Testing method: {method}")
+            logger.info("Testing method: %s", method)
 
         try:
             start_time = time.time()
-            hessian = _compute_hessian_method(atoms, calculator, method, delta, indices, verbose)
+            hessian = _compute_hessian_method(atoms, calculator, method, delta, indices)
             elapsed_time = time.time() - start_time
 
             hessians[method] = hessian
             timings[method] = elapsed_time
 
-            # Compute quality metrics
-            metric = _compute_quality_metrics(hessian)
+            # Compute quality metrics (project out rigid modes when geometry known)
+            atom_indices = validate_indices(atoms, indices)
+            metric = _compute_quality_metrics(
+                hessian,
+                positions=atoms.get_positions()[atom_indices],
+                masses=atoms.get_masses()[atom_indices],
+            )
             metrics[method] = metric
 
             if verbose >= 1:
-                logger.info(f"  ✓ Completed in {elapsed_time:.3f} s")
-                logger.info(f"  RMS value: {metric['rms_value']:.6e} eV/Å²")
-                logger.info(f"  Max asymmetry: {metric['max_asymmetry']:.6e} eV/Å²")
+                logger.info("  ✓ Completed in %.3f s", elapsed_time)
+                logger.info("  RMS value: %.6e eV/Å²", metric["rms_value"])
+                logger.info("  Max asymmetry: %.6e eV/Å²", metric["max_asymmetry"])
 
         except Exception as e:
             if verbose >= 1:
-                logger.error(f"  ✗ Failed: {e}")
+                logger.error("  ✗ Failed: %s", e)
             continue
 
     # Generate recommendations
@@ -143,7 +132,6 @@ def _compute_hessian_method(
     method: str,
     delta: float,
     indices: list[int] | None,
-    verbose: int,
 ) -> np.ndarray:
     """Compute Hessian using specified method."""
     from famex.analysis.frequency import FrequencyAnalysis
@@ -195,46 +183,78 @@ def _compute_hessian_method(
         raise ValueError(msg)
 
 
-def _compute_quality_metrics(hessian: np.ndarray) -> dict[str, float]:
+def _compute_quality_metrics(
+    hessian: np.ndarray,
+    positions: np.ndarray | None = None,
+    masses: np.ndarray | None = None,
+) -> dict[str, float]:
     """Compute quality metrics for a Hessian matrix.
 
     Parameters
     ----------
     hessian : np.ndarray
         Hessian matrix
+    positions : np.ndarray, optional
+        Atomic positions used to project out translations/rotations before
+        computing the condition number.
+    masses : np.ndarray, optional
+        Atomic masses for the center-of-mass used in the rigid-mode basis.
 
     Returns
     -------
     dict[str, float]
         Quality metrics including RMS value, max asymmetry, etc.
     """
-    # RMS value
+    has_nan = bool(np.any(np.isnan(hessian)))
+    has_inf = bool(np.any(np.isinf(hessian)))
+    if has_nan or has_inf:
+        return {
+            "rms_value": float("nan"),
+            "max_asymmetry": float("nan"),
+            "condition_number": float("inf"),
+            "has_nan": has_nan,
+            "has_inf": has_inf,
+        }
+
     rms_value = float(np.sqrt(np.mean(hessian**2)))
 
-    # Asymmetry
     asymmetry = np.abs(hessian - hessian.T)
     max_asymmetry = float(np.max(asymmetry))
 
-    # Condition number
-    eigenvalues = np.linalg.eigvals(hessian)
+    matrix = 0.5 * (hessian + hessian.T)
+    n_null = 0
+    if positions is not None and masses is not None:
+        positions = np.asarray(positions, dtype=np.float64)
+        masses = np.asarray(masses, dtype=np.float64)
+        n_atoms = positions.shape[0]
+        if (
+            positions.ndim == 2
+            and positions.shape[1] == 3
+            and masses.shape == (n_atoms,)
+            and matrix.shape == (3 * n_atoms, 3 * n_atoms)
+        ):
+            basis = build_translation_rotation_basis(positions, masses)
+            n_null = int(basis.shape[1]) if basis.size else 0
+            matrix = project_hessian(matrix, basis)
+
+    eigenvalues = np.linalg.eigvalsh(matrix)
     eigenvalues = eigenvalues[np.isfinite(eigenvalues)]
-    eigenvalues_abs = np.abs(eigenvalues)
-    eigenvalues_abs = eigenvalues_abs[eigenvalues_abs > 0]
+    if n_null > 0 and len(eigenvalues) > n_null:
+        vibrational = eigenvalues[np.argsort(np.abs(eigenvalues))[n_null:]]
+    else:
+        vibrational = eigenvalues
+    eigenvalues_abs = np.abs(vibrational[vibrational != 0])
     if len(eigenvalues_abs) > 0:
         condition_number = float(np.max(eigenvalues_abs) / np.min(eigenvalues_abs))
     else:
         condition_number = float("inf")
 
-    # NaN/Inf check
-    has_nan = bool(np.any(np.isnan(hessian)))
-    has_inf = bool(np.any(np.isinf(hessian)))
-
     return {
         "rms_value": rms_value,
         "max_asymmetry": max_asymmetry,
         "condition_number": condition_number,
-        "has_nan": has_nan,
-        "has_inf": has_inf,
+        "has_nan": False,
+        "has_inf": False,
     }
 
 
@@ -305,7 +325,7 @@ def _generate_recommendations(
     if verbose >= 1 and len(valid_methods) > 0:
         logger.info("\nMethod recommendations (best to worst):")
         for i, method in enumerate(valid_methods, 1):
-            logger.info(f"  {i}. {method} (score: {scores[method]:.1f})")
+            logger.info("  %s. %s (score: %.1f)", i, method, scores[method])
 
     return valid_methods
 
@@ -382,7 +402,7 @@ class HessianComparisonReport:
                 frequencies, _ = diagonalize_mass_weighted_hessian(hessian, atoms, self.indices)
                 frequencies_dict[method] = frequencies
             except Exception as e:
-                logger.warning(f"Failed to compute frequencies for {method}: {e}")
+                logger.warning("Failed to compute frequencies for %s: %s", method, e)
                 continue
 
         if len(frequencies_dict) < 2:
@@ -416,5 +436,4 @@ class HessianComparisonReport:
 __all__ = [
     "compare_hessian_methods",
     "HessianComparisonReport",
-    "CalculatorProtocol",
 ]

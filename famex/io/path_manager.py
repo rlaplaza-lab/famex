@@ -85,19 +85,10 @@ class PathManager:
     def product(self) -> Geometry:
         return self.structures[-1]
 
-    @property
-    def reaction_energy(self) -> float | None:
-        if self.reactant.energy is not None and self.product.energy is not None:
-            return self.product.energy - self.reactant.energy
-        return None
-
     def interpolate(
         self,
         npoints: int = 10,
         method: str = "linear",
-        optimize_path: bool = False,
-        calculator: Any | None = None,
-        explorer: Any | None = None,
     ) -> list[Geometry]:
         if npoints < 2:
             msg = "Need at least 2 points for interpolation"
@@ -109,8 +100,6 @@ class PathManager:
                 self.product,
                 npoints,
                 method,
-                optimize_path,
-                calculator,
             )
 
         segments = len(self.structures) - 1
@@ -134,8 +123,6 @@ class PathManager:
                 end_struct,
                 nseg,
                 method,
-                optimize_path,
-                calculator,
             )
 
             if i == 0:
@@ -151,8 +138,6 @@ class PathManager:
         end: Geometry,
         npoints: int,
         method: str,
-        optimize_path: bool,
-        calculator: Any | None,
     ) -> list[Geometry]:
         start_coords = start.coords3d
         end_coords = end.coords3d
@@ -177,105 +162,26 @@ class PathManager:
                 geom.calc = self.calculator
             path_geometries.append(geom)
 
-        if optimize_path:
-            calc = calculator or self.calculator
-            if calc is None:
-                msg = "Need calculator for path optimization"
-                raise ValueError(msg)
-            path_geometries = self._optimize_path(path_geometries, calc)
-
         return path_geometries
 
-    def _optimize_path(
-        self, path_geometries: list[Geometry], calculator: Any | None
-    ) -> list[Geometry]:
-        logger.info("Note: Using simplified NEB-like algorithm for path optimization")
-
-        for geom in path_geometries:
-            geom.calc = calculator
-            energy = geom.get_potential_energy()
-            geom.energy = energy
-
-        return path_geometries
+    @staticmethod
+    def _path_energies(path: Sequence[Atoms]) -> list[float]:
+        energies: list[float] = []
+        for index, atoms in enumerate(path):
+            try:
+                energies.append(float(atoms.get_potential_energy()))
+            except Exception as exc:
+                msg = f"Failed to evaluate energy for path image {index}"
+                raise RuntimeError(msg) from exc
+        if not energies:
+            raise RuntimeError("Path is empty; cannot select extrema")
+        return energies
 
     @staticmethod
     def find_ts_guess(path: Sequence[Atoms]) -> tuple[Atoms, int]:
-        energies = []
-        for atoms in path:
-            try:
-                energy = atoms.get_potential_energy()
-                energies.append(energy)
-            except Exception:
-                energies.append(float("-inf"))  # Invalid energy
-
-        if not energies or all(e == float("-inf") for e in energies):
-            ts_index = len(path) // 2
-        else:
-            ts_index = energies.index(max(energies))
-
+        energies = PathManager._path_energies(path)
+        ts_index = energies.index(max(energies))
         return path[ts_index], ts_index
-
-    @staticmethod
-    def find_local_minima(path: Sequence[Atoms]) -> list[int]:
-        import math
-
-        energies = []
-        for atoms in path:
-            try:
-                energy = atoms.get_potential_energy()
-                energies.append(energy)
-            except Exception:
-                energies.append(float("nan"))
-
-        minima_idxs = []
-        for i, e in enumerate(energies):
-            if math.isnan(e):
-                continue
-            left = energies[i - 1] if i - 1 >= 0 else float("inf")
-            right = energies[i + 1] if i + 1 < len(energies) else float("inf")
-            if (not math.isnan(left) and e < left) and (not math.isnan(right) and e < right):
-                minima_idxs.append(i)
-
-        if not minima_idxs:
-            valid = [(i, e) for i, e in enumerate(energies) if not math.isnan(e)]
-            if not valid:
-                msg = "No valid energies found along path to select minima"
-                raise RuntimeError(msg)
-            min_idx = min(valid, key=lambda ie: ie[1])[0]
-            minima_idxs = [min_idx]
-
-        return minima_idxs
-
-    @staticmethod
-    def find_local_maxima(path: Sequence[Atoms]) -> list[int]:
-        import math
-
-        energies = []
-        for atoms in path:
-            try:
-                energy = atoms.get_potential_energy()
-                energies.append(energy)
-            except Exception:
-                energies.append(float("nan"))
-
-        maxima_idxs = []
-        for i, e in enumerate(energies):
-            if math.isnan(e):
-                continue
-            left = energies[i - 1] if i - 1 >= 0 else float("-inf")
-            right = energies[i + 1] if i + 1 < len(energies) else float("-inf")
-            if (not math.isnan(left) and e > left) and (not math.isnan(right) and e > right):
-                maxima_idxs.append(i)
-
-        if not maxima_idxs:
-            valid = [(i, e) for i, e in enumerate(energies) if not math.isnan(e)]
-            if not valid:
-                msg = "No valid energies found along path to select maxima"
-                raise RuntimeError(msg)
-            max_idx = max(valid, key=lambda ie: ie[1])[0]
-            maxima_idxs = [max_idx]
-
-        return maxima_idxs
 
     @staticmethod
     def calculate_rmsd(
@@ -349,8 +255,8 @@ class PathManager:
             is_similar = is_similar and energy_diff < energy_threshold
         elif is_similar:
             logger.debug(
-                f"Structure similarity check: RMSD={rmsd:.3f} Å < threshold, "
-                "but energy unavailable for comparison",
+                "Structure similarity check: RMSD=%.3f Å < threshold, but energy unavailable for comparison",
+                rmsd,
             )
 
         return StructureSimilarity(
@@ -384,7 +290,7 @@ class PathManager:
                 energies.append(energy)
             except (RuntimeError, ValueError, AttributeError):
                 energies.append(None)
-                logger.debug(f"Energy unavailable for structure {i + 1}")
+                logger.debug("Energy unavailable for structure %s", i + 1)
 
         if input_structures is not None and input_structures:
             input_only = True
@@ -503,95 +409,6 @@ class PathManager:
             explorer._apply_constraints(struct)
 
         return struct_list[0].calc if struct_list else None
-
-    def calculate_path_energies(self, path: list[Geometry] | list[Atoms]) -> list[float]:
-        if not path:
-            return []
-
-        energies = []
-        for geom in path:
-            if geom.calc is None:
-                geom.calc = self.calculator
-            energies.append(geom.get_potential_energy())
-        return energies
-
-    def get_rmsd_profile(
-        self,
-        path_geometries: list[Geometry] | list[Atoms],
-    ) -> tuple[list[float], list[float]]:
-        rmsd_from_reactant = []
-        rmsd_from_product = []
-
-        reactant_coords = self.reactant.coords3d
-        product_coords = self.product.coords3d
-
-        for geom in path_geometries:
-            coords = geom.get_positions() if isinstance(geom, Atoms) else geom.coords3d
-            rmsd_r = np.sqrt(np.mean((coords - reactant_coords) ** 2))
-            rmsd_from_reactant.append(rmsd_r)
-            rmsd_p = np.sqrt(np.mean((coords - product_coords) ** 2))
-            rmsd_from_product.append(rmsd_p)
-
-        return rmsd_from_reactant, rmsd_from_product
-
-    def to_xyz_trajectory(self, path_geometries: list[Geometry] | list[Atoms]) -> str:
-        xyz_lines = []
-
-        for i, geom in enumerate(path_geometries):
-            xyz_lines.append(str(len(geom)))
-            try:
-                energy = geom.get_potential_energy()
-                comment = f"Frame {i}, Energy = {energy:.6f} eV"
-            except Exception:
-                comment = f"Frame {i}"
-            xyz_lines.append(comment)
-            symbols = geom.get_chemical_symbols()
-            coords = geom.get_positions()
-
-            for _j, (symbol, pos) in enumerate(zip(symbols, coords, strict=False)):
-                line = f"{symbol:2s} {pos[0]:12.6f} {pos[1]:12.6f} {pos[2]:12.6f}"
-                xyz_lines.append(line)
-
-        return "\n".join(xyz_lines)
-
-    def get_path_statistics(self, path: list[Atoms]) -> dict:
-        energies = []
-        for atoms in path:
-            try:
-                energy = atoms.get_potential_energy()
-                energies.append(energy)
-            except Exception:
-                energies.append(float("nan"))
-
-        import math
-
-        valid_energies = [e for e in energies if not math.isnan(e)]
-
-        stats = {
-            "num_structures": len(path),
-            "energies": energies,
-            "min_energy": min(valid_energies) if valid_energies else None,
-            "max_energy": max(valid_energies) if valid_energies else None,
-            "energy_range": (max(valid_energies) - min(valid_energies) if valid_energies else None),
-        }
-
-        try:
-            _, ts_idx = PathManager.find_ts_guess(path)
-            stats["ts_index"] = ts_idx
-        except Exception:
-            stats["ts_index"] = None
-
-        try:
-            stats["minima_indices"] = PathManager.find_local_minima(path)
-        except Exception:
-            stats["minima_indices"] = []
-
-        try:
-            stats["maxima_indices"] = PathManager.find_local_maxima(path)
-        except Exception:
-            stats["maxima_indices"] = []
-
-        return stats
 
     def __str__(self) -> str:
         return f"PathManager({len(self.reactant)} atoms, {len(self.structures)} structures)"

@@ -7,6 +7,7 @@ for semi-empirical quantum chemistry calculations with xTB methods.
 from __future__ import annotations
 
 import contextlib
+import io
 import os
 import sys
 from collections.abc import Sequence
@@ -15,6 +16,7 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 
+from famex.backends.constants import DEFAULT_TBLITE_MODEL
 from famex.backends.dependencies import deps
 from famex.potentials.base_potential import BasePotential
 from famex.utils.logging import get_famex_logger
@@ -34,30 +36,28 @@ def suppress_tblite_output() -> Any:
     TBLite output is suppressed at verbosity levels 0, 1, and 2, and only
     appears at verbosity 3 or higher (if supported in the future).
     """
-    # Always suppress TBLite output since verbosity 3+ is not currently
-    # supported in FAMEX's logging system. This ensures TBLite remains quiet
-    # even at verbosity 2 (DEBUG level).
-    # Use os.dup2() for file descriptor-level redirection to catch C/Fortran output
-    devnull_fd = os.open(os.devnull, os.O_WRONLY)
     try:
-        # Get file descriptor numbers for stdout and stderr
         stdout_fd = sys.stdout.fileno()
         stderr_fd = sys.stderr.fileno()
+    except (AttributeError, OSError, io.UnsupportedOperation):
+        # Captured/virtual streams (pytest, Jupyter) have no OS file descriptor.
+        yield
+        return
 
-        # Save copies of original file descriptors before redirecting
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    saved_stdout_fd = None
+    saved_stderr_fd = None
+    try:
         saved_stdout_fd = os.dup(stdout_fd)
         saved_stderr_fd = os.dup(stderr_fd)
-
-        # Redirect at file descriptor level (catches C/Fortran output)
         os.dup2(devnull_fd, stdout_fd)
         os.dup2(devnull_fd, stderr_fd)
         yield
     finally:
-        # Restore original file descriptors
-        if "saved_stdout_fd" in locals():
+        if saved_stdout_fd is not None:
             os.dup2(saved_stdout_fd, stdout_fd)
             os.close(saved_stdout_fd)
-        if "saved_stderr_fd" in locals():
+        if saved_stderr_fd is not None:
             os.dup2(saved_stderr_fd, stderr_fd)
             os.close(saved_stderr_fd)
         os.close(devnull_fd)
@@ -78,12 +78,12 @@ class TBLitePotential(BasePotential):
         "charges",
         "dipole",
         "stress",
-        "hessian",
     ]
 
     def __init__(
         self,
-        method: str = "GFN2-xTB",
+        method: str | None = None,
+        model_name: str | None = None,
         charge: int | None = None,
         multiplicity: int | None = None,
         accuracy: float = 1.0,
@@ -100,43 +100,11 @@ class TBLitePotential(BasePotential):
     ) -> None:
         """Initialize TBLite potential calculator.
 
-        Parameters
-        ----------
-        method : str, default "GFN2-xTB"
-            TBLite method to use. Available options:
-            - "GFN1-xTB": Fast method for large systems
-            - "GFN2-xTB": More accurate method (default)
-        charge : int, optional
-            Total charge of the system
-        multiplicity : int, optional
-            Total spin multiplicity of the system
-        accuracy : float, default 1.0
-            Numerical accuracy of the calculation
-        electronic_temperature : float, default 300.0
-            Electronic temperature in Kelvin
-        max_iterations : int, default 250
-            Maximum iterations for self-consistent evaluation
-        initial_guess : str, default "sad"
-            Initial guess for wavefunction ("sad" or "eeq")
-        mixer_damping : float, default 0.4
-            Damping parameter for self-consistent mixer
-        electric_field : list[float], optional
-            Uniform electric field vector (in V/A)
-        spin_polarization : float, optional
-            Spin polarization (scaling factor)
-        solvation : tuple[str, ...], optional
-            Solvation model to use (see TBLite docs for details)
-        cache_api : bool, default True
-            Reuse generated API objects (recommended)
-        verbosity : int, default 0
-            Set verbosity of printout (0=quiet, 1=normal, 2=verbose).
-            Note: This is automatically adjusted based on FAMEX verbosity level.
-        **kwargs
-            Additional arguments passed to BasePotential
-
+        Level of theory is ``method`` / ``model_name`` (default ``GFN2-xTB``),
+        matching how PySCF uses ``model_name="xc/basis"``.
         """
-        # Store TBLite-specific parameters
-        self.method = method
+        resolved = method or model_name or DEFAULT_TBLITE_MODEL
+        self.method = resolved
         self.charge = charge
         self.multiplicity = multiplicity
         self.accuracy = accuracy
@@ -149,11 +117,9 @@ class TBLitePotential(BasePotential):
         self.solvation = solvation
         self.cache_api = cache_api
         self.verbosity = verbosity
-
-        # Placeholder for the underlying calculator implementation
         self._calc: Any | None = None
 
-        super().__init__(backend="tblite", **kwargs)
+        super().__init__(backend="tblite", model_name=resolved, **kwargs)
 
     def _load_calculator(self) -> None:
         """Load the TBLite calculator implementation."""
@@ -322,49 +288,6 @@ class TBLitePotential(BasePotential):
         msg = "Stress calculation not supported by this TBLite method"
         raise NotImplementedError(msg)
 
-    def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get numerical Hessian matrix using finite differences.
-
-        TBLite does not provide analytical Hessians, so we compute them
-        numerically using FAMEX's HessianCalculator. We use a smaller step size
-        (0.005 Å) compared to ML potentials since semi-empirical methods can
-        have more numerical noise in force calculations.
-
-        Parameters
-        ----------
-        atoms : Atoms, optional
-            Atoms object to calculate Hessian for
-
-        Returns
-        -------
-        np.ndarray
-            Hessian matrix of shape (3N, 3N) in eV/Å² units
-        """
-        from famex.analysis.frequency import HessianCalculator
-
-        if atoms is not None:
-            self.atoms = atoms
-
-        # Ensure calculator is loaded
-        if self._calc is None:
-            self._load_calculator()
-
-        if self.atoms is None:
-            msg = "No atoms object available for Hessian calculation"
-            raise RuntimeError(msg)
-
-        # Use FAMEX's existing numerical Hessian calculator
-        # Use smaller step size for semi-empirical methods (0.005 vs 0.01)
-        hessian_calc = HessianCalculator(
-            self.atoms,
-            self,
-            delta=0.005,  # Smaller step for semi-empirical methods
-            method="central",  # Central differences for better accuracy
-            verbose=0,  # Quiet mode
-        )
-
-        return hessian_calc.calculate_numerical_hessian()
-
     def get_property(
         self, name: str, atoms: Atoms | None = None, allow_calculation: bool = True
     ) -> Any:
@@ -373,7 +296,7 @@ class TBLitePotential(BasePotential):
         Parameters
         ----------
         name : str
-            Property name ('energy', 'forces', 'hessian', etc.)
+            Property name ('energy', 'forces', 'charges', etc.)
         atoms : Atoms, optional
             Atoms object
         allow_calculation : bool, default True
@@ -388,9 +311,7 @@ class TBLitePotential(BasePotential):
             self.atoms = atoms
 
         # Handle special cases that need their own methods
-        if name == "hessian":
-            return self.get_hessian(atoms)
-        elif name == "charges":
+        if name == "charges":
             return self.get_charges(atoms)
         elif name == "dipole":
             return self.get_dipole_moment(atoms)

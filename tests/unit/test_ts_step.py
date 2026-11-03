@@ -7,11 +7,13 @@ import pytest
 
 from famex.optimizers.ts_step import (
     NULL_MODE_THRESHOLD,
+    _restricted_prfo_step,
     adjust_trust_radius,
     build_translation_rotation_basis,
-    compute_dense_prfo_step,
     compute_matrix_free_ts_step,
+    compute_restricted_prfo_step,
     compute_step_quality,
+    lowest_eigenpair,
     make_atoms_hessp,
     project_gradient,
     project_hessian,
@@ -37,6 +39,16 @@ class TestTSStep:
         gradient = np.ones(n)
         projected = project_gradient(gradient, q)
         assert np.allclose(q.T @ projected, 0.0, atol=1e-10)
+
+    def test_cartesian_basis_projects_heteroatomic_translation(self):
+        positions = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.96], [0.0, 0.0, 1.92]])
+        masses = np.array([16.0, 1.0, 1.0])
+        basis = build_translation_rotation_basis(positions, masses)
+        # Pure Cartesian translation along z
+        gradient = np.zeros(9)
+        gradient[2::3] = 1.0
+        projected = project_gradient(gradient, basis)
+        assert np.linalg.norm(projected) < 1e-10
 
     def test_select_transition_mode_follows_previous(self):
         eigenvalues = np.array([-0.1, 0.2, 0.5])
@@ -135,14 +147,75 @@ class TestTSStep:
         hessp1(vec)
         assert call_count == 4
 
-    def test_dense_prfo_step_respects_trust_radius(self):
+    def test_restricted_prfo_matches_scaled_augmented_hessian(self):
+        """Minimization components use the scaled augmented Hessian at alpha ≠ 1."""
+        eigenvalues = np.array([-0.2, 0.5, 800.0])
+        eigenvectors = np.eye(3)
+        gradient = np.array([0.05, 2.0, 4.0])
+        alpha = 0.25
+
+        step = _restricted_prfo_step(gradient, eigenvalues, eigenvectors, 0, alpha)
+
+        def augmented_step(omega: np.ndarray, force: np.ndarray, kind: str) -> np.ndarray:
+            size = len(omega)
+            matrix = np.zeros((size + 1, size + 1))
+            matrix[:size, :size] = np.diag(omega / alpha)
+            matrix[-1, :-1] = force
+            matrix[:-1, -1] = force / alpha
+            values, vectors = np.linalg.eig(matrix)
+            values = values.real
+            vectors = vectors.real
+            chosen = int(np.argmax(values) if kind == "max" else np.argmin(values))
+            return vectors[:-1, chosen] / vectors[-1, chosen]
+
+        expected = np.concatenate(
+            [
+                augmented_step(eigenvalues[:1], gradient[:1], "max"),
+                augmented_step(eigenvalues[1:], gradient[1:], "min"),
+            ]
+        )
+        assert step == pytest.approx(expected, rel=1e-10, abs=1e-12)
+
+    def test_restricted_step_respects_trust_radius(self):
+        hessian = np.diag([-0.2, 800.0, 800.0])
+        gradient = np.array([0.05, 4.0, -3.0])
+        trust_radius = 0.05
+        restricted = compute_restricted_prfo_step(gradient, hessian, trust_radius=trust_radius).step
+        assert np.linalg.norm(restricted) == pytest.approx(trust_radius, rel=0.1)
+
+    def test_matrix_free_skips_null_mode(self):
+        hessian = np.diag([0.0, 0.05, 1.0, 2.0, 3.0, 4.0])
+        gradient = np.zeros(6)
+        gradient[1] = 0.2
+
+        result = compute_matrix_free_ts_step(
+            gradient=gradient,
+            hessp=lambda vec: hessian @ vec,
+            trust_radius=0.1,
+        )
+        soft = np.zeros(6)
+        soft[1] = 1.0
+        overlap = abs(float(np.dot(result.transition_mode, soft)))
+        assert overlap == pytest.approx(1.0, abs=1e-6)
+
+    def test_matrix_free_follows_previous_vibrational_mode(self):
+        hessian = np.diag([-0.5, 0.2, 1.0, 2.0])
+        previous = np.array([0.0, 1.0, 0.0, 0.0])
+        _eigenvalue, mode = lowest_eigenpair(
+            lambda vec: hessian @ vec,
+            n=4,
+            previous_mode=previous,
+        )
+        assert abs(float(mode[1])) == pytest.approx(1.0, abs=1e-6)
+
+    def test_restricted_prfo_step_respects_trust_radius(self):
         n = 6
         rng = np.random.default_rng(0)
         hessian = rng.standard_normal((n, n))
         hessian = hessian + hessian.T
         gradient = rng.standard_normal(n)
         trust_radius = 0.1
-        result = compute_dense_prfo_step(
+        result = compute_restricted_prfo_step(
             gradient=gradient,
             hessian=hessian,
             trust_radius=trust_radius,

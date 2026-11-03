@@ -46,36 +46,6 @@ SUSPICIOUS_PATTERNS = [
 ]
 
 
-def create_path_traversal_test_pattern(test_func, evil_paths=None, safe_paths=None):
-    """Test path traversal patterns.
-
-    Args:
-        test_func: Function that takes a path and should raise ValueError for evil paths
-        evil_paths: List of evil paths to test (defaults to EVIL_PATHS)
-        safe_paths: List of safe paths to test (defaults to SAFE_PATHS)
-
-    Returns
-    -------
-    pytest.mark.parametrize
-        pytest.mark.parametrize marker for testing path traversal patterns.
-
-    """
-    import pytest
-
-    if evil_paths is None:
-        evil_paths = EVIL_PATHS
-    if safe_paths is None:
-        safe_paths = SAFE_PATHS
-
-    # This is a helper that can be used to create parametrized tests
-    # Example usage:
-    # @pytest.mark.parametrize("path", EVIL_PATHS)
-    # def test_traversal(path):
-    #     with pytest.raises(ValueError):
-    #         test_func(path)
-    return pytest.mark.parametrize("path", evil_paths + safe_paths)
-
-
 @pytest.fixture
 def test_atoms():
     """Standard test atoms fixture for security tests."""

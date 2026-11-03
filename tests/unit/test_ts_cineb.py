@@ -69,9 +69,9 @@ class TestMultiStructureTSCINEBStrategy:
         )
         strategy = MultiStructureTSCINEBStrategy(explorer)
 
-        def fake_neb_optimize(self: NEBOptimizer) -> list[Atoms]:
+        def fake_neb_optimize(self: NEBOptimizer) -> tuple[list[Atoms], bool]:
             self.climbing_image = len(self.images) // 2
-            return self.images
+            return self.images, True
 
         with (
             patch.object(NEBOptimizer, "optimize", fake_neb_optimize),

@@ -5,20 +5,47 @@ from __future__ import annotations
 from typing import Any, cast
 
 import numpy as np
-from ase import Atoms, units
+from ase import Atoms
 from numpy.typing import NDArray
 
 from famex.analysis.hessian import HessianCalculator
 from famex.analysis.molecular_properties import determine_degrees_of_freedom
 from famex.analysis.normal_modes import convert_frequency_unit, diagonalize_mass_weighted_hessian
 from famex.analysis.physics_constants import filter_positive_frequencies, normalize_frequencies_cm1
+from famex.analysis.quasiharmonic import harmonic_zero_point_energy_ev
 from famex.analysis.thermodynamics import ThermodynamicProperties
 from famex.analysis.utils import has_calculator_property, validate_indices
 from famex.analysis.validation import validate_hessian
+from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
 from famex.utils.logging import get_famex_logger
 from famex.utils.validation import FAMEXError
 
 logger = get_famex_logger(__name__)
+
+
+def select_vibrational_indices(
+    frequencies: np.ndarray,
+    nfree: int,
+    imag_threshold: float = 50.0,
+) -> np.ndarray:
+    """Return indices of vibrational modes after dropping ``nfree`` rigid-body modes.
+
+    Modes below ``-imag_threshold`` are never discarded as translational or
+    rotational degrees of freedom.
+    """
+    idx_by_abs = np.argsort(np.abs(frequencies))
+    keep = idx_by_abs[nfree:].tolist()
+
+    for drop_i in idx_by_abs[:nfree]:
+        if frequencies[drop_i] >= -imag_threshold:
+            continue
+        nonnegative = [k for k in keep if frequencies[k] >= 0.0]
+        if not nonnegative:
+            continue
+        swap = min(nonnegative, key=lambda k: abs(frequencies[k]))
+        keep[keep.index(swap)] = drop_i
+
+    return np.asarray(keep, dtype=int)
 
 
 class FrequencyAnalysis:
@@ -52,6 +79,23 @@ class FrequencyAnalysis:
         self._is_calculated = False
         self._direct_frequencies: np.ndarray | None = None
         self._keep_indices: np.ndarray | None = None
+        self._hessian_validation_warned = False
+
+    def set_hessian(self, hessian: np.ndarray) -> NDArray[np.float64]:
+        """Install a precomputed Cartesian Hessian (3N x 3N for selected indices)."""
+        h = np.asarray(hessian, dtype=np.float64)
+        n = 3 * len(self.indices)
+        if h.shape != (n, n):
+            msg = f"Hessian shape {h.shape} does not match expected ({n}, {n})"
+            raise ValueError(msg)
+        self._hessian = h
+        self._frequencies = None
+        self._normal_modes = None
+        self._zero_point_energy = None
+        self._is_calculated = False
+        self._direct_frequencies = None
+        self._keep_indices = None
+        return h
 
     def calculate_hessian(self, method: str = "auto") -> np.ndarray:
         if method == "autoselect":
@@ -60,13 +104,13 @@ class FrequencyAnalysis:
         if method == "auto":
             if has_calculator_property(self.calculator, "frequencies"):
                 method = "direct_frequencies"
+            elif has_calculator_property(self.calculator, "hessian"):
+                method = "direct"
             elif (
                 hasattr(self.calculator, "supports_batch_evaluation")
                 and self.calculator.supports_batch_evaluation
             ):
                 method = "batch"
-            elif has_calculator_property(self.calculator, "hessian"):
-                method = "direct"
             else:
                 method = "finite_differences"
 
@@ -93,12 +137,25 @@ class FrequencyAnalysis:
             msg = f"Unknown Hessian method: {method}"
             raise ValueError(msg)
 
-        validation_results = validate_hessian(self._hessian, warn_on_issues=True)
-        if not validation_results["is_valid"]:
-            logger.warning(
-                "Hessian validation detected issues. Results may be unreliable. "
-                f"Validation results: {validation_results}"
-            )
+        warn = not self._hessian_validation_warned
+        kwargs: dict[str, Any] = {"warn_on_issues": warn}
+        if len(self.indices) == len(self.atoms) and self._hessian.shape == (
+            3 * len(self.atoms),
+            3 * len(self.atoms),
+        ):
+            kwargs["positions"] = self.atoms.get_positions()
+            kwargs["masses"] = self.atoms.get_masses()
+
+        results = validate_hessian(self._hessian, **kwargs)
+        cond = results["condition_number"]
+        ill_conditioned = isinstance(cond, float) and cond > 1e18
+        if warn and (not results["is_valid"] or ill_conditioned):
+            self._hessian_validation_warned = True
+            if not results["is_valid"]:
+                logger.warning(
+                    "Hessian validation detected issues. Results may be unreliable. Validation results: %s",
+                    results,
+                )
 
         return self._hessian
 
@@ -126,8 +183,6 @@ class FrequencyAnalysis:
     def _generate_displaced_structures(self) -> list[Atoms]:
         displaced_structures = []
 
-        displaced_structures.append(self.atoms.copy())
-
         for i in self.indices:
             for j in range(3):
                 atoms_pos = self.atoms.copy()
@@ -139,7 +194,7 @@ class FrequencyAnalysis:
                 displaced_structures.append(atoms_neg)
 
         if self.verbose >= 2:
-            logger.debug(f"Generated {len(displaced_structures)} structures for batch calculation")
+            logger.debug("Generated %s structures for batch calculation", len(displaced_structures))
 
         return displaced_structures
 
@@ -148,14 +203,14 @@ class FrequencyAnalysis:
         n_coords = 3 * n_atoms
         hessian = np.zeros((n_coords, n_coords))
 
-        expected_results = 1 + 2 * n_coords
+        expected_results = 2 * n_coords
         if len(batch_results) < expected_results:
             msg = (
                 f"Insufficient batch results: expected {expected_results}, got {len(batch_results)}"
             )
             raise RuntimeError(msg)
 
-        result_idx = 1
+        result_idx = 0
 
         for i in range(n_atoms):
             for j in range(3):
@@ -180,12 +235,12 @@ class FrequencyAnalysis:
                             neg_forces[atom_k, coord] - pos_forces[atom_k, coord]
                         ) / (2 * self.delta)
 
-        hessian = cast(NDArray[np.float64], 0.5 * (hessian + hessian.T))
+        symmetrized = 0.5 * (hessian + hessian.T)
 
         if self.verbose >= 2:
             logger.debug("Hessian constructed from batch results")
 
-        return cast(NDArray[np.float64], hessian)
+        return symmetrized
 
     def _calculate_direct_frequencies(self) -> np.ndarray:
         from famex.analysis.utils import get_calculator_property
@@ -204,52 +259,40 @@ class FrequencyAnalysis:
         )
 
     def _calculate_hessian_autoselect(self) -> np.ndarray:
-        if self.verbose >= 1:
-            logger.info("Hessian autoselect: choosing optimal method...")
-
         if has_calculator_property(self.calculator, "hessian"):
-            if self.verbose >= 1:
-                logger.info("  Trying analytical Hessian...")
             try:
                 analytical_hessian = self._calculate_direct_hessian()
                 if np.any(np.isnan(analytical_hessian)) or np.any(np.isinf(analytical_hessian)):
                     logger.warning(
-                        "  Analytical Hessian contains NaN/Inf, falling back to finite differences"
+                        "Analytical Hessian contains NaN/Inf, falling back to finite differences"
                     )
                 else:
                     asymmetry = np.max(np.abs(analytical_hessian - analytical_hessian.T))
                     if asymmetry >= 1e-4:
                         logger.warning(
-                            f"  Analytical Hessian has high asymmetry ({asymmetry:.2e}), "
-                            "falling back to finite differences"
+                            "Analytical Hessian has high asymmetry (%.2e), "
+                            "falling back to finite differences",
+                            asymmetry,
                         )
                     else:
-                        if self.verbose >= 1:
-                            logger.info("  ✓ Using analytical Hessian")
+                        logger.info("Using analytical Hessian")
                         self._hessian = analytical_hessian
                         return analytical_hessian
             except (AttributeError, RuntimeError) as e:
-                logger.warning(f"  Analytical Hessian failed: {e}, falling back to FD")
+                logger.warning("Analytical Hessian failed: %s, falling back to FD", e)
 
-        # Estimate force noise
-        if self.verbose >= 1:
-            logger.info("  Estimating force noise...")
         try:
             from famex.analysis.noise_estimation import estimate_force_noise
 
             force_noise = estimate_force_noise(
                 self.atoms, self.calculator, n_samples=5, indices=self.indices
             )
-            if self.verbose >= 1:
-                logger.info(f"  Force noise: {force_noise:.2e} eV/Å")
-        except Exception as e:
-            logger.warning(f"  Force noise estimation failed: {e}, assuming moderate noise")
-            force_noise = 1e-5  # Default moderate noise
+            logger.debug("Force noise: %.2e eV/Å", force_noise)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as e:
+            logger.warning("Force noise estimation failed: %s, assuming moderate noise", e)
+            force_noise = 1e-5
 
-        # Step 3: Try energy-based FD if force noise is very high
         if force_noise > 1e-4:
-            if self.verbose >= 1:
-                logger.info("  High force noise detected, trying energy-based FD...")
             try:
                 from famex.analysis.hessian_energy import EnergyBasedHessianCalculator
 
@@ -262,34 +305,27 @@ class FrequencyAnalysis:
                 )
                 energy_hessian = energy_calc.calculate_energy_hessian()
                 if np.any(np.isnan(energy_hessian)) or np.any(np.isinf(energy_hessian)):
-                    logger.warning("  Energy-based FD failed: invalid Hessian, falling back")
+                    logger.warning("Energy-based FD failed: invalid Hessian, falling back")
                 else:
-                    if self.verbose >= 1:
-                        logger.info("  ✓ Using energy-based FD Hessian")
+                    logger.info("Using energy-based finite-difference Hessian")
                     self._hessian = energy_hessian
                     return energy_hessian
             except (RuntimeError, ValueError) as e:
-                logger.warning(f"  Energy-based FD failed: {e}, falling back to force-based FD")
-        elif self.verbose >= 1:
-            logger.info("  Force noise acceptable, using force-based FD")
+                logger.warning("Energy-based FD failed: %s, falling back to force-based FD", e)
 
-        if self.verbose >= 1:
-            logger.info("  Using high-quality force-based FD (5-point + Richardson)...")
         hessian_calc = HessianCalculator(
             self.atoms,
             self.calculator,
             self.delta,
-            method="5point",  # Higher order for better accuracy
+            method="5point",
             richardson=True,
             delta2=self.delta / 2.0 if self.delta2 is None else self.delta2,
             indices=self.indices,
             verbose=self.verbose,
-            adaptive_delta=False,  # Fixed delta with Richardson is optimal cost/accuracy
+            adaptive_delta=False,
         )
         self._hessian = hessian_calc.calculate_numerical_hessian()
-
-        if self.verbose >= 1:
-            logger.info("  ✓ Force-based FD Hessian computed")
+        logger.info("Using force-based finite-difference Hessian")
         return self._hessian
 
     def diagonalize_hessian(self) -> tuple[np.ndarray, np.ndarray]:
@@ -306,8 +342,13 @@ class FrequencyAnalysis:
             msg = "Hessian not calculated. Call calculate_hessian() first."
             raise FAMEXError(msg)
 
+        positions = self.atoms.get_positions()[self.indices]
+        masses = self.atoms.get_masses()[self.indices]
+        basis = build_translation_rotation_basis(positions, masses)
+        hessian = project_hessian(self._hessian, basis)
+
         frequencies, eigenvectors = diagonalize_mass_weighted_hessian(
-            self._hessian, self.atoms, self.indices
+            hessian, self.atoms, self.indices
         )
 
         self._frequencies = normalize_frequencies_cm1(frequencies)
@@ -316,13 +357,16 @@ class FrequencyAnalysis:
 
         return self._frequencies, eigenvectors
 
-    def get_frequencies(self, unit: str = "cm-1") -> np.ndarray:
+    def get_frequencies(self, unit: str = "cm-1", imag_threshold: float = 50.0) -> np.ndarray:
         """Get vibrational frequencies in specified units.
 
         Parameters
         ----------
         unit : str
             Unit for frequencies: 'cm-1', 'meV', 'THz'
+        imag_threshold : float
+            Frequencies below ``-imag_threshold`` are never discarded as
+            translational/rotational modes.
 
         Returns
         -------
@@ -331,7 +375,6 @@ class FrequencyAnalysis:
             Signed real values in cm⁻¹ (negative for imaginary modes).
 
         """
-        # Gather all frequencies
         if self._direct_frequencies is not None:
             freq_all = normalize_frequencies_cm1(self._direct_frequencies)
         else:
@@ -345,8 +388,7 @@ class FrequencyAnalysis:
 
             freq_all = self._frequencies
 
-        idx_sorted = np.argsort(np.abs(freq_all))
-        keep_idx = idx_sorted[self.nfree :]
+        keep_idx = select_vibrational_indices(freq_all, self.nfree, imag_threshold)
         self._keep_indices = keep_idx
         frequencies = freq_all[keep_idx]
 
@@ -429,18 +471,16 @@ class FrequencyAnalysis:
             "n_near_zero_frequencies": n_near_zero,
             "all_frequencies": frequencies.tolist(),  # Note: vibrational frequencies (trans/rot removed)
             "threshold": threshold,
-            "assessment": self._assess_stationary_point(n_imaginary, n_near_zero, threshold),
+            "assessment": self._assess_stationary_point(n_imaginary),
         }
 
-    def _assess_stationary_point(self, n_imaginary: int, n_near_zero: int, threshold: float) -> str:
+    def _assess_stationary_point(self, n_imaginary: int) -> str:
         """Assess type of stationary point based on frequency analysis."""
         if n_imaginary == 0:
             return "Minimum (no imaginary frequencies)"
         if n_imaginary == 1:
             return "First-order transition state (one imaginary frequency)"
-        if n_imaginary > 1:
-            return f"Higher-order saddle point ({n_imaginary} imaginary frequencies)"
-        return "Undetermined stationary point type"
+        return f"Higher-order saddle point ({n_imaginary} imaginary frequencies)"
 
     def is_minima(
         self,
@@ -506,9 +546,6 @@ class FrequencyAnalysis:
             "assessment": self._assess_stationary_point_minima(
                 n_significant_imaginary,
                 n_small_negative,
-                n_near_zero,
-                threshold,
-                small_negative_cutoff,
             ),
         }
 
@@ -516,9 +553,6 @@ class FrequencyAnalysis:
         self,
         n_significant_imaginary: int,
         n_small_negative: int,
-        n_near_zero: int,
-        threshold: float,
-        small_negative_cutoff: float,
     ) -> str:
         """Assess type of stationary point for minima validation."""
         if n_significant_imaginary == 0:
@@ -530,12 +564,10 @@ class FrequencyAnalysis:
             return "Minimum (no imaginary frequencies)"
         if n_significant_imaginary == 1:
             return "First-order transition state (one significant imaginary frequency)"
-        if n_significant_imaginary > 1:
-            return (
-                f"Higher-order saddle point "
-                f"({n_significant_imaginary} significant imaginary frequencies)"
-            )
-        return "Undetermined stationary point type"
+        return (
+            f"Higher-order saddle point "
+            f"({n_significant_imaginary} significant imaginary frequencies)"
+        )
 
     def get_zero_point_energy(self) -> float:
         """Calculate zero-point vibrational energy.
@@ -551,9 +583,7 @@ class FrequencyAnalysis:
 
         frequencies = self.get_frequencies()
         real_frequencies = filter_positive_frequencies(frequencies)
-
-        freq_eV = real_frequencies * units.invcm
-        zpe = float(0.5 * np.sum(freq_eV))  # ZPE in eV, ensure float type
+        zpe = harmonic_zero_point_energy_ev(real_frequencies)
 
         self._zero_point_energy = zpe
         return zpe
@@ -569,17 +599,15 @@ class FrequencyAnalysis:
         # Statistical thermodynamics parameters
         rotational_temperatures: np.ndarray | None = None,
         rotational_constants: np.ndarray | None = None,
-        symmetry_number: int = 1,
+        symmetry_number: int | None = None,
         point_group: str | None = None,
         linear: bool | None = None,
         multiplicity: int = 1,
         # Solvation parameters
         solvent: str = "none",
-        concentration: float = 1.0,
-        # Full thermodynamics option
-        complete: bool = False,
+        concentration: float | None = None,
     ) -> dict[str, float | int | list[float]]:
-        """Calculate thermodynamic properties at given temperature.
+        """Calculate vibrational thermodynamic properties at given temperature.
 
         Parameters
         ----------
@@ -595,28 +623,24 @@ class FrequencyAnalysis:
             Rotational temperatures in Kelvin
         rotational_constants : array-like, optional
             Rotational constants in GHz
-        symmetry_number : int
-            Symmetry number (default: 1 for C1)
+        symmetry_number : int, optional
+            Symmetry number. When omitted, molsymm detects σ from the geometry.
         point_group : str, optional
-            Point group symbol for automatic symmetry determination
+            Point group symbol for symmetry number lookup
         linear : bool, optional
             Whether molecule is linear (auto-detected if None)
         multiplicity : int
             Spin multiplicity 2S+1 (default: 1)
         solvent : str
             Solvent name (default: "none" for gas phase)
-        concentration : float
-            Concentration in mol/L
-        complete : bool
-            If True, calculate complete thermodynamics with all contributions.
-            If False, return vibrational-only properties (backward compatible).
+        concentration : float, optional
+            Concentration in mol/L. When omitted, use the GoodVibes 1 atm
+            ideal-gas molarity.
 
         Returns
         -------
         dict[str, float | int | list[float]]
-            Dictionary with thermodynamic properties.
-            If complete=True, includes all contributions (trans, rot, vib, elec).
-            If complete=False, returns vibrational-only (backward compatible).
+            Vibrational thermodynamic properties.
 
         """
         frequencies = self.get_frequencies()
@@ -638,91 +662,22 @@ class FrequencyAnalysis:
             solvent=solvent,
             concentration=concentration,
         )
+        complete = thermo_props.calculate_complete_thermodynamics()
+        # contributions["zero_point"] is 0 for Grimme (ZPE folded into enthalpy_vib).
+        internal_energy = complete["enthalpy_vib"] + complete["contributions"]["zero_point"]
 
-        if complete:
-            # Return complete thermodynamics with all contributions
-            complete_thermo = thermo_props.calculate_complete_thermodynamics()
-
-            # Merge with vibrational-only data for compatibility
-            vibrational_only = {
-                "temperature": temperature,
-                "zero_point_energy": thermo_props.calculate_zero_point_energy(),
-                "internal_energy": thermo_props.internal_energy_vibrational(),
-                "heat_capacity": thermo_props.heat_capacity_vibrational(),
-                "entropy": thermo_props.entropy_vibrational(),
-                "n_vibrational_modes": len(real_frequencies),
-                "frequencies_cm_1": real_frequencies.tolist(),
-            }
-
-            # Combine both dictionaries
-            return {**vibrational_only, **complete_thermo}
-        else:
-            # Backward compatible: return vibrational-only properties
-            zpe = thermo_props.calculate_zero_point_energy()
-            entropy = thermo_props.entropy_vibrational()
-            internal_energy = thermo_props.internal_energy_vibrational()
-            heat_capacity = thermo_props.heat_capacity_vibrational()
-
-            return {
-                "temperature": temperature,
-                "zero_point_energy": zpe,
-                "internal_energy": internal_energy,
-                "heat_capacity": heat_capacity,
-                "entropy": entropy,
-                "n_vibrational_modes": len(real_frequencies),
-                "frequencies_cm_1": real_frequencies.tolist(),
-            }
-
-    def write_mode_trajectory(
-        self,
-        mode_index: int,
-        filename: str | None = None,
-        amplitude: float = 1.0,
-        nframes: int = 20,
-    ) -> None:
-        """Write trajectory showing normal mode motion.
-
-        Parameters
-        ----------
-        mode_index : int
-            Index of normal mode (0-based, after removing trans/rot modes)
-        filename : str, optional
-            Output filename. If None, uses mode_{index}.traj
-        amplitude : float
-            Amplitude of motion in Å
-        nframes : int
-            Number of frames in trajectory
-
-        """
-        if not self._is_calculated:
-            self.calculate_hessian()
-            self.diagonalize_hessian()
-
-        if filename is None:
-            filename = f"mode_{mode_index}.traj"
-
-        normal_modes = self.get_normal_modes()
-        if mode_index >= normal_modes.shape[1]:
-            msg = f"Mode index {mode_index} out of range"
-            raise ValueError(msg)
-
-        mode_vector = normal_modes[:, mode_index].reshape(-1, 3)
-
-        # Create trajectory
-        from ase.io import write
-
-        trajectory = []
-        for i in range(nframes):
-            phase = 2 * np.pi * i / nframes
-            displacement = amplitude * np.sin(phase) * mode_vector
-
-            atoms_displaced = self.atoms.copy()
-            atoms_displaced.positions[self.indices] += displacement
-            trajectory.append(atoms_displaced)
-
-        write(filename, trajectory)
-        if self.verbose >= 1:
-            logger.info(f"Normal mode trajectory written to {filename}")
+        return {
+            "temperature": temperature,
+            "zero_point_energy": thermo_props.calculate_zero_point_energy(),
+            "internal_energy": internal_energy,
+            "heat_capacity": thermo_props.heat_capacity_vibrational(),
+            "entropy": complete["entropy_vib"],
+            "enthalpy_total": complete["enthalpy_total"],
+            "entropy_total": complete["entropy_total"],
+            "free_energy_correction": complete["free_energy_correction"],
+            "n_vibrational_modes": len(real_frequencies),
+            "frequencies_cm_1": real_frequencies.tolist(),
+        }
 
 
 __all__ = [

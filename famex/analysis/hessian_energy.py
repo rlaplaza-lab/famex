@@ -10,29 +10,16 @@ Energy-based FD computes second derivatives directly:
 
 from __future__ import annotations
 
-from typing import Protocol, cast
+from typing import cast
 
 import numpy as np
 from ase import Atoms
-from numpy.typing import NDArray
 
+from famex.analysis.hessian import CalculatorProtocol
 from famex.analysis.utils import validate_indices
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
-
-
-class CalculatorProtocol(Protocol):
-    """Protocol for calculator objects compatible with ASE Atoms.
-
-    Any object that can be assigned to ``atoms.calc`` and provides
-    ``get_potential_energy()`` method is compatible.
-    """
-
-    def get_potential_energy(
-        self, atoms: Atoms | None = None, force_consistent: bool = False
-    ) -> float:
-        """Compute potential energy for the given atoms structure."""
 
 
 class EnergyBasedHessianCalculator:
@@ -166,14 +153,15 @@ class EnergyBasedHessianCalculator:
         # Warn about computational cost for large systems
         if n_atoms > 20:
             logger.warning(
-                f"Energy-based Hessian for {n_atoms} atoms will require "
-                f"~{4 * n_atoms**2:.0f} energy evaluations. This may be slow."
+                "Energy-based Hessian for %s atoms will require ~%.0f energy evaluations. This may be slow.",
+                n_atoms,
+                4 * n_atoms**2,
             )
 
         if self.verbose >= 2:
-            logger.info(f"Calculating energy-based Hessian for {n_atoms} atoms")
+            logger.info("Calculating energy-based Hessian for %s atoms", n_atoms)
             total_calculations = 4 * n_coords * (n_coords + 1) // 2
-            logger.info(f"Total energy calculations: {total_calculations}")
+            logger.info("Total energy calculations: %s", total_calculations)
 
         # Compute upper triangle (Hessian is symmetric)
         total_elements = n_coords * (n_coords + 1) // 2
@@ -186,7 +174,7 @@ class EnergyBasedHessianCalculator:
                     completed += 1
 
                     if self.verbose >= 2 and completed % 10 == 0:
-                        logger.debug(f"Completed {completed}/{total_elements} elements")
+                        logger.debug("Completed %s/%s elements", completed, total_elements)
 
                 except Exception as e:
                     coord_i_name = f"atom {self.indices[i // 3]}, coord {i % 3}"
@@ -202,13 +190,12 @@ class EnergyBasedHessianCalculator:
             for j in range(i + 1, n_coords):
                 hessian[j, i] = hessian[i, j]
 
-        # Final symmetrization for numerical stability
-        hessian = cast(NDArray[np.float64], 0.5 * (hessian + hessian.T))
+        symmetrized = 0.5 * (hessian + hessian.T)
 
         if self.verbose >= 2:
             logger.info("Energy-based Hessian calculation completed")
 
-        return cast(NDArray[np.float64], hessian)
+        return symmetrized
 
     def _compute_cross_derivative(self, i: int, j: int) -> float:
         """Compute cross-derivative H_ij using 4-point energy stencil.
@@ -310,5 +297,4 @@ class EnergyBasedHessianCalculator:
 
 __all__ = [
     "EnergyBasedHessianCalculator",
-    "CalculatorProtocol",
 ]

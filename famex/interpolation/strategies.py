@@ -9,19 +9,12 @@ Available strategies:
 - ``linear``: Simple linear interpolation between coordinates
 - ``geodesic``: Distance-preserving interpolation with bond length refinement
 - ``idpp``: Image-Dependent Pair Potential interpolation
-- ``quadratic``: Quadratic curve fitting through start, midpoint, and end
-- ``spline``: Cubic spline interpolation for smooth pathways
 """
 
 from abc import ABC, abstractmethod
-from typing import cast
 
 import numpy as np
-from numpy.typing import NDArray
-
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
+from scipy.spatial.distance import cdist
 
 
 class InterpolationStrategy(ABC):
@@ -113,9 +106,7 @@ class GeodesicInterpolation(InterpolationStrategy):
 
     def _get_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
         """Get pairwise distance matrix using vectorized operations."""
-        from scipy.spatial.distance import cdist
-
-        return cdist(coords, coords, metric="euclidean")
+        return np.asarray(cdist(coords, coords, metric="euclidean"))
 
     def _refine_coordinates(
         self,
@@ -159,15 +150,39 @@ class GeodesicInterpolation(InterpolationStrategy):
         return coords
 
 
+def idpp_energy_and_forces(
+    positions: np.ndarray,
+    target: np.ndarray,
+) -> tuple[float, np.ndarray]:
+    """IDPP energy and forces matching ASE ``ase.mep.neb.IDPP``."""
+    positions = np.asarray(positions, dtype=float)
+    target = np.asarray(target, dtype=float)
+
+    diffs = positions[np.newaxis, :, :] - positions[:, np.newaxis, :]
+    dists = np.linalg.norm(diffs, axis=2)
+    dd = dists - target
+    dists_safe = dists.copy()
+    np.fill_diagonal(dists_safe, 1.0)
+    energy = 0.5 * float((dd**2 / dists_safe**4).sum())
+    # ASE sums over the first pair index: force_j ∝ Σ_i coeff[i,j] * (r_j - r_i)
+    coeff = dd * (1.0 - 2.0 * dd / dists_safe) / dists_safe**5
+    forces = -2.0 * (coeff[..., np.newaxis] * diffs).sum(axis=0)
+    return energy, np.asarray(forces, dtype=float)
+
+
 class IDPPInterpolation(InterpolationStrategy):
-    """Image-Dependent Pair Potential interpolation.
+    """Image-Dependent Pair Potential (Smidstrup / ASE IDPP)."""
 
-    Iteratively refines linear interpolation using pairwise distance constraints
-    to create chemically reasonable intermediate structures. More robust for
-    large geometry changes than geodesic interpolation.
-
-    Reference: Smidstrup et al., J. Chem. Phys. 140, 214106 (2014)
-    """
+    def __init__(
+        self,
+        *,
+        fmax: float = 0.1,
+        steps: int = 100,
+        spring_constant: float = 0.1,
+    ) -> None:
+        self.fmax = fmax
+        self.steps = steps
+        self.spring_constant = spring_constant
 
     def interpolate(
         self,
@@ -175,185 +190,58 @@ class IDPPInterpolation(InterpolationStrategy):
         end_coords: np.ndarray,
         npoints: int,
     ) -> list[np.ndarray]:
-        """Perform IDPP interpolation."""
-        n_atoms, n_dims = start_coords.shape
-        path_coords_array = np.empty((npoints, n_atoms, n_dims))
-
-        # Start with linear interpolation
-        linear_interp = LinearInterpolation()
-        initial_path = linear_interp.interpolate(start_coords, end_coords, npoints)
-
-        # Refine each image using IDPP
-        for i, coords in enumerate(initial_path):
-            if i in (0, npoints - 1):
-                # Keep endpoints unchanged
-                path_coords_array[i] = coords
-            else:
-                # Refine intermediate images
-                refined_coords = self._idpp_refine(coords, start_coords, end_coords, i, npoints)
-                path_coords_array[i] = refined_coords
-
-        # Convert to list of arrays for API compatibility
-        return [path_coords_array[i] for i in range(npoints)]
-
-    def _idpp_refine(
-        self,
-        coords: np.ndarray,
-        start_coords: np.ndarray,
-        end_coords: np.ndarray,
-        image_idx: int,
-        npoints: int,
-    ) -> np.ndarray:
-        """Refine coordinates using IDPP potential."""
-        coords = coords.copy()
-        n_atoms = len(coords)
-
-        # Calculate target distances for this image
-        alpha = image_idx / (npoints - 1)
-        target_dists = (1 - alpha) * self._get_distance_matrix(
-            start_coords,
-        ) + alpha * self._get_distance_matrix(end_coords)
-
-        # IDPP refinement iterations
-        for _iteration in range(20):  # Max iterations
-            current_dists = self._get_distance_matrix(coords)
-            forces = np.zeros_like(coords)
-
-            for i in range(n_atoms):
-                for j in range(i + 1, n_atoms):
-                    current_dist = current_dists[i, j]
-                    target_dist = target_dists[i, j]
-
-                    if current_dist > 1e-6:
-                        # IDPP force calculation
-                        direction = coords[j] - coords[i]
-                        direction /= current_dist
-
-                        # Force magnitude based on distance difference
-                        force_mag = (target_dist - current_dist) * 0.2
-
-                        forces[i] -= force_mag * direction
-                        forces[j] += force_mag * direction
-
-            # Update coordinates
-            coords += forces * 0.1
-
-            # Check convergence
-            max_force = np.max(np.linalg.norm(forces, axis=1))
-            if max_force < 1e-4:
-                break
-
-        return coords
-
-    def _get_distance_matrix(self, coords: np.ndarray) -> np.ndarray:
-        """Get pairwise distance matrix using vectorized operations."""
-        from scipy.spatial.distance import cdist
-
-        return cdist(coords, coords, metric="euclidean")
-
-
-class QuadraticInterpolation(InterpolationStrategy):
-    """Quadratic interpolation through start, midpoint, and end.
-
-    Fits a quadratic curve through the start coordinates, a midpoint guess,
-    and end coordinates. Useful when approximate transition region is known.
-    """
-
-    def interpolate(
-        self,
-        start_coords: np.ndarray,
-        end_coords: np.ndarray,
-        npoints: int,
-    ) -> list[np.ndarray]:
-        """Perform quadratic interpolation."""
-        n_atoms, n_dims = start_coords.shape
-        path_coords_array = np.empty((npoints, n_atoms, n_dims))
-
-        # Create midpoint guess (average of start and end)
-        midpoint_coords = 0.5 * (start_coords + end_coords)
-
-        # Fit quadratic curve through three points
-        for i in range(npoints):
-            alpha = i / (npoints - 1)
-
-            if alpha <= 0.5:
-                # First half: quadratic from start to midpoint
-                t = 2 * alpha
-                coords = self._quadratic_interpolate(start_coords, midpoint_coords, t)
-            else:
-                # Second half: quadratic from midpoint to end
-                t = 2 * (alpha - 0.5)
-                coords = self._quadratic_interpolate(midpoint_coords, end_coords, t)
-
-            path_coords_array[i] = coords
-
-        # Convert to list of arrays for API compatibility
-        return [path_coords_array[i] for i in range(npoints)]
-
-    def _quadratic_interpolate(self, start: np.ndarray, end: np.ndarray, t: float) -> np.ndarray:
-        """Quadratic interpolation between two points."""
-        # Simple quadratic: start + t * (end - start) + t * (1 - t) * offset
-        # where offset creates a smooth curve
-        linear = start + t * (end - start)
-        offset = 0.1 * (end - start)  # Small offset for curvature
-        return cast(NDArray[np.floating], linear + t * (1 - t) * offset)
-
-
-class CubicSplineInterpolation(InterpolationStrategy):
-    """Cubic spline interpolation for smooth pathways.
-
-    Uses cubic splines to create smooth interpolation with better continuity
-    properties than linear interpolation.
-    """
-
-    def interpolate(
-        self,
-        start_coords: np.ndarray,
-        end_coords: np.ndarray,
-        npoints: int,
-    ) -> list[np.ndarray]:
-        """Perform cubic spline interpolation."""
-        n_atoms, n_dims = start_coords.shape
-        path_coords_array = np.empty((npoints, n_atoms, n_dims))
-
-        # Create control points for spline
-        # Use start, two intermediate points, and end
-        control_points = [
-            start_coords,
-            start_coords + 0.33 * (end_coords - start_coords),
-            start_coords + 0.67 * (end_coords - start_coords),
-            end_coords,
-        ]
-
-        # Generate spline points
-        for i in range(npoints):
-            t = i / (npoints - 1)
-            coords = self._cubic_spline_interpolate(control_points, t)
-            path_coords_array[i] = coords
-
-        # Convert to list of arrays for API compatibility
-        return [path_coords_array[i] for i in range(npoints)]
-
-    def _cubic_spline_interpolate(self, control_points: list[np.ndarray], t: float) -> np.ndarray:
-        """Cubic spline interpolation through control points."""
-        if len(control_points) != 4:
-            msg = "Cubic spline requires exactly 4 control points"
+        if npoints < 2:
+            msg = "IDPP interpolation requires at least 2 points"
             raise ValueError(msg)
 
-        # De Casteljau's algorithm for cubic Bezier curve
-        p0, p1, p2, p3 = control_points
+        path = [
+            np.asarray(c, dtype=float).copy()
+            for c in LinearInterpolation().interpolate(start_coords, end_coords, npoints)
+        ]
+        if npoints == 2:
+            return path
 
-        # First level
-        q0 = (1 - t) * p0 + t * p1
-        q1 = (1 - t) * p1 + t * p2
-        q2 = (1 - t) * p2 + t * p3
+        d1 = cdist(start_coords, start_coords, metric="euclidean")
+        d2 = cdist(end_coords, end_coords, metric="euclidean")
+        d_step = (d2 - d1) / (npoints - 1)
+        targets = [d1 + i * d_step for i in range(npoints)]
+        self._relax_path(path, targets)
+        return path
 
-        # Second level
-        r0 = (1 - t) * q0 + t * q1
-        r1 = (1 - t) * q1 + t * q2
+    def _relax_path(self, path: list[np.ndarray], targets: list[np.ndarray]) -> None:
+        # Deferred import: PathManager (used by strategies) imports this module.
+        from famex.strategies.neb_optimizer import _FIREBandStepper, compute_neb_forces
 
-        # Final level
-        return (1 - t) * r0 + t * r1
+        fire = _FIREBandStepper()
+        npoints = len(path)
+        natoms = path[0].shape[0]
+
+        for _step in range(self.steps):
+            energies = []
+            true_forces = []
+            for coords, target in zip(path, targets, strict=True):
+                energy, forces = idpp_energy_and_forces(coords, target)
+                energies.append(energy)
+                true_forces.append(forces)
+
+            neb_forces, _ = compute_neb_forces(
+                path,
+                energies,
+                true_forces,
+                k=self.spring_constant,
+                climb=False,
+            )
+            interior = neb_forces[1:-1]
+            if max(float(np.max(np.abs(f))) for f in interior) < self.fmax:
+                break
+
+            interior_pos = np.concatenate([c.ravel() for c in path[1:-1]])
+            interior_f = np.concatenate([f.ravel() for f in interior])
+            new_pos = fire.step(interior_pos, interior_f)
+            ncoords = 3 * natoms
+            for idx in range(npoints - 2):
+                start = idx * ncoords
+                path[idx + 1] = new_pos[start : start + ncoords].reshape(natoms, 3)
 
 
 # Registry of available interpolation strategies
@@ -361,8 +249,6 @@ INTERPOLATION_REGISTRY: dict[str, type[InterpolationStrategy]] = {
     "linear": LinearInterpolation,
     "geodesic": GeodesicInterpolation,
     "idpp": IDPPInterpolation,
-    "quadratic": QuadraticInterpolation,
-    "spline": CubicSplineInterpolation,
 }
 
 
@@ -397,26 +283,3 @@ def get_interpolation_strategy(method: str) -> InterpolationStrategy:
     # All classes in registry are concrete implementations
     strategy_class = INTERPOLATION_REGISTRY[method_lower]
     return strategy_class()
-
-
-def list_interpolation_methods() -> dict[str, str]:
-    """List available interpolation methods and their descriptions.
-
-    Returns
-    -------
-    dict[str, str]
-        Dictionary mapping method names to descriptions
-
-    """
-    descriptions = {
-        "linear": "Simple linear interpolation between coordinates",
-        "geodesic": "Distance-preserving interpolation with bond length refinement",
-        "idpp": "Image-Dependent Pair Potential interpolation (robust for large changes)",
-        "quadratic": "Quadratic curve fitting through start, midpoint, and end",
-        "spline": "Cubic spline interpolation for smooth pathways",
-    }
-
-    return {
-        method: descriptions.get(method, "No description available")
-        for method in INTERPOLATION_REGISTRY
-    }

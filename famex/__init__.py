@@ -1,19 +1,17 @@
 """FAMEX: Fast Mechanistic Explorer using machine learning potentials.
 
-This package provides a unified interface for molecular geometry optimization
-using ASE (Atomic Simulation Environment) and SELLA optimizers combined with
-machine learning potentials.
+Unified CLI and Python API for geometry optimization with ASE, optional SELLA,
+and ML or classical potentials.
 
-Key Features:
+Key features:
 
-- Minimum energy geometry optimization
-- Transition state searches
-- Reaction path optimization (NEB/CI-NEB)
-- Multi-structure optimization workflows
-- Support for various file formats (xyz, cif, pdb, etc.)
-- Integration with UMA, SO3LR, AIMNET2, and MACE machine learning potentials
-- Mock calculator for testing without ML dependencies
-- Trajectory saving for complete reaction pathways
+- Minima, transition-state, and reaction-path workflows
+- Path strategies: NEB, CI-NEB, IRC, and interpolation
+- TS strategies: local, interpolate, CI-NEB, DHS, and growing string
+- Frequency analysis and thermochemistry
+- Backends: UMA, AIMNet2, MACE, Orb, SO3LR, PET; optional TBLite and PySCF
+- Geometry I/O via ASE (XYZ, CIF, PDB, and others); SMILES and PubChem inputs
+- Mock calculator for tests without ML dependencies
 
 See the User Guide and Tutorials (docs/USER_GUIDE.md, docs/TUTORIALS.md) for
 usage examples; the main entry point is :class:`~famex.core.explorer.Explorer`.
@@ -24,7 +22,9 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-__version__ = "0.2.2"
+from famex.utils.ml_warnings import install_runtime_ml_filters as _install_ml_filters
+
+__version__ = "0.3.1"
 __author__ = "FAMEX Development Team"
 
 # Ensure headless operation by default to avoid GUI popups from ASE/matplotlib
@@ -39,6 +39,9 @@ try:
 except Exception:
     # Environment setting is best-effort; ignore failures
     pass
+
+# Quiet FairChem/torch/triton noise as soon as famex is imported (verbosity < 2).
+_install_ml_filters(verbosity=0)
 
 
 def __getattr__(name: str) -> Any:
@@ -57,6 +60,9 @@ def __getattr__(name: str) -> Any:
         # core types / IO
         "Geometry": (f"{__name__}.io.geometry", "Geometry"),
         "read_geometry": (f"{__name__}.io.geometry", "read_geometry"),
+        "smiles_to_atoms": (f"{__name__}.embed.api", "smiles_to_atoms"),
+        "embed_smiles": (f"{__name__}.embed.api", "embed_smiles"),
+        "fetch_pubchem": (f"{__name__}.io.pubchem", "fetch_pubchem"),
         "write_geometry": (f"{__name__}.io.geometry", "write_geometry"),
         "read_gaussian_input": (f"{__name__}.io.geometry", "read_gaussian_input"),
         "PathManager": (f"{__name__}.io.path_manager", "PathManager"),
@@ -138,6 +144,9 @@ __all__ = [
     "read_geometry",
     "read_gaussian_input",
     "write_geometry",
+    "smiles_to_atoms",
+    "embed_smiles",
+    "fetch_pubchem",
 ]
 
 

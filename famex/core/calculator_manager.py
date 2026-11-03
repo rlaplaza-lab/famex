@@ -6,9 +6,16 @@ from typing import Any
 
 from ase import Atoms
 
-from famex.backends.constants import DEFAULT_MACE_MODEL, DEFAULT_PET_MODEL, DEFAULT_UMA_MODEL
+from famex.backends.constants import (
+    DEFAULT_MACE_MODEL,
+    DEFAULT_PET_MODEL,
+    DEFAULT_PYSCF_MODEL,
+    DEFAULT_TBLITE_MODEL,
+    DEFAULT_UMA_MODEL,
+)
 from famex.backends.registry import create_calculator
 from famex.core.charge_spin import check_missing_charge_spin, extract_charge_spin_from_atoms
+from famex.utils.device import resolve_backend_device
 
 
 class CalculatorManager:
@@ -23,14 +30,18 @@ class CalculatorManager:
         default_charge: int = 0,
         default_spin: int = 1,
         verbose: int = 1,
+        task_name: str | None = None,
+        dftd3_functional: str | None = None,
     ) -> None:
         self.backend = backend
         self.model_name = model_name
         self.model_path = model_path
-        self.device = device
+        self.device = resolve_backend_device(backend, device)
         self.default_charge = default_charge
         self.default_spin = default_spin
         self.verbose = verbose
+        self.task_name = task_name
+        self.dftd3_functional = dftd3_functional
         self._calculator_created = False
         self._warned_about_defaults = False
 
@@ -51,9 +62,18 @@ class CalculatorManager:
             return DEFAULT_PET_MODEL
         if backend_lower == "mock":
             return "mock-model"
+        if backend_lower == "tblite":
+            return DEFAULT_TBLITE_MODEL
+        if backend_lower == "pyscf":
+            return DEFAULT_PYSCF_MODEL
         return "default-model"
 
-    def create_and_attach_calculator(self, atoms: Atoms) -> Any:
+    def create_and_attach_calculator(
+        self,
+        atoms: Atoms,
+        *,
+        needs_hessian: bool = False,
+    ) -> Any:
         charge, spin = extract_charge_spin_from_atoms(atoms, self.default_charge, self.default_spin)
         charge_missing, spin_missing = check_missing_charge_spin(atoms)
 
@@ -70,11 +90,13 @@ class CalculatorManager:
 
             if self.verbose >= 2:
                 logger.debug(
-                    f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
+                    "Charge and/or spin not specified in atoms. Using defaults: %s",
+                    ", ".join(missing_parts),
                 )
             elif charge != 0 or spin != 1:
                 logger.warning(
-                    f"Charge and/or spin not specified in atoms. Using defaults: {', '.join(missing_parts)}",
+                    "Charge and/or spin not specified in atoms. Using defaults: %s",
+                    ", ".join(missing_parts),
                 )
             self._warned_about_defaults = True
 
@@ -112,6 +134,9 @@ class CalculatorManager:
             charge=charge,
             mult=spin,
             verbose=self.verbose,
+            needs_hessian=needs_hessian,
+            task_name=self.task_name,
+            dftd3_functional=self.dftd3_functional,
         )
         atoms.calc = calc
         return calc

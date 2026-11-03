@@ -9,7 +9,7 @@ from famex.backends.availability import (
     is_backend_available,
     require_backend,
 )
-from famex.utils.device import get_device_info, get_optimal_device
+from famex.utils.device import get_device_info, get_optimal_device, resolve_backend_device
 from famex.utils.profiler import PerformanceProfiler
 from famex.utils.validation import (
     BackendError,
@@ -29,4 +29,5 @@ __all__ = [
     "require_backend",
     "get_device_info",
     "get_optimal_device",
+    "resolve_backend_device",
 ]

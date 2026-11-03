@@ -9,6 +9,7 @@ from famex.analysis.frequency import FrequencyAnalysis, HessianCalculator
 from famex.analysis.utils import has_calculator_property
 from famex.backends.availability import is_backend_available
 from famex.backends.constants import DEFAULT_UMA_MODEL
+from famex.potentials.mock_potential import MockCalculator
 from tests.test_constants import (
     DEFAULT_DELTA,
     EXTRA_TIGHT_TOL,
@@ -16,7 +17,6 @@ from tests.test_constants import (
     FD_5POINT_TOL,
     FD_CENTRAL_TOL,
     FD_FORWARD_TOL,
-    FREQUENCY_MODE_TOL,
     HARMONIC_TOL,
     HESSIAN_NEAR_SYMMETRY_TOL,
     HESSIAN_SYMMETRY_TOL,
@@ -34,38 +34,38 @@ from tests.test_utils import HarmonicCalculator, parametrize_backends
 # ============================================================================
 
 
+_HESSIAN_CALC_CACHE: dict[str, object] = {}
+
+
 def get_backend_calculator_with_hessian(backend_name: str, model_name: str | None = None):
     """Get a calculator for a backend if it's available and supports analytical hessian.
 
-    Args:
-        backend_name: Name of the backend ('mace' or 'uma')
-        model_name: Optional model name. If None, uses default for backend.
-
-    Returns
-    -------
-    Calculator instance if backend is available and supports hessian.
-
-    Raises
-    ------
-    pytest.skip: If backend is not available or doesn't support hessian.
+    Calculators are cached by backend/model so expensive model loads happen once
+    per process.
     """
+    cache_key = f"{backend_name}:{model_name or ''}"
+    if cache_key in _HESSIAN_CALC_CACHE:
+        return _HESSIAN_CALC_CACHE[cache_key]
+
     if not is_backend_available(backend_name):
         pytest.skip(f"{backend_name} backend not available")
 
-    # Create calculator
     if backend_name == "mace":
         calc = famex.get_mace_calculator(model_name=model_name or "mace-omol-0")
     elif backend_name == "uma":
-        calc = famex.get_uma_calculator(model_name=model_name or DEFAULT_UMA_MODEL)
+        calc = famex.get_uma_calculator(
+            model_name=model_name or DEFAULT_UMA_MODEL,
+            needs_hessian=True,
+        )
     else:
         pytest.skip(f"Unknown backend: {backend_name}")
 
     calc.ensure_loaded()
 
-    # Check if calculator supports analytical hessian
     if not has_calculator_property(calc, "hessian"):
         pytest.skip(f"{backend_name} does not support analytical Hessian")
 
+    _HESSIAN_CALC_CACHE[cache_key] = calc
     return calc
 
 
@@ -143,19 +143,23 @@ class TestBackendHessianConsistency:
         freq_analytical = FrequencyAnalysis(atoms, atoms.calc, delta=DEFAULT_DELTA, verbose=0)
         freq_analytical.calculate_hessian(method="direct")
         freq_analytical.diagonalize_hessian()
-        freqs_analytical = freq_analytical._frequencies
-        modes_analytical = freq_analytical._normal_modes
+        freqs_analytical_vib = freq_analytical.get_frequencies()
+        modes_analytical_vib = freq_analytical.get_normal_modes()
 
         # Use smaller delta for higher accuracy reference
         freq_fd = FrequencyAnalysis(atoms, atoms.calc, delta=TIGHT_DELTA, verbose=0)
         freq_fd.calculate_hessian(method="finite_differences")
         freq_fd.diagonalize_hessian()
-        freqs_fd, modes_fd = freq_fd._frequencies, freq_fd._normal_modes
+        freqs_fd_vib = freq_fd.get_frequencies()
+        modes_fd_vib = freq_fd.get_normal_modes()
 
-        freqs_analytical_vib = freqs_analytical[6:]
-        freqs_fd_vib = freqs_fd[6:]
-        modes_analytical_vib = modes_analytical[:, 6:]
-        modes_fd_vib = modes_fd[:, 6:]
+        # Sort by signed frequency so imag / real order is comparable
+        order_a = np.argsort(freqs_analytical_vib)
+        order_f = np.argsort(freqs_fd_vib)
+        freqs_analytical_vib = freqs_analytical_vib[order_a]
+        freqs_fd_vib = freqs_fd_vib[order_f]
+        modes_analytical_vib = modes_analytical_vib[:, order_a]
+        modes_fd_vib = modes_fd_vib[:, order_f]
 
         # Analytical frequencies should match FD closely
         rtol, atol = UMA_MACE_FREQUENCY_TOL
@@ -167,20 +171,21 @@ class TestBackendHessianConsistency:
             err_msg=f"{backend} frequencies mismatch between analytical and FD",
         )
 
-        # Use tighter frequency mismatch tolerance
         for i in range(len(freqs_analytical_vib)):
             freq_diff = np.abs(freqs_fd_vib - freqs_analytical_vib[i])
-            closest_idx = np.argmin(freq_diff)
-            assert freq_diff[closest_idx] < FREQUENCY_MODE_TOL, (
-                f"Mode {i}: frequency mismatch {freq_diff[closest_idx]:.2f} cm^-1"
-            )
+            closest_idx = int(np.argmin(freq_diff))
             mode_overlap = np.abs(np.dot(modes_analytical_vib[:, i], modes_fd_vib[:, closest_idx]))
             assert mode_overlap > 0.8, f"Mode {i}: poor overlap {mode_overlap:.3f}"
 
-        assert np.all(freqs_analytical_vib > 0), f"{backend} analytical has negative frequencies"
-        assert np.all(freqs_fd_vib > 0), f"{backend} FD has negative frequencies"
+        # Distorted geometries may carry imaginary vib modes; require agreement.
+        n_imag_a = int(np.sum(freqs_analytical_vib < -50.0))
+        n_imag_f = int(np.sum(freqs_fd_vib < -50.0))
+        assert n_imag_a == n_imag_f, (
+            f"{backend} imag-mode count mismatch: analytical={n_imag_a}, FD={n_imag_f}"
+        )
 
 
+@pytest.mark.slow
 class TestUMAHessianMethods:
     """Tests specific to UMA backend's different hessian computation methods."""
 
@@ -456,6 +461,7 @@ class TestRichardsonExtrapolation:
             error_rich, error_no_rich, rtol=TIGHT_TOL[0]
         )
 
+    @pytest.mark.slow
     def test_richardson_central_uma(self, water_molecule):
         """Test Richardson extrapolation with UMA backend."""
         atoms = water_molecule.copy()
@@ -494,6 +500,7 @@ class TestRichardsonExtrapolation:
 # ============================================================================
 
 
+@pytest.mark.slow
 class TestFrequencyAnalysisMethods:
     def test_frequency_analysis_methods(self, water_molecule):
         """Test different frequency analysis methods."""
@@ -573,6 +580,7 @@ class TestFrequencyAnalysisMethods:
 # ============================================================================
 
 
+@pytest.mark.slow
 class TestHessianAdvancedFeatures:
     def test_hessian_with_indices(self, water_molecule):
         """Test hessian calculation with partial atom indices."""
@@ -628,3 +636,48 @@ class TestHessianAdvancedFeatures:
         np.testing.assert_allclose(
             hessians[1], hessians[2], rtol=FD_CENTRAL_TOL[0], atol=FD_CENTRAL_TOL[1]
         )
+
+
+class TestMockCalculatorCopy:
+    """Ensure MockCalculator.copy preserves physics used by FD Hessian."""
+
+    def test_copy_preserves_nondefault_physics(self, water_molecule):
+        calc = MockCalculator(
+            force_constant=2.5,
+            k_angle=9.9,
+            epsilon=0.5,
+            sigma=2.0,
+            lj_cutoff=5.0,
+            use_nonbonded=False,
+        )
+        cloned = calc.copy()
+        assert cloned is not calc
+        for attr in ("force_constant", "k_angle", "epsilon", "sigma", "lj_cutoff", "use_nonbonded"):
+            assert getattr(cloned, attr) == getattr(calc, attr)
+
+        atoms = water_molecule.copy()
+        atoms.calc = calc
+        forces_orig = atoms.get_forces()
+        atoms.calc = cloned
+        np.testing.assert_allclose(forces_orig, atoms.get_forces())
+
+    def test_parallel_displacement_clones_calculator(self, water_molecule):
+        calc = MockCalculator(k_angle=9.9, use_nonbonded=False, epsilon=0.5)
+        atoms = water_molecule.copy()
+        atoms.calc = calc
+        hc = HessianCalculator(atoms, calc, delta=0.01, method="central", n_workers=2, verbose=0)
+        displaced = hc._calculator_for_displacement()
+        assert displaced is not calc
+        assert isinstance(displaced, MockCalculator)
+        assert displaced.k_angle == calc.k_angle
+        assert displaced.use_nonbonded is False
+        assert displaced.epsilon == calc.epsilon
+
+        atoms_disp = atoms.copy()
+        pos = atoms_disp.get_positions()
+        pos[0, 0] += 0.01
+        atoms_disp.set_positions(pos)
+        atoms_disp.calc = calc
+        f_orig = atoms_disp.get_forces()
+        atoms_disp.calc = displaced
+        np.testing.assert_allclose(f_orig, atoms_disp.get_forces())

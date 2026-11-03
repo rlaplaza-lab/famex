@@ -12,8 +12,8 @@ from scipy.optimize import minimize
 from famex.optimizers.ts_step import (
     adjust_trust_radius,
     build_translation_rotation_basis,
-    compute_dense_prfo_step,
     compute_matrix_free_ts_step,
+    compute_restricted_prfo_step,
     compute_step_quality,
     make_atoms_hessp,
     prepare_ts_hessian,
@@ -90,9 +90,7 @@ class SciPyHessianOptimizer(Optimizer):
         )
 
         self.hessian = initial_hessian
-        self.force_calls = 0
         self.hessian_calls = 0
-        self._last_hessian_step = -1
         self._last_full_hessian_step = -1
         self.bfgs_updates = 0
         self._last_positions: np.ndarray | None = None
@@ -103,9 +101,8 @@ class SciPyHessianOptimizer(Optimizer):
         self.trust_radius = trust_radius
         self.max_trust_radius = max_trust_radius
         self.min_trust_radius = min_trust_radius
-        if not hasattr(self, "fmax"):
-            self.fmax = 0.05
-        self.fmax: float = getattr(self, "fmax", 0.05)  # type: ignore[assignment]
+        existing_fmax = getattr(self, "fmax", None)
+        self.fmax: float = 0.05 if existing_fmax is None else float(existing_fmax)  # type: ignore[assignment]
 
         if ts_search:
             if method == "Newton-CG":
@@ -114,8 +111,8 @@ class SciPyHessianOptimizer(Optimizer):
                     "Use 'trust-krylov', 'trust-ncg', 'trust-exact', 'rfo', or 'sella' instead."
                 )
                 raise ValueError(msg)
-            self._ts_trust_radius = trust_radius
             self._transition_mode: np.ndarray | None = None
+            self._rfo_alpha = 1.0
             self._previous_energy: float | None = None
             if hessian_update_freq is None:
                 self.hessian_update_freq = 1
@@ -132,7 +129,7 @@ class SciPyHessianOptimizer(Optimizer):
             raise ValueError(msg)
 
         if self.verbose >= 2:
-            logger.info(f"Initialized {method} optimizer with Hessian support")
+            logger.info("Initialized %s optimizer with Hessian support", method)
             if adaptive_hessian:
                 if hessian_update_freq is None:
                     logger.info(
@@ -140,17 +137,19 @@ class SciPyHessianOptimizer(Optimizer):
                     )
                 else:
                     logger.info(
-                        f"Adaptive Hessian updates enabled (base frequency: every {hessian_update_freq} step(s))",
+                        "Adaptive Hessian updates enabled (base frequency: every %s step(s))",
+                        hessian_update_freq,
                     )
             elif hessian_update_freq is None:
                 logger.info("Periodic Hessian updates disabled (compute once and reuse)")
             else:
                 logger.info(
-                    f"Fixed Hessian update frequency: every {hessian_update_freq} step(s)",
+                    "Fixed Hessian update frequency: every %s step(s)",
+                    hessian_update_freq,
                 )
             if use_bfgs_update:
                 logger.info("BFGS approximate updates enabled between full Hessians")
-            logger.info(f"Hessian calculation method: {hessian_method}")
+            logger.info("Hessian calculation method: %s", hessian_method)
 
     def _positions_to_x(self, atoms: Atoms | None = None) -> np.ndarray:
         """Convert positions to 1D array."""
@@ -170,13 +169,15 @@ class SciPyHessianOptimizer(Optimizer):
         energy = self.atoms.get_potential_energy()
         return energy / self.alpha  # type: ignore[no-any-return]
 
+    def _cartesian_gradient(self, x: np.ndarray) -> np.ndarray:
+        """Unscaled Cartesian gradient, ``-forces``."""
+        self.atoms.set_positions(self._x_to_positions(x))
+        forces = self.atoms.get_forces()
+        return cast(np.ndarray, -forces.ravel())
+
     def gradient(self, x: np.ndarray) -> np.ndarray:
         """Gradient of objective function (negative forces)."""
-        self.atoms.set_positions(self._x_to_positions(x))
-        self.force_calls += 1
-
-        forces = self.atoms.get_forces()
-        gradient = -forces.ravel()
+        gradient = self._cartesian_gradient(x)
 
         if self.use_bfgs_update:
             if self._last_gradient is None:
@@ -184,7 +185,7 @@ class SciPyHessianOptimizer(Optimizer):
             if self._last_positions is None:
                 self._last_positions = x.copy()
 
-        return gradient / self.alpha  # type: ignore[no-any-return]
+        return gradient / self.alpha
 
     def hessian_func(self, x: np.ndarray) -> np.ndarray:
         """Compute Hessian matrix with adaptive updates and BFGS approximation."""
@@ -219,13 +220,14 @@ class SciPyHessianOptimizer(Optimizer):
         if need_full_update:
             self.atoms.set_positions(self._x_to_positions(x))
             self.hessian_calls += 1
-            self._last_hessian_step = self.nsteps
             self._last_full_hessian_step = self.nsteps
 
             if self.verbose >= 1:
                 logger.info(
-                    f"Computing full Hessian at step {self.nsteps} "
-                    f"(call #{self.hessian_calls}, reason: {reason})",
+                    "Computing full Hessian at step %s (call #%s, reason: %s)",
+                    self.nsteps,
+                    self.hessian_calls,
+                    reason,
                 )
 
             self.freq_analysis.atoms = self.atoms
@@ -236,7 +238,7 @@ class SciPyHessianOptimizer(Optimizer):
             self.hessian = hessian
 
             if self.verbose >= 2:
-                logger.info(f"Full Hessian computed (shape: {hessian.shape})")
+                logger.info("Full Hessian computed (shape: %s)", hessian.shape)
 
             self._last_positions = current_positions.copy()
             self._last_gradient = None
@@ -247,9 +249,7 @@ class SciPyHessianOptimizer(Optimizer):
             and self._last_positions is not None
             and self._last_gradient is not None
         ):
-            self._last_hessian_step = self.nsteps
-
-            current_gradient = self.gradient(x)
+            current_gradient = self._cartesian_gradient(x)
             s = current_positions - self._last_positions
             y = current_gradient - self._last_gradient
 
@@ -265,20 +265,21 @@ class SciPyHessianOptimizer(Optimizer):
 
                 self.bfgs_updates += 1
                 logger.debug(
-                    f"BFGS Hessian update at step {self.nsteps} "
-                    f"(#{self.bfgs_updates} since last full, "
-                    f"{steps_since_full} steps since full Hessian)",
+                    "BFGS Hessian update at step %s (#%s since last full, %s steps since full Hessian)",
+                    self.nsteps,
+                    self.bfgs_updates,
+                    steps_since_full,
                 )
             else:
-                logger.debug(f"Skipping BFGS update (sy = {sy:.2e} too small)")
+                logger.debug("Skipping BFGS update (sy = %.2e too small)", sy)
 
             self._last_positions = current_positions.copy()
             self._last_gradient = current_gradient.copy()
         else:
             if self.verbose >= 1:
-                logger.info(f"Reusing Hessian (computed {steps_since_full} steps ago)")
+                logger.info("Reusing Hessian (computed %s steps ago)", steps_since_full)
             else:
-                logger.debug(f"Reusing Hessian (computed {steps_since_full} steps ago)")
+                logger.debug("Reusing Hessian (computed %s steps ago)", steps_since_full)
 
         if self.hessian is None:
             raise RuntimeError("Hessian is None after update logic")
@@ -313,7 +314,6 @@ class SciPyHessianOptimizer(Optimizer):
 
     def _get_ts_gradient(self, x: np.ndarray) -> np.ndarray:
         self.atoms.set_positions(self._x_to_positions(x))
-        self.force_calls += 1
         gradient = -self.atoms.get_forces().ravel()
         basis = build_translation_rotation_basis(
             self.atoms.get_positions(),
@@ -332,7 +332,9 @@ class SciPyHessianOptimizer(Optimizer):
             self._last_full_hessian_step = self.nsteps
             if self.verbose >= 1:
                 logger.info(
-                    f"Computing full Hessian at step {self.nsteps} (call #{self.hessian_calls})",
+                    "Computing full Hessian at step %s (call #%s)",
+                    self.nsteps,
+                    self.hessian_calls,
                 )
             self.freq_analysis.atoms = self.atoms
             self.freq_analysis.atoms.calc = self.atoms.calc
@@ -346,13 +348,13 @@ class SciPyHessianOptimizer(Optimizer):
             raise RuntimeError("Hessian is None after update logic")
         return self.hessian
 
-    def _run_ts_search(self, fmax: float, steps: int) -> bool:
+    def _run_ts_search(self) -> bool:
         """Run transition-state search with Hessian usage aligned to the SciPy method."""
         x = self._positions_to_x()
         self._previous_energy = float(self.atoms.get_potential_energy())
 
         if self.verbose >= 2:
-            logger.info(f"Starting {self.method} transition-state search ({self._ts_step_mode})")
+            logger.info("Starting %s transition-state search (%s)", self.method, self._ts_step_mode)
 
         try:
             while self.nsteps < self.max_steps:
@@ -360,13 +362,14 @@ class SciPyHessianOptimizer(Optimizer):
 
                 if self._ts_step_mode == "dense":
                     hessian = self._compute_ts_hessian(x)
-                    step_result = compute_dense_prfo_step(
+                    step_result = compute_restricted_prfo_step(
                         gradient=gradient,
                         hessian=hessian,
                         trust_radius=self.trust_radius,
                         previous_mode=self._transition_mode,
-                        alpha=self.alpha,
+                        alpha=self._rfo_alpha,
                     )
+                    self._rfo_alpha = step_result.alpha
                 else:
                     basis = build_translation_rotation_basis(
                         self.atoms.get_positions(),
@@ -408,7 +411,6 @@ class SciPyHessianOptimizer(Optimizer):
                     self.min_trust_radius,
                     self.max_trust_radius,
                 )
-                self._ts_trust_radius = self.trust_radius
 
                 reject = quality < -1.0 and abs(energy_change) > 10.0
                 if not reject:
@@ -417,7 +419,7 @@ class SciPyHessianOptimizer(Optimizer):
                 else:
                     self.atoms.set_positions(self._x_to_positions(x))
                     if self.verbose >= 1:
-                        logger.warning(f"Rejected poor TS step (Q={quality:.4f})")
+                        logger.warning("Rejected poor TS step (Q=%.4f)", quality)
 
                 self.nsteps += 1
                 forces = self.atoms.get_forces()
@@ -449,12 +451,12 @@ class SciPyHessianOptimizer(Optimizer):
             self.nsteps += 1
 
         if self.ts_search:
-            return self._run_ts_search(fmax, steps)
+            return self._run_ts_search()
 
         if self.verbose >= 2:
-            logger.info(f"Starting {self.method} optimization")
-            logger.info(f"Convergence criterion: fmax = {fmax} eV/Å")
-            logger.info(f"Maximum steps: {steps}")
+            logger.info("Starting %s optimization", self.method)
+            logger.info("Convergence criterion: fmax = %s eV/Å", fmax)
+            logger.info("Maximum steps: %s", steps)
 
         try:
             options: dict[str, Any] = {
@@ -470,6 +472,7 @@ class SciPyHessianOptimizer(Optimizer):
                     options["maxiter"] = int(steps)
                     options["inexact"] = True
 
+            # method is a runtime string, so it cannot match scipy-stubs' Literal overloads.
             self._scipy_result = minimize(  # type: ignore[call-overload]
                 fun=self.objective,
                 x0=x0,
@@ -516,21 +519,23 @@ class SciPyHessianOptimizer(Optimizer):
 
             if scipy_stopped_due_to_maxiter:
                 logger.warning(
-                    f"Optimization stopped after {actual_steps} trust-region steps "
-                    f"(reached max outer iterations: {steps})"
+                    "Optimization stopped after %s trust-region steps (reached max outer iterations: %s)",
+                    actual_steps,
+                    steps,
                 )
             else:
                 logger.warning(
-                    f"Optimization stopped after {actual_steps} trust-region steps without converging"
+                    "Optimization stopped after %s trust-region steps without converging",
+                    actual_steps,
                 )
-                logger.warning(f"  SciPy reason: {scipy_message}")
+                logger.warning("  SciPy reason: %s", scipy_message)
                 if "trust-krylov" in self.method:
                     logger.warning(
                         "  Note: Each trust-region step uses inner Krylov iterations to solve the subproblem. "
                         "Failure may indicate inner Krylov solver struggling with the subproblem "
                         "(each step may perform up to ~1000 inner Krylov iterations)."
                     )
-            logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
+            logger.warning("Final max force: %.6f eV/Å", np.max(np.abs(forces)))
 
         return converged
 

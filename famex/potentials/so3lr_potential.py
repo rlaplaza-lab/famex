@@ -6,7 +6,7 @@ This module provides ASE Calculator interface for SO3LR models.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from ase.calculators.calculator import all_changes
@@ -30,7 +30,7 @@ class SO3LRPotential(BasePotential):
     compatibility with the FAMEX interface.
     """
 
-    implemented_properties = ["energy", "forces"]
+    implemented_properties = ["energy", "forces", "hessian"]
 
     def __init__(
         self,
@@ -67,12 +67,33 @@ class SO3LRPotential(BasePotential):
 
         # SO3LR-specific attributes
         self._calc: Any | None = None
+        self._hessian_calc: Any | None = None
 
         super().__init__(
             backend="so3lr",
             model_name=model_name,
             device=device,
             **kwargs,
+        )
+
+    @staticmethod
+    def _ensure_default_charge(atoms: Atoms) -> None:
+        if "charge" not in atoms.info:
+            atoms.info["charge"] = 0.0
+
+    def _create_so3lr_calculator(self, *, calculate_hessian: bool, dtype: Any) -> Any:
+        so3lr = deps.get("so3lr")
+        if so3lr is None:
+            logger.error("SO3LR module not available")
+            msg = "SO3LR module not available"
+            raise RuntimeError(msg)
+
+        # lr_cutoff=1000 Å is the SO3LR recommendation for gas-phase systems.
+        return so3lr.So3lrCalculator(
+            calculate_stress=False,
+            calculate_hessian=calculate_hessian,
+            lr_cutoff=1000.0,
+            dtype=dtype,
         )
 
     def _load_calculator(self) -> None:
@@ -92,22 +113,18 @@ class SO3LRPotential(BasePotential):
             self.device,
             show_model_info=False,
         ):
-            # Get SO3LR module
-            so3lr = deps.get("so3lr")
-            if so3lr is None:
-                logger.error("SO3LR module not available")
-                msg = "SO3LR module not available"
-                raise RuntimeError(msg)
+            self._calc = self._create_so3lr_calculator(
+                calculate_hessian=False,
+                dtype=np.float32,
+            )
 
-        # Create SO3LR calculator with appropriate parameters
-        # Use high cutoff for gas-phase systems as recommended
-        lr_cutoff = 1000.0
-
-        self._calc = so3lr.So3lrCalculator(
-            calculate_stress=False,
-            lr_cutoff=lr_cutoff,
-            dtype=np.float32,
-        )
+    def _ensure_hessian_calculator(self) -> Any:
+        if self._hessian_calc is None:
+            self._hessian_calc = self._create_so3lr_calculator(
+                calculate_hessian=True,
+                dtype=np.float64,
+            )
+        return self._hessian_calc
 
     def calculate(
         self,
@@ -121,9 +138,7 @@ class SO3LRPotential(BasePotential):
 
         super().calculate(atoms, properties, system_changes)
 
-        # Ensure atoms has charge information as required by SO3LR
-        if "charge" not in atoms.info:
-            atoms.info["charge"] = 0.0
+        self._ensure_default_charge(atoms)
 
         # Ensure calculator is loaded
         if self._calc is None:
@@ -148,3 +163,38 @@ class SO3LRPotential(BasePotential):
                 self.results["forces"] = results.get("forces", self.results.get("forces"))
             else:
                 self.results["forces"] = self.results.get("forces")
+
+    def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
+        """Analytical Hessian (3N x 3N, eV/Å²) from SO3LR's JAX second derivatives."""
+        if atoms is not None:
+            self.atoms = atoms
+        if self.atoms is None:
+            msg = "No atoms provided for Hessian calculation"
+            raise ValueError(msg)
+
+        self._ensure_default_charge(self.atoms)
+
+        hessian_calc = self._ensure_hessian_calculator()
+        hessian_calc.calculate(self.atoms, ["energy", "forces", "hessian"], all_changes)
+        n = 3 * len(self.atoms)
+        hessian = np.asarray(hessian_calc.results["hessian"], dtype=np.float64).reshape(n, n)
+        hessian = cast(np.ndarray, 0.5 * (hessian + hessian.T))
+
+        self.results["hessian"] = hessian
+        return hessian
+
+    def get_property(
+        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
+        """Get energy, forces, or the analytical Hessian."""
+        del allow_calculation
+        if atoms is not None:
+            self.atoms = atoms
+        if prop == "energy":
+            return self.get_potential_energy(atoms)
+        if prop == "forces":
+            return self.get_forces(atoms)
+        if prop == "hessian":
+            return self.get_hessian(atoms)
+        msg = f"Property '{prop}' not supported by SO3LRPotential"
+        raise KeyError(msg)

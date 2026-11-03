@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from ase.constraints import FixAtoms, FixInternals, Hookean
+from ase.constraints import FixAtoms, FixConstraint, FixInternals, Hookean
 from ase.units import Ang, eV
 
 from famex.utils.logging import get_famex_logger
@@ -24,6 +24,81 @@ if TYPE_CHECKING:
     from ase import Atoms
 
 logger = get_famex_logger(__name__)
+
+
+class HarmonicAngleASEConstraint(FixConstraint):
+    """Soft harmonic angle restraint: E = 0.5 * k * (θ - θ0)²."""
+
+    def __init__(self, indices: list[int], theta0: float, k: float) -> None:
+        if len(indices) != 3:
+            msg = "HarmonicAngleASEConstraint requires exactly 3 atom indices"
+            raise ValueError(msg)
+        self.indices = list(indices)
+        self.theta0 = float(theta0)
+        self.k = float(k)
+
+    def adjust_positions(self, _atoms: Atoms, _newpositions: np.ndarray) -> None:
+        return
+
+    def _angle_geometry(
+        self,
+        atoms: Atoms,
+    ) -> tuple[float, float, np.ndarray, np.ndarray, float, float] | None:
+        """Return (theta, cos_theta, r1, r2, n1, n2) or None if degenerate."""
+        i, j, k = self.indices
+        positions = atoms.get_positions()
+        r1 = positions[i] - positions[j]
+        r2 = positions[k] - positions[j]
+        n1 = float(np.linalg.norm(r1))
+        n2 = float(np.linalg.norm(r2))
+        if n1 < 1e-12 or n2 < 1e-12:
+            return None
+
+        cos_theta = float(np.dot(r1, r2) / (n1 * n2))
+        cos_theta = float(np.clip(cos_theta, -1.0 + 1e-12, 1.0 - 1e-12))
+        theta = float(np.arccos(cos_theta))
+        return theta, cos_theta, r1, r2, n1, n2
+
+    def adjust_potential_energy(self, atoms: Atoms) -> float:
+        geom = self._angle_geometry(atoms)
+        if geom is None:
+            return 0.0
+        theta, *_ = geom
+        return 0.5 * self.k * (theta - self.theta0) ** 2
+
+    def adjust_forces(self, atoms: Atoms, forces: np.ndarray) -> None:
+        geom = self._angle_geometry(atoms)
+        if geom is None:
+            return
+        theta, cos_theta, r1, r2, n1, n2 = geom
+        sin_theta = float(np.sin(theta))
+        if abs(sin_theta) < 1e-12:
+            return
+
+        i, j, k = self.indices
+        dE_dtheta = self.k * (theta - self.theta0)
+        # dθ/dcos = -1/sin(θ); force = -dE/dx
+        dE_dcos = -dE_dtheta / sin_theta
+        u1 = r1 / n1
+        u2 = r2 / n2
+        dcos_dr1 = (u2 - cos_theta * u1) / n1
+        dcos_dr2 = (u1 - cos_theta * u2) / n2
+        fi = -dE_dcos * dcos_dr1
+        fk = -dE_dcos * dcos_dr2
+        fj = -(fi + fk)
+        forces[i] += fi
+        forces[j] += fj
+        forces[k] += fk
+
+    def todict(self) -> dict[str, Any]:
+        return {
+            "name": "HarmonicAngleASEConstraint",
+            "kwargs": {
+                "indices": self.indices,
+                "theta0": self.theta0,
+                "k": self.k,
+            },
+        }
 
 
 class FAMEXConstraintManager:
@@ -152,7 +227,15 @@ class HarmonicPositionConstraint:
         self.reference_value = self.reference_positions.copy()
 
     def to_ase_constraints(self) -> list:
-        return []
+        return [
+            Hookean(
+                a1=atom_idx,
+                a2=tuple(self.reference_positions[local_i]),
+                k=self.force_constant,
+                rt=0.0,
+            )
+            for local_i, atom_idx in enumerate(self.atom_indices)
+        ]
 
 
 class HarmonicBondConstraint:
@@ -211,10 +294,16 @@ class HarmonicAngleConstraint:
 
         cos_angle = np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
         cos_angle = np.clip(cos_angle, -1.0, 1.0)
-        self.reference_value = np.arccos(cos_angle)
+        self.reference_value = float(np.arccos(cos_angle))
 
     def to_ase_constraints(self) -> list:
-        return []
+        return [
+            HarmonicAngleASEConstraint(
+                indices=self.atom_indices,
+                theta0=self.reference_value,
+                k=self.force_constant,
+            ),
+        ]
 
 
 class FixInternalsConstraint:
@@ -307,86 +396,3 @@ def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> FAME
 
     logger.debug("Parsed %d constraint specifications", len(constraint_specs))
     return constraint_manager
-
-
-def validate_atom_indices(atom_indices: list[int], atoms: Atoms) -> bool:
-    n_atoms = len(atoms)
-    for idx in atom_indices:
-        assert isinstance(idx, int), f"Atom index must be integer, got {type(idx)}"
-        if idx < 0 or idx >= n_atoms:
-            msg = f"Atom index {idx} out of range [0, {n_atoms - 1}]"
-            logger.error("%s", msg)
-            raise ValueError(msg)
-
-    return True
-
-
-def get_constraint_summary(atoms: Atoms) -> dict[str, Any]:
-    """Get summary of applied constraints on an atoms object.
-
-    Parameters
-    ----------
-    atoms: Atoms object with constraints
-
-    Returns
-    -------
-        Dictionary summarizing constraints
-
-    """
-    summary: dict[str, Any] = {
-        "fixed_atoms": [],
-        "hookean_constraints": [],
-        "fixinternals_constraints": [],
-        "other_constraints": [],
-    }
-
-    constraints = getattr(atoms, "constraints", [])
-
-    for constraint in constraints:
-        if isinstance(constraint, FixAtoms):
-            # Use hasattr to safely access constraint attributes
-            if hasattr(constraint, "index"):
-                # FixAtoms has an 'index' attribute that contains the indices
-                indices = getattr(constraint, "index", [])
-                if isinstance(indices, list | tuple | np.ndarray):
-                    summary["fixed_atoms"].extend(indices)
-                else:
-                    summary["fixed_atoms"].append(indices)
-
-        elif isinstance(constraint, Hookean):
-            # Use hasattr to safely access Hookean constraint attributes
-            constraint_info: dict[str, Any] = {}
-
-            # Get atom indices
-            atoms_list = []
-            if hasattr(constraint, "a1"):
-                atoms_list.append(constraint.a1)
-            if hasattr(constraint, "a2"):
-                a2 = getattr(constraint, "a2", None)
-                if a2 is not None:
-                    atoms_list.append(a2)
-                    constraint_info["type"] = "bond"
-                else:
-                    constraint_info["type"] = "position"
-
-            constraint_info["atoms"] = atoms_list
-
-            # Get reference value and force constant
-            if hasattr(constraint, "rt"):
-                constraint_info["reference"] = constraint.rt
-            if hasattr(constraint, "k"):
-                constraint_info["force_constant"] = constraint.k
-
-            summary["hookean_constraints"].append(constraint_info)
-
-        elif isinstance(constraint, FixInternals):
-            summary["fixinternals_constraints"].append(
-                {"type": type(constraint).__name__, "constraint": constraint},
-            )
-
-        else:
-            summary["other_constraints"].append(
-                {"type": type(constraint).__name__, "constraint": constraint},
-            )
-
-    return summary

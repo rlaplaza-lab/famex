@@ -12,10 +12,11 @@ import numpy as np
 from ase import Atoms
 from ase.optimize.optimize import Optimizer
 
+from famex.optimizers.scipy_optimizers import ConvergedError
 from famex.optimizers.ts_step import (
     adjust_trust_radius,
     build_translation_rotation_basis,
-    compute_dense_prfo_step,
+    compute_restricted_prfo_step,
     compute_step_quality,
     prepare_ts_hessian,
     project_gradient,
@@ -23,10 +24,6 @@ from famex.optimizers.ts_step import (
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
-
-
-class ConvergedError(Exception):
-    """Exception raised when optimizer has converged."""
 
 
 class RFOTransitionState(Optimizer):
@@ -48,7 +45,6 @@ class RFOTransitionState(Optimizer):
         trust_radius: float = 0.02,
         max_trust_radius: float = 0.06,
         min_trust_radius: float = 0.001,
-        alpha: float = 1.0,
         verbose: int = 1,
         **kwargs: Any,
     ) -> None:
@@ -71,7 +67,6 @@ class RFOTransitionState(Optimizer):
         self.trust_radius = trust_radius
         self.max_trust_radius = max_trust_radius
         self.min_trust_radius = min_trust_radius
-        self.alpha = alpha
 
         if atoms.calc is None:
             raise ValueError("Atoms object must have a calculator attached")
@@ -86,10 +81,10 @@ class RFOTransitionState(Optimizer):
         )
 
         self.hessian = initial_hessian
-        self.force_calls = 0
         self.hessian_calls = 0
         self._last_full_hessian_step = -1
         self._transition_mode: np.ndarray | None = None
+        self._rfo_alpha = 1.0
         self._previous_energy: float | None = None
         self._step_quality_history: list[float] = []
 
@@ -103,8 +98,8 @@ class RFOTransitionState(Optimizer):
             if hessian_update_freq is None:
                 logger.info("Periodic Hessian updates disabled (compute once and reuse)")
             else:
-                logger.info(f"Hessian update frequency: every {hessian_update_freq} step(s)")
-            logger.info(f"Initial trust radius: {trust_radius:.4f} Å")
+                logger.info("Hessian update frequency: every %s step(s)", hessian_update_freq)
+            logger.info("Initial trust radius: %.4f Å", trust_radius)
 
     def _positions_to_x(self, atoms: Atoms | None = None) -> np.ndarray:
         if atoms is None:
@@ -118,7 +113,6 @@ class RFOTransitionState(Optimizer):
 
     def _get_gradient(self, x: np.ndarray) -> np.ndarray:
         self.atoms.set_positions(self._x_to_positions(x))
-        self.force_calls += 1
         forces = self.atoms.get_forces()
         gradient = -forces.ravel()
         basis = build_translation_rotation_basis(
@@ -139,7 +133,9 @@ class RFOTransitionState(Optimizer):
             self._last_full_hessian_step = self.nsteps
             if self.verbose >= 1:
                 logger.info(
-                    f"Computing full Hessian at step {self.nsteps} (call #{self.hessian_calls})",
+                    "Computing full Hessian at step %s (call #%s)",
+                    self.nsteps,
+                    self.hessian_calls,
                 )
             self.freq_analysis.atoms = self.atoms
             self.freq_analysis.atoms.calc = self.atoms.calc
@@ -150,7 +146,7 @@ class RFOTransitionState(Optimizer):
             )
             self.hessian = prepare_ts_hessian(hessian, basis)
         elif self.verbose >= 2:
-            logger.debug(f"Reusing Hessian (computed {steps_since_full} steps ago)")
+            logger.debug("Reusing Hessian (computed %s steps ago)", steps_since_full)
 
         if self.hessian is None:
             raise RuntimeError("Hessian is None after update logic")
@@ -172,22 +168,22 @@ class RFOTransitionState(Optimizer):
 
         if self.verbose >= 2:
             logger.info("Starting RFO transition state optimization")
-            logger.info(f"Convergence criterion: fmax = {fmax} eV/Å")
+            logger.info("Convergence criterion: fmax = %s eV/Å", fmax)
 
         try:
             while self.nsteps < self.max_steps:
                 gradient = self._get_gradient(x)
                 hessian = self._compute_hessian(x)
 
-                step_result = compute_dense_prfo_step(
+                step_result = compute_restricted_prfo_step(
                     gradient=gradient,
                     hessian=hessian,
                     trust_radius=self.trust_radius,
                     previous_mode=self._transition_mode,
-                    alpha=self.alpha,
+                    alpha=self._rfo_alpha,
                 )
-                self.alpha = step_result.alpha
                 self._transition_mode = step_result.transition_mode
+                self._rfo_alpha = step_result.alpha
 
                 step = step_result.step
                 step_norm = float(np.linalg.norm(step))
@@ -218,7 +214,7 @@ class RFOTransitionState(Optimizer):
                 else:
                     self.atoms.set_positions(self._x_to_positions(x))
                     if self.verbose >= 1:
-                        logger.warning(f"Rejected poor TS step (Q={quality:.4f})")
+                        logger.warning("Rejected poor TS step (Q=%.4f)", quality)
 
                 self.nsteps += 1
                 forces = self.atoms.get_forces()
@@ -238,8 +234,8 @@ class RFOTransitionState(Optimizer):
         if converged and self.verbose >= 1:
             logger.info("Optimization converged!")
         elif self.verbose >= 1:
-            logger.warning(f"Optimization stopped after {steps} steps without converging")
-            logger.warning(f"Final max force: {np.max(np.abs(forces)):.6f} eV/Å")
+            logger.warning("Optimization stopped after %s steps without converging", steps)
+            logger.warning("Final max force: %.6f eV/Å", np.max(np.abs(forces)))
 
         return converged
 

@@ -6,12 +6,9 @@ based on the accessible free space in solution.
 
 from __future__ import annotations
 
-from ase import units
+from famex.analysis.physics_constants import AVOGADRO_CONSTANT, ideal_gas_concentration
 
 __all__ = ["SolvationHandler", "get_free_space", "SUPPORTED_SOLVENTS"]
-
-# Physical constants from ASE units
-AVOGADRO_CONSTANT = units._Nav  # 1/mol
 
 # Supported solvents and their properties
 # Based on Shakhnovich & Whitesides, J. Org. Chem. 1998, 63, 3821-3830
@@ -85,7 +82,9 @@ class SolvationHandler:
     def __init__(
         self,
         solvent: str = "none",
-        concentration: float = 1.0,
+        concentration: float | None = None,
+        temperature: float = 298.15,
+        pressure: float = 101325.0,
     ):
         """Initialize solvation handler.
 
@@ -93,11 +92,22 @@ class SolvationHandler:
         ----------
         solvent : str
             Solvent name (default: 'none' for gas phase)
-        concentration : float
-            Concentration in mol/L (default: 1.0 M)
+        concentration : float, optional
+            Concentration in mol/L. When omitted, gas phase uses the ideal-gas
+            concentration at ``pressure`` and solution phase uses 1.0 M.
+        temperature : float
+            Temperature in Kelvin used for the gas-phase default
+        pressure : float
+            Gas-phase pressure in pascal. Ignored when ``concentration`` is set
+            and ignored in solution.
         """
         self.solvent = solvent
-        self.concentration = concentration
+        if concentration is not None:
+            self.concentration = concentration
+        elif solvent == "none":
+            self.concentration = ideal_gas_concentration(temperature, pressure)
+        else:
+            self.concentration = 1.0
         self.free_space_ml_per_l = get_free_space(solvent)
 
     def is_gas_phase(self) -> bool:
@@ -109,25 +119,6 @@ class SolvationHandler:
             True if solvent is 'none' (gas phase)
         """
         return self.solvent == "none"
-
-    def effective_concentration(self) -> float:
-        """Calculate effective concentration accounting for free space.
-
-        This is the concentration that would give the same number density
-        in the accessible free space as the nominal concentration in the
-        total solution volume.
-
-        Returns
-        -------
-        float
-            Effective concentration in mol/L
-        """
-        if self.is_gas_phase():
-            return self.concentration
-
-        # Effective concentration = nominal concentration / (free_space / 1000)
-        # This accounts for the reduced accessible volume in solution
-        return self.concentration / (self.free_space_ml_per_l / 1000.0)
 
     def __repr__(self) -> str:
         """Return string representation."""

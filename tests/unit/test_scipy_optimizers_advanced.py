@@ -125,6 +125,38 @@ class TestBFGSUpdates:
         # BFGS updates should increment counter
         assert opt.bfgs_updates >= 0  # May be 0 if sy too small
 
+    @pytest.mark.parametrize("alpha", [1.0, 2.0])
+    def test_bfgs_secant_uses_unscaled_gradient(self, alpha: float):
+        from ase import Atoms
+
+        from famex.potentials.mock_potential import MockCalculator
+
+        atoms = Atoms("H2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]])
+        atoms.calc = MockCalculator()
+        opt = TrustKrylov(
+            atoms,
+            logfile=None,
+            hessian_update_freq=5,
+            use_bfgs_update=True,
+            alpha=alpha,
+            verbose=0,
+        )
+        x0 = opt._positions_to_x()
+        opt.hessian_func(x0)
+        opt.gradient(x0)
+        gradient_before = opt._last_gradient.copy()
+
+        x1 = x0.copy()
+        x1[2] += 0.05
+        opt.gradient(x1)
+        opt.hessian_func(x1)
+        gradient_after = opt._last_gradient.copy()
+
+        displacement = x1 - x0
+        secant = gradient_after - gradient_before
+        assert opt.bfgs_updates == 1
+        assert np.linalg.norm(opt.hessian @ displacement - secant) == pytest.approx(0.0, abs=1e-8)
+
     def test_bfgs_update_small_sy(self, h2o_molecule_with_mock):
         atoms = h2o_molecule_with_mock
 

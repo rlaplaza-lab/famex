@@ -17,12 +17,32 @@ from famex.analysis.physics_constants import (
     J_PER_MOL_TO_EV,
     filter_positive_frequencies,
 )
-from famex.analysis.quasiharmonic import QuasiHarmonicHandler
+from famex.analysis.quasiharmonic import (
+    QuasiHarmonicHandler,
+    harmonic_heat_capacity_factor,
+    harmonic_zero_point_energy_ev,
+    vibrational_thermal_factor,
+)
 from famex.analysis.solvation import SolvationHandler
 from famex.analysis.statistical_thermo import StatisticalThermodynamics
 from famex.analysis.symmetry import SymmetryHandler
 
-__all__ = ["ThermodynamicProperties"]
+__all__ = ["ThermodynamicProperties", "read_free_energy_correction"]
+
+
+def read_free_energy_correction(
+    frequency_result: dict[str, Any] | None,
+) -> float | None:
+    """Return ``G − E`` (eV) from a frequency-analysis result, or ``None``."""
+    if frequency_result is None:
+        return None
+    thermo = frequency_result.get("thermodynamic_properties", {})
+    if not isinstance(thermo, dict):
+        return None
+    correction = thermo.get("free_energy_correction")
+    if isinstance(correction, bool) or not isinstance(correction, int | float):
+        return None
+    return float(correction)
 
 
 class ThermodynamicProperties:
@@ -46,54 +66,48 @@ class ThermodynamicProperties:
         # Statistical thermodynamics parameters
         rotational_temperatures: np.ndarray | None = None,
         rotational_constants: np.ndarray | None = None,
-        symmetry_number: int = 1,
+        symmetry_number: int | None = None,
         point_group: str | None = None,
         linear: bool | None = None,
         multiplicity: int = 1,
         # Solvation parameters
         solvent: str = "none",
-        concentration: float = 1.0,
+        concentration: float | None = None,
     ) -> None:
         """Initialize thermodynamic property calculator."""
         self.frequencies = filter_positive_frequencies(frequencies)
-        self.all_frequencies = frequencies
         self.atoms = atoms
         self.temperature = temperature
-        self.pressure = pressure
 
         self.qh_handler = QuasiHarmonicHandler(method, freq_cutoff, freq_scale_factor)
-        self.solvation_handler = SolvationHandler(solvent, concentration)
-        self.symmetry_handler = SymmetryHandler(symmetry_number, point_group)
+        self.solvation_handler = SolvationHandler(
+            solvent,
+            concentration=concentration,
+            temperature=temperature,
+            pressure=pressure,
+        )
+        self.symmetry_handler = SymmetryHandler(
+            symmetry_number=symmetry_number,
+            point_group=point_group,
+            atoms=atoms if symmetry_number is None and point_group is None else None,
+        )
         self.stat_thermo = StatisticalThermodynamics(
             atoms,
             rotational_temperatures,
             rotational_constants,
-            symmetry_number,
+            self.symmetry_handler.symmetry_number,
             linear,
             multiplicity,
         )
-        self.stat_thermo.symmetry_number = self.symmetry_handler.get_rotational_symmetry_number(
-            self.stat_thermo.linear,
-        )
+
+    def _scaled_frequencies(self) -> np.ndarray:
+        return self.frequencies * self.qh_handler.freq_scale_factor
 
     def heat_capacity_vibrational(self) -> float:
-        """Calculate vibrational heat capacity."""
-        freq_eV = self.frequencies * units.invcm
-        kT = units.kB * self.temperature
-
-        cv_vib = 0.0
-        for freq in freq_eV:
-            x = freq / kT
-            if x < 50:
-                exp_x = np.exp(x)
-                cv_vib += units.kB * x**2 * exp_x / (exp_x - 1) ** 2
-
-        return cv_vib
-
-    def entropy_vibrational(self) -> float:
-        """Calculate vibrational entropy with quasi-harmonic corrections."""
-        total_entropy, _ = self.qh_handler.vibrational_entropy(self.frequencies, self.temperature)
-        return total_entropy * J_PER_MOL_TO_EV
+        """Calculate harmonic vibrational heat capacity in eV/K."""
+        frequencies = self._scaled_frequencies()
+        thermal_factor = vibrational_thermal_factor(frequencies, self.temperature)
+        return float(np.sum(units.kB * harmonic_heat_capacity_factor(thermal_factor)))
 
     def calculate_complete_thermodynamics(
         self,
@@ -112,12 +126,22 @@ class ThermodynamicProperties:
                 energy = 0.0
 
         energy_J_per_mol = energy / J_PER_MOL_TO_EV
-        zpe = self.calculate_zero_point_energy()
+        zpe_harmonic = self.calculate_zero_point_energy()
+        zpe_harmonic_j = zpe_harmonic / J_PER_MOL_TO_EV
 
         u_vib, _ = self.qh_handler.vibrational_energy(self.frequencies, self.temperature)
         s_vib_actual, _ = self.qh_handler.vibrational_entropy(self.frequencies, self.temperature)
 
-        enthalpy_vib = u_vib
+        # U_vib already includes the model's ZPE; do not add harmonic ZPE again.
+        # RRHO/Truhlar: report thermal vib separately so zpe + enthalpy_vib == U_vib.
+        # Grimme: U_vib is the full contribution (ZPE folded into the handler energy).
+        if self.qh_handler.method == "grimme":
+            enthalpy_vib = u_vib
+            zpe = 0.0
+        else:
+            enthalpy_vib = u_vib - zpe_harmonic_j
+            zpe = zpe_harmonic
+
         enthalpy_trans = self.stat_thermo.translational_energy(self.temperature)
         enthalpy_rot = self.stat_thermo.rotational_energy(self.temperature)
 
@@ -131,10 +155,9 @@ class ThermodynamicProperties:
 
         H_total_J_per_mol = (
             energy_J_per_mol
-            + self.calculate_zero_point_energy_in_J_per_mol()
             + enthalpy_trans
             + enthalpy_rot
-            + enthalpy_vib
+            + u_vib
             + GAS_CONSTANT * self.temperature
         )
 
@@ -143,6 +166,7 @@ class ThermodynamicProperties:
         enthalpy_total = H_total_J_per_mol * J_PER_MOL_TO_EV
         entropy_total = S_total_J_per_K * J_PER_MOL_TO_EV
         gibbs_free_energy = enthalpy_total - self.temperature * entropy_total
+        free_energy_correction = gibbs_free_energy - energy
 
         return {
             "energy": energy,
@@ -157,8 +181,12 @@ class ThermodynamicProperties:
             "entropy_elec": entropy_elec * J_PER_MOL_TO_EV,
             "entropy_total": entropy_total,
             "gibbs_free_energy": gibbs_free_energy,
+            "free_energy_correction": free_energy_correction,
             "temperature": self.temperature,
             "method": self.qh_handler.method,
+            "symmetry_number": self.symmetry_handler.symmetry_number,
+            "point_group": self.symmetry_handler.point_group,
+            "concentration": self.solvation_handler.concentration,
             "contributions": {
                 "translational": {
                     "enthalpy": enthalpy_trans * J_PER_MOL_TO_EV,
@@ -181,15 +209,5 @@ class ThermodynamicProperties:
         }
 
     def calculate_zero_point_energy(self) -> float:
-        """Calculate zero-point vibrational energy in eV."""
-        freq_eV = self.frequencies * units.invcm
-        return float(0.5 * np.sum(freq_eV))
-
-    def calculate_zero_point_energy_in_J_per_mol(self) -> float:  # noqa: N802
-        """Calculate zero-point energy in J/mol."""
-        return self.calculate_zero_point_energy() / J_PER_MOL_TO_EV
-
-    def internal_energy_vibrational(self) -> float:
-        """Calculate vibrational internal energy in eV."""
-        total_energy, _ = self.qh_handler.vibrational_energy(self.frequencies, self.temperature)
-        return total_energy * J_PER_MOL_TO_EV
+        """Calculate scaled harmonic zero-point energy in eV."""
+        return harmonic_zero_point_energy_ev(self._scaled_frequencies())

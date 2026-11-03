@@ -15,8 +15,15 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import validate_ts_structure
+from famex.strategies.helpers import (
+    enforce_require_ts,
+    resolve_require_ts,
+    take_optimization_trajectory,
+    ts_has_one_imaginary_mode,
+    validate_ts_structure,
+)
 from famex.strategies.minima import LocalMinimaStrategy
+from famex.strategies.neb_optimizer import improved_tangent
 from famex.strategies.ts import LocalTSStrategy
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
@@ -42,7 +49,6 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
     - Perpendicular force convergence checking
     - Arc length-based reparametrization
     - Node growth based on parametrization density
-    - Energy-weighted parametrization option
     """
 
     metadata = StrategyMetadata(
@@ -102,27 +108,43 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
     @property
     def rf_ind(self) -> int:
-        """Index of the right frontier node (first node of right string)."""
+        """Index of the right frontier in the reactant-to-product band."""
         return self.left_size
+
+    def _set_images_from_strings(self) -> None:
+        """Rebuild the working band in reactant-to-product order.
+
+        ``right_string`` is stored product-first, ``[product, ..., frontier]``.
+        """
+        self.images = self.left_string + self.right_string[::-1]
+
+    def _evaluate_band(self) -> tuple[list[float], list[np.ndarray]]:
+        """Return potential energies and forces for the current band."""
+        energies: list[float] = []
+        forces_list: list[np.ndarray] = []
+        for atoms in self.images:
+            try:
+                energies.append(float(atoms.get_potential_energy()))
+                forces_list.append(atoms.get_forces())
+            except Exception as exc:
+                logger.warning("Failed to calculate energy/forces: %s", exc)
+                energies.append(float("inf"))
+                forces_list.append(np.zeros((len(atoms), 3)))
+        return energies, forces_list
 
     @property
     def full_string_image_inds(self) -> np.ndarray:
-        """Array of image indices for the full string (0 to string_size-1)."""
-        return np.arange(self.string_size)
+        """Finished-string indices, with the product at the last node.
 
-    def get_cur_param_density(self, kind: str | None = None) -> np.ndarray:
-        """Calculate current parametrization density (arc length or energy-weighted).
-
-        Parameters
-        ----------
-        kind : str, optional
-            "energy" for energy-weighted, None for equal spacing
-
-        Returns
-        -------
-        np.ndarray
-            Normalized parametrization density (0 to 1)
+        The left string keeps the leading indices and the right string the
+        trailing ones, so the gap stays between the frontiers.
         """
+        left_inds = np.arange(self.left_size, dtype=int)
+        right_inds = np.arange(self.max_nodes, dtype=int)[-self.right_size :]
+        return np.concatenate((left_inds, right_inds))
+
+    def get_cur_param_density(self) -> np.ndarray:
+        """Arc-length parametrization of the current band, normalized to [0, 1]."""
         if len(self.images) < 2:
             return np.array([0.0, 1.0])
 
@@ -139,41 +161,19 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         param_density = np.cumsum(norms)
         total_length = param_density[-1]
 
-        if total_length > 0:
-            logger.debug(f"Current string length={total_length:.6f} Å")
-        else:
+        if total_length <= 0:
             logger.warning("String length is zero, using equal spacing")
             return np.linspace(0.0, 1.0, len(self.images))
 
-        # Energy weighted parametrization density
-        if kind == "energy" and len(self.all_energies) > 0:
-            prev_energies = np.array(self.all_energies[-1])
-            if len(prev_energies) == len(self.images):
-                mean_energies = (prev_energies[1:] + prev_energies[:-1]) / 2
-                weights = mean_energies - prev_energies.min()
-                # Damp everything a bit
-                weights = np.sqrt(np.maximum(weights, 1e-10))  # Avoid negative weights
-                param_density = np.array([0.0])
-                for weight, norm in zip(weights, norms[1:], strict=False):
-                    param_density = np.append(param_density, param_density[-1] + weight * norm)
-                total_length = param_density[-1]
-                if total_length > 0:
-                    param_density /= total_length
-                    return param_density
-
-        # Normalize to [0, 1]
-        if total_length > 0:
-            param_density /= total_length
-        else:
-            param_density = np.linspace(0.0, 1.0, len(self.images))
-
+        logger.debug("Current string length=%.6f Å", total_length)
+        param_density /= total_length
         return param_density
 
     def get_tangent(self, i: int) -> np.ndarray:
         """Calculate tangent vector for image i.
 
         For frontier nodes, uses simple normalized coordinate difference.
-        For internal nodes, uses energy-weighted tangent.
+        For internal nodes, uses the improved NEB tangent.
 
         Parameters
         ----------
@@ -213,7 +213,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 return normalized
             return tangent_flat
 
-        # For internal nodes, use energy-weighted tangent
+        # For internal nodes, use the improved NEB tangent
         if len(self.all_energies) > 0 and len(self.all_energies[-1]) == nimages:
             energies = np.array(self.all_energies[-1])
 
@@ -222,19 +222,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             elif i == nimages - 1:
                 tangent = self.images[nimages - 1].positions - self.images[nimages - 2].positions
             else:
-                # Energy-weighted tangent
-                v_prev = self.images[i].positions - self.images[i - 1].positions
-                v_next = self.images[i + 1].positions - self.images[i].positions
-
-                dE_prev = abs(energies[i] - energies[i - 1])
-                dE_next = abs(energies[i + 1] - energies[i])
-
-                if dE_prev > dE_next:
-                    tangent = v_prev
-                elif dE_next > dE_prev:
-                    tangent = v_next
-                else:
-                    tangent = v_next - v_prev
+                positions = [image.positions for image in self.images]
+                return improved_tangent(positions, energies, i)
 
             tangent_flat = tangent.flatten()
             norm = np.linalg.norm(tangent_flat)
@@ -308,8 +297,10 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         if tangent_ind < 0 or tangent_ind >= len(self.images):
             # Fallback: just copy the reference
             logger.warning(
-                f"get_new_image: Invalid tangent_ind {tangent_ind} for ref_index {ref_index}, "
-                f"string_size={self.string_size}"
+                "get_new_image: Invalid tangent_ind %s for ref_index %s, string_size=%s",
+                tangent_ind,
+                ref_index,
+                self.string_size,
             )
             return new_img
 
@@ -320,7 +311,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         try:
             distance = -(new_img.positions - tangent_img.positions)
         except Exception as e:
-            logger.warning(f"get_new_image: Error calculating distance: {e}")
+            logger.warning("get_new_image: Error calculating distance: %s", e)
             return new_img
 
         # Calculate step based on desired spacing
@@ -336,13 +327,13 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 # Fallback: use a reasonable step size
                 step_length = self.sk * 10.0
                 logger.debug(
-                    f"get_new_image: Small param_dens_diff ({param_dens_diff:.2e}), "
-                    f"using fallback step_length"
+                    "get_new_image: Small param_dens_diff (%.2e), using fallback step_length",
+                    param_dens_diff,
                 )
         else:
             step_length = self.sk * 10.0
             logger.debug(
-                f"get_new_image: Invalid cpd length ({len(cpd)}), using fallback step_length"
+                "get_new_image: Invalid cpd length (%s), using fallback step_length", len(cpd)
             )
 
         step = step_length * distance
@@ -355,15 +346,13 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
         return new_img
 
-    def reparam_cart(self, desired_param_density: np.ndarray, image_energies: list[float]) -> None:
+    def reparam_cart(self, desired_param_density: np.ndarray) -> None:
         """Reparametrize images in cartesian coordinates.
 
         Parameters
         ----------
         desired_param_density : np.ndarray
             Desired parametrization density (0 to 1)
-        image_energies : list[float]
-            Current energies for all images
         """
         max_micro_cycles = 5
         for i in range(1, len(self.images) - 1):  # Skip endpoints
@@ -398,12 +387,10 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
                 # Recalculate after shift
 
-        logger.debug(f"Reparametrization complete. Param density: {self.get_cur_param_density()}")
+        logger.debug("Reparametrization complete. Param density: %s", self.get_cur_param_density())
 
     def reparametrize(
         self,
-        image_energies: list[float],
-        forces: list[np.ndarray],
         perp_thresh: float = 0.05,
         reparam_every: int = 2,
         reparam_every_full: int = 3,
@@ -415,10 +402,6 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
         Parameters
         ----------
-        image_energies : list[float]
-            Energies for all images
-        forces : list[np.ndarray]
-            Forces for all images
         perp_thresh : float
             Perpendicular force threshold for frontier convergence
         reparam_every : int
@@ -450,7 +433,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     "rms": np.sqrt(np.mean(perp_forces_reshaped**2, axis=1)),
                 }
 
-                logger.debug(f"Checking frontier node convergence, threshold={perp_thresh:.6f}")
+                logger.debug("Checking frontier node convergence, threshold=%.6f", perp_thresh)
 
                 # We can add a new node if the norm/rms of the perpendicular force is below
                 # the threshold. Also allow growth if string is small and forces are improving.
@@ -484,7 +467,11 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     is_converged = is_converged_strict or is_converged_relaxed
                     conv_str = ", converged" if is_converged else ""
                     logger.debug(
-                        f"\tnode {i:02d}: {self.reparam_check}(perp_forces)={cur_val:.6f}{conv_str}"
+                        "	node %02d: %s(perp_forces)=%.6f%s",
+                        i,
+                        self.reparam_check,
+                        cur_val,
+                        conv_str,
                     )
                     return bool(is_converged)
 
@@ -496,7 +483,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     new_left_frontier = self.get_new_image(self.lf_ind)
                     self.new_image_inds.append(self.left_size)
                     self.left_string.append(new_left_frontier)
-                    self.images = self.left_string + self.right_string
+                    self._set_images_from_strings()
                     logger.info("Added new left frontier node.")
                     self.reparam_in = 0
 
@@ -508,11 +495,11 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     new_right_frontier = self.get_new_image(self.rf_ind)
                     self.new_image_inds.append(self.left_size)
                     self.right_string.append(new_right_frontier)
-                    self.images = self.left_string + self.right_string
+                    self._set_images_from_strings()
                     logger.info("Added new right frontier node.")
                     self.reparam_in = 0
 
-                logger.debug(f"New image indices: {self.new_image_inds}")
+                logger.debug("New image indices: %s", self.new_image_inds)
 
         logger.debug(
             f"Current string size is {self.left_size}+{self.right_size}="
@@ -524,16 +511,16 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
         if self.reparam_in > 0:
             logger.debug(
-                f"Skipping reparametrization. Next reparametrization in {self.reparam_in} cycles."
+                "Skipping reparametrization. Next reparametrization in %s cycles.", self.reparam_in
             )
         else:
             # Prepare image reparametrization
             desired_param_density = self.sk * self.full_string_image_inds
             pd_str = np.array2string(desired_param_density, precision=4)
-            logger.debug(f"Desired param density: {pd_str}")
+            logger.debug("Desired param density: %s", pd_str)
 
             # Reparametrize images
-            self.reparam_cart(desired_param_density, image_energies)
+            self.reparam_cart(desired_param_density)
 
             self.reparam_in = reparam_every_full if self.fully_grown else reparam_every
             reparametrized = True
@@ -543,11 +530,12 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
     def _collect_path_energies(self, full_path: list[Atoms]) -> list[float]:
         """Return potential energies for each image in the path."""
         energies: list[float] = []
-        for atoms in full_path:
+        for index, atoms in enumerate(full_path):
             try:
-                energies.append(atoms.get_potential_energy())
-            except Exception:
-                energies.append(float("-inf"))
+                energies.append(float(atoms.get_potential_energy()))
+            except Exception as exc:
+                msg = f"Failed to evaluate energy for growing-string image {index}"
+                raise RuntimeError(msg) from exc
         return energies
 
     def _rank_ts_guess_candidates(
@@ -557,10 +545,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
     ) -> list[tuple[int, float]]:
         """Rank interior images by energy for TS refinement (highest first)."""
         nimages = len(full_path)
-        if not energies or all(e == float("-inf") for e in energies):
-            midpoint = nimages // 2
-            logger.warning("Could not calculate energies, using middle image as TS guess")
-            return [(midpoint, 0.0)]
+        if not energies:
+            raise RuntimeError("Cannot rank TS guess candidates without path energies")
 
         margin = max(2, nimages // 5)
         search_start = margin
@@ -582,27 +568,13 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         valid_energies.sort(key=lambda x: x[1], reverse=True)
         best_index, best_energy = valid_energies[0]
         logger.info(
-            f"Growing String: Selected TS guess at image {best_index} "
-            f"(E = {best_energy:.6f} eV, search range {search_start}-{search_end - 1})"
+            "Growing String: Selected TS guess at image %s (E = %.6f eV, search range %s-%s)",
+            best_index,
+            best_energy,
+            search_start,
+            search_end - 1,
         )
         return valid_energies
-
-    def _ts_has_one_imaginary_mode(self, freq_analysis: dict[str, Any] | None) -> bool:
-        """Return True when frequency analysis confirms a first-order saddle."""
-        if not freq_analysis:
-            return False
-        ts_info = freq_analysis.get("ts_analysis") or {}
-        n_imaginary = (
-            freq_analysis.get("n_imaginary_frequencies")
-            or freq_analysis.get("num_imaginary_modes")
-            or freq_analysis.get("n_imaginary_modes")
-            or (ts_info.get("n_imaginary_frequencies") if isinstance(ts_info, dict) else None)
-        )
-        if n_imaginary == 1:
-            return True
-        if freq_analysis.get("is_ts") is True:
-            return True
-        return isinstance(ts_info, dict) and ts_info.get("is_transition_state") is True
 
     def _refine_ts_candidates(
         self,
@@ -646,16 +618,19 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             ts_guess = full_path[candidate_index]
             if rank > 0:
                 logger.info(
-                    f"Growing String: Trying fallback TS guess at image {candidate_index} "
-                    f"(E = {candidate_energy:.6f} eV)"
+                    "Growing String: Trying fallback TS guess at image %s (E = %.6f eV)",
+                    candidate_index,
+                    candidate_energy,
                 )
 
+            # Defer require_ts enforcement until after candidate selection.
             ts_result = ts_strategy.run(
                 [ts_guess],
                 fmax=ts_refinement_fmax,
                 steps=ts_refinement_steps,
                 local_optimizer_name=ts_refinement_optimizer,
                 calculate_frequencies=True,
+                require_ts=False,
                 **ts_call_kwargs,
             )
             ts_structure = ensure_atoms(ts_result["optimized_atoms"], "TS refinement")
@@ -668,9 +643,9 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 best_structure = ts_structure
                 best_converged = ts_converged
 
-            if self._ts_has_one_imaginary_mode(freq_analysis):
+            if ts_has_one_imaginary_mode(freq_analysis):
                 logger.info(
-                    f"Growing String: Valid TS found from image {candidate_index} after refinement"
+                    "Growing String: Valid TS found from image %s after refinement", candidate_index
                 )
                 return ts_result, ts_structure, ts_converged
 
@@ -785,8 +760,10 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         calculate_frequencies : bool, default=False
             Whether to calculate frequencies
         require_ts : bool, optional
-            If True, raise an error unless the method returns a validated first-order
-            saddle (strings meet, refinement converges, and one imaginary mode).
+            If True, raise an error unless the refined structure is vibrationally
+            characterized as a first-order saddle (exactly one imaginary mode).
+            Whether the growing-string sides formally met is recorded in
+            ``strings_met`` but does **not** affect TS validity.
         **kwargs : Any
             Additional parameters:
             - npoints: Maximum number of images (default: 15)
@@ -805,13 +782,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         """
         self.validate_inputs(atoms_list)
 
-        # Parse parameters
-        if require_ts is None:
-            explorer_ts_kwargs = getattr(self.explorer, "ts_kwargs", {}) or {}
-            require_ts = bool(explorer_ts_kwargs.get("require_ts", False))
-        else:
-            require_ts = bool(require_ts)
-
+        require_ts = resolve_require_ts(require_ts, self.explorer)
         kwargs.pop("require_ts", None)
 
         self.max_nodes = kwargs.get("max_images") or kwargs.get("npoints", 15)
@@ -829,8 +800,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         self.reparam_check = kwargs.get("reparam_check", "rms")  # "rms" or "norm"
         self.perp_thresh_relaxed = perp_thresh_relaxed
 
-        # Desired spacing on normalized arclength
-        self.sk = 1.0 / (self.max_nodes + 1)
+        # Index max_nodes - 1 is the product, at arc length 1.
+        self.sk = 1.0 / max(self.max_nodes - 1, 1)
 
         # Enforce exactly two structures
         if len(atoms_list) != 2:
@@ -867,10 +838,16 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 StrategyUtils.ensure_charge_spin_info(reactant)
                 StrategyUtils.ensure_charge_spin_info(product)
 
+        # Reset per-run state so repeated run() calls do not leak history.
+        self.all_energies = []
+        self.all_forces = []
+        self.perp_forces_list = []
+        self.new_image_inds = []
+
         # Initialize strings
         self.left_string = [reactant.copy()]
         self.right_string = [product.copy()]
-        self.images = self.left_string + self.right_string
+        self._set_images_from_strings()
 
         # Ensure calculators are attached using PathManager
         if self.explorer is not None:
@@ -879,7 +856,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 StrategyUtils.ensure_charge_spin_info(atoms)
 
         logger.info(
-            f"Growing String: Starting with {len(self.images)} images, max {self.max_nodes}"
+            "Growing String: Starting with %s images, max %s", len(self.images), self.max_nodes
         )
 
         # Initialize reparametrization counter
@@ -892,13 +869,10 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             # Grow left frontier first (from reactant toward center)
             left_frontier = self.get_new_image(self.lf_ind)
             self.left_string.append(left_frontier)
-            # Update images after left growth
-            self.images = self.left_string + self.right_string
-            # Now grow right frontier (from product toward center)
-            # rf_ind is now valid after updating images
+            self._set_images_from_strings()
             right_frontier = self.get_new_image(self.rf_ind)
             self.right_string.append(right_frontier)
-            self.images = self.left_string + self.right_string
+            self._set_images_from_strings()
 
             # Ensure calculators are attached to new images
             if self.explorer is not None:
@@ -907,7 +881,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     StrategyUtils.ensure_charge_spin_info(atoms)
 
             logger.info(
-                f"Growing String: Initial growth complete. Now have {len(self.images)} images"
+                "Growing String: Initial growth complete. Now have %s images", len(self.images)
             )
 
         # Main GSM loop
@@ -916,33 +890,28 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             # Check if fully grown
             if self.fully_grown:
                 logger.info(
-                    f"Growing String: Reached maximum images ({self.max_nodes}). "
-                    f"String size: {self.left_size}+{self.right_size}={self.string_size}"
+                    "Growing String: Reached maximum images (%s). String size: %s+%s=%s",
+                    self.max_nodes,
+                    self.left_size,
+                    self.right_size,
+                    self.string_size,
                 )
                 break
 
-            # Calculate energies and forces
-            energies = []
-            forces_list = []
-            for atoms in self.images:
-                try:
-                    energy = atoms.get_potential_energy()
-                    forces = atoms.get_forces()
-                    energies.append(energy)
-                    forces_list.append(forces)
-                except Exception as e:
-                    logger.warning(f"Failed to calculate energy/forces: {e}")
-                    energies.append(float("inf"))
-                    forces_list.append(np.zeros((len(atoms), 3)))
-
+            energies, forces_list = self._evaluate_band()
             self.all_energies.append(energies)
             self.all_forces.append(forces_list)
 
-            # Check if strings have met (distance between tips)
-            # Only consider strings met if we have enough images to form a reasonable path
+            # Optimize perpendicular to path first, then judge growth on the relaxed forces.
+            self.optimize_perpendicular(fmax, max_steps=20)
+            energies, forces_list = self._evaluate_band()
+            self.all_energies[-1] = energies
+            self.all_forces[-1] = forces_list
+
+            # Check if strings have met (distance between frontiers)
             if len(self.left_string) > 0 and len(self.right_string) > 0:
                 forward_tip = self.left_string[-1].positions
-                backward_tip = self.right_string[0].positions
+                backward_tip = self.right_string[-1].positions
                 distance = np.linalg.norm(forward_tip - backward_tip)
 
                 distance_threshold = kwargs.get("distance_threshold", 0.05)
@@ -954,17 +923,14 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 ):
                     strings_met = True
                     logger.info(
-                        f"Strings met: distance={distance:.6f} Å < threshold={distance_threshold:.6f} Å, "
-                        f"string_size={self.string_size}"
+                        "Strings met: distance=%.6f Å < threshold=%.6f Å, string_size=%s",
+                        distance,
+                        distance_threshold,
+                        self.string_size,
                     )
 
-            # Optimize perpendicular to path first
-            self.optimize_perpendicular(fmax, max_steps=20)
-
             # Reparametrize and potentially add new nodes
-            self.reparametrize(
-                energies, forces_list, perp_thresh, reparam_every, reparam_every_full
-            )
+            self.reparametrize(perp_thresh, reparam_every, reparam_every_full)
 
             # Log progress
             if (iteration + 1) % 10 == 0:
@@ -992,7 +958,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 if hei_info:
                     strs.append(hei_info)
 
-                logger.info(f"Growing String: Iteration {iteration + 1}, " + "\t".join(strs))
+                logger.info("Growing String: Iteration %s, %s", iteration + 1, "\t".join(strs))
 
         # Combine strings into full path
         # right_string grows forward from product [P, R1, R2, ...] where R2 is closest to center
@@ -1000,9 +966,11 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         full_path = self.left_string + self.right_string[::-1]
 
         logger.info(
-            f"Growing String: Complete with {len(full_path)} images "
-            f"(left: {len(self.left_string)}, right: {len(self.right_string)}, "
-            f"strings_met={strings_met})"
+            "Growing String: Complete with %s images (left: %s, right: %s, strings_met=%s)",
+            len(full_path),
+            len(self.left_string),
+            len(self.right_string),
+            strings_met,
         )
 
         # Filter redundant structures for consistency with other path strategies
@@ -1042,6 +1010,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             backward_string=self.right_string,
             strings_met=strings_met,
         )
+        if kwargs.get("record_history"):
+            result["search_path"] = full_path
 
         freq_analysis: dict[str, Any] | None = None
         if ts_result is not None and isinstance(ts_result, dict):
@@ -1051,55 +1021,31 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             # Type narrowing: check if it's a dict before assigning
             if freq_analysis_val is not None and isinstance(freq_analysis_val, dict):
                 freq_analysis = freq_analysis_val
+            take_optimization_trajectory(result, ts_result)
 
-        if (
-            (require_ts or calculate_frequencies)
+        temperature = float(kwargs.get("temperature", 298.15))
+        # Valid TS := vibrationally a first-order saddle (exactly one imaginary
+        # mode). ``strings_met`` is path-growth metadata only and must not gate
+        # TS validity (strings often hit max images before formally meeting).
+        if require_ts:
+            freq_analysis = enforce_require_ts(
+                require_ts=True,
+                atoms=ts_structure if isinstance(ts_structure, Atoms) else None,
+                explorer=self.explorer,
+                freq_analysis=freq_analysis,
+                check_converged=(False if (refine_ts and not ts_converged) else None),
+                temperature=temperature,
+            )
+        elif (
+            calculate_frequencies
             and freq_analysis is None
             and isinstance(ts_structure, Atoms)
+            and self.explorer is not None
         ):
-            if self.explorer is not None:
-                freq_analysis = self.explorer.calculate_frequencies(
-                    atoms=ts_structure,
-                    temperature=kwargs.get("temperature", 298.15),
-                    save_hessian=False,
-                )
-
-        validation_error_messages: list[str] = []
-        if require_ts:
-            if not strings_met:
-                validation_error_messages.append(
-                    "Growing string did not converge: forward and backward strings never met."
-                )
-            if not ts_converged:
-                validation_error_messages.append("Local TS refinement failed to converge.")
-            if freq_analysis is None:
-                validation_error_messages.append(
-                    "Frequency analysis unavailable for TS validation."
-                )
-            else:
-                ts_info = freq_analysis.get("ts_analysis") or {}
-                imag_modes = (
-                    freq_analysis.get("num_imaginary_modes")
-                    or freq_analysis.get("n_imaginary_modes")
-                    or freq_analysis.get("n_imaginary_frequencies")
-                    or (
-                        ts_info.get("n_imaginary_frequencies")
-                        if isinstance(ts_info, dict)
-                        else None
-                    )
-                )
-                is_ts = freq_analysis.get("is_ts")
-                if is_ts is None and isinstance(ts_info, dict):
-                    is_ts = ts_info.get("is_transition_state")
-                if not is_ts or (imag_modes is not None and imag_modes != 1):
-                    validation_error_messages.append(
-                        "Refined structure is not a first-order saddle (frequency analysis failed)."
-                    )
-
-        if validation_error_messages:
-            raise RuntimeError(
-                "TS validation failed with require_ts=True:\n- "
-                + "\n- ".join(validation_error_messages)
+            freq_analysis = self.explorer.calculate_frequencies(
+                atoms=ts_structure,
+                temperature=temperature,
+                save_hessian=False,
             )
 
         if validation_result is not None:

@@ -9,21 +9,25 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
-from typing import Any, cast
+from typing import Any
 
 import click
 from ase import Atoms
 
+from famex.backends.constants import UMA_TASKS
 from famex.cli.cache_commands import cache
 from famex.cli.cli_helpers import (
-    load_atoms_from_xyz,
+    input_stem,
     load_path_structures,
+    load_structure_or_smiles,
     parse_kv_pairs,
     print_frequency_summary,
+    require_same_atom_count,
     save_results_json,
-    write_atoms,
 )
 from famex.core.explorer import Explorer
+from famex.io.modes import modes_output_dir, write_vibrational_modes
+from famex.io.run_output import select_default_frames, write_run_outputs
 from famex.utils.ml_warnings import quiet_backend_loading
 
 os.environ.setdefault("MPLBACKEND", "Agg")
@@ -41,6 +45,12 @@ def _handle_frequency_results(
     output_path: str,
     target: str,
     calculate_frequencies: bool,
+    *,
+    write_modes: bool = False,
+    modes_which: str = "all",
+    mode_indices: list[int] | None = None,
+    mode_frames: int = 20,
+    mode_amplitude: float = 0.3,
 ) -> None:
     if not calculate_frequencies:
         return
@@ -57,7 +67,24 @@ def _handle_frequency_results(
         return
 
     freq_analysis = results["frequency_analysis"]
-    if not isinstance(freq_analysis, dict):
+    if isinstance(freq_analysis, dict):
+        try:
+            print_frequency_summary(freq_analysis, target=target)
+            save_results_json(results, output_path)
+        except KeyError as e:
+            click.echo(
+                f"Error: Frequency analysis result is missing required key: {e}. "
+                "The frequency calculation may have been incomplete.",
+                err=True,
+            )
+        except Exception as e:
+            click.echo(
+                f"Error: Failed to process frequency analysis results: {e}\n"
+                "The optimization completed successfully, but frequency analysis output "
+                "could not be processed. Check the error message above for details.",
+                err=True,
+            )
+    elif not (write_modes and isinstance(freq_analysis, list)):
         click.echo(
             f"Warning: Frequency analysis result has unexpected type {type(freq_analysis)}. "
             "Expected a dictionary.",
@@ -65,25 +92,92 @@ def _handle_frequency_results(
         )
         return
 
-    # Type narrowing: freq_analysis is now dict[str, Any]
-    freq_dict: dict[str, Any] = freq_analysis
+    if write_modes:
+        _write_vibrational_mode_files(
+            results,
+            output_path,
+            which=modes_which,
+            mode_indices=mode_indices,
+            nframes=mode_frames,
+            amplitude=mode_amplitude,
+        )
 
-    try:
-        print_frequency_summary(freq_dict, target=target)
-        save_results_json(results, output_path)
-    except KeyError as e:
-        click.echo(
-            f"Error: Frequency analysis result is missing required key: {e}. "
-            "The frequency calculation may have been incomplete.",
-            err=True,
+
+def _prepare_mode_output(
+    write_modes: bool,
+    calculate_frequencies: bool,
+    mode_frames: int,
+    mode_amplitude: float,
+    mode_indices: tuple[int, ...],
+) -> tuple[bool, list[int] | None]:
+    """Turn frequency analysis on when mode animations were requested."""
+    if not write_modes:
+        return calculate_frequencies, None
+    if mode_frames < 2:
+        raise click.BadParameter("--mode-frames must be at least 2")
+    if mode_amplitude <= 0:
+        raise click.BadParameter("--mode-amplitude must be positive")
+    return True, list(mode_indices) or None
+
+
+def _write_vibrational_mode_files(
+    results: dict[str, Any],
+    output_path: str,
+    *,
+    which: str,
+    mode_indices: list[int] | None,
+    nframes: int,
+    amplitude: float,
+) -> None:
+    optimized = results["optimized_atoms"]
+    structures = [optimized] if isinstance(optimized, Atoms) else list(optimized)
+    freq_analysis = results["frequency_analysis"]
+    output_dir = modes_output_dir(output_path)
+
+    if isinstance(freq_analysis, dict):
+        if len(structures) != 1:
+            raise click.ClickException(
+                "Cannot write vibrational modes: expected one optimized structure."
+            )
+        jobs = [(structures[0], freq_analysis, "")]
+    else:
+        if len(structures) != len(freq_analysis):
+            raise click.ClickException(
+                "Cannot write vibrational modes: frequency analyses do not match "
+                "the optimized structures."
+            )
+        jobs = []
+        for image_index, (atoms, item) in enumerate(zip(structures, freq_analysis, strict=True)):
+            if not isinstance(item, dict):
+                click.echo(
+                    f"Warning: Skipping vibrational modes for image {image_index}; "
+                    "frequency analysis is missing.",
+                    err=True,
+                )
+                continue
+            jobs.append((atoms, item, f"image{image_index}_"))
+
+    if not jobs:
+        raise click.ClickException(
+            "Cannot write vibrational modes: no frequency analysis was available."
         )
-    except Exception as e:
-        click.echo(
-            f"Error: Failed to process frequency analysis results: {e}\n"
-            "The optimization completed successfully, but frequency analysis output could not be processed. "
-            "Check the error message above for details.",
-            err=True,
-        )
+
+    for atoms, freq_dict, prefix in jobs:
+        try:
+            written = write_vibrational_modes(
+                atoms,
+                freq_dict,
+                output_dir,
+                which=which,
+                mode_indices=mode_indices,
+                amplitude=amplitude,
+                nframes=nframes,
+                filename_prefix=prefix,
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+        for path in written:
+            click.echo(f"Saved vibrational mode: {path}")
 
 
 def _validate_strategy_requirements(
@@ -95,7 +189,7 @@ def _validate_strategy_requirements(
     errors: list[str] = []
     warnings: list[str] = []
 
-    if target != "path" and strategy in ["interpolate", "growing_string", "cineb"]:
+    if target != "path" and strategy in ["interpolate", "growing_string", "cineb", "dhs"]:
         if product is None:
             errors.append(f"--product is required for {strategy} strategy")
 
@@ -137,12 +231,14 @@ def _create_explorer(
     verbose: int,
     force_finite_diff_hessian: bool,
     cleanup_frequencies: bool,
+    task_name: str | None = None,
+    dftd3_functional: str | None = None,
 ) -> tuple[Explorer, AbstractContextManager[list[str]]]:
-    verbosity = max(0, verbose - 1)
-
     ctx: AbstractContextManager[list[str]]
-    if verbosity == 0:
-        ctx = quiet_backend_loading(backend, model_name, model_path, device, show_model_info=True)
+    if verbose == 0:
+        ctx = quiet_backend_loading(
+            backend, model_name, model_path, device, show_model_info=True, verbose=verbose
+        )
     else:
         ctx = nullcontext([])
 
@@ -162,9 +258,11 @@ def _create_explorer(
         strategy=strategy,
         ts_kwargs=ts_kwargs,
         constraints=constraints,
-        verbose=verbosity,
+        verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
         cleanup_frequencies=cleanup_frequencies,
+        task_name=task_name,
+        dftd3_functional=dftd3_functional,
     )
 
     return exp, ctx
@@ -187,53 +285,34 @@ def _handle_dry_run(exp: Explorer) -> None:
     click.echo(f"   Notes: {explanation['notes']}")
 
 
-def _generate_output_path(input_path: str, strategy: str, target: str) -> str:
-    """Generate default output path based on strategy and target.
-
-    Parameters
-    ----------
-    input_path : str
-        Input file path
-    strategy : str
-        Strategy name
-    target : str
-        Target type ("minima", "ts", or "path")
-
-    Returns
-    -------
-    str
-        Default output path
-    """
-    base = os.path.splitext(input_path)[0]
-    if target == "minima":
-        suffix = ".opt.local.xyz" if strategy == "local" else ".opt.interpolate.xyz"
-    elif target == "ts":
-        if strategy == "local":
-            suffix = ".ts.local.xyz"
-        elif strategy == "interpolate":
-            suffix = ".ts.interpolate.xyz"
-        elif strategy == "cineb":
-            suffix = ".ts.cineb.xyz"
-        else:  # growing_string
-            suffix = ".ts.gsm.xyz"
-    else:  # path
-        if strategy == "interpolate":
-            suffix = ".path.interpolate.xyz"
-        elif strategy == "neb":
-            suffix = ".path.neb.xyz"
-        elif strategy == "cineb":
-            suffix = ".path.cineb.xyz"
-        else:  # irc
-            suffix = ".path.irc.xyz"
-    return base + suffix
-
-
-def _extract_result_atoms(results: dict[str, Any], target: str) -> Atoms | list[Atoms]:
-    if target == "path":
-        if "trajectory" in results:
-            return cast(Atoms | list[Atoms], results["trajectory"])
-        return cast(Atoms | list[Atoms], results.get("optimized_atoms", []))
-    return cast(Atoms, results["optimized_atoms"])
+def _save_run_output(
+    results: dict[str, Any],
+    input_path: str,
+    strategy: str,
+    target: str,
+    output: str | None,
+    history: bool,
+    completed_message: str,
+) -> str:
+    """Write the target's default file and, when asked, geometry history."""
+    stem = input_stem(input_path)
+    written = write_run_outputs(
+        results,
+        stem,
+        target=target,
+        strategy=strategy,
+        output=output,
+        history=history,
+    )
+    default_path = written[0]
+    frames = select_default_frames(results, target)
+    if isinstance(frames, list):
+        click.echo(f"{completed_message} Saved {len(frames)} images to: {default_path}")
+    else:
+        click.echo(f"{completed_message} Saved: {default_path}")
+    for extra in written[1:]:
+        click.echo(f"Saved history: {extra}")
+    return default_path
 
 
 def _run_optimization(
@@ -241,7 +320,7 @@ def _run_optimization(
     strategy: str,
     target: str,
     fmax: float,
-    steps: int,
+    steps: int | None,
     calculate_frequencies: bool,
     temperature: float,
     npoints: int | None = None,
@@ -253,11 +332,15 @@ def _run_optimization(
     direction: str | None = None,
     climb: bool = False,
     cleanup_frequencies: bool = False,
+    dhs_small_step: float | None = None,
+    dhs_switch_thresh: float | None = None,
+    record_history: bool = False,
 ) -> dict[str, Any]:
     run_kwargs: dict[str, Any] = {
         "calculate_frequencies": calculate_frequencies,
         "cleanup_frequencies": cleanup_frequencies,
         "temperature": temperature,
+        "record_history": record_history,
     }
 
     if target == "path":
@@ -302,7 +385,7 @@ def _run_optimization(
             run_kwargs.update(
                 {
                     "npoints": npoints,
-                    "method": interp.lower() if interp else "geodesic",
+                    "method": interp.lower() if interp else "idpp",
                     "fmax": fmax,
                     "steps": steps,
                 }
@@ -322,10 +405,21 @@ def _run_optimization(
             run_kwargs.update(
                 {
                     "npoints": npoints,
-                    "method": interp.lower() if interp else "geodesic",
+                    "method": interp.lower() if interp else "idpp",
                     "fmax": fmax,
                     "steps": steps,
                     "spring_constant": spring_constant,
+                }
+            )
+        elif strategy == "dhs":
+            run_kwargs.update(
+                {
+                    "fmax": fmax,
+                    "steps": steps,
+                    "dist_tol": distance_threshold if distance_threshold is not None else 0.5,
+                    "large_step": step_size if step_size is not None else 0.2,
+                    "small_step": dhs_small_step,
+                    "switch_thresh": dhs_switch_thresh,
                 }
             )
     else:  # minima
@@ -341,7 +435,8 @@ def _run_optimization(
                 }
             )
 
-    return exp.run(**run_kwargs)
+    # Omit unset options so each strategy keeps its own default.
+    return exp.run(**{key: value for key, value in run_kwargs.items() if value is not None})
 
 
 def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], Any]:
@@ -351,11 +446,28 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 "--backend",
                 default="uma",
                 show_default=True,
-                help="Backend: uma|aimnet2|mace|orb|so3lr|tblite|pet|mock",
+                help="Backend: uma|aimnet2|mace|orb|so3lr|tblite|pet|pyscf|mock",
             ),
             click.option("--model-name", default=None, help="Model name for backend"),
             click.option("--model-path", default=None, help="Path to model file (if applicable)"),
             click.option("--device", default=None, help="Device: cpu|cuda"),
+            click.option(
+                "--task-name",
+                default=None,
+                help=(
+                    f"UMA task head: {'|'.join(UMA_TASKS)} "
+                    "(default: omol; ignored for non-UMA backends)"
+                ),
+            ),
+            click.option(
+                "--dftd3-functional",
+                default=None,
+                type=click.Choice(["r2scan", "pbe"], case_sensitive=False),
+                help=(
+                    "Optional FairChem DFT-D3(BJ) wrap for UMA "
+                    "(e.g. r2scan with uma-s-1p2p1-ft-r2scan)"
+                ),
+            ),
             click.option(
                 "--default-charge",
                 type=int,
@@ -368,7 +480,7 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 type=int,
                 default=1,
                 show_default=True,
-                help="Default spin multiplicity",
+                help="Default spin multiplicity (use 0 for non-omol UMA tasks)",
             ),
             click.option(
                 "--local-optimizer",
@@ -404,8 +516,8 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 "--verbose",
                 "-v",
                 count=True,
-                default=1,
-                help="Verbosity level: -v=quiet, -vv=normal, -vvv=debug",
+                default=0,
+                help="Verbosity: default quiet, -v normal, -vv or more debug",
             ),
             click.option(
                 "--dry-run",
@@ -450,19 +562,64 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 ),
             )
         )
-        opts.append(
-            click.option(
-                "--cleanup-frequencies",
-                "cleanup_frequencies",
-                is_flag=True,
-                default=False,
-                help=(
-                    "After optimization, run Hessian-based cleanup from the final "
-                    "geometry until there are 0 (minima) or 1 (TS) relevant "
-                    "imaginary frequencies"
-                ),
+        # Cleanup is only meaningful for minima/ts (include_freq=True), not path.
+        if include_freq:
+            opts.extend(
+                [
+                    click.option(
+                        "--cleanup-frequencies",
+                        "cleanup_frequencies",
+                        is_flag=True,
+                        default=False,
+                        help=(
+                            "After optimization, run Hessian-based cleanup from the final "
+                            "geometry until there are 0 (minima) or 1 (TS) relevant "
+                            "imaginary frequencies"
+                        ),
+                    ),
+                    click.option(
+                        "--write-modes",
+                        is_flag=True,
+                        default=False,
+                        help=(
+                            "Write each vibrational mode as a multi-frame XYZ animation. "
+                            "Implies --freq."
+                        ),
+                    ),
+                    click.option(
+                        "--modes",
+                        "modes_which",
+                        type=click.Choice(["all", "imaginary"]),
+                        default="all",
+                        show_default=True,
+                        help=(
+                            "Which modes to animate when --write-modes is set. "
+                            "Ignored when --mode-index is given."
+                        ),
+                    ),
+                    click.option(
+                        "--mode-index",
+                        "mode_indices",
+                        multiple=True,
+                        type=int,
+                        help=("Vibrational mode index to write, repeatable. Overrides --modes."),
+                    ),
+                    click.option(
+                        "--mode-frames",
+                        type=int,
+                        default=20,
+                        show_default=True,
+                        help="Frames per vibrational-mode animation.",
+                    ),
+                    click.option(
+                        "--mode-amplitude",
+                        type=float,
+                        default=0.3,
+                        show_default=True,
+                        help="Largest atomic displacement in each mode animation, in angstroms.",
+                    ),
+                ]
             )
-        )
         for opt in reversed(opts):
             f = opt(f)
         return f
@@ -470,8 +627,19 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
     return decorator
 
 
+def _embedder_option(func: Any) -> Any:
+    """Add ``--embedder`` for commands that accept SMILES."""
+    return click.option(
+        "--embedder",
+        type=click.Choice(["pysmiles", "rdkit"]),
+        default="pysmiles",
+        show_default=True,
+        help="SMILES 3D method: pysmiles (UFF distance geometry) or rdkit (ETKDGv3)",
+    )(func)
+
+
 @click.group(
-    help="FAMEX CLI: Fast mechanistic explorer with ML potentials.\n\n\b\nCommands:\n  famex minima : Minima optimization (outputs single structure)\n  famex ts     : Transition state optimization (outputs single TS)\n  famex path   : Reaction path optimization (outputs trajectories)\n  famex cache  : Manage model cache\n\n\b\nExamples:\n  # Minima optimization (outputs single structure)\n  famex minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  famex minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  famex ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  famex ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  famex ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  famex ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02  # RFO TS optimizer\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  famex path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  famex path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  famex path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  famex path --strategy neb r.xyz intermediate.xyz p.xyz --npoints 11  # Multiple structures\n  famex path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  famex minima --strategy local molecule.xyz --backend torchsim_mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  famex cache info  # Show cache information\n  famex cache clear # Clear model cache",
+    help='FAMEX CLI: Fast mechanistic explorer with ML potentials.\n\n\b\nCommands:\n  famex minima : Minima optimization (outputs single structure)\n  famex ts     : Transition state optimization (outputs single TS)\n  famex path   : Reaction path optimization (outputs trajectories)\n  famex cache  : Manage model cache\n\n\b\nExamples:\n  # Structure inputs: XYZ file, SMILES, or pubchem:NAME / cid: / numeric CID\n  famex minima --strategy local "CCO" --backend aimnet2\n  famex minima --strategy local pubchem:aspirin --backend aimnet2\n\n\b\n  # Minima optimization (outputs single structure)\n  famex minima --strategy local reactant.xyz --backend aimnet2 --fmax 0.03  # Local optimization\n  famex minima --strategy interpolate r.xyz --product p.xyz --interp geodesic --npoints 21  # Via interpolation\n\n\b\n  # Transition state optimization (outputs single TS)\n  famex ts --strategy local ts_guess.xyz --ts-kw order=1  # Local TS optimization\n  famex ts --strategy interpolate r.xyz --product p.xyz --npoints 15  # TS via interpolation\n  famex ts --strategy growing_string r.xyz --product p.xyz --npoints 20 --step-size 0.1  # Growing string method\n  famex ts --strategy local ts_guess.xyz --local-optimizer rfo --fmax 0.02  # RFO TS optimizer\n\n\b\n  # Reaction path optimization (outputs trajectories)\n  famex path --strategy interpolate r.xyz p.xyz --npoints 15  # Raw interpolation\n  famex path --strategy neb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # NEB path\n  famex path --strategy cineb r.xyz p.xyz --npoints 11 --spring-constant 5.0  # CI-NEB path\n  famex path --strategy neb r.xyz intermediate.xyz p.xyz --npoints 11  # Multiple structures\n  famex path --strategy irc ts.xyz --direction both --steps 100  # IRC from transition state\n\n\b\n  # Advanced backends\n  famex minima --strategy local molecule.xyz --backend mace --model-name mace-omol-0 --device cuda\n\n\b\n  # Cache management\n  famex cache info  # Show cache information\n  famex cache clear # Clear model cache',
 )
 @click.version_option()
 def main() -> None:
@@ -486,18 +654,23 @@ def main() -> None:
     show_default=True,
     help="Optimization strategy",
 )
-@click.argument("input", type=click.Path(exists=True, dir_okay=False))
+@click.argument("input", metavar="INPUT")
 @click.option(
     "--product",
-    type=click.Path(exists=True, dir_okay=False),
     default=None,
-    help="Product structure (required for interpolate strategy)",
+    help="Product structure or SMILES (required for interpolate strategy)",
 )
 @click.option(
     "--output",
     type=click.Path(dir_okay=False),
     default=None,
     help="Output optimized XYZ path",
+)
+@click.option(
+    "--history",
+    is_flag=True,
+    default=False,
+    help="Also write the optimizer step history",
 )
 @click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
 @click.option("--steps", type=int, default=1000, show_default=True, help="Max optimization steps")
@@ -510,17 +683,20 @@ def main() -> None:
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
+    type=click.Choice(["linear", "geodesic", "idpp"], case_sensitive=False),
     default="geodesic",
     show_default=True,
     help="Interpolation method (interpolate strategy only)",
 )
+@_embedder_option
 @_common_explorer_options()
 def minima(
     strategy: str,
     input: str,
     product: str | None,
+    embedder: str,
     output: str | None,
+    history: bool,
     fmax: float,
     steps: int,
     npoints: int,
@@ -529,6 +705,8 @@ def minima(
     model_name: str | None,
     model_path: str | None,
     device: str | None,
+    task_name: str | None,
+    dftd3_functional: str | None,
     default_charge: int,
     default_spin: int,
     local_optimizer: str,
@@ -541,8 +719,20 @@ def minima(
     temperature: float,
     force_finite_diff_hessian: bool,
     cleanup_frequencies: bool,
+    write_modes: bool,
+    modes_which: str,
+    mode_indices: tuple[int, ...],
+    mode_frames: int,
+    mode_amplitude: float,
 ) -> None:
     """Minima optimization using various strategies."""
+    calculate_frequencies, selected_modes = _prepare_mode_output(
+        write_modes,
+        calculate_frequencies,
+        mode_frames,
+        mode_amplitude,
+        mode_indices,
+    )
     # Validate strategy-specific requirements
     errors, warnings = _validate_strategy_requirements(
         strategy=strategy, target="minima", product=product, structures_count=1
@@ -552,15 +742,19 @@ def minima(
     for warning in warnings:
         click.echo(f"Warning: {warning}")
 
-    # Load structures
-    atoms = load_atoms_from_xyz(input)
+    # Load structures (existing files, or SMILES when the path does not exist)
+    atoms = load_structure_or_smiles(input, embedder=embedder)
     atoms_list = [atoms]
 
     if strategy == "interpolate":
         if product is None:
             raise ValueError("Product file is required for interpolate strategy")
-        atoms_product = load_atoms_from_xyz(product)
+        atoms_product = load_structure_or_smiles(product, embedder=embedder)
         atoms_list = [atoms, atoms_product]
+        try:
+            require_same_atom_count(atoms_list, ["reactant", "product"])
+        except ValueError as exc:
+            raise click.BadParameter(str(exc)) from exc
 
     # Parse kwargs
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
@@ -584,6 +778,8 @@ def minima(
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
         cleanup_frequencies=cleanup_frequencies,
+        task_name=task_name,
+        dftd3_functional=dftd3_functional,
     )
 
     with ctx:
@@ -603,37 +799,46 @@ def minima(
             temperature=temperature,
             npoints=npoints if strategy == "interpolate" else None,
             interp=interp if strategy == "interpolate" else None,
+            record_history=history,
         )
 
-        # Extract results and generate output path
-        result_atoms = _extract_result_atoms(results, target="minima")
-        out_default = _generate_output_path(input, strategy, "minima")
-
-    # Save results
-    out = output or out_default
-    write_atoms(result_atoms, out)
-    click.echo(f"Minima optimization completed. Saved: {out}")
+    out = _save_run_output(
+        results,
+        input,
+        strategy,
+        "minima",
+        output,
+        history,
+        "Minima optimization completed.",
+    )
 
     # Handle frequency analysis results (chained after optimization)
     _handle_frequency_results(
-        results, out, target="minima", calculate_frequencies=calculate_frequencies
+        results,
+        out,
+        target="minima",
+        calculate_frequencies=calculate_frequencies,
+        write_modes=write_modes,
+        modes_which=modes_which,
+        mode_indices=selected_modes,
+        mode_frames=mode_frames,
+        mode_amplitude=mode_amplitude,
     )
 
 
 @main.command()
 @click.option(
     "--strategy",
-    type=click.Choice(["local", "interpolate", "cineb", "growing_string"]),
+    type=click.Choice(["local", "interpolate", "cineb", "growing_string", "dhs"]),
     default="local",
     show_default=True,
     help="Optimization strategy",
 )
-@click.argument("input", type=click.Path(exists=True, dir_okay=False))
+@click.argument("input", metavar="INPUT")
 @click.option(
     "--product",
-    type=click.Path(exists=True, dir_okay=False),
     default=None,
-    help="Product structure (required for interpolate/cineb/growing_string strategies)",
+    help="Product structure or SMILES (required for interpolate/cineb/growing_string/dhs)",
 )
 @click.option(
     "--output",
@@ -641,19 +846,31 @@ def minima(
     default=None,
     help="Output TS XYZ path",
 )
+@click.option(
+    "--history",
+    is_flag=True,
+    default=False,
+    help="Also write the search path and the TS optimizer history",
+)
 @click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
-@click.option("--steps", type=int, default=1000, show_default=True, help="Max optimization steps")
+@click.option(
+    "--steps",
+    type=int,
+    default=None,
+    show_default="1000 (local, interpolate, cineb); 200 (growing_string, dhs)",
+    help="Max optimization steps. Omit to use the strategy default.",
+)
 @click.option(
     "--npoints",
     type=int,
-    default=11,
-    show_default=True,
-    help="Number of interpolation points (interpolate/cineb/growing_string strategies only)",
+    default=None,
+    show_default="11 (interpolate, cineb); 15 (growing_string)",
+    help="Interpolation images, or growing-string image count when --max-images is omitted.",
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
-    default="geodesic",
+    type=click.Choice(["linear", "geodesic", "idpp"], case_sensitive=False),
+    default="idpp",
     show_default=True,
     help="Interpolation method (interpolate/cineb strategies only)",
 )
@@ -667,23 +884,37 @@ def minima(
 @click.option(
     "--max-images",
     type=int,
-    default=100,
-    show_default=True,
-    help="Maximum number of images (growing_string strategy only)",
+    default=None,
+    show_default="npoints, or 15 when both are omitted",
+    help="Growing-string image count. Overrides --npoints when set.",
 )
 @click.option(
     "--distance-threshold",
     type=float,
-    default=0.1,
-    show_default=True,
-    help="Distance threshold for convergence (growing_string strategy only)",
+    default=None,
+    show_default=False,
+    help="Distance threshold: growing_string default 0.1; DHS dist_tol default 0.5",
 )
 @click.option(
     "--step-size",
     type=float,
-    default=0.1,
+    default=None,
+    show_default=False,
+    help="Step size: growing_string default 0.1; DHS large_step default 0.2",
+)
+@click.option(
+    "--dhs-small-step",
+    type=float,
+    default=0.05,
     show_default=True,
-    help="Step size for growing string method (growing_string strategy only)",
+    help="DHS small step size when images are close (dhs strategy only)",
+)
+@click.option(
+    "--dhs-switch-thresh",
+    type=float,
+    default=1.5,
+    show_default=True,
+    help="DHS distance below which small_step is used (dhs strategy only)",
 )
 @click.option(
     "--require-ts/--allow-ts",
@@ -692,25 +923,32 @@ def minima(
     show_default=True,
     help="If set, fail when the TS strategy does not yield a validated first-order saddle.",
 )
+@_embedder_option
 @_common_explorer_options()
 def ts(
     strategy: str,
     input: str,
     product: str | None,
+    embedder: str,
     output: str | None,
+    history: bool,
     fmax: float,
-    steps: int,
-    npoints: int,
+    steps: int | None,
+    npoints: int | None,
     interp: str,
     spring_constant: float,
-    max_images: int,
-    distance_threshold: float,
-    step_size: float,
+    max_images: int | None,
+    distance_threshold: float | None,
+    step_size: float | None,
+    dhs_small_step: float,
+    dhs_switch_thresh: float,
     require_ts: bool,
     backend: str,
     model_name: str | None,
     model_path: str | None,
     device: str | None,
+    task_name: str | None,
+    dftd3_functional: str | None,
     default_charge: int,
     default_spin: int,
     local_optimizer: str,
@@ -723,8 +961,20 @@ def ts(
     temperature: float,
     force_finite_diff_hessian: bool,
     cleanup_frequencies: bool,
+    write_modes: bool,
+    modes_which: str,
+    mode_indices: tuple[int, ...],
+    mode_frames: int,
+    mode_amplitude: float,
 ) -> None:
     """Transition state optimization using various strategies."""
+    calculate_frequencies, selected_modes = _prepare_mode_output(
+        write_modes,
+        calculate_frequencies,
+        mode_frames,
+        mode_amplitude,
+        mode_indices,
+    )
     # Validate strategy-specific requirements
     errors, warnings = _validate_strategy_requirements(
         strategy=strategy, target="ts", product=product, structures_count=1
@@ -734,17 +984,21 @@ def ts(
     for warning in warnings:
         click.echo(f"Warning: {warning}")
 
-    # Load structures
-    atoms = load_atoms_from_xyz(input)
+    # Load structures (existing files, or SMILES when the path does not exist)
+    atoms = load_structure_or_smiles(input, embedder=embedder)
     atoms_list = [atoms]
 
-    if strategy in ["interpolate", "growing_string", "cineb"]:
+    if strategy in ["interpolate", "growing_string", "cineb", "dhs"]:
         if product is None:
             raise ValueError(
                 f"Product file is required for {strategy} strategy",
             )
-        atoms_product = load_atoms_from_xyz(product)
+        atoms_product = load_structure_or_smiles(product, embedder=embedder)
         atoms_list = [atoms, atoms_product]
+        try:
+            require_same_atom_count(atoms_list, ["reactant", "product"])
+        except ValueError as exc:
+            raise click.BadParameter(str(exc)) from exc
 
     # Parse kwargs
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
@@ -770,6 +1024,8 @@ def ts(
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
         cleanup_frequencies=cleanup_frequencies,
+        task_name=task_name,
+        dftd3_functional=dftd3_functional,
     )
 
     with ctx:
@@ -777,7 +1033,8 @@ def ts(
             _handle_dry_run(exp)
             return
 
-        # Run optimization
+        dist_default = 0.5 if strategy == "dhs" else 0.1
+        step_default = 0.2 if strategy == "dhs" else 0.1
         results = _run_optimization(
             exp=exp,
             strategy=strategy,
@@ -791,22 +1048,42 @@ def ts(
             interp=interp if strategy in ["interpolate", "cineb"] else None,
             spring_constant=spring_constant if strategy == "cineb" else None,
             max_images=max_images if strategy == "growing_string" else None,
-            distance_threshold=distance_threshold if strategy == "growing_string" else None,
-            step_size=step_size if strategy == "growing_string" else None,
+            distance_threshold=(
+                (distance_threshold if distance_threshold is not None else dist_default)
+                if strategy in ("growing_string", "dhs")
+                else None
+            ),
+            step_size=(
+                (step_size if step_size is not None else step_default)
+                if strategy in ("growing_string", "dhs")
+                else None
+            ),
+            dhs_small_step=dhs_small_step if strategy == "dhs" else None,
+            dhs_switch_thresh=dhs_switch_thresh if strategy == "dhs" else None,
+            record_history=history,
         )
 
-        # Extract results and generate output path
-        result_atoms = _extract_result_atoms(results, target="ts")
-        out_default = _generate_output_path(input, strategy, "ts")
-
-    # Save results
-    out = output or out_default
-    write_atoms(result_atoms, out)
-    click.echo(f"Transition state optimization completed. Saved: {out}")
+    out = _save_run_output(
+        results,
+        input,
+        strategy,
+        "ts",
+        output,
+        history,
+        "Transition state optimization completed.",
+    )
 
     # Handle frequency analysis results (chained after optimization)
     _handle_frequency_results(
-        results, out, target="ts", calculate_frequencies=calculate_frequencies
+        results,
+        out,
+        target="ts",
+        calculate_frequencies=calculate_frequencies,
+        write_modes=write_modes,
+        modes_which=modes_which,
+        mode_indices=selected_modes,
+        mode_frames=mode_frames,
+        mode_amplitude=mode_amplitude,
     )
 
 
@@ -821,15 +1098,28 @@ main.add_command(cache)
     show_default=True,
     help="Path optimization strategy",
 )
-@click.argument("structures", nargs=-1, type=click.Path(exists=True, dir_okay=False), required=True)
+@click.argument("structures", nargs=-1, required=True)
+@_embedder_option
 @click.option(
     "--output",
     type=click.Path(dir_okay=False),
     default=None,
     help="Output trajectory XYZ path",
 )
+@click.option(
+    "--history",
+    is_flag=True,
+    default=False,
+    help="Also write the NEB iteration history or IRC forward and reverse branches",
+)
 @click.option("--fmax", type=float, default=0.05, show_default=True, help="Convergence threshold")
-@click.option("--steps", type=int, default=1000, show_default=True, help="Max optimization steps")
+@click.option(
+    "--steps",
+    type=int,
+    default=None,
+    show_default="1000 (neb, cineb); 100 (irc)",
+    help="Max optimization steps. Omit to use the strategy default.",
+)
 @click.option(
     "--npoints",
     type=int,
@@ -839,7 +1129,7 @@ main.add_command(cache)
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic", "idpp", "quadratic", "spline"], case_sensitive=False),
+    type=click.Choice(["linear", "geodesic", "idpp"], case_sensitive=False),
     default="geodesic",
     show_default=True,
     help="Initial interpolation method",
@@ -847,7 +1137,7 @@ main.add_command(cache)
 @click.option(
     "--spring-constant",
     type=float,
-    default=0.5,
+    default=5.0,
     show_default=True,
     help="Spring constant for NEB/CI-NEB",
 )
@@ -870,17 +1160,21 @@ def path(
     strategy: str,
     structures: tuple[str, ...],
     output: str | None,
+    history: bool,
     fmax: float,
-    steps: int,
+    steps: int | None,
     npoints: int,
     interp: str,
     spring_constant: float,
     step_size: float,
     direction: str,
+    embedder: str,
     backend: str,
     model_name: str | None,
     model_path: str | None,
     device: str | None,
+    task_name: str | None,
+    dftd3_functional: str | None,
     default_charge: int,
     default_spin: int,
     local_optimizer: str,
@@ -890,7 +1184,6 @@ def path(
     verbose: int,
     dry_run: bool,
     force_finite_diff_hessian: bool,
-    cleanup_frequencies: bool,
 ) -> None:
     """Reaction path optimization using various strategies.
 
@@ -901,15 +1194,23 @@ def path(
     - irc: IRC path from transition state
 
     Input structures can be provided as:
-    - Multiple files: famex path reactant.xyz product.xyz [intermediate.xyz ...]
+    - Files, SMILES, ``cid:``, or ``pubchem:`` names, including a mix
+    - Multiple endpoints: famex path reactant.xyz "CCO" cid:702
     - Single multi-frame XYZ: famex path path_guess.xyz (all frames used)
     - Single single-frame XYZ: famex path ts.xyz (for IRC strategy)
+
+    Endpoints must have the same number of atoms.
 
     For interpolate, neb, and cineb: provide at least 2 structures.
     For irc: provide 1 structure (transition state).
     """
-    # Load structures from variadic inputs
-    atoms_list = load_path_structures(structures)
+    # Load structures from variadic inputs (files, SMILES, or PubChem)
+    try:
+        atoms_list = load_path_structures(structures, embedder=embedder)
+    except click.ClickException:
+        raise
+    except (ValueError, RuntimeError) as exc:
+        raise click.BadParameter(str(exc)) from exc
 
     # Validate strategy-specific requirements
     errors, warnings = _validate_strategy_requirements(
@@ -922,6 +1223,15 @@ def path(
         # Handle IRC warning by using only first structure
         if strategy == "irc" and len(atoms_list) > 1:
             atoms_list = [atoms_list[0]]
+
+    if len(structures) == len(atoms_list):
+        labels = list(structures)
+    else:
+        labels = [f"{structures[0]} frame {index}" for index in range(len(atoms_list))]
+    try:
+        require_same_atom_count(atoms_list, labels)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc)) from exc
 
     # Parse kwargs
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
@@ -945,6 +1255,8 @@ def path(
         verbose=verbose,
         force_finite_diff_hessian=force_finite_diff_hessian,
         cleanup_frequencies=False,
+        task_name=task_name,
+        dftd3_functional=dftd3_functional,
     )
     first_file = structures[0]
 
@@ -967,14 +1279,18 @@ def path(
             step_size=step_size if strategy == "irc" else None,
             direction=direction if strategy == "irc" else None,
             climb=(strategy == "cineb"),
+            record_history=history,
         )
 
-        trajectory = _extract_result_atoms(result, target="path")
-        out_default = _generate_output_path(first_file, strategy, "path")
-
-    out = output or out_default
-    write_atoms(trajectory, out)
-    click.echo(f"Path optimization completed. Saved {len(trajectory)} images to: {out}")
+    _save_run_output(
+        result,
+        first_file,
+        strategy,
+        "path",
+        output,
+        history,
+        "Path optimization completed.",
+    )
 
 
 __all__ = ["main", "minima", "path", "ts"]

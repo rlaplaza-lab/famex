@@ -38,15 +38,6 @@ def is_linear_molecule(atoms: Atoms, indices: list[int]) -> bool:
     if len(indices) <= 2:
         return True
 
-    positions = atoms.positions[indices]
-    if len(positions) == 3:
-        # For 3 atoms, check if they are collinear
-        v1 = positions[1] - positions[0]
-        v2 = positions[2] - positions[0]
-        cross = np.cross(v1, v2)
-        return bool(np.linalg.norm(cross) < 1e-3)
-
-    # For more atoms, use moment of inertia approach
     return _check_linearity_inertia(atoms, indices)
 
 
@@ -122,11 +113,12 @@ def rotational_temperatures_from_atoms(atoms: Atoms, linear: bool) -> np.ndarray
 
     moments_amu_ang2 = np.sort(atoms.get_moments_of_inertia(vectors=False))
     moments_kg_m2 = moments_amu_ang2 * AMU_TO_KG * 1e-20
+    moment_floor_kg_m2 = 1e-4 * AMU_TO_KG * 1e-20
 
     with np.errstate(divide="ignore", invalid="ignore"):
         thetas = (HBAR**2) / (2 * moments_kg_m2 * BOLTZMANN_CONSTANT)
 
-    thetas = np.where(moments_kg_m2 > 1e-46, thetas, 0.0)
+    thetas = np.where(moments_kg_m2 > moment_floor_kg_m2, thetas, 0.0)
     positive_thetas = thetas[thetas > 1e-6]
 
     if linear:

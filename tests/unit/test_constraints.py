@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pytest
-from ase.constraints import FixInternals
+from ase.constraints import FixInternals, Hookean
 
 from famex.constraints.constraints import (
     FAMEXConstraintManager,
@@ -10,9 +12,11 @@ from famex.constraints.constraints import (
     FixInternalsConstraint,
     HarmonicAngleConstraint,
     HarmonicBondConstraint,
+    HarmonicPositionConstraint,
     parse_constraint_string,
-    validate_atom_indices,
 )
+from famex.constraints.parser import parse_constraints
+from famex.potentials.mock_potential import MockCalculator
 
 
 @pytest.fixture
@@ -130,25 +134,6 @@ class TestConstraintParsing:
             assert parsed["target_value"] == expected_val
 
 
-class TestConstraintValidation:
-    def test_validate_valid_indices(self, h2o_molecule):
-        valid_cases = [[0], [2], [0, 1], [1, 2], [0, 1, 2]]
-        for indices in valid_cases:
-            assert validate_atom_indices(indices, h2o_molecule) is True
-
-    def test_validate_invalid_indices(self, h2o_molecule):
-        invalid_cases = [[0, 3], [1, 4], [0, 1, 3]]
-        for invalid_indices in invalid_cases:
-            with pytest.raises(ValueError):
-                validate_atom_indices(invalid_indices, h2o_molecule)
-
-    def test_validate_non_integer(self, h2o_molecule):
-        non_integer_cases = [[0, 1.5], [1.0, 2], [0.5]]
-        for non_integer_indices in non_integer_cases:
-            with pytest.raises(AssertionError):
-                validate_atom_indices(non_integer_indices, h2o_molecule)  # type: ignore
-
-
 class TestHarmonicConstraintInternals:
     def test_bond_reference_calculation(self, h2o_molecule):
         c = HarmonicBondConstraint([0, 1], h2o_molecule, 5.0)
@@ -158,6 +143,50 @@ class TestHarmonicConstraintInternals:
     def test_angle_reference_validation(self, h2o_molecule):
         with pytest.raises(ValueError):
             HarmonicAngleConstraint([0, 1], h2o_molecule, 2.0)
+
+    def test_position_constraint_emits_hookean(self, h2o_molecule):
+        ase_constraints = HarmonicPositionConstraint(
+            [0, 2], h2o_molecule, 10.0
+        ).to_ase_constraints()
+        assert len(ase_constraints) == 2
+        assert all(isinstance(ac, Hookean) for ac in ase_constraints)
+
+    def test_angle_constraint_adjusts_forces(self, h2o_molecule):
+        constraint = HarmonicAngleConstraint([1, 0, 2], h2o_molecule, 5.0).to_ase_constraints()[0]
+        atoms = h2o_molecule.copy()
+        positions = atoms.get_positions()
+        positions[2] = positions[0] + np.array([0.0, 1.5, 0.0])
+        atoms.set_positions(positions)
+        forces = np.zeros_like(positions)
+        constraint.adjust_forces(atoms, forces)
+        assert np.linalg.norm(forces) > 0.0
+
+    def test_angle_constraint_adjust_potential_energy(self, h2o_molecule):
+        wrapper = HarmonicAngleConstraint([1, 0, 2], h2o_molecule, 5.0)
+        constraint = wrapper.to_ase_constraints()[0]
+
+        atoms = h2o_molecule.copy()
+        positions = atoms.get_positions()
+        positions[2] = positions[0] + np.array([0.0, 1.5, 0.0])
+        atoms.set_positions(positions)
+
+        i, j, k = constraint.indices
+        r1 = positions[i] - positions[j]
+        r2 = positions[k] - positions[j]
+        cos_theta = float(
+            np.clip(np.dot(r1, r2) / (np.linalg.norm(r1) * np.linalg.norm(r2)), -1.0, 1.0)
+        )
+        theta = float(np.arccos(cos_theta))
+        expected = 0.5 * constraint.k * (theta - constraint.theta0) ** 2
+
+        energy = constraint.adjust_potential_energy(atoms)
+        assert abs(energy - expected) < 1e-12
+        assert energy > 0.0
+
+        atoms.calc = MockCalculator()
+        bare_energy = atoms.get_potential_energy()
+        atoms.set_constraint(constraint)
+        assert abs(atoms.get_potential_energy() - (bare_energy + energy)) < 1e-10
 
 
 class TestFixInternalsConstraint:
@@ -205,15 +234,11 @@ class TestParseConstraintsFunction:
 
     def test_parse_constraints_string(self, h2o_molecule):
         """Test string input (works via parse_constraint_string)."""
-        from famex.constraints.parser import parse_constraints
-
         constraints = parse_constraints("fix 0", h2o_molecule)
         assert len(constraints) == 1
 
     def test_parse_constraints_list_of_strings(self, h2o_molecule):
         """Test list of constraint strings."""
-        from famex.constraints.parser import parse_constraints
-
         constraints = parse_constraints(["fix 0", "harmonic_bond 1,2 k=5.0"], h2o_molecule)
         # Should combine and parse both constraints
         assert len(constraints) >= 1
@@ -221,8 +246,6 @@ class TestParseConstraintsFunction:
     def test_parse_constraints_list_of_ase_constraints(self, h2o_molecule):
         """Test passing pre-made ASE constraints."""
         from ase.constraints import FixAtoms
-
-        from famex.constraints.parser import parse_constraints
 
         ase_constraints = [FixAtoms(indices=[0, 1])]
         result = parse_constraints(ase_constraints, h2o_molecule)
@@ -232,32 +255,33 @@ class TestParseConstraintsFunction:
 
     def test_parse_constraints_invalid_list_item(self, h2o_molecule):
         """Test error for unsupported list items."""
-        from famex.constraints.parser import parse_constraints
-
         with pytest.raises(ValueError, match="Unsupported constraint specification"):
             parse_constraints([123, "fix 0"], h2o_molecule)
 
     def test_parse_constraints_dict_not_implemented(self, h2o_molecule):
         """Test that dict input raises NotImplementedError."""
-        from famex.constraints.parser import parse_constraints
-
         with pytest.raises(NotImplementedError, match="not yet implemented"):
             parse_constraints({"fix": [0, 1]}, h2o_molecule)
 
     def test_parse_constraints_verbose_output(self, h2o_molecule, caplog):
-        """Test verbose logging."""
-        from famex.constraints.parser import parse_constraints
+        """Test verbose logging reaches caplog after setup_famex_logging."""
+        # Explorer/setup_famex_logging set famex.propagate=False. pytest<9 only
+        # attaches caplog to the root logger, so re-enable propagation for capture.
+        famex_logger = logging.getLogger("famex")
+        previous_propagate = famex_logger.propagate
+        famex_logger.propagate = True
+        try:
+            with caplog.at_level("INFO", logger="famex.constraints.parser"):
+                result = parse_constraints(
+                    "fix 0; harmonic_bond 1,2 k=5.0", h2o_molecule, verbose=1
+                )
+        finally:
+            famex_logger.propagate = previous_propagate
 
-        with caplog.at_level("INFO"):
-            parse_constraints("fix 0; harmonic_bond 1,2 k=5.0", h2o_molecule, verbose=1)
-
-        # Verbose logging may or may not be captured depending on logger configuration
-        # Just verify the function completes successfully with verbose=1
-        assert True  # Function executed without error
+        assert result is not None
+        assert "Applied constraints" in caplog.text
 
     def test_parse_constraints_quiet_mode(self, h2o_molecule, caplog):
         """Test that verbose=0 doesn't log."""
-        from famex.constraints.parser import parse_constraints
-
         parse_constraints("fix 0", h2o_molecule, verbose=0)
         assert "Applied constraints" not in caplog.text

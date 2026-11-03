@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -17,6 +18,10 @@ from famex.backends.cache import (
     get_model_cache,
     get_unified_cache,
 )
+
+
+class _WeakCalc:
+    pass
 
 
 class TestCalculatorCacheEdgeCases:
@@ -146,6 +151,37 @@ class TestCalculatorCacheEdgeCases:
         # May be None if GC occurred, or may still be there if GC hasn't run
         # Both behaviors are acceptable with weak references
         _ = cache.get("test", "model", "cpu")
+
+    def test_access_order_pruned_after_gc(self):
+        cache = CalculatorCache(max_size=2)
+        calc1 = _WeakCalc()
+        key1 = cache.put(calc1, "backend1", None, "cpu")
+        del calc1
+        gc.collect()
+
+        calc2 = _WeakCalc()
+        cache.put(calc2, "backend2", None, "cpu")
+
+        assert key1 not in cache._access_order
+        assert cache.get("backend2", None, "cpu") is calc2
+
+    def test_eviction_skips_collected_entries(self):
+        cache = CalculatorCache(max_size=2)
+        calc_a, calc_b, calc_c, calc_d = (_WeakCalc() for _ in range(4))
+
+        cache.put(calc_a, "backend_a", None, "cpu")
+        cache.put(calc_b, "backend_b", None, "cpu")
+        del calc_a
+        gc.collect()
+
+        cache.put(calc_c, "backend_c", None, "cpu")
+        cache.put(calc_d, "backend_d", None, "cpu")
+
+        assert cache.get("backend_a", None, "cpu") is None
+        assert cache.get("backend_b", None, "cpu") is None
+        assert cache.get("backend_c", None, "cpu") is calc_c
+        assert cache.get("backend_d", None, "cpu") is calc_d
+        assert set(cache._access_order) <= set(cache._cache)
 
 
 class TestModelCacheEdgeCases:
@@ -355,6 +391,13 @@ class TestGlobalCacheFunctions:
         # Should be cleared in the unified cache
         retrieved = unified.calculator_cache.get("test", "model", "cpu")
         assert retrieved is None
+
+    def test_clear_all_caches_clears_registry_singleton(self):
+        mock_calc = MagicMock()
+        cache_calculator(mock_calc, "registry_backend", "model", "cpu")
+        assert get_cached_calculator("registry_backend", "model", "cpu") == mock_calc
+        clear_all_caches()
+        assert get_cached_calculator("registry_backend", "model", "cpu") is None
 
     def test_download_and_cache_model_with_existing_cache(self):
         with tempfile.TemporaryDirectory() as tmpdir:

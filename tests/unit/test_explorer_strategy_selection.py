@@ -108,16 +108,9 @@ class TestExplorerStrategySelection:
     def test_run_method_simplified(self):
         atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.74]])
         exp = Explorer(atoms, target="minima", strategy="local", backend="mock")
-
-        # Test that we can call run without errors
-        # Note: This might fail due to optimization issues, but the strategy selection should work
-        try:
-            result = exp.run(steps=QUICK_STEPS)
-            assert "optimized_atoms" in result
-            assert "strategy" in result
-        except Exception:
-            # Post-run or optimizer failures are acceptable for strategy-selection coverage.
-            pass
+        result = exp.run(steps=QUICK_STEPS)
+        assert "optimized_atoms" in result
+        assert result["strategy"] == "minima:local"
 
     @pytest.mark.parametrize(
         ("alias", "expected_target", "expected_strategy"),

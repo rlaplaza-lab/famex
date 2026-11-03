@@ -9,7 +9,10 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import filter_interpolation_kwargs, validate_ts_structure
+from famex.strategies.helpers import (
+    take_optimization_trajectory,
+    validate_ts_structure,
+)
 from famex.strategies.neb_optimizer import NEBOptimizer
 from famex.strategies.ts import LocalTSStrategy
 from famex.utils.logging import get_famex_logger
@@ -33,28 +36,24 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
         self,
         atoms_list: list[Atoms],
         npoints: int = 11,
-        method: str = "geodesic",
+        method: str = "idpp",
         fmax: float = 0.05,
         steps: int = 1000,
         spring_constant: float = 5.0,
         validate_ts: bool = False,
         calculate_frequencies: bool = False,
+        path_fmax: float | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Run multi-structure TS search via CI-NEB."""
         self.validate_inputs(atoms_list)
 
         local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
+        record_history = bool(kwargs.get("record_history", False))
+        band_fmax = 0.10 if path_fmax is None else float(path_fmax)
 
         path_mgr = PathManager(atoms_list)
-        interpolate_kwargs = filter_interpolation_kwargs(kwargs, allowed_keys={"calculator"})
-        path = path_mgr.interpolate(
-            npoints=npoints,
-            method=method,
-            optimize_path=False,
-            explorer=self.explorer,
-            **interpolate_kwargs,
-        )
+        path = path_mgr.interpolate(npoints=npoints, method=method)
 
         if len(path) < 3:
             msg = "CI-NEB requires at least 3 images (npoints >= 3)"
@@ -68,15 +67,16 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
                     "Check backend/model availability.",
                 )
 
+        neb_kwargs = {k: v for k, v in kwargs.items() if k != "record_history"}
         neb_opt = NEBOptimizer(
             images=path,
             spring_constant=spring_constant,
             climb=True,
-            fmax=fmax,
+            fmax=band_fmax,
             steps=steps,
-            **kwargs,
+            **neb_kwargs,
         )
-        optimized_path = neb_opt.optimize()
+        optimized_path, _band_converged = neb_opt.optimize()
 
         if neb_opt.climbing_image is not None:
             ts_guess = optimized_path[neb_opt.climbing_image]
@@ -87,7 +87,9 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
             logger.info("Using highest-energy image %d as TS guess", ts_index)
 
         ts_strategy = LocalTSStrategy(self.explorer)
-        ts_kwargs = {k: v for k, v in kwargs.items() if k != "local_optimizer_name"}
+        ts_kwargs = {
+            k: v for k, v in kwargs.items() if k not in {"local_optimizer_name", "path_fmax"}
+        }
         ts_result = ts_strategy.run(
             [ts_guess],
             fmax=fmax,
@@ -132,6 +134,10 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
             result["frequency_analysis"] = ts_result["frequency_analysis"]
             result["is_ts"] = ts_result.get("is_ts")
             result["free_energy_correction"] = ts_result.get("free_energy_correction")
+        if record_history:
+            if optimized_path:
+                result["search_path"] = [image.copy() for image in optimized_path]
+            take_optimization_trajectory(result, ts_result)
         return result
 
 

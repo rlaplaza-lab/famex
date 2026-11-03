@@ -8,7 +8,7 @@ from famex.utils.device import (
     get_device_info,
     get_optimal_device,
     print_device_info,
-    validate_device,
+    resolve_backend_device,
 )
 
 
@@ -58,63 +58,31 @@ class TestDeviceUtilities:
 
         assert device == "cpu"
 
-    def test_validate_device_none(self):
-        with patch("famex.utils.device.get_optimal_device", return_value="cpu"):
-            device = validate_device(None)
-            assert device == "cpu"
+    def test_resolve_backend_device_tblite_defaults_cpu(self):
+        assert resolve_backend_device("tblite", None) == "cpu"
+        assert resolve_backend_device("tblite", "cpu") == "cpu"
+        assert resolve_backend_device("TBLite", "CPU") == "cpu"
 
-    def test_validate_device_cpu(self):
-        device = validate_device("cpu")
-        assert device == "cpu"
+    def test_resolve_backend_device_tblite_explicit_cuda_errors(self):
+        with pytest.raises(ValueError, match="does not support CUDA"):
+            resolve_backend_device("tblite", "cuda")
+        with pytest.raises(ValueError, match="does not support CUDA"):
+            resolve_backend_device("TBLite", "CUDA")
+        with pytest.raises(ValueError, match="does not support CUDA"):
+            resolve_backend_device("tblite", "gpu")
 
-    def test_validate_device_cuda(self):
-        with patch("famex.backends.dependencies.deps") as mock_deps:
-            mock_torch = MagicMock()
-            mock_torch.cuda.is_available.return_value = True
-            mock_deps.has.return_value = True
-            mock_deps.get.return_value = mock_torch
+    @patch("famex.utils.device.get_optimal_device", return_value="cuda")
+    def test_resolve_backend_device_mlip_auto_cuda(self, _mock_optimal):
+        assert resolve_backend_device("mace", None) == "cuda"
+        assert resolve_backend_device("uma", None) == "cuda"
+        assert resolve_backend_device("aimnet2", None) == "cuda"
+        assert resolve_backend_device("orb", None) == "cuda"
+        assert resolve_backend_device("so3lr", None) == "cuda"
+        assert resolve_backend_device("pet", None) == "cuda"
 
-            device = validate_device("cuda")
-            assert device == "cuda"
-
-    def test_validate_device_gpu_alias(self):
-        with patch("famex.backends.dependencies.deps") as mock_deps:
-            mock_torch = MagicMock()
-            mock_torch.cuda.is_available.return_value = True
-            mock_deps.has.return_value = True
-            mock_deps.get.return_value = mock_torch
-
-            device = validate_device("gpu")
-            assert device == "cuda"
-
-    def test_validate_device_invalid(self):
-        with pytest.raises(ValueError, match="Invalid device"):
-            validate_device("invalid_device")
-
-    def test_validate_device_cuda_not_available(self):
-        with patch("famex.backends.dependencies.deps") as mock_deps:
-            mock_torch = MagicMock()
-            mock_torch.cuda.is_available.return_value = False
-            mock_deps.has.return_value = True
-            mock_deps.get.return_value = mock_torch
-
-            with pytest.raises(ValueError, match="CUDA device requested but CUDA is not available"):
-                validate_device("cuda")
-
-    def test_validate_device_cuda_no_torch(self):
-        with patch("famex.backends.dependencies.deps") as mock_deps:
-            mock_deps.has.return_value = False
-
-            with pytest.raises(ValueError, match="PyTorch not available"):
-                validate_device("cuda")
-
-    def test_validate_device_cuda_import_error(self):
-        """Test validate_device when ImportError occurs during CUDA check."""
-        with patch("famex.backends.dependencies.deps") as mock_deps:
-            mock_deps.has.side_effect = ImportError("No module named torch")
-
-            with pytest.raises(ValueError, match="PyTorch not available"):
-                validate_device("cuda")
+    def test_resolve_backend_device_mlip_explicit_cpu(self):
+        assert resolve_backend_device("mace", "cpu") == "cpu"
+        assert resolve_backend_device("uma", "CPU") == "cpu"
 
     @patch("famex.backends.dependencies.deps")
     def test_get_device_info_cpu(self, mock_deps):
@@ -173,7 +141,7 @@ class TestDeviceUtilities:
     def test_print_device_info_cpu(self, mock_deps, mock_logger):
         print_device_info("cpu")
 
-        mock_logger.info.assert_called_with("💻 Using CPU device")
+        mock_logger.info.assert_called_with("Using CPU device")
 
     @patch("famex.utils.device.logger")
     @patch("famex.backends.dependencies.deps")

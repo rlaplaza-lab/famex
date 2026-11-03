@@ -1,8 +1,8 @@
 # FAMEX Tutorials
 
-Hands-on tutorials for molecular geometry optimization and transition state searches using FAMEX.
+Hands-on tutorials for minima, transition states, and reaction paths.
 
-**Defaults:** CLI and Explorer use `backend="uma"` and model `uma-s-1p2`. Tutorials below often show `--backend aimnet2` for a minimal torch-only install; omit it when using UMA.
+**Defaults:** CLI/`Explorer` use UMA (`uma-s-1p2`, task `omol`). Examples below often pass `--backend aimnet2` for a torch-only install. Checkpoint table and UMA tasks: [User Guide](USER_GUIDE.md#default-models).
 
 ## Table of Contents
 
@@ -35,20 +35,59 @@ result = explorer.run(fmax=0.05, steps=1000)
 explorer.save_structure(result["optimized_atoms"], "optimized.xyz")
 ```
 
+### From SMILES
+
+Install one embedder, or both. `pysmiles` is the default. Pass SMILES directly to `minima`, `ts`, or `path`; coordinates are built internally before optimization.
+
+```bash
+pip install famex[smiles]   # default distance geometry
+pip install famex[rdkit]    # optional ETKDGv3
+famex minima --strategy local "CCO" --backend aimnet2 --fmax 0.05
+famex minima --strategy local "CCO" --embedder rdkit --backend aimnet2 --fmax 0.05
+```
+
+```python
+import famex
+
+geom = famex.smiles_to_atoms("CCO")
+rdkit_geom = famex.smiles_to_atoms("CCO", embedder="rdkit")
+explorer = famex.Explorer.from_smiles("CCO", backend="aimnet2", target="minima", strategy="local")
+result = explorer.run(fmax=0.05, steps=1000)
+```
+
+Embedding only builds a starting guess — always minimize afterward. Limitations and embedder details: [User Guide](USER_GUIDE.md#structure-inputs-file-smiles-pubchem).
+
+### From PubChem
+
+`pubchem:NAME`, `cid:`, and a bare numeric CID work as `minima`, `ts`, and `path` inputs. When PubChem has a computed 3D conformer, those coordinates are used; otherwise the deposited SMILES is embedded. A bare non-numeric name on those commands is SMILES.
+
+```bash
+famex minima --strategy local pubchem:aspirin --backend aimnet2 --fmax 0.05
+famex minima --strategy local cid:2244 --backend aimnet2 --fmax 0.05
+```
+
+```python
+import famex
+
+geom = famex.Geometry.from_pubchem("aspirin")
+explorer = famex.Explorer.from_pubchem("aspirin", backend="aimnet2", target="minima", strategy="local")
+```
+
 ### Optimizers
 
-| Optimizer | Type | Best For |
+| Optimizer | Type | Use when |
 |-----------|------|----------|
-| `default` | Auto-select | `lbfgs` for minima/path, `sella` for TS |
+| `default` | Auto-select | `lbfgs` for minima/path, `rfo` for TS |
 | `lbfgs` | First-order | Large systems, default for minima |
 | `bfgs` | First-order | General purpose |
 | `fire` | First-order | Fast initial relaxation |
-| `sella` | Second-order | Transition states, robust |
+| `sella` | Second-order | Transition states, finite-difference Hessian |
+| `sella-analytical` | Second-order | Transition states when the backend has an analytical Hessian |
 | `trust-krylov` | Second-order | When Hessians are cheap |
-| `trust-ncg` | Second-order | Trust-region with nonlinear CG |
+| `trust-ncg` | Second-order | Trust-region with nonlinear conjugate gradient |
 | `trust-exact` | Second-order | Trust-region with exact Hessian |
-| `newton-cg` | Second-order | Newton-CG method |
-| `rfo` | Second-order | Rational Function Optimization for TS |
+| `newton-cg` | Second-order | Newton–CG method (minima only) |
+| `rfo` | Second-order | Restricted-step partitioned RFO for TS. The trust radius sets the step length |
 
 ### Convergence
 
@@ -97,21 +136,26 @@ explorer = famex.Explorer([reactant, product], target="ts", strategy="interpolat
 result = explorer.run(npoints=15)
 ```
 
-### Growing String (DE-GSM)
+### Growing String (double-ended growing string / DE-GSM)
+
+Omitting `--npoints` and `--steps` uses 15 images and 200 steps, the same defaults as `Explorer.run` for `growing_string`. `--max-images` overrides `--npoints` when you set it.
 
 ```bash
 famex ts --strategy growing_string reactant.xyz --product product.xyz --npoints 20 --step-size 0.1
 famex ts --strategy growing_string reactant.xyz --product product.xyz --require-ts --freq
 ```
 
-See also `examples/growing_string_demo.py`.
+See also `examples/growing_string.py`.
 
 ### Validation
 
-A valid TS has exactly one significant imaginary frequency:
+A valid TS is vibrationally characterized as a first-order saddle: exactly one
+significant imaginary frequency. Path-search details (e.g. whether growing-string
+sides formally met) do not define validity:
 
 ```bash
 famex ts --strategy local ts_guess.xyz --freq
+famex ts --strategy local ts_guess.xyz --write-modes --modes imaginary
 ```
 
 ```python
@@ -120,11 +164,16 @@ if freq_result["is_ts"]:
     print("Valid transition state")
 # or explicitly:
 n_imag = freq_result["ts_analysis"]["n_imaginary_frequencies"]
+explorer.save_vibrational_modes(freq_result, "ts_modes", which="imaginary")
 ```
+
+Gas-phase free energies: [Frequencies and thermochemistry](USER_GUIDE.md#frequencies-and-thermochemistry). See `examples/thermochemistry.py`.
 
 ## Reaction Paths
 
-### NEB / CI-NEB
+### Nudged Elastic Band (NEB) / Climbing-Image NEB (CI-NEB)
+
+The NEB and CI-NEB spring constant defaults to `5.0`, and both default to 1000 steps, on the CLI and in Python. `result["converged"]` is whether the band reached `fmax`.
 
 ```bash
 famex path --strategy neb reactant.xyz product.xyz --npoints 11
@@ -138,20 +187,22 @@ path = result.get("trajectory", result["optimized_atoms"])
 explorer.save_trajectory(path, "neb_path.xyz")
 ```
 
-### IRC from a transition state
+### Intrinsic Reaction Coordinate (IRC) from a transition state
+
+IRC defaults to 100 steps on the CLI and in Python.
 
 ```bash
 famex path --strategy irc ts.xyz --direction both
 # --direction: forward | backward | both (default: both)
 ```
 
-See `examples/irc_demo.py`.
+See `examples/irc.py`.
 
 ### Interpolation only (no optimization)
 
 ```bash
 famex path --strategy interpolate reactant.xyz product.xyz --npoints 15 --interp idpp
-# --interp: linear | geodesic | idpp | quadratic | spline (default: geodesic)
+# --interp: linear | geodesic | idpp (default: geodesic)
 ```
 
 ## Quick Reference
@@ -171,7 +222,7 @@ famex path --strategy neb reactant.xyz product.xyz --npoints 11
 # IRC from TS
 famex path --strategy irc ts.xyz --direction both
 
-# Cache (AIMNet2 model downloads)
+# Model cache
 famex cache info
 ```
 
@@ -201,4 +252,4 @@ More examples: [`examples/README.md`](https://github.com/rlaplaza-lab/famex/tree
 
 ---
 
-*Last updated: June 2026*
+*Last updated: October 2026*

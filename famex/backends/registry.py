@@ -12,10 +12,13 @@ from famex.backends.constants import (
     BACKEND_MOCK,
     BACKEND_ORB,
     BACKEND_PET,
+    BACKEND_PYSCF,
     BACKEND_SO3LR,
     BACKEND_TBLITE,
     BACKEND_UMA,
+    DEFAULT_TBLITE_MODEL,
 )
+from famex.utils.device import resolve_backend_device
 from famex.utils.lazy_imports import get_module_logger
 from famex.utils.validation import BackendError
 
@@ -32,6 +35,7 @@ BACKEND_CLASSES: dict[str, tuple[str, str]] = {
     BACKEND_ORB: ("famex.potentials.orb_potential", "OrbPotential"),
     BACKEND_TBLITE: ("famex.potentials.tblite_potential", "TBLitePotential"),
     BACKEND_PET: ("famex.potentials.pet_potential", "PETPotential"),
+    BACKEND_PYSCF: ("famex.potentials.pyscf_potential", "PySCFPotential"),
     BACKEND_MOCK: ("famex.potentials.mock_potential", "MockCalculator"),
 }
 
@@ -76,9 +80,6 @@ class CalculatorRegistry:
     def register(self, backend_name: str, factory_func: Callable[..., Any]) -> None:
         self._registry[backend_name] = factory_func
 
-    def get_registered_backends(self) -> list[str]:
-        return list(BACKEND_CLASSES.keys())
-
     def create_calculator(
         self,
         backend: str,
@@ -102,15 +103,15 @@ class CalculatorRegistry:
         calculator_cls = self._registry[backend]
         factory_kwargs = kwargs.copy()
 
-        if backend.lower() == BACKEND_TBLITE and model_name is not None:
-            factory_kwargs["method"] = model_name
+        if backend.lower() == BACKEND_TBLITE:
+            factory_kwargs["method"] = model_name or DEFAULT_TBLITE_MODEL
         elif model_name is not None:
             factory_kwargs["model_name"] = model_name
 
         if model_path is not None:
             factory_kwargs["model_path"] = model_path
-        if device is not None:
-            factory_kwargs["device"] = device
+        # Always resolve: MLIP → CUDA if available; tblite → CPU (error if CUDA).
+        factory_kwargs["device"] = resolve_backend_device(backend, device)
 
         if backend == BACKEND_MOCK:
             factory_kwargs["backend"] = kwargs.get("mock_backend", "generic")
@@ -135,8 +136,11 @@ def create_calculator(
     mult: int | None = None,
     use_cache: bool = True,
     verbose: int = 1,
+    needs_hessian: bool = False,
+    task_name: str | None = None,
+    dftd3_functional: str | None = None,
 ) -> Any:
-    factory_kwargs = {
+    factory_kwargs: dict[str, Any] = {
         "default_charge": default_charge,
         "default_spin": default_spin,
     }
@@ -146,6 +150,20 @@ def create_calculator(
         factory_kwargs["mult"] = mult
 
     backend_lower = backend.lower()
+    if backend_lower == BACKEND_UMA:
+        factory_kwargs["needs_hessian"] = needs_hessian
+        if task_name is not None:
+            factory_kwargs["task_name"] = task_name
+        if dftd3_functional is not None:
+            factory_kwargs["dftd3_functional"] = dftd3_functional
+    elif task_name is not None or dftd3_functional is not None:
+        logger.warning(
+            "Ignoring UMA-only options task_name=%r dftd3_functional=%r for backend=%r",
+            task_name,
+            dftd3_functional,
+            backend,
+        )
+
     if use_cache and backend_lower != BACKEND_SO3LR:
         try:
             from famex.backends.cache import get_cached_calculator

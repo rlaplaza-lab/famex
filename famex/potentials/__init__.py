@@ -21,6 +21,7 @@ __all__ = [
     "get_orb_calculator",
     "get_pet_calculator",
     "get_so3lr_calculator",
+    "get_pyscf_calculator",
     "get_tblite_calculator",
     "get_uma_calculator",
 ]
@@ -103,3 +104,8 @@ def get_tblite_calculator(**kwargs: Any) -> Any:
 def get_pet_calculator(**kwargs: Any) -> Any:
     """Get PET (UPET) calculator."""
     return _get_calculator_generic("pet", **kwargs)
+
+
+def get_pyscf_calculator(**kwargs: Any) -> Any:
+    """Get PySCF DFT calculator."""
+    return _get_calculator_generic("pyscf", **kwargs)

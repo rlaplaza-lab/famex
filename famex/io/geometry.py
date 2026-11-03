@@ -78,9 +78,6 @@ class Geometry(Atoms):
         coords = np.array(coords)
         self.coords3d = coords.reshape(-1, 3)
 
-    def get_symbols(self) -> list[str]:
-        return list(super().get_chemical_symbols())
-
     @property
     def energy(self) -> float | None:
         if self.calc is not None:
@@ -111,26 +108,70 @@ class Geometry(Atoms):
         new_geom._forces = self._forces
         return new_geom
 
-    def get_distance_between(self, atom1: int, atom2: int) -> float:
-        return float(self.get_distance(atom1, atom2))
-
-    def get_all_pairwise_distances(self) -> np.ndarray:
-        return np.array(super().get_all_distances())
-
-    def get_angle_degrees(self, atom1: int, atom2: int, atom3: int) -> float:
-        return float(self.get_angle(atom1, atom2, atom3) * 180.0 / np.pi)
-
-    def get_dihedral_degrees(self, atom1: int, atom2: int, atom3: int, atom4: int) -> float:
-        return float(self.get_dihedral(atom1, atom2, atom3, atom4) * 180.0 / np.pi)
-
-    def center_of_mass(self) -> np.ndarray:
-        return np.array(self.get_center_of_mass())
-
     def __str__(self) -> str:
         return f"Geometry({len(self)} atoms, charge={self.charge}, mult={self.mult})"
 
     def __repr__(self) -> str:
         return self.__str__()
+
+    @classmethod
+    def from_smiles(
+        cls,
+        smiles: str,
+        *,
+        seed: int = 0,
+        add_h: bool = True,
+        embedder: str = "pysmiles",
+    ) -> Geometry:
+        """Build one 3D geometry from a SMILES string.
+
+        Parameters
+        ----------
+        smiles : str
+            OpenSMILES string.
+        seed : int, default 0
+            Seed for distance sampling.
+        add_h : bool, default True
+            Add implicit hydrogens before embedding.
+        embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+            ``pysmiles`` is UFF distance geometry (``pip install famex[smiles]``).
+            ``rdkit`` is ETKDGv3 (``pip install famex[rdkit]``).
+
+        Returns
+        -------
+        Geometry
+            One conformer. Charge and multiplicity come from the SMILES graph
+            (odd electron counts use multiplicity 2).
+        """
+        # Circular: embed.api imports Geometry.
+        from famex.embed.api import smiles_to_atoms
+
+        return smiles_to_atoms(smiles, n_conf=1, seed=seed, add_h=add_h, embedder=embedder)
+
+    @classmethod
+    def from_pubchem(
+        cls,
+        query: str,
+        *,
+        embedder: str = "pysmiles",
+    ) -> Geometry:
+        """Download one geometry from PubChem.
+
+        Parameters
+        ----------
+        query : str
+            Compound name, CID, or a ``pubchem:`` / ``cid:`` prefixed form.
+        embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+            Used when PubChem has no computed 3D conformer.
+
+        Returns
+        -------
+        Geometry
+        """
+        # Circular: pubchem imports Geometry.
+        from famex.io.pubchem import fetch_pubchem
+
+        return fetch_pubchem(query, embedder=embedder)
 
 
 def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:

@@ -11,8 +11,8 @@ for additional accuracy improvements.
 from __future__ import annotations
 
 import time
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 import numpy as np
 from ase import Atoms
@@ -55,7 +55,7 @@ class CalculatorProtocol(Protocol):
     """Protocol for calculator objects compatible with ASE Atoms.
 
     Any object that can be assigned to ``atoms.calc`` and provides
-    ``get_forces()`` method is compatible. This includes:
+    ``get_forces()`` / ``get_potential_energy()`` is compatible. This includes:
 
     - FAMEX calculators (BasePotential subclasses)
     - ASE Calculator instances
@@ -77,6 +77,33 @@ class CalculatorProtocol(Protocol):
 
         """
         ...
+
+    def get_potential_energy(
+        self, atoms: Atoms | None = None, force_consistent: bool = False
+    ) -> float:
+        """Compute potential energy for the given atoms structure.
+
+        Parameters
+        ----------
+        atoms : Atoms, optional
+            Atoms structure. If None, uses previously set atoms.
+        force_consistent : bool, optional
+            If True, request a force-consistent energy. Default is False.
+
+        Returns
+        -------
+        float
+            Potential energy of the structure.
+
+        """
+        ...
+
+
+@runtime_checkable
+class CopyableCalculator(CalculatorProtocol, Protocol):
+    """Calculator that can produce an independent instance for parallel FD."""
+
+    def copy(self) -> CalculatorProtocol: ...
 
 
 class HessianCalculator:
@@ -147,7 +174,6 @@ class HessianCalculator:
         target_noise: float = 1e-5,
         max_iterations: int = 5,
         n_workers: int | None = None,
-        parallel_backend: str = "thread",
     ) -> None:
         """Initialize Hessian calculator.
 
@@ -187,14 +213,11 @@ class HessianCalculator:
         max_iterations : int, default 5
             Maximum iterations for adaptive delta selection.
         n_workers : int, optional
-            Number of parallel workers for force calculations.
-            If None, uses sequential computation (default).
-            If > 1, parallelizes independent displacement calculations.
-            Recommended for CPU-bound calculators and large systems.
-        parallel_backend : str, default "thread"
-            Parallel backend to use: 'thread' or 'process'.
-            'thread' is safer for most calculators but limited by GIL.
-            'process' requires picklable calculators.
+            Number of thread workers for force calculations.
+            If None or 1, uses sequential computation. If > 1, parallelizes
+            independent displacements with a ThreadPoolExecutor. Each worker
+            needs an independent calculator with ``copy()``;
+            otherwise evaluation stays serial.
 
         Raises
         ------
@@ -252,10 +275,6 @@ class HessianCalculator:
             msg = f"n_workers must be >= 1, got {n_workers}"
             raise ValueError(msg)
         self.n_workers = n_workers
-        if parallel_backend not in ("thread", "process"):
-            msg = f"parallel_backend must be 'thread' or 'process', got {parallel_backend}"
-            raise ValueError(msg)
-        self.parallel_backend = parallel_backend
 
         # Cache for reference forces (computed once, reused)
         self._reference_forces: np.ndarray | None = None
@@ -265,10 +284,6 @@ class HessianCalculator:
 
         # Error recovery settings
         self.max_retries = 3
-        self.allow_partial = False  # Allow partial Hessian if some columns fail
-
-        # Performance statistics (populated after calculation)
-        self._stats: dict[str, float | int] = {}
 
         if len(self.indices) > 0:
             positions = atoms.positions[self.indices]
@@ -286,12 +301,14 @@ class HessianCalculator:
             )
             if delta > 0.1 * min_distance:
                 logger.warning(
-                    f"delta ({delta:.4f} Å) is large compared to minimum interatomic distance "
-                    f"({min_distance:.4f} Å). Consider using delta < {0.1 * min_distance:.4f} Å"
+                    "delta (%.4f Å) is large compared to minimum interatomic distance (%.4f Å). Consider using delta < %.4f Å",
+                    delta,
+                    min_distance,
+                    0.1 * min_distance,
                 )
             if delta < 1e-5:
                 logger.warning(
-                    f"delta ({delta:.4f} Å) is very small. Numerical precision may be limited."
+                    "delta (%.4f Å) is very small. Numerical precision may be limited.", delta
                 )
 
         if method == "central":
@@ -331,8 +348,9 @@ class HessianCalculator:
                 raise ValueError(msg)
             if self.delta2 >= self.delta:
                 logger.warning(
-                    "For Richardson extrapolation, typically delta2 < delta. "
-                    f"Got delta={self.delta}, delta2={self.delta2}"
+                    "For Richardson extrapolation, typically delta2 < delta. Got delta=%s, delta2=%s",
+                    self.delta,
+                    self.delta2,
                 )
         else:
             self._richardson_order = None
@@ -401,7 +419,6 @@ class HessianCalculator:
             method=method_str,
             richardson=self.richardson,
             adaptive_delta=self.adaptive_delta,
-            n_workers=self.n_workers,
         ):
             # Only use ASE for central differences (ASE doesn't support forward well)
             if method_str == "central":
@@ -415,40 +432,12 @@ class HessianCalculator:
                     verbose=self.verbose,
                 )
 
-        # Reset cache and stats at start of calculation
+        # Reset cache at start of calculation
         self._reference_forces = None
-        self._stats.clear()
-        self._stats.update(
-            {
-                "n_force_evaluations": 0,
-                "n_retries": 0,
-                "total_time": 0.0,
-                "time_per_column": 0.0,
-                "time_per_force_eval": 0.0,
-            }
-        )
 
-        start_time = time.time()
-        try:
-            if self.adaptive_delta:
-                result = self._calculate_hessian_adaptive()
-            else:
-                result = self._calculate_hessian_fixed()
-
-            # Update stats with timing
-            elapsed = time.time() - start_time
-            self._stats["total_time"] = elapsed
-            if self._stats["n_force_evaluations"] > 0:
-                self._stats["time_per_force_eval"] = elapsed / self._stats["n_force_evaluations"]
-            n_coords = 3 * len(self.indices)
-            if n_coords > 0:
-                self._stats["time_per_column"] = elapsed / n_coords
-
-            return result
-        except Exception:
-            # Update stats even on failure
-            self._stats["total_time"] = time.time() - start_time
-            raise
+        if self.adaptive_delta:
+            return self._calculate_hessian_adaptive()
+        return self._calculate_hessian_fixed()
 
     def _compute_derivative_at_delta(
         self,
@@ -554,23 +543,6 @@ class HessianCalculator:
         self._reference_forces = cast(NDArray[np.float64], forces[self.indices].flatten())
         return self._reference_forces
 
-    def get_statistics(self) -> dict[str, float | int]:
-        """Get performance statistics from last calculation.
-
-        Returns
-        -------
-        dict[str, float | int]
-            Dictionary containing:
-
-            - ``n_force_evaluations``: Number of force evaluations performed
-            - ``n_retries``: Total number of retries attempted
-            - ``total_time``: Total calculation time in seconds
-            - ``time_per_column``: Average time per Hessian column in seconds
-            - ``time_per_force_eval``: Average time per force evaluation in seconds
-
-        """
-        return self._stats.copy()
-
     def _get_forces_displaced_with_retry(
         self,
         atom_index: int,
@@ -602,11 +574,7 @@ class HessianCalculator:
         last_error = None
         for attempt in range(self.max_retries):
             try:
-                result = self._get_forces_displaced(atom_index, direction, displacement)
-                # Track retries
-                if attempt > 0:
-                    self._stats["n_retries"] = self._stats.get("n_retries", 0) + attempt
-                return result
+                return self._get_forces_displaced(atom_index, direction, displacement)
             except Exception as e:
                 last_error = e
                 if attempt < self.max_retries - 1:
@@ -614,8 +582,13 @@ class HessianCalculator:
                     if self.verbose >= 2:
                         coord_name = ["x", "y", "z"][direction]
                         logger.debug(
-                            f"Retry {attempt + 1}/{self.max_retries} for atom {atom_index}, "
-                            f"{coord_name}-displacement {displacement:+.4f} Å: {e}"
+                            "Retry %s/%s for atom %s, %s-displacement %s Å: %s",
+                            attempt + 1,
+                            self.max_retries,
+                            atom_index,
+                            coord_name,
+                            displacement,
+                            e,
                         )
                     continue
                 # Final attempt failed
@@ -633,6 +606,19 @@ class HessianCalculator:
             f"for atom {atom_index}, {coord_name}-displacement {displacement:+.4f} Å: {last_error}"
         )
         raise RuntimeError(msg) from last_error
+
+    def _supports_parallel_workers(self) -> bool:
+        return isinstance(self.calculator, CopyableCalculator)
+
+    def _calculator_for_displacement(self) -> CalculatorProtocol:
+        """Return a calculator instance safe for one force evaluation."""
+        if (
+            self.n_workers is not None
+            and self.n_workers > 1
+            and isinstance(self.calculator, CopyableCalculator)
+        ):
+            return self.calculator.copy()
+        return self.calculator
 
     def _get_forces_displaced(
         self,
@@ -667,27 +653,7 @@ class HessianCalculator:
         atoms_displaced = self.atoms.copy()
         atoms_displaced.positions[atom_index, direction] += displacement
 
-        # MockCalculator requires fresh instances to avoid state contamination.
-        # Real calculators (UMA, AIMNet2, etc.) are reused to avoid model reloading.
-        from typing import cast
-
-        from famex.potentials.mock_potential import MockCalculator as MockCalculatorType
-
-        calc: CalculatorProtocol
-        if isinstance(self.calculator, MockCalculatorType):
-            calc = cast(
-                CalculatorProtocol,
-                MockCalculatorType(
-                    backend=self.calculator.backend,
-                    force_constant=getattr(self.calculator, "force_constant", 1.0),
-                    charge=getattr(self.calculator, "charge", 0),
-                    mult=getattr(self.calculator, "mult", 1),
-                ),
-            )
-        else:
-            calc = self.calculator
-
-        atoms_displaced.calc = calc
+        atoms_displaced.calc = self._calculator_for_displacement()
 
         try:
             forces = atoms_displaced.get_forces()
@@ -707,9 +673,6 @@ class HessianCalculator:
                 f"{nan_count} NaN, {inf_count} Inf values"
             )
             raise RuntimeError(msg)
-
-        # Track force evaluation count
-        self._stats["n_force_evaluations"] = self._stats.get("n_force_evaluations", 0) + 1
 
         result = forces[self.indices].flatten()
         return np.asarray(result)
@@ -823,7 +786,7 @@ class HessianCalculator:
         for iteration in range(self.max_iterations):
             if self.verbose >= 1:
                 logger.info(
-                    f"Adaptive delta iteration {iteration + 1}: trying δ={current_delta:.4f} Å"
+                    "Adaptive delta iteration %s: trying δ=%.4f Å", iteration + 1, current_delta
                 )
 
             # Compute Hessian at current delta
@@ -831,7 +794,7 @@ class HessianCalculator:
                 hessian_current = self._calculate_hessian_at_delta(current_delta)
             except Exception as e:
                 if self.verbose >= 1:
-                    logger.warning(f"  Failed at delta={current_delta:.4f}: {e}")
+                    logger.warning("  Failed at delta=%.4f: %s", current_delta, e)
                 # Try smaller delta
                 current_delta = current_delta / 2.0
                 if current_delta < min_delta:
@@ -844,7 +807,7 @@ class HessianCalculator:
                 hessian_half = self._calculate_hessian_at_delta(half_delta)
             except Exception as e:
                 if self.verbose >= 1:
-                    logger.warning(f"  Failed at half-delta={half_delta:.4f}: {e}")
+                    logger.warning("  Failed at half-delta=%.4f: %s", half_delta, e)
                 # Use current result
                 return hessian_current
 
@@ -852,7 +815,7 @@ class HessianCalculator:
             noise_estimate = estimate_richardson_noise(hessian_current, hessian_half)
 
             if self.verbose >= 1:
-                logger.info(f"  Noise estimate: {noise_estimate:.2e} eV/Å²")
+                logger.info("  Noise estimate: %.2e eV/Å²", noise_estimate)
 
             # Track best result
             if noise_estimate < best_noise:
@@ -863,7 +826,7 @@ class HessianCalculator:
             # Check convergence
             if noise_estimate < self.target_noise:
                 if self.verbose >= 1:
-                    logger.info(f"  Converged! Noise below threshold {self.target_noise:.2e}")
+                    logger.info("  Converged! Noise below threshold %.2e", self.target_noise)
                 return hessian_current
 
             if noise_estimate > self.target_noise * 100:  # Way too noisy
@@ -872,7 +835,7 @@ class HessianCalculator:
                 if current_delta < min_delta:
                     if self.verbose >= 1:
                         logger.warning(
-                            f"  Delta {current_delta:.4f} below minimum, using best result."
+                            "  Delta %.4f below minimum, using best result.", current_delta
                         )
                     break
             else:
@@ -880,7 +843,7 @@ class HessianCalculator:
                 break
 
         if self.verbose >= 1:
-            logger.info(f"Final delta: {best_delta:.4f} Å, noise: {best_noise:.2e} eV/Å²")
+            logger.info("Final delta: %.4f Å, noise: %.2e eV/Å²", best_delta, best_noise)
 
         if best_hessian is None:
             msg = "Adaptive delta selection failed to produce any valid Hessian"
@@ -955,35 +918,25 @@ class HessianCalculator:
 
         if self.verbose >= 2:
             logger.info(
-                f"Calculating Hessian for {n_atoms} atoms using {type(self.scheme).__name__}"
+                "Calculating Hessian for %s atoms using %s", n_atoms, type(self.scheme).__name__
             )
             if self.n_workers and self.n_workers > 1:
-                logger.info(
-                    f"Using {self.n_workers} parallel workers ({self.parallel_backend} backend)"
-                )
+                logger.info("Using %s parallel workers", self.n_workers)
 
         forces_ref = None
         if isinstance(self.scheme, ForwardDifferenceScheme):
             forces_ref = self._get_reference_forces()
 
-        # Use parallel computation if enabled and not using Richardson (which has dependencies)
-        use_parallel = (
-            self.n_workers is not None
-            and self.n_workers > 1
-            and not self.richardson  # Richardson has inter-column dependencies
-        )
+        want_parallel = self.n_workers is not None and self.n_workers > 1 and not self.richardson
+        use_parallel = want_parallel and self._supports_parallel_workers()
+        if want_parallel and not use_parallel and self.verbose >= 1:
+            logger.warning("Calculator has no copy() method; computing Hessian serially")
 
-        # Progress tracking
         use_progress_bar = self.verbose >= 3 and HAS_TQDM and not use_parallel
         start_time = time.time() if self.verbose >= 1 else None
 
         if use_parallel:
-            # Parallel column computation
-            executor_class = (
-                ThreadPoolExecutor if self.parallel_backend == "thread" else ProcessPoolExecutor
-            )
-
-            with executor_class(max_workers=self.n_workers) as executor:
+            with ThreadPoolExecutor(max_workers=self.n_workers) as executor:
                 # Submit all column computations
                 futures = {
                     executor.submit(self._compute_hessian_column, j, forces_ref): j
@@ -993,7 +946,7 @@ class HessianCalculator:
                 # Collect results as they complete with progress tracking
                 completed = 0
                 if self.verbose >= 1:
-                    logger.info(f"Computing {n_coords} columns in parallel...")
+                    logger.info("Computing %s columns in parallel...", n_coords)
 
                 for future in as_completed(futures):
                     j = futures[future]  # Get column index from future mapping
@@ -1006,8 +959,11 @@ class HessianCalculator:
                             rate = completed / elapsed if elapsed > 0 else 0
                             eta = (n_coords - completed) / rate if rate > 0 else 0
                             logger.debug(
-                                f"Completed {completed}/{n_coords} columns "
-                                f"({rate:.1f} cols/s, ETA: {eta:.1f}s)"
+                                "Completed %s/%s columns (%.1f cols/s, ETA: %.1fs)",
+                                completed,
+                                n_coords,
+                                rate,
+                                eta,
                             )
                     except Exception as e:
                         coord_j = j % 3
@@ -1038,40 +994,34 @@ class HessianCalculator:
                         )
                 except Exception as e:
                     coord_name = ["x", "y", "z"][coord_j]
-                    if self.allow_partial:
-                        logger.warning(
-                            f"Failed to compute Hessian column for atom {atom_j}, "
-                            f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}. "
-                            f"Skipping this column (partial Hessian will be incomplete)."
-                        )
-                        # Leave column as zeros - caller should handle partial results
-                        continue
-                    else:
-                        msg = (
-                            f"Failed to compute Hessian column for atom {atom_j}, "
-                            f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}"
-                        )
-                        raise RuntimeError(msg) from e
+                    msg = (
+                        f"Failed to compute Hessian column for atom {atom_j}, "
+                        f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}"
+                    )
+                    raise RuntimeError(msg) from e
 
                 if self.verbose >= 2 and not use_progress_bar:
                     elapsed = time.time() - (start_time or 0) if start_time else 0
                     rate = (j + 1) / elapsed if elapsed > 0 else 0
                     eta = (n_coords - j - 1) / rate if rate > 0 else 0
                     logger.debug(
-                        f"Completed coordinate {j + 1}/{n_coords} "
-                        f"({rate:.2f} cols/s, ETA: {eta:.1f}s)"
+                        "Completed coordinate %s/%s (%.2f cols/s, ETA: %.1fs)",
+                        j + 1,
+                        n_coords,
+                        rate,
+                        eta,
                     )
 
         # Symmetrize Hessian: H_sym = (H + H^T) / 2
         HESSIAN_SYMMETRIZATION_FACTOR = 0.5
-        hessian = cast(NDArray[np.float64], HESSIAN_SYMMETRIZATION_FACTOR * (hessian + hessian.T))
+        symmetrized = HESSIAN_SYMMETRIZATION_FACTOR * (hessian + hessian.T)
 
         if self.verbose >= 1:
             elapsed = time.time() - (start_time or 0) if start_time else 0
-            logger.info(f"Hessian calculation completed in {elapsed:.2f} seconds")
+            logger.info("Hessian calculation completed in %.2f seconds", elapsed)
         elif self.verbose >= 2:
             logger.info("Hessian calculation completed")
-        return cast(NDArray[np.float64], hessian)
+        return symmetrized
 
 
 __all__ = [

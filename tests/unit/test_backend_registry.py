@@ -26,13 +26,10 @@ class TestCalculatorRegistry:
         assert len(registry._registry) == 0
         assert len(BACKEND_CLASSES) > 0
 
-    def test_get_registered_backends(self):
-        registry = CalculatorRegistry()
-        backends = registry.get_registered_backends()
-
-        assert isinstance(backends, list)
-        assert len(backends) > 0
-        assert BACKEND_MOCK in backends
+    def test_backend_classes_include_mock(self):
+        assert isinstance(BACKEND_CLASSES, dict)
+        assert len(BACKEND_CLASSES) > 0
+        assert BACKEND_MOCK in BACKEND_CLASSES
 
     def test_register_custom_backend(self):
         registry = CalculatorRegistry()

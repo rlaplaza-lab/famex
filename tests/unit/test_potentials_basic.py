@@ -6,6 +6,8 @@ import pytest
 from ase import Atoms
 
 from famex.potentials.base_potential import BasePotential
+from famex.potentials.pet_potential import PETPotential
+from famex.potentials.so3lr_potential import SO3LRPotential
 
 
 class TestBasePotential:
@@ -93,6 +95,7 @@ class TestPotentialsInitBasic:
             "get_orb_calculator",
             "get_pet_calculator",
             "get_tblite_calculator",
+            "get_pyscf_calculator",
         ],
     )
     def test_calculator_factory_functions_exist(self, factory_name):
@@ -189,3 +192,56 @@ class TestPETPotentialParsing:
             checkpoint_path="/path/to/model.ckpt",
             device="cpu",
         )
+
+    def test_pet_model_name_path_sets_model_path(self, tmp_path):
+        from famex.potentials.pet_potential import PETPotential
+
+        ckpt = tmp_path / "pet-omol-s-v1.0.0.ckpt"
+        ckpt.write_text("placeholder")
+        potential = PETPotential(model_name=str(ckpt), device="cpu")
+        assert potential.model_path == str(ckpt)
+
+
+class TestOrbPotentialLoaders:
+    def test_resolve_orb_loader_known_alias(self):
+        from types import SimpleNamespace
+
+        from famex.potentials.orb_potential import _resolve_orb_loader
+
+        sentinel = object()
+        pretrained = SimpleNamespace(orb_v3_conservative_omol=sentinel)
+        loader, name = _resolve_orb_loader(pretrained, "omol")
+        assert loader is sentinel
+        assert name == "omol"
+
+    def test_resolve_orb_loader_orbmol_v2_missing_raises(self):
+        from types import SimpleNamespace
+
+        from famex.potentials.orb_potential import _resolve_orb_loader
+
+        pretrained = SimpleNamespace(orb_v3_conservative_omol=object())
+        with pytest.raises(ImportError, match="orb-models>=0.7.0"):
+            _resolve_orb_loader(pretrained, "orbmol-v2")
+
+    def test_resolve_orb_loader_unknown_falls_back(self):
+        from types import SimpleNamespace
+
+        from famex.potentials.orb_potential import _resolve_orb_loader
+
+        sentinel = object()
+        pretrained = SimpleNamespace(orb_v3_conservative_omol=sentinel)
+        loader, name = _resolve_orb_loader(pretrained, "not-a-real-model")
+        assert loader is sentinel
+        assert name == "orb-v3-conservative-omol"
+
+
+class TestHessianPropertyAdvertising:
+    def test_pet_and_so3lr_advertise_hessian(self):
+        assert "hessian" in PETPotential.implemented_properties
+        assert "hessian" in SO3LRPotential.implemented_properties
+
+    def test_tblite_does_not_advertise_analytical_hessian(self):
+        from famex.potentials.tblite_potential import TBLitePotential
+
+        assert "hessian" not in TBLitePotential.implemented_properties
+        assert not hasattr(TBLitePotential, "get_hessian")

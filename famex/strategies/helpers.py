@@ -8,10 +8,95 @@ from typing import Any, Literal, cast
 
 from ase import Atoms
 
+from famex.analysis.thermodynamics import read_free_energy_correction
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
+
+# Not an optimizer keyword; stored on explorer.ts_kwargs by the CLI for strategy use.
+_REQUIRE_TS_KWARG = "require_ts"
+
+
+def resolve_require_ts(require_ts: bool | None, explorer: Any) -> bool:
+    """Resolve whether a first-order saddle is required.
+
+    An explicit ``require_ts`` argument wins. Otherwise read
+    ``explorer.ts_kwargs["require_ts"]`` (set by ``--require-ts``).
+    """
+    if require_ts is not None:
+        return bool(require_ts)
+    explorer_ts_kwargs = getattr(explorer, "ts_kwargs", None) or {}
+    return bool(explorer_ts_kwargs.get(_REQUIRE_TS_KWARG, False))
+
+
+def strip_require_ts_from_optimizer_kwargs(opt_kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Remove ``require_ts`` so it is not forwarded to TS optimizers."""
+    opt_kwargs.pop(_REQUIRE_TS_KWARG, None)
+    return opt_kwargs
+
+
+def ts_has_one_imaginary_mode(freq_analysis: dict[str, Any] | None) -> bool:
+    """Return True when frequency analysis confirms a first-order saddle."""
+    if not freq_analysis:
+        return False
+    raw_ts = freq_analysis.get("ts_analysis")
+    ts_info: dict[str, Any] = raw_ts if isinstance(raw_ts, dict) else {}
+    n_imaginary: int | None = None
+    for key in ("n_imaginary_frequencies", "num_imaginary_modes", "n_imaginary_modes"):
+        if freq_analysis.get(key) is not None:
+            n_imaginary = int(freq_analysis[key])
+            break
+    if n_imaginary is None and ts_info.get("n_imaginary_frequencies") is not None:
+        n_imaginary = int(ts_info["n_imaginary_frequencies"])
+    # Explicit imag-count wins over boolean is_ts flags (0 must not be treated as missing).
+    if n_imaginary is not None:
+        return n_imaginary == 1
+    if freq_analysis.get("is_ts") is True:
+        return True
+    return ts_info.get("is_transition_state") is True
+
+
+def enforce_require_ts(
+    *,
+    require_ts: bool,
+    atoms: Atoms | None,
+    explorer: Any,
+    freq_analysis: dict[str, Any] | None = None,
+    check_converged: bool | None = None,
+    temperature: float = 298.15,
+) -> dict[str, Any] | None:
+    """Raise if ``require_ts`` and the structure is not a first-order saddle.
+
+    When ``check_converged`` is ``False``, treat failed local refinement as an
+    error. ``None``/``True`` skips that check. Returns ``freq_analysis``,
+    computing it via ``explorer.calculate_frequencies`` when missing.
+    """
+    if not require_ts:
+        return freq_analysis
+
+    errors: list[str] = []
+    if check_converged is False:
+        errors.append("Local TS refinement failed to converge.")
+
+    if freq_analysis is None and atoms is not None and explorer is not None:
+        freq_analysis = explorer.calculate_frequencies(
+            atoms=atoms,
+            temperature=temperature,
+            save_hessian=False,
+        )
+
+    if freq_analysis is None:
+        errors.append("Frequency analysis unavailable for TS validation.")
+    elif not ts_has_one_imaginary_mode(freq_analysis):
+        errors.append(
+            "Refined structure is not a first-order saddle "
+            "(vibrational characterization failed: need exactly one imaginary mode)."
+        )
+
+    if errors:
+        raise RuntimeError("TS validation failed with require_ts=True:\n- " + "\n- ".join(errors))
+    return freq_analysis
 
 
 def validate_ts_structure(
@@ -48,15 +133,12 @@ def validate_ts_structure(
                 imaginary_freqs = validation_result.get("imaginary_frequencies")
                 if imaginary_freqs and isinstance(imaginary_freqs, list | tuple):
                     logger.warning(
-                        f"Imaginary frequencies (cm^-1): {[f'{f:.1f}' for f in imaginary_freqs]}",
+                        "Imaginary frequencies (cm^-1): %s",
+                        [f"{f:.1f}" for f in imaginary_freqs],
                     )
         else:
             if verbose >= 1:
                 logger.info("TS validation passed: structure has exactly 1 imaginary frequency")
-            elif verbose >= 2:
-                logger.info(
-                    "✓ Starting structure validated as transition state (1 imaginary frequency)",
-                )
 
         hessian = getattr(freq_analysis, "_hessian", None) if return_hessian else None
 
@@ -66,16 +148,8 @@ def validate_ts_structure(
 
     except Exception as e:
         if verbose >= 1:
-            logger.warning(
-                f"Could not validate transition state: {e}. "
-                "TS validation will proceed without validation.",
-            )
-        if return_hessian:
-            return {
-                "is_transition_state": False,
-                "assessment": f"Validation failed: {e}",
-            }, None
-        return {"is_transition_state": False, "assessment": f"Validation failed: {e}"}
+            logger.warning("Could not validate transition state: %s", e)
+        raise
 
 
 def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
@@ -168,20 +242,6 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
     raise ValueError(msg)
 
 
-def _calculate_free_energy_correction(
-    frequency_result: dict[str, Any] | None, temperature: float
-) -> float | None:
-    if frequency_result is None:
-        return None
-    thermo = frequency_result.get("thermodynamic_properties", {})
-    if not isinstance(thermo, dict):
-        return None
-    entropy = thermo.get("entropy", 0.0)
-    if not isinstance(entropy, int | float):
-        return None
-    return -entropy * temperature / 1000.0
-
-
 def _run_local_optimization_common(
     strategy: Any,
     atoms_list: Sequence[Atoms],
@@ -200,6 +260,7 @@ def _run_local_optimization_common(
     cleanup_frequencies: bool = False,
     stationary_point_target: Literal["minima", "ts"] = "minima",
     prepare_cleanup_optimizer_kwargs: Callable[[str, Any], dict[str, Any]] | None = None,
+    record_history: bool = False,
 ) -> dict[str, Any]:
     """Execute common local optimization pattern for minima and TS."""
     atoms_list = list(atoms_list)
@@ -209,8 +270,10 @@ def _run_local_optimization_common(
         strategy.profiler.snapshot_memory()
 
     if verbose >= 1:
-        logger.info(f"Starting local {log_prefix.lower()} optimization with {local_optimizer_name}")
-        logger.info(f"Force threshold: {fmax} eV/Å, Max steps: {steps}")
+        logger.info(
+            "Starting local %s optimization with %s", log_prefix.lower(), local_optimizer_name
+        )
+        logger.info("Force threshold: %s eV/Å, Max steps: %s", fmax, steps)
 
     opt_class = _get_local_optimizer_class(local_optimizer_name)
     single_input = len(atoms_list) == 1
@@ -218,8 +281,9 @@ def _run_local_optimization_common(
     results = []
     step_counts = []
     converged_flags = []
+    optimization_trajectory: list[Atoms] = []
 
-    for atoms in atoms_list:
+    for image_index, atoms in enumerate(atoms_list):
         atoms_copy = atoms.copy()
 
         with (
@@ -227,7 +291,14 @@ def _run_local_optimization_common(
             if strategy.profiler
             else nullcontext()
         ):
-            strategy.explorer._create_and_attach_calculator(atoms_copy)
+            needs_hessian = strategy.explorer._needs_hessian(
+                calculate_frequencies=calculate_frequencies,
+                cleanup_frequencies=cleanup_frequencies,
+            )
+            strategy.explorer._create_and_attach_calculator(
+                atoms_copy,
+                needs_hessian=needs_hessian,
+            )
             strategy.explorer._apply_constraints(atoms_copy)
 
         opt_kwargs = prepare_optimizer_kwargs(local_optimizer_name, strategy.explorer)
@@ -236,6 +307,9 @@ def _run_local_optimization_common(
             opt_kwargs["profiler"] = strategy.profiler
 
         opt = opt_class(atoms_copy, **opt_kwargs)
+        if record_history:
+            image_tag = image_index if len(atoms_list) > 1 else None
+            attach_step_recorder(opt, atoms_copy, optimization_trajectory, image=image_tag)
 
         with (
             strategy.profiler.profile_section("optimization")
@@ -262,14 +336,19 @@ def _run_local_optimization_common(
             converged = bool(converged_flags[0])
             steps_taken = step_counts[0]
             logger.info(
-                f"{log_prefix} optimization completed: converged={converged}, steps={steps_taken}",
+                "%s optimization completed: converged=%s, steps=%s",
+                log_prefix,
+                converged,
+                steps_taken,
             )
         else:
             total_converged = sum(converged_flags)
             total_structures = len(converged_flags)
             logger.info(
-                f"{log_prefix} optimization completed: "
-                f"{total_converged}/{total_structures} structures converged",
+                "%s optimization completed: %s/%s structures converged",
+                log_prefix,
+                total_converged,
+                total_structures,
             )
 
     validation_results: list[dict[str, Any] | None] = []
@@ -334,20 +413,23 @@ def _run_local_optimization_common(
         frequency_results = [None] * len(results)
         cleanup_summaries = [None] * len(results)
 
+    recorded: dict[str, list[Atoms]] = {}
+    if optimization_trajectory:
+        recorded["optimization_trajectory"] = optimization_trajectory
+
     if single_input and results:
         result = strategy.prepare_result(
             results[0],
             steps_taken=step_counts[0],
             converged=bool(converged_flags[0]),
+            **recorded,
         )
         if validation_results[0] is not None:
             result["ts_validation"] = validation_results[0]
         if frequency_results[0] is not None:
             result["frequency_analysis"] = frequency_results[0]
             result[result_key_name] = frequency_results[0].get(result_key_name)
-            result["free_energy_correction"] = _calculate_free_energy_correction(
-                frequency_results[0], temperature
-            )
+            result["free_energy_correction"] = read_free_energy_correction(frequency_results[0])
         if cleanup_summaries[0] is not None:
             result["frequency_cleanup"] = cleanup_summaries[0]
     else:
@@ -355,6 +437,7 @@ def _run_local_optimization_common(
             results,
             steps_taken=step_counts,
             converged=[bool(c) for c in converged_flags],
+            **recorded,
         )
         if any(v is not None for v in validation_results):
             result["ts_validation"] = validation_results
@@ -363,10 +446,9 @@ def _run_local_optimization_common(
             result[result_key_name] = [
                 f.get(result_key_name) if f is not None else None for f in frequency_results
             ]
-            free_energy_corrections = [
-                _calculate_free_energy_correction(f, temperature) for f in frequency_results
+            result["free_energy_correction"] = [
+                read_free_energy_correction(f) for f in frequency_results
             ]
-            result["free_energy_correction"] = free_energy_corrections
         if any(summary is not None for summary in cleanup_summaries):
             result["frequency_cleanup"] = cleanup_summaries
 
@@ -374,9 +456,49 @@ def _run_local_optimization_common(
     return cast(dict[str, Any], merged_result)
 
 
-def filter_interpolation_kwargs(
-    kwargs: dict[str, Any], allowed_keys: set[str] | None = None
-) -> dict[str, Any]:
-    if allowed_keys is None:
-        allowed_keys = {"rmsd_threshold", "energy_threshold", "calculator"}
-    return {k: v for k, v in kwargs.items() if k in allowed_keys}
+def copy_labeled_frame(atoms: Atoms, **tags: int) -> Atoms:
+    """Return a geometry copy annotated with integer XYZ-comment tags."""
+    frame = cast(Atoms, atoms.copy())
+    info = dict(frame.info or {})
+    info.update(tags)
+    frame.info = info
+    return frame
+
+
+def attach_step_recorder(
+    optimizer: Any,
+    atoms: Atoms,
+    frames: list[Atoms],
+    image: int | None = None,
+) -> None:
+    """Record a copy of ``atoms`` each time ``optimizer`` notifies observers.
+
+    ASE wrappers notify on the wrapped optimizer, so the observer is attached
+    there when that object exists.
+    """
+    target = getattr(optimizer, "wrapped_optimizer", optimizer)
+    attach = getattr(target, "attach", None)
+    if not callable(attach):
+        logger.warning(
+            "Optimizer %s cannot record geometry history",
+            type(target).__name__,
+        )
+        return
+
+    counter = {"step": 0}
+
+    def _record() -> None:
+        tags = {"step": counter["step"]}
+        if image is not None:
+            tags["image"] = image
+        frames.append(copy_labeled_frame(atoms, **tags))
+        counter["step"] += 1
+
+    attach(_record)
+
+
+def take_optimization_trajectory(result: dict[str, Any], source: dict[str, Any]) -> None:
+    """Copy a recorded local-optimizer trajectory onto ``result`` when present."""
+    frames = source.get("optimization_trajectory")
+    if isinstance(frames, list) and frames:
+        result["optimization_trajectory"] = frames

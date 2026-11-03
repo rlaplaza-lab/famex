@@ -1,99 +1,77 @@
 # FAMEX Examples
 
-Examples and benchmarks demonstrating FAMEX capabilities.
+Examples and benchmarks for FAMEX.
 
 ## Available Examples
 
-### Demos (User-Facing Examples)
+### Workflows
 
-These examples demonstrate how to use FAMEX's Python API and CLI interface:
-
-| Example | Description | API Usage | Notes |
-|---------|-------------|-----------|-------|
-| `cli_demo.py` | CLI interface demo with backend comparison | CLI commands | Comprehensive CLI testing |
-| `irc_demo.py` | IRC path calculation from transition state | `famex.Explorer` API | Uses `target="path"`, `strategy="irc"` |
-| `growing_string_demo.py` | Growing string method (DE-GSM) for TS search | `famex.Explorer` API | Uses `target="ts"`, `strategy="growing_string"` |
-| `thermochemistry_demo.py` | Thermochemistry capabilities (quasi-harmonic, solvation, etc.) | Analysis modules | Demonstrates analysis features |
-
-### Benchmarks (Performance & Comparison)
-
-These scripts compare performance and accuracy across different backends and optimizers:
+Short Python scripts that mirror everyday `famex` usage. Each file docstring
+shows the equivalent CLI command. A script exits with status 1 unless the
+run converged with finite energies and, where requested, usable frequencies.
 
 | Example | Description |
 |---------|-------------|
-| `timing_benchmark.py` | ML backend performance comparison |
+| `optimize_minimum.py` | Local minimization with frequencies |
+| `from_smiles_or_pubchem.py` | Minimize from SMILES and from a PubChem name/CID (`famex[smiles]`) |
+| `find_transition_state.py` | Local TS refine of a guess (`--require-ts`) |
+| `reaction_path.py` | NEB path between reactant and product |
+| `irc.py` | Intrinsic reaction coordinate from a TS |
+| `growing_string.py` | Growing-string TS search on Zimmermann reaction 002 |
+| `thermochemistry.py` | Minimize, then gas-phase free energy at 298.15 K |
+
+### Benchmarks
+
+| Example | Description |
+|---------|-------------|
+| `timing_benchmark.py` | Machine learning backend timing comparison |
 | `minima_optimizer_benchmark.py` | Minima optimizer comparison (lbfgs, bfgs, fire, trust-krylov) |
-| `ts_optimizer_benchmark.py` | Unified TS optimizer comparison: local TS (example, BH28 subset/full), hessian/trust sweeps, two-ended strategies |
-| `hessian_benchmark.py` | Hessian method comparison (FD schemes and backend methods; `--mode fd`, `backend`, or `both`) |
-| `bh28_benchmark/` | Chemical accuracy evaluation (28 reactions) |
-| `zimmermann93_benchmark/` | Two-ended TS search benchmark; long-running — use `--quick` for testing |
+| `ts_optimizer_benchmark.py` | TS optimizer comparison: local TS (example, BH28 subset/full), hessian/trust sweeps, two-ended strategies |
+| `hessian_benchmark.py` | Hessian method comparison (finite-difference schemes and backend methods; `--mode fd`, `backend`, or `both`) |
+| `bh28_benchmark/` | Barrier-height accuracy on 28 reactions |
+| `zimmermann93_benchmark/` | Growing-string two-ended TS search; long-running — use `--quick` for testing |
+| `maiti30_benchmark/` | Metal-catalyzed growing-string TS search (30 reactions) |
+
+`run_zimmermann93_parallel.py` and `run_maiti30_parallel.py` are started from the repo root and write under `benchmark_runs/`. The single-process scripts default to `benchmark_results/` in the working directory.
 
 ## Usage
 
-Run commands from the `examples/` directory.
+Run commands from the `examples/` directory (or pass absolute paths). Prefer the
+`famex-uma` conda environment when using UMA on GPU.
 
-Common options for all examples:
-- `--backends`: Comma-separated backend list (default: all available)
-- `--device`: cpu or cuda (default: auto-detect)
-- `--verbose`: Detailed progress output
-- `--help`: Show help message
+**Workflows:**
 
-**Quick start:**
-
-Demos:
 ```bash
-# CLI interface demo
-python cli_demo.py
-
-# IRC calculation
-python irc_demo.py example_files/A_C_A_B_A_C_ts.xyz --backends uma
-
-# Growing string method
-python growing_string_demo.py --backends uma
-
-# Thermochemistry
-python thermochemistry_demo.py
+conda run -n famex-uma python optimize_minimum.py
+conda run -n famex-uma python from_smiles_or_pubchem.py   # needs: pip install famex[smiles]
+conda run -n famex-uma python find_transition_state.py
+conda run -n famex-uma python reaction_path.py
+conda run -n famex-uma python irc.py
+conda run -n famex-uma python growing_string.py
+conda run -n famex-uma python thermochemistry.py
 ```
 
-Benchmarks:
+**Benchmarks** (flags vary by script — use each script’s `--help`; many support `--backends`, `--device`, `--verbose`):
+
 ```bash
-# Performance comparison
 python timing_benchmark.py --device cuda
-
-# Optimizer comparison
-python minima_optimizer_benchmark.py --backends uma,mace
-python ts_optimizer_benchmark.py --backends uma,mace
-python ts_optimizer_benchmark.py --backends uma --bh28-subset
-python ts_optimizer_benchmark.py --backends uma --full-bh28 --hessian-sweep
-python ts_optimizer_benchmark.py --backends uma --trust-sweep
-python ts_optimizer_benchmark.py --backends uma --two-ended --quick-two-ended --device cuda
-
-# Chemical accuracy (quick test)
+python minima_optimizer_benchmark.py --backends uma --skip-slow-optimizers
+python ts_optimizer_benchmark.py --backends uma
+python hessian_benchmark.py --quick --backends uma
 python bh28_benchmark/bh28_benchmark.py --quick
-
-# Two-ended TS search
 python zimmermann93_benchmark/zimmermann93_benchmark.py --quick
-
-# Hessian benchmark
-python hessian_benchmark.py --mode fd  # FD schemes only
-python hessian_benchmark.py --mode backend --backends uma  # Backend methods only
-python hessian_benchmark.py --mode both --backends uma,mace  # Both
-python hessian_benchmark.py --quick  # Quick test with water only
+python maiti30_benchmark/maiti30_benchmark.py --quick
 ```
-
-**Note:**
-- `hessian_benchmark.py` consolidates all Hessian comparison functionality (FD schemes, backend methods, adaptive features) into a single benchmark-style script following the pattern of other benchmarks.
-- All examples use the updated `famex.Explorer` API with the `target`/`strategy` paradigm where appropriate (CLI and analysis demos are exceptions by design).
 
 ## Requirements
 
 - FAMEX package installed
-- At least one ML backend (see [README](../README.md))
+- At least one machine learning backend (see [README](../README.md))
 - SELLA optimizer is included with FAMEX (core dependency)
 
 ## Supporting Files
 
-- `famex/example_utils/`: Shared CLI helpers used by example scripts (installed with the package)
+- `famex/example_utils/`: Shared CLI helpers used by benchmark scripts (installed with the package)
 - `example_files/`: Sample molecular structures (XYZ format)
 - `benchmark_results/`: Generated result JSON files (created when benchmarks run)
 

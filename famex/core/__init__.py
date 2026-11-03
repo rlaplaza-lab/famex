@@ -8,8 +8,6 @@ core package. New exports should be added here so users can import from
 # Import strategy modules to register them
 import famex.strategies  # noqa: F401
 from famex.core.exceptions import (
-    InvalidInputError,
-    InvalidStrategyError,
     StrategyError,
     StrategyNotFoundError,
 )
@@ -19,6 +17,4 @@ __all__ = [
     "Explorer",
     "StrategyError",
     "StrategyNotFoundError",
-    "InvalidStrategyError",
-    "InvalidInputError",
 ]

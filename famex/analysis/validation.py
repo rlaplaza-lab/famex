@@ -22,6 +22,8 @@ def validate_hessian(
     warn_on_issues: bool = True,
     estimated_noise: float | None = None,
     force_noise_estimate: float | None = None,
+    positions: np.ndarray | None = None,
+    masses: np.ndarray | None = None,
 ) -> dict[str, bool | float | tuple[int, int]]:
     """Validate Hessian matrix and warn about potential issues.
 
@@ -42,6 +44,11 @@ def validate_hessian(
         Estimated noise level from Richardson extrapolation (eV/Å²)
     force_noise_estimate : float, optional
         Estimated noise in force calculations (eV/Å)
+    positions : np.ndarray, optional
+        Atomic positions (N, 3). With matching ``masses`` and a 3N x 3N Hessian,
+        the condition number uses the vibrational block after T/R projection.
+    masses : np.ndarray, optional
+        Atomic masses (N,). Required together with ``positions``.
 
     Returns
     -------
@@ -58,7 +65,6 @@ def validate_hessian(
         - force_noise_estimate: Estimated force noise (float, optional)
 
     """
-    # Initialize results with required fields
     results: dict[str, bool | float | tuple[int, int]] = {
         "is_valid": True,
         "is_symmetric": True,
@@ -68,22 +74,19 @@ def validate_hessian(
         "max_asymmetry": 0.0,
         "shape": hessian.shape,
     }
-    # Add optional noise metrics
     if estimated_noise is not None:
         results["estimated_noise"] = estimated_noise
     if force_noise_estimate is not None:
         results["force_noise_estimate"] = force_noise_estimate
 
-    # Check shape
     if hessian.shape[0] != hessian.shape[1]:
         if warn_on_issues:
             logger.warning(
-                f"Hessian is not square: shape {hessian.shape}. Expected square matrix (3N x 3N)."
+                "Hessian is not square: shape %s. Expected square matrix (3N x 3N).", hessian.shape
             )
         results["is_valid"] = False
         return results
 
-    # Check for NaN and Inf values
     has_nan = bool(np.any(np.isnan(hessian)))
     has_inf = bool(np.any(np.isinf(hessian)))
     results["has_nan"] = has_nan
@@ -96,49 +99,74 @@ def validate_hessian(
 
     if has_nan or has_inf:
         results["is_valid"] = False
-
-    # Check symmetry
-    asymmetry = np.abs(hessian - hessian.T)
-    max_asymmetry = np.max(asymmetry)
-    results["max_asymmetry"] = float(max_asymmetry)
-    is_symmetric = max_asymmetry < tolerance_symmetry
-    results["is_symmetric"] = is_symmetric
-    if not is_symmetric:
-        if warn_on_issues:
-            logger.warning(
-                f"Hessian is not symmetric. Maximum asymmetry: {max_asymmetry:.2e}. "
-                f"Tolerance: {tolerance_symmetry:.2e}. "
-                "This may indicate numerical errors or non-stationary geometry."
-            )
-
-    # Check condition number
-    eigenvalues = np.linalg.eigvals(hessian)
-    eigenvalues = eigenvalues[np.isfinite(eigenvalues)]
-    eigenvalues_abs = np.abs(eigenvalues[eigenvalues != 0])
-
-    if len(eigenvalues_abs) == 0:
-        if warn_on_issues:
-            logger.warning("Hessian has no finite eigenvalues. This indicates a severe problem.")
-        results["is_valid"] = False
     else:
-        condition_number = np.max(eigenvalues_abs) / np.min(eigenvalues_abs)
-        results["condition_number"] = float(condition_number)
-        if condition_number > max_condition_number and warn_on_issues:
+        asymmetry = np.abs(hessian - hessian.T)
+        max_asymmetry = float(np.max(asymmetry))
+        results["max_asymmetry"] = max_asymmetry
+        is_symmetric = max_asymmetry < tolerance_symmetry
+        results["is_symmetric"] = is_symmetric
+        if not is_symmetric and warn_on_issues:
             logger.warning(
-                f"Hessian is ill-conditioned. Condition number: {condition_number:.2e}. "
-                f"Maximum acceptable: {max_condition_number:.2e}. "
-                "This may lead to numerical instability in frequency calculations."
+                "Hessian is not symmetric. Maximum asymmetry: %.2e. Tolerance: %.2e. This may indicate numerical errors or non-stationary geometry.",
+                max_asymmetry,
+                tolerance_symmetry,
             )
 
-    # Check noise levels if provided
+        matrix = 0.5 * (hessian + hessian.T)
+        n_null = 0
+        if positions is not None and masses is not None:
+            positions = np.asarray(positions, dtype=np.float64)
+            masses = np.asarray(masses, dtype=np.float64)
+            n_atoms = positions.shape[0]
+            if (
+                positions.ndim == 2
+                and positions.shape[1] == 3
+                and masses.shape == (n_atoms,)
+                and matrix.shape == (3 * n_atoms, 3 * n_atoms)
+            ):
+                # Lazy import avoids analysis ↔ optimizers cycle
+                from famex.optimizers.ts_step import (
+                    build_translation_rotation_basis,
+                    project_hessian,
+                )
+
+                basis = build_translation_rotation_basis(positions, masses)
+                n_null = int(basis.shape[1]) if basis.size else 0
+                matrix = project_hessian(matrix, basis)
+
+        if matrix.shape[0] > n_null:
+            eigenvalues = np.linalg.eigvalsh(matrix)
+            eigenvalues = eigenvalues[np.isfinite(eigenvalues)]
+            if n_null > 0 and len(eigenvalues) > n_null:
+                vibrational = eigenvalues[np.argsort(np.abs(eigenvalues))[n_null:]]
+            else:
+                vibrational = eigenvalues
+            eigenvalues_abs = np.abs(vibrational[vibrational != 0])
+
+            if len(eigenvalues_abs) == 0:
+                if warn_on_issues:
+                    logger.warning(
+                        "Hessian has no finite eigenvalues. This indicates a severe problem."
+                    )
+                results["is_valid"] = False
+            else:
+                condition_number = float(np.max(eigenvalues_abs) / np.min(eigenvalues_abs))
+                results["condition_number"] = condition_number
+                if condition_number > max_condition_number and warn_on_issues:
+                    logger.warning(
+                        "Hessian is ill-conditioned. Condition number: %.2e. Maximum acceptable: %.2e. This may lead to numerical instability in frequency calculations.",
+                        condition_number,
+                        max_condition_number,
+                    )
+
     HIGH_NOISE_THRESHOLD = 0.01  # eV/Å²
     HIGH_FORCE_NOISE_THRESHOLD = 1e-3  # eV/Å
 
     if estimated_noise is not None and estimated_noise > HIGH_NOISE_THRESHOLD and warn_on_issues:
         logger.warning(
-            f"Hessian has high estimated noise: {estimated_noise:.2e} eV/Å². "
-            f"Threshold: {HIGH_NOISE_THRESHOLD:.2e}. "
-            "This may indicate numerical errors or PES instability."
+            "Hessian has high estimated noise: %.2e eV/Å². Threshold: %.2e. This may indicate numerical errors or PES instability.",
+            estimated_noise,
+            HIGH_NOISE_THRESHOLD,
         )
 
     if (
@@ -147,13 +175,12 @@ def validate_hessian(
         and warn_on_issues
     ):
         logger.warning(
-            f"High force noise detected: {force_noise_estimate:.2e} eV/Å. "
-            f"Threshold: {HIGH_FORCE_NOISE_THRESHOLD:.2e}. "
-            "This may contaminate finite difference Hessians."
+            "High force noise detected: %.2e eV/Å. Threshold: %.2e. This may contaminate finite difference Hessians.",
+            force_noise_estimate,
+            HIGH_FORCE_NOISE_THRESHOLD,
         )
 
-    # Overall validity
-    if not is_symmetric or has_nan or has_inf:
+    if not results["is_symmetric"] or has_nan or has_inf:
         results["is_valid"] = False
 
     return results

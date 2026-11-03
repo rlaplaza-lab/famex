@@ -33,8 +33,6 @@ from tests.test_utils import (  # noqa: E402
     TestMoleculeFactory,
     assert_backend_calculator,
     assert_error_contains,
-    backend_test_with_warnings,
-    create_backend_test_atoms,
     handle_backend_errors,
     parametrize_backends,
     requires_backend,
@@ -50,8 +48,6 @@ __all__ = [
     "TestMoleculeFactory",
     "assert_backend_calculator",
     "assert_error_contains",
-    "backend_test_with_warnings",
-    "create_backend_test_atoms",
     "handle_backend_errors",
     "parametrize_backends",
     "requires_backend",
@@ -117,46 +113,9 @@ def water_dissociation_ts_guess():
     return TestMoleculeFactory.get_water_dissociation_ts_guess()
 
 
-@pytest.fixture
-def ethylene_twisted_ts_guess():
-    """Ethylene twisted TS guess (90-degree rotation around C=C bond)."""
-    return TestMoleculeFactory.get_ethylene_twisted_ts_guess()
-
-
 # ============================================================================
 # Backend Fixtures
 # ============================================================================
-
-
-@pytest.fixture
-def uma_backend():
-    """UMA backend calculator fixture."""
-    from famex.backends.availability import is_backend_available
-    from famex.backends.constants import DEFAULT_UMA_MODEL
-
-    if not is_backend_available("uma"):
-        pytest.skip("UMA backend not available")
-
-    import famex
-
-    calc = famex.get_uma_calculator(model_name=DEFAULT_UMA_MODEL)
-    calc.ensure_loaded()
-    return calc
-
-
-@pytest.fixture
-def mace_backend():
-    """MACE backend calculator fixture."""
-    from famex.backends.availability import is_backend_available
-
-    if not is_backend_available("mace"):
-        pytest.skip("MACE backend not available")
-
-    import famex
-
-    calc = famex.get_mace_calculator(model_name="mace-omol-0")
-    calc.ensure_loaded()
-    return calc
 
 
 @pytest.fixture
@@ -165,59 +124,6 @@ def mock_backend():
     import famex
 
     return famex.MockCalculator(backend="mock")
-
-
-@pytest.fixture
-def any_real_backend_explorer(request):
-    """Fixture that provides an Explorer with any available real backend (uma or mace).
-
-    Tries uma first, then mace. Skips test if neither is available.
-    Works with any atoms fixture by accepting atoms as a parameter (single Atoms or list).
-
-    Usage:
-        def test_something(any_real_backend_explorer, water_molecule):
-            explorer = any_real_backend_explorer(water_molecule)
-            # Use explorer...
-
-        def test_with_list(any_real_backend_explorer, reactant_product_pair):
-            reactant, product = reactant_product_pair
-            explorer = any_real_backend_explorer([reactant, product])
-            # Use explorer...
-    """
-    from famex.backends.availability import is_backend_available
-    from famex.core.explorer import Explorer
-    from famex.utils.validation import BackendError
-
-    def _create_explorer(atoms, skip_message="No real backend available"):
-        """Create explorer with any available real backend.
-
-        Args:
-            atoms: Single Atoms object or list of Atoms objects
-            skip_message: Message to use when skipping test
-        """
-        # Check availability first
-        if not is_backend_available("uma") and not is_backend_available("mace"):
-            pytest.skip(skip_message)
-
-        # Try uma first
-        try:
-            return Explorer(atoms, backend="uma")
-        except (ImportError, BackendError, Exception):
-            # Try mace as fallback
-            try:
-                return Explorer(atoms, backend="mace")
-            except (ImportError, BackendError, Exception):
-                pytest.skip(skip_message)
-
-    return _create_explorer
-
-
-@pytest.fixture
-def atoms_with_mock_calc(water_molecule, mock_backend):
-    """Pre-configured atoms with mock calculator."""
-    atoms = water_molecule.copy()
-    atoms.calc = mock_backend
-    return atoms
 
 
 # ============================================================================
@@ -250,52 +156,26 @@ def water_molecule_with_mock(water_molecule, mock_backend):
 
 
 @pytest.fixture
-def h2_molecule_with_mock(h2_molecule, mock_backend):
-    """H2 molecule with stretched bond and mock calculator."""
-    atoms = h2_molecule.copy()
-    atoms.calc = mock_backend
-    return atoms
-
-
-@pytest.fixture
-def standard_tolerances():
-    """Return standard tolerance values for tests."""
-    from tests.test_constants import LOOSE_TOL, MODERATE_TOL, TIGHT_TOL
-
-    return {
-        "tight": TIGHT_TOL,
-        "moderate": MODERATE_TOL,
-        "loose": LOOSE_TOL,
-    }
-
-
-@pytest.fixture
-def test_config():
-    """Standard test configuration dictionary."""
-    from tests.test_constants import DEFAULT_DELTA, DEFAULT_FMAX, DEFAULT_STEPS, QUICK_STEPS
-
-    return {
-        "delta": DEFAULT_DELTA,
-        "fmax": DEFAULT_FMAX,
-        "steps": DEFAULT_STEPS,
-        "quick_steps": QUICK_STEPS,
-    }
-
-
-@pytest.fixture
 def clear_famex_logger():
     """Clear FAMEX logger handlers before test, restore after."""
     import logging
 
+    import famex.utils.logging as famex_logging
+
     logger = logging.getLogger("famex")
     original_handlers = logger.handlers[:]
     original_level = logger.level
+    original_propagate = logger.propagate
+    original_configured = famex_logging._famex_logging_configured
+    original_famex_level = famex_logging._famex_log_level
 
-    # Clear handlers
     logger.handlers.clear()
+    famex_logging._famex_logging_configured = False
 
     yield logger
 
-    # Restore handlers and level
     logger.handlers[:] = original_handlers
     logger.level = original_level
+    logger.propagate = original_propagate
+    famex_logging._famex_logging_configured = original_configured
+    famex_logging._famex_log_level = original_famex_level

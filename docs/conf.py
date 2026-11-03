@@ -27,7 +27,7 @@ source_suffix = {
     ".rst": "restructuredtext",
     ".md": "markdown",
 }
-myst_heading_anchors = 3
+myst_heading_anchors = 4
 
 master_doc = "index"
 
@@ -50,6 +50,8 @@ autodoc_mock_imports = [
     "torch",
     "torch_cluster",
     "e3nn",
+    "pyscf",
+    "rdkit",
 ]
 napoleon_numpy_docstring = True
 napoleon_google_docstring = False
