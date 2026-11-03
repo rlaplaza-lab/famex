@@ -13,8 +13,8 @@ Key features:
 - Geometry I/O via ASE (XYZ, CIF, PDB, and others); SMILES and PubChem inputs
 - Mock calculator for tests without ML dependencies
 
-See the User Guide and Tutorials (docs/USER_GUIDE.md, docs/TUTORIALS.md) for
-usage examples; the main entry point is :class:`~famex.core.explorer.Explorer`.
+See the :doc:`/USER_GUIDE` and the :doc:`/TUTORIALS` for usage examples; the
+main entry point is :class:`~famex.core.explorer.Explorer`.
 """
 
 from __future__ import annotations

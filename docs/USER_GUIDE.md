@@ -1,15 +1,6 @@
-# FAMEX User Guide
+# User Guide
 
 Reference for CLI, Python API, and backends.
-
-## Table of Contents
-
-1. [Core Concepts](#core-concepts)
-2. [Installation](#installation)
-3. [CLI Reference](#cli-reference)
-4. [Python API](#python-api)
-5. [Backend Guide](#backend-guide)
-6. [Examples](#examples)
 
 ## Core Concepts
 
@@ -128,7 +119,7 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
   - `None`
   - Constraints spec string; e.g., `'fix 0,1; harmonic_bond 2,3 k=5.0; fixinternals_bond 4,5 value=1.25'`
 * - `--verbose`, `-v`
-  - quiet (no flag)
+  - `0` (quiet)
   - `0` quiet / `1` normal / `2+` debug. Same scale as `Explorer(verbose=…)`; CLI default is `0`, Python default is `1`.
 * - `--temperature`
   - `298.15`
@@ -144,9 +135,9 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
   - `minima` and `ts` only. Write each vibrational mode as a multi-frame XYZ animation. Implies `--freq`
 * - `--modes`
   - `all`
-  - `all` or `imaginary`. Which modes `--write-modes` animates. `imaginary` keeps frequencies below -50 cm^-1. Ignored when `--mode-index` is set
+  - `all` or `imaginary`. Which modes `--write-modes` animates. `imaginary` keeps frequencies below -50 cm⁻¹. Ignored when `--mode-index` is set
 * - `--mode-index`
-  - none
+  - `None`
   - Vibrational mode index to write. Repeatable. Overrides `--modes`
 * - `--mode-frames`
   - `20`
@@ -188,10 +179,10 @@ Optimize molecular structures to find energy minima.
   - `pysmiles`
   - SMILES 3D method: `pysmiles` or `rdkit`
 * - `--output`
-  - Auto
+  - auto
   - Output optimized XYZ path. Replaces only the default file
 * - `--history`
-  - off
+  - `False`
   - Also write the optimizer step history
 * - `--fmax`
   - `0.05`
@@ -266,10 +257,10 @@ Find and optimize transition state structures.
   - `pysmiles`
   - SMILES 3D method: `pysmiles` or `rdkit`
 * - `--output`
-  - Auto
+  - auto
   - Output TS XYZ path. Replaces only the default file
 * - `--history`
-  - off
+  - `False`
   - Also write the search path and the local TS optimizer history
 * - `--fmax`
   - `0.05`
@@ -287,7 +278,7 @@ Find and optimize transition state structures.
   - `5.0`
   - Upper spring constant for energy-weighted CI-NEB (`cineb`)
 * - `--max-images`
-  - unset
+  - `None`
   - Growing-string image count. Overrides `--npoints`. When both are omitted, growing string uses 15
 * - `--distance-threshold`
   - strategy default
@@ -340,7 +331,7 @@ famex ts --strategy growing_string reactant.xyz --product product.xyz --npoints 
 famex ts --strategy local ts_guess.xyz --require-ts
 famex ts --strategy growing_string reactant.xyz --product product.xyz --require-ts
 
-# With frequency analysis
+# Interpolated TS with frequency analysis
 famex ts --strategy interpolate reactant.xyz --product product.xyz --freq
 ```
 
@@ -384,10 +375,10 @@ Generate and optimize reaction pathways.
   - `pysmiles`
   - SMILES 3D method: `pysmiles` or `rdkit`
 * - `--output`
-  - Auto
+  - auto
   - Output trajectory XYZ path. Replaces only the default file
 * - `--history`
-  - off
+  - `False`
   - Also write the NEB or CI-NEB iteration history, or IRC forward and reverse branches
 * - `--fmax`
   - `0.05`
@@ -454,7 +445,7 @@ famex cache clear --model M   # Clear one model entry
 famex cache clear --yes       # Skip confirmation prompt
 ```
 
-### Structure inputs (file, SMILES, PubChem)
+### Structure Inputs (File, SMILES, PubChem)
 
 `famex minima`, `famex ts`, and `famex path` accept a geometry file, a SMILES string, `pubchem:NAME`, `cid:2244`, or a bare numeric CID anywhere a structure is expected (including `--product` and path endpoints). A bare non-numeric name is SMILES, not a PubChem lookup. Endpoints of one calculation must have the same number of atoms.
 
@@ -514,11 +505,11 @@ RDKit ETKDGv3 follows RDKit's own valence and UFF atom types. It can reject meta
 from famex import Explorer
 
 explorer = Explorer(
-    atoms,                    # Atoms or Sequence[Atoms]
-    backend="uma",            # Backend name
-    target="minima",          # Target: minima|ts|path
-    strategy="local",         # Strategy: local|neb|cineb|interpolate|growing_string|dhs|irc
-    device=None,              # Device: cpu|cuda (auto-detected if None)
+    atoms,                     # Atoms or Sequence[Atoms]
+    backend="uma",             # Backend name
+    target="minima",           # Target: minima|ts|path
+    strategy="local",          # Strategy: local|neb|cineb|interpolate|growing_string|dhs|irc
+    device=None,               # Device: cpu|cuda (auto-detected if None)
     local_optimizer="default", # Optimizer (auto-selects based on target)
     default_charge=0,
     default_spin=1,
@@ -552,12 +543,12 @@ explorer.save_structure(result["optimized_atoms"], "output.xyz")
 path = result.get("trajectory", result["optimized_atoms"])
 explorer.save_trajectory(path, "path.xyz")
 
-# One multi-frame XYZ per mode. which="imaginary" keeps frequencies below -50 cm^-1.
+# One multi-frame XYZ per mode. which="imaginary" keeps frequencies below -50 cm⁻¹.
 # famex.io.write_vibrational_modes writes the same files without an Explorer.
 explorer.save_vibrational_modes(freq_result, "water.minima_modes")
 ```
 
-### Run result keys
+### Run Result Keys
 
 Strategy results always include `optimized_atoms` and `strategy`. Common optional keys:
 
@@ -585,7 +576,7 @@ Strategy results always include `optimized_atoms` and `strategy`. Common optiona
   - When `validate_ts=True` (soft check; does not raise). CLI `--require-ts` / `run(require_ts=True)` raises instead of only attaching this key
 ```
 
-### Frequencies and thermochemistry
+### Frequencies and Thermochemistry
 
 `--freq` and `calculate_frequencies=True` attach `frequency_analysis`. Frequencies are in cm⁻¹, with imaginary modes negative. `zero_point_energy` is the harmonic value in eV. Imaginary and zero modes are omitted from the vibrational sums.
 
@@ -606,7 +597,7 @@ props = thermo.calculate_complete_thermodynamics(energy=energy)
 `pressure` is in pascal (default 1 atm). `method` is `rrho`, `grimme`, or `truhlar`. `freq_scale_factor` (default 1) is applied before the zero-point energy, vibrational entropy, and heat capacity. `gibbs_free_energy` is the enthalpy minus temperature times entropy, in eV. `free_energy_correction` is that value minus the electronic energy.
 
 ```{list-table}
-:class: fit-table nowrap-col2
+:class: fit-table
 :header-rows: 1
 
 * - `method`
@@ -621,7 +612,7 @@ props = thermo.calculate_complete_thermodynamics(energy=energy)
 
 Gas phase uses the ideal-gas concentration at `pressure`. Solution defaults to 1.0 mol/L. A set `concentration` overrides both. Solvents: `none`, `H2O`, `toluene`, `DMF`, `AcOH`, `chloroform`. The symmetry number comes from the geometry unless `symmetry_number` is set. A linear molecule uses one rotational temperature. See `examples/thermochemistry.py`.
 
-### Default models
+### Default Models
 
 When `--model-name` / `model_name` is omitted, each backend keyword loads this checkpoint (or method / DFT level):
 
@@ -665,7 +656,7 @@ OrbMol-v2 is selected with `--model-name orbmol-v2`. That checkpoint ships in `o
 
 UMA and related backends also read `atoms.info["charge"]` and `atoms.info["spin"]` when set, overriding `--default-charge` / `--default-spin`. For non-`omol` UMA tasks, prefer `--default-spin 0`.
 
-#### UMA task heads and fine-tunes
+#### UMA Task Heads and Fine-Tunes
 
 UMA routes through a Mixture-of-Linear-Experts head selected by `--task-name` / `task_name` (default `omol`). Requires `fairchem-core>=2.25.0`.
 
@@ -722,7 +713,7 @@ Python equivalents: `Explorer(..., task_name="omat", dftd3_functional="r2scan", 
 FAMEX is built around machine learning potentials. Classical quantum-chemistry backends are optional for checks or small systems. Default checkpoints match [Default models](#default-models).
 
 ```{list-table}
-:class: fit-table nowrap-col2
+:class: fit-table
 :header-rows: 1
 
 * - Backend
@@ -817,4 +808,4 @@ See [`examples/README.md`](https://github.com/rlaplaza-lab/famex/tree/main/examp
 
 ---
 
-*Last updated: October 2026*
+*Last updated: November 2026*

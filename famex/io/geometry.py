@@ -12,7 +12,34 @@ from famex.io.xyz_io import read_xyz_with_metadata, write_xyz_with_metadata
 
 
 class Geometry(Atoms):
-    """Molecular geometry with atomic positions, types, and properties."""
+    """Molecular geometry: an ASE ``Atoms`` object with charge and spin multiplicity.
+
+    Build it from an existing ``Atoms`` object (``ase_atoms``) or from element
+    symbols plus coordinates (``atoms`` with ``coords`` or ``positions``).
+
+    Parameters
+    ----------
+    atoms : str or list[str], optional
+        Element symbols, e.g. ``["O", "H", "H"]``.
+    coords : np.ndarray, optional
+        Coordinates in Å, flat (3N) or shaped (N, 3).
+    positions : np.ndarray, optional
+        Coordinates in Å, shaped (N, 3). Used when ``coords`` is not given.
+    charge : int, default 0
+        Total charge. Overridden by ``ase_atoms.info["charge"]`` when present.
+    mult : int, default 1
+        Spin multiplicity. Overridden by ``ase_atoms.info["spin"]`` when present.
+    ase_atoms : Atoms, optional
+        Structure to copy symbols, positions, cell, calculator and ``info`` from.
+    **kwargs
+        Passed to :class:`ase.Atoms`.
+
+    Raises
+    ------
+    ValueError
+        If ``atoms`` is given without ``coords`` or ``positions``.
+
+    """
 
     def __init__(
         self,
@@ -24,7 +51,6 @@ class Geometry(Atoms):
         ase_atoms: Atoms | None = None,
         **kwargs: Any,
     ) -> None:
-        """Initialize a Geometry object."""
         if ase_atoms is not None:
             super().__init__(
                 symbols=ase_atoms.get_chemical_symbols(),
@@ -63,6 +89,7 @@ class Geometry(Atoms):
 
     @property
     def coords3d(self) -> np.ndarray:
+        """Atomic positions in Å as an (N, 3) array; can be set."""
         return np.array(self.get_positions())
 
     @coords3d.setter
@@ -71,6 +98,7 @@ class Geometry(Atoms):
 
     @property
     def coords(self) -> np.ndarray:
+        """Atomic positions in Å as a flat array of length 3N; can be set."""
         return np.array(self.coords3d).flatten()
 
     @coords.setter
@@ -80,6 +108,12 @@ class Geometry(Atoms):
 
     @property
     def energy(self) -> float | None:
+        """Potential energy in eV; can be set.
+
+        Taken from the attached calculator when there is one, otherwise the stored
+        value (``None`` if never set).
+
+        """
         if self.calc is not None:
             try:
                 energy_val = self.get_potential_energy()
@@ -93,6 +127,24 @@ class Geometry(Atoms):
         self._energy = value
 
     def get_forces(self, apply_constraint: bool = True, md: bool = False) -> np.ndarray | None:
+        """Return the forces in eV/Å.
+
+        Uses the attached calculator when there is one; otherwise, or if the
+        calculation fails, returns the stored forces.
+
+        Parameters
+        ----------
+        apply_constraint : bool, default True
+            Apply the structure's constraints to the forces.
+        md : bool, default False
+            Passed to :meth:`ase.Atoms.get_forces`.
+
+        Returns
+        -------
+        np.ndarray or None
+            Forces with shape (N, 3), or ``None`` if none are available.
+
+        """
         if self.calc is not None:
             try:
                 forces = super().get_forces(apply_constraint, md)
@@ -133,7 +185,7 @@ class Geometry(Atoms):
             Seed for distance sampling.
         add_h : bool, default True
             Add implicit hydrogens before embedding.
-        embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+        embedder : {"pysmiles", "rdkit"}, default "pysmiles"
             ``pysmiles`` is UFF distance geometry (``pip install famex[smiles]``).
             ``rdkit`` is ETKDGv3 (``pip install famex[rdkit]``).
 
@@ -161,7 +213,7 @@ class Geometry(Atoms):
         ----------
         query : str
             Compound name, CID, or a ``pubchem:`` / ``cid:`` prefixed form.
-        embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+        embedder : {"pysmiles", "rdkit"}, default "pysmiles"
             Used when PubChem has no computed 3D conformer.
 
         Returns
@@ -175,6 +227,26 @@ class Geometry(Atoms):
 
 
 def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
+    """Read a structure file into FAMEX geometries.
+
+    XYZ files are read with :func:`~famex.io.xyz_io.read_xyz_with_metadata`, which
+    also parses ``charge``/``spin`` from the comment line. Other formats are read
+    with :func:`ase.io.read`.
+
+    Parameters
+    ----------
+    filename : str or Path
+        Path to the structure file (any format supported by ASE).
+    **kwargs
+        Extra options. For XYZ files, ``frame`` selects ``"first"`` (default),
+        ``"last"``, ``"all"`` or an integer index. Other keywords go to the reader.
+
+    Returns
+    -------
+    Geometry or list[Geometry]
+        One geometry, or a list when several frames are selected.
+
+    """
     filename_str = str(filename)
 
     if filename_str.lower().endswith(".xyz"):
@@ -188,6 +260,23 @@ def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
 
 
 def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> None:
+    """Write a structure to a file.
+
+    XYZ files are written with :func:`~famex.io.xyz_io.write_xyz_with_metadata`,
+    so charge, spin and energy are stored in the comment line. Other formats are
+    written with :func:`ase.io.write`.
+
+    Parameters
+    ----------
+    geometry : Geometry or Atoms
+        Structure to write.
+    filename : str or Path
+        Output path; the format is taken from the extension.
+    **kwargs
+        Extra options. For XYZ files, ``energy`` (eV) is added to the comment line.
+        Other keywords go to the writer.
+
+    """
     filename_str = str(filename)
 
     if filename_str.lower().endswith(".xyz"):

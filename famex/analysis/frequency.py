@@ -49,6 +49,36 @@ def select_vibrational_indices(
 
 
 class FrequencyAnalysis:
+    """Vibrational frequency analysis from the Cartesian Hessian.
+
+    Builds or receives the Hessian, projects out translations and rotations,
+    diagonalizes the mass-weighted Hessian, and derives frequencies, normal
+    modes, zero-point energy, stationary-point checks and thermochemistry.
+    The Hessian is computed on first use.
+
+    Parameters
+    ----------
+    atoms : Atoms
+        Structure to analyze. ``calculator`` is attached to it.
+    calculator : Any
+        ASE-compatible calculator providing forces (and, if available, an
+        analytical Hessian).
+    delta : float, default 0.01
+        Finite-difference displacement in Å.
+    richardson : bool, default False
+        Use Richardson extrapolation for finite-difference Hessians.
+    delta2 : float, optional
+        Second displacement in Å for Richardson extrapolation.
+    nfree : int, optional
+        Number of translational and rotational modes to remove; detected from
+        the geometry when omitted.
+    indices : list[int], optional
+        Atoms included in the Hessian; all atoms when omitted.
+    verbose : int, default 1
+        Verbosity level.
+
+    """
+
     def __init__(
         self,
         atoms: Atoms,
@@ -82,7 +112,24 @@ class FrequencyAnalysis:
         self._hessian_validation_warned = False
 
     def set_hessian(self, hessian: np.ndarray) -> NDArray[np.float64]:
-        """Install a precomputed Cartesian Hessian (3N x 3N for selected indices)."""
+        """Use a precomputed Cartesian Hessian instead of calculating one.
+
+        Parameters
+        ----------
+        hessian : np.ndarray
+            Hessian in eV/Å², shaped (3N, 3N) for the N selected atoms.
+
+        Returns
+        -------
+        np.ndarray
+            The Hessian as a float array.
+
+        Raises
+        ------
+        ValueError
+            If the shape does not match the selected atoms.
+
+        """
         h = np.asarray(hessian, dtype=np.float64)
         n = 3 * len(self.indices)
         if h.shape != (n, n):
@@ -98,6 +145,34 @@ class FrequencyAnalysis:
         return h
 
     def calculate_hessian(self, method: str = "auto") -> np.ndarray:
+        """Calculate the Cartesian Hessian.
+
+        Parameters
+        ----------
+        method : str, default "auto"
+            How to obtain the Hessian:
+
+            - ``auto``: analytical frequencies or Hessian from the calculator if
+              available, then batch evaluation, then finite differences
+            - ``autoselect``: analytical Hessian if it is valid; otherwise
+              energy-based or force-based finite differences, chosen from the
+              estimated force noise
+            - ``direct``: analytical Hessian from the calculator
+            - ``direct_frequencies``: frequencies taken directly from the calculator
+            - ``batch``: finite differences evaluated as one batch
+            - ``finite_differences``: central finite differences of the forces
+
+        Returns
+        -------
+        np.ndarray
+            Hessian in eV/Å², shaped (3N, 3N) for the selected atoms.
+
+        Raises
+        ------
+        ValueError
+            If ``method`` is unknown.
+
+        """
         if method == "autoselect":
             return self._calculate_hessian_autoselect()
 
@@ -333,8 +408,8 @@ class FrequencyAnalysis:
 
         Returns
         -------
-        Tuple[np.ndarray, np.ndarray]
-            frequencies (in cm⁻¹) and normal mode eigenvectors.
+        tuple[np.ndarray, np.ndarray]
+            Frequencies (in cm⁻¹) and normal mode eigenvectors.
             Frequencies are signed real values: negative for imaginary modes.
 
         """
@@ -362,17 +437,18 @@ class FrequencyAnalysis:
 
         Parameters
         ----------
-        unit : str
-            Unit for frequencies: 'cm-1', 'meV', 'THz'
-        imag_threshold : float
-            Frequencies below ``-imag_threshold`` are never discarded as
+        unit : {"cm-1", "meV", "THz"}, default "cm-1"
+            Unit of the returned frequencies.
+        imag_threshold : float, default 50.0
+            Frequencies below ``-imag_threshold`` (in cm⁻¹) are never discarded as
             translational/rotational modes.
 
         Returns
         -------
         np.ndarray
-            Vibrational frequencies, excluding translational and rotational modes.
-            Signed real values in cm⁻¹ (negative for imaginary modes).
+            Vibrational frequencies, excluding translational and rotational modes,
+            in the requested unit. Signed real values (negative for imaginary
+            modes).
 
         """
         if self._direct_frequencies is not None:
@@ -607,18 +683,18 @@ class FrequencyAnalysis:
         solvent: str = "none",
         concentration: float | None = None,
     ) -> dict[str, float | int | list[float]]:
-        """Calculate vibrational thermodynamic properties at given temperature.
+        """Calculate thermodynamic properties from the vibrational frequencies.
 
         Parameters
         ----------
-        temperature : float
-            Temperature in Kelvin
-        method : str
-            Method for vibrational corrections: 'rrho', 'grimme', or 'truhlar'
-        freq_cutoff : float
+        temperature : float, default 298.15
+            Temperature in K
+        method : {"rrho", "grimme", "truhlar"}, default "rrho"
+            Method for vibrational corrections
+        freq_cutoff : float, default 100.0
             Cutoff frequency in cm⁻¹ for quasi-harmonic corrections
-        freq_scale_factor : float
-            Frequency scaling factor (default: 1.0)
+        freq_scale_factor : float, default 1.0
+            Frequency scaling factor
         rotational_temperatures : array-like, optional
             Rotational temperatures in Kelvin
         rotational_constants : array-like, optional
@@ -629,10 +705,10 @@ class FrequencyAnalysis:
             Point group symbol for symmetry number lookup
         linear : bool, optional
             Whether molecule is linear (auto-detected if None)
-        multiplicity : int
-            Spin multiplicity 2S+1 (default: 1)
-        solvent : str
-            Solvent name (default: "none" for gas phase)
+        multiplicity : int, default 1
+            Spin multiplicity 2S+1
+        solvent : str, default "none"
+            Solvent name; "none" means gas phase.
         concentration : float, optional
             Concentration in mol/L. When omitted, use the GoodVibes 1 atm
             ideal-gas molarity.
@@ -640,7 +716,19 @@ class FrequencyAnalysis:
         Returns
         -------
         dict[str, float | int | list[float]]
-            Vibrational thermodynamic properties.
+            Energies in eV, entropies and heat capacity in eV/K:
+
+            - ``temperature``: Temperature used (K)
+            - ``zero_point_energy``: Harmonic zero-point energy
+            - ``internal_energy``: Vibrational internal energy, including the
+              zero-point energy
+            - ``heat_capacity``: Harmonic vibrational heat capacity
+            - ``entropy``: Vibrational entropy
+            - ``enthalpy_total``: Total enthalpy H, including the electronic energy
+            - ``entropy_total``: Total entropy S
+            - ``free_energy_correction``: G − E
+            - ``n_vibrational_modes``: Number of real vibrational modes used
+            - ``frequencies_cm_1``: Those frequencies in cm⁻¹
 
         """
         frequencies = self.get_frequencies()

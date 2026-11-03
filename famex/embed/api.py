@@ -133,7 +133,7 @@ def embed_smiles(
         Seed for distance sampling. The first pysmiles trial is deterministic.
     add_h : bool, default True
         Add implicit hydrogens before embedding.
-    embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+    embedder : {"pysmiles", "rdkit"}, default "pysmiles"
         Which optional embedding backend to use.
 
     Returns

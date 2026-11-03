@@ -129,7 +129,7 @@ class Explorer:
         - ``rfo``: Rational Function Optimization for TS
     optimizer_kwargs : dict[str, Any], optional
         Keyword arguments forwarded to the local optimizer.
-    strategy : str, optional, default "local"
+    strategy : str, default "local"
         Strategy type for optimization. Options:
 
         - ``local``: Direct local optimization
@@ -137,9 +137,9 @@ class Explorer:
         - ``cineb``: Climbing Image NEB
         - ``interpolate``: Path interpolation only
         - ``growing_string``: Growing string method
-        - ``dhs``: Dewar-Healy-Stewart bracket method
+        - ``dhs``: Dewar–Healy–Stewart bracket method
         - ``irc``: Intrinsic Reaction Coordinate
-    target : str, optional, default "minima"
+    target : str, default "minima"
         Target type for optimization. Options:
 
         - ``minima``: Find local minimum
@@ -150,13 +150,23 @@ class Explorer:
     constraints : str or list or dict, optional
         Constraint specification. Can be:
 
-        - String: ``"fix 0 1 2"`` (fix atoms 0, 1, 2)
+        - String: ``"fix 0,1,2"`` (fix atoms 0, 1, 2)
         - List: ``[FixAtoms(indices=[0, 1, 2])]``
         - Dict: ``{"fix": [0, 1, 2]}``
     initial_hessian : np.ndarray, optional
         Initial Hessian matrix for optimization (3N x 3N).
     verbose : int, default 1
         Verbosity level (0=quiet, 1=normal, 2=verbose).
+    profile : bool, default False
+        Record timing information; the summary is added to the run result.
+    force_finite_diff_hessian : bool, default False
+        Use finite-difference Hessians for TS optimizers and frequency
+        calculations even when the backend has an analytical Hessian.
+    cleanup_frequencies : bool, default False
+        After local optimization, compute frequencies and, if the structure has
+        the wrong number of imaginary frequencies (0 for minima, 1 for TS), run a
+        Hessian-based cleanup optimization until it does or the attempt limit is
+        reached.
 
     Notes
     -----
@@ -192,56 +202,7 @@ class Explorer:
         task_name: str | None = None,
         dftd3_functional: str | None = None,
     ) -> None:
-        """Initialize the Explorer with molecular structure and configuration.
-
-        Parameters
-        ----------
-        atoms : Atoms | Sequence[Atoms]
-            Molecular structure(s) to optimize
-        backend : str, default "uma"
-            ML potential backend to use
-        model_name : str | None, default None
-            Specific model name for the backend
-        model_path : str | None, default None
-            Path to model file
-        device : str | None, default None
-            Device for calculations (cpu, cuda, etc.)
-        default_charge : int, default 0
-            Default molecular charge
-        default_spin : int, default 1
-            Default spin multiplicity
-        local_optimizer : str, default "default"
-            Local optimizer to use
-        optimizer_kwargs : dict[str, Any] | None, default None
-            Additional optimizer parameters
-        strategy : str | None, default "local"
-            Optimization strategy
-        target : str | None, default "minima"
-            Optimization target
-        ts_kwargs : dict[str, Any] | None, default None
-            Transition state specific parameters
-        constraints : str | list | dict | None, default None
-            Geometric constraints
-        initial_hessian : np.ndarray | None, default None
-            Initial Hessian matrix
-        verbose : int, default 1
-            Verbosity level
-        profile : bool, default False
-            Whether to enable profiling
-        force_finite_diff_hessian : bool, default False
-            If True, forces use of finite difference hessians for TS optimizers
-            and frequency calculations. When True and target is "ts", automatically
-            sets hessian_method="finite_differences" in ts_kwargs if not already specified.
-        cleanup_frequencies : bool, default False
-            If True, after local optimization compute frequencies and, when the
-            stationary-point character is wrong, run a Hessian-based cleanup
-            optimizer from the current geometry until there are 0 (minima) or 1 (TS)
-            relevant imaginary frequencies, or the attempt limit is reached.
-        task_name : str | None, default None
-            UMA task head (``omol``, ``omat``, …). Defaults to ``omol`` for UMA.
-        dftd3_functional : str | None, default None
-            Optional FairChem DFT-D3(BJ) functional for UMA (``r2scan`` or ``pbe``).
-        """
+        """Initialize the Explorer; parameters are documented on the class."""
         if isinstance(atoms, Atoms):
             self.atoms_list: list[Atoms] = [atoms]
         else:
@@ -337,7 +298,20 @@ class Explorer:
     # --- Strategy Management ---
 
     def list_strategies(self, kind: str | None = None) -> dict[str, dict[str, str]]:
-        """List available strategies; optionally filter by kind."""
+        """List the registered strategies.
+
+        Parameters
+        ----------
+        kind : {"minima", "ts", "path"}, optional
+            Only list strategies for this target.
+
+        Returns
+        -------
+        dict[str, dict[str, str]]
+            For each strategy name and alias, its ``type`` (``local`` or
+            ``multi-structure``) and ``description``.
+
+        """
         out: dict[str, dict[str, str]] = {}
         for name, metadata in REGISTRY.list_strategies().items():
             if kind is None or metadata.target == kind:
@@ -359,7 +333,15 @@ class Explorer:
     # --- Execution ---
 
     def explain_run(self) -> dict[str, str | bool | int | None]:
-        """Explain what strategy would be selected without running."""
+        """Describe the strategy and optimizer a run would use, without running.
+
+        Returns
+        -------
+        dict[str, str | bool | int | None]
+            Target, strategy, runner class, whether the selection is ``valid``,
+            and a short description. Used by ``--dry-run``.
+
+        """
         try:
             if self.target and self.strategy:
                 strategy_name = f"{self.target}:{self.strategy}"
@@ -427,7 +409,7 @@ class Explorer:
         cleanup_frequencies : bool, optional
             Whether to run post-optimization Hessian-based frequency cleanup.
             Defaults to the Explorer's ``cleanup_frequencies`` setting.
-        record_history : bool, default=False
+        record_history : bool, default False
             When True, strategies keep optimizer steps and search paths on the
             result (``optimization_trajectory``, ``search_path``). This does not
             write files; use :func:`famex.io.run_output.write_run_outputs`.
@@ -532,7 +514,7 @@ class Explorer:
             - ``.vasp``: VASP POSCAR format
             - ``.json``: ASE JSON format
         backend : str, default "uma"
-            Calculator backend to use (see Explorer.__init__ for options).
+            Calculator backend to use (see :class:`Explorer` for options).
         model_name : str, optional
             Specific model name to use.
         model_path : str, optional
@@ -545,6 +527,8 @@ class Explorer:
             Default spin multiplicity for the system.
         verbose : int, default 1
             Verbosity level for the Explorer.
+        profile : bool, default False
+            Record timing information.
         **kwargs : Any
             Additional arguments passed to Explorer constructor.
 
@@ -563,8 +547,8 @@ class Explorer:
         Examples
         --------
         >>> # Load from XYZ file
-        >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2")
-        >>> result = explorer.run(target="minima")
+        >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2", target="minima")
+        >>> result = explorer.run()
 
         >>> # Load with custom settings
         >>> explorer = Explorer.from_file(
@@ -620,11 +604,27 @@ class Explorer:
         ----------
         smiles : str
             OpenSMILES string.
+        backend : str, default "uma"
+            Calculator backend to use (see :class:`Explorer` for options).
+        model_name : str, optional
+            Specific model name to use.
+        model_path : str, optional
+            Path to local model file.
+        device : str, optional
+            Device for computations ("cpu" or "cuda").
+        default_charge : int, default 0
+            Default charge for the system.
+        default_spin : int, default 1
+            Default spin multiplicity for the system.
+        verbose : int, default 1
+            Verbosity level for the Explorer.
+        profile : bool, default False
+            Record timing information.
         seed : int, default 0
             Seed for distance sampling.
         add_h : bool, default True
             Add implicit hydrogens before embedding.
-        embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+        embedder : {"pysmiles", "rdkit"}, default "pysmiles"
             Distance geometry via pysmiles, or RDKit ETKDGv3.
         **kwargs
             Passed to :class:`Explorer`, including ``target`` and ``strategy``.
@@ -632,6 +632,8 @@ class Explorer:
         Returns
         -------
         Explorer
+            New Explorer instance with the embedded geometry.
+
         """
         geom = Geometry.from_smiles(smiles, seed=seed, add_h=add_h, embedder=embedder)
         return cls(
@@ -673,10 +675,32 @@ class Explorer:
         ----------
         query : str
             Compound name, CID, or a ``pubchem:`` / ``cid:`` prefixed form.
-        embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+        backend : str, default "uma"
+            Calculator backend to use (see :class:`Explorer` for options).
+        model_name : str, optional
+            Specific model name to use.
+        model_path : str, optional
+            Path to local model file.
+        device : str, optional
+            Device for computations ("cpu" or "cuda").
+        default_charge : int, default 0
+            Default charge for the system.
+        default_spin : int, default 1
+            Default spin multiplicity for the system.
+        verbose : int, default 1
+            Verbosity level for the Explorer.
+        profile : bool, default False
+            Record timing information.
+        embedder : {"pysmiles", "rdkit"}, default "pysmiles"
             Used when PubChem has no 3D conformer.
         **kwargs
             Passed to :class:`Explorer`, including ``target`` and ``strategy``.
+
+        Returns
+        -------
+        Explorer
+            New Explorer instance with the downloaded geometry.
+
         """
         geom = Geometry.from_pubchem(query, embedder=embedder)
         return cls(
@@ -693,7 +717,28 @@ class Explorer:
         )
 
     def load_structure(self, filename_or_geom: str | Path | Atoms) -> Atoms:
-        """Load structure from file or geometry object and update atoms_list."""
+        """Replace the Explorer's structure with one from a file or an Atoms object.
+
+        Parameters
+        ----------
+        filename_or_geom : str, Path or Atoms
+            Geometry file (first frame is used) or structure.
+
+        Returns
+        -------
+        Atoms
+            The loaded structure.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the file does not exist.
+        ValueError
+            If the file cannot be read or holds no atoms.
+        TypeError
+            If the argument is not a path or an Atoms object.
+
+        """
         if isinstance(filename_or_geom, str | Path):
             file_path = Path(filename_or_geom)
             if not file_path.exists():
@@ -753,7 +798,7 @@ class Explorer:
 
         Parameters
         ----------
-        atoms_list : List[Atoms]
+        atoms_list : list[Atoms]
             List of structures to save as trajectory
         output_file : str or Path
             Output file path
@@ -834,28 +879,34 @@ class Explorer:
         Parameters
         ----------
         atoms : Atoms, optional
-            Structure to analyze (uses first in atoms_list if None)
-        delta : float
-            Finite difference step size for Hessian calculation
-        method : str
-            Method for Hessian calculation ("auto", "finite_differences")
-        temperature : float
-            Temperature for thermodynamic properties (K)
-        save_hessian : bool
-            Whether to include Hessian matrix in results
-        indices : list of int, optional
-            Atom indices to include in calculation (all if None)
+            Structure to analyze (uses first in atoms_list if None).
+        delta : float, default 0.01
+            Finite-difference step size in Å for the Hessian.
+        method : str, default "auto"
+            Hessian method passed to
+            :meth:`~famex.analysis.frequency.FrequencyAnalysis.calculate_hessian`
+            (``auto``, ``autoselect``, ``direct``, ``direct_frequencies``,
+            ``batch`` or ``finite_differences``). With
+            ``force_finite_diff_hessian=True``, ``auto`` becomes
+            ``finite_differences``.
+        temperature : float, default 298.15
+            Temperature in K for thermodynamic properties.
+        save_hessian : bool, default True
+            Whether to include the Hessian matrix in the results.
+        indices : list[int], optional
+            Atom indices to include in the calculation (all if None).
         **kwargs
-            Additional arguments passed to FrequencyAnalysis
+            Not used.
 
         Returns
         -------
-        dict[str, list[float] | float | dict[str, Any] | str | int | np.ndarray]
+        dict[str, list[float] | float | dict[str, Any] | str | int | list]
             Dictionary containing:
 
             - ``frequencies``: Vibrational frequencies in cm⁻¹ (list[float])
             - ``all_frequencies``: All frequencies including trans/rot modes (list[float])
-            - ``normal_modes``: Normal mode vectors (list[float])
+            - ``normal_modes``: Vibrational normal mode vectors, one column per mode
+              (nested list)
             - ``zero_point_energy``: Zero-point energy in eV (float)
             - ``thermodynamic_properties``: Thermodynamic data (dict[str, Any])
             - ``ts_analysis``: Transition state analysis (dict[str, Any])
@@ -867,7 +918,8 @@ class Explorer:
             - ``temperature``: Temperature for thermodynamic properties (float)
             - ``n_atoms``: Number of atoms (int)
             - ``indices``: Atom indices included (list[int])
-            - ``hessian``: Hessian matrix (np.ndarray, optional)
+            - ``hessian``: Hessian matrix in eV/Å² as a nested list (only when
+              ``save_hessian=True``)
 
         """
         from famex.analysis.frequency import FrequencyAnalysis

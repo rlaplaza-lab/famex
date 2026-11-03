@@ -102,11 +102,29 @@ class HarmonicAngleASEConstraint(FixConstraint):
 
 
 class FAMEXConstraintManager:
+    """Collect constraints for a structure and apply them as ASE constraints.
+
+    Parameters
+    ----------
+    reference_atoms : Atoms
+        Structure whose geometry defines the reference values of harmonic
+        constraints. A copy is stored.
+
+    """
+
     def __init__(self, reference_atoms: Atoms) -> None:
         self.reference_atoms = reference_atoms.copy()
         self.constraints: list[Any] = []
 
     def add_fixed_atoms(self, atom_indices: list[int]) -> None:
+        """Fix the positions of the given atoms.
+
+        Parameters
+        ----------
+        atom_indices : list[int]
+            Indices of the atoms to fix.
+
+        """
         logger.debug("Adding fixed atoms constraint for indices: %s", atom_indices)
         constraint = FixedAtomsConstraint(atom_indices, self.reference_atoms)
         self.constraints.append(constraint)
@@ -117,6 +135,23 @@ class FAMEXConstraintManager:
         atom_indices: list[int],
         force_constant: float = 10.0,
     ) -> None:
+        """Add a harmonic restraint toward the reference geometry.
+
+        Parameters
+        ----------
+        constraint_type : {"position", "bond", "angle"}
+            Quantity to restrain.
+        atom_indices : list[int]
+            Atoms involved: any number for ``position``, 2 for ``bond``, 3 for ``angle``.
+        force_constant : float, default 10.0
+            Force constant in eV/Å² (eV/rad² for ``angle``).
+
+        Raises
+        ------
+        ValueError
+            If ``constraint_type`` is unknown or the number of atoms is wrong.
+
+        """
         if constraint_type == "position":
             constraint: Any = HarmonicPositionConstraint(
                 atom_indices,
@@ -146,6 +181,19 @@ class FAMEXConstraintManager:
         atom_indices: list[int],
         target_value: float | None = None,
     ) -> None:
+        """Hold an internal coordinate at a fixed value with ASE ``FixInternals``.
+
+        Parameters
+        ----------
+        constraint_type : {"bond", "angle", "dihedral"}
+            Internal coordinate to fix.
+        atom_indices : list[int]
+            2, 3 or 4 atom indices, matching ``constraint_type``.
+        target_value : float, optional
+            Value to hold, in Å for bonds and degrees for angles and dihedrals.
+            ``None`` keeps the current value.
+
+        """
         constraint = FixInternalsConstraint(constraint_type, atom_indices, target_value)
         logger.debug(
             "Adding FixInternals constraint: type=%s, atoms=%s, value=%s",
@@ -156,6 +204,21 @@ class FAMEXConstraintManager:
         self.constraints.append(constraint)
 
     def apply_constraints(self, atoms: Atoms) -> list[Any]:
+        """Attach all collected constraints to a structure.
+
+        Constraints already on ``atoms`` are kept.
+
+        Parameters
+        ----------
+        atoms : Atoms
+            Structure to constrain (modified in place).
+
+        Returns
+        -------
+        list
+            All ASE constraints now set on ``atoms``.
+
+        """
         logger.debug("Applying %d constraints to atoms object", len(self.constraints))
         ase_constraints = []
         for constraint in self.constraints:
@@ -174,6 +237,15 @@ class FAMEXConstraintManager:
         return all_constraints
 
     def get_constraint_info(self) -> dict[str, Any]:
+        """Summarize the collected constraints.
+
+        Returns
+        -------
+        dict[str, Any]
+            Keys ``fixed_atoms``, ``harmonic_constraints`` and
+            ``fixinternals_constraints``.
+
+        """
         info: dict[str, Any] = {
             "fixed_atoms": [],
             "harmonic_constraints": [],
@@ -205,15 +277,40 @@ class FAMEXConstraintManager:
 
 
 class FixedAtomsConstraint:
+    """Fix atoms in place (wraps ASE ``FixAtoms``).
+
+    Parameters
+    ----------
+    atom_indices : list[int]
+        Indices of the atoms to fix.
+    reference_atoms : Atoms
+        Structure that provides the reference positions.
+
+    """
+
     def __init__(self, atom_indices: list[int], reference_atoms: Atoms) -> None:
         self.atom_indices = atom_indices
         self.reference_positions = reference_atoms.positions[atom_indices].copy()
 
     def to_ase_constraints(self) -> list:
+        """Return the equivalent ASE constraint objects."""
         return [FixAtoms(indices=self.atom_indices)]
 
 
 class HarmonicPositionConstraint:
+    """Restrain atoms to their reference positions with harmonic springs.
+
+    Parameters
+    ----------
+    atom_indices : list[int]
+        Indices of the restrained atoms.
+    reference_atoms : Atoms
+        Structure that provides the reference positions.
+    force_constant : float, default 10.0
+        Force constant in eV/Å².
+
+    """
+
     def __init__(
         self,
         atom_indices: list[int],
@@ -227,6 +324,7 @@ class HarmonicPositionConstraint:
         self.reference_value = self.reference_positions.copy()
 
     def to_ase_constraints(self) -> list:
+        """Return the equivalent ASE constraint objects."""
         return [
             Hookean(
                 a1=atom_idx,
@@ -239,6 +337,19 @@ class HarmonicPositionConstraint:
 
 
 class HarmonicBondConstraint:
+    """Restrain a bond length to its reference value with a harmonic spring.
+
+    Parameters
+    ----------
+    atom_indices : list[int]
+        The two bonded atoms.
+    reference_atoms : Atoms
+        Structure that provides the reference bond length.
+    force_constant : float, default 10.0
+        Force constant in eV/Å².
+
+    """
+
     def __init__(
         self,
         atom_indices: list[int],
@@ -259,6 +370,7 @@ class HarmonicBondConstraint:
         self.reference_value = np.linalg.norm(pos2 - pos1)
 
     def to_ase_constraints(self) -> list:
+        """Return the equivalent ASE constraint objects."""
         return [
             Hookean(
                 a1=self.atom_indices[0],
@@ -270,6 +382,19 @@ class HarmonicBondConstraint:
 
 
 class HarmonicAngleConstraint:
+    """Restrain a bond angle to its reference value with a harmonic term.
+
+    Parameters
+    ----------
+    atom_indices : list[int]
+        The three atoms of the angle; the middle one is the vertex.
+    reference_atoms : Atoms
+        Structure that provides the reference angle.
+    force_constant : float, default 5.0
+        Force constant in eV/rad².
+
+    """
+
     def __init__(
         self,
         atom_indices: list[int],
@@ -297,6 +422,7 @@ class HarmonicAngleConstraint:
         self.reference_value = float(np.arccos(cos_angle))
 
     def to_ase_constraints(self) -> list:
+        """Return the equivalent ASE constraint objects."""
         return [
             HarmonicAngleASEConstraint(
                 indices=self.atom_indices,
@@ -307,6 +433,20 @@ class HarmonicAngleConstraint:
 
 
 class FixInternalsConstraint:
+    """Hold a bond, angle or dihedral at a fixed value (wraps ASE ``FixInternals``).
+
+    Parameters
+    ----------
+    constraint_type : {"bond", "angle", "dihedral"}
+        Internal coordinate to fix.
+    atom_indices : list[int]
+        2, 3 or 4 atom indices, matching ``constraint_type``.
+    target_value : float, optional
+        Value to hold, in Å for bonds and degrees for angles and dihedrals.
+        ``None`` keeps the current value.
+
+    """
+
     def __init__(
         self,
         constraint_type: str,
@@ -330,6 +470,7 @@ class FixInternalsConstraint:
         self.target_value = target_value
 
     def to_ase_constraints(self) -> list:
+        """Return the equivalent ASE constraint objects."""
         internal_coordinate = [self.target_value, self.atom_indices]
 
         if self.constraint_type == "bond":
@@ -345,6 +486,30 @@ class FixInternalsConstraint:
 
 
 def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> FAMEXConstraintManager:
+    """Build a constraint manager from a CLI-style constraint string.
+
+    Parameters
+    ----------
+    constraint_str : str
+        Semicolon-separated specifications, for example
+        ``"fix 0,1; harmonic_bond 2,3 k=5.0; fixinternals_bond 4,5 value=1.25"``.
+        Supported types: ``fix``, ``harmonic_position``, ``harmonic_bond``,
+        ``harmonic_angle``, ``fixinternals_bond``, ``fixinternals_angle`` and
+        ``fixinternals_dihedral``.
+    reference_atoms : Atoms
+        Structure that defines the reference values.
+
+    Returns
+    -------
+    FAMEXConstraintManager
+        Manager holding the parsed constraints.
+
+    Raises
+    ------
+    ValueError
+        If a specification is malformed or its type is unknown.
+
+    """
     constraint_manager = FAMEXConstraintManager(reference_atoms)
     constraint_specs = [spec.strip() for spec in constraint_str.split(";") if spec.strip()]
 

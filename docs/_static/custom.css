@@ -14,7 +14,8 @@
     white-space: nowrap;
 }
 .rst-content .wy-table-responsive table.fit-table.nowrap-col2 td:nth-child(2),
-.rst-content .wy-table-responsive table.fit-table.nowrap-col2 th:nth-child(2) {
+.rst-content .wy-table-responsive table.fit-table.nowrap-col2 th:nth-child(2),
+.rst-content table.fit-table.nowrap-col2 td:nth-child(2) code {
     white-space: nowrap;
 }
 
@@ -36,24 +37,33 @@
 }
 
 /* CLI option tables in USER_GUIDE.md (Global Options, Minima, TS, Path):
-   identical column widths in every table. The Option column is sized to fit
-   the longest option (--force-finite-diff-hessian) on one line; Default is
-   narrow and Description takes the remaining width. */
-.rst-content table.options-table {
-    width: 100%;
-    table-layout: fixed;
-}
-.rst-content table.options-table th:nth-child(1) {
-    width: 15em;
-}
-.rst-content table.options-table th:nth-child(2) {
-    width: 9em;
-}
+   identical column widths in every table on wide screens. The Option column
+   fits the longest option (--force-finite-diff-hessian) on one line; Default is
+   narrow and Description takes the remaining width. On narrow screens the
+   fixed widths would squeeze Description to nothing, so the table falls back
+   to automatic layout and scrolls horizontally inside its own box. */
 .rst-content table.options-table td {
     overflow-wrap: break-word;
 }
 .rst-content table.options-table td:nth-child(1) code {
     white-space: nowrap;
+}
+@media (min-width: 769px) {
+    .rst-content table.options-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+    .rst-content table.options-table th:nth-child(1) {
+        width: 15em;
+    }
+    .rst-content table.options-table th:nth-child(2) {
+        width: 9em;
+    }
+}
+@media (max-width: 768px) {
+    .rst-content table.options-table td:nth-child(3) {
+        min-width: 14em;
+    }
 }
 
 /* API Reference "Parameters" sections (Napoleon/numpydoc field lists):
@@ -77,17 +87,45 @@
     margin-left: 0 !important;
     padding-left: 0 !important;
 }
-dl.field-list > dd ul {
+/* Bulleted parameter lists inside field lists: bullets sit inside the text
+   column, and nested lists (e.g. the options of a parameter) are indented one
+   more level. */
+.rst-content dl.field-list > dd > ul {
     margin: 0;
-    padding-left: 0;
-    list-style: none;
+    padding-left: 1.2em;
 }
-dl.field-list > dd ul > li {
+.rst-content dl.field-list > dd ul ul {
+    padding-left: 1.5em;
+    margin-top: 0.3em;
+}
+.rst-content dl.field-list > dd ul > li {
     margin: 0.4em 0;
+}
+
+/* Long fully-qualified names in API signatures and the general index wrap on
+   narrow screens instead of widening the page. */
+.rst-content dl dt.sig {
+    overflow-wrap: anywhere;
+}
+table.indextable td {
+    overflow-wrap: anywhere;
 }
 
 /* Logo at the top of the home page (index.md): leave some room between it
    and the page title below. */
 .rst-content img.home-logo {
     margin-bottom: 2.5em;
+}
+
+/* Inline code used as link text (e.g. [`examples/README.md`](...)) takes the
+   link colour, so it reads as a link rather than as plain red code. */
+.rst-content a code.literal,
+.rst-content a:visited code.literal {
+    color: inherit;
+}
+
+/* Wider text column so five-column tables (Backend Guide) and the CLI option
+   descriptions fit without overflowing on desktop screens. */
+.wy-nav-content {
+    max-width: 1000px;
 }

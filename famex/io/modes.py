@@ -54,13 +54,13 @@ def write_vibrational_modes(
     atoms : Atoms
         Equilibrium structure.
     frequency_result : dict
-        Frequency analysis containing ``frequencies`` (cm^-1) and Cartesian
+        Frequency analysis containing ``frequencies`` (cm⁻¹) and Cartesian
         ``normal_modes`` with one column per mode.
     output_dir : str or Path
         Directory that receives ``mode_III_FREQ.xyz`` files.
     which : {"all", "imaginary"}
         Modes to write when ``mode_indices`` is omitted. ``imaginary`` keeps
-        frequencies below -50 cm^-1.
+        frequencies below -50 cm⁻¹.
     mode_indices : list of int, optional
         Explicit vibrational-mode columns. Overrides ``which``.
     amplitude : float

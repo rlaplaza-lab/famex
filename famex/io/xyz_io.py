@@ -43,6 +43,23 @@ def parse_xyz_comment(comment: str) -> dict[str, Any]:
 
 
 def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
+    """Build the XYZ comment line for a structure.
+
+    Parameters
+    ----------
+    atoms : Atoms
+        Structure whose charge, spin and ``info`` entries (``iteration``, ``image``,
+        ``step``, ``mode``, ``frequency``) are written.
+    energy : float, optional
+        Energy in eV to include.
+
+    Returns
+    -------
+    str
+        Space-separated ``key=value`` pairs, or ``"FAMEX structure"`` when there is
+        no metadata.
+
+    """
     parts = []
 
     charge = None
@@ -101,6 +118,24 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
 
 
 def validate_xyz_structure(atoms: Atoms, strict: bool = False) -> list[str]:
+    """Check a structure for common problems.
+
+    Parameters
+    ----------
+    atoms : Atoms
+        Structure to check.
+    strict : bool, default False
+        Also check that the charge and spin multiplicity in ``atoms.info`` are
+        sensible.
+
+    Returns
+    -------
+    list[str]
+        Description of each problem found (empty, unknown elements, NaN or
+        infinite coordinates, atoms closer than 0.1 Å, coordinates beyond 1000 Å).
+        An empty list means no problems.
+
+    """
     issues = []
 
     if len(atoms) == 0:
@@ -153,6 +188,33 @@ def read_xyz_with_metadata(
     validate: bool = True,
     **kwargs: Any,
 ) -> Geometry | list[Geometry]:
+    """Read an XYZ file, including charge, spin and energy from the comment line.
+
+    Parameters
+    ----------
+    filename : str or Path
+        Path to the XYZ file.
+    frame : str or int, default "last"
+        Frame to read: ``"first"``, ``"last"``, ``"all"`` or an integer index.
+    validate : bool, default True
+        Log a warning for structural problems found by
+        :func:`validate_xyz_structure`.
+    **kwargs
+        Passed to :func:`ase.io.read`.
+
+    Returns
+    -------
+    Geometry or list[Geometry]
+        One geometry, or a list when ``frame="all"``.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file does not exist.
+    ValueError
+        If the file cannot be read, is empty, or ``frame`` is invalid.
+
+    """
     filename = Path(filename)
     if not filename.exists():
         logger.error("XYZ file not found: %s", filename)
@@ -220,6 +282,25 @@ def write_xyz_with_metadata(
     energy: float | None = None,
     **kwargs: Any,
 ) -> None:
+    """Write one or more structures to an XYZ file with metadata in the comment line.
+
+    Parameters
+    ----------
+    atoms : Atoms, Geometry or list
+        Structure or list of structures; a list is written as a multi-frame file.
+    filename : str or Path
+        Output path. Parent directories are created if needed.
+    energy : float, optional
+        Energy in eV written to every frame's comment line.
+    **kwargs
+        Passed to :func:`ase.io.write`.
+
+    Raises
+    ------
+    OSError
+        If the file cannot be written.
+
+    """
     filename = Path(filename)
 
     filename.parent.mkdir(parents=True, exist_ok=True)

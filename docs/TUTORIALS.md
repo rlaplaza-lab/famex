@@ -1,15 +1,8 @@
-# FAMEX Tutorials
+# Tutorials
 
 Hands-on tutorials for minima, transition states, and reaction paths.
 
 **Defaults:** CLI/`Explorer` use UMA (`uma-s-1p2`, task `omol`). Examples below often pass `--backend aimnet2` for a torch-only install. Checkpoint table and UMA tasks: [User Guide](USER_GUIDE.md#default-models).
-
-## Table of Contents
-
-1. [Basic Optimization](#basic-optimization)
-2. [Transition State Search](#transition-state-search)
-3. [Reaction Paths](#reaction-paths)
-4. [Quick Reference](#quick-reference)
 
 ## Basic Optimization
 
@@ -75,19 +68,47 @@ explorer = famex.Explorer.from_pubchem("aspirin", backend="aimnet2", target="min
 
 ### Optimizers
 
-| Optimizer | Type | Use when |
-|-----------|------|----------|
-| `default` | Auto-select | `lbfgs` for minima/path, `rfo` for TS |
-| `lbfgs` | First-order | Large systems, default for minima |
-| `bfgs` | First-order | General purpose |
-| `fire` | First-order | Fast initial relaxation |
-| `sella` | Second-order | Transition states, finite-difference Hessian |
-| `sella-analytical` | Second-order | Transition states when the backend has an analytical Hessian |
-| `trust-krylov` | Second-order | When Hessians are cheap |
-| `trust-ncg` | Second-order | Trust-region with nonlinear conjugate gradient |
-| `trust-exact` | Second-order | Trust-region with exact Hessian |
-| `newton-cg` | Second-order | Newton–CG method (minima only) |
-| `rfo` | Second-order | Restricted-step partitioned RFO for TS. The trust radius sets the step length |
+```{list-table}
+:class: fit-table nowrap-col2
+:header-rows: 1
+
+* - Optimizer
+  - Type
+  - Use when
+* - `default`
+  - Auto-select
+  - `lbfgs` for minima/path, `rfo` for TS
+* - `lbfgs`
+  - First-order
+  - Large systems, default for minima
+* - `bfgs`
+  - First-order
+  - General purpose
+* - `fire`
+  - First-order
+  - Fast initial relaxation
+* - `sella`
+  - Second-order
+  - Transition states, finite-difference Hessian
+* - `sella-analytical`
+  - Second-order
+  - Transition states when the backend has an analytical Hessian
+* - `trust-krylov`
+  - Second-order
+  - When Hessians are cheap
+* - `trust-ncg`
+  - Second-order
+  - Trust-region with nonlinear conjugate gradient
+* - `trust-exact`
+  - Second-order
+  - Trust-region with exact Hessian
+* - `newton-cg`
+  - Second-order
+  - Newton–CG method (minima only)
+* - `rfo`
+  - Second-order
+  - Restricted-step partitioned RFO for TS. The trust radius sets the step length
+```
 
 ### Convergence
 
@@ -136,7 +157,7 @@ explorer = famex.Explorer([reactant, product], target="ts", strategy="interpolat
 result = explorer.run(npoints=15)
 ```
 
-### Growing String (double-ended growing string / DE-GSM)
+### Growing String (DE-GSM)
 
 Omitting `--npoints` and `--steps` uses 15 images and 200 steps, the same defaults as `Explorer.run` for `growing_string`. `--max-images` overrides `--npoints` when you set it.
 
@@ -187,7 +208,7 @@ path = result.get("trajectory", result["optimized_atoms"])
 explorer.save_trajectory(path, "neb_path.xyz")
 ```
 
-### Intrinsic Reaction Coordinate (IRC) from a transition state
+### Intrinsic Reaction Coordinate (IRC) from a Transition State
 
 IRC defaults to 100 steps on the CLI and in Python.
 
@@ -198,7 +219,7 @@ famex path --strategy irc ts.xyz --direction both
 
 See `examples/irc.py`.
 
-### Interpolation only (no optimization)
+### Interpolation Only (No Optimization)
 
 ```bash
 famex path --strategy interpolate reactant.xyz product.xyz --npoints 15 --interp idpp

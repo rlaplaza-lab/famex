@@ -78,6 +78,16 @@ class CalculatorRegistry:
             warnings.warn(error_msg, stacklevel=2)
 
     def register(self, backend_name: str, factory_func: Callable[..., Any]) -> None:
+        """Register a calculator factory under a backend name.
+
+        Parameters
+        ----------
+        backend_name : str
+            Name used to look up the backend.
+        factory_func : callable
+            Callable that returns a calculator.
+
+        """
         self._registry[backend_name] = factory_func
 
     def create_calculator(
@@ -88,6 +98,32 @@ class CalculatorRegistry:
         device: str | None = None,
         **kwargs: Any,
     ) -> Any:
+        """Create a calculator for a registered backend.
+
+        Parameters
+        ----------
+        backend : str
+            Backend name.
+        model_name : str, optional
+            Model to load; for ``tblite`` this is the xTB method.
+        model_path : str, optional
+            Path to a local model file.
+        device : str, optional
+            ``"cpu"`` or ``"cuda"``; ``None`` picks CUDA when available.
+        **kwargs
+            Passed to the backend's calculator.
+
+        Returns
+        -------
+        Any
+            An ASE-compatible calculator.
+
+        Raises
+        ------
+        BackendError
+            If the backend is not available.
+
+        """
         self._load_backend(backend)
         if backend not in self._registry:
             from famex.backends.availability import get_available_backends
@@ -119,9 +155,23 @@ class CalculatorRegistry:
         return calculator_cls(**factory_kwargs)
 
     def is_backend_available(self, backend: str) -> bool:
+        """Return whether a backend can be used in this environment.
+
+        Parameters
+        ----------
+        backend : str
+            Backend name.
+
+        Returns
+        -------
+        bool
+            ``True`` if its dependencies are installed.
+
+        """
         return is_backend_available(backend)
 
 
+#: Shared :class:`CalculatorRegistry` used by FAMEX to create calculators.
 calculator_registry = CalculatorRegistry()
 
 
@@ -140,6 +190,44 @@ def create_calculator(
     task_name: str | None = None,
     dftd3_functional: str | None = None,
 ) -> Any:
+    """Create an ASE calculator for a backend, reusing a cached one when possible.
+
+    Parameters
+    ----------
+    backend : str
+        Backend name (``uma``, ``aimnet2``, ``mace``, ``orb``, ``so3lr``, ``pet``,
+        ``tblite``, ``pyscf``, ``mock``).
+    model_name : str or None
+        Model to load; ``None`` uses the backend default.
+    model_path : str or None
+        Path to a local model file, if the backend uses one.
+    device : str or None
+        ``"cpu"`` or ``"cuda"``; ``None`` picks CUDA when available.
+    default_charge : int
+        Charge used when a structure has none.
+    default_spin : int
+        Spin multiplicity used when a structure has none.
+    charge : int, optional
+        Charge that overrides ``default_charge``.
+    mult : int, optional
+        Spin multiplicity that overrides ``default_spin``.
+    use_cache : bool, default True
+        Reuse a calculator created earlier with the same settings.
+    verbose : int, default 1
+        Verbosity level.
+    needs_hessian : bool, default False
+        UMA only: prepare the model for analytical Hessians.
+    task_name : str, optional
+        UMA only: task head (``omol``, ``omat``, ...).
+    dftd3_functional : str, optional
+        UMA only: add DFT-D3(BJ) for this functional (``r2scan`` or ``pbe``).
+
+    Returns
+    -------
+    Any
+        An ASE-compatible calculator.
+
+    """
     factory_kwargs: dict[str, Any] = {
         "default_charge": default_charge,
         "default_spin": default_spin,

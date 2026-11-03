@@ -1,14 +1,6 @@
-# FAMEX FAQ and Troubleshooting
+# FAQ and Troubleshooting
 
 Common questions about FAMEX usage, installation, and troubleshooting.
-
-## Table of Contents
-
-1. [Installation and Setup](#installation-and-setup)
-2. [Using FAMEX](#using-famex)
-3. [Troubleshooting](#troubleshooting)
-4. [Performance](#performance)
-5. [Getting Help](#getting-help)
 
 ## Installation and Setup
 

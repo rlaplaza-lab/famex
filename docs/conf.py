@@ -35,11 +35,8 @@ templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- autodoc / napoleon --------------------------------------------------
-autodoc_default_options = {
-    "members": True,
-    "undoc-members": False,
-    "show-inheritance": True,
-}
+add_module_names = False
+toc_object_entries_show_parents = "hide"
 autodoc_mock_imports = [
     "fairchem",
     "mace",

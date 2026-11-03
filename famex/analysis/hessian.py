@@ -87,8 +87,8 @@ class CalculatorProtocol(Protocol):
         ----------
         atoms : Atoms, optional
             Atoms structure. If None, uses previously set atoms.
-        force_consistent : bool, optional
-            If True, request a force-consistent energy. Default is False.
+        force_consistent : bool, default False
+            If True, request a force-consistent energy.
 
         Returns
         -------
@@ -128,6 +128,53 @@ class HessianCalculator:
     Richardson extrapolation can improve accuracy by combining results from two
     different step sizes, effectively canceling leading error terms.
 
+    Parameters
+    ----------
+    atoms : Atoms
+        ASE Atoms object
+    calculator : CalculatorProtocol
+        Calculator compatible with ASE (FAMEX calculator, ASE Calculator, etc.)
+    delta : float, default 0.01
+        Displacement for finite differences (Å). Must be positive.
+    method : {"forward", "central", "5point", "7point"}, default "central"
+        Finite-difference scheme (see above).
+    richardson : bool, default False
+        Whether to use Richardson extrapolation for improved accuracy
+    delta2 : float, optional
+        Second displacement for Richardson extrapolation (Å).
+        If None and richardson=True, defaults to delta/2.
+        Must be positive and differ from delta.
+    indices : list[int], optional
+        Indices of atoms to include. If None, all atoms included.
+        Indices must be unique, within bounds, and valid atom indices.
+    verbose : int, default 1
+        Verbosity level for Hessian calculation output:
+
+        - 0: Quiet (minimal output)
+        - 1: Normal (shows progress)
+        - 2: Verbose (detailed information)
+        - 3: Very verbose (includes progress bar if tqdm available)
+    adaptive_delta : bool, default False
+        Whether to automatically select optimal delta based on noise estimation.
+        Uses Richardson extrapolation error to find best delta.
+    delta_range : tuple[float, float], default (0.001, 0.05)
+        (min_delta, max_delta) search range for adaptive delta selection.
+    target_noise : float, default 1e-5
+        Target noise level in eV/Å² for adaptive delta selection.
+    max_iterations : int, default 5
+        Maximum iterations for adaptive delta selection.
+    n_workers : int, optional
+        Number of thread workers for force calculations.
+        If None or 1, uses sequential computation. If > 1, parallelizes
+        independent displacements with a ThreadPoolExecutor. Each worker
+        needs an independent calculator with ``copy()``;
+        otherwise evaluation stays serial.
+
+    Raises
+    ------
+    ValueError
+        If delta <= 0, indices are invalid, or other parameters are inconsistent
+
     Examples
     --------
     >>> from ase import Atoms
@@ -154,8 +201,7 @@ class HessianCalculator:
 
     See Also
     --------
-    FrequencyAnalysis : Higher-level interface for frequency calculations
-    validate_hessian : Function to validate Hessian properties
+    famex.analysis.frequency.FrequencyAnalysis : Higher-level interface for frequency calculations
 
     """
 
@@ -175,76 +221,6 @@ class HessianCalculator:
         max_iterations: int = 5,
         n_workers: int | None = None,
     ) -> None:
-        """Initialize Hessian calculator.
-
-        Parameters
-        ----------
-        atoms : Atoms
-            ASE Atoms object
-        calculator : CalculatorProtocol
-            Calculator compatible with ASE (FAMEX calculator, ASE Calculator, etc.)
-        delta : float
-            Displacement for finite differences (Å). Must be positive.
-        method : str
-            'forward', 'central', or '5point' differences
-        richardson : bool, default False
-            Whether to use Richardson extrapolation for improved accuracy
-        delta2 : float, optional
-            Second displacement for Richardson extrapolation (Å).
-            If None and richardson=True, defaults to delta/2.
-            Must be positive and differ from delta.
-        indices : List[int], optional
-            Indices of atoms to include. If None, all atoms included.
-            Indices must be unique, within bounds, and valid atom indices.
-        verbose : int
-            Verbosity level for Hessian calculation output:
-
-            - 0: Quiet (minimal output)
-            - 1: Normal (default, shows progress)
-            - 2: Verbose (detailed information)
-            - 3: Very verbose (includes progress bar if tqdm available)
-        adaptive_delta : bool, default False
-            Whether to automatically select optimal delta based on noise estimation.
-            Uses Richardson extrapolation error to find best delta.
-        delta_range : tuple[float, float], default (0.001, 0.05)
-            (min_delta, max_delta) search range for adaptive delta selection.
-        target_noise : float, default 1e-5
-            Target noise level in eV/Å² for adaptive delta selection.
-        max_iterations : int, default 5
-            Maximum iterations for adaptive delta selection.
-        n_workers : int, optional
-            Number of thread workers for force calculations.
-            If None or 1, uses sequential computation. If > 1, parallelizes
-            independent displacements with a ThreadPoolExecutor. Each worker
-            needs an independent calculator with ``copy()``;
-            otherwise evaluation stays serial.
-
-        Raises
-        ------
-        ValueError
-            If delta <= 0, indices are invalid, or other parameters are inconsistent
-
-        Examples
-        --------
-        >>> from ase import Atoms
-        >>> from famex.analysis.hessian import HessianCalculator
-        >>> # Basic usage with central differences
-        >>> atoms = Atoms('H2', positions=[[0, 0, 0], [0, 0, 0.74]])
-        >>> calc = SomeCalculator()  # Your calculator here
-        >>> hessian_calc = HessianCalculator(atoms, calc, delta=0.01)
-        >>> hessian = hessian_calc.calculate_numerical_hessian()
-        >>> # High-accuracy with Richardson extrapolation
-        >>> hessian_calc_rich = HessianCalculator(
-        ...     atoms, calc, delta=0.02, richardson=True, delta2=0.01
-        ... )
-        >>> hessian = hessian_calc_rich.calculate_numerical_hessian()
-        >>> # Adaptive delta selection for optimal accuracy
-        >>> hessian_calc_adaptive = HessianCalculator(
-        ...     atoms, calc, delta=0.01, adaptive_delta=True, max_iterations=5
-        ... )
-        >>> hessian = hessian_calc_adaptive.calculate_numerical_hessian()
-
-        """
         # Validate atoms
         if len(atoms) == 0:
             msg = "Atoms object must contain at least one atom"

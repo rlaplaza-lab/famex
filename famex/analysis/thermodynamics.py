@@ -51,6 +51,42 @@ class ThermodynamicProperties:
     This class integrates vibrational, translational, rotational, and electronic
     contributions with support for quasi-harmonic corrections, solvation effects,
     and symmetry corrections.
+
+    Parameters
+    ----------
+    frequencies : np.ndarray
+        Vibrational frequencies in cm⁻¹. Imaginary (negative) and zero modes are
+        dropped.
+    atoms : Atoms
+        Structure, used for masses, rotational constants and symmetry.
+    temperature : float, default 298.15
+        Temperature in K.
+    pressure : float, default 101325
+        Pressure in Pa.
+    method : {"rrho", "grimme", "truhlar"}, default "rrho"
+        Treatment of low-frequency vibrations.
+    freq_cutoff : float, default 100.0
+        Cutoff in cm⁻¹ for the quasi-harmonic corrections.
+    freq_scale_factor : float, default 1.0
+        Factor applied to the frequencies.
+    rotational_temperatures : np.ndarray, optional
+        Rotational temperatures in K; computed from ``atoms`` when omitted.
+    rotational_constants : np.ndarray, optional
+        Rotational constants in GHz.
+    symmetry_number : int, optional
+        Rotational symmetry number; detected from the geometry when omitted.
+    point_group : str, optional
+        Point group used to look up the symmetry number.
+    linear : bool, optional
+        Whether the molecule is linear; detected when omitted.
+    multiplicity : int, default 1
+        Spin multiplicity 2S+1.
+    solvent : str, default "none"
+        Solvent name; "none" means gas phase.
+    concentration : float, optional
+        Concentration in mol/L. When omitted, the ideal-gas value at
+        ``pressure`` is used in the gas phase and 1 mol/L in solution.
+
     """
 
     def __init__(
@@ -74,7 +110,6 @@ class ThermodynamicProperties:
         solvent: str = "none",
         concentration: float | None = None,
     ) -> None:
-        """Initialize thermodynamic property calculator."""
         self.frequencies = filter_positive_frequencies(frequencies)
         self.atoms = atoms
         self.temperature = temperature
@@ -113,7 +148,36 @@ class ThermodynamicProperties:
         self,
         energy: float | None = None,
     ) -> dict[str, Any]:
-        """Calculate complete thermodynamic properties."""
+        """Calculate complete thermodynamic properties.
+
+        Parameters
+        ----------
+        energy : float, optional
+            Electronic energy in eV; taken from the attached calculator when
+            omitted (0 if there is none).
+
+        Returns
+        -------
+        dict[str, Any]
+            Energies in eV and entropies in eV/K:
+
+            - ``energy``: Electronic energy
+            - ``zpe``: Zero-point energy (0 for ``grimme``, where it is part of
+              ``enthalpy_vib``)
+            - ``enthalpy_trans``, ``enthalpy_rot``, ``enthalpy_vib``: Thermal
+              enthalpy contributions
+            - ``enthalpy_total``: Total enthalpy H
+            - ``entropy_trans``, ``entropy_rot``, ``entropy_vib``,
+              ``entropy_elec``: Entropy contributions
+            - ``entropy_total``: Total entropy S
+            - ``gibbs_free_energy``: G = H − T·S
+            - ``free_energy_correction``: G − ``energy``
+            - ``temperature``, ``method``, ``symmetry_number``,
+              ``point_group``, ``concentration``: Settings used
+            - ``contributions``: The same terms grouped by translational,
+              rotational, vibrational and electronic parts
+
+        """
         if energy is None:
             if hasattr(self.atoms, "calc") and self.atoms.calc is not None:
                 if hasattr(self.atoms.calc, "get_potential_energy"):

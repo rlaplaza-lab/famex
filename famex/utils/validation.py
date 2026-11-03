@@ -9,6 +9,17 @@ if TYPE_CHECKING:
 
 
 class FAMEXError(Exception):
+    """General FAMEX error with an optional suggestion for the user.
+
+    Parameters
+    ----------
+    message : str
+        Description of the problem.
+    suggestion : str, optional
+        How to fix it; appended to the message when printed.
+
+    """
+
     def __init__(self, message: str, suggestion: str | None = None) -> None:
         super().__init__(message)
         self.message = message
@@ -21,6 +32,19 @@ class FAMEXError(Exception):
 
 
 class BackendError(Exception):
+    """Raised when a requested backend is not available.
+
+    Parameters
+    ----------
+    backend : str
+        Backend that was requested.
+    available : list[str]
+        Backends that are available; listed in the message.
+    operation : str
+        What the backend was needed for.
+
+    """
+
     def __init__(self, backend: str, available: list[str], operation: str) -> None:
         if available:
             available_str = ", ".join(available)
@@ -38,6 +62,19 @@ class BackendError(Exception):
 
 
 class DependencyError(Exception):
+    """Raised when an optional dependency is missing.
+
+    Parameters
+    ----------
+    dependency : str
+        Name of the missing package.
+    purpose : str
+        What the package is needed for.
+    install_command : str
+        Command that installs it; shown in the message.
+
+    """
+
     def __init__(self, dependency: str, purpose: str, install_command: str) -> None:
         message = (
             f"Missing dependency '{dependency}' required for {purpose}. "
