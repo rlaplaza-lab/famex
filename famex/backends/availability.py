@@ -226,17 +226,53 @@ _checker = BackendAvailabilityChecker()
 
 # Core convenience functions
 def is_backend_available(backend: str) -> bool:
-    """Check if a backend is available."""
+    """Check whether a backend can be used in this environment.
+
+    Parameters
+    ----------
+    backend : str
+        Backend name.
+
+    Returns
+    -------
+    bool
+        ``True`` if its dependencies are installed and importable.
+
+    """
     return _checker.is_backend_available(backend)
 
 
 def get_availability_reason(backend: str) -> str:
-    """Get reason why a backend is or isn't available."""
+    """Explain why a backend is or isn't available.
+
+    Parameters
+    ----------
+    backend : str
+        Backend name.
+
+    Returns
+    -------
+    str
+        Human-readable reason, such as a missing dependency.
+
+    """
     return _checker.get_availability_reason(backend)
 
 
 def get_available_backends(include_mock: bool = True) -> list[str]:
-    """Get list of available backends."""
+    """List the backends that can be used in this environment.
+
+    Parameters
+    ----------
+    include_mock : bool, default True
+        Include the built-in ``mock`` backend.
+
+    Returns
+    -------
+    list[str]
+        Names of the available backends (ML and non-ML).
+
+    """
     return _checker.get_available_backends(include_mock)
 
 
@@ -285,10 +321,10 @@ def get_available_backends_with_logging(
 
     Parameters
     ----------
-    include_mock : bool, optional
-        Whether to include the mock backend. Default is True.
-    verbose : bool, optional
-        Whether to print availability status for each backend. Default is False.
+    include_mock : bool, default True
+        Whether to include the mock backend.
+    verbose : bool, default False
+        Whether to print availability status for each backend.
 
     Returns
     -------
@@ -327,8 +363,8 @@ def filter_available_backends(requested_backends: list[str], verbose: bool = Fal
     ----------
     requested_backends : list[str]
         Backend names to check.
-    verbose : bool, optional
-        Whether to print status messages. Default is False.
+    verbose : bool, default False
+        Whether to print status messages.
 
     Returns
     -------

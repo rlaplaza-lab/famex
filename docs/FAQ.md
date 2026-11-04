@@ -1,70 +1,62 @@
-# FAMEX FAQ and Troubleshooting
+# FAQ and Troubleshooting
 
 Common questions about FAMEX usage, installation, and troubleshooting.
 
-## Table of Contents
-
-1. [Installation and Setup](#installation-and-setup)
-2. [Using FAMEX](#using-famex)
-3. [Troubleshooting](#troubleshooting)
-4. [Performance](#performance)
-5. [Getting Help](#getting-help)
-
 ## Installation and Setup
 
-### Q: Which backend should I choose?
+### Which backend should I choose?
 
-**A:** CLI/`Explorer` default to UMA. For the simplest torch-only install, use `--backend aimnet2`. Full keyword and checkpoint list: [Default models](USER_GUIDE.md#default-models).
+CLI/`Explorer` default to UMA. For the simplest torch-only install, use `--backend aimnet2`. Full keyword and checkpoint list: [Default models](USER_GUIDE.md#default-models).
 
-### Q: Can I install multiple backends?
+### Can I install multiple backends?
 
-**A:** Some backends conflict (UMA vs MACE). Use separate conda environments — see [Dependency Conflicts](USER_GUIDE.md#dependency-conflicts) in the User Guide.
+Some backends conflict (UMA vs MACE). Use separate conda environments — see [Dependency Conflicts](USER_GUIDE.md#dependency-conflicts) in the User Guide.
 
-### Q: What Python version do I need?
+### What Python version do I need?
 
-**A:** Python 3.11+ required. The **Orb** backend (`pip install famex[orb]`) requires Python 3.12+.
+Python 3.11+ required. The **Orb** backend (`pip install famex[orb]`) requires Python 3.12+.
 
-### Q: Backend not available after installation?
+### Backend not available after installation?
 
-**A:** Install backend dependencies. UMA: `pip install famex[uma]` or `pip install "fairchem-core>=2.25.0"`. Other backends: see [README](../README.md) and [User Guide](USER_GUIDE.md#backend-guide).
+Install backend dependencies. UMA: `pip install famex[uma]` or `pip install "fairchem-core>=2.25.0"`. Other backends: see [README](https://github.com/rlaplaza-lab/famex#readme) and [User Guide](USER_GUIDE.md#backend-guide).
 
 ## Using FAMEX
 
-### Q: What's the difference between target and strategy?
+### What's the difference between target and strategy?
 
-**A:** See [Core Concepts](USER_GUIDE.md#core-concepts). Target (`minima`, `ts`, `path`) is what you want; strategy (`local`, `interpolate`, `neb`, etc.) is how to get there.
+See [Core Concepts](USER_GUIDE.md#core-concepts). Target (`minima`, `ts`, `path`) is what you want; strategy (`local`, `interpolate`, `neb`, etc.) is how to get there.
 
-### Q: How is the free energy computed?
+### How is the free energy computed?
 
-**A:** See [Frequencies and thermochemistry](USER_GUIDE.md#frequencies-and-thermochemistry). The default is RRHO at 298.15 K and 1 atm.
+See [Frequencies and thermochemistry](USER_GUIDE.md#frequencies-and-thermochemistry). The default is RRHO at 298.15 K and 1 atm.
 
-### Q: NEB finished but the path is not converged?
+### NEB finished but the path is not converged?
 
-**A:** The band did not reach `--fmax` within `--steps`. The images are still written. Raise `--steps` or loosen `--fmax`.
+The band did not reach `--fmax` within `--steps`. The images are still written. Raise `--steps` or loosen `--fmax`.
 
-### Q: How do I choose convergence criteria?
+### How do I choose convergence criteria?
 
-**A:** See [Convergence](TUTORIALS.md#convergence) in the Tutorials. Quick reference: `--fmax 0.1 --steps 100` (testing), `--fmax 0.05 --steps 1000` (default), `--fmax 0.01 --steps 2000` (high precision).
+See [Convergence](TUTORIALS.md#convergence) in the Tutorials. Quick reference: `--fmax 0.1 --steps 100` (testing), `--fmax 0.05 --steps 1000` (default), `--fmax 0.01 --steps 2000` (high precision).
 
-### Q: What file formats are supported?
+### What file formats are supported?
 
-**A:** Formats supported by the Atomic Simulation Environment (ASE) I/O layer (XYZ, CIF, PDB, VASP, and others). `famex minima`, `famex ts`, and `famex path` also accept a SMILES string when the argument is not an existing file, or `pubchem:NAME`, `cid:`, and a bare numeric CID to download a conformer. A bare name on those commands is SMILES. `--embedder pysmiles` (default, `pip install famex[smiles]`) is distance geometry. `--embedder rdkit` (`pip install famex[rdkit]`) is ETKDGv3.
+Formats supported by the Atomic Simulation Environment (ASE) I/O layer (XYZ, CIF, PDB, VASP, and others). `famex minima`, `famex ts`, and `famex path` also accept a SMILES string when the argument is not an existing file, or `pubchem:NAME`, `cid:`, and a bare numeric CID to download a conformer. A bare name on those commands is SMILES. `--embedder pysmiles` (default, `pip install famex[smiles]`) is distance geometry. `--embedder rdkit` (`pip install famex[rdkit]`) is ETKDGv3.
 
-### Q: Can SMILES embedding replace a force-field or ML minimization?
+### Can SMILES embedding replace a force-field or ML minimization?
 
-**A:** No. Both embedders only produce a starting geometry — run `famex minima` (or the Python API) to relax. Details: [Structure inputs](USER_GUIDE.md#structure-inputs-file-smiles-pubchem).
+No. Both embedders only produce a starting geometry — run `famex minima` (or the Python API) to relax. Details: [Structure inputs](USER_GUIDE.md#structure-inputs-file-smiles-pubchem).
 
-### Q: How do I specify charge and spin?
+### How do I specify charge and spin?
 
-**A:** CLI: `--default-charge` and `--default-spin`. Python: `Explorer(..., default_charge=0, default_spin=1)`. Values are written to `atoms.info` when missing. Required for consistent UMA/MACE/Orb results on charged or open-shell systems. For non-`omol` UMA tasks (`omat`, `oc20`, …), use `--default-spin 0`.
+CLI: `--default-charge` and `--default-spin`. Python: `Explorer(..., default_charge=0, default_spin=1)`. Values are written to `atoms.info` when missing. Required for consistent UMA/MACE/Orb results on charged or open-shell systems. For non-`omol` UMA tasks (`omat`, `oc20`, …), use `--default-spin 0`.
 
-### Q: How do I choose a UMA task or fine-tune?
+### How do I choose a UMA task or fine-tune?
 
-**A:** Defaults stay `uma-s-1p2` + `--task-name omol`. Pass `--task-name` for materials/catalysis heads, or `--model-name uma-s-1p2p1-ft-d4rev` / `uma-s-1p2p1-ft-r2scan` for the 1.2.1 fine-tunes. Use `--dftd3-functional r2scan` with the r²SCAN fine-tune; do **not** add D3 to `ft-d4rev`. See [UMA task heads and fine-tunes](USER_GUIDE.md#uma-task-heads-and-fine-tunes).
+Defaults stay `uma-s-1p2` + `--task-name omol`. Pass `--task-name` for materials/catalysis heads, or `--model-name uma-s-1p2p1-ft-d4rev` / `uma-s-1p2p1-ft-r2scan` for the 1.2.1 fine-tunes. Use `--dftd3-functional r2scan` with the r²SCAN fine-tune; do **not** add D3 to `ft-d4rev`. See [UMA task heads and fine-tunes](USER_GUIDE.md#uma-task-heads-and-fine-tunes).
 
-### Q: How do I use constraints?
+### How do I use constraints?
 
-**A:** `--constraints` accepts semicolon-separated specs, for example:
+`--constraints` accepts semicolon-separated specs, for example:
 
 ```bash
 famex minima --strategy local molecule.xyz --constraints "fix 0,1,2"
@@ -75,62 +67,62 @@ Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_a
 
 ## Troubleshooting
 
-### Q: Optimization doesn't converge?
+### Optimization doesn't converge?
 
-**A:** Try:
+Try:
 - Increase steps: `--steps 2000`
 - Loosen convergence: `--fmax 0.1`
 - Change optimizer: `--local-optimizer bfgs`
 - Check input structure quality
 
-### Q: Forces too large or unrealistic energies?
+### Forces too large or unrealistic energies?
 
-**A:** Check:
+Check:
 - Backend compatibility with your elements
 - Input structure quality (atoms too close?)
 - Charge/spin settings
 - System size limits
 
-### Q: CUDA out of memory?
+### CUDA out of memory?
 
-**A:** Use CPU (`--device cpu`), reduce system size, or use LBFGS optimizer (`--local-optimizer lbfgs`).
+Use CPU (`--device cpu`), reduce system size, or use LBFGS optimizer (`--local-optimizer lbfgs`).
 
-### Q: Transition state validation issues?
+### Transition state validation issues?
 
-**A:**
+
 - Multiple imaginary frequencies: poor TS guess — try interpolation, growing string, or `rfo` / `sella`
 - No imaginary frequencies: structure may be a minimum — verify the TS guess
 - Use `--freq` or `calculate_frequencies()`; check `ts_analysis["n_imaginary_frequencies"]`
 - Animate that mode with `--write-modes --modes imaginary`, or `save_vibrational_modes(..., which="imaginary")`
 - Use `--require-ts` to raise if the result is not a first-order saddle
 
-### Q: UMA and MACE both installed but one fails?
+### UMA and MACE both installed but one fails?
 
-**A:** They require incompatible `e3nn` versions. Use separate conda environments (see [Dependency Conflicts](USER_GUIDE.md#dependency-conflicts)).
+They require incompatible `e3nn` versions. Use separate conda environments (see [Dependency Conflicts](USER_GUIDE.md#dependency-conflicts)).
 
 ## Performance
 
-### Q: How do I speed up calculations?
+### How do I speed up calculations?
 
-**A:** Use a GPU (`--device cuda`) when available, or relax `--fmax` / `--steps` while prototyping.
+Use a GPU (`--device cuda`) when available, or relax `--fmax` / `--steps` while prototyping.
 
-### Q: Which backend is fastest?
+### Which backend is fastest?
 
-**A:** Depends on system size, hardware, and task. AIMNet2 is typically fast for small organic molecules; UMA is the default machine learning potential. Profile your workload with [`examples/timing_benchmark.py`](../examples/timing_benchmark.py).
+Depends on system size, hardware, and task. AIMNet2 is typically fast for small organic molecules; UMA is the default machine learning potential. Profile your workload with [`examples/timing_benchmark.py`](https://github.com/rlaplaza-lab/famex/blob/main/examples/timing_benchmark.py).
 
 ## Getting Help
 
-### Q: Where can I get help?
+### Where can I get help?
 
-**A:** [User Guide](USER_GUIDE.md), [Tutorials](TUTORIALS.md), [examples](../examples/README.md), or [GitHub Issues](https://github.com/rlaplaza-lab/famex/issues).
+[User Guide](USER_GUIDE.md), [Tutorials](TUTORIALS.md), [examples](https://github.com/rlaplaza-lab/famex/tree/main/examples), or [GitHub Issues](https://github.com/rlaplaza-lab/famex/issues).
 
-### Q: How do I report a bug?
+### How do I report a bug?
 
-**A:** Include `famex --version`, Python version, OS, backend and model name, full error message, and a minimal reproducing example.
+Include `famex --version`, Python version, OS, backend and model name, full error message, and a minimal reproducing example.
 
-### Q: Where can I find examples?
+### Where can I find examples?
 
-**A:** See [`examples/README.md`](../examples/README.md). Quick start: `python examples/optimize_minimum.py` from the `examples/` directory.
+See [`examples/README.md`](https://github.com/rlaplaza-lab/famex/tree/main/examples). Quick start: `python examples/optimize_minimum.py` from the `examples/` directory.
 
 ---
 

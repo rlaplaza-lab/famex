@@ -28,7 +28,7 @@ class StructureSimilarity:
     is_similar : bool
         Whether structures are considered similar
     rmsd : float
-        RMSD value in Angstroms
+        RMSD value in Å
     energy_diff : float | None
         Energy difference in eV, or None if energy unavailable
     """
@@ -39,6 +39,28 @@ class StructureSimilarity:
 
 
 class PathManager:
+    """Reaction path built from two or more structures.
+
+    Holds the reactant, optional intermediates and product, generates
+    interpolated paths between them, and provides helpers to pick a TS guess,
+    compare structures and remove duplicates.
+
+    Parameters
+    ----------
+    structures : Sequence[Atoms] or Atoms
+        At least two structures with the same atoms, in path order.
+    calculator : Any, optional
+        Calculator attached to every structure and interpolated image.
+    name : str, optional
+        Label for the path; ``"PathManager"`` when omitted.
+
+    Raises
+    ------
+    ValueError
+        If fewer than two structures are given or they are not compatible.
+
+    """
+
     def __init__(
         self,
         structures: Sequence[Atoms] | Atoms,
@@ -79,10 +101,12 @@ class PathManager:
 
     @property
     def reactant(self) -> Geometry:
+        """First structure of the path."""
         return self.structures[0]
 
     @property
     def product(self) -> Geometry:
+        """Last structure of the path."""
         return self.structures[-1]
 
     def interpolate(
@@ -90,6 +114,29 @@ class PathManager:
         npoints: int = 10,
         method: str = "linear",
     ) -> list[Geometry]:
+        """Interpolate a path through all structures.
+
+        With intermediates, the points are split between the segments and the
+        shared end points are not repeated.
+
+        Parameters
+        ----------
+        npoints : int, default 10
+            Total number of images, including the end points.
+        method : {"linear", "geodesic", "idpp"}, default "linear"
+            Interpolation method.
+
+        Returns
+        -------
+        list[Geometry]
+            Interpolated images from reactant to product.
+
+        Raises
+        ------
+        ValueError
+            If ``npoints`` is smaller than 2.
+
+        """
         if npoints < 2:
             msg = "Need at least 2 points for interpolation"
             raise ValueError(msg)
@@ -179,6 +226,24 @@ class PathManager:
 
     @staticmethod
     def find_ts_guess(path: Sequence[Atoms]) -> tuple[Atoms, int]:
+        """Return the highest-energy image of a path as a TS guess.
+
+        Parameters
+        ----------
+        path : Sequence[Atoms]
+            Images with calculators attached.
+
+        Returns
+        -------
+        tuple[Atoms, int]
+            The highest-energy image and its index.
+
+        Raises
+        ------
+        RuntimeError
+            If the path is empty or an energy cannot be evaluated.
+
+        """
         energies = PathManager._path_energies(path)
         ts_index = energies.index(max(energies))
         return path[ts_index], ts_index
@@ -189,6 +254,21 @@ class PathManager:
         atoms2: Atoms,
         align: bool = True,
     ) -> float:
+        """Root-mean-square deviation between two structures, in Å.
+
+        Parameters
+        ----------
+        atoms1, atoms2 : Atoms
+            Structures to compare, with atoms in the same order.
+        align : bool, default True
+            Superimpose the structures (Kabsch) before computing the RMSD.
+
+        Returns
+        -------
+        float
+            RMSD in Å, or ``inf`` if the atom counts differ.
+
+        """
         if len(atoms1) != len(atoms2):
             return float("inf")
 
@@ -231,6 +311,27 @@ class PathManager:
         energy2: float | None = None,
         align: bool = True,
     ) -> StructureSimilarity:
+        """Decide whether two structures are the same within thresholds.
+
+        Parameters
+        ----------
+        atoms1, atoms2 : Atoms
+            Structures to compare.
+        rmsd_threshold : float
+            Maximum RMSD in Å.
+        energy_threshold : float
+            Maximum energy difference in eV.
+        energy1, energy2 : float, optional
+            Known energies in eV; computed from the calculators when omitted.
+        align : bool, default True
+            Superimpose the structures before computing the RMSD.
+
+        Returns
+        -------
+        StructureSimilarity
+            Whether they are similar, with the RMSD and energy difference.
+
+        """
         rmsd = PathManager.calculate_rmsd(atoms1, atoms2, align=align)
 
         if energy1 is None:
@@ -276,6 +377,37 @@ class PathManager:
         min_spacing: int = 1,
         align_rmsd: bool = True,
     ) -> tuple[list[Atoms], list[int], list[str]]:
+        """Remove structures that duplicate an earlier one.
+
+        A structure is redundant when it is within ``rmsd_threshold`` and
+        ``energy_threshold`` of a structure already kept.
+
+        Parameters
+        ----------
+        structures : list[Atoms]
+            Structures to filter, in order.
+        input_structures : list[Atoms], optional
+            Original inputs; a warning is added if the results only reproduce them.
+        rmsd_threshold : float, default 0.1
+            RMSD in Å below which structures may be duplicates.
+        energy_threshold : float, default 0.001
+            Energy difference in eV below which structures may be duplicates.
+        strategy_name : str, default "strategy"
+            Name used in warning messages.
+        preserve_path_continuity : bool, default False
+            Also drop structures closer than ``min_spacing`` positions to the last
+            kept one.
+        min_spacing : int, default 1
+            Minimum index spacing when ``preserve_path_continuity`` is set.
+        align_rmsd : bool, default True
+            Superimpose structures before computing the RMSD.
+
+        Returns
+        -------
+        tuple[list[Atoms], list[int], list[str]]
+            Kept structures, indices of removed structures, and warning messages.
+
+        """
         if not structures:
             return [], [], []
 
@@ -394,6 +526,24 @@ class PathManager:
 
     @staticmethod
     def attach_calculators(explorer: Any, structures: Sequence[Atoms] | Atoms) -> Any | None:
+        """Attach the Explorer's calculator and constraints to structures.
+
+        Missing ``charge``/``spin`` entries in ``info`` are filled from the
+        Explorer defaults.
+
+        Parameters
+        ----------
+        explorer : Explorer
+            Explorer that creates the calculators.
+        structures : Sequence[Atoms] or Atoms
+            Structures to set up (modified in place).
+
+        Returns
+        -------
+        Any or None
+            Calculator of the first structure, or ``None`` if there are none.
+
+        """
         struct_list = [structures] if isinstance(structures, Atoms) else list(structures)
 
         if not struct_list:

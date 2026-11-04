@@ -4,6 +4,7 @@ Unified CLI and Python API for geometry optimization with ASE, optional SELLA,
 and ML or classical potentials.
 
 Key features:
+
 - Minima, transition-state, and reaction-path workflows
 - Path strategies: NEB, CI-NEB, IRC, and interpolation
 - TS strategies: local, interpolate, CI-NEB, DHS, and growing string
@@ -12,19 +13,8 @@ Key features:
 - Geometry I/O via ASE (XYZ, CIF, PDB, and others); SMILES and PubChem inputs
 - Mock calculator for tests without ML dependencies
 
-Examples
---------
-    Basic geometry optimization:
-    >>> from famex import Explorer
-    >>> explorer = Explorer.from_file("molecule.xyz", backend="aimnet2")
-    >>> results = explorer.run()
-    >>> explorer.save_structure(results['optimized_atoms'], "optimized.xyz")
-
-    Reaction path optimization (NEB/CI-NEB):
-    >>> explorer = Explorer(atoms=[reactant, product], target="path")
-    >>> result = explorer.run(npoints=7)
-    >>> explorer.save_trajectory(result["trajectory"], "reaction_path.xyz")
-
+See the :doc:`/USER_GUIDE` and the :doc:`/TUTORIALS` for usage examples; the
+main entry point is :class:`~famex.core.explorer.Explorer`.
 """
 
 from __future__ import annotations

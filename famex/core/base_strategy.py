@@ -19,17 +19,33 @@ class StrategyMetadata:
     """Metadata for strategy registration."""
 
     name: str
+    """Registry name of the strategy."""
     target: str
+    """Target the strategy serves (``minima``, ``ts`` or ``path``)."""
     strategy: str
+    """Strategy keyword, such as ``local`` or ``neb``."""
     description: str
+    """One-line description shown by :meth:`~famex.core.explorer.Explorer.list_strategies`."""
     aliases: list[str]
+    """Other names accepted for the strategy."""
     requires_multiple_structures: bool = False
+    """Whether the strategy needs at least two input structures."""
 
 
 class BaseStrategy(ABC):
-    """Base class for all optimization strategies."""
+    """Base class for all optimization strategies.
+
+    Parameters
+    ----------
+    explorer : Explorer
+        Explorer that runs the strategy and provides calculators and settings.
+    profiler : PerformanceProfiler, optional
+        Profiler whose summary is added to the result.
+
+    """
 
     metadata: StrategyMetadata
+    """Registration metadata of the strategy."""
 
     def __init__(
         self,
@@ -48,6 +64,20 @@ class BaseStrategy(ABC):
         """Execute strategy. Returns standardized result dict."""
 
     def validate_inputs(self, atoms_list: list[Atoms]) -> None:
+        """Check that the input structures suit the strategy.
+
+        Parameters
+        ----------
+        atoms_list : list[Atoms]
+            Input structures.
+
+        Raises
+        ------
+        ValueError
+            If no structures are given, too few are given for a multi-structure
+            strategy, or the structures differ in atom count or composition.
+
+        """
         if not atoms_list:
             msg = "No atoms provided"
             raise ValueError(msg)
@@ -95,6 +125,22 @@ class BaseStrategy(ABC):
         optimized_atoms: Atoms | Sequence[Atoms],
         **metadata: Any,
     ) -> dict[str, Any]:
+        """Build the standard result dictionary.
+
+        Parameters
+        ----------
+        optimized_atoms : Atoms or Sequence[Atoms]
+            Final structure or structures.
+        **metadata
+            Extra result entries. Values that are not ``Atoms``, ``list``, ``bool``,
+            ``int``, ``float`` or ``str`` are converted to strings with a warning.
+
+        Returns
+        -------
+        dict[str, Any]
+            Result with ``optimized_atoms``, ``strategy`` and the extra entries.
+
+        """
         result: dict[str, Any] = {
             "optimized_atoms": optimized_atoms,
             "strategy": self.metadata.name,

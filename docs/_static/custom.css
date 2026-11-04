@@ -1,0 +1,131 @@
+/* Tables in USER_GUIDE.md: size to content instead of stretching to 100%.
+   ".nowrap-col2" additionally keeps the 2nd column (e.g. Default) on one line;
+   the 1st column always stays on one line. */
+.fit-table {
+    width: auto;
+    table-layout: auto;
+}
+.fit-table col {
+    width: auto !important;
+}
+.rst-content .wy-table-responsive table.fit-table td:nth-child(1),
+.rst-content .wy-table-responsive table.fit-table th:nth-child(1),
+.rst-content table.fit-table td:nth-child(1) code {
+    white-space: nowrap;
+}
+.rst-content .wy-table-responsive table.fit-table.nowrap-col2 td:nth-child(2),
+.rst-content .wy-table-responsive table.fit-table.nowrap-col2 th:nth-child(2),
+.rst-content table.fit-table.nowrap-col2 td:nth-child(2) code {
+    white-space: nowrap;
+}
+
+/* All tables: wrap cell text (and inline code) onto several lines instead of
+   letting it run past the cell border. sphinx_rtd_theme forces
+   `white-space: nowrap` on cells inside .wy-table-responsive and on inline
+   code, so both are overridden here. */
+.rst-content .wy-table-responsive table.docutils td,
+.rst-content .wy-table-responsive table.docutils th {
+    white-space: normal;
+}
+.rst-content table.docutils td code,
+.rst-content table.docutils th code {
+    white-space: normal;
+    overflow-wrap: break-word;
+}
+.rst-content code.literal span.pre {
+    white-space: nowrap;
+}
+
+/* CLI option tables in USER_GUIDE.md (Global Options, Minima, TS, Path):
+   identical column widths in every table on wide screens. The Option column
+   fits the longest option (--force-finite-diff-hessian) on one line; Default is
+   narrow and Description takes the remaining width. On narrow screens the
+   fixed widths would squeeze Description to nothing, so the table falls back
+   to automatic layout and scrolls horizontally inside its own box. */
+.rst-content table.options-table td {
+    overflow-wrap: break-word;
+}
+.rst-content table.options-table td:nth-child(1) code {
+    white-space: nowrap;
+}
+@media (min-width: 769px) {
+    .rst-content table.options-table {
+        width: 100%;
+        table-layout: fixed;
+    }
+    .rst-content table.options-table th:nth-child(1) {
+        width: 15em;
+    }
+    .rst-content table.options-table th:nth-child(2) {
+        width: 9em;
+    }
+}
+@media (max-width: 768px) {
+    .rst-content table.options-table td:nth-child(3) {
+        min-width: 14em;
+    }
+}
+
+/* API Reference "Parameters" sections (Napoleon/numpydoc field lists):
+   "Parameters:" on its own line, with each parameter listed below it,
+   flush left, instead of the theme's default indented two-column grid layout.
+   sphinx_rtd_theme sets `dl.field-list { display: grid; grid-template-columns:
+   auto minmax(80%,95%); }` via a more specific selector than a plain
+   "dl.field-list" rule, so `!important` is needed here to actually win. */
+.rst-content dl.field-list {
+    display: block !important;
+}
+.rst-content dl.field-list > dt {
+    display: block !important;
+    float: none !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.rst-content dl.field-list > dd {
+    display: block !important;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+/* Bulleted parameter lists inside field lists: bullets sit inside the text
+   column, and nested lists (e.g. the options of a parameter) are indented one
+   more level. */
+.rst-content dl.field-list > dd > ul {
+    margin: 0;
+    padding-left: 1.2em;
+}
+.rst-content dl.field-list > dd ul ul {
+    padding-left: 1.5em;
+    margin-top: 0.3em;
+}
+.rst-content dl.field-list > dd ul > li {
+    margin: 0.4em 0;
+}
+
+/* Long fully-qualified names in API signatures and the general index wrap on
+   narrow screens instead of widening the page. */
+.rst-content dl dt.sig {
+    overflow-wrap: anywhere;
+}
+table.indextable td {
+    overflow-wrap: anywhere;
+}
+
+/* Logo at the top of the home page (index.md): leave some room between it
+   and the page title below. */
+.rst-content img.home-logo {
+    margin-bottom: 2.5em;
+}
+
+/* Inline code used as link text (e.g. [`examples/README.md`](...)) takes the
+   link colour, so it reads as a link rather than as plain red code. */
+.rst-content a code.literal,
+.rst-content a:visited code.literal {
+    color: inherit;
+}
+
+/* Wider text column so five-column tables (Backend Guide) and the CLI option
+   descriptions fit without overflowing on desktop screens. */
+.wy-nav-content {
+    max-width: 1000px;
+}

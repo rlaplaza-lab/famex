@@ -59,7 +59,7 @@ def fetch_pubchem(query: str, *, embedder: str = "pysmiles") -> Geometry:
     ----------
     query : str
         Compound name, numeric CID, or a ``pubchem:`` / ``cid:`` prefixed form.
-    embedder : {'pysmiles', 'rdkit'}, default 'pysmiles'
+    embedder : {"pysmiles", "rdkit"}, default "pysmiles"
         Used only when PubChem has no computed 3D conformer.
 
     Returns

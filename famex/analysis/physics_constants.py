@@ -32,7 +32,7 @@ def gas_phase_concentration_1atm(temperature: float) -> float:
 
 
 def filter_positive_frequencies(frequencies: NDArray[np.floating]) -> NDArray[np.float64]:
-    """Return real, strictly positive vibrational frequencies in cm^-1."""
+    """Return real, strictly positive vibrational frequencies in cm⁻¹."""
     signed = normalize_frequencies_cm1(frequencies)
     positive = signed[signed > 0]
     return np.asarray(positive, dtype=np.float64)
@@ -41,10 +41,10 @@ def filter_positive_frequencies(frequencies: NDArray[np.floating]) -> NDArray[np
 def normalize_frequencies_cm1(
     frequencies: NDArray[np.complexfloating] | NDArray[np.floating],
 ) -> NDArray[np.float64]:
-    """Convert harmonic frequencies to signed real values in cm^-1.
+    """Convert harmonic frequencies to signed real values in cm⁻¹.
 
     ASE represents imaginary normal modes as complex frequencies with a
-    predominantly imaginary component (e.g. ``0 + 774j`` cm^-1) when the
+    predominantly imaginary component (e.g. ``0 + 774j`` cm⁻¹) when the
     mass-weighted Hessian has negative eigenvalues. FAMEX follows ASE's
     export convention: imaginary modes are reported as negative real
     frequencies.
@@ -52,12 +52,12 @@ def normalize_frequencies_cm1(
     Parameters
     ----------
     frequencies
-        Frequencies in cm^-1 from ASE or another backend. May be real or complex.
+        Frequencies in cm⁻¹ from ASE or another backend. May be real or complex.
 
     Returns
     -------
     np.ndarray
-        Signed real frequencies in cm^-1 (negative for imaginary modes).
+        Signed real frequencies in cm⁻¹ (negative for imaginary modes).
     """
     values = np.asarray(frequencies)
     if not np.iscomplexobj(values):

@@ -41,6 +41,11 @@ rdkit = ["rdkit>=2023.9.1"]
 # orb-models 0.7.0 adds OrbMol-v2 and requires Python 3.12+.
 orb = ["orb-models>=0.7.0"]
 pyscf = ["pyscf>=2.4.0", "pyscf-dispersion"]
+docs = [
+    "sphinx>=7.0",
+    "myst-parser>=2.0",
+    "sphinx-rtd-theme>=2.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

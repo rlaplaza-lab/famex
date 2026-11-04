@@ -5,9 +5,10 @@ reaction pathways between molecular structures. Each strategy implements
 a different approach to interpolating between start and end coordinates.
 
 Available strategies:
-- linear: Simple linear interpolation between coordinates
-- geodesic: Distance-preserving interpolation with bond length refinement
-- idpp: Image-Dependent Pair Potential interpolation
+
+- ``linear``: Simple linear interpolation between coordinates
+- ``geodesic``: Distance-preserving interpolation with bond length refinement
+- ``idpp``: Image-Dependent Pair Potential interpolation
 """
 
 from abc import ABC, abstractmethod
@@ -170,7 +171,18 @@ def idpp_energy_and_forces(
 
 
 class IDPPInterpolation(InterpolationStrategy):
-    """Image-Dependent Pair Potential (Smidstrup / ASE IDPP)."""
+    """Image-Dependent Pair Potential (Smidstrup / ASE IDPP).
+
+    Parameters
+    ----------
+    fmax : float, default 0.1
+        Force convergence threshold for the IDPP relaxation, in eV/Å.
+    steps : int, default 100
+        Maximum number of relaxation steps.
+    spring_constant : float, default 0.1
+        Spring constant between images, in eV/Å².
+
+    """
 
     def __init__(
         self,
