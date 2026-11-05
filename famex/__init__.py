@@ -1,7 +1,7 @@
 """FAMEX: Fast Mechanistic Explorer using machine learning potentials.
 
-Unified CLI and Python API for geometry optimization with ASE, optional SELLA,
-and ML or classical potentials.
+Command-line and Python API for geometry optimization with ASE,
+machine-learning potentials, and optional TBLite or PySCF.
 
 Key features:
 

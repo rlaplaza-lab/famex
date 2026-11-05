@@ -14,7 +14,7 @@
   - Installation, troubleshooting, performance
 ```
 
-**Version:** 0.3.1. **CLI/`Explorer` defaults:** `backend=uma`, model `uma-s-1p2`, task `omol` (`fairchem-core>=2.25.0` via `pip install famex[uma]`).
+**CLI/`Explorer` defaults:** `backend=uma`, model `uma-s-1p2`, task `omol` (`fairchem-core>=2.25.0` via `pip install famex[uma]`). Python 3.11+.
 
 **Installation and default checkpoints per backend keyword:** [README](https://github.com/rlaplaza-lab/famex#quick-start) and [User Guide → Default Models](USER_GUIDE.md#default-models).
 

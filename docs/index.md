@@ -7,10 +7,9 @@
 
 # FAMEX: Fast Mechanistic Explorer
 
-FAMEX provides a unified interface for molecular geometry optimization using
-machine learning potentials. It supports minima optimization, transition
-state searches, and reaction path calculations through both a command-line
-interface and a Python API.
+FAMEX is a command-line and Python API for molecular geometry optimization
+with machine learning potentials. It supports minima optimization, transition
+state searches, and reaction path calculations.
 
 ```{toctree}
 :maxdepth: 2

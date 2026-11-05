@@ -1,12 +1,10 @@
 # API Reference
 
-Reference documentation generated from the `famex` package docstrings.
+Generated from the `famex` docstrings. Names in the table are importable from `famex`. The sections below document the same objects.
 
 ## Quick Reference
 
-Most usage only needs {py:class}`~famex.core.explorer.Explorer` (and, for advanced cases,
-{py:class}`~famex.io.geometry.Geometry` and {py:class}`~famex.io.path_manager.PathManager`).
-Everything listed here can be imported from `famex` and is documented in full further down this page.
+Day-to-day calls go through {py:class}`~famex.core.explorer.Explorer`.
 
 ```{list-table}
 :class: fit-table nowrap-col2

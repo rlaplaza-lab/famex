@@ -1110,8 +1110,10 @@ def main() -> int:
             "No available backends found. Please install at least one ML backend:\n"
             "  - MACE: pip install mace-torch\n"
             "  - UMA: pip install fairchem-core\n"
-            "  - AIMNet2: pip install aimnet2\n"
-            "  - SO3LR: pip install so3lr"
+            "  - AIMNet2: pip install torch\n"
+            "  - SO3LR: git clone"
+            " https://github.com/general-molecular-simulations/so3lr.git"
+            " && cd so3lr && pip install ."
         )
         return 1
 

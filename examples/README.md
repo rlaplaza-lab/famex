@@ -6,8 +6,8 @@ Examples and benchmarks for FAMEX.
 
 ### Workflows
 
-Short Python scripts that mirror everyday `famex` usage. Each file docstring
-shows the equivalent CLI command. A script exits with status 1 unless the
+Python scripts for the same workflows as the CLI. Each file docstring
+shows the equivalent command. A script exits with status 1 unless the
 run converged with finite energies and, where requested, usable frequencies.
 
 | Example | Description |
@@ -51,7 +51,7 @@ conda run -n famex-uma python growing_string.py
 conda run -n famex-uma python thermochemistry.py
 ```
 
-**Benchmarks** (flags vary by script — use each script’s `--help`; many support `--backends`, `--device`, `--verbose`):
+**Benchmarks** (flags vary by script; use `--help`. Many take `--backends`, `--device`, and `--verbose`):
 
 ```bash
 python timing_benchmark.py --device cuda
@@ -67,7 +67,7 @@ python maiti30_benchmark/maiti30_benchmark.py --quick
 
 - FAMEX package installed
 - At least one machine learning backend (see [README](../README.md))
-- SELLA optimizer is included with FAMEX (core dependency)
+- `sella` is installed with FAMEX
 
 ## Supporting Files
 

@@ -53,7 +53,7 @@ pip install famex
 # Or from source:
 git clone https://github.com/rlaplaza-lab/famex.git && cd famex && pip install -e .
 
-# UMA backend (recommended default):
+# UMA backend (CLI and Explorer default):
 pip install famex[uma]
 # equivalent to: pip install "fairchem-core>=2.25.0"
 
@@ -61,15 +61,15 @@ pip install famex[uma]
 pip install -e ".[dev,uma]"
 ```
 
-See [README.md](https://github.com/rlaplaza-lab/famex#readme) for the install table (with default checkpoints) and [Default models](#default-models) below.
+Install commands are in the [README](https://github.com/rlaplaza-lab/famex#readme). Checkpoints are in [Default models](#default-models).
 
-**Note**: Python 3.11+ required. See [Dependency Conflicts](#dependency-conflicts) for UMA/MACE environment separation.
+Python 3.11+. UMA and MACE need separate environments ([Dependency Conflicts](#dependency-conflicts)).
 
-**Default backend**: CLI and `Explorer` default to `uma` with checkpoint `uma-s-1p2` and task head `omol`. For a conflict-free quick start, pass `--backend aimnet2` (loads `aimnet2_wb97m_0`) or install only `torch`. See [Default models](#default-models) for every backend keyword.
+CLI and `Explorer` default to `uma`, checkpoint `uma-s-1p2`, task `omol`. `--backend aimnet2` needs only `torch` and loads `aimnet2_wb97m_0`.
 
 ## CLI Reference
 
-Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES string (a text encoding of molecular connectivity), `pubchem:NAME`, `cid:`, or a bare numeric CID. A bare non-numeric name on those commands is treated as SMILES. Use `--embedder pysmiles` (default, `pip install famex[smiles]`) or `--embedder rdkit` (`pip install famex[rdkit]`) when coordinates are built from SMILES.
+Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES string, `pubchem:NAME`, `cid:`, or a bare numeric CID. A bare non-numeric name on those commands is treated as SMILES. Use `--embedder pysmiles` (default, `pip install famex[smiles]`) or `--embedder rdkit` (`pip install famex[rdkit]`) when coordinates are built from SMILES.
 
 ### Global Options
 
@@ -93,7 +93,7 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
   - Path to model file (if applicable)
 * - `--device`
   - `None`
-  - Device: `cpu`, `cuda`
+  - `cpu` or `cuda`. Omitted: CUDA when PyTorch sees a GPU, otherwise CPU. `tblite` and `pyscf` stay on CPU and reject CUDA
 * - `--task-name`
   - `omol` (UMA)
   - UMA task head: `omol`, `omat`, `omc`, `oc20`, `oc25`, `odac`, `oc22` (ignored for other backends)
@@ -147,7 +147,7 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
   - Largest atomic displacement in each animation, in angstroms
 * - `--cleanup-frequencies`
   - `False`
-  - `minima` and `ts` only. After optimization, clean up using the Hessian (matrix of second energy derivatives) until there are 0 (minimum) or 1 (TS) relevant imaginary frequencies
+  - `minima` and `ts` only. After optimization, Hessian cleanup until there are 0 (minimum) or 1 (TS) relevant imaginary frequencies
 * - `--force-finite-diff-hessian`
   - `False`
   - Force finite-difference Hessians for TS optimizers and frequency calculations. When disabled (default), backends with analytical Hessian support (`uma`, `mace`, `aimnet2`, `orb` conservative models, `pet`, `so3lr`, `pyscf`) use the analytical Hessian automatically. `tblite` and non-conservative Orb models fall back to finite differences.
@@ -397,7 +397,7 @@ Generate and optimize reaction pathways.
   - Spring constant for NEB/CI-NEB (same default as the Python strategies)
 * - `--step-size`
   - `0.1`
-  - IRC step size (IRC strategy only)
+  - IRC step size in amu^(1/2) Å (IRC only)
 * - `--direction`
   - `both`
   - Direction: `forward`, `backward`, `both` (IRC strategy only)
@@ -639,8 +639,8 @@ When `--model-name` / `model_name` is omitted, each backend keyword loads this c
   - `orb-v3-conservative-omol`
   - Orb-v3 conservative molecular
 * - `so3lr`
-  - `so3lr-small`
-  - SO3LR small pretrained
+  - library default
+  - `so3lr.So3lrCalculator`. `--model-name` and `--model-path` are not passed through
 * - `tblite`
   - `GFN2-xTB`
   - xTB method (also e.g. `GFN1-xTB`)
@@ -710,7 +710,7 @@ Python equivalents: `Explorer(..., task_name="omat", dftd3_functional="r2scan", 
 
 ## Backend Guide
 
-FAMEX is built around machine learning potentials. Classical quantum-chemistry backends are optional for checks or small systems. Default checkpoints match [Default models](#default-models).
+Machine-learning potentials are the main backends. `tblite` and `pyscf` are optional and CPU-only. Checkpoints: [Default models](#default-models).
 
 ```{list-table}
 :class: fit-table
@@ -724,7 +724,7 @@ FAMEX is built around machine learning potentials. Classical quantum-chemistry b
 * - `aimnet2`
   - `pip install torch`
   - `aimnet2` → `aimnet2_wb97m_0`
-  - Molecules; simplest install
+  - Molecules; torch only
   - No `e3nn` conflict with other backends; analytical Hessian
 * - `uma`
   - `pip install "fairchem-core>=2.25.0"` or `pip install famex[uma]`
@@ -742,25 +742,25 @@ FAMEX is built around machine learning potentials. Classical quantum-chemistry b
   - Molecules (`orbmol-v2`) and materials
   - Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise
 * - `so3lr`
-  - `pip install so3lr`
-  - `so3lr-small`
-  - Custom / research models
-  - Analytical Hessian via JAX
+  - `git clone https://github.com/general-molecular-simulations/so3lr.git && cd so3lr && pip install .`
+  - library default
+  - `so3lr.So3lrCalculator`
+  - Analytical Hessian via JAX. `--model-name` and `--model-path` are not passed through
 * - `pet`
   - `pip install upet` or `pip install famex[pet]`
   - `pet-mad-s`
   - PET-MAD potential
-  - Python 3.11+; analytical Hessian
+  - Analytical Hessian
 * - `tblite`
   - `pip install tblite`
   - `GFN2-xTB`
   - Semi-empirical xTB
-  - `--model-name` selects the xTB method; finite-difference Hessian
+  - CPU only. `--model-name` selects the xTB method; finite-difference Hessian
 * - `pyscf`
   - `pip install famex[pyscf]`
   - `b3lyp-d3bj/def2-svp`
   - Small-system DFT
-  - `--model-name` as `xc/basis`; analytical Hessian
+  - CPU only. `--model-name` as `xc/basis`; analytical Hessian
 * - `mock`
   - Built-in
   - `mock-model`
@@ -804,8 +804,4 @@ conda activate famex-mace && pip install famex mace-torch
 
 ## Examples
 
-See [`examples/README.md`](https://github.com/rlaplaza-lab/famex/tree/main/examples) for the catalog of workflow scripts and benchmarks (`optimize_minimum.py`, `thermochemistry.py`, `irc.py`, `timing_benchmark.py`, `bh28_benchmark/`, `zimmermann93_benchmark/`, and others).
-
----
-
-*Last updated: November 2026*
+Workflow scripts and benchmarks: [`examples/README.md`](https://github.com/rlaplaza-lab/famex/tree/main/examples).

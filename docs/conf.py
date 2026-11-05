@@ -33,6 +33,7 @@ master_doc = "index"
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+smartquotes = False
 
 # -- autodoc / napoleon --------------------------------------------------
 add_module_names = False
@@ -49,6 +50,7 @@ autodoc_mock_imports = [
     "e3nn",
     "pyscf",
     "rdkit",
+    "molsymm",
 ]
 napoleon_numpy_docstring = True
 napoleon_google_docstring = False
@@ -56,7 +58,7 @@ napoleon_google_docstring = False
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
-    "ase": ("https://wiki.fysik.dtu.dk/ase/", None),
+    "ase": ("https://ase.gitlab.io/ase/", None),
 }
 
 # -- HTML output ----------------------------------------------------------

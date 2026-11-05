@@ -1,16 +1,14 @@
 # FAQ and Troubleshooting
 
-Common questions about FAMEX usage, installation, and troubleshooting.
-
 ## Installation and Setup
 
 ### Which backend should I choose?
 
-CLI/`Explorer` default to UMA. For the simplest torch-only install, use `--backend aimnet2`. Full keyword and checkpoint list: [Default models](USER_GUIDE.md#default-models).
+CLI and `Explorer` default to UMA. `--backend aimnet2` needs only `torch`. Checkpoints: [Default models](USER_GUIDE.md#default-models).
 
 ### Can I install multiple backends?
 
-Some backends conflict (UMA vs MACE). Use separate conda environments — see [Dependency Conflicts](USER_GUIDE.md#dependency-conflicts) in the User Guide.
+UMA and MACE conflict on `e3nn`. Use separate environments ([Dependency Conflicts](USER_GUIDE.md#dependency-conflicts)).
 
 ### What Python version do I need?
 
@@ -36,7 +34,7 @@ The band did not reach `--fmax` within `--steps`. The images are still written. 
 
 ### How do I choose convergence criteria?
 
-See [Convergence](TUTORIALS.md#convergence) in the Tutorials. Quick reference: `--fmax 0.1 --steps 100` (testing), `--fmax 0.05 --steps 1000` (default), `--fmax 0.01 --steps 2000` (high precision).
+See [Convergence](TUTORIALS.md#convergence). `--fmax 0.1 --steps 100` for a short run, `--fmax 0.05 --steps 1000` (default), `--fmax 0.01 --steps 2000` for a tighter threshold.
 
 ### What file formats are supported?
 
@@ -63,7 +61,7 @@ famex minima --strategy local molecule.xyz --constraints "fix 0,1,2"
 famex minima --strategy local molecule.xyz --constraints "fix 0,1; harmonic_bond 2,3 k=5.0"
 ```
 
-Supported types include `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_angle`, and `fixinternals_bond` / `fixinternals_angle` / `fixinternals_dihedral`. See the [global options table](USER_GUIDE.md#global-options) in the User Guide.
+Supported types: `fix`, `harmonic_position`, `harmonic_bond`, `harmonic_angle`, `fixinternals_bond`, `fixinternals_angle`, `fixinternals_dihedral`. See [Global Options](USER_GUIDE.md#global-options).
 
 ## Troubleshooting
 
@@ -89,9 +87,8 @@ Use CPU (`--device cpu`), reduce system size, or use LBFGS optimizer (`--local-o
 
 ### Transition state validation issues?
 
-
-- Multiple imaginary frequencies: poor TS guess — try interpolation, growing string, or `rfo` / `sella`
-- No imaginary frequencies: structure may be a minimum — verify the TS guess
+- Multiple imaginary frequencies: poor TS guess. Try interpolation, growing string, or `rfo` / `sella`
+- No imaginary frequencies: the structure may be a minimum. Check the TS guess
 - Use `--freq` or `calculate_frequencies()`; check `ts_analysis["n_imaginary_frequencies"]`
 - Animate that mode with `--write-modes --modes imaginary`, or `save_vibrational_modes(..., which="imaginary")`
 - Use `--require-ts` to raise if the result is not a first-order saddle
@@ -123,7 +120,3 @@ Include `famex --version`, Python version, OS, backend and model name, full erro
 ### Where can I find examples?
 
 See [`examples/README.md`](https://github.com/rlaplaza-lab/famex/tree/main/examples). Quick start: `python examples/optimize_minimum.py` from the `examples/` directory.
-
----
-
-*Last updated: October 2026*

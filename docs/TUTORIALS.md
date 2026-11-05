@@ -1,12 +1,8 @@
 # Tutorials
 
-Hands-on tutorials for minima, transition states, and reaction paths.
-
-**Defaults:** CLI/`Explorer` use UMA (`uma-s-1p2`, task `omol`). Examples below often pass `--backend aimnet2` for a torch-only install. Checkpoint table and UMA tasks: [User Guide](USER_GUIDE.md#default-models).
+**Defaults:** CLI and `Explorer` use UMA (`uma-s-1p2`, task `omol`). Examples below often pass `--backend aimnet2`, which needs only `torch`. Checkpoints and UMA tasks: [User Guide](USER_GUIDE.md#default-models). Target and strategy names: [Core Concepts](USER_GUIDE.md#core-concepts).
 
 ## Basic Optimization
-
-**target** (`minima`, `ts`, `path`) specifies what you want; **strategy** (`local`, `interpolate`, `neb`, etc.) specifies how to get there. See [Core Concepts](USER_GUIDE.md#core-concepts) in the User Guide for the full matrix.
 
 ### Local Optimization
 
@@ -14,7 +10,7 @@ Hands-on tutorials for minima, transition states, and reaction paths.
 
 ```bash
 famex minima --strategy local molecule.xyz --fmax 0.05
-# conflict-free backend:
+# torch only:
 famex minima --strategy local molecule.xyz --backend aimnet2 --fmax 0.05
 ```
 
@@ -210,7 +206,7 @@ explorer.save_trajectory(path, "neb_path.xyz")
 
 ### Intrinsic Reaction Coordinate (IRC) from a Transition State
 
-IRC defaults to 100 steps on the CLI and in Python.
+IRC defaults to 100 steps and a step size of 0.1 amu^(1/2) Å. It computes frequencies first (imaginary cutoff 50 cm^-1), warns if the start is not a first-order saddle, and still runs.
 
 ```bash
 famex path --strategy irc ts.xyz --direction both
@@ -247,30 +243,4 @@ famex path --strategy irc ts.xyz --direction both
 famex cache info
 ```
 
-### Python API
-
-```python
-import famex
-from ase.io import read
-
-# Minima
-explorer = famex.Explorer.from_file("molecule.xyz", target="minima")
-result = explorer.run(fmax=0.05)
-explorer.save_structure(result["optimized_atoms"], "optimized.xyz")
-
-# TS from two structures
-r, p = read("reactant.xyz"), read("product.xyz")
-explorer = famex.Explorer([r, p], target="ts", strategy="interpolate")
-result = explorer.run(npoints=15)
-
-# NEB path
-explorer = famex.Explorer([r, p], target="path", strategy="neb")
-result = explorer.run(npoints=11)
-explorer.save_trajectory(result.get("trajectory", result["optimized_atoms"]), "neb_path.xyz")
-```
-
-More examples: [`examples/README.md`](https://github.com/rlaplaza-lab/famex/tree/main/examples).
-
----
-
-*Last updated: October 2026*
+Python equivalents are in the sections above. More scripts: [`examples/README.md`](https://github.com/rlaplaza-lab/famex/tree/main/examples).

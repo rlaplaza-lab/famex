@@ -16,18 +16,18 @@ pip install famex
 git clone https://github.com/rlaplaza-lab/famex.git && cd famex && pip install -e .
 ```
 
-Install a machine learning backend separately (primary use case). When `--model-name` is omitted, each backend keyword loads the checkpoint below:
+Install a machine learning backend separately. When `--model-name` is omitted, each backend keyword loads the checkpoint below:
 
 | Backend | Installation | Default checkpoint | Notes |
 |---------|--------------|--------------------|-------|
-| `aimnet2` | `pip install torch` | `aimnet2` → `aimnet2_wb97m_0` | Simplest install; no dependency conflicts; analytical Hessian |
+| `aimnet2` | `pip install torch` | `aimnet2` → `aimnet2_wb97m_0` | torch only; no `e3nn` conflict; analytical Hessian |
 | `uma` | `pip install "fairchem-core>=2.25.0"` or `pip install famex[uma]` | `uma-s-1p2` | Default CLI/`Explorer` backend (task `omol`); analytical Hessian; see [UMA tasks](docs/USER_GUIDE.md#uma-task-heads-and-fine-tunes) |
 | `mace` | `pip install mace-torch` | `mace-omol-0` | Conflicts with UMA; analytical Hessian |
 | `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | `orb-v3-conservative-omol` | Also `orbmol-v2`; Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
-| `so3lr` | `pip install so3lr` | `so3lr-small` | Custom models; analytical Hessian via JAX |
-| `pet` | `pip install upet` or `pip install famex[pet]` | `pet-mad-s` | PET-MAD potential (Python 3.11+); analytical Hessian |
+| `so3lr` | `git clone https://github.com/general-molecular-simulations/so3lr.git && cd so3lr && pip install .` | `so3lr.So3lrCalculator` | Not on PyPI. Analytical Hessian via JAX. `--model-name` and `--model-path` are not passed through |
+| `pet` | `pip install upet` or `pip install famex[pet]` | `pet-mad-s` | PET-MAD potential; analytical Hessian |
 
-Optional classical quantum chemistry (same CLI; slower): `tblite` (`pip install tblite`, default method `GFN2-xTB`, finite-difference Hessians) and `pyscf` (`pip install famex[pyscf]`, default `b3lyp-d3bj/def2-svp`, analytical Hessian).
+Optional classical quantum chemistry, CPU only: `tblite` (`pip install tblite`, default method `GFN2-xTB`, finite-difference Hessians) and `pyscf` (`pip install famex[pyscf]`, default `b3lyp-d3bj/def2-svp`, analytical Hessian). Both reject `--device cuda`.
 
 SMILES and PubChem are optional structure inputs (not separate CLI modes). Install an embedder and pass SMILES or `pubchem:NAME` / `cid:` / a numeric CID to `minima`, `ts`, or `path`:
 
@@ -39,7 +39,7 @@ famex minima --strategy local "CCO" --embedder rdkit --backend aimnet2
 famex minima --strategy local pubchem:aspirin --backend aimnet2
 ```
 
-> **Note**: Python 3.11+ required. MACE and UMA conflict - use separate environments.
+Python 3.11+. UMA and MACE conflict on `e3nn`; use separate environments.
 
 ### Your First Optimization
 
@@ -73,7 +73,7 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 ## Key Features
 
 - Multiple machine learning backends (UMA, AIMNet2, MACE, SO3LR, Orb, PET); optional xTB/DFT via TBLite/PySCF
-- GPU acceleration with CUDA
+- CUDA for the machine-learning backends (`tblite` and `pyscf` are CPU-only)
 - Target/strategy commands (`minima`, `ts`, `path`)
 - Transition-state strategies: local, interpolate, CI-NEB, DHS, growing string
 - Path strategies: NEB, CI-NEB, IRC, interpolate
@@ -84,9 +84,10 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 
 ## Documentation
 
+- **[Documentation](https://famex.readthedocs.io/)** - User Guide, tutorials, FAQ, and API reference
 - **[Documentation index](docs/README.md)** - Overview and defaults
-- **[User Guide](docs/USER_GUIDE.md)** - Complete reference for CLI, Python API, and backends
-- **[Tutorials](docs/TUTORIALS.md)** - Hands-on guides for optimization and transition states
+- **[User Guide](docs/USER_GUIDE.md)** - CLI, Python API, and backends
+- **[Tutorials](docs/TUTORIALS.md)** - Minima, transition states, and reaction paths
 - **[FAQ](docs/FAQ.md)** - Troubleshooting and common questions
 
 ## Examples

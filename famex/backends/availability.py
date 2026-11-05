@@ -301,7 +301,10 @@ def get_backend_error_message(backend: str) -> str:
         BACKEND_AIMNET2: "pip install torch",
         BACKEND_UMA: "pip install fairchem-core",
         BACKEND_MACE: "pip install mace-torch",
-        BACKEND_SO3LR: "pip install so3lr",
+        BACKEND_SO3LR: (
+            "git clone https://github.com/general-molecular-simulations/so3lr.git"
+            " && cd so3lr && pip install ."
+        ),
         BACKEND_PET: "pip install upet",
         "orb": 'pip install "orb-models>=0.7.0"',
         "tblite": "pip install tblite",

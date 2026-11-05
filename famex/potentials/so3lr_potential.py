@@ -44,11 +44,12 @@ class SO3LRPotential(BasePotential):
         Parameters
         ----------
         model_path : str, optional
-            Path to trained SO3LR model file (currently not used by SO3LR)
+            Stored only. Not passed to ``so3lr.So3lrCalculator``.
         model_name : str
-            Name of pre-trained SO3LR model (default: "so3lr-small")
+            Label stored on the calculator (default ``"so3lr-small"``).
+            Not passed to ``so3lr.So3lrCalculator``, which uses the library default.
         device : str, optional
-            Device to run computations on ('cpu', 'cuda'). Auto-detected if None.
+            ``"cpu"`` or ``"cuda"``. CUDA when available if omitted.
 
         """
         if not deps.has("so3lr"):

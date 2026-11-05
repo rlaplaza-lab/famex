@@ -64,7 +64,7 @@ famex = "famex.cli:main"
 [project.urls]
 Homepage = "https://github.com/rlaplaza-lab/famex"
 Repository = "https://github.com/rlaplaza-lab/famex"
-Documentation = "https://github.com/rlaplaza-lab/famex/tree/main/docs"
+Documentation = "https://famex.readthedocs.io/"
 Issues = "https://github.com/rlaplaza-lab/famex/issues"
 
 [tool.setuptools.packages.find]
