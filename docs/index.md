@@ -15,7 +15,6 @@ state searches, and reaction path calculations.
 :maxdepth: 2
 :caption: Contents
 
-README
 USER_GUIDE
 TUTORIALS
 FAQ

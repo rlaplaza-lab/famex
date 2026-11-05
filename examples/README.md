@@ -83,4 +83,4 @@ python maiti30_benchmark/maiti30_benchmark.py --quick
 
 **CUDA not available:** Install PyTorch with CUDA or use `--device cpu`
 
-See [User Guide](../docs/USER_GUIDE.md), [Tutorials](../docs/TUTORIALS.md), and [FAQ](../docs/FAQ.md).
+See the [documentation](https://famex.readthedocs.io/).

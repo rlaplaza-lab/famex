@@ -2,6 +2,7 @@
 
 **FAMEX** is a command-line and Python API for molecular geometry optimization with machine learning potentials. It supports minima optimization, transition state searches, and reaction path calculations.
 
+[![Documentation Status](https://readthedocs.org/projects/famex/badge/?version=latest)](https://famex.readthedocs.io/en/latest/?badge=latest)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI](https://img.shields.io/pypi/v/famex.svg)](https://pypi.org/project/famex/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -21,7 +22,7 @@ Install a machine learning backend separately. When `--model-name` is omitted, e
 | Backend | Installation | Default checkpoint | Notes |
 |---------|--------------|--------------------|-------|
 | `aimnet2` | `pip install torch` | `aimnet2` → `aimnet2_wb97m_0` | torch only; no `e3nn` conflict; analytical Hessian |
-| `uma` | `pip install "fairchem-core>=2.25.0"` or `pip install famex[uma]` | `uma-s-1p2` | Default CLI/`Explorer` backend (task `omol`); analytical Hessian; see [UMA tasks](docs/USER_GUIDE.md#uma-task-heads-and-fine-tunes) |
+| `uma` | `pip install "fairchem-core>=2.25.0"` or `pip install famex[uma]` | `uma-s-1p2` | Default CLI/`Explorer` backend (task `omol`); analytical Hessian; see [UMA tasks](https://famex.readthedocs.io/en/latest/USER_GUIDE.html#uma-task-heads-and-fine-tunes) |
 | `mace` | `pip install mace-torch` | `mace-omol-0` | Conflicts with UMA; analytical Hessian |
 | `orb` | `pip install "orb-models>=0.7.0"` or `pip install famex[orb]` | `orb-v3-conservative-omol` | Also `orbmol-v2`; Python 3.12+; analytical Hessian for conservative models; finite-difference otherwise |
 | `so3lr` | `git clone https://github.com/general-molecular-simulations/so3lr.git && cd so3lr && pip install .` | `so3lr.So3lrCalculator` | Not on PyPI. Analytical Hessian via JAX. `--model-name` and `--model-path` are not passed through |
@@ -81,14 +82,6 @@ print(f"Final energy: {result['optimized_atoms'].get_potential_energy():.6f} eV"
 - Command-line and Python API
 - Geometry files via the Atomic Simulation Environment (ASE): XYZ, CIF, PDB, and others
 - SMILES / PubChem as structure inputs (`pip install famex[smiles]` or `famex[rdkit]`; use `pubchem:NAME`, `cid:`, or a numeric CID)
-
-## Documentation
-
-- **[Documentation](https://famex.readthedocs.io/)** - User Guide, tutorials, FAQ, and API reference
-- **[Documentation index](docs/README.md)** - Overview and defaults
-- **[User Guide](docs/USER_GUIDE.md)** - CLI, Python API, and backends
-- **[Tutorials](docs/TUTORIALS.md)** - Minima, transition states, and reaction paths
-- **[FAQ](docs/FAQ.md)** - Troubleshooting and common questions
 
 ## Examples
 
