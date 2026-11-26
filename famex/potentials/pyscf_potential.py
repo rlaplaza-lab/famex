@@ -15,6 +15,7 @@ from ase.units import Bohr, Hartree
 from famex.backends.constants import BACKEND_PYSCF, DEFAULT_PYSCF_MODEL
 from famex.backends.dependencies import deps
 from famex.potentials.base_potential import BasePotential
+from famex.utils.hessian_ops import symmetrize_hessian
 
 DEFAULT_XC, DEFAULT_BASIS = DEFAULT_PYSCF_MODEL.split("/", 1)
 
@@ -212,19 +213,4 @@ class PySCFPotential(BasePotential):
             raise RuntimeError(msg)
         h = hess.transpose(0, 2, 1, 3).reshape(3 * n_atoms, 3 * n_atoms)
         h_ev = h * _HA_PER_BOHR2_TO_EV_PER_A2
-        return 0.5 * (h_ev + h_ev.T)
-
-    def get_property(
-        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
-    ) -> Any:
-        del allow_calculation
-        if atoms is not None:
-            self.atoms = atoms
-        if prop == "energy":
-            return self.get_potential_energy(atoms)
-        if prop == "forces":
-            return self.get_forces(atoms)
-        if prop == "hessian":
-            return self.get_hessian(atoms)
-        msg = f"Property '{prop}' not supported by PySCFPotential"
-        raise KeyError(msg)
+        return symmetrize_hessian(h_ev)

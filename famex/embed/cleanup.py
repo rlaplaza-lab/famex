@@ -243,8 +243,10 @@ def relax_coordinates(
         options={"maxiter": 80, "maxfun": 200, "ftol": 1e-8, "gtol": 1e-4},
     )
     candidate = np.asarray(result.x, dtype=float).reshape(graph.n_atoms, 3)
-    if not np.isfinite(candidate).all() or not math.isfinite(float(result.fun)):
-        return x0.reshape(graph.n_atoms, 3)
-    if float(result.fun) > e0 + 1e-6:
+    if (
+        not np.isfinite(candidate).all()
+        or not math.isfinite(float(result.fun))
+        or float(result.fun) > e0 + 1e-6
+    ):
         return x0.reshape(graph.n_atoms, 3)
     return candidate

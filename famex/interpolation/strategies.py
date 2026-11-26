@@ -226,6 +226,7 @@ class IDPPInterpolation(InterpolationStrategy):
         fire = _FIREBandStepper()
         npoints = len(path)
         natoms = path[0].shape[0]
+        ncoords = 3 * natoms
 
         for _step in range(self.steps):
             energies = []
@@ -249,7 +250,6 @@ class IDPPInterpolation(InterpolationStrategy):
             interior_pos = np.concatenate([c.ravel() for c in path[1:-1]])
             interior_f = np.concatenate([f.ravel() for f in interior])
             new_pos = fire.step(interior_pos, interior_f)
-            ncoords = 3 * natoms
             for idx in range(npoints - 2):
                 start = idx * ncoords
                 path[idx + 1] = new_pos[start : start + ncoords].reshape(natoms, 3)

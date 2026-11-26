@@ -35,6 +35,39 @@ def _create_clean_atoms(atoms: Atoms) -> Atoms:
     return clean_atoms
 
 
+def _write_with_clean_retry(
+    payload: Atoms | list[Atoms],
+    output_file: Path,
+    format: str | None,
+    *,
+    entity_label: str,
+    clean_payload: Atoms | list[Atoms],
+) -> None:
+    try:
+        if format is not None:
+            write(output_file, payload, format=format)
+        else:
+            write(output_file, payload)
+    except OSError as e:
+        try:
+            if format is not None:
+                write(output_file, clean_payload, format=format)
+            else:
+                write(output_file, clean_payload)
+        except OSError as e2:
+            raise RuntimeError(
+                f"Failed to save {entity_label} to {output_file}: {e}. "
+                f"Clean attempt also failed: {e2}"
+            ) from e2
+        except (ValueError, TypeError, KeyError) as e2:
+            raise RuntimeError(
+                f"Failed to save {entity_label} to {output_file}: {e}. "
+                f"Clean attempt also failed: {e2}"
+            ) from e2
+    except (ValueError, TypeError, KeyError) as e:
+        raise RuntimeError(f"Failed to save {entity_label} to {output_file}: {e}") from e
+
+
 def write_atoms_safely(
     atoms: Atoms,
     output_file: str | Path,
@@ -49,28 +82,13 @@ def write_atoms_safely(
         except (OSError, ValueError, TypeError) as e:
             raise RuntimeError(f"Failed to save XYZ structure to {output_file}: {e}") from e
 
-    try:
-        if format is not None:
-            write(output_file, atoms, format=format)
-        else:
-            write(output_file, atoms)
-    except OSError as e:
-        try:
-            clean_atoms = _create_clean_atoms(atoms)
-            if format is not None:
-                write(output_file, clean_atoms, format=format)
-            else:
-                write(output_file, clean_atoms)
-        except OSError as e2:
-            raise RuntimeError(
-                f"Failed to save structure to {output_file}: {e}. Clean attempt also failed: {e2}"
-            ) from e2
-        except (ValueError, TypeError, KeyError) as e2:
-            raise RuntimeError(
-                f"Failed to save structure to {output_file}: {e}. Clean attempt also failed: {e2}"
-            ) from e2
-    except (ValueError, TypeError, KeyError) as e:
-        raise RuntimeError(f"Failed to save structure to {output_file}: {e}") from e
+    _write_with_clean_retry(
+        atoms,
+        output_file,
+        format,
+        entity_label="structure",
+        clean_payload=_create_clean_atoms(atoms),
+    )
 
 
 def write_trajectory_safely(
@@ -87,25 +105,10 @@ def write_trajectory_safely(
         except (OSError, ValueError, TypeError) as e:
             raise RuntimeError(f"Failed to save XYZ trajectory to {output_file}: {e}") from e
 
-    try:
-        if format is not None:
-            write(output_file, atoms_list, format=format)
-        else:
-            write(output_file, atoms_list)
-    except OSError as e:
-        try:
-            clean_atoms_list = [_create_clean_atoms(atoms) for atoms in atoms_list]
-            if format is not None:
-                write(output_file, clean_atoms_list, format=format)
-            else:
-                write(output_file, clean_atoms_list)
-        except OSError as e2:
-            raise RuntimeError(
-                f"Failed to save trajectory to {output_file}: {e}. Clean attempt also failed: {e2}"
-            ) from e2
-        except (ValueError, TypeError, KeyError) as e2:
-            raise RuntimeError(
-                f"Failed to save trajectory to {output_file}: {e}. Clean attempt also failed: {e2}"
-            ) from e2
-    except (ValueError, TypeError, KeyError) as e:
-        raise RuntimeError(f"Failed to save trajectory to {output_file}: {e}") from e
+    _write_with_clean_retry(
+        atoms_list,
+        output_file,
+        format,
+        entity_label="trajectory",
+        clean_payload=[_create_clean_atoms(atoms) for atoms in atoms_list],
+    )

@@ -34,6 +34,16 @@ class TestFAMEXError:
         assert error.dependency == "torch"
         assert error.purpose == "calculations"
         assert error.install_command == "pip install torch"
+        assert isinstance(error, ImportError)
+
+    def test_deps_require_raises_dependency_error(self):
+        from famex.backends.dependencies import DependencyManager
+
+        deps = DependencyManager()
+        with pytest.raises(DependencyError) as exc_info:
+            deps.require("definitely_missing_package_xyz_123", purpose="unit testing")
+        assert isinstance(exc_info.value, ImportError)
+        assert "definitely_missing_package_xyz_123" in str(exc_info.value)
 
     def test_backend_error(self):
         available = ["uma", "aimnet2", "mace"]

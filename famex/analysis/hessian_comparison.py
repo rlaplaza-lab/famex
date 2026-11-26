@@ -15,6 +15,7 @@ from ase import Atoms
 from famex.analysis.hessian import CalculatorProtocol
 from famex.analysis.utils import has_calculator_property, validate_indices
 from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
+from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
@@ -111,7 +112,7 @@ def compare_hessian_methods(
 
         except Exception as e:
             if verbose >= 1:
-                logger.error("  ✗ Failed: %s", e)
+                logger.error("  Failed: %s", e)
             continue
 
     # Generate recommendations
@@ -223,7 +224,7 @@ def _compute_quality_metrics(
     asymmetry = np.abs(hessian - hessian.T)
     max_asymmetry = float(np.max(asymmetry))
 
-    matrix = 0.5 * (hessian + hessian.T)
+    matrix = symmetrize_hessian(hessian)
     n_null = 0
     if positions is not None and masses is not None:
         positions = np.asarray(positions, dtype=np.float64)
@@ -367,9 +368,9 @@ class HessianComparisonReport:
             logger.info("  Max asymmetry: %.6e eV/Å²", self.metrics[method]["max_asymmetry"])
             logger.info("  Condition number: %.2e", self.metrics[method]["condition_number"])
             if self.metrics[method]["has_nan"]:
-                logger.warning("  ⚠ Contains NaN values")
+                logger.warning("  Contains NaN values")
             if self.metrics[method]["has_inf"]:
-                logger.warning("  ⚠ Contains Inf values")
+                logger.warning("  Contains Inf values")
 
         if len(self.recommendations) > 0:
             logger.info("\n%s", banner)

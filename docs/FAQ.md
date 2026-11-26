@@ -16,7 +16,15 @@ Python 3.11+ required. The **Orb** backend (`pip install famex[orb]`) requires P
 
 ### Backend not available after installation?
 
-Install backend dependencies. UMA: `pip install famex[uma]` or `pip install "fairchem-core>=2.25.0"`. Other backends: see [README](https://github.com/rlaplaza-lab/famex#readme) and [User Guide](USER_GUIDE.md#backend-guide).
+Install backend dependencies. UMA: `pip install famex[uma]` or `pip install "fairchem-core>=2.25.0"`. Other backends: see [README](https://github.com/rlaplaza-lab/famex#readme) and [User Guide](USER_GUIDE.md#backend-guide). Runtime install hints come from `famex.backends.constants.format_install_command`.
+
+### Missing optional dependency errors?
+
+`deps.require(...)` raises `DependencyError`, which subclasses `ImportError`, so either exception type works in `except` clauses.
+
+### Embedding FAMEX in another app — logging?
+
+`Explorer` calls `setup_famex_logging`. Existing `famex` logger handlers are kept unless you pass `force=True`. Host apps can attach handlers before constructing `Explorer`.
 
 ## Using FAMEX
 

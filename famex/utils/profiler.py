@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from types import ModuleType
 from typing import Any, cast
 
+from famex.utils.device import is_cuda_available
+
 # psutil is optional - import lazily when needed
 _psutil: ModuleType | bool | None = None
 
@@ -27,9 +29,8 @@ def _get_psutil() -> ModuleType | None:
             _psutil = psutil
         except ImportError:
             _psutil = False  # Mark as unavailable
-    if _psutil is False or _psutil is None:
+    if _psutil is False:
         return None
-    # At this point, _psutil must be ModuleType
     return cast(ModuleType, _psutil)
 
 
@@ -98,12 +99,7 @@ class PerformanceProfiler:
 
     def _detect_gpu(self) -> bool:
         """Detect if GPU is available."""
-        try:
-            import torch
-
-            return bool(torch.cuda.is_available())
-        except ImportError:
-            return False
+        return is_cuda_available()
 
     def _get_memory_info(self) -> MemoryInfo:
         """Get current memory usage information."""
@@ -272,21 +268,17 @@ class PerformanceProfiler:
                 },
             )
 
-            # Add GPU stats if available
             if self._gpu_available:
                 try:
                     import torch
 
-                    if torch.cuda.is_available():
-                        stats.update(
-                            {
-                                "gpu_memory_allocated_mb": torch.cuda.memory_allocated()
-                                / 1024
-                                / 1024,
-                                "gpu_memory_cached_mb": torch.cuda.memory_reserved() / 1024 / 1024,
-                                "gpu_device_count": torch.cuda.device_count(),
-                            },
-                        )
+                    stats.update(
+                        {
+                            "gpu_memory_allocated_mb": torch.cuda.memory_allocated() / 1024 / 1024,
+                            "gpu_memory_cached_mb": torch.cuda.memory_reserved() / 1024 / 1024,
+                            "gpu_device_count": torch.cuda.device_count(),
+                        },
+                    )
                 except Exception:
                     pass
 

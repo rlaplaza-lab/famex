@@ -48,24 +48,24 @@ def setup_famex_logging(verbosity: int = 1, force: bool = False) -> None:
     ase_level = logging.DEBUG if verbosity >= 2 else logging.WARNING
     logging.getLogger("ase").setLevel(ase_level)
 
-    rebuild_handlers = force or not _famex_logging_configured
-    if rebuild_handlers:
+    if force:
         famex_logger.handlers.clear()
 
+    if not famex_logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(log_level)
         handler.setFormatter(FAMEXFormatter())
         famex_logger.addHandler(handler)
-
         famex_logger.propagate = False
-        _famex_logging_configured = True
     else:
         for existing in famex_logger.handlers:
             existing.setLevel(log_level)
 
+    _famex_logging_configured = True
+
 
 def get_famex_logger(name: str) -> logging.Logger:
-    if not name.startswith("famex"):
+    if name != "famex" and not name.startswith("famex."):
         name = "famex" if name == "__main__" else f"famex.{name}"
 
     return logging.getLogger(name)

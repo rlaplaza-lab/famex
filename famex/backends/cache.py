@@ -21,8 +21,6 @@ from pathlib import Path
 from typing import Any
 from weakref import WeakValueDictionary
 
-import requests
-
 from famex.utils.logging import get_famex_logger
 from famex.utils.path_security import PathSecurityError, sanitize_filename, validate_safe_path
 
@@ -548,6 +546,8 @@ def download_and_cache_model(model_name: str, model_url: str) -> Path:
         return cached_path
 
     # Download model
+    import requests
+
     logger.info("Downloading model %s from %s", model_name, model_url)
     try:
         response = requests.get(model_url, timeout=30)

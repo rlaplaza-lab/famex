@@ -10,7 +10,17 @@ import importlib
 from typing import Any
 
 from famex.backends.availability import get_backend_error_message, is_backend_available
-from famex.backends.constants import BACKEND_MOCK
+from famex.backends.constants import (
+    BACKEND_AIMNET2,
+    BACKEND_MACE,
+    BACKEND_MOCK,
+    BACKEND_ORB,
+    BACKEND_PET,
+    BACKEND_PYSCF,
+    BACKEND_SO3LR,
+    BACKEND_TBLITE,
+    BACKEND_UMA,
+)
 from famex.backends.registry import BACKEND_CLASSES
 
 __all__ = [
@@ -65,7 +75,7 @@ def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
 
         if callable(class_or_func):
             return class_or_func(**kwargs)
-        raise ImportError(f"Expected callable, got {type(class_or_func)}")
+        raise TypeError(f"Expected callable, got {type(class_or_func)}")
 
     except ImportError as e:
         raise ImportError(get_backend_error_message(backend)) from e
@@ -73,39 +83,39 @@ def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
 
 def get_uma_calculator(**kwargs: Any) -> Any:
     """Get UMA (Universal Materials Architecture) calculator."""
-    return _get_calculator_generic("uma", **kwargs)
+    return _get_calculator_generic(BACKEND_UMA, **kwargs)
 
 
 def get_so3lr_calculator(**kwargs: Any) -> Any:
     """Get SO3LR (SO(3) Local Reference) calculator."""
-    return _get_calculator_generic("so3lr", **kwargs)
+    return _get_calculator_generic(BACKEND_SO3LR, **kwargs)
 
 
 def get_aimnet2_calculator(**kwargs: Any) -> Any:
     """Get AIMNet2 calculator."""
-    return _get_calculator_generic("aimnet2", **kwargs)
+    return _get_calculator_generic(BACKEND_AIMNET2, **kwargs)
 
 
 def get_mace_calculator(**kwargs: Any) -> Any:
     """Get MACE (Multiscale Atomic Cluster Expansion) calculator."""
-    return _get_calculator_generic("mace", **kwargs)
+    return _get_calculator_generic(BACKEND_MACE, **kwargs)
 
 
 def get_orb_calculator(**kwargs: Any) -> Any:
     """Get Orb calculator."""
-    return _get_calculator_generic("orb", **kwargs)
+    return _get_calculator_generic(BACKEND_ORB, **kwargs)
 
 
 def get_tblite_calculator(**kwargs: Any) -> Any:
     """Get TBLite calculator."""
-    return _get_calculator_generic("tblite", **kwargs)
+    return _get_calculator_generic(BACKEND_TBLITE, **kwargs)
 
 
 def get_pet_calculator(**kwargs: Any) -> Any:
     """Get PET (UPET) calculator."""
-    return _get_calculator_generic("pet", **kwargs)
+    return _get_calculator_generic(BACKEND_PET, **kwargs)
 
 
 def get_pyscf_calculator(**kwargs: Any) -> Any:
     """Get PySCF DFT calculator."""
-    return _get_calculator_generic("pyscf", **kwargs)
+    return _get_calculator_generic(BACKEND_PYSCF, **kwargs)

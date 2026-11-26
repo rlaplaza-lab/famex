@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import gc
 import warnings
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -14,6 +14,7 @@ from famex.backends.constants import DEFAULT_UMA_MODEL, DEFAULT_UMA_TASK, FAIRCH
 from famex.backends.dependencies import deps
 from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
+from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 
 if TYPE_CHECKING:
@@ -312,7 +313,7 @@ class UMAPotential(BasePotential):
                     UserWarning,
                     stacklevel=3,
                 )
-            hessian_np = cast(np.ndarray, 0.5 * (hessian_np + hessian_np.T))
+            hessian_np = symmetrize_hessian(hessian_np)
 
         return np.asarray(hessian_np, dtype=np.float64)
 
@@ -330,13 +331,6 @@ class UMAPotential(BasePotential):
         if "forces" in calc.results:
             self.results["forces"] = calc.results["forces"]
         return hessian
-
-    def _hessian_via_finite_differences(self) -> np.ndarray:
-        from famex.analysis.hessian import HessianCalculator
-
-        assert self.atoms is not None
-        hess_calc = HessianCalculator(self.atoms, self, delta=0.01, verbose=0)
-        return np.asarray(hess_calc.calculate_numerical_hessian(), dtype=np.float64)
 
     def _hessian_via_legacy_autograd(self, *, method: str) -> np.ndarray:
         """Compute Hessian via legacy autograd methods (double_backward / vmap / fairchem*)."""
@@ -460,17 +454,3 @@ class UMAPotential(BasePotential):
             hessian_list.append((-hess_row).view(-1))
 
         return torch.stack(hessian_list)
-
-    def get_property(
-        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
-    ) -> Any:
-        if atoms is not None:
-            self.atoms = atoms
-
-        if prop == "energy":
-            return self.get_potential_energy(atoms)
-        if prop == "forces":
-            return self.get_forces(atoms)
-        if prop == "hessian":
-            return self.get_hessian(atoms)
-        raise KeyError(f"Property '{prop}' not supported by UMAPotential")

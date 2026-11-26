@@ -18,6 +18,7 @@ from ase.calculators.calculator import all_changes
 from famex.backends.dependencies import deps
 from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
+from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 from famex.utils.path_security import PathSecurityError, is_safe_relative_path, validate_safe_path
 
@@ -573,7 +574,7 @@ class AIMNet2Potential(BasePotential):
 
         if hessian_needed and "hessian" in results:
             hessian = results["hessian"].detach().cpu().numpy()
-            self.results["hessian"] = 0.5 * (hessian + hessian.T)
+            self.results["hessian"] = symmetrize_hessian(hessian)
 
     def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get forces."""
@@ -614,22 +615,6 @@ class AIMNet2Potential(BasePotential):
                 msg = f"Hessian has unexpected shape {hessian.shape}, expected {expected_shape}"
                 raise ValueError(msg)
 
-        hessian = 0.5 * (hessian + hessian.T)
+        hessian = symmetrize_hessian(hessian)
         self.results["hessian"] = hessian
         return hessian
-
-    def get_property(
-        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
-    ) -> Any:
-        """Get a specific property (energy, forces, hessian) from the calculator."""
-        if atoms is not None:
-            self.atoms = atoms
-
-        if prop == "energy":
-            return self.get_potential_energy(atoms)
-        if prop == "forces":
-            return self.get_forces(atoms)
-        if prop == "hessian":
-            return self.get_hessian(atoms)
-        msg = f"Property '{prop}' not supported by AIMNet2Potential"
-        raise KeyError(msg)

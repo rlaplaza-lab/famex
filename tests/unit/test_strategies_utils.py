@@ -219,6 +219,30 @@ class TestStrategyUtils:
         assert len(energies) == 2
         assert len(forces_list) == 2
 
+    def test_calculate_batch_energies_forces_clears_partial_batch(self, mock_backend):
+        """Partial batch appends must be cleared before individual fallback."""
+        atoms1 = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms2 = Atoms("H2", positions=[[0, 0, 0], [0.8, 0, 0]])
+        atoms1.calc = mock_backend
+        atoms2.calc = mock_backend
+
+        path = [atoms1, atoms2]
+        calculator = MagicMock()
+
+        class _PartialResults:
+            def __iter__(self):
+                yield {"energy": 1.0, "forces": np.zeros((2, 3))}
+                raise RuntimeError("mid-batch failure")
+
+        calculator.calculate_batch.return_value = _PartialResults()
+
+        energies, forces_list = StrategyUtils.calculate_batch_energies_forces(
+            path, calculator, True
+        )
+
+        assert len(energies) == 2
+        assert len(forces_list) == 2
+
     def test_calculate_batch_energies_forces_no_batch(self, mock_backend):
         """Test calculate_batch_energies_forces without batch support."""
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])

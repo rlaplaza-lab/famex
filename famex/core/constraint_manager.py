@@ -36,9 +36,9 @@ class ConstraintManager:
             return []
 
         can_cache = self._can_cache_constraints()
+        atoms_hash = hash((len(atoms), tuple(atoms.get_chemical_symbols())))
 
         if can_cache and self._cached_constraints is not None:
-            atoms_hash = hash((len(atoms), tuple(atoms.get_chemical_symbols())))
             if atoms_hash == self._cached_atoms_hash:
                 constraints = self._cached_constraints.copy()
                 atoms.set_constraint(constraints)
@@ -48,7 +48,6 @@ class ConstraintManager:
 
         if can_cache:
             self._cached_constraints = constraints.copy()
-            atoms_hash = hash((len(atoms), tuple(atoms.get_chemical_symbols())))
             self._cached_atoms_hash = atoms_hash
 
         return constraints

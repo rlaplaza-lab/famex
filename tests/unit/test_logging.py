@@ -65,6 +65,17 @@ class TestSetupFamexLogging:
 
         assert clear_famex_logger.level == logging.DEBUG  # Should be updated
 
+    def test_setup_logging_preserves_preexisting_handlers(self, clear_famex_logger):
+        clear_famex_logger.handlers.clear()
+        host_handler = logging.StreamHandler(StringIO())
+        clear_famex_logger.addHandler(host_handler)
+        clear_famex_logger.propagate = True
+
+        setup_famex_logging(verbosity=1, force=False)
+
+        assert host_handler in clear_famex_logger.handlers
+        assert clear_famex_logger.propagate is True
+
     def test_logging_formatter_info_level(self, clear_famex_logger):
         setup_famex_logging(verbosity=2, force=True)
 
@@ -130,6 +141,11 @@ class TestGetFamexLogger:
 
         assert isinstance(logger, logging.Logger)
         assert logger.name == "famex.test_module"
+
+    def test_get_logger_does_not_treat_famexx_as_famex(self):
+        logger = get_famex_logger("famexx")
+
+        assert logger.name == "famex.famexx"
 
     def test_get_logger_without_prefix(self):
         logger = get_famex_logger("test_module")

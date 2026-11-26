@@ -6,13 +6,14 @@ This module provides ASE Calculator interface for SO3LR models.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from ase.calculators.calculator import all_changes
 
 from famex.backends.dependencies import deps
 from famex.potentials.base_potential import BasePotential
+from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 
 if TYPE_CHECKING:
@@ -179,23 +180,7 @@ class SO3LRPotential(BasePotential):
         hessian_calc.calculate(self.atoms, ["energy", "forces", "hessian"], all_changes)
         n = 3 * len(self.atoms)
         hessian = np.asarray(hessian_calc.results["hessian"], dtype=np.float64).reshape(n, n)
-        hessian = cast(np.ndarray, 0.5 * (hessian + hessian.T))
+        hessian = symmetrize_hessian(hessian)
 
         self.results["hessian"] = hessian
         return hessian
-
-    def get_property(
-        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
-    ) -> Any:
-        """Get energy, forces, or the analytical Hessian."""
-        del allow_calculation
-        if atoms is not None:
-            self.atoms = atoms
-        if prop == "energy":
-            return self.get_potential_energy(atoms)
-        if prop == "forces":
-            return self.get_forces(atoms)
-        if prop == "hessian":
-            return self.get_hessian(atoms)
-        msg = f"Property '{prop}' not supported by SO3LRPotential"
-        raise KeyError(msg)

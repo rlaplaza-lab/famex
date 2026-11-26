@@ -88,8 +88,6 @@ class RFOTransitionState(Optimizer):
         self._previous_energy: float | None = None
         self._step_quality_history: list[float] = []
 
-        if not hasattr(self, "fmax"):
-            self.fmax = 0.05
         self.fmax: float = getattr(self, "fmax", 0.05)  # type: ignore[assignment]
         self.max_steps: int = 0
 
@@ -145,8 +143,9 @@ class RFOTransitionState(Optimizer):
                 self.atoms.get_masses(),
             )
             self.hessian = prepare_ts_hessian(hessian, basis)
-        elif self.verbose >= 2:
-            logger.debug("Reusing Hessian (computed %s steps ago)", steps_since_full)
+        else:
+            log = logger.info if self.verbose >= 1 else logger.debug
+            log("Reusing Hessian (computed %s steps ago)", steps_since_full)
 
         if self.hessian is None:
             raise RuntimeError("Hessian is None after update logic")
@@ -195,7 +194,10 @@ class RFOTransitionState(Optimizer):
                 x_new = x + step
                 self.atoms.set_positions(self._x_to_positions(x_new))
                 new_energy = float(self.atoms.get_potential_energy())
-                energy_change = new_energy - (self._previous_energy or new_energy)
+                prev_energy = (
+                    self._previous_energy if self._previous_energy is not None else new_energy
+                )
+                energy_change = new_energy - prev_energy
                 quality = compute_step_quality(energy_change, step_result.predicted_energy_change)
                 self._step_quality_history.append(quality)
 
@@ -225,15 +227,18 @@ class RFOTransitionState(Optimizer):
                     raise ConvergedError
 
         except ConvergedError:
+            converged = True
+        else:
+            forces = self.atoms.get_forces()
+            converged = bool(self.converged(forces.ravel()))
+
+        if converged:
             if self.verbose >= 1:
                 logger.info("Optimization converged!")
             return True
 
-        forces = self.atoms.get_forces()
-        converged: bool = bool(self.converged(forces.ravel()))
-        if converged and self.verbose >= 1:
-            logger.info("Optimization converged!")
-        elif self.verbose >= 1:
+        if self.verbose >= 1:
+            forces = self.atoms.get_forces()
             logger.warning("Optimization stopped after %s steps without converging", steps)
             logger.warning("Final max force: %.6f eV/Å", np.max(np.abs(forces)))
 

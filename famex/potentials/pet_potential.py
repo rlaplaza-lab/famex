@@ -15,6 +15,7 @@ import numpy as np
 from famex.backends.constants import DEFAULT_PET_MODEL
 from famex.backends.dependencies import deps
 from famex.potentials.base_potential import BasePotential
+from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 
 if TYPE_CHECKING:
@@ -242,13 +243,6 @@ class PETPotential(BasePotential):
         self.results["hessian"] = hessian
         return hessian
 
-    def _hessian_via_finite_differences(self) -> np.ndarray:
-        from famex.analysis.hessian import HessianCalculator
-
-        assert self.atoms is not None
-        hess_calc = HessianCalculator(self.atoms, self, delta=0.01, verbose=0)
-        return np.asarray(hess_calc.calculate_numerical_hessian(), dtype=np.float64)
-
     def _compute_analytical_hessian(self, atoms: Atoms) -> np.ndarray:
         import torch
         from metatomic.torch import ModelEvaluationOptions, System
@@ -302,20 +296,4 @@ class PETPotential(BasePotential):
                 for component in forces.reshape(-1)
             ]
         hessian_np = np.asarray(torch.stack(rows).detach().cpu().numpy(), dtype=np.float64)
-        return 0.5 * (hessian_np + hessian_np.T)
-
-    def get_property(
-        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
-    ) -> Any:
-        """Get energy, forces, or the analytical Hessian."""
-        del allow_calculation
-        if atoms is not None:
-            self.atoms = atoms
-        if prop == "energy":
-            return self.get_potential_energy(atoms)
-        if prop == "forces":
-            return self.get_forces(atoms)
-        if prop == "hessian":
-            return self.get_hessian(atoms)
-        msg = f"Property '{prop}' not supported by PETPotential"
-        raise KeyError(msg)
+        return symmetrize_hessian(hessian_np)

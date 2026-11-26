@@ -27,7 +27,10 @@ from famex.analysis.finite_differences import (
     SevenPointCentralDifferenceScheme,
 )
 from famex.analysis.utils import validate_indices
+from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
+
+DEFAULT_FD_HESSIAN_DELTA = 0.01
 
 # Optional progress bar support
 HAS_TQDM: bool
@@ -977,17 +980,9 @@ class HessianCalculator:
                         eta,
                     )
 
-        # Symmetrize Hessian: H_sym = (H + H^T) / 2
-        HESSIAN_SYMMETRIZATION_FACTOR = 0.5
-        symmetrized = HESSIAN_SYMMETRIZATION_FACTOR * (hessian + hessian.T)
+        symmetrized = symmetrize_hessian(hessian)
 
         if self.verbose >= 1:
             elapsed = time.time() - (start_time or 0) if start_time else 0
             logger.info("Hessian calculation completed in %.2f seconds", elapsed)
         return symmetrized
-
-
-__all__ = [
-    "CalculatorProtocol",
-    "HessianCalculator",
-]

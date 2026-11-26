@@ -10,6 +10,7 @@ import numpy as np
 from ase import Atoms
 from ase.constraints import FixAtoms
 
+from famex.analysis.physics_constants import IMAGINARY_MODE_THRESHOLD_CM
 from famex.optimizers.sella_utils import is_sella_optimizer
 from famex.strategies.helpers import _get_local_optimizer_class
 from famex.strategies.utils import StrategyUtils
@@ -19,9 +20,6 @@ logger = get_famex_logger(__name__)
 
 StationaryPointTarget = Literal["minima", "ts"]
 
-# Frequencies below this magnitude (cm^-1) are treated as imaginary; mirrors the
-# default threshold used by FrequencyAnalysis.is_minima / is_transition_state.
-_IMAGINARY_THRESHOLD_CM = 50.0
 # Base geometric perturbation amplitude (Å) applied before a retry. The amplitude
 # grows with each subsequent attempt to escape stubborn stationary points.
 _BASE_PERTURBATION_AMPLITUDE = 0.1
@@ -191,7 +189,7 @@ def _select_modes_to_follow(
     target: StationaryPointTarget,
 ) -> list[int]:
     """Return column indices of normal modes to displace along for the given target."""
-    imaginary_idx = [int(i) for i in np.where(frequencies < -_IMAGINARY_THRESHOLD_CM)[0]]
+    imaginary_idx = [int(i) for i in np.where(frequencies < -IMAGINARY_MODE_THRESHOLD_CM)[0]]
 
     if target == "minima":
         # Every imaginary mode is spurious; displacing along it slides off the saddle.
@@ -204,7 +202,7 @@ def _select_modes_to_follow(
 
     if len(imaginary_idx) == 0:
         # Collapsed to a minimum: follow the softest real mode to regain curvature.
-        real_idx = np.where(frequencies > _IMAGINARY_THRESHOLD_CM)[0]
+        real_idx = np.where(frequencies > IMAGINARY_MODE_THRESHOLD_CM)[0]
         if real_idx.size == 0:
             return []
         return [int(real_idx[int(frequencies[real_idx].argmin())])]
@@ -331,8 +329,6 @@ def run_frequency_cleanup(
 
     for attempt_idx in range(1, max_attempts + 1):
         n_imaginary_before = relevant_imaginary_count(frequency_result, target)
-        if stationary_point_is_clean(frequency_result, target):
-            break
 
         # The optimizer cannot escape an already-converged stationary point on its
         # own, so perturb the geometry before every retry after the first.

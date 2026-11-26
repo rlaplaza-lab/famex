@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 from typing import TYPE_CHECKING, Any
 
-from famex.backends.availability import is_backend_available
+from famex.backends.availability import get_available_backends, is_backend_available
 from famex.backends.constants import (
     BACKEND_AIMNET2,
     BACKEND_MACE,
@@ -125,8 +125,6 @@ class CalculatorRegistry:
         """
         self._load_backend(backend)
         if backend not in self._registry:
-            from famex.backends.availability import get_available_backends
-
             available = get_available_backends(include_mock=False)
             logger.error(
                 "Backend '%s' is not available for calculator creation. Available: %s",

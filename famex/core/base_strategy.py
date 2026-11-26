@@ -99,6 +99,7 @@ class BaseStrategy(ABC):
             return
 
         n_atoms = len(atoms_list[0])
+        symbols_0 = atoms_list[0].get_chemical_symbols()
         for i, atoms in enumerate(atoms_list[1:], start=1):
             if len(atoms) != n_atoms:
                 raise ValueError(
@@ -106,9 +107,6 @@ class BaseStrategy(ABC):
                         [("structure 0", n_atoms), (f"structure {i}", len(atoms))]
                     )
                 )
-
-        symbols_0 = atoms_list[0].get_chemical_symbols()
-        for i, atoms in enumerate(atoms_list[1:], start=1):
             symbols_i = atoms.get_chemical_symbols()
             if symbols_i != symbols_0:
                 msg = (

@@ -21,9 +21,6 @@ from famex.analysis.physics_constants import (
     filter_positive_frequencies,
     normalize_frequencies_cm1,
 )
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
 
 __all__ = [
     "QuasiHarmonicHandler",

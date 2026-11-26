@@ -61,8 +61,11 @@ class BackendError(Exception):
         self.operation = operation
 
 
-class DependencyError(Exception):
+class DependencyError(ImportError):
     """Raised when an optional dependency is missing.
+
+    Subclasses ``ImportError`` so existing ``except ImportError`` handlers still
+    catch it. Raised by ``famex.backends.dependencies.deps.require``.
 
     Parameters
     ----------

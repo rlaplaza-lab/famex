@@ -117,10 +117,9 @@ def validate_safe_path(
         raise PathSecurityError(f"Absolute paths not allowed: {path_str}")
 
     # Resolve the path (follows symlinks, resolves ..)
+    base_path = Path(base_dir).resolve() if base_dir else None
     try:
-        if base_dir:
-            # Resolve relative to base_dir
-            base_path = Path(base_dir).resolve()
+        if base_path is not None:
             if path_obj.is_absolute():
                 resolved = path_obj.resolve()
             else:
@@ -135,8 +134,7 @@ def validate_safe_path(
         raise PathSecurityError(f"Path does not exist: {path_str}")
 
     # If base_dir specified, ensure resolved path is within it
-    if base_dir:
-        base_path = Path(base_dir).resolve()
+    if base_path is not None:
         try:
             resolved.relative_to(base_path)
         except ValueError as e:
