@@ -92,7 +92,7 @@ class TestDependencyManager:
     def test_require_nonexistent(self):
         """Test require() for non-existent package raises ImportError."""
         manager = DependencyManager()
-        with pytest.raises(ImportError, match="is required for"):
+        with pytest.raises(ImportError, match="Missing dependency"):
             manager.require("nonexistent_package_xyz123", purpose="testing")
 
     def test_cache_behavior(self):
