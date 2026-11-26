@@ -401,7 +401,10 @@ class SciPyHessianOptimizer(Optimizer):
                 x_new = x + step
                 self.atoms.set_positions(self._x_to_positions(x_new))
                 new_energy = float(self.atoms.get_potential_energy())
-                energy_change = new_energy - (self._previous_energy or new_energy)
+                prev_energy = (
+                    self._previous_energy if self._previous_energy is not None else new_energy
+                )
+                energy_change = new_energy - prev_energy
                 quality = compute_step_quality(energy_change, step_result.predicted_energy_change)
 
                 self.trust_radius = adjust_trust_radius(

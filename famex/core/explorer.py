@@ -328,6 +328,11 @@ class Explorer:
 
     # --- Execution ---
 
+    def _resolve_strategy_name(self) -> str:
+        if self.target and self.strategy:
+            return f"{self.target}:{self.strategy}"
+        return "minima:local"
+
     def explain_run(self) -> dict[str, str | bool | int | None]:
         """Describe the strategy and optimizer a run would use, without running.
 
@@ -339,10 +344,7 @@ class Explorer:
 
         """
         try:
-            if self.target and self.strategy:
-                strategy_name = f"{self.target}:{self.strategy}"
-            else:
-                strategy_name = "minima:local"
+            strategy_name = self._resolve_strategy_name()
 
             strategy_class = REGISTRY.get(strategy_name)
             metadata = strategy_class.metadata
@@ -455,10 +457,7 @@ class Explorer:
                 return result
             return {"optimized_atoms": result, "strategy": "custom"}
 
-        if self.target and self.strategy:
-            strategy_name = f"{self.target}:{self.strategy}"
-        else:
-            strategy_name = "minima:local"
+        strategy_name = self._resolve_strategy_name()
 
         strategy_class = REGISTRY.get(strategy_name)
 

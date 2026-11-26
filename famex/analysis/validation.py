@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
@@ -112,7 +113,7 @@ def validate_hessian(
                 tolerance_symmetry,
             )
 
-        matrix = 0.5 * (hessian + hessian.T)
+        matrix = symmetrize_hessian(hessian)
         n_null = 0
         if positions is not None and masses is not None:
             positions = np.asarray(positions, dtype=np.float64)

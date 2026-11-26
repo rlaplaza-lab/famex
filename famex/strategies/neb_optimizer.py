@@ -101,10 +101,11 @@ def compute_neb_forces(
             msg = f"Expected {nimages - 1} spring constants, got {len(k_arr)}"
             raise ValueError(msg)
 
-    spring_lengths = [
-        float(np.linalg.norm(np.asarray(positions[i + 1] - positions[i], dtype=float)))
-        for i in range(nimages - 1)
-    ]
+    pos_arr = np.asarray(positions, dtype=float)
+    spring_lengths = np.linalg.norm(
+        (pos_arr[1:] - pos_arr[:-1]).reshape(nimages - 1, -1),
+        axis=1,
+    )
 
     climbing_image: int | None = None
     if climb:
@@ -115,8 +116,8 @@ def compute_neb_forces(
     ]
 
     for i in range(1, nimages - 1):
-        force = np.asarray(true_forces[i], dtype=float).copy()
-        force_flat = np.asarray(force.ravel(), dtype=float)
+        force = np.asarray(true_forces[i], dtype=float)
+        force_flat = force.ravel()
         tangent = improved_tangent(positions, energies, i)
         tangential_force = float(np.vdot(force_flat, tangent))
 
@@ -227,8 +228,8 @@ class NEBOptimizer:
         for atoms in self.images:
             StrategyUtils.ensure_charge_spin_info(atoms)
 
-        calculator = self.images[0].calc if self.images[0].calc is not None else None
-        self.supports_batch = StrategyUtils.check_batch_support(calculator)
+        self.calculator = self.images[0].calc if self.images[0].calc is not None else None
+        self.supports_batch = StrategyUtils.check_batch_support(self.calculator)
 
         self._fire = _FIREBandStepper(
             dt=float(kwargs.get("dt", 0.1)),
@@ -265,7 +266,7 @@ class NEBOptimizer:
         energies: Sequence[float],
         true_forces: Sequence[np.ndarray],
     ) -> list[np.ndarray]:
-        positions = [img.positions.copy() for img in self.images]
+        positions = [img.positions for img in self.images]
         neb_forces, climbing_image = compute_neb_forces(
             positions,
             energies,
@@ -317,10 +318,9 @@ class NEBOptimizer:
         return self.images, converged
 
     def _calculate_energies_forces(self) -> tuple[list[float], list[np.ndarray]]:
-        calculator = self.images[0].calc if self.images[0].calc is not None else None
         return StrategyUtils.calculate_batch_energies_forces(
             self.images,
-            calculator,
+            self.calculator,
             self.supports_batch,
         )
 

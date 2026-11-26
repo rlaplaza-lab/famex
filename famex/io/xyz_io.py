@@ -32,13 +32,10 @@ def parse_xyz_comment(comment: str) -> dict[str, Any]:
 
     for key, value in matches:
         key = key.lower()
-        try:
-            if "." in value or "e" in value.lower():
-                metadata[key] = float(value)
-            else:
-                metadata[key] = int(value)
-        except ValueError:
-            metadata[key] = value
+        if "." in value or "e" in value.lower():
+            metadata[key] = float(value)
+        else:
+            metadata[key] = int(value)
 
     return metadata
 
@@ -153,12 +150,12 @@ def validate_xyz_structure(atoms: Atoms, strict: bool = False) -> list[str]:
         issues.append("No atomic coordinates found")
         return issues
 
-    if np.any(np.isnan(positions)):
-        issues.append("NaN coordinates detected")
-    if np.any(np.isinf(positions)):
-        issues.append("Infinite coordinates detected")
-
-    if not np.any(np.isnan(positions)) and not np.any(np.isinf(positions)):
+    if not np.all(np.isfinite(positions)):
+        if np.any(np.isnan(positions)):
+            issues.append("NaN coordinates detected")
+        if np.any(np.isinf(positions)):
+            issues.append("Infinite coordinates detected")
+    else:
         max_distance = np.max(np.linalg.norm(positions, axis=1))
         if max_distance > 1000.0:
             issues.append(f"Very large coordinates detected (max distance: {max_distance:.1f} Å)")
@@ -224,7 +221,7 @@ def read_xyz_with_metadata(
     try:
         atoms_list = ase_read(str(filename), ":", **kwargs)
     except Exception as e:
-        logger.exception("Failed to read XYZ file %s: %s", filename, e)
+        logger.exception("Failed to read XYZ file %s", filename)
         raise ValueError(f"Failed to read XYZ file {filename}: {e}") from e
 
     if not isinstance(atoms_list, list):

@@ -9,14 +9,19 @@ setup work.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
+
+import numpy as np
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from ase import Atoms
 
+    from famex.analysis.hessian import CalculatorProtocol
 
+
+from famex.analysis.hessian import DEFAULT_FD_HESSIAN_DELTA, HessianCalculator
 from famex.utils.device import resolve_backend_device
 from famex.utils.logging import get_famex_logger
 
@@ -96,12 +101,6 @@ class BasePotential:
         """
         if atoms is not None:
             self.atoms = atoms
-
-        if properties is None:
-            properties = self.implemented_properties
-
-        # No explicit computation at base level; subclasses will populate
-        # ``self.results`` when appropriate.
 
     def _prepare_calculation(self, atoms: Atoms | None = None) -> Any | None:
         """Prepare for a calculation by setting atoms and ensuring backend is loaded.
@@ -192,23 +191,48 @@ class BasePotential:
         self.calculate(self.atoms, properties=["energy"], system_changes=None)
         return float(self.results.get("energy", 0.0))
 
-    def get_forces(self, atoms: Atoms | None = None) -> Any | None:
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray | None:
         """Get forces by delegating to underlying backend.
 
         If the backend provides ``get_forces`` it is delegated to. Otherwise a
         ``calculate`` call is performed and the stored ``self.results['forces']``
-        is returned.
+        is returned. Non-``None`` results are coerced with ``np.asarray``.
         """
         backend = self._prepare_calculation(atoms)
         if backend is None:
             self.calculate(self.atoms, properties=["forces"], system_changes=None)
-            return self.results.get("forces")
+            forces = self.results.get("forces")
+        elif hasattr(backend, "get_forces"):
+            forces = backend.get_forces(self.atoms)
+        else:
+            self.calculate(self.atoms, properties=["forces"], system_changes=None)
+            forces = self.results.get("forces")
 
-        if hasattr(backend, "get_forces"):
-            return backend.get_forces(self.atoms)
+        if forces is None:
+            return None
+        return np.asarray(forces)
 
-        self.calculate(self.atoms, properties=["forces"], system_changes=None)
-        return self.results.get("forces")
+    def get_property(
+        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
+        """Get energy, forces, or hessian via the ASE property protocol."""
+        _ = allow_calculation
+        if atoms is not None:
+            self.atoms = atoms
+
+        if prop == "energy":
+            return self.get_potential_energy(atoms)
+        if prop == "forces":
+            return self.get_forces(atoms)
+        if prop == "hessian":
+            get_hessian = getattr(self, "get_hessian", None)
+            if callable(get_hessian):
+                return get_hessian(atoms)
+            msg = f"Property 'hessian' not supported by {self.__class__.__name__}"
+            raise KeyError(msg)
+
+        msg = f"Property '{prop}' not supported by {self.__class__.__name__}"
+        raise KeyError(msg)
 
     def get_stress(self, atoms: Atoms | None = None) -> Any:
         """Get stress tensor by delegating to the underlying backend."""
@@ -260,6 +284,26 @@ class BasePotential:
             results.append(self.results.copy())
 
         return results
+
+    def _hessian_via_finite_differences(
+        self,
+        *,
+        delta: float = DEFAULT_FD_HESSIAN_DELTA,
+        verbose: int = 0,
+    ) -> np.ndarray:
+        """Fallback Hessian from central finite differences of forces."""
+        if self.atoms is None:
+            msg = "No atoms provided for Hessian calculation"
+            raise ValueError(msg)
+        return np.asarray(
+            HessianCalculator(
+                self.atoms,
+                cast("CalculatorProtocol", self),
+                delta=delta,
+                verbose=verbose,
+            ).calculate_numerical_hessian(),
+            dtype=np.float64,
+        )
 
 
 __all__ = ["BasePotential"]

@@ -10,6 +10,19 @@ import importlib
 import importlib.util
 from typing import Any
 
+from famex.backends.constants import (
+    BACKEND_AIMNET2,
+    BACKEND_MACE,
+    BACKEND_ORB,
+    BACKEND_PET,
+    BACKEND_PYSCF,
+    BACKEND_SO3LR,
+    BACKEND_TBLITE,
+    BACKEND_UMA,
+    install_package_spec,
+)
+from famex.utils.validation import DependencyError
+
 
 class DependencyManager:
     """Manages optional dependencies with lazy loading and consistent error handling.
@@ -124,18 +137,6 @@ class DependencyManager:
     def has(self, name: str) -> bool:
         """Check if a dependency is available without importing it."""
         # Map backend names to package names for availability checking
-        # Import constants to avoid hardcoded backend strings
-        from famex.backends.constants import (
-            BACKEND_AIMNET2,
-            BACKEND_MACE,
-            BACKEND_ORB,
-            BACKEND_PET,
-            BACKEND_PYSCF,
-            BACKEND_SO3LR,
-            BACKEND_TBLITE,
-            BACKEND_UMA,
-        )
-
         package_mapping = {
             "torch": "torch",
             "sella": "sella",
@@ -160,46 +161,15 @@ class DependencyManager:
         return self._check_availability_lazy(package_name)
 
     def require(self, name: str, purpose: str = "this functionality") -> Any:
-        """Require a dependency, raising ImportError if not available."""
+        """Require a dependency, raising DependencyError if not available."""
         if not self.has(name):
-            msg = (
-                f"{name} is required for {purpose}. "
-                f"Install with: pip install {self._get_install_command(name)}"
-            )
-            raise ImportError(
-                msg,
-            )
+            install_command = f"pip install {self._get_install_command(name)}"
+            raise DependencyError(name, purpose, install_command)
         return self.get(name.lower())
 
     def _get_install_command(self, name: str) -> str:
         """Get installation command for a dependency."""
-        from famex.backends.constants import (
-            BACKEND_AIMNET2,
-            BACKEND_MACE,
-            BACKEND_ORB,
-            BACKEND_PET,
-            BACKEND_PYSCF,
-            BACKEND_SO3LR,
-            BACKEND_TBLITE,
-        )
-
-        commands = {
-            "torch": "torch",
-            "sella": "sella",
-            BACKEND_AIMNET2: "torch",
-            "fairchem": "fairchem-core",
-            BACKEND_SO3LR: "so3lr",
-            BACKEND_MACE: "mace-torch",
-            "orb_models": "orb-models",
-            BACKEND_ORB: "orb-models",  # Orb uses orb-models package
-            BACKEND_TBLITE: "tblite",
-            "upet": "upet",
-            BACKEND_PET: "upet",
-            "pyscf": "famex[pyscf]",
-            BACKEND_PYSCF: "famex[pyscf]",
-            "pyscf_dispersion": "pyscf-dispersion",
-        }
-        return commands.get(name.lower(), name.lower())
+        return install_package_spec(name)
 
 
 # Global dependency manager instance

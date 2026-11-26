@@ -14,6 +14,7 @@ from famex.backends.constants import DEFAULT_MACE_MODEL
 from famex.backends.dependencies import deps
 from famex.backends.mace_compat import format_mace_e3nn_conflict_message, is_mace_e3nn_error
 from famex.potentials.base_potential import BasePotential
+from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 
 if TYPE_CHECKING:
@@ -148,7 +149,11 @@ class MACEPotential(BasePotential):
             if properties is None:
                 properties = self.implemented_properties
             if "energy" in properties and hasattr(calc, "results"):
-                self.results["energy"] = getattr(calc.results, "energy", None)
+                results = calc.results
+                if isinstance(results, dict):
+                    self.results["energy"] = results.get("energy")
+                else:
+                    self.results["energy"] = getattr(results, "energy", None)
 
     def get_potential_energy(
         self, atoms: Atoms | None = None, force_consistent: bool = False
@@ -203,7 +208,7 @@ class MACEPotential(BasePotential):
                     if hessian.shape == (3 * n_atoms, n_atoms, 3):
                         hessian = hessian.reshape(3 * n_atoms, 3 * n_atoms)
             hessian = np.asarray(hessian, dtype=np.float64)
-            return 0.5 * (hessian + hessian.T)
+            return symmetrize_hessian(hessian)
         except (AttributeError, RuntimeError) as e:
             if is_mace_e3nn_error(e):
                 msg = format_mace_e3nn_conflict_message(e, hessian=True)
@@ -211,36 +216,3 @@ class MACEPotential(BasePotential):
                 logger.debug("Hessian calculation error details: %s", e)
                 raise ImportError(msg) from e
             raise
-
-    def get_property(
-        self, prop: str, atoms: Atoms | None = None, allow_calculation: bool = True
-    ) -> Any:
-        """Get a specific property from the calculator.
-
-        This method is used by ASE's property system and frequency analysis.
-
-        Parameters
-        ----------
-        prop : str
-            Property name ('energy', 'forces', 'hessian', etc.)
-        atoms : Atoms, optional
-            Atoms object to calculate property for
-        allow_calculation : bool, default=True
-            Whether calculation is allowed (ASE standard parameter, ignored here)
-
-        Returns
-        -------
-        Any
-            The requested property
-        """
-        if atoms is not None:
-            self.atoms = atoms
-
-        if prop == "energy":
-            return self.get_potential_energy(atoms)
-        if prop == "forces":
-            return self.get_forces(atoms)
-        if prop == "hessian":
-            return self.get_hessian(atoms)
-        msg = f"Property '{prop}' not supported by MACEPotential"
-        raise KeyError(msg)

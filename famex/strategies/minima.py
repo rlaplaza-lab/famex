@@ -51,10 +51,10 @@ class LocalMinimaStrategy(BaseStrategy):
 
             return opt_kwargs
 
+        force_fd = bool(getattr(self.explorer, "force_finite_diff_hessian", False))
+
         def prepare_frequency_kwargs(_atoms: Atoms) -> dict[str, Any]:
-            if getattr(self.explorer, "force_finite_diff_hessian", False):
-                return {"method": "finite_differences"}
-            return {}
+            return {"method": "finite_differences"} if force_fd else {}
 
         return _run_local_optimization_common(
             strategy=self,

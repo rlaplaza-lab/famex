@@ -712,6 +712,9 @@ Python equivalents: `Explorer(..., task_name="omat", dftd3_functional="r2scan", 
 
 Machine-learning potentials are the main backends. `tblite` and `pyscf` are optional and CPU-only. Checkpoints: [Default models](#default-models).
 
+Install commands below track `famex.backends.constants.format_install_command`
+/ `INSTALL_COMMANDS` (source of truth for runtime error messages).
+
 ```{list-table}
 :class: fit-table
 :header-rows: 1

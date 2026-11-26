@@ -104,6 +104,30 @@ class TestPotentialsInitBasic:
         with pytest.raises(ImportError):
             _get_calculator_generic(backend)
 
+    def test_get_calculator_generic_non_callable_keeps_diagnostic(self, monkeypatch):
+        import famex.potentials as potentials_mod
+        from famex.backends.constants import BACKEND_MOCK
+        from famex.potentials import _get_calculator_generic
+
+        monkeypatch.setitem(
+            potentials_mod._BACKEND_MODULES,
+            BACKEND_MOCK,
+            ("famex.potentials.mock_potential", "NOT_A_REAL_EXPORT"),
+        )
+        monkeypatch.setattr(potentials_mod, "is_backend_available", lambda _backend: True)
+
+        class _Module:
+            NOT_A_REAL_EXPORT = 123
+
+        monkeypatch.setattr(
+            potentials_mod.importlib,
+            "import_module",
+            lambda _name: _Module(),
+        )
+
+        with pytest.raises(TypeError, match="Expected callable"):
+            _get_calculator_generic(BACKEND_MOCK)
+
 
 class TestPETPotentialParsing:
     @pytest.mark.parametrize(

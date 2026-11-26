@@ -13,6 +13,13 @@ BOLTZMANN_CONSTANT = units.kB / units.J  # J/K
 AVOGADRO_CONSTANT = units._Nav
 AMU_TO_KG = 1.66053886e-27  # kg/amu
 SPEED_OF_LIGHT = 2.99792458e10  # cm/s
+# amu·Å² → kg·m² (moments of inertia)
+AMU_ANGSTROM2_TO_KG_M2 = AMU_TO_KG * 1e-20
+MOMENT_OF_INERTIA_FLOOR_KG_M2 = 1e-4 * AMU_ANGSTROM2_TO_KG_M2
+# Rotational constants: 1 GHz → cm⁻¹
+GHZ_TO_CM1 = 1e9 / SPEED_OF_LIGHT
+# Imaginary-mode cutoff shared by frequency analysis, cleanup, and mode I/O
+IMAGINARY_MODE_THRESHOLD_CM = 50.0
 J_PER_MOL_TO_EV = units.J / units.mol
 ATMOS = 101.325  # kPa; GoodVibes 1 atm concentration is ATMOS/(R T) mol/L
 ATMOS_PA = ATMOS * 1000.0  # 1 atm in pascal
@@ -71,14 +78,18 @@ def normalize_frequencies_cm1(
 
 
 __all__ = [
+    "AMU_ANGSTROM2_TO_KG_M2",
     "AMU_TO_KG",
     "ATMOS",
     "ATMOS_PA",
     "AVOGADRO_CONSTANT",
     "BOLTZMANN_CONSTANT",
     "GAS_CONSTANT",
+    "GHZ_TO_CM1",
     "HBAR",
+    "IMAGINARY_MODE_THRESHOLD_CM",
     "J_PER_MOL_TO_EV",
+    "MOMENT_OF_INERTIA_FLOOR_KG_M2",
     "PLANCK_CONSTANT",
     "SPEED_OF_LIGHT",
     "filter_positive_frequencies",

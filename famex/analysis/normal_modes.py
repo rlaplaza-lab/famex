@@ -13,9 +13,6 @@ from ase import Atoms, units
 from numpy.typing import NDArray
 
 from famex.analysis.ase_integration import frequencies_via_ase
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
 
 __all__ = ["diagonalize_mass_weighted_hessian", "convert_frequency_unit"]
 

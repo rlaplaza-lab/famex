@@ -19,6 +19,8 @@ from ase import Atoms
 from scipy.linalg import eigh as scipy_eigh
 from scipy.sparse.linalg import LinearOperator, eigsh
 
+from famex.utils.hessian_ops import symmetrize_hessian
+
 HessianVectorProduct = Callable[[np.ndarray], np.ndarray]
 
 # Eigenvalues below this (eV/Å²) are treated as trans/rot null modes, not TS modes.
@@ -257,7 +259,7 @@ def compute_restricted_prfo_step(
     gradient is large. The metric scale is chosen so the step reaches the trust
     sphere, then capped if the search still overshoots.
     """
-    sym_hessian = 0.5 * (hessian + hessian.T)
+    sym_hessian = symmetrize_hessian(hessian)
     eigenvalues, eigenvectors = np.linalg.eigh(sym_hessian)
     tv_index, transition_mode, _omega_tv = select_transition_mode(
         eigenvalues,
@@ -462,7 +464,7 @@ def prepare_ts_hessian(
     basis: np.ndarray,
 ) -> np.ndarray:
     """Project a dense Hessian onto the vibrational subspace."""
-    return project_hessian(0.5 * (hessian + hessian.T), basis)
+    return project_hessian(symmetrize_hessian(hessian), basis)
 
 
 def make_atoms_hessp(

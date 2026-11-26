@@ -148,16 +148,10 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         if len(self.images) < 2:
             return np.array([0.0, 1.0])
 
-        # Calculate distances between consecutive images
-        diffs = []
-        for i in range(len(self.images)):
-            if i == 0:
-                diffs.append(np.zeros(self.images[0].positions.shape))
-            else:
-                diff = self.images[i].positions - self.images[i - 1].positions
-                diffs.append(diff)
-
-        norms = np.array([np.linalg.norm(diff) for diff in diffs])
+        positions = np.stack([img.positions for img in self.images], axis=0)
+        diffs = np.diff(positions, axis=0)
+        segment_norms = np.linalg.norm(diffs.reshape(len(diffs), -1), axis=1)
+        norms = np.concatenate(([0.0], segment_norms))
         param_density = np.cumsum(norms)
         total_length = param_density[-1]
 
@@ -501,13 +495,16 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
                 logger.debug("New image indices: %s", self.new_image_inds)
 
-        logger.debug(
-            f"Current string size is {self.left_size}+{self.right_size}="
-            f"{self.string_size}. There are still {self.nodes_missing} "
-            "nodes to be grown."
-            if not self.fully_grown
-            else "String is fully grown."
-        )
+        if self.fully_grown:
+            logger.debug("String is fully grown.")
+        else:
+            logger.debug(
+                "Current string size is %s+%s=%s. There are still %s nodes to be grown.",
+                self.left_size,
+                self.right_size,
+                self.string_size,
+                self.nodes_missing,
+            )
 
         if self.reparam_in > 0:
             logger.debug(
@@ -886,6 +883,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
         # Main GSM loop
         strings_met = False
+        distance_threshold = kwargs.get("distance_threshold", 0.05)
         for iteration in range(max_steps):
             # Check if fully grown
             if self.fully_grown:
@@ -914,7 +912,6 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 backward_tip = self.right_string[-1].positions
                 distance = np.linalg.norm(forward_tip - backward_tip)
 
-                distance_threshold = kwargs.get("distance_threshold", 0.05)
                 # Only mark as met if we have at least 6 images (3 per string) or are fully grown
                 # This prevents premature termination when strings are still far from TS
                 min_images_for_convergence = min(6, self.max_nodes // 2)
@@ -934,7 +931,6 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
             # Log progress
             if (iteration + 1) % 10 == 0:
-                # Note: self.fully_grown check is redundant here since we break above if fully_grown
                 size_str = f"{self.left_size}+{self.right_size}"
                 size_info = f"String={size_str: >5s}"
                 barrier_info = ""

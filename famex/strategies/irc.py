@@ -11,6 +11,7 @@ from ase import Atoms
 from numpy.typing import NDArray
 
 from famex.analysis.frequency import FrequencyAnalysis
+from famex.analysis.physics_constants import IMAGINARY_MODE_THRESHOLD_CM
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.strategies.helpers import _get_local_optimizer_class, validate_ts_structure
@@ -46,7 +47,7 @@ class LocalIRCStrategy(BaseStrategy):
 
         local_optimizer_name = kwargs.get("local_optimizer_name", "bfgs")
         verbose = kwargs.get("verbose", 1)
-        imag_threshold = float(kwargs.get("imag_threshold", 50.0))
+        imag_threshold = float(kwargs.get("imag_threshold", IMAGINARY_MODE_THRESHOLD_CM))
 
         if self.profiler is not None:
             self.profiler.snapshot_memory()
@@ -112,6 +113,8 @@ class LocalIRCStrategy(BaseStrategy):
             self.explorer._apply_constraints(displaced)
             return displaced
 
+        direction_key = direction.lower()
+
         def follow_irc_downhill(initial_atoms: Atoms, max_steps: int) -> list[Atoms]:
             path: list[Atoms] = []
             current = initial_atoms.copy()
@@ -119,9 +122,9 @@ class LocalIRCStrategy(BaseStrategy):
                 self.explorer._create_and_attach_calculator(current)
                 self.explorer._apply_constraints(current)
 
+            current_masses = current.get_masses()
             for _step in range(max_steps):
                 current_forces = current.get_forces()
-                current_masses = current.get_masses()
                 max_force = float(np.max(np.abs(current_forces)))
                 if max_force < fmax:
                     if verbose >= 2:
@@ -156,26 +159,26 @@ class LocalIRCStrategy(BaseStrategy):
             return path
 
         with self.profiler.profile_section("irc_calculation") if self.profiler else nullcontext():
-            if direction.lower() in ("forward", "both"):
+            if direction_key in ("forward", "both"):
                 if verbose >= 2:
                     logger.debug("Following IRC in forward direction")
                 forward_path = follow_irc_downhill(displace_along_mode(1.0), steps)
 
-            if direction.lower() in ("backward", "both"):
+            if direction_key in ("backward", "both"):
                 if verbose >= 2:
                     logger.debug("Following IRC in backward direction")
                 backward_path = follow_irc_downhill(displace_along_mode(-1.0), steps)
 
         ts_snapshot = snapshot(ts_atoms)
-        if direction.lower() == "both":
+        if direction_key == "both":
             trajectory = [
                 *list(reversed(backward_path)),
                 ts_snapshot,
                 *forward_path,
             ]
-        elif direction.lower() == "forward":
+        elif direction_key == "forward":
             trajectory = [ts_snapshot, *forward_path]
-        elif direction.lower() == "backward":
+        elif direction_key == "backward":
             trajectory = [*list(reversed(backward_path)), ts_snapshot]
         else:
             msg = f"Invalid direction: {direction}. Must be 'forward', 'backward', or 'both'"

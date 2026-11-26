@@ -9,10 +9,8 @@ import numpy as np
 from ase import Atoms
 from ase.constraints import FixAtoms
 
+from famex.analysis.physics_constants import IMAGINARY_MODE_THRESHOLD_CM
 from famex.io.xyz_io import write_xyz_with_metadata
-
-# Same cutoff frequency cleanup uses when it decides a mode is imaginary.
-IMAGINARY_MODE_THRESHOLD_CM = 50.0
 
 __all__ = [
     "modes_output_dir",

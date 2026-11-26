@@ -197,8 +197,7 @@ class MultiStructureTSDHSStrategy(BaseStrategy):
         merge_ts_frequency_fields(result, ts_result)
         if search_path:
             result["search_path"] = search_path
-        if isinstance(ts_result, dict):
-            take_optimization_trajectory(result, ts_result)
+        take_optimization_trajectory(result, ts_result)
         return result
 
 

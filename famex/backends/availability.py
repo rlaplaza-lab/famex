@@ -15,11 +15,13 @@ from famex.backends.constants import (
     BACKEND_AIMNET2,
     BACKEND_MACE,
     BACKEND_MOCK,
+    BACKEND_ORB,
     BACKEND_PET,
     BACKEND_PYSCF,
     BACKEND_SO3LR,
+    BACKEND_TBLITE,
     BACKEND_UMA,
-    ML_BACKENDS,
+    format_install_command,
 )
 from famex.backends.dependencies import deps
 from famex.utils.logging import get_famex_logger
@@ -72,8 +74,8 @@ class BackendAvailabilityChecker:
             BACKEND_UMA: ["fairchem", "torch"],
             BACKEND_SO3LR: ["so3lr"],
             BACKEND_MACE: ["mace", "torch"],
-            "orb": ["orb_models", "torch"],
-            "tblite": ["tblite"],
+            BACKEND_ORB: ["orb_models", "torch"],
+            BACKEND_TBLITE: ["tblite"],
             BACKEND_PET: ["upet", "torch"],
             BACKEND_PYSCF: ["pyscf", "pyscf_dispersion"],
         }
@@ -84,8 +86,8 @@ class BackendAvailabilityChecker:
             BACKEND_UMA: ["fairchem-core", "torch"],
             BACKEND_SO3LR: ["so3lr"],
             BACKEND_MACE: ["mace-torch", "torch"],
-            "orb": ["orb-models>=0.7.0", "torch"],
-            "tblite": ["tblite"],
+            BACKEND_ORB: ["orb-models>=0.7.0", "torch"],
+            BACKEND_TBLITE: ["tblite"],
             BACKEND_PET: ["upet", "torch"],
             BACKEND_PYSCF: ["pyscf", "pyscf-dispersion"],
         }
@@ -199,7 +201,7 @@ class BackendAvailabilityChecker:
         """Get list of all available backends."""
         all_backends = ALL_BACKENDS.copy()
         if not include_mock:
-            all_backends = all_backends[1:]  # Remove mock
+            all_backends = [b for b in all_backends if b != BACKEND_MOCK]
 
         return [b for b in all_backends if self.is_backend_available(b)]
 
@@ -286,21 +288,7 @@ def get_backend_error_message(backend: str) -> str:
     """
     reason = get_availability_reason(backend)
 
-    install_commands = {
-        BACKEND_AIMNET2: "pip install torch",
-        BACKEND_UMA: "pip install fairchem-core",
-        BACKEND_MACE: "pip install mace-torch",
-        BACKEND_SO3LR: (
-            "git clone https://github.com/general-molecular-simulations/so3lr.git"
-            " && cd so3lr && pip install ."
-        ),
-        BACKEND_PET: "pip install upet",
-        "orb": 'pip install "orb-models>=0.7.0"',
-        "tblite": "pip install tblite",
-        BACKEND_PYSCF: "pip install famex[pyscf]",
-    }
-
-    cmd = install_commands.get(backend, f"pip install {backend}")
+    cmd = format_install_command(backend)
 
     return f"Backend '{backend}' is not available.\nReason: {reason}\nInstall with: {cmd}"
 
@@ -327,7 +315,9 @@ def get_available_backends_with_logging(
     available = get_available_backends(include_mock=include_mock)
 
     if verbose:
-        backends_to_check = ALL_BACKENDS if include_mock else ML_BACKENDS
+        backends_to_check = (
+            ALL_BACKENDS if include_mock else [b for b in ALL_BACKENDS if b != BACKEND_MOCK]
+        )
 
         for backend in backends_to_check:
             is_available = backend in available

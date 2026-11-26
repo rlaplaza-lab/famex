@@ -17,6 +17,7 @@ from ase import Atoms
 
 from famex.analysis.hessian import CalculatorProtocol
 from famex.analysis.utils import validate_indices
+from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
@@ -185,7 +186,7 @@ class EnergyBasedHessianCalculator:
                     )
                     raise RuntimeError(msg) from e
 
-        symmetrized = 0.5 * (hessian + hessian.T)
+        symmetrized = symmetrize_hessian(hessian)
 
         if self.verbose >= 2:
             logger.info("Energy-based Hessian calculation completed")

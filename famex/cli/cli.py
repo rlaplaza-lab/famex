@@ -217,6 +217,26 @@ def _validate_strategy_requirements(
     return errors, warnings
 
 
+def _raise_or_warn_strategy_requirements(
+    strategy: str,
+    target: str,
+    product: str | None,
+    structures_count: int = 1,
+) -> list[str]:
+    """Validate strategy requirements; raise on errors and echo warnings to stderr."""
+    errors, warnings = _validate_strategy_requirements(
+        strategy=strategy,
+        target=target,
+        product=product,
+        structures_count=structures_count,
+    )
+    for error in errors:
+        raise click.BadParameter(error)
+    for warning in warnings:
+        click.echo(f"Warning: {warning}", err=True)
+    return warnings
+
+
 def _create_explorer(
     atoms: Any,
     target: str,
@@ -240,7 +260,12 @@ def _create_explorer(
     ctx: AbstractContextManager[list[str]]
     if verbose == 0:
         ctx = quiet_backend_loading(
-            backend, model_name, model_path, device, show_model_info=True, verbose=verbose
+            backend,
+            model_name,
+            model_path,
+            device,
+            show_model_info=False,
+            verbose=verbose,
         )
     else:
         ctx = nullcontext([])
@@ -736,14 +761,9 @@ def minima(
         mode_amplitude,
         mode_indices,
     )
-    # Validate strategy-specific requirements
-    errors, warnings = _validate_strategy_requirements(
+    _raise_or_warn_strategy_requirements(
         strategy=strategy, target="minima", product=product, structures_count=1
     )
-    for error in errors:
-        raise click.BadParameter(error)
-    for warning in warnings:
-        click.echo(f"Warning: {warning}")
 
     # Load structures (existing files, or SMILES when the path does not exist)
     atoms = load_structure_or_smiles(input, embedder=embedder)
@@ -757,11 +777,9 @@ def minima(
         except ValueError as exc:
             raise click.BadParameter(str(exc)) from exc
 
-    # Parse kwargs
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
 
-    # Create explorer
     exp, ctx = _create_explorer(
         atoms=atoms_list,
         target="minima",
@@ -976,14 +994,9 @@ def ts(
         mode_amplitude,
         mode_indices,
     )
-    # Validate strategy-specific requirements
-    errors, warnings = _validate_strategy_requirements(
+    _raise_or_warn_strategy_requirements(
         strategy=strategy, target="ts", product=product, structures_count=1
     )
-    for error in errors:
-        raise click.BadParameter(error)
-    for warning in warnings:
-        click.echo(f"Warning: {warning}")
 
     # Load structures (existing files, or SMILES when the path does not exist)
     atoms = load_structure_or_smiles(input, embedder=embedder)
@@ -997,13 +1010,11 @@ def ts(
         except ValueError as exc:
             raise click.BadParameter(str(exc)) from exc
 
-    # Parse kwargs
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
     if require_ts:
         ts_kwargs["require_ts"] = True
 
-    # Create explorer
     exp, ctx = _create_explorer(
         atoms=atoms_list,
         target="ts",
@@ -1207,17 +1218,12 @@ def path(
     except (ValueError, RuntimeError) as exc:
         raise click.BadParameter(str(exc)) from exc
 
-    # Validate strategy-specific requirements
-    errors, warnings = _validate_strategy_requirements(
+    warnings = _raise_or_warn_strategy_requirements(
         strategy=strategy, target="path", product=None, structures_count=len(atoms_list)
     )
-    for error in errors:
-        raise click.BadParameter(error)
-    for warning in warnings:
-        click.echo(f"Warning: {warning}")
-        # Handle IRC warning by using only first structure
-        if strategy == "irc" and len(atoms_list) > 1:
-            atoms_list = [atoms_list[0]]
+    # IRC validation warns when extra structures are provided; keep only the first.
+    if strategy == "irc" and warnings and len(atoms_list) > 1:
+        atoms_list = [atoms_list[0]]
 
     if len(structures) == len(atoms_list):
         labels = list(structures)
@@ -1228,11 +1234,9 @@ def path(
     except ValueError as exc:
         raise click.BadParameter(str(exc)) from exc
 
-    # Parse kwargs
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
 
-    # Create explorer
     exp, ctx = _create_explorer(
         atoms=atoms_list,
         target="path",

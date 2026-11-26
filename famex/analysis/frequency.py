@@ -11,12 +11,21 @@ from numpy.typing import NDArray
 from famex.analysis.hessian import HessianCalculator
 from famex.analysis.molecular_properties import determine_degrees_of_freedom
 from famex.analysis.normal_modes import convert_frequency_unit, diagonalize_mass_weighted_hessian
-from famex.analysis.physics_constants import filter_positive_frequencies, normalize_frequencies_cm1
+from famex.analysis.physics_constants import (
+    IMAGINARY_MODE_THRESHOLD_CM,
+    filter_positive_frequencies,
+    normalize_frequencies_cm1,
+)
 from famex.analysis.quasiharmonic import harmonic_zero_point_energy_ev
 from famex.analysis.thermodynamics import ThermodynamicProperties
-from famex.analysis.utils import has_calculator_property, validate_indices
+from famex.analysis.utils import (
+    get_calculator_property,
+    has_calculator_property,
+    validate_indices,
+)
 from famex.analysis.validation import validate_hessian
 from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
+from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 from famex.utils.validation import FAMEXError
 
@@ -26,7 +35,7 @@ logger = get_famex_logger(__name__)
 def select_vibrational_indices(
     frequencies: np.ndarray,
     nfree: int,
-    imag_threshold: float = 50.0,
+    imag_threshold: float = IMAGINARY_MODE_THRESHOLD_CM,
 ) -> np.ndarray:
     """Return indices of vibrational modes after dropping ``nfree`` rigid-body modes.
 
@@ -310,7 +319,7 @@ class FrequencyAnalysis:
                             neg_forces[atom_k, coord] - pos_forces[atom_k, coord]
                         ) / (2 * self.delta)
 
-        symmetrized = 0.5 * (hessian + hessian.T)
+        symmetrized = symmetrize_hessian(hessian)
 
         if self.verbose >= 2:
             logger.debug("Hessian constructed from batch results")
@@ -318,16 +327,12 @@ class FrequencyAnalysis:
         return symmetrized
 
     def _calculate_direct_frequencies(self) -> np.ndarray:
-        from famex.analysis.utils import get_calculator_property
-
         return cast(
             NDArray[np.float64],
             get_calculator_property(self.calculator, "frequencies", self.atoms),
         )
 
     def _calculate_direct_hessian(self) -> np.ndarray:
-        from famex.analysis.utils import get_calculator_property
-
         return cast(
             NDArray[np.float64],
             get_calculator_property(self.calculator, "hessian", self.atoms),
@@ -432,7 +437,11 @@ class FrequencyAnalysis:
 
         return self._frequencies, eigenvectors
 
-    def get_frequencies(self, unit: str = "cm-1", imag_threshold: float = 50.0) -> np.ndarray:
+    def get_frequencies(
+        self,
+        unit: str = "cm-1",
+        imag_threshold: float = IMAGINARY_MODE_THRESHOLD_CM,
+    ) -> np.ndarray:
         """Get vibrational frequencies in specified units.
 
         Parameters
@@ -495,7 +504,7 @@ class FrequencyAnalysis:
 
     def is_transition_state(
         self,
-        threshold: float = 50.0,
+        threshold: float = IMAGINARY_MODE_THRESHOLD_CM,
     ) -> dict[str, bool | int | list[float] | str]:
         """Check if structure is a transition state (exactly one imaginary frequency).
 
@@ -555,7 +564,7 @@ class FrequencyAnalysis:
 
     def is_minima(
         self,
-        threshold: float = 50.0,
+        threshold: float = IMAGINARY_MODE_THRESHOLD_CM,
         small_negative_cutoff: float = -10.0,
     ) -> dict[str, bool | int | list[float] | str]:
         """Check if structure is a minimum (no significant imaginary frequencies).

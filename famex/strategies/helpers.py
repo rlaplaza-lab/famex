@@ -8,11 +8,13 @@ from typing import Any, Literal, cast
 
 from ase import Atoms
 
+from famex.analysis.physics_constants import IMAGINARY_MODE_THRESHOLD_CM
 from famex.analysis.thermodynamics import read_free_energy_correction
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
+
 
 # Not an optimizer keyword; stored on explorer.ts_kwargs by the CLI for strategy use.
 _REQUIRE_TS_KWARG = "require_ts"
@@ -102,7 +104,7 @@ def enforce_require_ts(
 def validate_ts_structure(
     atoms: Atoms,
     explorer: Any,
-    threshold: float = 50.0,
+    threshold: float = IMAGINARY_MODE_THRESHOLD_CM,
     return_hessian: bool = False,
     verbose: int = 1,
 ) -> dict[str, Any] | tuple[dict[str, Any], Any]:
@@ -283,6 +285,15 @@ def _run_local_optimization_common(
     converged_flags = []
     optimization_trajectory: list[Atoms] = []
 
+    needs_hessian = strategy.explorer._needs_hessian(
+        calculate_frequencies=calculate_frequencies,
+        cleanup_frequencies=cleanup_frequencies,
+    )
+    opt_kwargs_base = prepare_optimizer_kwargs(local_optimizer_name, strategy.explorer)
+    opt_kwargs_base.setdefault("verbose", getattr(strategy.explorer, "verbose", 1))
+    if strategy.profiler is not None:
+        opt_kwargs_base["profiler"] = strategy.profiler
+
     for image_index, atoms in enumerate(atoms_list):
         atoms_copy = atoms.copy()
 
@@ -291,21 +302,13 @@ def _run_local_optimization_common(
             if strategy.profiler
             else nullcontext()
         ):
-            needs_hessian = strategy.explorer._needs_hessian(
-                calculate_frequencies=calculate_frequencies,
-                cleanup_frequencies=cleanup_frequencies,
-            )
             strategy.explorer._create_and_attach_calculator(
                 atoms_copy,
                 needs_hessian=needs_hessian,
             )
             strategy.explorer._apply_constraints(atoms_copy)
 
-        opt_kwargs = prepare_optimizer_kwargs(local_optimizer_name, strategy.explorer)
-        opt_kwargs.setdefault("verbose", getattr(strategy.explorer, "verbose", 1))
-        if strategy.profiler is not None:
-            opt_kwargs["profiler"] = strategy.profiler
-
+        opt_kwargs = dict(opt_kwargs_base)
         opt = opt_class(atoms_copy, **opt_kwargs)
         if record_history:
             image_tag = image_index if len(atoms_list) > 1 else None

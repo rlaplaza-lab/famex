@@ -4,12 +4,26 @@ This module provides centralized device detection and management for CUDA vs CPU
 ensuring consistent device handling across the entire FAMEX codebase.
 """
 
+from famex.backends.constants import BACKEND_PYSCF, BACKEND_TBLITE
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
 
 # Backends that cannot use GPU (semi-empirical / CPU-only stacks).
-CPU_ONLY_BACKENDS: frozenset[str] = frozenset({"tblite", "pyscf"})
+CPU_ONLY_BACKENDS: frozenset[str] = frozenset({BACKEND_TBLITE, BACKEND_PYSCF})
+
+
+def is_cuda_available() -> bool:
+    """Return whether CUDA is available via PyTorch."""
+    try:
+        from famex.backends.dependencies import deps
+
+        if deps.has("torch"):
+            torch = deps.get("torch")
+            return bool(torch.cuda.is_available())
+    except ImportError:
+        pass
+    return False
 
 
 def get_optimal_device(device: str | None = None) -> str:
@@ -29,16 +43,8 @@ def get_optimal_device(device: str | None = None) -> str:
     if device is not None:
         return device.lower()
 
-    # Auto-detect CUDA availability
-    try:
-        from famex.backends.dependencies import deps
-
-        if deps.has("torch"):
-            torch = deps.get("torch")
-            if torch.cuda.is_available():
-                return "cuda"
-    except ImportError:
-        pass
+    if is_cuda_available():
+        return "cuda"
 
     # Fallback to CPU
     return "cpu"
@@ -101,15 +107,15 @@ def print_device_info(device: str) -> None:
         try:
             from famex.backends.dependencies import deps
 
-            if deps.has("torch"):
-                torch = deps.get("torch")
-                if torch.cuda.is_available():
-                    gpu_name = torch.cuda.get_device_name(0)
-                    logger.info("Using CUDA device: %s", gpu_name)
-                else:
-                    logger.warning("CUDA requested but not available, falling back to CPU")
-            else:
+            if not deps.has("torch"):
                 logger.warning("PyTorch not available, using CPU")
+                return
+            torch = deps.get("torch")
+            if torch.cuda.is_available():
+                gpu_name = torch.cuda.get_device_name(0)
+                logger.info("Using CUDA device: %s", gpu_name)
+            else:
+                logger.warning("CUDA requested but not available, falling back to CPU")
         except ImportError:
             logger.warning("PyTorch not available, using CPU")
     else:

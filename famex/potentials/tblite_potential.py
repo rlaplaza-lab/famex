@@ -207,7 +207,7 @@ class TBLitePotential(BasePotential):
             with suppress_tblite_output():
                 self._calc.calculate(self.atoms, properties, system_changes)
         except (AttributeError, RuntimeError) as e:
-            logger.exception("TBLite calculation failed: %s", e)
+            logger.exception("TBLite calculation failed")
             msg = f"TBLite calculation failed: {e}"
             raise RuntimeError(msg) from e
 

@@ -10,7 +10,12 @@ from __future__ import annotations
 import numpy as np
 from ase import Atoms
 
-from famex.analysis.physics_constants import AMU_TO_KG, BOLTZMANN_CONSTANT, HBAR
+from famex.analysis.physics_constants import (
+    AMU_ANGSTROM2_TO_KG_M2,
+    BOLTZMANN_CONSTANT,
+    HBAR,
+    MOMENT_OF_INERTIA_FLOOR_KG_M2,
+)
 
 __all__ = [
     "determine_degrees_of_freedom",
@@ -112,8 +117,8 @@ def rotational_temperatures_from_atoms(atoms: Atoms, linear: bool) -> np.ndarray
         return np.array([0.0, 0.0, 0.0])
 
     moments_amu_ang2 = np.sort(atoms.get_moments_of_inertia(vectors=False))
-    moments_kg_m2 = moments_amu_ang2 * AMU_TO_KG * 1e-20
-    moment_floor_kg_m2 = 1e-4 * AMU_TO_KG * 1e-20
+    moments_kg_m2 = moments_amu_ang2 * AMU_ANGSTROM2_TO_KG_M2
+    moment_floor_kg_m2 = MOMENT_OF_INERTIA_FLOOR_KG_M2
 
     with np.errstate(divide="ignore", invalid="ignore"):
         thetas = (HBAR**2) / (2 * moments_kg_m2 * BOLTZMANN_CONSTANT)

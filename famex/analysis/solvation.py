@@ -65,15 +65,12 @@ def get_free_space(solvent: str) -> float:
     if solvent == "none":
         return 1000.0  # Gas phase
 
-    # Calculate free space following Shakhnovich-Whitesides approach
-    # GoodVibes formula: v_free = 8 * ((1E27 / (solv_molarity * N_A))^0.333333 - solv_volume^0.333333)^3
-    # where volume is in Angstrom^3
+    # GoodVibes / Shakhnovich–Whitesides free-space formula (Å³ → mL/L).
+    # Keep 0.333333 (not 1/3) to match GoodVibes.
     v_free = (
         8 * ((1e27 / (molarity * AVOGADRO_CONSTANT)) ** 0.333333 - molecular_vol**0.333333) ** 3
     )
-    free_space_ml_per_l = v_free * molarity * AVOGADRO_CONSTANT * 1e-24
-
-    return float(free_space_ml_per_l)
+    return float(v_free * molarity * AVOGADRO_CONSTANT * 1e-24)
 
 
 class SolvationHandler:

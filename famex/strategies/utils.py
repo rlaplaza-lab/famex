@@ -77,6 +77,8 @@ class StrategyUtils:
                     "Batch evaluation failed, falling back to individual calculations: %s",
                     e,
                 )
+                energies.clear()
+                forces_list.clear()
                 supports_batch = False
 
         if not supports_batch:

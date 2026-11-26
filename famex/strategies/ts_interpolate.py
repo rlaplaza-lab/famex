@@ -116,8 +116,6 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
             )
         else:
             # Fallback: create result with original structure
-            from famex.core.base_strategy import BaseStrategy
-
             result = BaseStrategy.prepare_result(
                 self,
                 (

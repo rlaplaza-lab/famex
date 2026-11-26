@@ -20,6 +20,7 @@ from famex.analysis.physics_constants import (
     AVOGADRO_CONSTANT,
     BOLTZMANN_CONSTANT,
     GAS_CONSTANT,
+    GHZ_TO_CM1,
     PLANCK_CONSTANT,
     SPEED_OF_LIGHT,
 )
@@ -293,8 +294,8 @@ class StatisticalThermodynamics:
 
         if rotational_constants is not None:
             # Θ = hcB/k_B. 1 GHz = 1e9 / c(cm/s) cm^-1.
-            rotational_constants_cm1 = np.asarray(rotational_constants, dtype=np.float64) * (
-                1e9 / SPEED_OF_LIGHT
+            rotational_constants_cm1 = (
+                np.asarray(rotational_constants, dtype=np.float64) * GHZ_TO_CM1
             )
             return PLANCK_CONSTANT * SPEED_OF_LIGHT * rotational_constants_cm1 / BOLTZMANN_CONSTANT
 
