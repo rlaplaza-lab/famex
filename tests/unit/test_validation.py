@@ -74,8 +74,9 @@ class TestValidateAtomsCompatibility:
         with pytest.raises(ValueError) as exc_info:
             validate_atoms_compatibility(atoms1, atoms2)
 
-        assert_error_contains(exc_info.value, "different number of atoms")
-        assert_error_contains(exc_info.value, "2 vs 3")
+        assert_error_contains(exc_info.value, "Atom counts do not match")
+        assert_error_contains(exc_info.value, "2 atoms")
+        assert_error_contains(exc_info.value, "3 atoms")
 
     def test_different_atomic_symbols(self):
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])

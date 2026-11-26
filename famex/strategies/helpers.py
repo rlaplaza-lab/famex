@@ -236,7 +236,7 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
             return VerboseFIRE
     except Exception as e:  # pragma: no cover - ASE optional in some envs
         msg = f"Requested optimizer '{name}' is not available: {e}"
-        raise ImportError(msg)
+        raise ImportError(msg) from e
 
     msg = f"Unknown optimizer name: {name}"
     raise ValueError(msg)
@@ -502,3 +502,12 @@ def take_optimization_trajectory(result: dict[str, Any], source: dict[str, Any])
     frames = source.get("optimization_trajectory")
     if isinstance(frames, list) and frames:
         result["optimization_trajectory"] = frames
+
+
+def merge_ts_frequency_fields(result: dict[str, Any], ts_result: dict[str, Any]) -> None:
+    """Copy frequency analysis fields from a TS search result onto ``result``."""
+    if "frequency_analysis" not in ts_result:
+        return
+    result["frequency_analysis"] = ts_result["frequency_analysis"]
+    result["is_ts"] = ts_result.get("is_ts")
+    result["free_energy_correction"] = ts_result.get("free_energy_correction")

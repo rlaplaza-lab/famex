@@ -163,13 +163,11 @@ class VerboseOptimizerWrapper(Optimizer):
         self.nsteps = self.wrapped_optimizer.nsteps
         self.max_steps = self.wrapped_optimizer.max_steps
 
-        if hasattr(atoms, "calc") and atoms.calc is not None or hasattr(atoms, "calc"):
+        if getattr(atoms, "calc", None) is not None:
             if self.profiler is not None:
                 self.atoms.calc = ProfilerCalculatorWrapper(atoms.calc, self.profiler)
-                self.wrapped_optimizer.atoms.calc = self.atoms.calc
             else:
                 self.atoms.calc = atoms.calc
-                self.wrapped_optimizer.atoms.calc = atoms.calc
 
         if self.verbose >= 2:
             optimizer_name = wrapped_optimizer_class.__name__

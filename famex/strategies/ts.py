@@ -148,11 +148,10 @@ class LocalTSStrategy(BaseStrategy):
                     validation_results.append(validation_result)
             return validation_results
 
-        def prepare_ts_frequency_kwargs(atoms: Atoms) -> dict[str, Any]:
-            freq_kwargs: dict[str, Any] = {}
+        def prepare_frequency_kwargs(_atoms: Atoms) -> dict[str, Any]:
             if getattr(self.explorer, "force_finite_diff_hessian", False):
-                freq_kwargs["method"] = "finite_differences"
-            return freq_kwargs
+                return {"method": "finite_differences"}
+            return {}
 
         result = _run_local_optimization_common(
             strategy=self,
@@ -166,7 +165,7 @@ class LocalTSStrategy(BaseStrategy):
             prepare_optimizer_kwargs=prepare_ts_optimizer_kwargs,
             post_optimization_hook=post_ts_optimization_hook if verbose >= 1 else None,
             validation_hook=ts_validation_hook if validate_ts else None,
-            prepare_frequency_kwargs=prepare_ts_frequency_kwargs,
+            prepare_frequency_kwargs=prepare_frequency_kwargs,
             result_key_name="is_ts",
             log_prefix="Transition state",
             cleanup_frequencies=cleanup_frequencies,

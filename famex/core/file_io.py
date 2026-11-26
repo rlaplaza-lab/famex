@@ -8,6 +8,7 @@ from ase import Atoms
 from ase.io import write
 
 from famex.io.xyz_io import write_xyz_with_metadata
+from famex.utils.path_security import PathSecurityError
 
 
 def validate_output_path(output_file: str | Path) -> Path:
@@ -15,7 +16,7 @@ def validate_output_path(output_file: str | Path) -> Path:
     output_file = Path(output_file)
 
     if ".." in str(output_file) or "\x00" in str(output_file):
-        raise ValueError(f"Unsafe output path detected: {output_file}")
+        raise PathSecurityError(f"Unsafe output path detected: {output_file}")
 
     return output_file
 
@@ -45,9 +46,7 @@ def write_atoms_safely(
         try:
             write_xyz_with_metadata(atoms, str(output_file))
             return
-        except OSError as e:
-            raise RuntimeError(f"Failed to save XYZ structure to {output_file}: {e}") from e
-        except (ValueError, TypeError) as e:
+        except (OSError, ValueError, TypeError) as e:
             raise RuntimeError(f"Failed to save XYZ structure to {output_file}: {e}") from e
 
     try:
@@ -85,9 +84,7 @@ def write_trajectory_safely(
         try:
             write_xyz_with_metadata(atoms_list, str(output_file))
             return
-        except OSError as e:
-            raise RuntimeError(f"Failed to save XYZ trajectory to {output_file}: {e}") from e
-        except (ValueError, TypeError) as e:
+        except (OSError, ValueError, TypeError) as e:
             raise RuntimeError(f"Failed to save XYZ trajectory to {output_file}: {e}") from e
 
     try:

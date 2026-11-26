@@ -69,13 +69,13 @@ def verify() -> None:
         model_path = cache.cache_dir / model["filename"]
         if model_path.exists():
             if cache._verify_checksum(model_path, model["checksum"]):
-                click.echo(f"  ✅ {model['model_name']}")
+                click.echo(f"  ✓ {model['model_name']}")
                 verified += 1
             else:
-                click.echo(f"  ❌ {model['model_name']} (corrupted)")
+                click.echo(f"  ✗ {model['model_name']} (corrupted)")
                 corrupted += 1
         else:
-            click.echo(f"  ❌ {model['model_name']} (missing file)")
+            click.echo(f"  ✗ {model['model_name']} (missing file)")
             corrupted += 1
 
     click.echo()

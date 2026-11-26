@@ -10,6 +10,7 @@ from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
 from famex.strategies.helpers import (
+    merge_ts_frequency_fields,
     take_optimization_trajectory,
     validate_ts_structure,
 )
@@ -130,10 +131,7 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
 
         if validation_result is not None:
             result["ts_validation"] = validation_result
-        if "frequency_analysis" in ts_result:
-            result["frequency_analysis"] = ts_result["frequency_analysis"]
-            result["is_ts"] = ts_result.get("is_ts")
-            result["free_energy_correction"] = ts_result.get("free_energy_correction")
+        merge_ts_frequency_fields(result, ts_result)
         if record_history:
             if optimized_path:
                 result["search_path"] = [image.copy() for image in optimized_path]

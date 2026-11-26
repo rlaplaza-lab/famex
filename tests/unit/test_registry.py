@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
+from famex.core.exceptions import StrategyError
 from famex.core.registry import REGISTRY, StrategyRegistry
 
 
@@ -61,7 +62,7 @@ class TestStrategyRegistry:
         class BadStrategy:
             pass
 
-        with pytest.raises(ValueError, match="missing metadata"):
+        with pytest.raises(StrategyError, match="missing metadata"):
             registry.register(BadStrategy)
 
     def test_register_strategy_duplicate_alias(self):
@@ -93,7 +94,7 @@ class TestStrategyRegistry:
 
         registry.register(Strategy1)
 
-        with pytest.raises(ValueError, match="already registered"):
+        with pytest.raises(StrategyError, match="already registered"):
             registry.register(Strategy2)
 
     def test_get_strategy_by_name(self):

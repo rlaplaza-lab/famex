@@ -310,6 +310,7 @@ class PathManager:
         energy1: float | None = None,
         energy2: float | None = None,
         align: bool = True,
+        rmsd: float | None = None,
     ) -> StructureSimilarity:
         """Decide whether two structures are the same within thresholds.
 
@@ -325,6 +326,8 @@ class PathManager:
             Known energies in eV; computed from the calculators when omitted.
         align : bool, default True
             Superimpose the structures before computing the RMSD.
+        rmsd : float, optional
+            Precomputed RMSD; calculated when omitted.
 
         Returns
         -------
@@ -332,7 +335,8 @@ class PathManager:
             Whether they are similar, with the RMSD and energy difference.
 
         """
-        rmsd = PathManager.calculate_rmsd(atoms1, atoms2, align=align)
+        if rmsd is None:
+            rmsd = PathManager.calculate_rmsd(atoms1, atoms2, align=align)
 
         if energy1 is None:
             try:
@@ -439,7 +443,7 @@ class PathManager:
 
             if input_only:
                 warning_messages.append(
-                    f"Warning: {strategy_name} only found input structures. "
+                    f"{strategy_name} only found input structures. "
                     f"No new optimized structures were discovered.",
                 )
 
@@ -463,7 +467,7 @@ class PathManager:
             best_rmsd: float = float("inf")
             best_energy_diff: float | None = None
 
-            for _j, filtered_idx in enumerate(kept_indices):
+            for filtered_idx in kept_indices:
                 rmsd = get_cached_rmsd(i, filtered_idx)
                 if rmsd >= rmsd_threshold:
                     continue
@@ -479,6 +483,7 @@ class PathManager:
                     energy1=energy_i,
                     energy2=energy_j,
                     align=align_rmsd,
+                    rmsd=rmsd,
                 )
 
                 if similarity.is_similar:
@@ -495,7 +500,7 @@ class PathManager:
                     is_redundant = True
                     removed_indices.append(i)
                     warning_messages.append(
-                        f"Warning: Removed structure {i + 1} to maintain path continuity "
+                        f"Removed structure {i + 1} to maintain path continuity "
                         f"(spacing: {spacing}, minimum: {min_spacing})",
                     )
                     continue
@@ -508,8 +513,7 @@ class PathManager:
                     else "energy unavailable"
                 )
                 warning_messages.append(
-                    f"Warning: Removed redundant structure {i + 1} "
-                    f"(RMSD: {best_rmsd:.3f} Å, {energy_str})",
+                    f"Removed redundant structure {i + 1} (RMSD: {best_rmsd:.3f} Å, {energy_str})",
                 )
             elif not is_redundant:
                 filtered_structures.append(atoms)
@@ -518,7 +522,7 @@ class PathManager:
         if removed_indices:
             warning_messages.insert(
                 0,
-                f"Warning: {strategy_name} removed {len(removed_indices)} redundant structures "
+                f"{strategy_name} removed {len(removed_indices)} redundant structures "
                 f"out of {len(structures)} total structures.",
             )
 
@@ -558,7 +562,7 @@ class PathManager:
             explorer._create_and_attach_calculator(struct)
             explorer._apply_constraints(struct)
 
-        return struct_list[0].calc if struct_list else None
+        return struct_list[0].calc
 
     def __str__(self) -> str:
         return f"PathManager({len(self.reactant)} atoms, {len(self.structures)} structures)"

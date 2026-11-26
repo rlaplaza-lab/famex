@@ -221,7 +221,7 @@ def estimate_optimal_delta(
         half_delta = current_delta / 2.0
 
         if verbose >= 1:
-            logger.debug(
+            logger.info(
                 "Iteration %s: trying delta=%.4f, half=%.4f",
                 iteration + 1,
                 current_delta,
@@ -241,7 +241,7 @@ def estimate_optimal_delta(
             noise_estimate = estimate_richardson_noise(hessian_current, hessian_half)
 
             if verbose >= 1:
-                logger.debug("  Noise estimate: %.2e eV/Å²", noise_estimate)
+                logger.info("  Noise estimate: %.2e eV/Å²", noise_estimate)
 
             # Track best result
             if noise_estimate < best_noise:
@@ -251,7 +251,7 @@ def estimate_optimal_delta(
             # Check convergence
             if noise_estimate < target_noise:
                 if verbose >= 1:
-                    logger.debug("  Converged! Noise below target %.2e", target_noise)
+                    logger.info("  Converged! Noise below target %.2e", target_noise)
                 return current_delta, noise_estimate
 
             # Binary search: if too noisy, try smaller delta
@@ -271,7 +271,7 @@ def estimate_optimal_delta(
             current_high = current_delta
 
     if verbose >= 1:
-        logger.debug("Final delta: %.4f, noise: %.2e eV/Å²", best_delta, best_noise)
+        logger.info("Final delta: %.4f, noise: %.2e eV/Å²", best_delta, best_noise)
 
     return best_delta, best_noise
 

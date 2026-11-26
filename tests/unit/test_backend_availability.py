@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from famex.backends import availability as availability_mod
 from famex.backends.availability import (
@@ -247,14 +247,10 @@ class TestConvenienceFunctions:
         assert BACKEND_MOCK in backends
 
     def test_get_available_backends_with_logging_verbose(self):
-        with patch("famex.backends.availability._get_logger") as mock_logger:
-            mock_log = MagicMock()
-            mock_logger.return_value = mock_log
-
+        with patch("famex.backends.availability.logger") as mock_log:
             backends = get_available_backends_with_logging(include_mock=True, verbose=True)
 
             assert isinstance(backends, list)
-            # Logger should have been called
             assert mock_log.info.called
 
     def test_get_available_ml_backends(self):

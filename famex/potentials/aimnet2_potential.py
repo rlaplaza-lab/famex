@@ -338,8 +338,7 @@ class NativeAIMNet2Calculator:
 
     def unpad_output(self, data: dict[str, Any], original_n_atoms: int) -> dict[str, Any]:
         """Remove padding from output tensors using AIMNet2 logic."""
-        atom_feature_keys = ["coord", "numbers", "charges", "forces"]
-        for k in atom_feature_keys:
+        for k in self.atom_feature_keys:
             if k in data:
                 data[k] = maybe_unpad_dim0(data[k], original_n_atoms)
         return data

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from ase import Atoms
 
+from famex.core.exceptions import StrategyNotFoundError
 from famex.core.explorer import Explorer
 from famex.core.registry import REGISTRY
 from tests.test_constants import QUICK_STEPS
@@ -149,10 +150,10 @@ class TestExplorerStrategySelection:
 
         # Test invalid strategy name
         exp_invalid = Explorer(atoms, backend="mock", target="invalid", strategy="nonexistent")
-        with pytest.raises(NotImplementedError, match="No strategy found"):
+        with pytest.raises(StrategyNotFoundError, match="No strategy found"):
             exp_invalid.run()
 
         # Test invalid target/strategy combination
         exp_invalid2 = Explorer(atoms, backend="mock", target="nonexistent", strategy="invalid")
-        with pytest.raises(NotImplementedError, match="No strategy found"):
+        with pytest.raises(StrategyNotFoundError, match="No strategy found"):
             exp_invalid2.run()

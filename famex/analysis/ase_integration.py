@@ -108,7 +108,8 @@ def hessian_via_ase(
     - Uses ASE's Vibrations class which computes Hessian via central differences
     - Creates temporary directory for ASE's cache files
     - Cleans up temporary files after calculation
-    - For forward differences, falls back to custom implementation
+    - Forward / multi-point FD methods are selected in ``HessianCalculator``,
+      not in this ASE wrapper
     """
     # Ensure calculator is attached
     atoms.calc = calculator

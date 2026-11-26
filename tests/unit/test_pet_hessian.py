@@ -38,9 +38,11 @@ class TestPETHessianFallback:
                 "_hessian_via_finite_differences",
                 return_value=fd,
             ) as mock_fd,
-            pytest.warns(UserWarning, match="falling back to finite differences"),
+            patch("famex.potentials.pet_potential.logger") as mock_logger,
         ):
             result = pot.get_hessian()
+        mock_logger.warning.assert_called()
+        assert "finite differences" in mock_logger.warning.call_args.args[0]
 
         assert np.allclose(result, fd)
         mock_fd.assert_called_once()

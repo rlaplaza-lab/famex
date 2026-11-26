@@ -22,7 +22,8 @@ class FiniteDifferenceScheme(Protocol):
     """Protocol for finite difference schemes.
 
     This protocol allows for extensible finite difference implementations.
-    Implemented schemes include 2-point (forward), 3-point (central), and 5-point.
+    Implemented schemes include 2-point (forward), 3-point (central),
+    5-point, and 7-point central stencils.
 
     Examples
     --------
@@ -45,6 +46,7 @@ class FiniteDifferenceScheme(Protocol):
     CentralDifferenceScheme : 2nd order central difference implementation
     ForwardDifferenceScheme : 1st order forward difference implementation
     FivePointCentralDifferenceScheme : 4th order 5-point stencil implementation
+    SevenPointCentralDifferenceScheme : 6th order 7-point stencil implementation
     """
 
     def compute_derivative(
@@ -119,7 +121,7 @@ class CentralDifferenceScheme:
     ) -> np.ndarray:
         """Compute Hessian column using central differences.
 
-        H_ij = (F_i(+δj) - F_i(-δj)) / (2δ)
+        H_ij = -(F_i(+δj) - F_i(-δj)) / (2δ)
 
         """
         if forces_minus is None:
@@ -157,7 +159,7 @@ class ForwardDifferenceScheme:
     See Also
     --------
     CentralDifferenceScheme : More accurate 2nd order scheme
-    FivePointCentralDifferenceScheme : Highest accuracy 4th order scheme
+    FivePointCentralDifferenceScheme : Higher accuracy 4th order scheme
 
     """
 
@@ -171,7 +173,7 @@ class ForwardDifferenceScheme:
     ) -> np.ndarray:
         """Compute Hessian column using forward differences.
 
-        H_ij = (F_i(+δj) - F_i(0)) / δ
+        H_ij = -(F_i(+δj) - F_i(0)) / δ
 
         """
         if forces_ref is None:
@@ -184,14 +186,14 @@ class FivePointCentralDifferenceScheme:
     """5-point central difference finite difference scheme (4th order accuracy).
 
     This scheme uses a 5-point stencil to compute derivatives with 4th order
-    accuracy, providing the highest accuracy among the implemented schemes.
-    It requires forces at ±δ and ±2δ displacements.
+    accuracy. SevenPointCentralDifferenceScheme provides higher (6th order)
+    accuracy. It requires forces at ±δ and ±2δ displacements.
 
     Uses the stencil for first derivative:
     ∂f/∂x ≈ [-f(x+2h) + 8f(x+h) - 8f(x-h) + f(x-2h)] / (12h)
 
     For Hessian calculation from forces F = -∇E:
-    H = -∂F/∂x = [-F(x+2δ) + 8F(x+δ) - 8F(x-δ) + F(x-2δ)] / (12δ)
+    H = -∂F/∂x = -[-F(x+2δ) + 8F(x+δ) - 8F(x-δ) + F(x-2δ)] / (12δ)
 
     Examples
     --------

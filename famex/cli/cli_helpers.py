@@ -18,6 +18,11 @@ from famex.analysis.thermodynamics import read_free_energy_correction
 from famex.embed.api import smiles_to_atoms
 from famex.io import pubchem
 from famex.io.xyz_io import read_xyz_with_metadata, write_xyz_with_metadata
+from famex.utils.logging import get_famex_logger
+from famex.utils.path_security import PathSecurityError
+from famex.utils.validation import format_atom_count_mismatch
+
+logger = get_famex_logger(__name__)
 
 
 def parse_kv_pairs(pairs: list[str]) -> dict[str, object]:
@@ -74,10 +79,7 @@ def require_same_atom_count(structures: list[Atoms], labels: list[str]) -> None:
     counts = [len(atoms) for atoms in structures]
     if len(set(counts)) == 1:
         return
-    detail = ", ".join(
-        f"{label} ({count} atoms)" for label, count in zip(labels, counts, strict=True)
-    )
-    raise ValueError(f"Atom counts do not match: {detail}")
+    raise ValueError(format_atom_count_mismatch(list(zip(labels, counts, strict=True))))
 
 
 def load_structure_or_smiles(text: str, *, embedder: str = "pysmiles") -> Atoms:
@@ -155,7 +157,8 @@ def load_path_structures(structures: tuple[str, ...], *, embedder: str = "pysmil
         if is_file:
             try:
                 geom_result = read_xyz_with_metadata(structures[0], frame="all")
-            except Exception:
+            except (OSError, ValueError) as exc:
+                logger.debug("Failed to read XYZ path structure %s: %s", structures[0], exc)
                 geom_result = None
             if isinstance(geom_result, list):
                 return list(geom_result)
@@ -191,7 +194,7 @@ def write_atoms(
         return None
 
     if ".." in out_path or "\x00" in out_path:
-        raise ValueError(f"Unsafe output path detected: {out_path}")
+        raise PathSecurityError(f"Unsafe output path detected: {out_path}")
 
     parent_dir = Path(out_path).parent
     if str(parent_dir) != ".":

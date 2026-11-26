@@ -232,17 +232,25 @@ class ThermodynamicProperties:
         gibbs_free_energy = enthalpy_total - self.temperature * entropy_total
         free_energy_correction = gibbs_free_energy - energy
 
+        h_trans = enthalpy_trans * J_PER_MOL_TO_EV
+        h_rot = enthalpy_rot * J_PER_MOL_TO_EV
+        h_vib = enthalpy_vib * J_PER_MOL_TO_EV
+        s_trans = entropy_trans * J_PER_MOL_TO_EV
+        s_rot = entropy_rot * J_PER_MOL_TO_EV
+        s_vib = s_vib_actual * J_PER_MOL_TO_EV
+        s_elec = entropy_elec * J_PER_MOL_TO_EV
+
         return {
             "energy": energy,
             "zpe": zpe,
-            "enthalpy_trans": enthalpy_trans * J_PER_MOL_TO_EV,
-            "enthalpy_rot": enthalpy_rot * J_PER_MOL_TO_EV,
-            "enthalpy_vib": enthalpy_vib * J_PER_MOL_TO_EV,
+            "enthalpy_trans": h_trans,
+            "enthalpy_rot": h_rot,
+            "enthalpy_vib": h_vib,
             "enthalpy_total": enthalpy_total,
-            "entropy_trans": entropy_trans * J_PER_MOL_TO_EV,
-            "entropy_rot": entropy_rot * J_PER_MOL_TO_EV,
-            "entropy_vib": s_vib_actual * J_PER_MOL_TO_EV,
-            "entropy_elec": entropy_elec * J_PER_MOL_TO_EV,
+            "entropy_trans": s_trans,
+            "entropy_rot": s_rot,
+            "entropy_vib": s_vib,
+            "entropy_elec": s_elec,
             "entropy_total": entropy_total,
             "gibbs_free_energy": gibbs_free_energy,
             "free_energy_correction": free_energy_correction,
@@ -252,22 +260,10 @@ class ThermodynamicProperties:
             "point_group": self.symmetry_handler.point_group,
             "concentration": self.solvation_handler.concentration,
             "contributions": {
-                "translational": {
-                    "enthalpy": enthalpy_trans * J_PER_MOL_TO_EV,
-                    "entropy": entropy_trans * J_PER_MOL_TO_EV,
-                },
-                "rotational": {
-                    "enthalpy": enthalpy_rot * J_PER_MOL_TO_EV,
-                    "entropy": entropy_rot * J_PER_MOL_TO_EV,
-                },
-                "vibrational": {
-                    "enthalpy": enthalpy_vib * J_PER_MOL_TO_EV,
-                    "entropy": s_vib_actual * J_PER_MOL_TO_EV,
-                },
-                "electronic": {
-                    "enthalpy": 0.0,
-                    "entropy": entropy_elec * J_PER_MOL_TO_EV,
-                },
+                "translational": {"enthalpy": h_trans, "entropy": s_trans},
+                "rotational": {"enthalpy": h_rot, "entropy": s_rot},
+                "vibrational": {"enthalpy": h_vib, "entropy": s_vib},
+                "electronic": {"enthalpy": 0.0, "entropy": s_elec},
                 "zero_point": zpe,
             },
         }

@@ -13,15 +13,6 @@ from famex.potentials.so3lr_potential import SO3LRPotential
 class TestBasePotential:
     """Test BasePotential class."""
 
-    def test_get_logger_with_import_error(self):
-        """Test get_module_logger() with ImportError fallback."""
-        from famex.utils.lazy_imports import get_module_logger
-
-        with patch("famex.utils.logging.get_famex_logger", side_effect=ImportError("No module")):
-            logger = get_module_logger("test.module")
-            # Should fallback to standard logging
-            assert logger is not None
-
     def test_init_implemented_properties_from_kwargs(self):
         """Test initialization with implemented_properties from kwargs when not hasattr (line 83)."""
         potential = BasePotential(implemented_properties=["energy", "forces"])

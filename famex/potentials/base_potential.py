@@ -18,9 +18,9 @@ if TYPE_CHECKING:
 
 
 from famex.utils.device import resolve_backend_device
-from famex.utils.lazy_imports import get_module_logger
+from famex.utils.logging import get_famex_logger
 
-logger = get_module_logger(__name__)
+logger = get_famex_logger(__name__)
 
 
 class BasePotential:

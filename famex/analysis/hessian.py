@@ -547,35 +547,24 @@ class HessianCalculator:
             If force calculation fails after all retries
 
         """
-        last_error = None
+        last_error: Exception | None = None
         for attempt in range(self.max_retries):
             try:
                 return self._get_forces_displaced(atom_index, direction, displacement)
             except Exception as e:
                 last_error = e
-                if attempt < self.max_retries - 1:
-                    # Simple retry without backoff
-                    if self.verbose >= 2:
-                        coord_name = ["x", "y", "z"][direction]
-                        logger.debug(
-                            "Retry %s/%s for atom %s, %s-displacement %s Å: %s",
-                            attempt + 1,
-                            self.max_retries,
-                            atom_index,
-                            coord_name,
-                            displacement,
-                            e,
-                        )
-                    continue
-                # Final attempt failed
-                coord_name = ["x", "y", "z"][direction]
-                msg = (
-                    f"Force calculation failed after {self.max_retries} attempts "
-                    f"for atom {atom_index}, {coord_name}-displacement {displacement:+.4f} Å: {last_error}"
-                )
-                raise RuntimeError(msg) from last_error
-        # This should never be reached, but mypy needs it
-        assert last_error is not None, "All retries failed but no error was captured"
+                if attempt < self.max_retries - 1 and self.verbose >= 2:
+                    coord_name = ["x", "y", "z"][direction]
+                    logger.debug(
+                        "Retry %s/%s for atom %s, %s-displacement %s Å: %s",
+                        attempt + 1,
+                        self.max_retries,
+                        atom_index,
+                        coord_name,
+                        displacement,
+                        e,
+                    )
+        assert last_error is not None
         coord_name = ["x", "y", "z"][direction]
         msg = (
             f"Force calculation failed after {self.max_retries} attempts "
@@ -995,8 +984,6 @@ class HessianCalculator:
         if self.verbose >= 1:
             elapsed = time.time() - (start_time or 0) if start_time else 0
             logger.info("Hessian calculation completed in %.2f seconds", elapsed)
-        elif self.verbose >= 2:
-            logger.info("Hessian calculation completed")
         return symmetrized
 
 

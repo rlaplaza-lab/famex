@@ -15,9 +15,10 @@ AMU_TO_KG = 1.66053886e-27  # kg/amu
 SPEED_OF_LIGHT = 2.99792458e10  # cm/s
 J_PER_MOL_TO_EV = units.J / units.mol
 ATMOS = 101.325  # kPa; GoodVibes 1 atm concentration is ATMOS/(R T) mol/L
+ATMOS_PA = ATMOS * 1000.0  # 1 atm in pascal
 
 
-def ideal_gas_concentration(temperature: float, pressure: float = 101325.0) -> float:
+def ideal_gas_concentration(temperature: float, pressure: float = ATMOS_PA) -> float:
     """Ideal-gas concentration in mol/L.
 
     ``pressure`` is in pascal. Dividing by 1000 converts it to kPa so that
@@ -72,6 +73,7 @@ def normalize_frequencies_cm1(
 __all__ = [
     "AMU_TO_KG",
     "ATMOS",
+    "ATMOS_PA",
     "AVOGADRO_CONSTANT",
     "BOLTZMANN_CONSTANT",
     "GAS_CONSTANT",

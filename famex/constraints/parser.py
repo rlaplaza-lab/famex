@@ -93,7 +93,7 @@ def parse_constraints(
             logger.info("  Fixed atoms: %s", info["fixed_atoms"])
         for hc in info["harmonic_constraints"]:
             logger.info(
-                "  Harmonic %s: atoms %s, k=%s, ref=%.3f",
+                "  Harmonic %s: atoms %s, k=%s, ref=%s",
                 hc["type"],
                 hc["atoms"],
                 hc["force_constant"],
