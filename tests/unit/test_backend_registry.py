@@ -126,17 +126,18 @@ class TestRegistryLazyLoading:
             registry._load_backend("test_fail")
             assert "test_fail" not in registry._registry
 
-    def test_load_with_attribute_error(self):
+    def test_load_with_attribute_error(self, caplog):
         registry = CalculatorRegistry()
 
         with patch.dict(
             BACKEND_CLASSES,
             {"test_attr_fail": ("famex.backends.registry", "nonexistent_attribute")},
         ):
-            with pytest.warns(UserWarning, match="Failed to load backend"):
+            with caplog.at_level("ERROR"):
                 registry._load_backend("test_attr_fail")
 
             assert "test_attr_fail" not in registry._registry
+            assert any("Failed to load backend" in record.message for record in caplog.records)
 
     @patch("famex.backends.registry.importlib.import_module")
     def test_load_backend_import_error(self, mock_import):

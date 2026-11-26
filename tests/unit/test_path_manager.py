@@ -102,7 +102,7 @@ class TestPathManager:
     def test_initialization_rejects_incompatible_structures(self):
         atoms1 = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
         atoms2 = Atoms("H2O", positions=[[0, 0, 0], [0.95, 0, 0], [-0.24, 0.93, 0]])
-        with pytest.raises(ValueError, match="Incompatible atoms"):
+        with pytest.raises(ValueError, match="Atom counts do not match"):
             famex.PathManager([atoms1, atoms2])
 
     def test_short_path_ts_guess(self, mock_backend):

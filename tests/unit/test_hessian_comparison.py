@@ -248,17 +248,18 @@ class TestHessianComparisonReport:
         assert "force_fd" in report.hessians
         assert report.atoms is not None
 
-    def test_print_summary(self, water_molecule_with_mock, capsys):
+    def test_print_summary(self, water_molecule_with_mock, caplog):
         """Test summary printing."""
         atoms = water_molecule_with_mock
 
         results = compare_hessian_methods(atoms, atoms.calc, methods=["force_fd"])
         report = HessianComparisonReport(results)
-        report.print_summary()
+        with caplog.at_level("INFO"):
+            report.print_summary()
 
-        captured = capsys.readouterr()
-        assert "HESSIAN METHOD COMPARISON SUMMARY" in captured.out
-        assert "FORCE_FD" in captured.out or "force_fd" in captured.out
+        text = "\n".join(record.message for record in caplog.records)
+        assert "HESSIAN METHOD COMPARISON SUMMARY" in text
+        assert "FORCE_FD" in text or "force_fd" in text
 
     def test_compare_frequencies(self, water_molecule_with_mock):
         """Test frequency comparison."""
