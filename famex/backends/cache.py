@@ -556,7 +556,7 @@ def download_and_cache_model(model_name: str, model_url: str) -> Path:
     except requests.RequestException as e:
         logger.error("Failed to download model %s from %s: %s", model_name, model_url, e)
         msg = f"Failed to download model {model_name}: {e}"
-        raise RuntimeError(msg)
+        raise RuntimeError(msg) from e
 
     # Cache the downloaded model
     return cache.cache_model(model_name, model_url, model_data)

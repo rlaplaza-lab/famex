@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -176,7 +177,7 @@ def validate_xyz_structure(atoms: Atoms, strict: bool = False) -> list[str]:
             if charge is not None and spin is not None:
                 if spin < 1:
                     issues.append(f"Invalid spin multiplicity: {spin} (must be >= 1)")
-                elif charge is not None and abs(charge) > 100:
+                elif abs(charge) > 100:
                     issues.append(f"Unusual charge: {charge}")
 
     return issues
@@ -253,17 +254,15 @@ def read_xyz_with_metadata(
         logger.error("Invalid frame selection '%s' for file %s", frame, filename)
         raise ValueError(f"Invalid frame selection: {frame}")
 
+    from famex.io.geometry import Geometry
+
     geometries = []
     for atoms in selected_frames:
-        from famex.io.geometry import Geometry
-
         geom = Geometry(ase_atoms=atoms)
 
         if validate:
             issues = validate_xyz_structure(geom)
             if issues:
-                import warnings
-
                 warnings.warn(
                     f"XYZ validation issues in {filename}: {'; '.join(issues)}",
                     stacklevel=2,

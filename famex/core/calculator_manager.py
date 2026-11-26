@@ -16,6 +16,9 @@ from famex.backends.constants import (
 from famex.backends.registry import create_calculator
 from famex.core.charge_spin import check_missing_charge_spin, extract_charge_spin_from_atoms
 from famex.utils.device import resolve_backend_device
+from famex.utils.logging import get_famex_logger
+
+logger = get_famex_logger(__name__)
 
 
 class CalculatorManager:
@@ -78,10 +81,6 @@ class CalculatorManager:
         charge_missing, spin_missing = check_missing_charge_spin(atoms)
 
         if (charge_missing or spin_missing) and not self._warned_about_defaults:
-            from famex.utils.logging import get_famex_logger
-
-            logger = get_famex_logger(__name__)
-
             missing_parts = []
             if charge_missing:
                 missing_parts.append(f"charge={charge}")

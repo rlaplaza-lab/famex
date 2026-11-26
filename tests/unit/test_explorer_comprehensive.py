@@ -8,6 +8,7 @@ import pytest
 
 import famex
 from famex.core.charge_spin import extract_charge_spin_from_atoms as _extract_charge_spin
+from famex.core.exceptions import StrategyNotFoundError
 from famex.core.explorer import Explorer
 from famex.utils.validation import BackendError
 from tests.test_constants import LOOSE_FMAX, QUICK_STEPS, VERY_LOOSE_FMAX
@@ -373,7 +374,7 @@ class TestExplorerRun:
         atoms = water_molecule
         explorer = Explorer(atoms, backend="mock", target="invalid", strategy="nonexistent")
 
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(StrategyNotFoundError):
             explorer.run()
 
     def test_run_with_calculate_frequencies(self, h2_molecule):

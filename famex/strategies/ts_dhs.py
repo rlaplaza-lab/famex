@@ -12,6 +12,7 @@ from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
 from famex.strategies.helpers import (
     copy_labeled_frame,
+    merge_ts_frequency_fields,
     take_optimization_trajectory,
     validate_ts_structure,
 )
@@ -193,10 +194,7 @@ class MultiStructureTSDHSStrategy(BaseStrategy):
         )
         if validate_ts and isinstance(optimized_atoms, Atoms):
             result["ts_validation"] = validate_ts_structure(optimized_atoms, self.explorer)
-        if "frequency_analysis" in ts_result:
-            result["frequency_analysis"] = ts_result["frequency_analysis"]
-            result["is_ts"] = ts_result.get("is_ts")
-            result["free_energy_correction"] = ts_result.get("free_energy_correction")
+        merge_ts_frequency_fields(result, ts_result)
         if search_path:
             result["search_path"] = search_path
         if isinstance(ts_result, dict):

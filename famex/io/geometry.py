@@ -332,9 +332,7 @@ def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
         multiplicity = int(parts[1])
     except (ValueError, IndexError):
         msg = f"Invalid charge/multiplicity line: '{lines[charge_mult_line_index].strip()}'"
-        raise ValueError(
-            msg,
-        )
+        raise ValueError(msg)
 
     coord_lines = lines[charge_mult_line_index + 1 :]
     symbols = []

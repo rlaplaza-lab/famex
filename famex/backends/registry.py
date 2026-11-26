@@ -19,13 +19,13 @@ from famex.backends.constants import (
     DEFAULT_TBLITE_MODEL,
 )
 from famex.utils.device import resolve_backend_device
-from famex.utils.lazy_imports import get_module_logger
+from famex.utils.logging import get_famex_logger
 from famex.utils.validation import BackendError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-logger = get_module_logger(__name__)
+logger = get_famex_logger(__name__)
 
 BACKEND_CLASSES: dict[str, tuple[str, str]] = {
     BACKEND_UMA: ("famex.potentials.uma_potential", "UMAPotential"),
@@ -60,22 +60,21 @@ class CalculatorRegistry:
         except ImportError as exc:
             logger.debug("Backend '%s' not available (ImportError): %s", backend_name, exc)
         except AttributeError as exc:
-            import warnings
-
-            error_msg = (
-                f"Failed to load backend '{backend_name}': class '{class_name}' "
-                f"not found in module '{module_name}'. Error: {exc}."
+            logger.error(
+                "Failed to load backend '%s': class '%s' not found in module '%s'. Error: %s.",
+                backend_name,
+                class_name,
+                module_name,
+                exc,
             )
-            logger.error(error_msg)
-            warnings.warn(error_msg, stacklevel=2)
         except (RuntimeError, ValueError, TypeError) as exc:
-            import warnings
-
-            error_msg = (
-                f"Failed to load backend '{backend_name}' from module '{module_name}': {exc}."
+            logger.error(
+                "Failed to load backend '%s' from module '%s': %s.",
+                backend_name,
+                module_name,
+                exc,
+                exc_info=True,
             )
-            logger.error(error_msg, exc_info=True)
-            warnings.warn(error_msg, stacklevel=2)
 
     def register(self, backend_name: str, factory_func: Callable[..., Any]) -> None:
         """Register a calculator factory under a backend name.

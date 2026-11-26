@@ -6,7 +6,6 @@ potentials based on the Point Edge Transformer architecture.
 
 from __future__ import annotations
 
-import warnings
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -234,10 +233,9 @@ class PETPotential(BasePotential):
         try:
             hessian = self._compute_analytical_hessian(self.atoms)
         except (RuntimeError, ValueError, TypeError) as exc:
-            warnings.warn(
-                f"PET analytical Hessian failed ({exc}); falling back to finite differences.",
-                UserWarning,
-                stacklevel=2,
+            logger.warning(
+                "PET analytical Hessian failed (%s); falling back to finite differences.",
+                exc,
             )
             hessian = self._hessian_via_finite_differences()
 

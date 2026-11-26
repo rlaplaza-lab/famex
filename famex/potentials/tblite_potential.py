@@ -175,11 +175,11 @@ class TBLitePotential(BasePotential):
             except ImportError as e:
                 logger.error("TBLite not available: %s. Install with: pip install tblite", e)
                 msg = f"TBLite not available ({e}). Install with: pip install tblite"
-                raise ImportError(msg)
+                raise ImportError(msg) from e
             except (ValueError, AttributeError, RuntimeError) as e:
                 logger.error("Failed to initialize TBLite calculator: %s", e)
                 msg = f"Failed to initialize TBLite calculator: {e}"
-                raise RuntimeError(msg)
+                raise RuntimeError(msg) from e
 
     def calculate(
         self,
@@ -209,7 +209,7 @@ class TBLitePotential(BasePotential):
         except (AttributeError, RuntimeError) as e:
             logger.exception("TBLite calculation failed: %s", e)
             msg = f"TBLite calculation failed: {e}"
-            raise RuntimeError(msg)
+            raise RuntimeError(msg) from e
 
         # Extract results from underlying calculator
         # Match UMA pattern: directly access results for requested properties
@@ -243,15 +243,18 @@ class TBLitePotential(BasePotential):
             forces = np.asarray(forces)
         return forces
 
-    def get_charges(self, atoms: Atoms | None = None) -> np.ndarray:
-        """Get Mulliken charges (if supported)."""
+    def _ensure_loaded_calc(self, atoms: Atoms | None = None) -> Any:
         if atoms is not None:
             self.atoms = atoms
-        # Ensure calculator is loaded
         if self._calc is None:
             self._load_calculator()
         assert self._calc is not None
-        get_charges = getattr(self._calc, "get_charges", None)
+        return self._calc
+
+    def get_charges(self, atoms: Atoms | None = None) -> np.ndarray:
+        """Get Mulliken charges (if supported)."""
+        calc = self._ensure_loaded_calc(atoms)
+        get_charges = getattr(calc, "get_charges", None)
         if get_charges is not None:
             # TBLite calculator methods return Any (untyped), but we know it's np.ndarray
             return get_charges(atoms)  # type: ignore[no-any-return]
@@ -260,13 +263,8 @@ class TBLitePotential(BasePotential):
 
     def get_dipole_moment(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get dipole moment (if supported)."""
-        if atoms is not None:
-            self.atoms = atoms
-        # Ensure calculator is loaded
-        if self._calc is None:
-            self._load_calculator()
-        assert self._calc is not None
-        get_dipole_moment = getattr(self._calc, "get_dipole_moment", None)
+        calc = self._ensure_loaded_calc(atoms)
+        get_dipole_moment = getattr(calc, "get_dipole_moment", None)
         if get_dipole_moment is not None:
             # TBLite calculator methods return Any (untyped), but we know it's np.ndarray
             return get_dipole_moment(atoms)  # type: ignore[no-any-return]
@@ -275,13 +273,8 @@ class TBLitePotential(BasePotential):
 
     def get_stress(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get stress tensor (if supported)."""
-        if atoms is not None:
-            self.atoms = atoms
-        # Ensure calculator is loaded
-        if self._calc is None:
-            self._load_calculator()
-        assert self._calc is not None
-        get_stress = getattr(self._calc, "get_stress", None)
+        calc = self._ensure_loaded_calc(atoms)
+        get_stress = getattr(calc, "get_stress", None)
         if get_stress is not None:
             # TBLite calculator methods return Any (untyped), but we know it's np.ndarray
             return get_stress(atoms)  # type: ignore[no-any-return]

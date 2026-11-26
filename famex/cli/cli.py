@@ -32,6 +32,9 @@ from famex.utils.ml_warnings import quiet_backend_loading
 
 os.environ.setdefault("MPLBACKEND", "Agg")
 
+_PRODUCT_REQUIRED_STRATEGIES = frozenset({"interpolate", "growing_string", "cineb", "dhs"})
+_PATH_MULTI_STRUCTURE_STRATEGIES = frozenset({"interpolate", "neb", "cineb"})
+
 
 def _validate_temperature(ctx: Any, param: Any, value: float) -> float:
     if value is not None and value <= 0:
@@ -189,7 +192,7 @@ def _validate_strategy_requirements(
     errors: list[str] = []
     warnings: list[str] = []
 
-    if target != "path" and strategy in ["interpolate", "growing_string", "cineb", "dhs"]:
+    if target != "path" and strategy in _PRODUCT_REQUIRED_STRATEGIES:
         if product is None:
             errors.append(f"--product is required for {strategy} strategy")
 
@@ -199,7 +202,7 @@ def _validate_strategy_requirements(
 
     # Path-specific validations
     if target == "path":
-        if strategy in ["interpolate", "neb", "cineb"]:
+        if strategy in _PATH_MULTI_STRUCTURE_STRATEGIES:
             if structures_count < 2:
                 errors.append(
                     f"{strategy} strategy requires at least 2 structures, got {structures_count}"
@@ -746,9 +749,7 @@ def minima(
     atoms = load_structure_or_smiles(input, embedder=embedder)
     atoms_list = [atoms]
 
-    if strategy == "interpolate":
-        if product is None:
-            raise ValueError("Product file is required for interpolate strategy")
+    if strategy == "interpolate" and product is not None:
         atoms_product = load_structure_or_smiles(product, embedder=embedder)
         atoms_list = [atoms, atoms_product]
         try:
@@ -988,11 +989,7 @@ def ts(
     atoms = load_structure_or_smiles(input, embedder=embedder)
     atoms_list = [atoms]
 
-    if strategy in ["interpolate", "growing_string", "cineb", "dhs"]:
-        if product is None:
-            raise ValueError(
-                f"Product file is required for {strategy} strategy",
-            )
+    if strategy in _PRODUCT_REQUIRED_STRATEGIES and product is not None:
         atoms_product = load_structure_or_smiles(product, embedder=embedder)
         atoms_list = [atoms, atoms_product]
         try:
@@ -1044,8 +1041,8 @@ def ts(
             calculate_frequencies=calculate_frequencies,
             cleanup_frequencies=cleanup_frequencies,
             temperature=temperature,
-            npoints=npoints if strategy in ["interpolate", "growing_string", "cineb"] else None,
-            interp=interp if strategy in ["interpolate", "cineb"] else None,
+            npoints=npoints if strategy in ("interpolate", "growing_string", "cineb") else None,
+            interp=interp if strategy in ("interpolate", "cineb") else None,
             spring_constant=spring_constant if strategy == "cineb" else None,
             max_images=max_images if strategy == "growing_string" else None,
             distance_threshold=(
@@ -1207,8 +1204,6 @@ def path(
     # Load structures from variadic inputs (files, SMILES, or PubChem)
     try:
         atoms_list = load_path_structures(structures, embedder=embedder)
-    except click.ClickException:
-        raise
     except (ValueError, RuntimeError) as exc:
         raise click.BadParameter(str(exc)) from exc
 
@@ -1273,9 +1268,9 @@ def path(
             steps=steps,
             calculate_frequencies=False,
             temperature=298.15,
-            npoints=npoints if strategy in ["interpolate", "neb", "cineb"] else None,
-            interp=interp if strategy in ["interpolate", "neb", "cineb"] else None,
-            spring_constant=spring_constant if strategy in ["neb", "cineb"] else None,
+            npoints=npoints if strategy in _PATH_MULTI_STRUCTURE_STRATEGIES else None,
+            interp=interp if strategy in _PATH_MULTI_STRUCTURE_STRATEGIES else None,
+            spring_constant=spring_constant if strategy in ("neb", "cineb") else None,
             step_size=step_size if strategy == "irc" else None,
             direction=direction if strategy == "irc" else None,
             climb=(strategy == "cineb"),

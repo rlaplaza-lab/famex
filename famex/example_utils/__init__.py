@@ -23,7 +23,7 @@ from ase.io import write as ase_write
 from famex.backends.availability import is_backend_available
 from famex.backends.cache import get_unified_cache
 from famex.backends.constants import DEFAULT_UMA_MODEL
-from famex.backends.registry import calculator_registry
+from famex.backends.registry import calculator_registry, create_calculator
 
 # Import device utilities
 from famex.utils.device import get_optimal_device, print_device_info
@@ -109,7 +109,7 @@ class FAMEXExampleInterface:
             if is_backend_available(backend):
                 available.append(backend)
             elif verbose >= 1:
-                logger.warning("Backend '%s' not available, skipping", backend)
+                logger.warning("Backend '%s' is not available, skipping", backend)
 
         return available
 
@@ -292,8 +292,6 @@ def benchmark_optimization(
         Benchmark results including timings for each step
 
     """
-    import time
-
     import numpy as np
 
     # Import FAMEX components
@@ -332,7 +330,7 @@ def benchmark_optimization(
     try:
         # Check if backend is available
         if not calculator_registry.is_backend_available(backend):
-            results["error"] = f"Backend {backend} not available (dependencies missing)"
+            results["error"] = f"Backend '{backend}' is not available (dependencies missing)"
             return results
 
         # Check if optimizer is suitable for this task
@@ -360,8 +358,6 @@ def benchmark_optimization(
                 from famex.analysis.frequency import FrequencyAnalysis
 
                 # Attach calculator temporarily to compute initial Hessian
-                from famex.backends.registry import create_calculator
-
                 # Extract charge/spin from structure if available
                 charge = getattr(structure, "charge", None)
                 if charge is None and hasattr(structure, "info") and "charge" in structure.info:
@@ -584,9 +580,6 @@ def benchmark_optimization(
         if isinstance(run_results, dict) and "performance" in run_results:
             results["performance"] = run_results["performance"]
 
-        if verbose and avg_time_per_step is not None:
-            pass
-
         # Frequency analysis (optional, controlled by calculate_frequencies flag)
         freq_start = time.perf_counter()
         freq_results = {}
@@ -641,10 +634,6 @@ def benchmark_optimization(
 
             result_type = "TS"
 
-            if not is_valid_result and verbose and calculate_frequencies:
-                if n_imaginary == 0 or n_imaginary > 1:
-                    pass
-
             # Store all_frequencies from freq_results (includes trans/rot modes)
             # This is important for TS validation as it contains all frequencies including imaginary ones
             all_frequencies_from_freq = (
@@ -697,12 +686,6 @@ def benchmark_optimization(
 
             result_type = "minima"
 
-            if not is_valid_result and verbose and calculate_frequencies:
-                if n_significant_imaginary > 0:
-                    pass
-                if n_small_negative > 0:
-                    pass
-
             results["frequency_results"] = {
                 "n_frequencies": (len(frequencies) if isinstance(frequencies, Sized) else 0),
                 "frequencies": (frequencies[:10] if isinstance(frequencies, Sequence) else []),
@@ -719,9 +702,6 @@ def benchmark_optimization(
                 "result_type": result_type,
                 "minima_analysis": minima_analysis,
             }
-
-            if verbose and n_small_negative > 0 and calculate_frequencies:
-                pass
 
         # Calculate total time (excluding None values)
         timings = results.get("timings", {})
@@ -922,7 +902,7 @@ def get_calculator_for_backend(
     import famex
 
     if not is_backend_available(backend):
-        raise RuntimeError(f"Backend '{backend}' not available")
+        raise RuntimeError(f"Backend '{backend}' is not available")
 
     # Auto-detect device if not provided
     device = get_optimal_device(device)
@@ -938,8 +918,6 @@ def get_calculator_for_backend(
         calc = famex.get_so3lr_calculator(device=device)
     else:
         # Fallback to registry
-        from famex.backends.registry import create_calculator
-
         calc = create_calculator(
             backend=backend,
             model_name=model_name,

@@ -315,19 +315,15 @@ class Explorer:
         out: dict[str, dict[str, str]] = {}
         for name, metadata in REGISTRY.list_strategies().items():
             if kind is None or metadata.target == kind:
-                out[name] = {
+                entry = {
                     "type": (
                         "multi-structure" if metadata.requires_multiple_structures else "local"
                     ),
                     "description": metadata.description,
                 }
+                out[name] = entry
                 for alias in metadata.aliases:
-                    out[alias] = {
-                        "type": (
-                            "multi-structure" if metadata.requires_multiple_structures else "local"
-                        ),
-                        "description": metadata.description,
-                    }
+                    out[alias] = entry
         return out
 
     # --- Execution ---
@@ -464,13 +460,7 @@ class Explorer:
         else:
             strategy_name = "minima:local"
 
-        try:
-            strategy_class = REGISTRY.get(strategy_name)
-        except StrategyNotFoundError as e:
-            raise NotImplementedError(
-                f"No strategy found for '{strategy_name}'. "
-                f"Available strategies: {sorted(REGISTRY.list_strategies().keys())}"
-            ) from e
+        strategy_class = REGISTRY.get(strategy_name)
 
         strategy_instance = strategy_class(explorer=self, profiler=self.profiler)
         kwargs.setdefault("local_optimizer_name", self._get_effective_optimizer())

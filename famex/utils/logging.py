@@ -16,15 +16,16 @@ _famex_log_level = logging.INFO
 
 class FAMEXFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
+        message = super().format(record)
         if record.levelno == logging.INFO:
-            return record.getMessage()
+            return message
         if record.levelno == logging.DEBUG:
-            return f"[DEBUG] {record.getMessage()}"
+            return f"[DEBUG] {message}"
         if record.levelno == logging.WARNING:
-            return f"⚠️  {record.getMessage()}"
+            return f"⚠️  {message}"
         if record.levelno >= logging.ERROR:
-            return f"❌ {record.getMessage()}"
-        return record.getMessage()
+            return f"❌ {message}"
+        return message
 
 
 def _verbosity_to_log_level(verbosity: int) -> int:

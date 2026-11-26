@@ -185,11 +185,6 @@ class EnergyBasedHessianCalculator:
                     )
                     raise RuntimeError(msg) from e
 
-        # Fill lower triangle (Hessian is symmetric)
-        for i in range(n_coords):
-            for j in range(i + 1, n_coords):
-                hessian[j, i] = hessian[i, j]
-
         symmetrized = 0.5 * (hessian + hessian.T)
 
         if self.verbose >= 2:

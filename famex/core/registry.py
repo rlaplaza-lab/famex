@@ -7,7 +7,7 @@ and their registration.
 from __future__ import annotations
 
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
-from famex.core.exceptions import StrategyNotFoundError
+from famex.core.exceptions import StrategyError, StrategyNotFoundError
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
@@ -33,14 +33,13 @@ class StrategyRegistry:
 
         Raises
         ------
-        ValueError
-            If strategy class is missing metadata
+        StrategyError
+            If strategy class is missing metadata or an alias collides
 
         """
         if not hasattr(strategy_class, "metadata"):
             msg = f"Strategy class {strategy_class.__name__} missing metadata"
-            logger.error(msg)
-            raise ValueError(msg)
+            raise StrategyError(msg)
 
         meta = strategy_class.metadata
         logger.debug("Registering strategy: %s (aliases: %s)", meta.name, meta.aliases)
@@ -50,9 +49,11 @@ class StrategyRegistry:
         for alias in meta.aliases:
             if alias in self._strategies:
                 # Fail hard on duplicate aliases
-                msg = f"Alias '{alias}' already registered"
-                logger.error("%s - Existing strategy: %s", msg, self._strategies[alias].__name__)
-                raise ValueError(msg)
+                msg = (
+                    f"Alias '{alias}' already registered "
+                    f"(existing strategy: {self._strategies[alias].__name__})"
+                )
+                raise StrategyError(msg)
             self._strategies[alias] = strategy_class
 
     def get(self, strategy_name: str) -> type[BaseStrategy]:

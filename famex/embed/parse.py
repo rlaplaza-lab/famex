@@ -128,8 +128,6 @@ def _load_mol(smiles: str, *, explicit_hydrogen: bool) -> Any:
         except KeyError:
             # Nonstandard valence (radicals, some ligands) is accepted when strict is off.
             return _read_smiles(smiles, explicit_hydrogen=explicit_hydrogen, strict=False)
-    except ImportError:
-        raise
     except (KeyError, SyntaxError, ValueError, IndexError) as exc:
         raise ValueError(f"Invalid SMILES {smiles!r}: {exc}") from exc
 

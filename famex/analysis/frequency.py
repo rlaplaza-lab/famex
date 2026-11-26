@@ -526,12 +526,7 @@ class FrequencyAnalysis:
         frequencies = self.get_frequencies()
 
         # Negative frequencies indicate imaginary modes
-        imaginary_freqs_list = []
-        for freq in frequencies:
-            if freq < -threshold:
-                imaginary_freqs_list.append(freq)
-
-        imaginary_freqs = np.array(imaginary_freqs_list)
+        imaginary_freqs = frequencies[frequencies < -threshold]
         n_imaginary = len(imaginary_freqs)
 
         freq_magnitudes = np.abs(frequencies)

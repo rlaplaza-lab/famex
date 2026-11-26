@@ -51,11 +51,10 @@ class LocalMinimaStrategy(BaseStrategy):
 
             return opt_kwargs
 
-        def prepare_minima_frequency_kwargs(atoms: Atoms) -> dict[str, Any]:
-            freq_kwargs: dict[str, Any] = {}
+        def prepare_frequency_kwargs(_atoms: Atoms) -> dict[str, Any]:
             if getattr(self.explorer, "force_finite_diff_hessian", False):
-                freq_kwargs["method"] = "finite_differences"
-            return freq_kwargs
+                return {"method": "finite_differences"}
+            return {}
 
         return _run_local_optimization_common(
             strategy=self,
@@ -69,7 +68,7 @@ class LocalMinimaStrategy(BaseStrategy):
             prepare_optimizer_kwargs=prepare_minima_optimizer_kwargs,
             post_optimization_hook=None,
             validation_hook=None,
-            prepare_frequency_kwargs=prepare_minima_frequency_kwargs,
+            prepare_frequency_kwargs=prepare_frequency_kwargs,
             result_key_name="is_minimum",
             log_prefix="Minima",
             cleanup_frequencies=cleanup_frequencies,

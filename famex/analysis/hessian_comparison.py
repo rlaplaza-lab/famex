@@ -80,6 +80,9 @@ def compare_hessian_methods(
     hessians = {}
     timings = {}
     metrics = {}
+    validated_indices = validate_indices(atoms, indices)
+    positions = atoms.get_positions()[validated_indices]
+    masses = atoms.get_masses()[validated_indices]
 
     for method in methods:
         if verbose >= 1:
@@ -94,11 +97,10 @@ def compare_hessian_methods(
             timings[method] = elapsed_time
 
             # Compute quality metrics (project out rigid modes when geometry known)
-            atom_indices = validate_indices(atoms, indices)
             metric = _compute_quality_metrics(
                 hessian,
-                positions=atoms.get_positions()[atom_indices],
-                masses=atoms.get_masses()[atom_indices],
+                positions=positions,
+                masses=masses,
             )
             metrics[method] = metric
 
@@ -122,7 +124,7 @@ def compare_hessian_methods(
         "metrics": metrics,
         "recommendations": recommendations,
         "atoms": atoms,  # Store for frequency comparison
-        "indices": validate_indices(atoms, indices),
+        "indices": validated_indices,
     }
 
 
@@ -353,29 +355,30 @@ class HessianComparisonReport:
 
     def print_summary(self) -> None:
         """Print formatted summary of comparison."""
-        print("\n" + "=" * 80)
-        print("HESSIAN METHOD COMPARISON SUMMARY")
-        print("=" * 80)
+        banner = "─" * 40
+        logger.info("\n%s", banner)
+        logger.info("HESSIAN METHOD COMPARISON SUMMARY")
+        logger.info("%s", banner)
 
         for method in self.methods:
-            print(f"\n{method.upper()}:")
-            print(f"  Time: {self.timings[method]:.4f} s")
-            print(f"  RMS value: {self.metrics[method]['rms_value']:.6e} eV/Å²")
-            print(f"  Max asymmetry: {self.metrics[method]['max_asymmetry']:.6e} eV/Å²")
-            print(f"  Condition number: {self.metrics[method]['condition_number']:.2e}")
+            logger.info("\n%s:", method.upper())
+            logger.info("  Time: %.4f s", self.timings[method])
+            logger.info("  RMS value: %.6e eV/Å²", self.metrics[method]["rms_value"])
+            logger.info("  Max asymmetry: %.6e eV/Å²", self.metrics[method]["max_asymmetry"])
+            logger.info("  Condition number: %.2e", self.metrics[method]["condition_number"])
             if self.metrics[method]["has_nan"]:
-                print("  ⚠ Contains NaN values")
+                logger.warning("  ⚠ Contains NaN values")
             if self.metrics[method]["has_inf"]:
-                print("  ⚠ Contains Inf values")
+                logger.warning("  ⚠ Contains Inf values")
 
         if len(self.recommendations) > 0:
-            print("\n" + "=" * 80)
-            print("RECOMMENDATIONS:")
-            print("=" * 80)
+            logger.info("\n%s", banner)
+            logger.info("RECOMMENDATIONS:")
+            logger.info("%s", banner)
             for i, method in enumerate(self.recommendations, 1):
-                print(f"  {i}. {method}")
+                logger.info("  %s. %s", i, method)
 
-        print("\n" + "=" * 80)
+        logger.info("\n%s", banner)
 
     def compare_frequencies(self, atoms: Atoms | None = None) -> None:
         """Compare vibrational frequencies from different Hessians.
@@ -409,9 +412,10 @@ class HessianComparisonReport:
             logger.warning("Need at least 2 methods to compare frequencies")
             return
 
-        print("\n" + "=" * 80)
-        print("FREQUENCY COMPARISON")
-        print("=" * 80)
+        banner = "─" * 40
+        logger.info("\n%s", banner)
+        logger.info("FREQUENCY COMPARISON")
+        logger.info("%s", banner)
 
         # Use first method as reference
         ref_method = self.methods[0]
@@ -428,9 +432,9 @@ class HessianComparisonReport:
             diff = freqs - ref_freqs
             rms_diff = np.sqrt(np.mean(diff**2))
 
-            print(f"\n{method} vs {ref_method}:")
-            print(f"  RMS difference: {rms_diff:.2f} cm⁻¹")
-            print(f"  Max difference: {np.max(np.abs(diff)):.2f} cm⁻¹")
+            logger.info("\n%s vs %s:", method, ref_method)
+            logger.info("  RMS difference: %.2f cm⁻¹", rms_diff)
+            logger.info("  Max difference: %.2f cm⁻¹", np.max(np.abs(diff)))
 
 
 __all__ = [

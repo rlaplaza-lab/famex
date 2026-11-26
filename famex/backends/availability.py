@@ -9,7 +9,6 @@ convenience functions for logging and user-friendly interfaces.
 from __future__ import annotations
 
 import sys
-from typing import Any
 
 from famex.backends.constants import (
     ALL_BACKENDS,
@@ -23,19 +22,9 @@ from famex.backends.constants import (
     ML_BACKENDS,
 )
 from famex.backends.dependencies import deps
+from famex.utils.logging import get_famex_logger
 
-
-# Import logger only when needed to avoid circular imports
-def _get_logger() -> Any:
-    try:
-        from famex.utils.logging import get_famex_logger
-
-        return get_famex_logger(__name__)
-    except ImportError:
-        # Fallback for when logging isn't available yet
-        import logging
-
-        return logging.getLogger(__name__)
+logger = get_famex_logger(__name__)
 
 
 def _check_e3nn_conflict() -> str | None:
@@ -338,7 +327,6 @@ def get_available_backends_with_logging(
     available = get_available_backends(include_mock=include_mock)
 
     if verbose:
-        logger = _get_logger()
         backends_to_check = ALL_BACKENDS if include_mock else ML_BACKENDS
 
         for backend in backends_to_check:
@@ -377,7 +365,6 @@ def filter_available_backends(requested_backends: list[str], verbose: bool = Fal
     """
     available = []
     unavailable = []
-    logger = _get_logger()
 
     for backend in requested_backends:
         if is_backend_available(backend):
@@ -417,9 +404,9 @@ def require_backend(backend: str) -> None:
     except ImportError:
         # If pytest not available, just check availability
         if not is_backend_available(backend):
-            msg = f"Backend {backend} not available in this environment"
+            msg = f"Backend '{backend}' is not available in this environment"
             raise ImportError(msg)
         return
 
     if not is_backend_available(backend):
-        pytest.skip(f"Backend {backend} not available in this environment")
+        pytest.skip(f"Backend '{backend}' is not available in this environment")

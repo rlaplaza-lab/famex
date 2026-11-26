@@ -285,7 +285,6 @@ class QuasiHarmonicHandler:
         """
         if method not in ["rrho", "grimme", "truhlar"]:
             msg = f"Unknown method: {method}. Must be 'rrho', 'grimme', or 'truhlar'"
-            logger.error(msg)
             raise ValueError(msg)
 
         self.method = method

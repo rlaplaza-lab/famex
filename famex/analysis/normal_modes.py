@@ -87,6 +87,5 @@ def convert_frequency_unit(frequencies: np.ndarray, unit: str) -> np.ndarray:
     if unit == "THz":
         # Convert cm^-1 to THz using ASE units
         return frequencies * units._c * 100 / 1e12
-    msg = f"Unknown frequency unit: {unit}"
-    logger.error("%s (supported units: cm-1, meV, THz)", msg)
+    msg = f"Unknown frequency unit: {unit} (supported units: cm-1, meV, THz)"
     raise ValueError(msg)

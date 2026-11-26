@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 
 from ase import Atoms
 
+from famex.utils.validation import format_atom_count_mismatch
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -99,11 +101,11 @@ class BaseStrategy(ABC):
         n_atoms = len(atoms_list[0])
         for i, atoms in enumerate(atoms_list[1:], start=1):
             if len(atoms) != n_atoms:
-                msg = (
-                    f"Incompatible structures: structure 0 has {n_atoms} atoms, "
-                    f"but structure {i} has {len(atoms)} atoms"
+                raise ValueError(
+                    format_atom_count_mismatch(
+                        [("structure 0", n_atoms), (f"structure {i}", len(atoms))]
+                    )
                 )
-                raise ValueError(msg)
 
         symbols_0 = atoms_list[0].get_chemical_symbols()
         for i, atoms in enumerate(atoms_list[1:], start=1):

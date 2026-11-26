@@ -282,10 +282,9 @@ class UMAPotential(BasePotential):
                 f"PyTorch is required for analytical Hessian calculation. Install PyTorch: {exc}"
             ) from exc
         except (ValueError, RuntimeError, TypeError) as exc:
-            warnings.warn(
-                f"UMA analytical Hessian failed ({exc}); falling back to finite differences.",
-                UserWarning,
-                stacklevel=2,
+            logger.warning(
+                "UMA analytical Hessian failed (%s); falling back to finite differences.",
+                exc,
             )
             return self._hessian_via_finite_differences()
 

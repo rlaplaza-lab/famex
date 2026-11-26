@@ -164,7 +164,6 @@ class FAMEXConstraintManager:
             constraint = HarmonicAngleConstraint(atom_indices, self.reference_atoms, force_constant)
         else:
             msg = f"Unknown constraint type: {constraint_type}"
-            logger.error(msg)
             raise ValueError(msg)
 
         logger.debug(
@@ -456,13 +455,14 @@ class FixInternalsConstraint:
         expected_atoms = {"bond": 2, "angle": 3, "dihedral": 4}
         if constraint_type not in expected_atoms:
             msg = f"Unknown FixInternals constraint type: {constraint_type}"
-            logger.error(msg)
             raise ValueError(msg)
 
         n_expected = expected_atoms[constraint_type]
         if len(atom_indices) != n_expected:
-            msg = f"FixInternals {constraint_type} constraint requires exactly {n_expected} atoms"
-            logger.error("%s, got %d atoms", msg, len(atom_indices))
+            msg = (
+                f"FixInternals {constraint_type} constraint requires exactly {n_expected} atoms, "
+                f"got {len(atom_indices)} atoms"
+            )
             raise ValueError(msg)
 
         self.constraint_type = constraint_type
@@ -481,7 +481,6 @@ class FixInternalsConstraint:
             return [FixInternals(dihedrals_deg=[internal_coordinate])]
 
         msg = f"Unknown FixInternals constraint type: {self.constraint_type}"
-        logger.error(msg)
         raise ValueError(msg)
 
 
@@ -516,8 +515,10 @@ def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> FAME
     for spec in constraint_specs:
         parts = spec.strip().split()
         if len(parts) < 2:
-            msg = f"Invalid constraint specification: {spec}"
-            logger.error("%s (expected format: 'type indices [k=value]')", msg)
+            msg = (
+                f"Invalid constraint specification: {spec} "
+                f"(expected format: 'type indices [k=value]')"
+            )
             raise ValueError(msg)
 
         constraint_type = parts[0]
@@ -551,11 +552,10 @@ def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> FAME
             )
 
         else:
-            msg = f"Unknown constraint type: {constraint_type}"
-            logger.error(
-                "%s (supported types: fix, harmonic_position, harmonic_bond, harmonic_angle, "
-                "fixinternals_bond, fixinternals_angle, fixinternals_dihedral)",
-                msg,
+            msg = (
+                f"Unknown constraint type: {constraint_type} "
+                f"(supported types: fix, harmonic_position, harmonic_bond, harmonic_angle, "
+                f"fixinternals_bond, fixinternals_angle, fixinternals_dihedral)"
             )
             raise ValueError(msg)
 
