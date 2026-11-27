@@ -5,6 +5,7 @@ from __future__ import annotations
 import click
 
 from famex.backends.cache import get_model_cache
+from famex.utils.logging import MARK_FAIL, MARK_OK
 
 
 @click.group(help="Manage FAMEX model cache")
@@ -15,8 +16,8 @@ def cache() -> None:
 @cache.command(help="Show cache information")
 def info() -> None:
     """Show information about cached models."""
-    cache = get_model_cache()
-    info = cache.get_cache_info()
+    model_cache = get_model_cache()
+    info = model_cache.get_cache_info()
 
     click.echo("FAMEX Model Cache Information")
     click.echo("=" * 40)
@@ -38,27 +39,27 @@ def info() -> None:
 @click.option("--yes", is_flag=True, help="Skip confirmation prompt")
 def clear(model: str | None, yes: bool) -> None:
     """Clear model cache."""
-    cache = get_model_cache()
-
+    model_cache = get_model_cache()
     if model:
-        if not yes and not click.confirm(f"Clear cache for model '{model}'?"):
-            click.echo("Cancelled.")
-            return
-        cache.clear_cache(model)
-        click.echo(f"Cleared cache for model '{model}'.")
+        prompt = f"Clear cache for model '{model}'?"
+        success = f"Cleared cache for model '{model}'."
     else:
-        if not yes and not click.confirm("Clear entire model cache?"):
-            click.echo("Cancelled.")
-            return
-        cache.clear_cache()
-        click.echo("Cleared entire model cache.")
+        prompt = "Clear entire model cache?"
+        success = "Cleared entire model cache."
+
+    if not yes and not click.confirm(prompt):
+        click.echo("Cancelled.")
+        return
+
+    model_cache.clear_cache(model)
+    click.echo(success)
 
 
 @cache.command(help="Verify cache integrity")
 def verify() -> None:
     """Verify integrity of cached models."""
-    cache = get_model_cache()
-    info = cache.get_cache_info()
+    model_cache = get_model_cache()
+    info = model_cache.get_cache_info()
 
     click.echo("Verifying cache integrity...")
 
@@ -66,16 +67,16 @@ def verify() -> None:
     corrupted = 0
 
     for model in info["models"]:
-        model_path = cache.cache_dir / model["filename"]
+        model_path = model_cache.cache_dir / model["filename"]
         if model_path.exists():
-            if cache._verify_checksum(model_path, model["checksum"]):
-                click.echo(f"  ✓ {model['model_name']}")
+            if model_cache._verify_checksum(model_path, model["checksum"]):
+                click.echo(f"  {MARK_OK} {model['model_name']}")
                 verified += 1
             else:
-                click.echo(f"  ✗ {model['model_name']} (corrupted)")
+                click.echo(f"  {MARK_FAIL} {model['model_name']} (corrupted)")
                 corrupted += 1
         else:
-            click.echo(f"  ✗ {model['model_name']} (missing file)")
+            click.echo(f"  {MARK_FAIL} {model['model_name']} (missing file)")
             corrupted += 1
 
     click.echo()

@@ -20,6 +20,7 @@ from famex.backends.constants import DEFAULT_TBLITE_MODEL
 from famex.backends.dependencies import deps
 from famex.potentials.base_potential import BasePotential
 from famex.utils.logging import get_famex_logger
+from famex.utils.ml_warnings import quiet_backend_loading
 
 logger = get_famex_logger(__name__)
 
@@ -127,9 +128,6 @@ class TBLitePotential(BasePotential):
         if self._calc is not None:
             return
 
-        from famex.utils.ml_warnings import quiet_backend_loading
-
-        # Don't show model info - let the outer context handle it
         with quiet_backend_loading("tblite", self.method, None, None, show_model_info=False):
             try:
                 # Check TBLite availability
@@ -173,12 +171,12 @@ class TBLitePotential(BasePotential):
                 self._calc = TBLite(**calc_kwargs)
 
             except ImportError as e:
-                logger.error("TBLite not available: %s. Install with: pip install tblite", e)
                 msg = f"TBLite not available ({e}). Install with: pip install tblite"
+                logger.error("%s", msg)
                 raise ImportError(msg) from e
             except (ValueError, AttributeError, RuntimeError) as e:
-                logger.error("Failed to initialize TBLite calculator: %s", e)
                 msg = f"Failed to initialize TBLite calculator: {e}"
+                logger.error("%s", msg)
                 raise RuntimeError(msg) from e
 
     def calculate(
@@ -322,4 +320,4 @@ class TBLitePotential(BasePotential):
             return self.results[name]
 
         msg = f"Property '{name}' not available from TBLite calculator"
-        raise ValueError(msg)
+        raise KeyError(msg)

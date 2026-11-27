@@ -227,22 +227,21 @@ class RFOTransitionState(Optimizer):
                     raise ConvergedError
 
         except ConvergedError:
-            converged = True
-        else:
-            forces = self.atoms.get_forces()
-            converged = bool(self.converged(forces.ravel()))
+            if self.verbose >= 1:
+                logger.info("Optimization converged!")
+            return True
 
-        if converged:
+        forces = self.atoms.get_forces()
+        if self.converged(forces.ravel()):
             if self.verbose >= 1:
                 logger.info("Optimization converged!")
             return True
 
         if self.verbose >= 1:
-            forces = self.atoms.get_forces()
             logger.warning("Optimization stopped after %s steps without converging", steps)
             logger.warning("Final max force: %.6f eV/Å", np.max(np.abs(forces)))
 
-        return converged
+        return False
 
     def get_number_of_steps(self) -> int:
         return self.nsteps

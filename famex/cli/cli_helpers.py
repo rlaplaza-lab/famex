@@ -15,11 +15,11 @@ from ase.io import read as ase_read
 from ase.io import write as ase_write
 
 from famex.analysis.thermodynamics import read_free_energy_correction
+from famex.core.file_io import validate_output_path
 from famex.embed.api import smiles_to_atoms
 from famex.io import pubchem
 from famex.io.xyz_io import read_xyz_with_metadata, write_xyz_with_metadata
-from famex.utils.logging import get_famex_logger
-from famex.utils.path_security import PathSecurityError
+from famex.utils.logging import MARK_FAIL, MARK_OK, get_famex_logger
 from famex.utils.validation import format_atom_count_mismatch
 
 logger = get_famex_logger(__name__)
@@ -48,14 +48,17 @@ def parse_kv_pairs(pairs: list[str]) -> dict[str, object]:
 _GEOM_SUFFIXES = {".xyz", ".cif", ".pdb", ".vasp", ".json", ".com", ".gjf", ".mol", ".sdf"}
 
 
+def _path_is_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
 def input_stem(text: str) -> str:
     """File stem for an existing geometry, or a filesystem-safe SMILES slug."""
     path = Path(text)
-    try:
-        is_file = path.is_file()
-    except OSError:
-        is_file = False
-    if is_file:
+    if _path_is_file(path):
         return os.path.splitext(text)[0]
     slug = re.sub(r"[^A-Za-z0-9]+", "_", text).strip("_")
     return (slug or "smiles")[:48]
@@ -93,10 +96,10 @@ def load_structure_or_smiles(text: str, *, embedder: str = "pysmiles") -> Atoms:
     """
     path = Path(text)
     try:
-        is_file = path.is_file()
+        is_existing_file = path.is_file()
     except OSError as exc:
         raise click.BadParameter(f"Cannot read {text!r}: {exc}") from exc
-    if is_file:
+    if is_existing_file:
         return load_atoms_from_xyz(text)
 
     looks_like_file = path.suffix.lower() in _GEOM_SUFFIXES or text.startswith(("/", "./", "../"))
@@ -150,11 +153,7 @@ def load_path_structures(structures: tuple[str, ...], *, embedder: str = "pysmil
 
     if len(structures) == 1 and structures[0].lower().endswith(".xyz"):
         path = Path(structures[0])
-        try:
-            is_file = path.is_file()
-        except OSError:
-            is_file = False
-        if is_file:
+        if _path_is_file(path):
             try:
                 geom_result = read_xyz_with_metadata(structures[0], frame="all")
             except (OSError, ValueError) as exc:
@@ -193,8 +192,7 @@ def write_atoms(
     if not out_path:
         return None
 
-    if ".." in out_path or "\x00" in out_path:
-        raise PathSecurityError(f"Unsafe output path detected: {out_path}")
+    validate_output_path(out_path)
 
     parent_dir = Path(out_path).parent
     if str(parent_dir) != ".":
@@ -308,10 +306,12 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
             ts_analysis = {}
         n_imaginary = ts_analysis.get("n_imaginary_frequencies", 0)
         if is_ts:
-            click.echo(f"  Status: ✓ Valid transition state ({n_imaginary} imaginary frequency)")
+            click.echo(
+                f"  Status: {MARK_OK} Valid transition state ({n_imaginary} imaginary frequency)"
+            )
         else:
             click.echo(
-                f"  Status: ✗ Invalid transition state ({n_imaginary} imaginary frequencies)",
+                f"  Status: {MARK_FAIL} Invalid transition state ({n_imaginary} imaginary frequencies)",
             )
     elif target == "path":
         is_minimum = frequency_analysis.get("is_minimum", False)
@@ -323,7 +323,7 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
             n_imaginary = ts_analysis.get("n_imaginary_frequencies", 0)
             click.echo(f"  Status: Transition state ({n_imaginary} imaginary frequency)")
         elif is_minimum:
-            click.echo("  Status: ✓ Minimum")
+            click.echo(f"  Status: {MARK_OK} Minimum")
         else:
             click.echo("  Status: Unknown (validation not performed)")
     else:
@@ -333,13 +333,13 @@ def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "m
             minima_analysis = {}
         n_imaginary = minima_analysis.get("n_significant_imaginary_frequencies", 0)
         if is_minimum:
-            click.echo(f"  Status: ✓ Valid minimum ({n_imaginary} imaginary frequencies)")
+            click.echo(f"  Status: {MARK_OK} Valid minimum ({n_imaginary} imaginary frequencies)")
         else:
             click.echo(
-                f"  Status: ✗ Invalid minimum ({n_imaginary} significant imaginary frequencies)",
+                f"  Status: {MARK_FAIL} Invalid minimum ({n_imaginary} significant imaginary frequencies)",
             )
 
-    if frequencies and isinstance(frequencies, list | tuple) and len(frequencies) > 0:
+    if frequencies and isinstance(frequencies, list | tuple):
         try:
             real_freqs = [f for f in frequencies if np.real(f) > 0]
             imaginary_freqs = [f for f in frequencies if np.real(f) < 0]
@@ -446,10 +446,13 @@ def save_results_json(results: Any, output_path: str) -> None:
 
 
 __all__ = [
+    "input_stem",
     "load_atoms_from_xyz",
     "load_path_structures",
+    "load_structure_or_smiles",
     "parse_kv_pairs",
     "print_frequency_summary",
+    "require_same_atom_count",
     "save_results_json",
     "validate_frequency_analysis",
     "write_atoms",

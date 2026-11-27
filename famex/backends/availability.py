@@ -199,11 +199,10 @@ class BackendAvailabilityChecker:
 
     def get_available_backends(self, include_mock: bool = True) -> list[str]:
         """Get list of all available backends."""
-        all_backends = ALL_BACKENDS.copy()
-        if not include_mock:
-            all_backends = [b for b in all_backends if b != BACKEND_MOCK]
-
-        return [b for b in all_backends if self.is_backend_available(b)]
+        candidates = (
+            ALL_BACKENDS if include_mock else [b for b in ALL_BACKENDS if b != BACKEND_MOCK]
+        )
+        return [b for b in candidates if self.is_backend_available(b)]
 
     def clear_cache(self) -> None:
         """Clear the availability cache (useful for testing)."""
@@ -315,11 +314,10 @@ def get_available_backends_with_logging(
     available = get_available_backends(include_mock=include_mock)
 
     if verbose:
-        backends_to_check = (
+        candidates = (
             ALL_BACKENDS if include_mock else [b for b in ALL_BACKENDS if b != BACKEND_MOCK]
         )
-
-        for backend in backends_to_check:
+        for backend in candidates:
             is_available = backend in available
             if is_available:
                 logger.info("  %s", backend)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -149,8 +150,6 @@ class BaseStrategy(ABC):
             if isinstance(value, (Atoms, list, bool, int, float, str)):  # noqa: UP038
                 result[key] = value
             else:
-                import warnings
-
                 warnings.warn(
                     f"Metadata key '{key}' has non-standard type {type(value).__name__}. "
                     f"Converting to string. Consider using standard types (Atoms, list, bool, int, float, str) "

@@ -9,12 +9,7 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import (
-    merge_ts_frequency_fields,
-    take_optimization_trajectory,
-    validate_ts_structure,
-)
-from famex.strategies.ts import LocalTSStrategy
+from famex.strategies.helpers import preflight_band_path, refine_ts_guess_workflow
 
 
 class MultiStructureTSGuessStrategy(BaseStrategy):
@@ -72,68 +67,24 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
         record_history = bool(kwargs.get("record_history", False))
 
-        # Generate interpolated path using PathManager
         path_mgr = PathManager(atoms_list)
         path = path_mgr.interpolate(npoints=npoints, method=method)
+        preflight_band_path(path, self.explorer, method_name="TS interpolation")
 
-        # Attach calculators to all images
-        if self.explorer is not None:
-            PathManager.attach_calculators(self.explorer, path)
-
-        # Find highest energy structure as TS guess using PathManager
         ts_guess, _ts_index = PathManager.find_ts_guess(path)
-
-        # Refine with local TS optimization
-        ts_strategy = LocalTSStrategy(self.explorer)
-        # Remove local_optimizer_name from kwargs to avoid duplicate argument
-        ts_kwargs = {k: v for k, v in kwargs.items() if k != "local_optimizer_name"}
-        ts_result = ts_strategy.run(
-            [ts_guess],  # LocalTSStrategy expects list[Atoms]
+        ts_run_kwargs = {k: v for k, v in kwargs.items() if k != "local_optimizer_name"}
+        return refine_ts_guess_workflow(
+            self,
+            ts_guess,
             fmax=fmax,
             steps=steps,
             local_optimizer_name=local_optimizer_name,
             calculate_frequencies=calculate_frequencies,
-            **ts_kwargs,
+            validate_ts=validate_ts,
+            ts_run_kwargs=ts_run_kwargs,
+            record_history=record_history,
+            search_path=path if record_history else None,
         )
-
-        # Validate TS structure if requested
-        validation_result = None
-        optimized_atoms = ts_result["optimized_atoms"]
-        if validate_ts:
-            # Type narrowing: validate_ts_structure expects Atoms
-            if isinstance(optimized_atoms, Atoms):
-                validation_result = validate_ts_structure(optimized_atoms, self.explorer)
-
-        # Return single TS structure
-        # Type narrowing: prepare_result expects Atoms | Sequence[Atoms]
-        if isinstance(optimized_atoms, Atoms) or (
-            isinstance(optimized_atoms, list) and all(isinstance(a, Atoms) for a in optimized_atoms)
-        ):
-            result = self.prepare_result(
-                optimized_atoms,
-                steps_taken=ts_result["steps_taken"],
-                converged=ts_result["converged"],
-            )
-        else:
-            # Fallback: create result with original structure
-            result = BaseStrategy.prepare_result(
-                self,
-                (
-                    optimized_atoms
-                    if isinstance(optimized_atoms, Atoms | list)
-                    else self.explorer.atoms_list[0]
-                ),
-                steps_taken=ts_result["steps_taken"],
-                converged=ts_result["converged"],
-            )
-        if validation_result is not None:
-            result["ts_validation"] = validation_result
-        # Pass through frequency analysis results if available
-        merge_ts_frequency_fields(result, ts_result)
-        if record_history:
-            result["search_path"] = [image.copy() for image in path]
-            take_optimization_trajectory(result, ts_result)
-        return result
 
 
 # Register the strategy

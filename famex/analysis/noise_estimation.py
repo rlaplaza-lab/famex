@@ -231,17 +231,17 @@ def estimate_optimal_delta(
         # Compute Hessians at both deltas
         try:
             hessian_current = _compute_hessian_at_delta(
-                atoms, calculator, current_delta, scheme_class, indices
+                atoms, calculator, current_delta, scheme_class, method, indices
             )
             hessian_half = _compute_hessian_at_delta(
-                atoms, calculator, half_delta, scheme_class, indices
+                atoms, calculator, half_delta, scheme_class, method, indices
             )
 
             # Estimate noise
             noise_estimate = estimate_richardson_noise(hessian_current, hessian_half)
 
             if verbose >= 1:
-                logger.info("  Noise estimate: %.2e eV/Å²", noise_estimate)
+                logger.info("Noise estimate: %.2e eV/Å²", noise_estimate)
 
             # Track best result
             if noise_estimate < best_noise:
@@ -251,7 +251,7 @@ def estimate_optimal_delta(
             # Check convergence
             if noise_estimate < target_noise:
                 if verbose >= 1:
-                    logger.info("  Converged! Noise below target %.2e", target_noise)
+                    logger.info("Converged! Noise below target %.2e", target_noise)
                 return current_delta, noise_estimate
 
             # Binary search: if too noisy, try smaller delta
@@ -266,7 +266,7 @@ def estimate_optimal_delta(
 
         except Exception as e:
             if verbose >= 1:
-                logger.warning("  Failed to compute at delta=%.4f: %s", current_delta, e)
+                logger.warning("Failed to compute at delta=%.4f: %s", current_delta, e)
             # If calculation fails, try smaller delta
             current_high = current_delta
 
@@ -281,6 +281,7 @@ def _compute_hessian_at_delta(
     calculator: CalculatorProtocol,
     delta: float,
     scheme: type,
+    method: str,
     indices: list[int],
 ) -> NDArray[np.float64]:
     """Compute Hessian at a specific delta.
@@ -309,7 +310,7 @@ def _compute_hessian_at_delta(
         atoms=atoms,
         calculator=calculator,
         delta=delta,
-        method="central" if "Central" in scheme.__name__ else "5point",
+        method=method,
         indices=indices,
         verbose=0,
     )

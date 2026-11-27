@@ -77,17 +77,19 @@ class TestAdaptiveHessianUpdates:
 
         x = opt._positions_to_x()
 
-        # Set up initial state
+        # Prime with an initial Hessian
+        opt.hessian_func(x)
+
+        # Set up initial state after first Hessian
         opt.nsteps = 1
         opt._previous_fmax = 0.01
         opt._last_full_hessian_step = 0
+        _initial_calls = opt.hessian_calls
 
-        # Mock current fmax to be lower
+        # Mock current fmax to be lower — should not trigger a full Hessian refresh
         with patch.object(opt, "_get_current_fmax", return_value=0.005):
-            _initial_calls = opt.hessian_calls
             opt.hessian_func(x)
-            # Should not trigger update if forces decreased
-            # (unless periodic update is due)
+            assert opt.hessian_calls == _initial_calls
 
 
 class TestBFGSUpdates:
@@ -187,8 +189,8 @@ class TestBFGSUpdates:
         _initial_bfgs = opt.bfgs_updates
         opt.hessian_func(x2)
 
-        # BFGS might be skipped due to very small sy
-        # but should not crash
+        assert opt.bfgs_updates == _initial_bfgs
+        assert opt.hessian_calls == 1
 
 
 class TestSciPyOptimizerVerboseMode:

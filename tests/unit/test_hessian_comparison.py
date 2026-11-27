@@ -294,9 +294,7 @@ class TestHessianComparisonReport:
         report = HessianComparisonReport(results)
         report.compare_frequencies()
 
-        # Should warn but not crash - function should handle empty atoms gracefully
-        captured = capsys.readouterr()
-        assert len(captured.out) >= 0  # May or may not print warning
+        assert report is not None
 
     def test_compare_frequencies_insufficient_methods(self, water_molecule_with_mock, capsys):
         """Test frequency comparison with < 2 methods."""
@@ -306,6 +304,5 @@ class TestHessianComparisonReport:
         report = HessianComparisonReport(results)
         report.compare_frequencies()
 
-        # Should warn but not crash
-        captured = capsys.readouterr()
-        assert len(captured.out) >= 0  # May or may not print warning
+        assert results["methods"] == ["force_fd"]
+        assert "force_fd" in results["hessians"]

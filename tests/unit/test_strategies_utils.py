@@ -14,9 +14,9 @@ from famex.strategies.utils import StrategyUtils
 class TestStrategyUtils:
     """Tests for StrategyUtils class."""
 
-    def test_ensure_charge_spin_info_with_info(self):
+    def test_ensure_charge_spin_info_with_info(self, h2_equilibrium_molecule):
         """Test ensure_charge_spin_info when atoms.info exists."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         atoms.info = {}
 
         StrategyUtils.ensure_charge_spin_info(atoms, charge=0, spin=1)
@@ -24,9 +24,9 @@ class TestStrategyUtils:
         assert atoms.info["charge"] == 0
         assert atoms.info["spin"] == 1
 
-    def test_ensure_charge_spin_info_preserves_existing(self):
+    def test_ensure_charge_spin_info_preserves_existing(self, h2_equilibrium_molecule):
         """Test ensure_charge_spin_info preserves existing values."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         atoms.info = {"charge": 2, "spin": 3}
 
         StrategyUtils.ensure_charge_spin_info(atoms, charge=0, spin=1)
@@ -34,9 +34,9 @@ class TestStrategyUtils:
         assert atoms.info["charge"] == 2  # Preserved
         assert atoms.info["spin"] == 3  # Preserved
 
-    def test_ensure_charge_spin_info_no_info(self):
+    def test_ensure_charge_spin_info_no_info(self, h2_equilibrium_molecule):
         """Test ensure_charge_spin_info when atoms.info doesn't exist."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         # Remove info attribute if it exists
         if hasattr(atoms, "info"):
             delattr(atoms, "info")
@@ -84,9 +84,9 @@ class TestStrategyUtils:
 
         assert result is None
 
-    def test_get_convergence_status_callable_no_args(self):
+    def test_get_convergence_status_callable_no_args(self, h2_equilibrium_molecule):
         """Test get_convergence_status with callable converged that takes no args."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         optimizer = MagicMock()
         optimizer.converged = MagicMock(return_value=True)
 
@@ -95,9 +95,9 @@ class TestStrategyUtils:
         assert result is True
         optimizer.converged.assert_called_once()
 
-    def test_get_convergence_status_callable_with_args(self):
+    def test_get_convergence_status_callable_with_args(self, h2_equilibrium_molecule):
         """Test get_convergence_status with callable converged that needs forces."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         atoms.calc = MagicMock()
         atoms.calc.get_forces.return_value = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
 
@@ -115,9 +115,9 @@ class TestStrategyUtils:
         assert isinstance(result, bool)
         assert result is True
 
-    def test_get_convergence_status_non_callable(self):
+    def test_get_convergence_status_non_callable(self, h2_equilibrium_molecule):
         """Test get_convergence_status with non-callable converged attribute."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         optimizer = MagicMock()
         optimizer.converged = True
 
@@ -125,9 +125,9 @@ class TestStrategyUtils:
 
         assert result is True
 
-    def test_get_convergence_status_no_converged(self):
+    def test_get_convergence_status_no_converged(self, h2_equilibrium_molecule):
         """Test get_convergence_status when converged attribute doesn't exist."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         optimizer = MagicMock()
         del optimizer.converged
 

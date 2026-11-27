@@ -73,9 +73,9 @@ class TestEstimateRichardsonNoise:
 class TestEstimateForceNoise:
     """Tests for estimate_force_noise function."""
 
-    def test_no_noise_calculator(self):
+    def test_no_noise_calculator(self, h2_equilibrium_molecule):
         """Test with a deterministic calculator (no noise)."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
 
         # Mock calculator that returns constant forces
         calculator = MagicMock()
@@ -88,9 +88,9 @@ class TestEstimateForceNoise:
         assert noise >= 0
         assert noise < 1e-3  # Should be very small for deterministic calculator
 
-    def test_noisy_calculator(self):
+    def test_noisy_calculator(self, h2_equilibrium_molecule):
         """Test with a noisy calculator."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
 
         # Mock calculator that returns noisy forces
         calculator = MagicMock()
@@ -119,9 +119,9 @@ class TestEstimateForceNoise:
         noise = estimate_force_noise(atoms, calculator, n_samples=3, indices=[0, 1])
         assert noise >= 0
 
-    def test_all_samples_fail(self):
+    def test_all_samples_fail(self, h2_equilibrium_molecule):
         """Test that RuntimeError is raised when all samples fail."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
 
         calculator = MagicMock()
         # First call (reference) succeeds, but all perturbation samples fail
@@ -142,9 +142,9 @@ class TestEstimateForceNoise:
         with pytest.raises(RuntimeError, match="All force noise samples failed"):
             estimate_force_noise(atoms, calculator, n_samples=3)
 
-    def test_some_samples_fail(self):
+    def test_some_samples_fail(self, h2_equilibrium_molecule):
         """Test that function continues when some samples fail."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
 
         calculator = MagicMock()
         call_count = 0
@@ -168,9 +168,9 @@ class TestEstimateForceNoise:
         noise = estimate_force_noise(atoms, calculator, n_samples=5)
         assert noise >= 0
 
-    def test_different_perturbation_sizes(self):
+    def test_different_perturbation_sizes(self, h2_equilibrium_molecule):
         """Test with different perturbation sizes."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
 
         calculator = MagicMock()
         calculator.get_forces = MagicMock(
@@ -183,17 +183,17 @@ class TestEstimateForceNoise:
         assert noise_small >= 0
         assert noise_large >= 0
 
-    def test_smooth_potential_not_flagged_as_noisy(self):
+    def test_smooth_potential_not_flagged_as_noisy(self, h2_equilibrium_molecule):
         """Linear force response H·δ must cancel under symmetric ±δ sampling."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         noise = estimate_force_noise(
             atoms, MockCalculator(force_constant=30.0), n_samples=5, perturbation_size=1e-5
         )
         assert noise < 1e-4
 
-    def test_returns_float(self):
+    def test_returns_float(self, h2_equilibrium_molecule):
         """Test that function returns a float."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
 
         calculator = MagicMock()
         calculator.get_forces = MagicMock(
@@ -208,9 +208,9 @@ class TestEstimateOptimalDelta:
     """Tests for estimate_optimal_delta function."""
 
     @patch("famex.analysis.noise_estimation._compute_hessian_at_delta")
-    def test_basic_functionality(self, mock_compute_hessian):
+    def test_basic_functionality(self, mock_compute_hessian, h2_equilibrium_molecule):
         """Test basic functionality with mock Hessian calculations."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
 
         # Mock calculator
         calculator = MagicMock()
@@ -247,9 +247,9 @@ class TestEstimateOptimalDelta:
         assert isinstance(delta, float)
         assert isinstance(noise, float)
 
-    def test_invalid_delta_range(self):
+    def test_invalid_delta_range(self, h2_equilibrium_molecule):
         """Test that invalid delta_range raises ValueError."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         calculator = MagicMock()
 
         with pytest.raises(ValueError, match="Invalid delta_range"):
@@ -258,18 +258,18 @@ class TestEstimateOptimalDelta:
         with pytest.raises(ValueError, match="Invalid delta_range"):
             estimate_optimal_delta(atoms, calculator, delta_range=(0.01, 0.01))
 
-    def test_invalid_method(self):
+    def test_invalid_method(self, h2_equilibrium_molecule):
         """Test that invalid method raises ValueError."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         calculator = MagicMock()
 
         with pytest.raises(ValueError, match="Unknown method"):
             estimate_optimal_delta(atoms, calculator, method="invalid_method", max_iterations=1)
 
     @patch("famex.analysis.noise_estimation._compute_hessian_at_delta")
-    def test_convergence_to_target(self, mock_compute_hessian):
+    def test_convergence_to_target(self, mock_compute_hessian, h2_equilibrium_molecule):
         """Test that function converges when target noise is reached."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         calculator = MagicMock()
 
         # Mock Hessians that give low noise
@@ -292,9 +292,9 @@ class TestEstimateOptimalDelta:
         assert noise >= 0
 
     @patch("famex.analysis.noise_estimation._compute_hessian_at_delta")
-    def test_handles_calculation_failures(self, mock_compute_hessian):
+    def test_handles_calculation_failures(self, mock_compute_hessian, h2_equilibrium_molecule):
         """Test that function handles calculation failures gracefully."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         calculator = MagicMock()
 
         # First call fails, second succeeds
@@ -341,9 +341,9 @@ class TestEstimateOptimalDelta:
             assert mock_compute.called
 
     @patch("famex.analysis.noise_estimation._compute_hessian_at_delta")
-    def test_method_selection(self, mock_compute_hessian):
+    def test_method_selection(self, mock_compute_hessian, h2_equilibrium_molecule):
         """Test that correct method is selected."""
-        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        atoms = h2_equilibrium_molecule.copy()
         calculator = MagicMock()
         mock_compute_hessian.return_value = np.eye(6)
 

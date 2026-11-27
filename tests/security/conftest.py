@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-# Import fixtures from test_utils so pytest can discover them
-from tests.security.test_utils import test_atoms  # noqa: F401
+import pytest
+from ase import Atoms
 
-__all__ = []
+
+@pytest.fixture
+def test_atoms():
+    """Standard test atoms fixture for security tests."""
+    return Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])

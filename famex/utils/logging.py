@@ -13,6 +13,10 @@ _quiet_context_local = threading.local()
 _famex_logging_configured = False
 _famex_log_level = logging.INFO
 
+SEPARATOR_LINE = "─" * 40
+MARK_OK = "✓"
+MARK_FAIL = "✗"
+
 
 class FAMEXFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
@@ -97,7 +101,7 @@ def print_model_info(
     logger = get_famex_logger("famex")
 
     logger.info("\n🔧 Initializing %s Backend", backend.upper())
-    logger.info("─" * 40)
+    logger.info("%s", SEPARATOR_LINE)
 
     if model_name:
         logger.info("Model: %s", model_name)
@@ -114,7 +118,8 @@ def print_model_info(
                 device_info = get_device_info(device)
                 if device_info["gpu_name"]:
                     logger.info("GPU: %s", device_info["gpu_name"])
-            except Exception:
-                pass  # Don't let GPU info fail the whole process
+            except Exception as exc:
+                # Don't let GPU info fail the whole process
+                logger.debug("Failed to get GPU info: %s", exc)
 
-    logger.info("─" * 40)
+    logger.info("%s", SEPARATOR_LINE)

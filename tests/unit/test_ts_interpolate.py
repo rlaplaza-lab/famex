@@ -45,12 +45,8 @@ class TestMultiStructureTSGuessStrategy:
             "npoints_11",
         ],
     )
-    def test_mock_backend_rejected(self, water_molecule, run_kwargs: dict[str, Any]):
-        reactant = water_molecule.copy()
-        product = water_molecule.copy()
-        pos = product.get_positions()
-        pos[1, 0] += 0.2
-        product.set_positions(pos)
+    def test_mock_backend_rejected(self, reactant_product_pair, run_kwargs: dict[str, Any]):
+        reactant, product = reactant_product_pair
 
         explorer = Explorer(
             [reactant, product], backend="mock", target="ts", strategy="interpolate"
@@ -74,12 +70,8 @@ class TestMultiStructureTSGuessStrategy:
         with pytest.raises(ValueError, match="requires multiple structures"):
             strategy.run([single_atoms])
 
-    def test_run_without_explorer(self, water_molecule):
-        reactant = water_molecule.copy()
-        product = water_molecule.copy()
-        pos = product.get_positions()
-        pos[1, 0] += 0.2
-        product.set_positions(pos)
+    def test_run_without_explorer(self, reactant_product_pair):
+        reactant, product = reactant_product_pair
 
         strategy = MultiStructureTSGuessStrategy(None)
 

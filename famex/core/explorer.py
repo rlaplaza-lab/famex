@@ -326,6 +326,18 @@ class Explorer:
                     out[alias] = entry
         return out
 
+    @staticmethod
+    def _invalid_explain_result(*, error: str, notes: str) -> dict[str, Any]:
+        return {
+            "target": "unknown",
+            "strategy": "unknown",
+            "strategy_key": "unknown",
+            "runner": None,
+            "valid": False,
+            "error": error,
+            "notes": notes,
+        }
+
     # --- Execution ---
 
     def _resolve_strategy_name(self) -> str:
@@ -365,25 +377,15 @@ class Explorer:
             }
         except StrategyNotFoundError as e:
             available = sorted(REGISTRY.list_strategies().keys())
-            return {
-                "target": "unknown",
-                "strategy": "unknown",
-                "strategy_key": "unknown",
-                "runner": None,
-                "valid": False,
-                "error": f"No strategy found for '{strategy_name}'. Available: {available}",
-                "notes": f"Error resolving strategy: {e}",
-            }
+            return self._invalid_explain_result(
+                error=f"No strategy found for '{strategy_name}'. Available: {available}",
+                notes=f"Error resolving strategy: {e}",
+            )
         except Exception as e:
-            return {
-                "target": "unknown",
-                "strategy": "unknown",
-                "strategy_key": "unknown",
-                "runner": None,
-                "valid": False,
-                "error": str(e),
-                "notes": f"Error resolving strategy: {e}",
-            }
+            return self._invalid_explain_result(
+                error=str(e),
+                notes=f"Error resolving strategy: {e}",
+            )
 
     def run(
         self,
@@ -931,7 +933,7 @@ class Explorer:
         if self.force_finite_diff_hessian and method == "auto":
             method = "finite_differences"
         hessian = freq_analysis.calculate_hessian(method=method)
-        frequencies, _normal_modes = freq_analysis.diagonalize_hessian()
+        frequencies, _ = freq_analysis.diagonalize_hessian()
         vib_frequencies = freq_analysis.get_frequencies()
         vib_normal_modes = freq_analysis.get_normal_modes()
         thermo = freq_analysis.get_thermodynamic_properties(temperature)

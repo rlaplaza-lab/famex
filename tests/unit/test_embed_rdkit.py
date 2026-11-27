@@ -9,16 +9,9 @@ from click.testing import CliRunner
 import famex
 from famex.cli import main
 from famex.io.geometry import Geometry
+from tests.test_utils import min_geometry_distance
 
 pytest.importorskip("rdkit")
-
-
-def _min_distance(atoms: Geometry) -> float:
-    pos = np.asarray(atoms.positions, dtype=float)
-    delta = pos[:, None, :] - pos[None, :, :]
-    dmat = np.linalg.norm(delta, axis=-1)
-    np.fill_diagonal(dmat, np.inf)
-    return float(dmat.min())
 
 
 class TestRDKitEmbedder:
@@ -33,7 +26,7 @@ class TestRDKitEmbedder:
         ethanol = famex.smiles_to_atoms("CCO", seed=0, embedder="rdkit")
         assert isinstance(ethanol, Geometry)
         assert len(ethanol) == 9
-        assert _min_distance(ethanol) > 0.7
+        assert min_geometry_distance(ethanol) > 0.7
 
     def test_charge_and_repeatability(self) -> None:
         ammonium = famex.smiles_to_atoms("[NH4+]", seed=0, embedder="rdkit")

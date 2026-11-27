@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from famex.backends import availability as availability_mod
 from famex.backends.availability import (
     BackendAvailabilityChecker,
@@ -16,65 +18,54 @@ from famex.backends.availability import (
 from famex.backends.constants import BACKEND_MOCK, BACKEND_PET
 
 
-class TestBackendAvailabilityChecker:
-    def test_checker_initialization(self):
-        checker = BackendAvailabilityChecker()
+@pytest.fixture
+def checker():
+    return BackendAvailabilityChecker()
 
+
+class TestBackendAvailabilityChecker:
+    def test_checker_initialization(self, checker):
         assert isinstance(checker._cache, dict)
         assert isinstance(checker._conflict_cache, dict)
         assert len(checker._cache) == 0
         assert len(checker._conflict_cache) == 0
         assert len(checker._requirements) > 0
 
-    def test_check_basic_dependencies_mock(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_check_basic_dependencies_mock(self, checker):
         result = checker._check_basic_dependencies(BACKEND_MOCK)
         assert result is True  # Mock has no dependencies
 
-    def test_pet_backend_requirements_mapping(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_pet_backend_requirements_mapping(self, checker):
         assert BACKEND_PET in checker._requirements
         assert checker._requirements[BACKEND_PET] == ["upet", "torch"]
         assert checker._package_names[BACKEND_PET] == ["upet", "torch"]
 
-    def test_pet_python_version_check(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_pet_python_version_check(self, checker):
         with patch("famex.backends.availability.sys.version_info", (3, 10, 0)):
             assert checker._check_python_version(BACKEND_PET) is False
 
         with patch("famex.backends.availability.sys.version_info", (3, 11, 0)):
             assert checker._check_python_version(BACKEND_PET) is True
 
-    def test_check_basic_dependencies_missing(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_check_basic_dependencies_missing(self, checker):
         with patch("famex.backends.availability.deps") as mock_deps:
             mock_deps.has.return_value = False
 
             result = checker._check_basic_dependencies("uma")
             assert result is False
 
-    def test_check_basic_dependencies_present(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_check_basic_dependencies_present(self, checker):
         with patch("famex.backends.availability.deps") as mock_deps:
             mock_deps.has.return_value = True
 
             result = checker._check_basic_dependencies("uma")
             assert result is True
 
-    def test_check_import_compatibility_mock(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_check_import_compatibility_mock(self, checker):
         result = checker._check_import_compatibility(BACKEND_MOCK)
         assert result is None  # No import issues
 
-    def test_check_known_conflicts_cache(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_check_known_conflicts_cache(self, checker):
         # First call should check and cache
         with patch("famex.backends.availability._check_e3nn_conflict") as mock_check:
             mock_check.return_value = None
@@ -87,16 +78,12 @@ class TestBackendAvailabilityChecker:
         assert result1 == result2
         assert "mace" in checker._conflict_cache
 
-    def test_is_backend_available_mock(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_is_backend_available_mock(self, checker):
         assert checker.is_backend_available(BACKEND_MOCK) is True
         assert BACKEND_MOCK in checker._cache
         assert checker._cache[BACKEND_MOCK] is True
 
-    def test_is_backend_available_cached(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_is_backend_available_cached(self, checker):
         # Check mock (always available)
         result1 = checker.is_backend_available(BACKEND_MOCK)
         assert result1 is True
@@ -110,17 +97,13 @@ class TestBackendAvailabilityChecker:
             # For mock, it's cached immediately, so this might not be called
             # But for other backends, cache would prevent re-checking
 
-    def test_is_backend_available_missing_dependencies(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_is_backend_available_missing_dependencies(self, checker):
         with patch.object(checker, "_check_basic_dependencies", return_value=False):
             result = checker.is_backend_available("uma")
             assert result is False
             assert checker._cache["uma"] is False
 
-    def test_is_backend_available_with_conflict(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_is_backend_available_with_conflict(self, checker):
         with (
             patch.object(checker, "_check_basic_dependencies", return_value=True),
             patch.object(checker, "_check_known_conflicts", return_value="Test conflict"),
@@ -128,9 +111,7 @@ class TestBackendAvailabilityChecker:
             result = checker.is_backend_available("mace")
             assert result is False
 
-    def test_is_backend_available_with_import_error(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_is_backend_available_with_import_error(self, checker):
         with (
             patch.object(checker, "_check_basic_dependencies", return_value=True),
             patch.object(checker, "_check_known_conflicts", return_value=None),
@@ -139,22 +120,16 @@ class TestBackendAvailabilityChecker:
             result = checker.is_backend_available("mace")
             assert result is False
 
-    def test_get_availability_reason_mock(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_get_availability_reason_mock(self, checker):
         reason = checker.get_availability_reason(BACKEND_MOCK)
         assert "available" in reason.lower()
 
-    def test_get_availability_reason_missing_deps(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_get_availability_reason_missing_deps(self, checker):
         with patch.object(checker, "_check_basic_dependencies", return_value=False):
             reason = checker.get_availability_reason("uma")
             assert "missing" in reason.lower() or "dependencies" in reason.lower()
 
-    def test_get_availability_reason_conflict(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_get_availability_reason_conflict(self, checker):
         with (
             patch.object(checker, "_check_basic_dependencies", return_value=True),
             patch.object(checker, "_check_known_conflicts", return_value="Version conflict"),
@@ -162,9 +137,7 @@ class TestBackendAvailabilityChecker:
             reason = checker.get_availability_reason("mace")
             assert "conflict" in reason.lower()
 
-    def test_get_availability_reason_available(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_get_availability_reason_available(self, checker):
         with (
             patch.object(checker, "_check_basic_dependencies", return_value=True),
             patch.object(checker, "_check_known_conflicts", return_value=None),
@@ -173,9 +146,7 @@ class TestBackendAvailabilityChecker:
             reason = checker.get_availability_reason("uma")
             assert "available" in reason.lower()
 
-    def test_get_available_backends(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_get_available_backends(self, checker):
         # Mock is always available
         backends = checker.get_available_backends(include_mock=True)
         assert BACKEND_MOCK in backends
@@ -183,9 +154,7 @@ class TestBackendAvailabilityChecker:
         backends_no_mock = checker.get_available_backends(include_mock=False)
         assert BACKEND_MOCK not in backends_no_mock
 
-    def test_clear_cache(self):
-        checker = BackendAvailabilityChecker()
-
+    def test_clear_cache(self, checker):
         # Populate cache
         checker.is_backend_available(BACKEND_MOCK)
         assert len(checker._cache) > 0
@@ -197,15 +166,15 @@ class TestBackendAvailabilityChecker:
 
 
 class TestConvenienceFunctions:
-    def test_is_backend_available_function(self):
+    def test_is_backend_available_function(self, checker):
         assert is_backend_available(BACKEND_MOCK) is True
 
-    def test_get_availability_reason_function(self):
+    def test_get_availability_reason_function(self, checker):
         reason = get_availability_reason(BACKEND_MOCK)
         assert isinstance(reason, str)
         assert len(reason) > 0
 
-    def test_get_available_backends_function(self):
+    def test_get_available_backends_function(self, checker):
         backends = get_available_backends(include_mock=True)
         assert isinstance(backends, list)
         assert BACKEND_MOCK in backends
@@ -213,7 +182,7 @@ class TestConvenienceFunctions:
         backends_no_mock = get_available_backends(include_mock=False)
         assert BACKEND_MOCK not in backends_no_mock
 
-    def test_clear_availability_cache_function(self):
+    def test_clear_availability_cache_function(self, checker):
         is_backend_available(BACKEND_MOCK)
         assert BACKEND_MOCK in availability_mod._checker._cache
 
@@ -221,14 +190,14 @@ class TestConvenienceFunctions:
         assert availability_mod._checker._cache == {}
         assert availability_mod._checker._conflict_cache == {}
 
-    def test_get_backend_error_message(self):
+    def test_get_backend_error_message(self, checker):
         message = get_backend_error_message(BACKEND_MOCK)
 
         assert isinstance(message, str)
         assert BACKEND_MOCK in message
         assert "available" in message.lower() or "install" in message.lower()
 
-    def test_get_backend_error_message_unavailable(self):
+    def test_get_backend_error_message_unavailable(self, checker):
         with (
             patch("famex.backends.availability.is_backend_available", return_value=False),
             patch(
@@ -240,20 +209,20 @@ class TestConvenienceFunctions:
             assert "nonexistent" in message
             assert "not available" in message.lower() or "missing" in message.lower()
 
-    def test_get_available_backends_with_logging(self):
+    def test_get_available_backends_with_logging(self, checker):
         backends = get_available_backends_with_logging(include_mock=True, verbose=False)
 
         assert isinstance(backends, list)
         assert BACKEND_MOCK in backends
 
-    def test_get_available_backends_with_logging_verbose(self):
+    def test_get_available_backends_with_logging_verbose(self, checker):
         with patch("famex.backends.availability.logger") as mock_log:
             backends = get_available_backends_with_logging(include_mock=True, verbose=True)
 
             assert isinstance(backends, list)
             assert mock_log.info.called
 
-    def test_get_available_ml_backends(self):
+    def test_get_available_ml_backends(self, checker):
         backends = get_available_ml_backends(verbose=False)
 
         assert isinstance(backends, list)
@@ -261,7 +230,7 @@ class TestConvenienceFunctions:
 
 
 class TestConflictChecking:
-    def test_e3nn_conflict_detection_not_applicable(self):
+    def test_e3nn_conflict_detection_not_applicable(self, checker):
         from famex.backends.availability import _check_e3nn_conflict
 
         with patch("famex.backends.availability.deps") as mock_deps:

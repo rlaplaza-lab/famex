@@ -6,7 +6,7 @@ based on the accessible free space in solution.
 
 from __future__ import annotations
 
-from famex.analysis.physics_constants import AVOGADRO_CONSTANT, ideal_gas_concentration
+from famex.analysis.physics_constants import ATMOS_PA, AVOGADRO_CONSTANT, ideal_gas_concentration
 
 __all__ = ["SolvationHandler", "get_free_space", "SUPPORTED_SOLVENTS"]
 
@@ -81,7 +81,7 @@ class SolvationHandler:
         solvent: str = "none",
         concentration: float | None = None,
         temperature: float = 298.15,
-        pressure: float = 101325.0,
+        pressure: float = ATMOS_PA,
     ):
         """Initialize solvation handler.
 

@@ -9,13 +9,12 @@ from ase import Atoms
 
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
-from famex.optimizers.sella_utils import is_sella_optimizer
 from famex.strategies.helpers import (
     _run_local_optimization_common,
     _validate_ts_optimization_setup,
     enforce_require_ts,
+    prepare_ts_optimizer_kwargs,
     resolve_require_ts,
-    strip_require_ts_from_optimizer_kwargs,
     validate_ts_structure,
 )
 from famex.strategies.utils import StrategyUtils
@@ -48,7 +47,7 @@ class LocalTSStrategy(BaseStrategy):
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
         local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
-        verbose = kwargs.get("verbose", 1)
+        verbose = int(kwargs.get("verbose", getattr(self.explorer, "verbose", 1)))
         temperature = kwargs.get("temperature", 298.15)
         if cleanup_frequencies is False:
             cleanup_frequencies = bool(getattr(self.explorer, "cleanup_frequencies", False))
@@ -58,79 +57,9 @@ class LocalTSStrategy(BaseStrategy):
 
         _validate_ts_optimization_setup(self.explorer.backend, local_optimizer_name)
 
-        def prepare_ts_optimizer_kwargs(optimizer_name: str, explorer: Any) -> dict[str, Any]:
-            opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
-            opt_kwargs = dict(opt_kwargs)
-            strip_require_ts_from_optimizer_kwargs(opt_kwargs)
-
-            normalized_name = optimizer_name.lower()
-            if is_sella_optimizer(normalized_name):
-                opt_kwargs.setdefault("internal", True)
-                opt_kwargs.setdefault("order", 1)
-                opt_kwargs.pop("hessian_method", None)
-            elif normalized_name in (
-                "rfo",
-                "rfo-ts",
-                "rational-function",
-                "rational_function",
-            ):
-                # hessian_update_freq=1 recomputes the projected Hessian each step for stability.
-                opt_kwargs.setdefault("hessian_update_freq", 1)
-                opt_kwargs.setdefault("hessian_method", "auto")
-                # Tuned on full BH28 with uma-s-1p2 (28/28 valid TS).
-                opt_kwargs.setdefault("trust_radius", 0.02)
-                opt_kwargs.setdefault("max_trust_radius", 0.06)
-            elif normalized_name in (
-                "trust-krylov",
-                "trustkrylov",
-                "trust_krylov",
-            ):
-                opt_kwargs.setdefault("ts_search", True)
-                opt_kwargs.setdefault("hessian_update_freq", 1)
-                opt_kwargs.setdefault("hessian_method", "auto")
-                # Tuned on full BH28 with uma-s-1p2 (27/28 valid TS; best avg steps).
-                opt_kwargs.setdefault("trust_radius", 0.05)
-                opt_kwargs.setdefault("max_trust_radius", 0.15)
-                opt_kwargs.setdefault("use_bfgs_update", False)
-            elif normalized_name in (
-                "trust-ncg",
-                "trustncg",
-                "trust_ncg",
-                "trust-exact",
-                "trustexact",
-                "trust_exact",
-            ):
-                opt_kwargs.setdefault("ts_search", True)
-                opt_kwargs.setdefault("hessian_update_freq", 1)
-                opt_kwargs.setdefault("hessian_method", "auto")
-                # Tuned on full BH28 with uma-s-1p2 (28/28 valid TS).
-                opt_kwargs.setdefault("trust_radius", 0.1)
-                opt_kwargs.setdefault("max_trust_radius", 0.3)
-                opt_kwargs.setdefault("use_bfgs_update", False)
-
-            if getattr(explorer, "force_finite_diff_hessian", False):
-                if normalized_name in {
-                    "rfo",
-                    "rfo-ts",
-                    "rational-function",
-                    "rational_function",
-                    "trust-krylov",
-                    "trustkrylov",
-                    "trust_krylov",
-                    "trust-ncg",
-                    "trustncg",
-                    "trust_ncg",
-                    "trust-exact",
-                    "trustexact",
-                    "trust_exact",
-                }:
-                    opt_kwargs["hessian_method"] = "finite_differences"
-
-            return opt_kwargs
-
         def post_ts_optimization_hook(opt: Any, atoms: Atoms, opt_kwargs: dict[str, Any]) -> None:
             if hasattr(opt, "hessian_calls"):
-                if self.explorer.verbose >= 1:
+                if verbose >= 1:
                     logger.info(
                         "Hessian computed %s time(s) over %s steps (update_freq=%s)",
                         opt.hessian_calls,

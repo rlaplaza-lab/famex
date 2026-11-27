@@ -437,6 +437,11 @@ class FrequencyAnalysis:
 
         return self._frequencies, eigenvectors
 
+    def _ensure_calculated(self) -> None:
+        if not self._is_calculated:
+            self.calculate_hessian()
+            self.diagonalize_hessian()
+
     def get_frequencies(
         self,
         unit: str = "cm-1",
@@ -463,9 +468,7 @@ class FrequencyAnalysis:
         if self._direct_frequencies is not None:
             freq_all = normalize_frequencies_cm1(self._direct_frequencies)
         else:
-            if not self._is_calculated:
-                self.calculate_hessian()
-                self.diagonalize_hessian()
+            self._ensure_calculated()
 
             if self._frequencies is None:
                 msg = "Frequencies not calculated"
@@ -488,9 +491,7 @@ class FrequencyAnalysis:
             Normal mode vectors (3N x 3N-6/5 for vibrational modes only)
 
         """
-        if not self._is_calculated:
-            self.calculate_hessian()
-            self.diagonalize_hessian()
+        self._ensure_calculated()
 
         if self._normal_modes is None:
             msg = "Normal modes not calculated"

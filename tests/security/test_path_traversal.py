@@ -28,7 +28,8 @@ class TestPathSanitization:
     @pytest.mark.parametrize("evil_path", EVIL_PATHS[:4])
     def test_sanitize_filename_removes_paths(self, evil_path):
         result = sanitize_filename(evil_path)
-        assert "../" not in result or result == "passwd"  # Should remove traversal
+        assert "../" not in result
+        assert result  # non-empty sanitized name
 
     def test_sanitize_filename_removes_paths_specific(self):
         assert sanitize_filename("../model.jpt") == "model.jpt"

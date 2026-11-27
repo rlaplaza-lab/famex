@@ -93,6 +93,8 @@ def compute_neb_forces(
         msg = "NEB requires at least 3 images"
         raise ValueError(msg)
 
+    energies_arr = np.asarray(energies, dtype=float)
+
     if isinstance(k, (float, int)):
         k_arr = np.full(nimages - 1, float(k), dtype=float)
     else:
@@ -109,7 +111,7 @@ def compute_neb_forces(
 
     climbing_image: int | None = None
     if climb:
-        climbing_image = 1 + int(np.argmax(np.asarray(energies[1:-1], dtype=float)))
+        climbing_image = 1 + int(np.argmax(energies_arr[1:-1]))
 
     neb_forces: list[np.ndarray] = [
         np.zeros_like(np.asarray(true_forces[0], dtype=float)),
@@ -118,7 +120,7 @@ def compute_neb_forces(
     for i in range(1, nimages - 1):
         force = np.asarray(true_forces[i], dtype=float)
         force_flat = force.ravel()
-        tangent = improved_tangent(positions, energies, i)
+        tangent = improved_tangent(positions, energies_arr, i)
         tangential_force = float(np.vdot(force_flat, tangent))
 
         if climb and i == climbing_image:

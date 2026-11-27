@@ -15,8 +15,9 @@ import numpy as np
 from famex.backends.constants import DEFAULT_PET_MODEL
 from famex.backends.dependencies import deps
 from famex.potentials.base_potential import BasePotential
-from famex.utils.hessian_ops import symmetrize_hessian
+from famex.utils.hessian_ops import autograd_hessian_rows_from_forces, symmetrize_hessian
 from famex.utils.logging import get_famex_logger
+from famex.utils.ml_warnings import quiet_backend_loading
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -126,12 +127,7 @@ class PETPotential(BasePotential):
         if self._calc is not None:
             return
 
-        from famex.utils.ml_warnings import quiet_backend_loading
-
-        if not deps.has("torch"):
-            msg = "PyTorch is required for PET backend. Install with: pip install torch"
-            raise ImportError(msg)
-
+        deps.require("torch", purpose="PET backend")
         if not deps.has("upet"):
             msg = "upet is required for PET backend. Install with: pip install upet"
             raise ImportError(msg)
@@ -156,8 +152,8 @@ class PETPotential(BasePotential):
                         device=device,
                     )
             except ImportError as exc:
-                logger.error("UPET not available: %s. Install with: pip install upet", exc)
                 msg = f"UPET not available ({exc}). Install with: pip install upet"
+                logger.error("%s", msg)
                 raise ImportError(msg) from exc
 
     def _ensure_hessian_calculator(self) -> Any:
@@ -167,8 +163,6 @@ class PETPotential(BasePotential):
 
         from metatomic_ase import MetatomicCalculator
         from upet._models import _get_upet_exported_atomistic_model
-
-        from famex.utils.ml_warnings import quiet_backend_loading
 
         with quiet_backend_loading(
             "pet",
@@ -216,7 +210,7 @@ class PETPotential(BasePotential):
         forces = super().get_forces(atoms)
         if forces is None:
             raise RuntimeError("PET calculator did not return forces")
-        return np.asarray(forces)
+        return forces
 
     def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
         """Return the analytical Hessian (3N x 3N) in eV/Å².
@@ -291,9 +285,6 @@ class PETPotential(BasePotential):
             forces = -torch.autograd.grad(energy, positions, create_graph=True, retain_graph=True)[
                 0
             ]
-            rows = [
-                (-torch.autograd.grad(component, positions, retain_graph=True)[0]).reshape(-1)
-                for component in forces.reshape(-1)
-            ]
+            rows = autograd_hessian_rows_from_forces(forces, positions)
         hessian_np = np.asarray(torch.stack(rows).detach().cpu().numpy(), dtype=np.float64)
         return symmetrize_hessian(hessian_np)

@@ -21,8 +21,8 @@ from famex.analysis.physics_constants import (
     BOLTZMANN_CONSTANT,
     GAS_CONSTANT,
     GHZ_TO_CM1,
+    HC_OVER_KB,
     PLANCK_CONSTANT,
-    SPEED_OF_LIGHT,
 )
 
 __all__ = [
@@ -297,7 +297,7 @@ class StatisticalThermodynamics:
             rotational_constants_cm1 = (
                 np.asarray(rotational_constants, dtype=np.float64) * GHZ_TO_CM1
             )
-            return PLANCK_CONSTANT * SPEED_OF_LIGHT * rotational_constants_cm1 / BOLTZMANN_CONSTANT
+            return HC_OVER_KB * rotational_constants_cm1
 
         return rotational_temperatures_from_atoms(self.atoms, self.linear)
 

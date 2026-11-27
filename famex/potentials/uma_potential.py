@@ -10,12 +10,19 @@ import numpy as np
 import torch
 from ase.calculators.calculator import all_changes
 
-from famex.backends.constants import DEFAULT_UMA_MODEL, DEFAULT_UMA_TASK, FAIRCHEM_INSTALL
+from famex.backends.constants import (
+    BACKEND_UMA,
+    DEFAULT_UMA_MODEL,
+    DEFAULT_UMA_TASK,
+    FAIRCHEM_INSTALL,
+)
 from famex.backends.dependencies import deps
 from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
-from famex.utils.hessian_ops import symmetrize_hessian
+from famex.utils.device import get_optimal_device
+from famex.utils.hessian_ops import coerce_square_hessian_shape, symmetrize_hessian
 from famex.utils.logging import get_famex_logger
+from famex.utils.ml_warnings import quiet_backend_loading
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -44,8 +51,6 @@ class UMAPotential(BasePotential):
         **kwargs: Any,
     ) -> None:
         if device is None:
-            from famex.utils.device import get_optimal_device
-
             device = get_optimal_device()
 
         self.predictor: Any = None
@@ -58,7 +63,7 @@ class UMAPotential(BasePotential):
         self.task_name = str(task_name or DEFAULT_UMA_TASK).lower()
         self.dftd3_functional = self._normalize_dftd3_functional(dftd3_functional)
 
-        super().__init__(model_name=model_name, device=device, **kwargs)
+        super().__init__(model_name=model_name, device=device, backend=BACKEND_UMA, **kwargs)
 
     @staticmethod
     def _normalize_dftd3_functional(dftd3_functional: str | None) -> str | None:
@@ -137,8 +142,6 @@ class UMAPotential(BasePotential):
     def _load_calculator(self) -> None:
         if getattr(self, "_calc", None) is not None:
             return
-
-        from famex.utils.ml_warnings import quiet_backend_loading
 
         with quiet_backend_loading(
             "uma",
@@ -251,7 +254,7 @@ class UMAPotential(BasePotential):
         forces = super().get_forces(atoms)
         if forces is None:
             raise RuntimeError("UMA calculator did not return forces")
-        return np.asarray(forces)
+        return forces
 
     def get_hessian(
         self,
@@ -292,14 +295,7 @@ class UMAPotential(BasePotential):
     def _finalize_hessian(self, hessian_np: np.ndarray, *, symmetrize: bool) -> np.ndarray:
         assert self.atoms is not None
         n_atoms = len(self.atoms)
-        expected_shape = (3 * n_atoms, 3 * n_atoms)
-        if hessian_np.shape != expected_shape:
-            if hessian_np.size == expected_shape[0] * expected_shape[1]:
-                hessian_np = hessian_np.reshape(expected_shape)
-            else:
-                raise ValueError(
-                    f"Hessian has unexpected shape {hessian_np.shape}, expected {expected_shape}"
-                )
+        hessian_np = coerce_square_hessian_shape(hessian_np, n_atoms)
 
         if symmetrize:
             asymmetry = np.abs(hessian_np - hessian_np.T)

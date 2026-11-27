@@ -19,7 +19,7 @@ from famex.backends.constants import (
     BACKEND_SO3LR,
     BACKEND_TBLITE,
     BACKEND_UMA,
-    install_package_spec,
+    format_install_command,
 )
 from famex.utils.validation import DependencyError
 
@@ -163,13 +163,8 @@ class DependencyManager:
     def require(self, name: str, purpose: str = "this functionality") -> Any:
         """Require a dependency, raising DependencyError if not available."""
         if not self.has(name):
-            install_command = f"pip install {self._get_install_command(name)}"
-            raise DependencyError(name, purpose, install_command)
+            raise DependencyError(name, purpose, format_install_command(name))
         return self.get(name.lower())
-
-    def _get_install_command(self, name: str) -> str:
-        """Get installation command for a dependency."""
-        return install_package_spec(name)
 
 
 # Global dependency manager instance

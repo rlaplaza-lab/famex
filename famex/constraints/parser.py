@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
+
+from ase import Atoms
+from ase.constraints import FixConstraint
 
 from famex.constraints.constraints import parse_constraint_string
 from famex.utils.logging import get_famex_logger
-
-if TYPE_CHECKING:
-    from ase import Atoms
-    from ase.constraints import FixConstraint
-else:
-    from ase.constraints import FixConstraint  # noqa: PLC0415
 
 logger = get_famex_logger(__name__)
 

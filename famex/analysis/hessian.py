@@ -31,6 +31,7 @@ from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 
 DEFAULT_FD_HESSIAN_DELTA = 0.01
+COORD_NAMES = ("x", "y", "z")
 
 # Optional progress bar support
 HAS_TQDM: bool
@@ -557,7 +558,7 @@ class HessianCalculator:
             except Exception as e:
                 last_error = e
                 if attempt < self.max_retries - 1 and self.verbose >= 2:
-                    coord_name = ["x", "y", "z"][direction]
+                    coord_name = COORD_NAMES[direction]
                     logger.debug(
                         "Retry %s/%s for atom %s, %s-displacement %s Å: %s",
                         attempt + 1,
@@ -568,7 +569,7 @@ class HessianCalculator:
                         e,
                     )
         assert last_error is not None
-        coord_name = ["x", "y", "z"][direction]
+        coord_name = COORD_NAMES[direction]
         msg = (
             f"Force calculation failed after {self.max_retries} attempts "
             f"for atom {atom_index}, {coord_name}-displacement {displacement:+.4f} Å: {last_error}"
@@ -616,7 +617,7 @@ class HessianCalculator:
             If force calculation fails or returns invalid results
 
         """
-        coord_name = ["x", "y", "z"][direction]
+        coord_name = COORD_NAMES[direction]
 
         atoms_displaced = self.atoms.copy()
         atoms_displaced.positions[atom_index, direction] += displacement
@@ -642,8 +643,7 @@ class HessianCalculator:
             )
             raise RuntimeError(msg)
 
-        result = forces[self.indices].flatten()
-        return np.asarray(result)
+        return np.asarray(forces[self.indices].flatten())
 
     def _compute_five_point_derivative(
         self,
@@ -935,7 +935,7 @@ class HessianCalculator:
                             )
                     except Exception as e:
                         coord_j = j % 3
-                        coord_name = ["x", "y", "z"][coord_j]
+                        coord_name = COORD_NAMES[coord_j]
                         atom_j = self.indices[j // 3]
                         msg = (
                             f"Failed to compute Hessian column for atom {atom_j}, "
@@ -948,20 +948,12 @@ class HessianCalculator:
                 range(n_coords), desc="Computing Hessian", disable=not use_progress_bar
             )
             for j in coord_iter:
-                atom_j = self.indices[j // 3]
-                coord_j = j % 3
-
                 try:
-                    if self.richardson:
-                        hessian[:, j] = self._compute_richardson_extrapolated_derivative(
-                            atom_j, coord_j
-                        )
-                    else:
-                        hessian[:, j] = self._compute_derivative_at_delta(
-                            atom_j, coord_j, self.delta, forces_ref
-                        )
+                    _, column = self._compute_hessian_column(j, forces_ref)
+                    hessian[:, j] = column
                 except Exception as e:
-                    coord_name = ["x", "y", "z"][coord_j]
+                    atom_j = self.indices[j // 3]
+                    coord_name = COORD_NAMES[j % 3]
                     msg = (
                         f"Failed to compute Hessian column for atom {atom_j}, "
                         f"coordinate {coord_name} (index {j}/{n_coords - 1}): {e}"

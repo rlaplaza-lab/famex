@@ -701,3 +701,12 @@ class HarmonicCalculator:
         positions = atoms.positions
         energy = 0.5 * self.k * np.sum(positions**2)
         return float(energy)
+
+
+def min_geometry_distance(atoms) -> float:
+    """Minimum pairwise distance for objects exposing a ``positions`` array."""
+    pos = np.asarray(atoms.positions, dtype=float)
+    delta = pos[:, None, :] - pos[None, :, :]
+    dmat = np.linalg.norm(delta, axis=-1)
+    np.fill_diagonal(dmat, np.inf)
+    return float(dmat.min())

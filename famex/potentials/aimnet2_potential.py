@@ -18,8 +18,10 @@ from ase.calculators.calculator import all_changes
 from famex.backends.dependencies import deps
 from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
-from famex.utils.hessian_ops import symmetrize_hessian
+from famex.utils.device import get_optimal_device
+from famex.utils.hessian_ops import coerce_square_hessian_shape, symmetrize_hessian
 from famex.utils.logging import get_famex_logger
+from famex.utils.ml_warnings import quiet_backend_loading
 from famex.utils.path_security import PathSecurityError, is_safe_relative_path, validate_safe_path
 
 if TYPE_CHECKING:
@@ -489,15 +491,8 @@ class AIMNet2Potential(BasePotential):
             Additional arguments passed to parent Calculator
 
         """
-        if not deps.has("torch"):
-            msg = "PyTorch is required for AIMNET2 potentials. Install with: pip install torch"
-            raise ImportError(
-                msg,
-            )
-
+        deps.require("torch", purpose="AIMNet2 potentials")
         if device is None:
-            from famex.utils.device import get_optimal_device
-
             device = get_optimal_device()
 
         self._calc: Any | None = None
@@ -516,8 +511,6 @@ class AIMNet2Potential(BasePotential):
 
     def _load_calculator(self) -> None:
         """Load the AIMNET2 model directly."""
-        from famex.utils.ml_warnings import quiet_backend_loading
-
         try:
             if self.model_name is None:
                 self.model_name = "aimnet2"
@@ -582,7 +575,7 @@ class AIMNet2Potential(BasePotential):
         if forces is None:
             msg = "Forces calculation returned None"
             raise RuntimeError(msg)
-        return np.asarray(forces)
+        return forces
 
     def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
         """Get analytical Hessian matrix (3N x 3N) from AIMNet2's autograd."""
@@ -607,13 +600,7 @@ class AIMNet2Potential(BasePotential):
         hessian: np.ndarray = np.asarray(
             results["hessian"].detach().cpu().numpy(), dtype=np.float64
         )
-        expected_shape = (3 * len(self.atoms), 3 * len(self.atoms))
-        if hessian.shape != expected_shape:
-            if hessian.size == expected_shape[0] * expected_shape[1]:
-                hessian = hessian.reshape(expected_shape)
-            else:
-                msg = f"Hessian has unexpected shape {hessian.shape}, expected {expected_shape}"
-                raise ValueError(msg)
+        hessian = coerce_square_hessian_shape(hessian, len(self.atoms))
 
         hessian = symmetrize_hessian(hessian)
         self.results["hessian"] = hessian

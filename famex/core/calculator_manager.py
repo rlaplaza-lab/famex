@@ -16,9 +16,16 @@ from famex.backends.constants import (
 from famex.backends.registry import create_calculator
 from famex.core.charge_spin import check_missing_charge_spin, extract_charge_spin_from_atoms
 from famex.utils.device import resolve_backend_device
-from famex.utils.logging import get_famex_logger
+from famex.utils.logging import get_famex_logger, is_in_quiet_context, print_model_info
 
 logger = get_famex_logger(__name__)
+
+
+def _coerce_info_int(info: dict[str, Any], key: str, default: int) -> None:
+    try:
+        info[key] = int(info.get(key, default))
+    except (ValueError, TypeError):
+        info[key] = int(default)
 
 
 class CalculatorManager:
@@ -86,32 +93,25 @@ class CalculatorManager:
                 missing_parts.append(f"charge={charge}")
             if spin_missing:
                 missing_parts.append(f"spin={spin}")
+            missing_msg = ", ".join(missing_parts)
 
             if self.verbose >= 2:
                 logger.debug(
                     "Charge and/or spin not specified in atoms. Using defaults: %s",
-                    ", ".join(missing_parts),
+                    missing_msg,
                 )
             elif charge != 0 or spin != 1:
                 logger.warning(
                     "Charge and/or spin not specified in atoms. Using defaults: %s",
-                    ", ".join(missing_parts),
+                    missing_msg,
                 )
             self._warned_about_defaults = True
 
         if getattr(atoms, "info", None) is not None:
-            try:
-                atoms.info["charge"] = int(atoms.info.get("charge", charge))
-            except (ValueError, TypeError):
-                atoms.info["charge"] = int(charge)
-            try:
-                atoms.info["spin"] = int(atoms.info.get("spin", spin))
-            except (ValueError, TypeError):
-                atoms.info["spin"] = int(spin)
+            _coerce_info_int(atoms.info, "charge", charge)
+            _coerce_info_int(atoms.info, "spin", spin)
 
         if not self._calculator_created:
-            from famex.utils.logging import is_in_quiet_context, print_model_info
-
             if not is_in_quiet_context():
                 effective_model_name = self.get_effective_model_name()
                 print_model_info(

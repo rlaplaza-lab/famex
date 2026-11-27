@@ -15,41 +15,21 @@ def raise_backend_load_error(
     """Re-raise *exc* with a backend-specific message."""
     label = model_name or backend
     if isinstance(exc, ImportError):
-        logger.error(
-            "Failed to load %s model '%s': missing required dependencies. Error: %s",
-            backend,
-            label,
-            exc,
-        )
         msg = (
             f"Failed to load {backend} model '{label}': missing required dependencies. Error: {exc}"
         )
+        logger.error("%s", msg)
         raise ImportError(msg) from exc
     if isinstance(exc, ValueError | TypeError | KeyError):
-        logger.error(
-            "Failed to load %s model '%s': invalid model configuration. Error: %s",
-            backend,
-            label,
-            exc,
-        )
         msg = f"Failed to load {backend} model '{label}': invalid model configuration. Error: {exc}"
+        logger.error("%s", msg)
         raise ValueError(msg) from exc
     if isinstance(exc, OSError):
-        logger.error(
-            "Failed to load %s model '%s': file access error. Error: %s",
-            backend,
-            label,
-            exc,
-        )
         msg = f"Failed to load {backend} model '{label}': file access error. Error: {exc}"
+        logger.error("%s", msg)
         raise RuntimeError(msg) from exc
     if isinstance(exc, RuntimeError):
-        logger.error(
-            "Failed to load %s model '%s': runtime error. Error: %s",
-            backend,
-            label,
-            exc,
-        )
         msg = f"Failed to load {backend} model '{label}': runtime error. Error: {exc}"
+        logger.error("%s", msg)
         raise RuntimeError(msg) from exc
     raise

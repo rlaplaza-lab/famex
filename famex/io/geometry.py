@@ -90,7 +90,7 @@ class Geometry(Atoms):
     @property
     def coords3d(self) -> np.ndarray:
         """Atomic positions in Å as an (N, 3) array; can be set."""
-        return np.array(self.get_positions())
+        return np.asarray(self.get_positions())
 
     @coords3d.setter
     def coords3d(self, positions: np.ndarray) -> None:
@@ -99,7 +99,7 @@ class Geometry(Atoms):
     @property
     def coords(self) -> np.ndarray:
         """Atomic positions in Å as a flat array of length 3N; can be set."""
-        return np.array(self.coords3d).flatten()
+        return self.coords3d.flatten()
 
     @coords.setter
     def coords(self, coords: np.ndarray) -> None:

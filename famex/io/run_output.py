@@ -156,7 +156,7 @@ def _path_frames(value: Any) -> list[Atoms]:
 
 def _frame_list(value: Any) -> list[Atoms] | None:
     if isinstance(value, list) and value and all(isinstance(item, Atoms) for item in value):
-        return list(value)
+        return value
     return None
 
 

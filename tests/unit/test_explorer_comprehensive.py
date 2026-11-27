@@ -219,17 +219,9 @@ class TestExplorerErrorHandling:
         atoms = water_molecule.copy()
         explorer = Explorer(atoms, backend="mock", target="minima", strategy="nonexistent_strategy")
 
-        # explain_run may return explanation with valid=False or raise during run()
-        # Let's test that it either raises or returns invalid explanation
-        try:
-            explanation = explorer.explain_run()
-            # If it doesn't raise, check that it indicates invalid strategy
-            if isinstance(explanation, dict) and "valid" in explanation:
-                # Might be False or might be missing - both are valid responses
-                pass
-        except (KeyError, ValueError):
-            # This is also acceptable - error raised as expected
-            pass
+        explanation = explorer.explain_run()
+        assert explanation["valid"] is False
+        assert "nonexistent_strategy" in str(explanation.get("error", ""))
 
 
 class TestExtractChargeSpin:

@@ -139,11 +139,8 @@ def hessian_via_ase(
             raise RuntimeError(msg)
         hessian = cast(NDArray[np.float64], np.asarray(hessian_raw).copy())
 
-        # Clean up (though tempdir will be cleaned automatically)
-        vib.clean()
-
     if verbose >= 2:
-        logger.debug("Hessian computed via ASE: shape %s", hessian.shape)
+        logger.info("Hessian computed via ASE: shape %s", hessian.shape)
 
     return hessian
 

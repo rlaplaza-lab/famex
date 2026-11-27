@@ -19,6 +19,7 @@ from famex.embed.dgeom import _classical_mds, embed_coordinates
 from famex.embed.parse import parse_smiles
 from famex.embed.typing import AtomParams, angle_force_constant, assign_parameters, bond_length
 from famex.io.geometry import Geometry
+from tests.test_utils import min_geometry_distance
 
 pytest.importorskip("pysmiles")
 
@@ -29,14 +30,6 @@ def _symbols(atoms: Geometry) -> list[str]:
 
 def _dist(atoms: Geometry, i: int, j: int) -> float:
     return float(np.linalg.norm(atoms.positions[i] - atoms.positions[j]))
-
-
-def _min_distance(atoms: Geometry) -> float:
-    pos = np.asarray(atoms.positions, dtype=float)
-    delta = pos[:, None, :] - pos[None, :, :]
-    dmat = np.linalg.norm(delta, axis=-1)
-    np.fill_diagonal(dmat, np.inf)
-    return float(dmat.min())
 
 
 def _closed_form_bond(r_i: float, chi_i: float, r_j: float, chi_j: float, order: float) -> float:
@@ -165,7 +158,7 @@ class TestEmbedMolecules:
             assert 0.90 < _dist(geom, 0, hydrogen) < 1.12
         angle = float(geom.get_angle(hydrogens[0], 0, hydrogens[1]))
         assert 95.0 < angle < 115.0
-        assert _min_distance(geom) > 0.7
+        assert min_geometry_distance(geom) > 0.7
 
     def test_ethanol_and_benzene(self) -> None:
         ethanol = famex.smiles_to_atoms("CCO", seed=1)
@@ -179,7 +172,7 @@ class TestEmbedMolecules:
         assert 1.40 < _dist(ethanol, carbons[0], carbons[1]) < 1.70
         carbon_oxygen = min(_dist(ethanol, carbon, oxygen) for carbon in carbons)
         assert 1.25 < carbon_oxygen < 1.60
-        assert _min_distance(ethanol) > 0.6
+        assert min_geometry_distance(ethanol) > 0.6
 
         benzene = famex.smiles_to_atoms("c1ccccc1", seed=0)
         assert isinstance(benzene, Geometry)
@@ -201,7 +194,7 @@ class TestEmbedMolecules:
         normal = vh[-1]
         rms = float(np.sqrt(np.mean(np.square(centered @ normal))))
         assert rms < 0.30
-        assert _min_distance(benzene) > 0.6
+        assert min_geometry_distance(benzene) > 0.6
 
     def test_salt_and_noble_gas(self) -> None:
         salt = famex.smiles_to_atoms("[Na+].[Cl-]", seed=0)
@@ -231,7 +224,7 @@ class TestEmbedMolecules:
             oxygen = min(oxygens, key=lambda index: _dist(geom, carbon, index))
             assert 1.00 < _dist(geom, carbon, oxygen) < 1.35
             assert float(geom.get_angle(nickel, carbon, oxygen)) > 150.0
-        assert _min_distance(geom) > 0.6
+        assert min_geometry_distance(geom) > 0.6
 
     def test_charge_spin_and_multiple_conformers(self) -> None:
         ammonium = famex.smiles_to_atoms("[NH4+]", seed=0)

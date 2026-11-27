@@ -9,13 +9,8 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import (
-    merge_ts_frequency_fields,
-    take_optimization_trajectory,
-    validate_ts_structure,
-)
+from famex.strategies.helpers import preflight_band_path, refine_ts_guess_workflow
 from famex.strategies.neb_optimizer import NEBOptimizer
-from famex.strategies.ts import LocalTSStrategy
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
@@ -55,18 +50,7 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
 
         path_mgr = PathManager(atoms_list)
         path = path_mgr.interpolate(npoints=npoints, method=method)
-
-        if len(path) < 3:
-            msg = "CI-NEB requires at least 3 images (npoints >= 3)"
-            raise ValueError(msg)
-
-        if self.explorer is not None:
-            PathManager.attach_calculators(self.explorer, path)
-            if any(getattr(img, "calc", None) is None for img in path):
-                raise RuntimeError(
-                    "Failed to attach calculators to CI-NEB images. "
-                    "Check backend/model availability.",
-                )
+        preflight_band_path(path, self.explorer, method_name="CI-NEB")
 
         neb_kwargs = {k: v for k, v in kwargs.items() if k != "record_history"}
         neb_opt = NEBOptimizer(
@@ -87,56 +71,23 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
             ts_guess, ts_index = PathManager.find_ts_guess(optimized_path)
             logger.info("Using highest-energy image %d as TS guess", ts_index)
 
-        ts_strategy = LocalTSStrategy(self.explorer)
-        ts_kwargs = {
+        ts_run_kwargs = {
             k: v for k, v in kwargs.items() if k not in {"local_optimizer_name", "path_fmax"}
         }
-        ts_result = ts_strategy.run(
-            [ts_guess],
+        search_path = optimized_path if record_history and optimized_path else None
+        return refine_ts_guess_workflow(
+            self,
+            ts_guess,
             fmax=fmax,
             steps=steps,
             local_optimizer_name=local_optimizer_name,
             calculate_frequencies=calculate_frequencies,
-            **ts_kwargs,
+            validate_ts=validate_ts,
+            ts_run_kwargs=ts_run_kwargs,
+            prepare_result_kwargs={"climb": True, "ts_guess_index": ts_index},
+            record_history=record_history,
+            search_path=search_path,
         )
-
-        validation_result = None
-        optimized_atoms = ts_result["optimized_atoms"]
-        if validate_ts and isinstance(optimized_atoms, Atoms):
-            validation_result = validate_ts_structure(optimized_atoms, self.explorer)
-
-        if isinstance(optimized_atoms, Atoms) or (
-            isinstance(optimized_atoms, list) and all(isinstance(a, Atoms) for a in optimized_atoms)
-        ):
-            result = self.prepare_result(
-                optimized_atoms,
-                steps_taken=ts_result["steps_taken"],
-                converged=ts_result["converged"],
-                climb=True,
-                ts_guess_index=ts_index,
-            )
-        else:
-            result = BaseStrategy.prepare_result(
-                self,
-                (
-                    optimized_atoms
-                    if isinstance(optimized_atoms, Atoms | list)
-                    else self.explorer.atoms_list[0]
-                ),
-                steps_taken=ts_result["steps_taken"],
-                converged=ts_result["converged"],
-                climb=True,
-                ts_guess_index=ts_index,
-            )
-
-        if validation_result is not None:
-            result["ts_validation"] = validation_result
-        merge_ts_frequency_fields(result, ts_result)
-        if record_history:
-            if optimized_path:
-                result["search_path"] = [image.copy() for image in optimized_path]
-            take_optimization_trajectory(result, ts_result)
-        return result
 
 
 REGISTRY.register(MultiStructureTSCINEBStrategy)

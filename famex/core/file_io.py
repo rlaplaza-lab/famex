@@ -43,29 +43,39 @@ def _write_with_clean_retry(
     entity_label: str,
     clean_payload: Atoms | list[Atoms],
 ) -> None:
-    try:
+    def do_write(data: Atoms | list[Atoms]) -> None:
         if format is not None:
-            write(output_file, payload, format=format)
+            write(output_file, data, format=format)
         else:
-            write(output_file, payload)
+            write(output_file, data)
+
+    try:
+        do_write(payload)
     except OSError as e:
         try:
-            if format is not None:
-                write(output_file, clean_payload, format=format)
-            else:
-                write(output_file, clean_payload)
-        except OSError as e2:
-            raise RuntimeError(
-                f"Failed to save {entity_label} to {output_file}: {e}. "
-                f"Clean attempt also failed: {e2}"
-            ) from e2
-        except (ValueError, TypeError, KeyError) as e2:
+            do_write(clean_payload)
+        except (OSError, ValueError, TypeError, KeyError) as e2:
             raise RuntimeError(
                 f"Failed to save {entity_label} to {output_file}: {e}. "
                 f"Clean attempt also failed: {e2}"
             ) from e2
     except (ValueError, TypeError, KeyError) as e:
         raise RuntimeError(f"Failed to save {entity_label} to {output_file}: {e}") from e
+
+
+def _write_xyz_safely(
+    payload: Atoms | list[Atoms],
+    output_file: Path,
+    *,
+    entity_label: str,
+) -> bool:
+    if not str(output_file).lower().endswith(".xyz"):
+        return False
+    try:
+        write_xyz_with_metadata(payload, str(output_file))
+    except (OSError, ValueError, TypeError) as e:
+        raise RuntimeError(f"Failed to save XYZ {entity_label} to {output_file}: {e}") from e
+    return True
 
 
 def write_atoms_safely(
@@ -75,12 +85,8 @@ def write_atoms_safely(
 ) -> None:
     output_file = validate_output_path(output_file)
 
-    if str(output_file).lower().endswith(".xyz"):
-        try:
-            write_xyz_with_metadata(atoms, str(output_file))
-            return
-        except (OSError, ValueError, TypeError) as e:
-            raise RuntimeError(f"Failed to save XYZ structure to {output_file}: {e}") from e
+    if _write_xyz_safely(atoms, output_file, entity_label="structure"):
+        return
 
     _write_with_clean_retry(
         atoms,
@@ -98,12 +104,8 @@ def write_trajectory_safely(
 ) -> None:
     output_file = validate_output_path(output_file)
 
-    if str(output_file).lower().endswith(".xyz"):
-        try:
-            write_xyz_with_metadata(atoms_list, str(output_file))
-            return
-        except (OSError, ValueError, TypeError) as e:
-            raise RuntimeError(f"Failed to save XYZ trajectory to {output_file}: {e}") from e
+    if _write_xyz_safely(atoms_list, output_file, entity_label="trajectory"):
+        return
 
     _write_with_clean_retry(
         atoms_list,

@@ -16,6 +16,7 @@ from famex.backends.mace_compat import format_mace_e3nn_conflict_message, is_mac
 from famex.potentials.base_potential import BasePotential
 from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
+from famex.utils.ml_warnings import quiet_backend_loading
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -70,16 +71,20 @@ class MACEPotential(BasePotential):
             **kwargs,
         )
 
+    def _raise_e3nn_conflict(
+        self, error: Exception, *, hessian: bool = False, context: str
+    ) -> None:
+        msg = format_mace_e3nn_conflict_message(error, hessian=hessian)
+        logger.error("MACE %s failed due to e3nn compatibility issues", context)
+        logger.debug("%s error details: %s", context, error)
+        raise ImportError(msg) from error
+
     def _load_calculator(self) -> None:
         """Load the MACE calculator implementation."""
         if self._calc is not None:
             return
 
-        from famex.utils.ml_warnings import quiet_backend_loading
-
-        if not deps.has("torch"):
-            msg = "PyTorch is required for MACE backend. Install with: pip install torch"
-            raise ImportError(msg)
+        deps.require("torch", purpose="MACE backend")
 
         with quiet_backend_loading(
             "mace",
@@ -109,15 +114,12 @@ class MACEPotential(BasePotential):
                     self._calc = mace_omol(device=self.device)
 
             except ImportError as e:
-                logger.error("MACE not available: %s. Install with: pip install mace-torch", e)
                 msg = f"MACE not available ({e}). Install with: pip install mace-torch"
+                logger.error("%s", msg)
                 raise ImportError(msg) from e
             except (ValueError, AttributeError, RuntimeError) as e:
                 if is_mace_e3nn_error(e):
-                    msg = format_mace_e3nn_conflict_message(e)
-                    logger.error("MACE compatibility issue: e3nn version mismatch")
-                    logger.debug("Compatibility error details: %s", e)
-                    raise ImportError(msg) from e
+                    self._raise_e3nn_conflict(e, context="compatibility issue")
                 logger.exception("Unexpected error loading MACE calculator")
                 raise
 
@@ -136,10 +138,7 @@ class MACEPotential(BasePotential):
             calc.calculate(self.atoms, properties, system_changes)
         except (AttributeError, RuntimeError) as e:
             if is_mace_e3nn_error(e):
-                msg = format_mace_e3nn_conflict_message(e)
-                logger.error("MACE calculation failed due to e3nn compatibility issues")
-                logger.debug("Calculation error details: %s", e)
-                raise ImportError(msg) from e
+                self._raise_e3nn_conflict(e, context="calculation")
             logger.exception("Unexpected error during MACE calculation")
             raise
 
@@ -163,10 +162,7 @@ class MACEPotential(BasePotential):
             return super().get_potential_energy(atoms, force_consistent)
         except (AttributeError, RuntimeError) as e:
             if is_mace_e3nn_error(e):
-                msg = format_mace_e3nn_conflict_message(e)
-                logger.error("MACE energy calculation failed due to e3nn compatibility issues")
-                logger.debug("Energy calculation error details: %s", e)
-                raise ImportError(msg) from e
+                self._raise_e3nn_conflict(e, context="energy calculation")
             logger.exception("Unexpected error during MACE energy calculation")
             raise
 
@@ -211,8 +207,5 @@ class MACEPotential(BasePotential):
             return symmetrize_hessian(hessian)
         except (AttributeError, RuntimeError) as e:
             if is_mace_e3nn_error(e):
-                msg = format_mace_e3nn_conflict_message(e, hessian=True)
-                logger.error("MACE Hessian calculation failed due to e3nn compatibility issues")
-                logger.debug("Hessian calculation error details: %s", e)
-                raise ImportError(msg) from e
+                self._raise_e3nn_conflict(e, hessian=True, context="Hessian calculation")
             raise

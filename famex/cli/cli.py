@@ -36,11 +36,18 @@ _PRODUCT_REQUIRED_STRATEGIES = frozenset({"interpolate", "growing_string", "cine
 _PATH_MULTI_STRUCTURE_STRATEGIES = frozenset({"interpolate", "neb", "cineb"})
 
 
-def _validate_temperature(ctx: Any, param: Any, value: float) -> float:
+def _validate_temperature(ctx: Any, _param: Any, value: float) -> float:
     if value is not None and value <= 0:
         msg = f"Temperature must be positive, got {value} K"
         raise click.BadParameter(msg)
     return value
+
+
+def _require_same_atom_count_cli(atoms_list: list[Atoms], labels: list[str]) -> None:
+    try:
+        require_same_atom_count(atoms_list, labels)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc)) from exc
 
 
 def _handle_frequency_results(
@@ -573,7 +580,7 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                         type=float,
                         default=298.15,
                         show_default=True,
-                        callback=lambda ctx, param, value: _validate_temperature(ctx, param, value),
+                        callback=_validate_temperature,
                         help="Temperature in Kelvin for thermodynamic calculations (must be > 0)",
                     ),
                 ]
@@ -772,10 +779,7 @@ def minima(
     if strategy == "interpolate" and product is not None:
         atoms_product = load_structure_or_smiles(product, embedder=embedder)
         atoms_list = [atoms, atoms_product]
-        try:
-            require_same_atom_count(atoms_list, ["reactant", "product"])
-        except ValueError as exc:
-            raise click.BadParameter(str(exc)) from exc
+        _require_same_atom_count_cli(atoms_list, ["reactant", "product"])
 
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
@@ -1005,10 +1009,7 @@ def ts(
     if strategy in _PRODUCT_REQUIRED_STRATEGIES and product is not None:
         atoms_product = load_structure_or_smiles(product, embedder=embedder)
         atoms_list = [atoms, atoms_product]
-        try:
-            require_same_atom_count(atoms_list, ["reactant", "product"])
-        except ValueError as exc:
-            raise click.BadParameter(str(exc)) from exc
+        _require_same_atom_count_cli(atoms_list, ["reactant", "product"])
 
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
@@ -1229,10 +1230,7 @@ def path(
         labels = list(structures)
     else:
         labels = [f"{structures[0]} frame {index}" for index in range(len(atoms_list))]
-    try:
-        require_same_atom_count(atoms_list, labels)
-    except ValueError as exc:
-        raise click.BadParameter(str(exc)) from exc
+    _require_same_atom_count_cli(atoms_list, labels)
 
     optimizer_kwargs = parse_kv_pairs(list(optimizer_kw))
     ts_kwargs = parse_kv_pairs(list(ts_kw))
