@@ -21,6 +21,27 @@ if TYPE_CHECKING:
 logger = get_famex_logger(__name__)
 
 
+def _safe_int(value: object) -> int | None:
+    try:
+        return int(value)  # type: ignore[call-overload, no-any-return]
+    except (ValueError, TypeError):
+        return None
+
+
+def _raise_xyz_write_error(filename: Path | str, error: Exception, *, data_error: bool) -> None:
+    if data_error:
+        logger.exception("Failed to write XYZ file %s: data format error", filename)
+        detail = "This may indicate invalid or corrupted structure data."
+    else:
+        logger.exception("Failed to write XYZ file %s: file system error", filename)
+        detail = (
+            "This may be due to file system permissions, insufficient disk space, "
+            "or an invalid file path."
+        )
+    msg = f"Failed to write XYZ file {filename}: {error}. {detail}"
+    raise OSError(msg) from error
+
+
 def parse_xyz_comment(comment: str) -> dict[str, Any]:
     """Parse XYZ comment line for metadata (supports key=value pairs)."""
     metadata: dict[str, Any] = {}
@@ -64,28 +85,16 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
     spin = None
 
     if hasattr(atoms, "charge"):
-        try:
-            charge = int(atoms.charge)
-        except (ValueError, TypeError):
-            pass
+        charge = _safe_int(atoms.charge)
 
     if hasattr(atoms, "mult"):
-        try:
-            spin = int(atoms.mult)
-        except (ValueError, TypeError):
-            pass
+        spin = _safe_int(atoms.mult)
 
     info = atoms.info if hasattr(atoms, "info") and atoms.info else {}
     if charge is None and "charge" in info:
-        try:
-            charge = int(info["charge"])
-        except (ValueError, TypeError):
-            pass
+        charge = _safe_int(info["charge"])
     if spin is None and "spin" in info:
-        try:
-            spin = int(info["spin"])
-        except (ValueError, TypeError):
-            pass
+        spin = _safe_int(info["spin"])
 
     if charge is not None:
         parts.append(f"charge={charge}")
@@ -98,10 +107,9 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
     for key in ("iteration", "image", "step", "mode"):
         if key not in info:
             continue
-        try:
-            parts.append(f"{key}={int(info[key])}")
-        except (TypeError, ValueError):
-            continue
+        coerced = _safe_int(info[key])
+        if coerced is not None:
+            parts.append(f"{key}={coerced}")
 
     if "frequency" in info:
         try:
@@ -262,6 +270,7 @@ def read_xyz_with_metadata(
             if issues:
                 warnings.warn(
                     f"XYZ validation issues in {filename}: {'; '.join(issues)}",
+                    UserWarning,
                     stacklevel=2,
                 )
 
@@ -324,20 +333,9 @@ def write_xyz_with_metadata(
         else:
             ase_write(str(filename), prepared_atoms, **kwargs)
     except OSError as e:
-        logger.exception("Failed to write XYZ file %s: file system error", filename)
-        msg = (
-            f"Failed to write XYZ file {filename}: {e}. "
-            f"This may be due to file system permissions, insufficient disk space, "
-            f"or an invalid file path."
-        )
-        raise OSError(msg) from e
+        _raise_xyz_write_error(filename, e, data_error=False)
     except (ValueError, TypeError, KeyError) as e:
-        logger.exception("Failed to write XYZ file %s: data format error", filename)
-        msg = (
-            f"Failed to write XYZ file {filename}: {e}. "
-            f"This may indicate invalid or corrupted structure data."
-        )
-        raise OSError(msg) from e
+        _raise_xyz_write_error(filename, e, data_error=True)
 
 
 __all__ = [

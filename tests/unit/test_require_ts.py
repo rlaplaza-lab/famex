@@ -238,10 +238,7 @@ class TestInterpolateInheritsRequireTs:
 
         with (
             patch("famex.strategies.ts_interpolate.PathManager") as mock_pm,
-            patch(
-                "famex.strategies.ts_interpolate.LocalTSStrategy",
-                side_effect=lambda explorer: LocalTSStrategy(explorer),
-            ),
+            patch("famex.strategies.ts_interpolate.preflight_band_path"),
             patch("famex.strategies.ts._validate_ts_optimization_setup"),
             patch(
                 "famex.strategies.ts._run_local_optimization_common",
@@ -251,7 +248,6 @@ class TestInterpolateInheritsRequireTs:
         ):
             mock_pm.return_value.interpolate.return_value = [reactant, product]
             mock_pm.find_ts_guess.return_value = (reactant, 0)
-            mock_pm.attach_calculators = MagicMock()
             strategy.run([reactant, product], npoints=3, steps=1)
 
 

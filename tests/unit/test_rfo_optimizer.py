@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import numpy as np
 import pytest
 
 from famex.optimizers.rfo_optimizer import ConvergedError, RFOTransitionState
-from famex.optimizers.ts_step import adjust_trust_radius, compute_step_quality
+from famex.optimizers.ts_step import TSStepResult, adjust_trust_radius, compute_step_quality
 from tests.test_constants import (
     DEFAULT_FMAX,
     DEFAULT_STEPS,
@@ -18,9 +20,8 @@ from tests.test_utils import StandardTestAssertions
 
 
 class TestRFOTransitionState:
-    def test_rfo_initialization(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_initialization(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
 
         opt = RFOTransitionState(
             atoms,
@@ -34,17 +35,15 @@ class TestRFOTransitionState:
         assert opt.trust_radius == 0.02
         assert opt.max_trust_radius == 0.06
 
-    def test_rfo_default_trust_radii(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_default_trust_radii(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(atoms, logfile=None)
         assert opt.trust_radius == 0.02
         assert opt.max_trust_radius == 0.06
         assert opt.hessian_update_freq == 1
 
-    def test_rfo_positions_conversion(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_positions_conversion(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(atoms, logfile=None)
         x = opt._positions_to_x()
         assert x.shape == (9,)  # 3 atoms × 3 coordinates
@@ -54,9 +53,8 @@ class TestRFOTransitionState:
         assert positions_back.shape == (3, 3)
         assert np.allclose(positions_back, atoms.positions)
 
-    def test_rfo_gradient_function(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_gradient_function(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(atoms, logfile=None)
         x = opt._positions_to_x()
         grad = opt._get_gradient(x)
@@ -67,9 +65,8 @@ class TestRFOTransitionState:
         raw_grad = -forces.ravel()
         assert np.linalg.norm(grad) <= np.linalg.norm(raw_grad) + 1e-10
 
-    def test_rfo_hessian_computation(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_hessian_computation(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(atoms, logfile=None)
         x = opt._positions_to_x()
 
@@ -78,9 +75,8 @@ class TestRFOTransitionState:
         StandardTestAssertions.assert_hessian_valid(hessian, expected_shape=(9, 9))
         assert opt.hessian_calls == 1
 
-    def test_rfo_hessian_caching(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_hessian_caching(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(atoms, logfile=None, hessian_update_freq=5)
         x = opt._positions_to_x()
 
@@ -96,9 +92,8 @@ class TestRFOTransitionState:
         opt._compute_hessian(x)
         assert opt.hessian_calls == 1  # Still only 1 full Hessian
 
-    def test_rfo_convergence(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_convergence(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(atoms, logfile=None)
 
         # Small forces should converge
@@ -108,9 +103,8 @@ class TestRFOTransitionState:
         # Large forces should not converge
         assert not opt.converged(np.array([0.1, 0.1, 0.1]))
 
-    def test_rfo_hessian_update_frequency(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_hessian_update_frequency(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(atoms, logfile=None, hessian_update_freq=3)
         x = opt._positions_to_x()
 
@@ -127,18 +121,16 @@ class TestRFOTransitionState:
         # Should have recomputed at step 3 (update_freq=3)
         assert opt.hessian_calls >= 2
 
-    def test_rfo_basic_optimization_run(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_basic_optimization_run(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(atoms, logfile=None, hessian_update_freq=5)
 
         opt.run(fmax=LOOSE_FMAX, steps=QUICK_STEPS)
 
         assert opt.nsteps > 0
 
-    def test_rfo_step_counting(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_step_counting(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(atoms, logfile=None)
         initial_steps = opt.nsteps
 
@@ -147,9 +139,8 @@ class TestRFOTransitionState:
         assert opt.nsteps > initial_steps
         assert opt.get_number_of_steps() == opt.nsteps
 
-    def test_rfo_optimization_quality(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_optimization_quality(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
 
         initial_energy = atoms.get_potential_energy()
         initial_positions = atoms.get_positions().copy()
@@ -179,9 +170,8 @@ class TestRFOTransitionState:
         with pytest.raises(ValueError, match="calculator"):
             RFOTransitionState(atoms, logfile=None)
 
-    def test_rfo_initial_hessian_provided(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_initial_hessian_provided(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
 
         n = len(atoms) * 3
         initial_hess = np.eye(n)
@@ -194,9 +184,8 @@ class TestRFOTransitionState:
         hessian = opt._compute_hessian(x)
         assert hessian is not None
 
-    def test_rfo_trust_radius_adjustment(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_trust_radius_adjustment(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
 
         opt = RFOTransitionState(atoms, logfile=None, trust_radius=0.01, max_trust_radius=0.05)
 
@@ -210,9 +199,8 @@ class TestRFOTransitionState:
         new_trust = adjust_trust_radius(0.01, 0.1, 0.005, 0.001, 0.05)
         assert new_trust <= 0.01
 
-    def test_rfo_step_quality_computation(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_rfo_step_quality_computation(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
 
         opt = RFOTransitionState(atoms, logfile=None)
         x = opt._positions_to_x()
@@ -231,9 +219,8 @@ class TestRFOTransitionState:
         quality = compute_step_quality(poor_actual, predicted_change)
         assert quality < 0.5
 
-    def test_converged_error_handling(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_converged_error_handling(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(atoms, logfile=None, hessian_update_freq=5)
         original_converged = opt.converged
 
@@ -247,9 +234,26 @@ class TestRFOTransitionState:
         assert result is True
         assert opt.nsteps > 0
 
-    def test_trust_radius_clamped_to_bounds(self, mock_backend, water_dissociation_ts_guess):
-        atoms = water_dissociation_ts_guess.copy()
-        atoms.calc = mock_backend
+    def test_zero_step_exits_without_crash(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
+        opt = RFOTransitionState(atoms, logfile=None, hessian_update_freq=5)
+        n = 3 * len(atoms)
+        zero_result = TSStepResult(
+            step=np.zeros(n),
+            predicted_energy_change=0.0,
+            transition_mode=np.zeros(n),
+            alpha=1.0,
+        )
+        with patch(
+            "famex.optimizers.rfo_optimizer.compute_restricted_prfo_step",
+            return_value=zero_result,
+        ):
+            result = opt.run(fmax=LOOSE_FMAX, steps=QUICK_STEPS)
+        assert result is False
+        assert opt.nsteps >= 1
+
+    def test_trust_radius_clamped_to_bounds(self, water_dissociation_ts_with_mock):
+        atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(
             atoms,
             logfile=None,

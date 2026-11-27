@@ -22,12 +22,8 @@ class TestMultiStructureTSCINEBStrategy:
         assert MultiStructureTSCINEBStrategy.metadata.strategy == "cineb"
         assert MultiStructureTSCINEBStrategy.metadata.requires_multiple_structures is True
 
-    def test_run_basic(self, water_molecule):
-        reactant = water_molecule.copy()
-        product = water_molecule.copy()
-        pos = product.get_positions()
-        pos[1, 0] += 0.2
-        product.set_positions(pos)
+    def test_run_basic(self, reactant_product_pair):
+        reactant, product = reactant_product_pair
 
         explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="cineb")
         strategy = MultiStructureTSCINEBStrategy(explorer)
@@ -35,9 +31,8 @@ class TestMultiStructureTSCINEBStrategy:
         with pytest.raises(ValueError, match="not suitable for transition state optimization"):
             strategy.run([reactant, product], npoints=5, fmax=VERY_LOOSE_FMAX, steps=DEFAULT_STEPS)
 
-    def test_run_requires_three_images(self, water_molecule):
-        reactant = water_molecule.copy()
-        product = water_molecule.copy()
+    def test_run_requires_three_images(self, reactant_product_pair):
+        reactant, product = reactant_product_pair
 
         explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="cineb")
         strategy = MultiStructureTSCINEBStrategy(explorer)
@@ -45,20 +40,15 @@ class TestMultiStructureTSCINEBStrategy:
         with pytest.raises(ValueError, match="at least 3 images"):
             strategy.run([reactant, product], npoints=2, fmax=VERY_LOOSE_FMAX, steps=DEFAULT_STEPS)
 
-    def test_explorer_explain_run(self, water_molecule):
-        reactant = water_molecule.copy()
-        product = water_molecule.copy()
+    def test_explorer_explain_run(self, reactant_product_pair):
+        reactant, product = reactant_product_pair
         explorer = Explorer([reactant, product], backend="mock", target="ts", strategy="cineb")
         explanation = explorer.explain_run()
         assert explanation["strategy_key"] == "ts:cineb"
         assert explanation["valid"] is True
 
-    def test_run_happy_path_with_rfo_local_optimizer(self, water_molecule):
-        reactant = water_molecule.copy()
-        product = water_molecule.copy()
-        pos = product.get_positions()
-        pos[1, 0] += 0.2
-        product.set_positions(pos)
+    def test_run_happy_path_with_rfo_local_optimizer(self, reactant_product_pair):
+        reactant, product = reactant_product_pair
 
         explorer = Explorer(
             [reactant, product],

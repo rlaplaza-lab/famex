@@ -113,6 +113,14 @@ def water_dissociation_ts_guess():
     return TestMoleculeFactory.get_water_dissociation_ts_guess()
 
 
+@pytest.fixture
+def water_dissociation_ts_with_mock(water_dissociation_ts_guess, mock_backend):
+    """Water dissociation TS guess with mock calculator attached."""
+    atoms = water_dissociation_ts_guess.copy()
+    atoms.calc = mock_backend
+    return atoms
+
+
 # ============================================================================
 # Backend Fixtures
 # ============================================================================

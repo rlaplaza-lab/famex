@@ -120,9 +120,7 @@ class ProfilerCalculatorWrapper(Calculator):
         if hasattr(self.calculator, "get_hessian"):
             return self.calculator.get_hessian(atoms)  # type: ignore[no-any-return]
         msg = f"Calculator {type(self.calculator).__name__} does not support Hessian calculation"
-        raise AttributeError(
-            msg,
-        )
+        raise AttributeError(msg)
 
     def check_state(self, atoms: Atoms, tol: float = 1e-15) -> bool:
         return self.calculator.check_state(atoms, tol)  # type: ignore[no-any-return]
@@ -218,16 +216,16 @@ class VerboseOptimizerWrapper(Optimizer):
         return bool(self.wrapped_optimizer.converged(gradient))
 
     def log(self, forces: np.ndarray) -> None:
-        return self.wrapped_optimizer.log(forces)  # type: ignore[no-any-return]
+        self.wrapped_optimizer.log(forces)
 
     def call_observers(self) -> None:
-        return self.wrapped_optimizer.call_observers()  # type: ignore[no-any-return]
+        self.wrapped_optimizer.call_observers()
 
     def dump(self, data: Any) -> None:
-        return self.wrapped_optimizer.dump(data)  # type: ignore[no-any-return]
+        self.wrapped_optimizer.dump(data)
 
     def load(self) -> None:
-        return self.wrapped_optimizer.load()  # type: ignore[no-any-return]
+        self.wrapped_optimizer.load()
 
 
 class VerboseLBFGS(VerboseOptimizerWrapper):

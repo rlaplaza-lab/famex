@@ -17,7 +17,9 @@ from ase.calculators.calculator import all_changes
 from famex.backends.dependencies import deps
 from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
-from famex.utils.hessian_ops import symmetrize_hessian
+from famex.utils.device import get_optimal_device
+from famex.utils.hessian_ops import autograd_hessian_rows_from_forces, symmetrize_hessian
+from famex.utils.ml_warnings import quiet_backend_loading
 
 _ORB_HESSIAN_PATCH_LOCK = threading.Lock()
 
@@ -105,8 +107,6 @@ class OrbPotential(BasePotential):
             raise ImportError(msg)
 
         if device is None:
-            from famex.utils.device import get_optimal_device
-
             device = get_optimal_device()
 
         self._calc: Any | None = None
@@ -123,8 +123,6 @@ class OrbPotential(BasePotential):
 
     def _load_calculator(self) -> None:
         """Load the Orb model and create calculator."""
-        from famex.utils.ml_warnings import quiet_backend_loading
-
         try:
             from orb_models.forcefield import pretrained
 
@@ -251,10 +249,7 @@ class OrbPotential(BasePotential):
                 prediction = calc.model(batch)
                 forces = prediction[calc.model.grad_forces_name]
                 positions = batch.node_features["positions"]
-                rows = [
-                    (-torch.autograd.grad(component, positions, retain_graph=True)[0]).reshape(-1)
-                    for component in forces.reshape(-1)
-                ]
+                rows = autograd_hessian_rows_from_forces(forces, positions)
                 hessian = torch.stack(rows)
             finally:
                 orb_regressor.compute_gradient_forces_and_stress = original

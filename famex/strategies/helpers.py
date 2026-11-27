@@ -3,21 +3,224 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from contextlib import nullcontext
+from contextlib import AbstractContextManager, nullcontext
 from typing import Any, Literal, cast
 
 from ase import Atoms
 
 from famex.analysis.physics_constants import IMAGINARY_MODE_THRESHOLD_CM
 from famex.analysis.thermodynamics import read_free_energy_correction
+from famex.io.path_manager import PathManager
+from famex.optimizers.sella_utils import is_sella_optimizer
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
 
+StationaryPointTarget = Literal["minima", "ts"]
+
+RFO_OPTIMIZER_ALIASES: frozenset[str] = frozenset(
+    {
+        "rfo",
+        "rfo-ts",
+        "rational-function",
+        "rational_function",
+    }
+)
+
+TRUST_KRYLOV_OPTIMIZER_ALIASES: frozenset[str] = frozenset(
+    {
+        "trust-krylov",
+        "trustkrylov",
+        "trust_krylov",
+    }
+)
+
+TRUST_NCG_EXACT_OPTIMIZER_ALIASES: frozenset[str] = frozenset(
+    {
+        "trust-ncg",
+        "trustncg",
+        "trust_ncg",
+        "trust-exact",
+        "trustexact",
+        "trust_exact",
+    }
+)
+
+TRUST_OPTIMIZER_ALIASES: frozenset[str] = (
+    TRUST_KRYLOV_OPTIMIZER_ALIASES | TRUST_NCG_EXACT_OPTIMIZER_ALIASES
+)
+
+TRUST_REGION_TS_OPTIMIZER_ALIASES: frozenset[str] = RFO_OPTIMIZER_ALIASES | TRUST_OPTIMIZER_ALIASES
+
+NEWTON_CG_OPTIMIZER_ALIASES: frozenset[str] = frozenset(
+    {
+        "newton-cg",
+        "newtoncg",
+        "newton_cg",
+    }
+)
+
+TRUST_MINIMA_HESSIAN_OPTIMIZER_ALIASES: frozenset[str] = (
+    TRUST_OPTIMIZER_ALIASES | NEWTON_CG_OPTIMIZER_ALIASES
+)
+
+FORBIDDEN_BACKENDS_FOR_TS: frozenset[str] = frozenset({"mock"})
+FORBIDDEN_OPTIMIZERS_FOR_TS: frozenset[str] = frozenset(
+    {
+        "lbfgs",
+        "l-bfgs",
+        "l_bfgs",
+        "bfgs",
+        "fire",
+        "newton-cg",
+        "newtoncg",
+        "newton_cg",
+    }
+)
 
 # Not an optimizer keyword; stored on explorer.ts_kwargs by the CLI for strategy use.
 _REQUIRE_TS_KWARG = "require_ts"
+
+
+def profiler_section(profiler: Any | None, name: str) -> AbstractContextManager[Any]:
+    if profiler is not None:
+        return cast(AbstractContextManager[Any], profiler.profile_section(name))
+    return nullcontext()
+
+
+def prepare_ts_optimizer_kwargs(optimizer_name: str, explorer: Any) -> dict[str, Any]:
+    """Build default keyword arguments for local TS optimizers."""
+    opt_kwargs = getattr(explorer, "ts_kwargs", {}) or {}
+    opt_kwargs = dict(opt_kwargs)
+    strip_require_ts_from_optimizer_kwargs(opt_kwargs)
+
+    normalized_name = optimizer_name.lower()
+    if is_sella_optimizer(normalized_name):
+        opt_kwargs.setdefault("internal", True)
+        opt_kwargs.setdefault("order", 1)
+        opt_kwargs.pop("hessian_method", None)
+    elif normalized_name in RFO_OPTIMIZER_ALIASES:
+        opt_kwargs.setdefault("hessian_update_freq", 1)
+        opt_kwargs.setdefault("hessian_method", "auto")
+        opt_kwargs.setdefault("trust_radius", 0.02)
+        opt_kwargs.setdefault("max_trust_radius", 0.06)
+    elif normalized_name in TRUST_KRYLOV_OPTIMIZER_ALIASES:
+        opt_kwargs.setdefault("ts_search", True)
+        opt_kwargs.setdefault("hessian_update_freq", 1)
+        opt_kwargs.setdefault("hessian_method", "auto")
+        opt_kwargs.setdefault("trust_radius", 0.05)
+        opt_kwargs.setdefault("max_trust_radius", 0.15)
+        opt_kwargs.setdefault("use_bfgs_update", False)
+    elif normalized_name in TRUST_NCG_EXACT_OPTIMIZER_ALIASES:
+        opt_kwargs.setdefault("ts_search", True)
+        opt_kwargs.setdefault("hessian_update_freq", 1)
+        opt_kwargs.setdefault("hessian_method", "auto")
+        opt_kwargs.setdefault("trust_radius", 0.1)
+        opt_kwargs.setdefault("max_trust_radius", 0.3)
+        opt_kwargs.setdefault("use_bfgs_update", False)
+
+    if getattr(explorer, "force_finite_diff_hessian", False):
+        if normalized_name in TRUST_REGION_TS_OPTIMIZER_ALIASES:
+            opt_kwargs["hessian_method"] = "finite_differences"
+
+    return opt_kwargs
+
+
+def preflight_band_path(
+    path: Sequence[Atoms],
+    explorer: Any,
+    *,
+    method_name: str,
+) -> None:
+    """Validate band length and attach calculators before NEB/CI-NEB runs."""
+    if len(path) < 3:
+        logger.error(
+            "%s requires at least 3 images (npoints >= 3), got %d",
+            method_name,
+            len(path),
+        )
+        msg = f"{method_name} requires at least 3 images (npoints >= 3)"
+        raise ValueError(msg)
+
+    if explorer is not None:
+        PathManager.attach_calculators(explorer, path)
+        if any(getattr(img, "calc", None) is None for img in path):
+            logger.error(
+                "Failed to attach calculators to %s images. Check backend/model availability.",
+                method_name,
+            )
+            raise RuntimeError(
+                f"Failed to attach calculators to {method_name} images. "
+                "Check backend/model availability.",
+            )
+
+
+def refine_ts_guess_workflow(
+    strategy: Any,
+    ts_guess: Atoms,
+    *,
+    fmax: float,
+    steps: int,
+    local_optimizer_name: str,
+    calculate_frequencies: bool,
+    validate_ts: bool,
+    ts_run_kwargs: dict[str, Any],
+    prepare_result_kwargs: dict[str, Any] | None = None,
+    record_history: bool = False,
+    search_path: Sequence[Atoms] | None = None,
+) -> dict[str, Any]:
+    """TS guess → local TS optimization → validate → result assembly."""
+    from famex.core.base_strategy import BaseStrategy
+    from famex.strategies.ts import LocalTSStrategy
+
+    ts_strategy = LocalTSStrategy(strategy.explorer)
+    ts_result = ts_strategy.run(
+        [ts_guess],
+        fmax=fmax,
+        steps=steps,
+        local_optimizer_name=local_optimizer_name,
+        calculate_frequencies=calculate_frequencies,
+        **ts_run_kwargs,
+    )
+
+    validation_result = None
+    optimized_atoms = ts_result["optimized_atoms"]
+    if validate_ts and isinstance(optimized_atoms, Atoms):
+        validation_result = validate_ts_structure(optimized_atoms, strategy.explorer)
+
+    extra = prepare_result_kwargs or {}
+    if isinstance(optimized_atoms, Atoms) or (
+        isinstance(optimized_atoms, list) and all(isinstance(a, Atoms) for a in optimized_atoms)
+    ):
+        result = strategy.prepare_result(
+            optimized_atoms,
+            steps_taken=ts_result["steps_taken"],
+            converged=ts_result["converged"],
+            **extra,
+        )
+    else:
+        fallback_atoms = (
+            optimized_atoms
+            if isinstance(optimized_atoms, Atoms | list)
+            else strategy.explorer.atoms_list[0]
+        )
+        result = BaseStrategy.prepare_result(
+            strategy,
+            fallback_atoms,
+            steps_taken=ts_result["steps_taken"],
+            converged=ts_result["converged"],
+            **extra,
+        )
+
+    if validation_result is not None:
+        result["ts_validation"] = validation_result
+    merge_ts_frequency_fields(result, ts_result)
+    if record_history:
+        if search_path:
+            result["search_path"] = [image.copy() for image in search_path]
+        take_optimization_trajectory(result, ts_result)
+    return cast(dict[str, Any], result)
 
 
 def resolve_require_ts(require_ts: bool | None, explorer: Any) -> bool:
@@ -33,13 +236,11 @@ def resolve_require_ts(require_ts: bool | None, explorer: Any) -> bool:
 
 
 def strip_require_ts_from_optimizer_kwargs(opt_kwargs: dict[str, Any]) -> dict[str, Any]:
-    """Remove ``require_ts`` so it is not forwarded to TS optimizers."""
     opt_kwargs.pop(_REQUIRE_TS_KWARG, None)
     return opt_kwargs
 
 
 def ts_has_one_imaginary_mode(freq_analysis: dict[str, Any] | None) -> bool:
-    """Return True when frequency analysis confirms a first-order saddle."""
     if not freq_analysis:
         return False
     raw_ts = freq_analysis.get("ts_analysis")
@@ -155,18 +356,6 @@ def validate_ts_structure(
 
 
 def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
-    FORBIDDEN_BACKENDS_FOR_TS = {"mock"}
-    FORBIDDEN_OPTIMIZERS_FOR_TS = {
-        "lbfgs",
-        "l-bfgs",
-        "l_bfgs",
-        "bfgs",
-        "fire",
-        "newton-cg",
-        "newtoncg",
-        "newton_cg",
-    }
-
     if backend.lower() in FORBIDDEN_BACKENDS_FOR_TS:
         msg = (
             f"Backend '{backend}' is not suitable for transition state optimization. "
@@ -202,11 +391,11 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
 
         return VerboseSellaAnalytical
 
-    if name in ("trust-krylov", "trustkrylov", "trust_krylov"):
+    if name in TRUST_KRYLOV_OPTIMIZER_ALIASES:
         from famex.optimizers.scipy_optimizers import TrustKrylov
 
         return TrustKrylov
-    if name in ("rfo", "rfo-ts", "rational-function", "rational_function"):
+    if name in RFO_OPTIMIZER_ALIASES:
         from famex.optimizers.rfo_optimizer import RFOTransitionState
 
         return RFOTransitionState
@@ -218,7 +407,7 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
         from famex.optimizers.scipy_optimizers import TrustExact
 
         return TrustExact
-    if name in ("newton-cg", "newtoncg", "newton_cg"):
+    if name in NEWTON_CG_OPTIMIZER_ALIASES:
         from famex.optimizers.scipy_optimizers import NewtonCG
 
         return NewtonCG
@@ -272,9 +461,7 @@ def _run_local_optimization_common(
         strategy.profiler.snapshot_memory()
 
     if verbose >= 1:
-        logger.info(
-            "Starting local %s optimization with %s", log_prefix.lower(), local_optimizer_name
-        )
+        logger.info("Starting local %s optimization with %s", log_prefix, local_optimizer_name)
         logger.info("Force threshold: %s eV/Å, Max steps: %s", fmax, steps)
 
     opt_class = _get_local_optimizer_class(local_optimizer_name)
@@ -297,11 +484,7 @@ def _run_local_optimization_common(
     for image_index, atoms in enumerate(atoms_list):
         atoms_copy = atoms.copy()
 
-        with (
-            strategy.profiler.profile_section("calculator_setup")
-            if strategy.profiler
-            else nullcontext()
-        ):
+        with profiler_section(strategy.profiler, "calculator_setup"):
             strategy.explorer._create_and_attach_calculator(
                 atoms_copy,
                 needs_hessian=needs_hessian,
@@ -314,11 +497,7 @@ def _run_local_optimization_common(
             image_tag = image_index if len(atoms_list) > 1 else None
             attach_step_recorder(opt, atoms_copy, optimization_trajectory, image=image_tag)
 
-        with (
-            strategy.profiler.profile_section("optimization")
-            if strategy.profiler
-            else nullcontext()
-        ):
+        with profiler_section(strategy.profiler, "optimization"):
             opt.run(fmax=fmax, steps=steps)
 
         steps_taken = StrategyUtils.get_step_count(opt)
@@ -354,11 +533,8 @@ def _run_local_optimization_common(
                 total_structures,
             )
 
-    validation_results: list[dict[str, Any] | None] = []
     if validation_hook is not None:
-        with (
-            strategy.profiler.profile_section("validation") if strategy.profiler else nullcontext()
-        ):
+        with profiler_section(strategy.profiler, "validation"):
             validation_results = validation_hook(results)
     else:
         validation_results = [None] * len(results)
@@ -374,11 +550,7 @@ def _run_local_optimization_common(
         from famex.strategies.frequency_cleanup import run_frequency_cleanup
 
         for idx, atoms_copy in enumerate(results):
-            with (
-                strategy.profiler.profile_section("frequency_cleanup")
-                if strategy.profiler
-                else nullcontext()
-            ):
+            with profiler_section(strategy.profiler, "frequency_cleanup"):
                 atoms_copy, freq_result, cleanup_steps, cleanup_summary = run_frequency_cleanup(
                     atoms_copy,
                     strategy.explorer,
@@ -395,11 +567,7 @@ def _run_local_optimization_common(
             frequency_results.append(freq_result)
             cleanup_summaries.append(cleanup_summary)
     elif calculate_frequencies:
-        with (
-            strategy.profiler.profile_section("frequency_analysis")
-            if strategy.profiler
-            else nullcontext()
-        ):
+        with profiler_section(strategy.profiler, "frequency_analysis"):
             for atoms_copy in results:
                 freq_kwargs = {
                     "atoms": atoms_copy,
@@ -460,12 +628,11 @@ def _run_local_optimization_common(
 
 
 def copy_labeled_frame(atoms: Atoms, **tags: int) -> Atoms:
-    """Return a geometry copy annotated with integer XYZ-comment tags."""
-    frame = cast(Atoms, atoms.copy())
+    frame = atoms.copy()
     info = dict(frame.info or {})
     info.update(tags)
     frame.info = info
-    return frame
+    return cast(Atoms, frame)
 
 
 def attach_step_recorder(
@@ -501,14 +668,12 @@ def attach_step_recorder(
 
 
 def take_optimization_trajectory(result: dict[str, Any], source: dict[str, Any]) -> None:
-    """Copy a recorded local-optimizer trajectory onto ``result`` when present."""
     frames = source.get("optimization_trajectory")
     if isinstance(frames, list) and frames:
         result["optimization_trajectory"] = frames
 
 
 def merge_ts_frequency_fields(result: dict[str, Any], ts_result: dict[str, Any]) -> None:
-    """Copy frequency analysis fields from a TS search result onto ``result``."""
     if "frequency_analysis" not in ts_result:
         return
     result["frequency_analysis"] = ts_result["frequency_analysis"]

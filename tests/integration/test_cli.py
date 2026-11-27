@@ -12,10 +12,12 @@ from famex.utils.logging import get_famex_log_level
 from tests.test_constants import COMPREHENSIVE_STEPS, DEFAULT_FMAX, LOOSE_FMAX, QUICK_STEPS
 from tests.test_utils import BackendTestRunner, StandardTestAssertions, TestResultHandler
 
+CLI_RUNNER = CliRunner()
+
 
 class TestCLIMockBackend:
     def test_opt_local_runs_with_mock_backend(self, tmp_path, water_molecule):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         # Create test molecule
         xyz_path = tmp_path / "test.xyz"
         atoms = water_molecule.copy()
@@ -44,7 +46,7 @@ class TestCLIMockBackend:
         assert out_path.exists(), f"Output file not created: {out_path}"
 
     def test_opt_twoended_runs_with_mock_backend(self, tmp_path, water_molecule):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         # Create reactant and product
         reactant = water_molecule.copy()
         product = water_molecule.copy()
@@ -83,7 +85,7 @@ class TestCLIMockBackend:
         assert out_path.exists(), f"Output file not created: {out_path}"
 
     def test_minima_dry_run(self, tmp_path, water_molecule):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         xyz_path = tmp_path / "test.xyz"
         atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
@@ -106,7 +108,7 @@ class TestCLIMockBackend:
         assert "Target: minima" in result.output
 
     def test_minima_with_frequencies(self, tmp_path, water_molecule):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         xyz_path = tmp_path / "test.xyz"
         atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
@@ -133,7 +135,7 @@ class TestCLIMockBackend:
         assert out_path.exists()
 
     def test_minima_with_custom_output(self, tmp_path, water_molecule):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         xyz_path = tmp_path / "test.xyz"
         atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
@@ -159,7 +161,7 @@ class TestCLIMockBackend:
         assert custom_out.exists()
 
     def test_minima_history_writes_step_file(self, tmp_path, water_molecule):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         xyz_path = tmp_path / "test.xyz"
         atoms = water_molecule.copy()
         positions = atoms.get_positions()
@@ -197,7 +199,7 @@ class TestCLIMockBackend:
         assert "step=" in comment
 
     def test_ts_command_with_mock(self, tmp_path, water_dissociation_ts_guess):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         xyz_path = tmp_path / "ts_guess.xyz"
         atoms = water_dissociation_ts_guess.copy()
         atoms.write(str(xyz_path))
@@ -220,7 +222,7 @@ class TestCLIMockBackend:
         assert result.exit_code != 0
 
     def test_ts_interpolate_command(self, tmp_path, water_molecule):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         reactant = water_molecule.copy()
         product = water_molecule.copy()
         pos = product.get_positions()
@@ -251,8 +253,16 @@ class TestCLIMockBackend:
         # Mock backend doesn't support TS optimization
         assert result.exit_code != 0
 
-    def test_path_neb_command(self, tmp_path, water_molecule):
-        runner = CliRunner()
+    @pytest.mark.parametrize(
+        ("strategy", "extra_args"),
+        [
+            ("neb", ["--steps", "2"]),
+            ("cineb", ["--steps", "2"]),
+            ("interpolate", []),
+        ],
+    )
+    def test_path_twoended_strategies(self, tmp_path, water_molecule, strategy, extra_args):
+        runner = CLI_RUNNER
         reactant = water_molecule.copy()
         product = water_molecule.copy()
         pos = product.get_positions()
@@ -269,22 +279,21 @@ class TestCLIMockBackend:
             [
                 "path",
                 "--strategy",
-                "neb",
+                strategy,
                 str(reactant_path),
                 str(product_path),
                 "--backend",
                 "mock",
                 "--npoints",
                 "5",
-                "--steps",
-                "2",
+                *extra_args,
             ],
         )
 
         assert result.exit_code == 0
 
     def test_path_irc_command(self, tmp_path, water_dissociation_ts_guess):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         ts = water_dissociation_ts_guess.copy()
         ts_path = tmp_path / "ts.xyz"
         ts.write(str(ts_path))
@@ -307,68 +316,6 @@ class TestCLIMockBackend:
 
         assert result.exit_code == 0
 
-    def test_path_cineb_command(self, tmp_path, water_molecule):
-        runner = CliRunner()
-        reactant = water_molecule.copy()
-        product = water_molecule.copy()
-        pos = product.get_positions()
-        pos[2] += (0.5, 0, 0)
-        product.set_positions(pos)
-
-        reactant_path = tmp_path / "r.xyz"
-        product_path = tmp_path / "p.xyz"
-        reactant.write(str(reactant_path))
-        product.write(str(product_path))
-
-        result = runner.invoke(
-            main,
-            [
-                "path",
-                "--strategy",
-                "cineb",
-                str(reactant_path),
-                str(product_path),
-                "--backend",
-                "mock",
-                "--npoints",
-                "5",
-                "--steps",
-                "2",
-            ],
-        )
-
-        assert result.exit_code == 0
-
-    def test_path_interpolate_command(self, tmp_path, water_molecule):
-        runner = CliRunner()
-        reactant = water_molecule.copy()
-        product = water_molecule.copy()
-        pos = product.get_positions()
-        pos[2] += (0.5, 0, 0)
-        product.set_positions(pos)
-
-        reactant_path = tmp_path / "r.xyz"
-        product_path = tmp_path / "p.xyz"
-        reactant.write(str(reactant_path))
-        product.write(str(product_path))
-
-        result = runner.invoke(
-            main,
-            [
-                "path",
-                "--strategy",
-                "interpolate",
-                str(reactant_path),
-                str(product_path),
-                "--backend",
-                "mock",
-                "--npoints",
-                "5",
-            ],
-        )
-
-        assert result.exit_code == 0
-
     @pytest.mark.parametrize(
         ("verbose_flags", "expected_level"),
         [
@@ -381,7 +328,7 @@ class TestCLIMockBackend:
     def test_verbose_options(
         self, tmp_path, water_molecule, clear_famex_logger, verbose_flags, expected_level
     ):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         xyz_path = tmp_path / "test.xyz"
         water_molecule.copy().write(str(xyz_path))
 
@@ -405,13 +352,13 @@ class TestCLIMockBackend:
         assert clear_famex_logger.level == expected_level
 
     def test_verbose_help_text(self):
-        help_result = CliRunner().invoke(main, ["minima", "--help"])
+        help_result = CLI_RUNNER.invoke(main, ["minima", "--help"])
         assert help_result.exit_code == 0
         assert "default quiet" in help_result.output
         assert "-v=quiet" not in help_result.output
 
     def test_constraints_option(self, tmp_path, water_molecule):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         xyz_path = tmp_path / "test.xyz"
         atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
@@ -435,7 +382,7 @@ class TestCLIMockBackend:
         assert result.exit_code == 0
 
     def test_optimizer_kwargs(self, tmp_path, water_molecule):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         xyz_path = tmp_path / "test.xyz"
         atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
@@ -459,7 +406,7 @@ class TestCLIMockBackend:
         assert result.exit_code == 0
 
     def test_missing_product_error(self, tmp_path, water_molecule):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         xyz_path = tmp_path / "test.xyz"
         atoms = water_molecule.copy()
         atoms.write(str(xyz_path))
@@ -480,7 +427,7 @@ class TestCLIMockBackend:
         assert "product" in result.output.lower() or "required" in result.output.lower()
 
     def test_invalid_strategy_error(self, tmp_path, water_molecule):
-        runner = CliRunner()
+        runner = CLI_RUNNER
         xyz_path = tmp_path / "test.xyz"
         atoms = water_molecule.copy()
         atoms.write(str(xyz_path))

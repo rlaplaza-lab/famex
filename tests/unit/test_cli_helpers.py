@@ -12,6 +12,7 @@ from click.testing import CliRunner
 from famex.cli.cache_commands import cache
 from famex.cli.cli import _run_optimization, main, path, ts
 from famex.cli.cli_helpers import (
+    _coerce_to_atoms,
     load_atoms_from_xyz,
     parse_kv_pairs,
     print_frequency_summary,
@@ -392,8 +393,6 @@ H  0.0  0.0  1.6
 
 class TestCoerceToAtoms:
     def test_coerce_atoms_tuple(self):
-        from famex.cli.cli_helpers import _coerce_to_atoms
-
         atoms1 = Atoms("H2")
         atoms2 = Atoms("O")
 
@@ -401,15 +400,11 @@ class TestCoerceToAtoms:
         assert result == atoms1  # First one
 
     def test_coerce_atoms_dict(self):
-        from famex.cli.cli_helpers import _coerce_to_atoms
-
         atoms = Atoms("H2O")
         result = _coerce_to_atoms({"optimized_atoms": atoms})
         assert result == atoms
 
     def test_coerce_atoms_path(self):
-        from famex.cli.cli_helpers import _coerce_to_atoms
-
         atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".xyz", delete=False) as f:
@@ -423,8 +418,6 @@ class TestCoerceToAtoms:
             Path(temp_file).unlink(missing_ok=True)
 
     def test_coerce_atoms_invalid(self):
-        from famex.cli.cli_helpers import _coerce_to_atoms
-
         with pytest.raises(TypeError):
             _coerce_to_atoms(123)
 

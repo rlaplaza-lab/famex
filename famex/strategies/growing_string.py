@@ -731,8 +731,8 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                         step_size = max(min_step_size, step_size * 0.5)
                         if step_size < min_step_size:
                             break
-                except Exception:
-                    # If calculation fails, revert step
+                except Exception as exc:
+                    logger.debug("GSM node step failed; reverting: %s", exc)
                     atoms.positions = old_positions
                     step_size = max(min_step_size, step_size * 0.5)
                     if step_size < min_step_size:

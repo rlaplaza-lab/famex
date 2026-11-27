@@ -69,6 +69,14 @@ def get_backend_calculator_with_hessian(backend_name: str, model_name: str | Non
     return calc
 
 
+@pytest.fixture
+def uma_water_with_hessian(water_molecule):
+    """Water molecule with UMA calculator that supports analytical Hessian."""
+    atoms = water_molecule.copy()
+    atoms.calc = get_backend_calculator_with_hessian("uma")
+    return atoms
+
+
 # ============================================================================
 # Backend Consistency Tests
 # ============================================================================
@@ -195,10 +203,9 @@ class TestUMAHessianMethods:
         ids=["vmap", "double_backward", "fairchem", "fairchem_loop"],
     )
     @pytest.mark.parametrize("symmetrize", [True, False], ids=["sym", "no_sym"])
-    def test_uma_hessian_method_consistency(self, water_molecule, method, symmetrize):
+    def test_uma_hessian_method_consistency(self, uma_water_with_hessian, method, symmetrize):
         """Test UMA's different hessian computation methods."""
-        atoms = water_molecule.copy()
-        atoms.calc = get_backend_calculator_with_hessian("uma")
+        atoms = uma_water_with_hessian
 
         hessian1 = atoms.calc.get_hessian(atoms, method=method, symmetrize=symmetrize)
         hessian2 = atoms.calc.get_hessian(atoms, method=method, symmetrize=symmetrize)
@@ -227,10 +234,9 @@ class TestUMAHessianMethods:
             err_msg=f"UMA {method} symmetrize={symmetrize} does not match FD",
         )
 
-    def test_uma_methods_consistency(self, water_molecule):
+    def test_uma_methods_consistency(self, uma_water_with_hessian):
         """Test that all UMA hessian methods give consistent results."""
-        atoms = water_molecule.copy()
-        atoms.calc = get_backend_calculator_with_hessian("uma")
+        atoms = uma_water_with_hessian
 
         hessian_vmap = atoms.calc.get_hessian(atoms, method="vmap", symmetrize=True)
         hessian_db = atoms.calc.get_hessian(atoms, method="double_backward", symmetrize=True)

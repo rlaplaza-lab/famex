@@ -56,9 +56,7 @@ class TestNEBForcesMatchASE:
 
     def test_climb_matches_ase(self):
         energies = [0.0, 0.4, 1.2, 0.5, 0.1]
-        images, _, forces = _make_band(energies=energies)
-        for atoms, e, f in zip(images, energies, forces, strict=True):
-            atoms.calc = SinglePointCalculator(atoms, energy=e, forces=f)
+        images, energies, forces = _make_band(energies=energies)
         k = 0.1
         ase_neb = NEB(
             images,
@@ -110,9 +108,7 @@ class TestNEBForcesMatchASE:
 
     def test_neb_optimizer_uses_energy_weighted_k_when_climb(self):
         energies = [0.0, 0.5, 1.5, 0.6, 0.1]
-        images, _, forces = _make_band(energies=energies)
-        for atoms, e, f in zip(images, energies, forces, strict=True):
-            atoms.calc = SinglePointCalculator(atoms, energy=e, forces=f)
+        images, energies, forces = _make_band(energies=energies)
         opt = NEBOptimizer(images, spring_constant=5.0, climb=True, fmax=1.0, steps=1)
         k = opt.get_spring_constants(energies)
         expected = energy_weighted_spring_constants(energies, k_u=5.0, k_l=0.5)

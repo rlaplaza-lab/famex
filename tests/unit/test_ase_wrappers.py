@@ -6,6 +6,7 @@ import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
+from ase.optimize import BFGS
 
 from famex.optimizers.ase_wrappers import (
     LoggingFile,
@@ -154,8 +155,6 @@ class TestVerboseOptimizerWrapper:
 
     def test_init_with_logfile_none(self, water_molecule, mock_backend):
         """Test initialization with logfile=None (lines 261-275)."""
-        from ase.optimize import BFGS
-
         water_molecule.calc = mock_backend
         wrapper = VerboseOptimizerWrapper(
             water_molecule,
@@ -168,8 +167,6 @@ class TestVerboseOptimizerWrapper:
 
     def test_init_with_logfile_dash(self, water_molecule, mock_backend):
         """Test initialization with logfile='-'."""
-        from ase.optimize import BFGS
-
         water_molecule.calc = mock_backend
         wrapper = VerboseOptimizerWrapper(
             water_molecule,
@@ -182,8 +179,6 @@ class TestVerboseOptimizerWrapper:
 
     def test_init_with_logfile_path(self, water_molecule, mock_backend, tmp_path):
         """Test initialization with logfile as file path."""
-        from ase.optimize import BFGS
-
         logfile_path = tmp_path / "test.log"
         water_molecule.calc = mock_backend
         wrapper = VerboseOptimizerWrapper(
@@ -196,8 +191,6 @@ class TestVerboseOptimizerWrapper:
 
     def test_init_with_verbose_0(self, water_molecule, mock_backend):
         """Test initialization with verbose=0 (quiet mode)."""
-        from ase.optimize import BFGS
-
         water_molecule.calc = mock_backend
         wrapper = VerboseOptimizerWrapper(
             water_molecule,
@@ -222,8 +215,6 @@ class TestVerboseOptimizerWrapper:
 
     def test_init_atoms_calc_none_but_hasattr(self, water_molecule):
         """Test initialization when atoms.calc is None but hasattr returns True (lines 299-305)."""
-        from ase.optimize import BFGS
-
         # Create atoms object where hasattr(atoms, "calc") is True but atoms.calc is None
         water_molecule.calc = None
         wrapper = VerboseOptimizerWrapper(
@@ -236,8 +227,6 @@ class TestVerboseOptimizerWrapper:
 
     def test_init_with_profiler(self, water_molecule, mock_backend):
         """Test initialization with profiler."""
-        from ase.optimize import BFGS
-
         from famex.utils.profiler import PerformanceProfiler
 
         water_molecule.calc = mock_backend
@@ -253,8 +242,6 @@ class TestVerboseOptimizerWrapper:
 
     def test_init_with_verbose_2(self, water_molecule, mock_backend):
         """Test initialization with verbose=2 (verbose mode)."""
-        from ase.optimize import BFGS
-
         water_molecule.calc = mock_backend
         with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
             mock_logger.info = MagicMock()  # Make it callable
@@ -269,8 +256,6 @@ class TestVerboseOptimizerWrapper:
 
     def test_run_with_verbose_2(self, water_molecule, mock_backend):
         """Test run() method with verbose=2."""
-        from ase.optimize import BFGS
-
         water_molecule.calc = mock_backend
         wrapper = VerboseOptimizerWrapper(
             water_molecule,
@@ -285,8 +270,6 @@ class TestVerboseOptimizerWrapper:
     def test_run_non_converged_with_scipy_reason(self, water_molecule, mock_backend):
         """Test run() method when optimization doesn't converge with scipy reason."""
         from unittest.mock import MagicMock
-
-        from ase.optimize import BFGS
 
         water_molecule.calc = mock_backend
         wrapper = VerboseOptimizerWrapper(

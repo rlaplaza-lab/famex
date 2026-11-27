@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import gc
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -185,132 +184,117 @@ class TestCalculatorCacheEdgeCases:
 
 
 class TestModelCacheEdgeCases:
-    def test_model_cache_metadata_corruption_handling(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache = ModelCache(cache_dir=tmpdir)
+    def test_model_cache_metadata_corruption_handling(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
 
-            # Corrupt metadata file
-            cache.metadata_file.write_text("not valid json{")
+        # Corrupt metadata file
+        cache.metadata_file.write_text("not valid json{")
 
-            # Creating new cache should handle corruption
-            new_cache = ModelCache(cache_dir=tmpdir)
-            assert isinstance(new_cache.metadata, dict)
-            assert len(new_cache.metadata) == 0
+        # Creating new cache should handle corruption
+        new_cache = ModelCache(cache_dir=str(tmp_path))
+        assert isinstance(new_cache.metadata, dict)
+        assert len(new_cache.metadata) == 0
 
-    def test_model_cache_missing_file_cleanup(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache = ModelCache(cache_dir=tmpdir)
+    def test_model_cache_missing_file_cleanup(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
 
-            # Add a model
-            model_data = b"test data"
-            cached_path = cache.cache_model("test_model", "http://example.com/model", model_data)
+        # Add a model
+        model_data = b"test data"
+        cached_path = cache.cache_model("test_model", "http://example.com/model", model_data)
 
-            assert cached_path.exists()
-            assert cache.get_cached_model("test_model", "http://example.com/model") is not None
+        assert cached_path.exists()
+        assert cache.get_cached_model("test_model", "http://example.com/model") is not None
 
-            # Delete the file manually
-            cached_path.unlink()
+        # Delete the file manually
+        cached_path.unlink()
 
-            # Getting cached model should clean up metadata
-            result = cache.get_cached_model("test_model", "http://example.com/model")
-            assert result is None
-            assert "test_model" not in str(cache.metadata)
+        # Getting cached model should clean up metadata
+        result = cache.get_cached_model("test_model", "http://example.com/model")
+        assert result is None
+        assert "test_model" not in str(cache.metadata)
 
-    def test_model_cache_checksum_mismatch(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache = ModelCache(cache_dir=tmpdir)
+    def test_model_cache_checksum_mismatch(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
 
-            model_data = b"original data"
-            cached_path = cache.cache_model("test_model", "http://example.com/model", model_data)
+        model_data = b"original data"
+        cached_path = cache.cache_model("test_model", "http://example.com/model", model_data)
 
-            # Corrupt the file
-            cached_path.write_bytes(b"corrupted data")
+        # Corrupt the file
+        cached_path.write_bytes(b"corrupted data")
 
-            # Should detect checksum mismatch and return None
-            result = cache.get_cached_model("test_model", "http://example.com/model")
-            assert result is None
+        # Should detect checksum mismatch and return None
+        result = cache.get_cached_model("test_model", "http://example.com/model")
+        assert result is None
 
-            # File should be deleted
-            assert not cached_path.exists()
+        # File should be deleted
+        assert not cached_path.exists()
 
-    def test_model_cache_multiple_models_same_name(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache = ModelCache(cache_dir=tmpdir)
+    def test_model_cache_multiple_models_same_name(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
 
-            model1_data = b"model1 data"
-            model2_data = b"model2 data"
+        model1_data = b"model1 data"
+        model2_data = b"model2 data"
 
-            path1 = cache.cache_model("test_model", "http://example.com/model1", model1_data)
-            path2 = cache.cache_model("test_model", "http://example.com/model2", model2_data)
+        path1 = cache.cache_model("test_model", "http://example.com/model1", model1_data)
+        path2 = cache.cache_model("test_model", "http://example.com/model2", model2_data)
 
-            # Should create separate cache entries
-            assert path1 != path2
+        # Should create separate cache entries
+        assert path1 != path2
 
-            retrieved1 = cache.get_cached_model("test_model", "http://example.com/model1")
-            retrieved2 = cache.get_cached_model("test_model", "http://example.com/model2")
+        retrieved1 = cache.get_cached_model("test_model", "http://example.com/model1")
+        retrieved2 = cache.get_cached_model("test_model", "http://example.com/model2")
 
-            assert retrieved1 == path1
-            assert retrieved2 == path2
+        assert retrieved1 == path1
+        assert retrieved2 == path2
 
-    def test_model_cache_filename_sanitization(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache = ModelCache(cache_dir=tmpdir)
+    def test_model_cache_filename_sanitization(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
 
-            model_data = b"test"
-            # Model name with special characters
-            cached_path = cache.cache_model(
-                "model/name:with:chars", "http://example.com/model", model_data
-            )
+        model_data = b"test"
+        # Model name with special characters
+        cached_path = cache.cache_model(
+            "model/name:with:chars", "http://example.com/model", model_data
+        )
 
-            # Filename should not contain special characters
-            assert "/" not in cached_path.name
-            assert ":" not in cached_path.name
-            assert cached_path.exists()
+        # Filename should not contain special characters
+        assert "/" not in cached_path.name
+        assert ":" not in cached_path.name
+        assert cached_path.exists()
 
-    def test_model_cache_get_info_empty_cache(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache = ModelCache(cache_dir=tmpdir)
+    def test_model_cache_get_info_empty_cache(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
 
-            info = cache.get_cache_info()
+        info = cache.get_cache_info()
 
-            assert info["model_count"] == 0
-            assert info["total_size_mb"] == 0.0
-            assert isinstance(info["models"], list)
-            assert len(info["models"]) == 0
+        assert info["model_count"] == 0
+        assert info["total_size_mb"] == 0.0
+        assert isinstance(info["models"], list)
+        assert len(info["models"]) == 0
 
-    def test_model_cache_clear_nonexistent_model(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache = ModelCache(cache_dir=tmpdir)
+    def test_model_cache_clear_nonexistent_model(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
 
-            # Should not raise error
-            cache.clear_cache(model_name="nonexistent")
-            assert len(cache.metadata) == 0
+        # Should not raise error
+        cache.clear_cache(model_name="nonexistent")
+        assert len(cache.metadata) == 0
 
-    def test_model_cache_metadata_persistence(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache1 = ModelCache(cache_dir=tmpdir)
-            model_data = b"test data"
-            cache1.cache_model("test_model", "http://example.com/model", model_data)
+    def test_model_cache_metadata_persistence(self, tmp_path):
+        cache1 = ModelCache(cache_dir=str(tmp_path))
+        model_data = b"test data"
+        cache1.cache_model("test_model", "http://example.com/model", model_data)
 
-            # Create new cache instance
-            cache2 = ModelCache(cache_dir=tmpdir)
+        # Create new cache instance
+        cache2 = ModelCache(cache_dir=str(tmp_path))
 
-            # Should see the cached model
-            result = cache2.get_cached_model("test_model", "http://example.com/model")
-            assert result is not None
+        # Should see the cached model
+        result = cache2.get_cached_model("test_model", "http://example.com/model")
+        assert result is not None
 
-    def test_model_cache_handles_permission_errors(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache = ModelCache(cache_dir=tmpdir)
-
-            # Try to save metadata to read-only location (if possible)
-            # This test mainly ensures error handling exists
-            # Actual permission errors depend on system configuration
-            import contextlib
-
-            with contextlib.suppress(OSError, PermissionError):
-                # This should complete or raise a handled error
-                cache._save_metadata()
+    def test_model_cache_handles_permission_errors(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
+        cache._save_metadata()
+        assert cache.metadata_file.is_file()
+        assert cache.metadata == {}
 
 
 class TestUnifiedCacheEdgeCases:
@@ -327,20 +311,19 @@ class TestUnifiedCacheEdgeCases:
         assert info["calculator_cache"]["size"] >= 0
         assert info["calculator_cache"]["max_size"] > 0
 
-    def test_unified_cache_clear_clears_both(self):
+    def test_unified_cache_clear_clears_both(self, tmp_path):
         cache = UnifiedCache()
         mock_calc = MagicMock()
 
         cache.calculator_cache.put(mock_calc, "test", "model", "cpu")
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache.model_cache.cache_dir = Path(tmpdir)
-            cache.model_cache.cache_model("model1", "http://example.com/m1", b"data1")
+        cache.model_cache.cache_dir = Path(tmp_path)
+        cache.model_cache.cache_model("model1", "http://example.com/m1", b"data1")
 
-            cache.clear_all()
+        cache.clear_all()
 
-            assert cache.calculator_cache.get("test", "model", "cpu") is None
-            assert cache.model_cache.get_cached_model("model1", "http://example.com/m1") is None
+        assert cache.calculator_cache.get("test", "model", "cpu") is None
+        assert cache.model_cache.get_cached_model("model1", "http://example.com/m1") is None
 
 
 class TestGlobalCacheFunctions:
@@ -377,20 +360,24 @@ class TestGlobalCacheFunctions:
     def test_clear_all_caches_function(self):
         # Get unified cache
         unified = get_unified_cache()
+        model_cache = get_model_cache()
 
         # Add something to cache
         mock_calc = MagicMock()
         unified.calculator_cache.put(mock_calc, "test", "model", "cpu")
+        model_cache.cache_model("clear_test", "http://example.com/m", b"data")
 
         # Verify it's there
         assert unified.calculator_cache.get("test", "model", "cpu") == mock_calc
+        assert model_cache.get_cached_model("clear_test", "http://example.com/m") is not None
 
         # Clear all
         clear_all_caches()
 
-        # Should be cleared in the unified cache
+        # Should be cleared in the unified cache and global model cache
         retrieved = unified.calculator_cache.get("test", "model", "cpu")
         assert retrieved is None
+        assert model_cache.get_cached_model("clear_test", "http://example.com/m") is None
 
     def test_clear_all_caches_clears_registry_singleton(self):
         mock_calc = MagicMock()
@@ -399,51 +386,48 @@ class TestGlobalCacheFunctions:
         clear_all_caches()
         assert get_cached_calculator("registry_backend", "model", "cpu") is None
 
-    def test_download_and_cache_model_with_existing_cache(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache = ModelCache(cache_dir=tmpdir)
-            model_data = b"cached model data"
-            cache.cache_model("test_model", "http://example.com/model", model_data)
+    def test_download_and_cache_model_with_existing_cache(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
+        model_data = b"cached model data"
+        cache.cache_model("test_model", "http://example.com/model", model_data)
 
-            with patch("famex.backends.cache._get_model_cache", return_value=cache):
-                # Should return cached model without downloading
-                result = download_and_cache_model("test_model", "http://example.com/model")
+        with patch("famex.backends.cache._get_model_cache", return_value=cache):
+            # Should return cached model without downloading
+            result = download_and_cache_model("test_model", "http://example.com/model")
 
-                assert result.exists()
-                assert result.read_bytes() == model_data
+            assert result.exists()
+            assert result.read_bytes() == model_data
 
-    def test_download_and_cache_model_downloads_when_not_cached(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache = ModelCache(cache_dir=tmpdir)
+    def test_download_and_cache_model_downloads_when_not_cached(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
 
-            model_data = b"downloaded model data"
+        model_data = b"downloaded model data"
 
-            with (
-                patch("famex.backends.cache._get_model_cache", return_value=cache),
-                patch("requests.get") as mock_get,
-            ):
-                mock_response = MagicMock()
-                mock_response.content = model_data
-                mock_response.raise_for_status = MagicMock()
-                mock_get.return_value = mock_response
+        with (
+            patch("famex.backends.cache._get_model_cache", return_value=cache),
+            patch("requests.get") as mock_get,
+        ):
+            mock_response = MagicMock()
+            mock_response.content = model_data
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
 
-                result = download_and_cache_model("test_model", "http://example.com/model")
+            result = download_and_cache_model("test_model", "http://example.com/model")
 
-                assert result.exists()
-                assert result.read_bytes() == model_data
-                mock_get.assert_called_once()
+            assert result.exists()
+            assert result.read_bytes() == model_data
+            mock_get.assert_called_once()
 
-    def test_download_and_cache_model_handles_download_error(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cache = ModelCache(cache_dir=tmpdir)
+    def test_download_and_cache_model_handles_download_error(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
 
-            with (
-                patch("famex.backends.cache._get_model_cache", return_value=cache),
-                patch("requests.get") as mock_get,
-            ):
-                import requests
+        with (
+            patch("famex.backends.cache._get_model_cache", return_value=cache),
+            patch("requests.get") as mock_get,
+        ):
+            import requests
 
-                mock_get.side_effect = requests.RequestException("Download failed")
+            mock_get.side_effect = requests.RequestException("Download failed")
 
-                with pytest.raises(RuntimeError, match="Failed to download model"):
-                    download_and_cache_model("test_model", "http://example.com/model")
+            with pytest.raises(RuntimeError, match="Failed to download model"):
+                download_and_cache_model("test_model", "http://example.com/model")

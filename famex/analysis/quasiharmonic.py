@@ -15,6 +15,7 @@ from famex.analysis.physics_constants import (
     AVOGADRO_CONSTANT,
     BOLTZMANN_CONSTANT,
     GAS_CONSTANT,
+    HC_OVER_KB,
     J_PER_MOL_TO_EV,
     PLANCK_CONSTANT,
     SPEED_OF_LIGHT,
@@ -30,7 +31,9 @@ __all__ = [
     "calculate_free_rotor_entropy",
     "calculate_qRRHO_entropy",
     "calculate_qRRHO_energy",
+    "harmonic_heat_capacity_factor",
     "harmonic_zero_point_energy_ev",
+    "vibrational_thermal_factor",
 ]
 
 # Above this reduced frequency, exp(x) overflows and the thermal terms vanish.
@@ -78,9 +81,7 @@ def _scale_frequencies(frequencies: np.ndarray, freq_scale_factor: float = 1.0) 
 
 def vibrational_thermal_factor(frequencies_cm1: np.ndarray, temperature: float) -> np.ndarray:
     """Return x = hν/kT for frequencies in cm^-1."""
-    return (PLANCK_CONSTANT * np.asarray(frequencies_cm1) * SPEED_OF_LIGHT) / (
-        BOLTZMANN_CONSTANT * temperature
-    )
+    return HC_OVER_KB * np.asarray(frequencies_cm1) / temperature
 
 
 def _rrho_entropy_from_x(x: np.ndarray) -> np.ndarray:

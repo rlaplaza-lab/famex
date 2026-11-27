@@ -287,9 +287,7 @@ def get_interpolation_strategy(method: str) -> InterpolationStrategy:
     if method_lower not in INTERPOLATION_REGISTRY:
         available = ", ".join(INTERPOLATION_REGISTRY.keys())
         msg = f"Unknown interpolation method: '{method}'. Available methods: {available}"
-        raise ValueError(
-            msg,
-        )
+        raise ValueError(msg)
 
     # All classes in registry are concrete implementations
     strategy_class = INTERPOLATION_REGISTRY[method_lower]

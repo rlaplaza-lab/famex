@@ -78,6 +78,12 @@ POINT_GROUP_SYMMETRY_NUMBERS = {
 }
 
 
+def _warn_assumption(message: str, exc: BaseException | None = None) -> None:
+    if exc is not None:
+        message = f"{message} ({exc})"
+    warnings.warn(message, UserWarning, stacklevel=3)
+
+
 def get_point_group_symmetry_number(point_group: str) -> int:
     """Get symmetry number for a given point group."""
     point_group = point_group.strip()
@@ -106,11 +112,7 @@ def detect_symmetry_from_atoms(atoms: Atoms) -> tuple[int, str]:
             return 1, "C1"
         return symmetry_number, point_group
     except (ValueError, TypeError, RuntimeError, AttributeError) as exc:
-        warnings.warn(
-            f"molsymm symmetry detection failed ({exc}); assuming C1 symmetry.",
-            UserWarning,
-            stacklevel=2,
-        )
+        _warn_assumption("molsymm symmetry detection failed; assuming C1 symmetry", exc)
         return 1, "C1"
 
 
@@ -136,13 +138,12 @@ class SymmetryHandler:
             try:
                 self._symmetry_number = get_point_group_symmetry_number(point_group)
                 self._point_group = point_group
-            except ValueError as e:
+            except ValueError as exc:
                 if warn_on_assumptions:
-                    warnings.warn(
-                        f"Could not determine symmetry number from point group '{point_group}': {e}. "
-                        "Using C1 symmetry (symmetry_number=1).",
-                        UserWarning,
-                        stacklevel=2,
+                    _warn_assumption(
+                        f"Could not determine symmetry number from point group "
+                        f"'{point_group}'. Using C1 symmetry (symmetry_number=1).",
+                        exc,
                     )
                 self._symmetry_number = 1
                 self._point_group = "C1"
@@ -150,11 +151,9 @@ class SymmetryHandler:
             self._symmetry_number, self._point_group = detect_symmetry_from_atoms(atoms)
         else:
             if warn_on_assumptions:
-                warnings.warn(
+                _warn_assumption(
                     "No symmetry number, point group, or atoms provided. "
-                    "Assuming C1 symmetry (symmetry_number=1).",
-                    UserWarning,
-                    stacklevel=2,
+                    "Assuming C1 symmetry (symmetry_number=1)."
                 )
             self._symmetry_number = 1
             self._point_group = "C1"

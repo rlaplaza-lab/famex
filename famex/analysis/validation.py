@@ -13,6 +13,9 @@ from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
 
+HIGH_NOISE_THRESHOLD = 0.01  # eV/Å²
+HIGH_FORCE_NOISE_THRESHOLD = 1e-3  # eV/Å
+
 __all__ = ["validate_hessian"]
 
 
@@ -159,9 +162,6 @@ def validate_hessian(
                         condition_number,
                         max_condition_number,
                     )
-
-    HIGH_NOISE_THRESHOLD = 0.01  # eV/Å²
-    HIGH_FORCE_NOISE_THRESHOLD = 1e-3  # eV/Å
 
     if estimated_noise is not None and estimated_noise > HIGH_NOISE_THRESHOLD and warn_on_issues:
         logger.warning(

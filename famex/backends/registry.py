@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
 from famex.backends.availability import get_available_backends, is_backend_available
@@ -26,6 +27,14 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 logger = get_famex_logger(__name__)
+
+_cache_module: ModuleType | None
+try:
+    import famex.backends.cache as _cache_mod
+
+    _cache_module = _cache_mod
+except ImportError:
+    _cache_module = None
 
 BACKEND_CLASSES: dict[str, tuple[str, str]] = {
     BACKEND_UMA: ("famex.potentials.uma_potential", "UMAPotential"),
@@ -249,21 +258,19 @@ def create_calculator(
             backend,
         )
 
-    if use_cache and backend_lower != BACKEND_SO3LR:
+    if use_cache and backend_lower != BACKEND_SO3LR and _cache_module is not None:
         try:
-            from famex.backends.cache import get_cached_calculator
-
-            cached_calc = get_cached_calculator(
+            cached_calc = _cache_module.get_cached_calculator(
                 backend=backend,
                 model_name=model_name,
                 model_path=model_path,
                 device=device,
                 **factory_kwargs,
             )
-            if cached_calc is not None:
-                return cached_calc
         except ImportError:
-            pass
+            cached_calc = None
+        if cached_calc is not None:
+            return cached_calc
 
     calculator = calculator_registry.create_calculator(
         backend=backend,
@@ -274,11 +281,9 @@ def create_calculator(
         **factory_kwargs,
     )
 
-    if use_cache and backend_lower != BACKEND_SO3LR:
+    if use_cache and backend_lower != BACKEND_SO3LR and _cache_module is not None:
         try:
-            from famex.backends.cache import cache_calculator
-
-            cache_calculator(
+            _cache_module.cache_calculator(
                 calculator=calculator,
                 backend=backend,
                 model_name=model_name,

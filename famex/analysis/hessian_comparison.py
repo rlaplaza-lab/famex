@@ -16,7 +16,7 @@ from famex.analysis.hessian import CalculatorProtocol
 from famex.analysis.utils import has_calculator_property, validate_indices
 from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
 from famex.utils.hessian_ops import symmetrize_hessian
-from famex.utils.logging import get_famex_logger
+from famex.utils.logging import MARK_OK, SEPARATOR_LINE, get_famex_logger
 
 logger = get_famex_logger(__name__)
 
@@ -106,13 +106,13 @@ def compare_hessian_methods(
             metrics[method] = metric
 
             if verbose >= 1:
-                logger.info("  ✓ Completed in %.3f s", elapsed_time)
+                logger.info("  %s Completed in %.3f s", MARK_OK, elapsed_time)
                 logger.info("  RMS value: %.6e eV/Å²", metric["rms_value"])
                 logger.info("  Max asymmetry: %.6e eV/Å²", metric["max_asymmetry"])
 
         except Exception as e:
             if verbose >= 1:
-                logger.error("  Failed: %s", e)
+                logger.warning("  Failed: %s", e)
             continue
 
     # Generate recommendations
@@ -138,6 +138,7 @@ def _compute_hessian_method(
 ) -> np.ndarray:
     """Compute Hessian using specified method."""
     from famex.analysis.frequency import FrequencyAnalysis
+    from famex.analysis.hessian import HessianCalculator
 
     if method == "analytical":
         # Try analytical method
@@ -148,8 +149,6 @@ def _compute_hessian_method(
 
     elif method == "force_fd":
         # Standard force-based FD
-        from famex.analysis.hessian import HessianCalculator
-
         hessian_calc = HessianCalculator(
             atoms, calculator, delta=delta, method="5point", indices=indices, verbose=0
         )
@@ -166,8 +165,6 @@ def _compute_hessian_method(
 
     elif method == "adaptive":
         # Adaptive FD
-        from famex.analysis.hessian import HessianCalculator
-
         hessian_calc = HessianCalculator(
             atoms,
             calculator,
@@ -356,10 +353,9 @@ class HessianComparisonReport:
 
     def print_summary(self) -> None:
         """Print formatted summary of comparison."""
-        banner = "─" * 40
-        logger.info("\n%s", banner)
+        logger.info("\n%s", SEPARATOR_LINE)
         logger.info("HESSIAN METHOD COMPARISON SUMMARY")
-        logger.info("%s", banner)
+        logger.info("%s", SEPARATOR_LINE)
 
         for method in self.methods:
             logger.info("\n%s:", method.upper())
@@ -373,13 +369,13 @@ class HessianComparisonReport:
                 logger.warning("  Contains Inf values")
 
         if len(self.recommendations) > 0:
-            logger.info("\n%s", banner)
+            logger.info("\n%s", SEPARATOR_LINE)
             logger.info("RECOMMENDATIONS:")
-            logger.info("%s", banner)
+            logger.info("%s", SEPARATOR_LINE)
             for i, method in enumerate(self.recommendations, 1):
                 logger.info("  %s. %s", i, method)
 
-        logger.info("\n%s", banner)
+        logger.info("\n%s", SEPARATOR_LINE)
 
     def compare_frequencies(self, atoms: Atoms | None = None) -> None:
         """Compare vibrational frequencies from different Hessians.
@@ -413,10 +409,9 @@ class HessianComparisonReport:
             logger.warning("Need at least 2 methods to compare frequencies")
             return
 
-        banner = "─" * 40
-        logger.info("\n%s", banner)
+        logger.info("\n%s", SEPARATOR_LINE)
         logger.info("FREQUENCY COMPARISON")
-        logger.info("%s", banner)
+        logger.info("%s", SEPARATOR_LINE)
 
         # Use first method as reference
         ref_method = self.methods[0]

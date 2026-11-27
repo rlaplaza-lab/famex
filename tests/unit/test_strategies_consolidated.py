@@ -248,16 +248,7 @@ class TestMultiStructureStrategies:
         explorer = Explorer([reactant, product], backend="mock")
         strategy = strategy_class(explorer)
 
-        if strategy_class == MultiStructureTSGuessStrategy:
-            with pytest.raises(ValueError, match="not suitable for transition state"):
-                strategy.run(
-                    [reactant, product],
-                    npoints=5,
-                    method=method,
-                    steps=QUICK_STEPS,
-                    fmax=LOOSE_FMAX,
-                )
-        elif strategy_class == PathInterpolateStrategy:
+        if strategy_class == PathInterpolateStrategy:
             # PathInterpolateStrategy doesn't need steps/fmax
             result = strategy.run([reactant, product], npoints=5, method=method)
             assert result["optimized_atoms"] is not None

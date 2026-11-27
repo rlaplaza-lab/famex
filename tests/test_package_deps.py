@@ -12,7 +12,7 @@ class TestPackageDependencies:
         import sella  # noqa: F401
 
     def test_famex_package_importable(self):
-        import famex  # noqa: F401
+        import famex
 
         # Verify basic package attributes exist
         assert hasattr(famex, "__version__")

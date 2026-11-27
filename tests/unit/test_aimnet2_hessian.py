@@ -15,6 +15,8 @@ from typing import Any
 
 import numpy as np
 import pytest
+from ase import Atoms as ASE_Atoms
+from ase.vibrations import VibrationsData
 
 # ---------------------------------------------------------------------------
 # Torch-free unit test of the double-backward Hessian assembly logic
@@ -206,9 +208,6 @@ class TestAIMNet2AnalyticalHessian:
 
     def test_h2_frequencies_sensible(self) -> None:
         """H2 Hessian should produce a stretching mode near 4270 cm-1."""
-        from ase import Atoms as ASE_Atoms
-        from ase.vibrations import VibrationsData
-
         pos = np.array([[0.0, 0.0, -0.3707], [0.0, 0.0, 0.3707]])
         numbers = np.array([1, 1])
         H = self._analytical_hessian(pos, numbers)
@@ -224,9 +223,6 @@ class TestAIMNet2AnalyticalHessian:
 
     def test_water_hessian_produces_physical_frequencies(self) -> None:
         """Water Hessian should produce at least one stretching mode above 3000 cm-1."""
-        from ase import Atoms as ASE_Atoms
-        from ase.vibrations import VibrationsData
-
         pos, numbers = _water_equilibrium()
         H = self._analytical_hessian(pos, numbers)
         atoms = ASE_Atoms("H2O", positions=pos)
@@ -255,7 +251,6 @@ class TestAIMNet2AnalyticalHessian:
         )
 
         pos, numbers = _water_equilibrium()
-        from ase import Atoms as ASE_Atoms
 
         atoms = ASE_Atoms("H2O", positions=pos)
         atoms.calc = pot
@@ -267,8 +262,6 @@ class TestAIMNet2AnalyticalHessian:
 
     def test_get_hessian_on_potential(self) -> None:
         """AIMNet2Potential.get_hessian should return a valid Hessian."""
-        from ase import Atoms as ASE_Atoms
-
         from famex.potentials.aimnet2_potential import AIMNet2Potential
 
         pot = AIMNet2Potential(device="cpu")
@@ -287,8 +280,6 @@ class TestAIMNet2AnalyticalHessian:
 
     def test_frequency_analysis_auto_selects_analytical(self) -> None:
         """FrequencyAnalysis with method='auto' should use analytical Hessian path."""
-        from ase import Atoms as ASE_Atoms
-
         from famex.analysis.frequency import FrequencyAnalysis
         from famex.potentials.aimnet2_potential import AIMNet2Potential
 
@@ -310,8 +301,6 @@ class TestAIMNet2AnalyticalHessian:
 
     def test_charge_mult_handling(self) -> None:
         """Hessian should be computable with non-default charge/multiplicity."""
-        from ase import Atoms as ASE_Atoms
-
         from famex.potentials.aimnet2_potential import AIMNet2Potential
 
         # Test H2+ with charge=+1, mult=2 (doublet)

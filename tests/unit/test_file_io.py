@@ -14,6 +14,24 @@ from famex.core.file_io import (
     write_trajectory_safely,
 )
 
+_WRITE_IO_EXCEPTION_CASES = [
+    (OSError, "Permission denied"),
+    (ValueError, "Invalid data"),
+    (TypeError, "Type error"),
+]
+
+_WRITE_CLEAN_FAILURE_CASES = [
+    (ValueError, "Clean attempt also failed"),
+    (TypeError, "Clean attempt also failed"),
+    (KeyError, "Clean attempt also failed"),
+]
+
+_WRITE_DIRECT_FAILURE_CASES = [
+    (ValueError, "Unsupported format"),
+    (TypeError, "Type error"),
+    (KeyError, "Missing key"),
+]
+
 
 class TestValidateOutputPath:
     """Test validate_output_path function."""
@@ -81,14 +99,7 @@ class TestWriteAtomsSafely:
         write_atoms_safely(water_molecule, output_file)
         assert output_file.exists()
 
-    @pytest.mark.parametrize(
-        "exception_class,exception_msg",
-        [
-            (OSError, "Permission denied"),
-            (ValueError, "Invalid data"),
-            (TypeError, "Type error"),
-        ],
-    )
+    @pytest.mark.parametrize("exception_class,exception_msg", _WRITE_IO_EXCEPTION_CASES)
     def test_write_xyz_errors(self, water_molecule, tmp_path, exception_class, exception_msg):
         """Test XYZ write with various error handling."""
         output_file = tmp_path / "test.xyz"
@@ -132,14 +143,7 @@ class TestWriteAtomsSafely:
         ):
             write_atoms_safely(water_molecule, output_file, format="cif")
 
-    @pytest.mark.parametrize(
-        "exception_class,exception_msg",
-        [
-            (ValueError, "Clean attempt also failed"),
-            (TypeError, "Clean attempt also failed"),
-            (KeyError, "Clean attempt also failed"),
-        ],
-    )
+    @pytest.mark.parametrize("exception_class,exception_msg", _WRITE_CLEAN_FAILURE_CASES)
     def test_write_ase_errors_with_clean(
         self, water_molecule, tmp_path, exception_class, exception_msg
     ):
@@ -160,14 +164,7 @@ class TestWriteAtomsSafely:
         ):
             write_atoms_safely(water_molecule, output_file, format="cif")
 
-    @pytest.mark.parametrize(
-        "exception_class,exception_msg",
-        [
-            (ValueError, "Unsupported format"),
-            (TypeError, "Type error"),
-            (KeyError, "Missing key"),
-        ],
-    )
+    @pytest.mark.parametrize("exception_class,exception_msg", _WRITE_DIRECT_FAILURE_CASES)
     def test_write_ase_errors_direct(
         self, water_molecule, tmp_path, exception_class, exception_msg
     ):
@@ -190,14 +187,7 @@ class TestWriteTrajectorySafely:
         write_trajectory_safely(trajectory, output_file)
         assert output_file.exists()
 
-    @pytest.mark.parametrize(
-        "exception_class,exception_msg",
-        [
-            (OSError, "Permission denied"),
-            (ValueError, "Invalid data"),
-            (TypeError, "Type error"),
-        ],
-    )
+    @pytest.mark.parametrize("exception_class,exception_msg", _WRITE_IO_EXCEPTION_CASES)
     def test_write_trajectory_xyz_errors(
         self, water_molecule, tmp_path, exception_class, exception_msg
     ):
@@ -223,14 +213,7 @@ class TestWriteTrajectorySafely:
         ):
             write_trajectory_safely(trajectory, output_file, format="cif")
 
-    @pytest.mark.parametrize(
-        "exception_class,exception_msg",
-        [
-            (ValueError, "Clean attempt also failed"),
-            (TypeError, "Clean attempt also failed"),
-            (KeyError, "Clean attempt also failed"),
-        ],
-    )
+    @pytest.mark.parametrize("exception_class,exception_msg", _WRITE_CLEAN_FAILURE_CASES)
     def test_write_trajectory_ase_errors_with_clean(
         self, water_molecule, tmp_path, exception_class, exception_msg
     ):
@@ -252,14 +235,7 @@ class TestWriteTrajectorySafely:
         ):
             write_trajectory_safely(trajectory, output_file, format="cif")
 
-    @pytest.mark.parametrize(
-        "exception_class,exception_msg",
-        [
-            (ValueError, "Unsupported format"),
-            (TypeError, "Type error"),
-            (KeyError, "Missing key"),
-        ],
-    )
+    @pytest.mark.parametrize("exception_class,exception_msg", _WRITE_DIRECT_FAILURE_CASES)
     def test_write_trajectory_ase_errors_direct(
         self, water_molecule, tmp_path, exception_class, exception_msg
     ):

@@ -357,7 +357,6 @@ class HarmonicBondConstraint:
     ) -> None:
         if len(atom_indices) != 2:
             msg = "Bond constraint requires exactly 2 atoms"
-            logger.error("%s, got %d atoms", msg, len(atom_indices))
             raise ValueError(msg)
 
         self.atom_indices = atom_indices
@@ -402,7 +401,6 @@ class HarmonicAngleConstraint:
     ) -> None:
         if len(atom_indices) != 3:
             msg = "Angle constraint requires exactly 3 atoms"
-            logger.error("%s, got %d atoms", msg, len(atom_indices))
             raise ValueError(msg)
 
         self.atom_indices = atom_indices

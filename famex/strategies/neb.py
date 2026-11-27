@@ -10,6 +10,7 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
+from famex.strategies.helpers import preflight_band_path
 from famex.strategies.neb_optimizer import NEBOptimizer
 from famex.utils.logging import get_famex_logger
 
@@ -88,26 +89,7 @@ class MultiStructureNEBStrategy(BaseStrategy):
         path_mgr = PathManager(atoms_list)
         path = path_mgr.interpolate(npoints=npoints, method=method)
 
-        if len(path) < 3:
-            logger.error(
-                "%s requires at least 3 images (npoints >= 3), got %d",
-                method_name,
-                len(path),
-            )
-            msg = f"{method_name} requires at least 3 images (npoints >= 3)"
-            raise ValueError(msg)
-
-        if self.explorer is not None:
-            PathManager.attach_calculators(self.explorer, path)
-            if any(getattr(img, "calc", None) is None for img in path):
-                logger.error(
-                    "Failed to attach calculators to %s images. Check backend/model availability.",
-                    method_name,
-                )
-                raise RuntimeError(
-                    f"Failed to attach calculators to {method_name} images. "
-                    "Check backend/model availability.",
-                )
+        preflight_band_path(path, self.explorer, method_name=method_name)
 
         neb_opt = NEBOptimizer(
             images=path,
@@ -122,12 +104,10 @@ class MultiStructureNEBStrategy(BaseStrategy):
         iteration_frames = list(neb_opt.iteration_frames)
 
         if optimized_path:
-            input_atoms = list(atoms_list)
-
             filtered_path, _removed_indices, warnings_list = (
                 PathManager.filter_redundant_structures(
                     optimized_path,
-                    input_structures=input_atoms,
+                    input_structures=atoms_list,
                     rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
                     energy_threshold=kwargs.get("energy_threshold", 0.001),
                     strategy_name=self.metadata.name,

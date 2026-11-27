@@ -28,11 +28,8 @@ class TestNoiseEstimation:
         assert isinstance(noise, float)
         assert noise > 0
 
-    def test_estimate_force_noise(self):
-        atoms = Atoms(
-            symbols="HH",
-            positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
-        )
+    def test_estimate_force_noise(self, harmonic_atoms):
+        atoms = harmonic_atoms
 
         # Test with noiseless calculator
         calc_noiseless = HarmonicCalculator()
@@ -171,7 +168,7 @@ class TestEnergyBasedHessian:
 
 
 class TestAutoMethodPrefersAnalytical:
-    def test_auto_prefers_analytical_over_batch(self):
+    def test_auto_prefers_analytical_over_batch(self, harmonic_atoms):
         class BatchAndAnalyticalCalculator(HarmonicCalculator):
             implemented_properties = ["energy", "forces", "hessian"]
             supports_batch_evaluation = True
@@ -182,10 +179,7 @@ class TestAutoMethodPrefersAnalytical:
                 raise AssertionError("batch path should not be used when analytical Hessian exists")
 
         calc = BatchAndAnalyticalCalculator()
-        atoms = Atoms(
-            symbols="HH",
-            positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
-        )
+        atoms = harmonic_atoms.copy()
         atoms.calc = calc
         calc.atoms = atoms
 
@@ -196,12 +190,9 @@ class TestAutoMethodPrefersAnalytical:
 
 
 class TestAutoselectMethod:
-    def test_autoselect_analytical(self):
+    def test_autoselect_analytical(self, harmonic_atoms):
         calc = HarmonicCalculator()
-        atoms = Atoms(
-            symbols="HH",
-            positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
-        )
+        atoms = harmonic_atoms.copy()
         atoms.calc = calc
         calc.atoms = atoms  # Set atoms for when get_hessian is called without argument
 
@@ -211,12 +202,9 @@ class TestAutoselectMethod:
         assert hessian is not None
         assert hessian.shape == (6, 6)
 
-    def test_autoselect_adaptive_fd(self):
+    def test_autoselect_adaptive_fd(self, harmonic_atoms):
         calc = NoisyCalculator(noise_level=1e-6)  # Low noise
-        atoms = Atoms(
-            symbols="HH",
-            positions=[[0.5, 0.0, 0.0], [-0.5, 0.0, 0.0]],
-        )
+        atoms = harmonic_atoms.copy()
         atoms.calc = calc
         calc.atoms = atoms
 

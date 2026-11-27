@@ -15,6 +15,7 @@ from famex.backends.dependencies import deps
 from famex.potentials.base_potential import BasePotential
 from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
+from famex.utils.ml_warnings import quiet_backend_loading
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -105,9 +106,6 @@ class SO3LRPotential(BasePotential):
             return
         # After this point, we know _calc is None, so we need to load it
 
-        from famex.utils.ml_warnings import quiet_backend_loading
-
-        # Don't show model info - let the outer context handle it
         with quiet_backend_loading(
             "so3lr",
             self.model_name,

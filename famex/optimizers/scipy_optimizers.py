@@ -276,10 +276,8 @@ class SciPyHessianOptimizer(Optimizer):
             self._last_positions = current_positions.copy()
             self._last_gradient = current_gradient.copy()
         else:
-            if self.verbose >= 1:
-                logger.info("Reusing Hessian (computed %s steps ago)", steps_since_full)
-            else:
-                logger.debug("Reusing Hessian (computed %s steps ago)", steps_since_full)
+            log = logger.info if self.verbose >= 1 else logger.debug
+            log("Reusing Hessian (computed %s steps ago)", steps_since_full)
 
         if self.hessian is None:
             raise RuntimeError("Hessian is None after update logic")

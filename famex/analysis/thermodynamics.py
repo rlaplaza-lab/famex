@@ -13,6 +13,7 @@ import numpy as np
 from ase import Atoms, units
 
 from famex.analysis.physics_constants import (
+    ATMOS_PA,
     GAS_CONSTANT,
     J_PER_MOL_TO_EV,
     filter_positive_frequencies,
@@ -28,6 +29,11 @@ from famex.analysis.statistical_thermo import StatisticalThermodynamics
 from famex.analysis.symmetry import SymmetryHandler
 
 __all__ = ["ThermodynamicProperties", "read_free_energy_correction"]
+
+
+def _to_ev(value_j_per_mol: float) -> float:
+    """Convert J/mol (or J/(mol·K) for entropy) to eV-scale."""
+    return value_j_per_mol * J_PER_MOL_TO_EV
 
 
 def read_free_energy_correction(
@@ -61,7 +67,7 @@ class ThermodynamicProperties:
         Structure, used for masses, rotational constants and symmetry.
     temperature : float, default 298.15
         Temperature in K.
-    pressure : float, default 101325
+    pressure : float, default ATMOS_PA
         Pressure in Pa.
     method : {"rrho", "grimme", "truhlar"}, default "rrho"
         Treatment of low-frequency vibrations.
@@ -94,7 +100,7 @@ class ThermodynamicProperties:
         frequencies: np.ndarray,
         atoms: Atoms,
         temperature: float = 298.15,
-        pressure: float = 101325,
+        pressure: float = ATMOS_PA,
         # Quasi-harmonic parameters
         method: str = "rrho",
         freq_cutoff: float = 100.0,
@@ -227,18 +233,18 @@ class ThermodynamicProperties:
 
         S_total_J_per_K = entropy_trans + entropy_rot + s_vib_actual + entropy_elec
 
-        enthalpy_total = H_total_J_per_mol * J_PER_MOL_TO_EV
-        entropy_total = S_total_J_per_K * J_PER_MOL_TO_EV
+        enthalpy_total = _to_ev(H_total_J_per_mol)
+        entropy_total = _to_ev(S_total_J_per_K)
         gibbs_free_energy = enthalpy_total - self.temperature * entropy_total
         free_energy_correction = gibbs_free_energy - energy
 
-        h_trans = enthalpy_trans * J_PER_MOL_TO_EV
-        h_rot = enthalpy_rot * J_PER_MOL_TO_EV
-        h_vib = enthalpy_vib * J_PER_MOL_TO_EV
-        s_trans = entropy_trans * J_PER_MOL_TO_EV
-        s_rot = entropy_rot * J_PER_MOL_TO_EV
-        s_vib = s_vib_actual * J_PER_MOL_TO_EV
-        s_elec = entropy_elec * J_PER_MOL_TO_EV
+        h_trans = _to_ev(enthalpy_trans)
+        h_rot = _to_ev(enthalpy_rot)
+        h_vib = _to_ev(enthalpy_vib)
+        s_trans = _to_ev(entropy_trans)
+        s_rot = _to_ev(entropy_rot)
+        s_vib = _to_ev(s_vib_actual)
+        s_elec = _to_ev(entropy_elec)
 
         return {
             "energy": energy,

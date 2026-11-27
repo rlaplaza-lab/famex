@@ -18,7 +18,9 @@ class ExplorerProtocol(Protocol):
     verbose: int
     atoms_list: list[Atoms]
 
-    def _create_and_attach_calculator(self, atoms: Atoms) -> object: ...
+    def _create_and_attach_calculator(
+        self, atoms: Atoms, *, needs_hessian: bool = False
+    ) -> object: ...
 
     def _apply_constraints(self, atoms: Atoms) -> list[object]: ...
 

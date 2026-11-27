@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from contextlib import nullcontext
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import numpy as np
 from ase import Atoms
@@ -12,13 +11,17 @@ from ase.constraints import FixAtoms
 
 from famex.analysis.physics_constants import IMAGINARY_MODE_THRESHOLD_CM
 from famex.optimizers.sella_utils import is_sella_optimizer
-from famex.strategies.helpers import _get_local_optimizer_class
+from famex.strategies.helpers import (
+    TRUST_MINIMA_HESSIAN_OPTIMIZER_ALIASES,
+    TRUST_OPTIMIZER_ALIASES,
+    StationaryPointTarget,
+    _get_local_optimizer_class,
+    profiler_section,
+)
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
-
-StationaryPointTarget = Literal["minima", "ts"]
 
 # Base geometric perturbation amplitude (Å) applied before a retry. The amplitude
 # grows with each subsequent attempt to escape stubborn stationary points.
@@ -62,52 +65,16 @@ def prepare_minima_hessian_optimizer_kwargs(optimizer_name: str, explorer: Any) 
     if is_sella_optimizer(normalized_name):
         opt_kwargs.setdefault("internal", True)
         opt_kwargs.setdefault("order", 0)
-    elif normalized_name in (
-        "trust-krylov",
-        "trustkrylov",
-        "trust_krylov",
-        "trust-ncg",
-        "trustncg",
-        "trust_ncg",
-        "trust-exact",
-        "trustexact",
-        "trust_exact",
-        "newton-cg",
-        "newtoncg",
-        "newton_cg",
-    ):
+    elif normalized_name in TRUST_MINIMA_HESSIAN_OPTIMIZER_ALIASES:
         opt_kwargs.setdefault("hessian_method", "auto")
         opt_kwargs.setdefault("hessian_update_freq", 1)
         opt_kwargs.setdefault("use_bfgs_update", False)
-        if normalized_name in (
-            "trust-krylov",
-            "trustkrylov",
-            "trust_krylov",
-            "trust-ncg",
-            "trustncg",
-            "trust_ncg",
-            "trust-exact",
-            "trustexact",
-            "trust_exact",
-        ):
+        if normalized_name in TRUST_OPTIMIZER_ALIASES:
             opt_kwargs.setdefault("trust_radius", 0.1)
             opt_kwargs.setdefault("max_trust_radius", 0.3)
 
     if getattr(explorer, "force_finite_diff_hessian", False):
-        if normalized_name in (
-            "trust-krylov",
-            "trustkrylov",
-            "trust_krylov",
-            "trust-ncg",
-            "trustncg",
-            "trust_ncg",
-            "trust-exact",
-            "trustexact",
-            "trust_exact",
-            "newton-cg",
-            "newtoncg",
-            "newton_cg",
-        ):
+        if normalized_name in TRUST_MINIMA_HESSIAN_OPTIMIZER_ALIASES:
             opt_kwargs["hessian_method"] = "finite_differences"
 
     return opt_kwargs
@@ -351,9 +318,7 @@ def run_frequency_cleanup(
             opt_kwargs["profiler"] = profiler
 
         opt = opt_class(atoms, **opt_kwargs)
-        with (
-            profiler.profile_section("frequency_cleanup") if profiler is not None else nullcontext()
-        ):
+        with profiler_section(profiler, "frequency_cleanup"):
             opt.run(fmax=fmax, steps=cleanup_steps)
 
         steps_taken = StrategyUtils.get_step_count(opt) or 0
@@ -387,22 +352,22 @@ def run_frequency_cleanup(
             if verbose >= 1:
                 logger.info("Frequency cleanup succeeded after %d attempt(s)", attempt_idx)
             break
-    else:
+    final_imaginary_count = relevant_imaginary_count(frequency_result, target)
+    if not stationary_point_is_clean(frequency_result, target):
         if verbose >= 1:
             logger.warning(
                 "Frequency cleanup finished without reaching target "
                 "(%d relevant imaginary mode(s), wanted %d)",
-                relevant_imaginary_count(frequency_result, target),
+                final_imaginary_count,
                 desired_count,
             )
-
     cleanup_summary = {
         "attempts": attempts,
         "skipped": False,
         "optimizer": cleanup_optimizer,
         "max_attempts": max_attempts,
         "target_imaginary_count": desired_count,
-        "final_imaginary_count": relevant_imaginary_count(frequency_result, target),
+        "final_imaginary_count": final_imaginary_count,
         "is_clean": stationary_point_is_clean(frequency_result, target),
     }
     return atoms, frequency_result, total_cleanup_steps, cleanup_summary

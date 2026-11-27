@@ -20,9 +20,13 @@ from famex.backends.registry import BACKEND_CLASSES, CalculatorRegistry, create_
 from famex.utils.validation import BackendError
 
 
+@pytest.fixture
+def registry():
+    return CalculatorRegistry()
+
+
 class TestCalculatorRegistry:
-    def test_registry_initialization(self):
-        registry = CalculatorRegistry()
+    def test_registry_initialization(self, registry):
         assert len(registry._registry) == 0
         assert len(BACKEND_CLASSES) > 0
 
@@ -31,9 +35,7 @@ class TestCalculatorRegistry:
         assert len(BACKEND_CLASSES) > 0
         assert BACKEND_MOCK in BACKEND_CLASSES
 
-    def test_register_custom_backend(self):
-        registry = CalculatorRegistry()
-
+    def test_register_custom_backend(self, registry):
         def custom_factory(**kwargs):
             return MagicMock()
 
@@ -58,30 +60,25 @@ class TestCalculatorRegistry:
         ],
         ids=["with_params", "with_none", "all_params"],
     )
-    def test_create_calculator_with_params(self, params):
-        registry = CalculatorRegistry()
+    def test_create_calculator_with_params(self, params, registry):
         calc = registry.create_calculator(BACKEND_MOCK, **params)
         assert calc is not None
 
-    def test_create_calculator_mock(self):
-        registry = CalculatorRegistry()
+    def test_create_calculator_mock(self, registry):
         calc = registry.create_calculator(BACKEND_MOCK)
         assert calc is not None
         # Verify it's an instance (not the class itself)
         assert not isinstance(calc, type)
 
-    def test_create_calculator_unavailable_backend(self):
-        registry = CalculatorRegistry()
+    def test_create_calculator_unavailable_backend(self, registry):
         with pytest.raises(BackendError, match="not available"):
             registry.create_calculator("nonexistent_backend")
 
-    def test_is_backend_available_mock(self):
-        registry = CalculatorRegistry()
+    def test_is_backend_available_mock(self, registry):
         assert registry.is_backend_available(BACKEND_MOCK) is True
 
     @patch("famex.backends.registry.is_backend_available")
-    def test_is_backend_available_delegation(self, mock_available):
-        registry = CalculatorRegistry()
+    def test_is_backend_available_delegation(self, mock_available, registry):
         mock_available.return_value = True
 
         result = registry.is_backend_available("test_backend")
@@ -96,16 +93,13 @@ class TestRegistryLazyLoading:
         assert module_name == "famex.potentials.pet_potential"
         assert class_name == "PETPotential"
 
-    def test_load_backend_lazy(self):
-        registry = CalculatorRegistry()
+    def test_load_backend_lazy(self, registry):
         assert BACKEND_MOCK in BACKEND_CLASSES
 
         registry._load_backend(BACKEND_MOCK)
         assert BACKEND_MOCK in registry._registry
 
-    def test_load_backend_already_loaded(self):
-        registry = CalculatorRegistry()
-
+    def test_load_backend_already_loaded(self, registry):
         registry._load_backend(BACKEND_MOCK)
         first_func = registry._registry.get(BACKEND_MOCK)
 
@@ -114,21 +108,16 @@ class TestRegistryLazyLoading:
 
         assert first_func == second_func
 
-    def test_load_nonexistent_backend(self):
-        registry = CalculatorRegistry()
+    def test_load_nonexistent_backend(self, registry):
         registry._load_backend("nonexistent_backend")
         assert "nonexistent_backend" not in registry._registry
 
-    def test_load_with_import_error(self):
-        registry = CalculatorRegistry()
-
+    def test_load_with_import_error(self, registry):
         with patch.dict(BACKEND_CLASSES, {"test_fail": ("nonexistent.module.path", "Missing")}):
             registry._load_backend("test_fail")
             assert "test_fail" not in registry._registry
 
-    def test_load_with_attribute_error(self, caplog):
-        registry = CalculatorRegistry()
-
+    def test_load_with_attribute_error(self, caplog, registry):
         with patch.dict(
             BACKEND_CLASSES,
             {"test_attr_fail": ("famex.backends.registry", "nonexistent_attribute")},
@@ -140,8 +129,7 @@ class TestRegistryLazyLoading:
             assert any("Failed to load backend" in record.message for record in caplog.records)
 
     @patch("famex.backends.registry.importlib.import_module")
-    def test_load_backend_import_error(self, mock_import):
-        registry = CalculatorRegistry()
+    def test_load_backend_import_error(self, mock_import, registry):
         mock_import.side_effect = ImportError("Module not found")
 
         with patch.dict(BACKEND_CLASSES, {"test_backend": ("fake.module", "FakeClass")}):

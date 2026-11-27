@@ -164,6 +164,35 @@ class MockCalculator(Calculator):
         force_mag = -k * dr
         return energy, force_mag
 
+    def _add_nonbonded_interactions(
+        self,
+        positions: np.ndarray,
+        forces: np.ndarray,
+        *,
+        skip_pairs: set[tuple[int, int]] | None = None,
+    ) -> float:
+        """Accumulate Lennard-Jones energy and forces for non-bonded pairs."""
+        skip = skip_pairs or set()
+        natoms = len(positions)
+        energy = 0.0
+        for i in range(natoms):
+            for j in range(i + 1, natoms):
+                if (i, j) in skip:
+                    continue
+                rij = positions[i] - positions[j]
+                dist = np.linalg.norm(rij)
+                if dist <= self.lj_cutoff:
+                    lj_energy, lj_force_mag = self._lennard_jones_energy_force(
+                        float(dist),
+                        self.epsilon,
+                        self.sigma,
+                    )
+                    energy += lj_energy
+                    fij = lj_force_mag * (rij / dist)
+                    forces[i] += fij
+                    forces[j] -= fij
+        return energy
+
     def calculate(
         self,
         atoms: Atoms | None = None,
@@ -226,25 +255,7 @@ class MockCalculator(Calculator):
         # If no bonds found, use non-bonded interactions only
         if not pairs:
             if self.use_nonbonded:
-                for i in range(natoms):
-                    for j in range(i + 1, natoms):
-                        rij = positions[i] - positions[j]
-                        dist = np.linalg.norm(rij)
-
-                        if dist <= self.lj_cutoff:
-                            # Use Lennard-Jones potential for non-bonded interactions
-                            lj_energy, lj_force_mag = self._lennard_jones_energy_force(
-                                float(dist),
-                                self.epsilon,
-                                self.sigma,
-                            )
-                            energy += lj_energy
-
-                            # Force along interatomic direction
-                            fij = lj_force_mag * (rij / dist)
-                            forces[i] += fij
-                            forces[j] -= fij
-
+                energy += self._add_nonbonded_interactions(positions, forces)
         else:
             # Track bonded pairs for non-bonded exclusions
             bonded_pairs = set()
@@ -328,28 +339,9 @@ class MockCalculator(Calculator):
 
             # Add non-bonded interactions (TinyFF-inspired)
             if self.use_nonbonded:
-                for i in range(natoms):
-                    for j in range(i + 1, natoms):
-                        # Skip bonded pairs (1-2 interactions)
-                        if (i, j) in bonded_pairs:
-                            continue
-
-                        rij = positions[i] - positions[j]
-                        dist = np.linalg.norm(rij)
-
-                        if dist <= self.lj_cutoff:
-                            # Use Lennard-Jones potential for non-bonded interactions
-                            lj_energy, lj_force_mag = self._lennard_jones_energy_force(
-                                float(dist),
-                                self.epsilon,
-                                self.sigma,
-                            )
-                            energy += lj_energy
-
-                            # Force along interatomic direction
-                            fij = lj_force_mag * (rij / dist)
-                            forces[i] += fij
-                            forces[j] -= fij
+                energy += self._add_nonbonded_interactions(
+                    positions, forces, skip_pairs=bonded_pairs
+                )
 
         self.results = {"energy": float(energy), "forces": forces}
         return

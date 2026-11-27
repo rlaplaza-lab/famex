@@ -15,12 +15,8 @@ class TestAIMNet2PathTraversal:
         except (ImportError, ModuleNotFoundError):
             pytest.skip("AIMNet2 not available")
 
-        try:
-            with pytest.raises((ValueError, PathSecurityError, RuntimeError, ModuleNotFoundError)):
-                get_model_path(evil_name)
-        except ModuleNotFoundError:
-            # Skip if model_cache module is not available (optional dependency)
-            pytest.skip("model_cache module not available")
+        with pytest.raises((ValueError, PathSecurityError, RuntimeError, ModuleNotFoundError)):
+            get_model_path(evil_name)
 
     def test_aimnet2_fallback_path_validation(self):
         # Import here to avoid test failures if aimnet2 isn't available

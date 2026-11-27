@@ -571,4 +571,5 @@ def get_unified_cache() -> UnifiedCache:
 def clear_all_caches() -> None:
     """Clear calculator and model caches, including the registry singleton."""
     _get_calculator_cache().clear()
+    _get_model_cache().clear_cache()
     _get_unified_cache().clear_all()

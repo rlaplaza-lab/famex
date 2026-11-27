@@ -72,7 +72,7 @@ def _check_linearity_inertia(atoms: Atoms, indices: list[int]) -> bool:
 
     # Moment of inertia tensor
     inertia_tensor = np.zeros((3, 3))
-    for _i, (pos, mass) in enumerate(zip(positions_centered, masses, strict=False)):
+    for _i, (pos, mass) in enumerate(zip(positions_centered, masses, strict=True)):
         inertia_tensor += mass * (np.dot(pos, pos) * np.eye(3) - np.outer(pos, pos))
 
     # Eigenvalues of moment of inertia tensor
@@ -118,12 +118,11 @@ def rotational_temperatures_from_atoms(atoms: Atoms, linear: bool) -> np.ndarray
 
     moments_amu_ang2 = np.sort(atoms.get_moments_of_inertia(vectors=False))
     moments_kg_m2 = moments_amu_ang2 * AMU_ANGSTROM2_TO_KG_M2
-    moment_floor_kg_m2 = MOMENT_OF_INERTIA_FLOOR_KG_M2
 
     with np.errstate(divide="ignore", invalid="ignore"):
         thetas = (HBAR**2) / (2 * moments_kg_m2 * BOLTZMANN_CONSTANT)
 
-    thetas = np.where(moments_kg_m2 > moment_floor_kg_m2, thetas, 0.0)
+    thetas = np.where(moments_kg_m2 > MOMENT_OF_INERTIA_FLOOR_KG_M2, thetas, 0.0)
     positive_thetas = thetas[thetas > 1e-6]
 
     if linear:
@@ -133,8 +132,6 @@ def rotational_temperatures_from_atoms(atoms: Atoms, linear: bool) -> np.ndarray
 
     if len(positive_thetas) >= 3:
         return positive_thetas[-3:]
-    if len(positive_thetas) == 2:
-        return positive_thetas
-    if len(positive_thetas) == 1:
+    if len(positive_thetas) >= 1:
         return positive_thetas
     return np.array([0.0, 0.0, 0.0])

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-from ase import Atoms
-
 # Standardized list of path traversal attempts for testing
 EVIL_PATHS = [
     "../../../etc/passwd",
@@ -44,13 +41,6 @@ SUSPICIOUS_PATTERNS = [
     "model~backup",
     "model$backup",
 ]
-
-
-@pytest.fixture
-def test_atoms():
-    """Standard test atoms fixture for security tests."""
-    return Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
-
 
 # Null byte injection test cases
 NULL_BYTE_PATHS = [
