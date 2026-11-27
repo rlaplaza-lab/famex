@@ -21,6 +21,8 @@ MOMENT_OF_INERTIA_FLOOR_KG_M2 = 1e-4 * AMU_ANGSTROM2_TO_KG_M2
 GHZ_TO_CM1 = 1e9 / SPEED_OF_LIGHT
 # Imaginary-mode cutoff shared by frequency analysis, cleanup, and mode I/O
 IMAGINARY_MODE_THRESHOLD_CM = 50.0
+STANDARD_TEMPERATURE_K = 298.15
+DEFAULT_OPTIMIZER_FMAX = 0.05
 J_PER_MOL_TO_EV = units.J / units.mol
 ATMOS = 101.325  # kPa; GoodVibes 1 atm concentration is ATMOS/(R T) mol/L
 ATMOS_PA = ATMOS * 1000.0  # 1 atm in pascal
@@ -89,7 +91,9 @@ __all__ = [
     "GHZ_TO_CM1",
     "HC_OVER_KB",
     "HBAR",
+    "DEFAULT_OPTIMIZER_FMAX",
     "IMAGINARY_MODE_THRESHOLD_CM",
+    "STANDARD_TEMPERATURE_K",
     "J_PER_MOL_TO_EV",
     "MOMENT_OF_INERTIA_FLOOR_KG_M2",
     "PLANCK_CONSTANT",

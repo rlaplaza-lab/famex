@@ -8,6 +8,8 @@ from typing import Any
 
 from ase.data import atomic_numbers
 
+from famex.utils.hessian_ops import bond_key
+
 
 @dataclass(frozen=True)
 class ChiralCenter:
@@ -132,10 +134,6 @@ def _load_mol(smiles: str, *, explicit_hydrogen: bool) -> Any:
         raise ValueError(f"Invalid SMILES {smiles!r}: {exc}") from exc
 
 
-def _bond_key(i: int, j: int) -> tuple[int, int]:
-    return (i, j) if i < j else (j, i)
-
-
 def _chiral_neighbors(value: Any) -> tuple[int, int, int, int] | None:
     if not isinstance(value, tuple) or len(value) != 4:
         return None
@@ -216,7 +214,7 @@ def parse_smiles(smiles: str, *, add_h: bool = True) -> MolGraph:
         j = id_map[int(v)]
         if i == j:
             continue
-        bond_orders[_bond_key(i, j)] = order
+        bond_orders[bond_key(i, j)] = order
 
     chiral: list[ChiralCenter] = []
     for old in raw_ids:

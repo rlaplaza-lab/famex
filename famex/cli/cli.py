@@ -24,16 +24,28 @@ from famex.cli.cli_helpers import (
     print_frequency_summary,
     require_same_atom_count,
     save_results_json,
+    validate_frequency_analysis,
 )
 from famex.core.explorer import Explorer
 from famex.io.modes import modes_output_dir, write_vibrational_modes
-from famex.io.run_output import select_default_frames, write_run_outputs
+from famex.io.run_output import write_run_outputs
 from famex.utils.ml_warnings import quiet_backend_loading
 
 os.environ.setdefault("MPLBACKEND", "Agg")
 
+CLI_TARGET_STRATEGIES: dict[str, tuple[str, ...]] = {
+    "minima": ("local", "interpolate"),
+    "ts": ("local", "interpolate", "cineb", "growing_string", "dhs"),
+    "path": ("interpolate", "neb", "cineb", "irc"),
+}
+CLI_INTERP_METHODS: tuple[str, ...] = ("linear", "geodesic", "idpp")
+
 _PRODUCT_REQUIRED_STRATEGIES = frozenset({"interpolate", "growing_string", "cineb", "dhs"})
 _PATH_MULTI_STRUCTURE_STRATEGIES = frozenset({"interpolate", "neb", "cineb"})
+
+
+def _strategy_choices(target: str) -> list[str]:
+    return list(CLI_TARGET_STRATEGIES[target])
 
 
 def _validate_temperature(ctx: Any, _param: Any, value: float) -> float:
@@ -79,7 +91,12 @@ def _handle_frequency_results(
     freq_analysis = results["frequency_analysis"]
     if isinstance(freq_analysis, dict):
         try:
-            print_frequency_summary(freq_analysis, target=target)
+            warnings = validate_frequency_analysis(freq_analysis)
+            if warnings:
+                click.echo("Warning: Frequency analysis validation issues:", err=True)
+                for warning in warnings:
+                    click.echo(f"  - {warning}", err=True)
+            print_frequency_summary(freq_analysis, target=target, validate=False)
             save_results_json(results, output_path)
         except KeyError as e:
             click.echo(
@@ -331,7 +348,7 @@ def _save_run_output(
 ) -> str:
     """Write the target's default file and, when asked, geometry history."""
     stem = input_stem(input_path)
-    written = write_run_outputs(
+    output_result = write_run_outputs(
         results,
         stem,
         target=target,
@@ -339,15 +356,64 @@ def _save_run_output(
         output=output,
         history=history,
     )
-    default_path = written[0]
-    frames = select_default_frames(results, target)
-    if isinstance(frames, list):
-        click.echo(f"{completed_message} Saved {len(frames)} images to: {default_path}")
+    default_path = output_result.written_paths[0]
+    if output_result.frame_count > 1:
+        click.echo(
+            f"{completed_message} Saved {output_result.frame_count} images to: {default_path}"
+        )
     else:
         click.echo(f"{completed_message} Saved: {default_path}")
-    for extra in written[1:]:
+    for extra in output_result.written_paths[1:]:
         click.echo(f"Saved history: {extra}")
     return default_path
+
+
+def _prepare_and_run(
+    *,
+    explorer: Explorer,
+    ctx: AbstractContextManager[list[str]],
+    dry_run: bool,
+    run_fn: Callable[[], dict[str, Any]],
+    input_path: str,
+    strategy: str,
+    target: str,
+    output: str | None,
+    history: bool,
+    completed_message: str,
+    calculate_frequencies: bool,
+    write_modes: bool,
+    modes_which: str,
+    selected_modes: list[int] | None,
+    mode_frames: int,
+    mode_amplitude: float,
+) -> None:
+    """Run optimization inside the explorer context, then save and summarize outputs."""
+    with ctx:
+        if dry_run:
+            _handle_dry_run(explorer)
+            return
+        results = run_fn()
+
+    out = _save_run_output(
+        results,
+        input_path,
+        strategy,
+        target,
+        output,
+        history,
+        completed_message,
+    )
+    _handle_frequency_results(
+        results,
+        out,
+        target=target,
+        calculate_frequencies=calculate_frequencies,
+        write_modes=write_modes,
+        modes_which=modes_which,
+        mode_indices=selected_modes,
+        mode_frames=mode_frames,
+        mode_amplitude=mode_amplitude,
+    )
 
 
 def _run_optimization(
@@ -684,7 +750,7 @@ def main() -> None:
 @main.command()
 @click.option(
     "--strategy",
-    type=click.Choice(["local", "interpolate"]),
+    type=click.Choice(_strategy_choices("minima")),
     default="local",
     show_default=True,
     help="Optimization strategy",
@@ -718,7 +784,7 @@ def main() -> None:
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic", "idpp"], case_sensitive=False),
+    type=click.Choice(CLI_INTERP_METHODS, case_sensitive=False),
     default="geodesic",
     show_default=True,
     help="Interpolation method (interpolate strategy only)",
@@ -805,13 +871,11 @@ def minima(
         dftd3_functional=dftd3_functional,
     )
 
-    with ctx:
-        if dry_run:
-            _handle_dry_run(exp)
-            return
-
-        # Run optimization
-        results = _run_optimization(
+    _prepare_and_run(
+        explorer=exp,
+        ctx=ctx,
+        dry_run=dry_run,
+        run_fn=lambda: _run_optimization(
             exp=exp,
             strategy=strategy,
             target="minima",
@@ -823,27 +887,17 @@ def minima(
             npoints=npoints if strategy == "interpolate" else None,
             interp=interp if strategy == "interpolate" else None,
             record_history=history,
-        )
-
-    out = _save_run_output(
-        results,
-        input,
-        strategy,
-        "minima",
-        output,
-        history,
-        "Minima optimization completed.",
-    )
-
-    # Handle frequency analysis results (chained after optimization)
-    _handle_frequency_results(
-        results,
-        out,
+        ),
+        input_path=input,
+        strategy=strategy,
         target="minima",
+        output=output,
+        history=history,
+        completed_message="Minima optimization completed.",
         calculate_frequencies=calculate_frequencies,
         write_modes=write_modes,
         modes_which=modes_which,
-        mode_indices=selected_modes,
+        selected_modes=selected_modes,
         mode_frames=mode_frames,
         mode_amplitude=mode_amplitude,
     )
@@ -852,7 +906,7 @@ def minima(
 @main.command()
 @click.option(
     "--strategy",
-    type=click.Choice(["local", "interpolate", "cineb", "growing_string", "dhs"]),
+    type=click.Choice(_strategy_choices("ts")),
     default="local",
     show_default=True,
     help="Optimization strategy",
@@ -892,7 +946,7 @@ def minima(
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic", "idpp"], case_sensitive=False),
+    type=click.Choice(CLI_INTERP_METHODS, case_sensitive=False),
     default="idpp",
     show_default=True,
     help="Interpolation method (interpolate/cineb strategies only)",
@@ -1037,14 +1091,13 @@ def ts(
         dftd3_functional=dftd3_functional,
     )
 
-    with ctx:
-        if dry_run:
-            _handle_dry_run(exp)
-            return
-
-        dist_default = 0.5 if strategy == "dhs" else 0.1
-        step_default = 0.2 if strategy == "dhs" else 0.1
-        results = _run_optimization(
+    dist_default = 0.5 if strategy == "dhs" else 0.1
+    step_default = 0.2 if strategy == "dhs" else 0.1
+    _prepare_and_run(
+        explorer=exp,
+        ctx=ctx,
+        dry_run=dry_run,
+        run_fn=lambda: _run_optimization(
             exp=exp,
             strategy=strategy,
             target="ts",
@@ -1070,27 +1123,17 @@ def ts(
             dhs_small_step=dhs_small_step if strategy == "dhs" else None,
             dhs_switch_thresh=dhs_switch_thresh if strategy == "dhs" else None,
             record_history=history,
-        )
-
-    out = _save_run_output(
-        results,
-        input,
-        strategy,
-        "ts",
-        output,
-        history,
-        "Transition state optimization completed.",
-    )
-
-    # Handle frequency analysis results (chained after optimization)
-    _handle_frequency_results(
-        results,
-        out,
+        ),
+        input_path=input,
+        strategy=strategy,
         target="ts",
+        output=output,
+        history=history,
+        completed_message="Transition state optimization completed.",
         calculate_frequencies=calculate_frequencies,
         write_modes=write_modes,
         modes_which=modes_which,
-        mode_indices=selected_modes,
+        selected_modes=selected_modes,
         mode_frames=mode_frames,
         mode_amplitude=mode_amplitude,
     )
@@ -1102,7 +1145,7 @@ main.add_command(cache)
 @main.command()
 @click.option(
     "--strategy",
-    type=click.Choice(["interpolate", "neb", "cineb", "irc"]),
+    type=click.Choice(_strategy_choices("path")),
     default="neb",
     show_default=True,
     help="Path optimization strategy",
@@ -1138,7 +1181,7 @@ main.add_command(cache)
 )
 @click.option(
     "--interp",
-    type=click.Choice(["linear", "geodesic", "idpp"], case_sensitive=False),
+    type=click.Choice(CLI_INTERP_METHODS, case_sensitive=False),
     default="geodesic",
     show_default=True,
     help="Initial interpolation method",
@@ -1257,12 +1300,11 @@ def path(
     )
     first_file = structures[0]
 
-    with ctx:
-        if dry_run:
-            _handle_dry_run(exp)
-            return
-
-        result = _run_optimization(
+    _prepare_and_run(
+        explorer=exp,
+        ctx=ctx,
+        dry_run=dry_run,
+        run_fn=lambda: _run_optimization(
             exp=exp,
             strategy=strategy,
             target="path",
@@ -1277,16 +1319,19 @@ def path(
             direction=direction if strategy == "irc" else None,
             climb=(strategy == "cineb"),
             record_history=history,
-        )
-
-    _save_run_output(
-        result,
-        first_file,
-        strategy,
-        "path",
-        output,
-        history,
-        "Path optimization completed.",
+        ),
+        input_path=first_file,
+        strategy=strategy,
+        target="path",
+        output=output,
+        history=history,
+        completed_message="Path optimization completed.",
+        calculate_frequencies=False,
+        write_modes=False,
+        modes_which="all",
+        selected_modes=None,
+        mode_frames=20,
+        mode_amplitude=0.3,
     )
 
 

@@ -9,10 +9,27 @@ import pytest
 
 from famex.utils.path_security import (
     PathSecurityError,
+    has_unsafe_components,
     is_safe_relative_path,
     sanitize_filename,
     validate_safe_path,
 )
+
+
+class TestHasUnsafeComponents:
+    def test_detects_parent_directory_components(self):
+        assert has_unsafe_components("../etc/passwd") is True
+        assert has_unsafe_components("subdir/../../secret") is True
+
+    def test_detects_null_bytes(self):
+        assert has_unsafe_components("file\x00name.txt") is True
+
+    def test_detects_encoded_traversal(self):
+        assert has_unsafe_components("file%2e%2e/etc") is True
+
+    def test_allows_safe_paths(self):
+        assert has_unsafe_components("file.txt") is False
+        assert has_unsafe_components("dir/sub/file.xyz") is False
 
 
 class TestSanitizeFilename:

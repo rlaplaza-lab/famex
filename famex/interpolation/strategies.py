@@ -221,21 +221,24 @@ class IDPPInterpolation(InterpolationStrategy):
 
     def _relax_path(self, path: list[np.ndarray], targets: list[np.ndarray]) -> None:
         # Deferred import: PathManager (used by strategies) imports this module.
-        from famex.strategies.neb_optimizer import _FIREBandStepper, compute_neb_forces
+        from famex.strategies.neb_optimizer import (
+            _FIREBandStepper,
+            compute_neb_forces,
+            run_interior_fire_relaxation,
+        )
 
         fire = _FIREBandStepper()
         npoints = len(path)
         natoms = path[0].shape[0]
         ncoords = 3 * natoms
 
-        for _step in range(self.steps):
-            energies = []
-            true_forces = []
+        def _interior_forces() -> list[np.ndarray]:
+            energies: list[float] = []
+            true_forces: list[np.ndarray] = []
             for coords, target in zip(path, targets, strict=True):
                 energy, forces = idpp_energy_and_forces(coords, target)
                 energies.append(energy)
                 true_forces.append(forces)
-
             neb_forces, _ = compute_neb_forces(
                 path,
                 energies,
@@ -243,16 +246,24 @@ class IDPPInterpolation(InterpolationStrategy):
                 k=self.spring_constant,
                 climb=False,
             )
-            interior = neb_forces[1:-1]
-            if max(float(np.max(np.abs(f))) for f in interior) < self.fmax:
-                break
+            return list(neb_forces[1:-1])
 
-            interior_pos = np.concatenate([c.ravel() for c in path[1:-1]])
-            interior_f = np.concatenate([f.ravel() for f in interior])
-            new_pos = fire.step(interior_pos, interior_f)
+        def _interior_positions_flat() -> np.ndarray:
+            return np.concatenate([c.ravel() for c in path[1:-1]])
+
+        def _apply_interior_positions_flat(new_flat: np.ndarray) -> None:
             for idx in range(npoints - 2):
                 start = idx * ncoords
-                path[idx + 1] = new_pos[start : start + ncoords].reshape(natoms, 3)
+                path[idx + 1] = new_flat[start : start + ncoords].reshape(natoms, 3)
+
+        run_interior_fire_relaxation(
+            fire,
+            fmax=self.fmax,
+            max_steps=self.steps,
+            interior_forces=_interior_forces,
+            interior_positions_flat=_interior_positions_flat,
+            apply_interior_positions_flat=_apply_interior_positions_flat,
+        )
 
 
 # Registry of available interpolation strategies

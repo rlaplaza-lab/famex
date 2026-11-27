@@ -7,56 +7,47 @@ import pytest
 from famex.utils.device import (
     get_device_info,
     get_optimal_device,
+    normalize_device,
     print_device_info,
     resolve_backend_device,
 )
 
 
 class TestDeviceUtilities:
+    def test_normalize_device_aliases(self):
+        assert normalize_device("gpu") == "cuda"
+        assert normalize_device("cuda:0") == "cuda"
+        assert normalize_device("CUDA:1") == "cuda"
+        assert normalize_device("cpu") == "cpu"
+
+    def test_normalize_device_rejects_unknown(self):
+        with pytest.raises(ValueError, match="Unknown device"):
+            normalize_device("tpu")
+        with pytest.raises(ValueError, match="blank"):
+            normalize_device("   ")
+
     def test_get_optimal_device_explicit(self):
         assert get_optimal_device("cpu") == "cpu"
         assert get_optimal_device("CUDA") == "cuda"  # Should lowercase
         assert get_optimal_device("cuda") == "cuda"
+        assert get_optimal_device("cuda:0") == "cuda"
+        assert get_optimal_device("  ") == get_optimal_device(None)
 
-    @patch("famex.backends.dependencies.deps")
-    def test_get_optimal_device_auto_detect_cuda(self, mock_deps):
-        mock_torch = MagicMock()
-        mock_torch.cuda.is_available.return_value = True
-        mock_deps.has.return_value = True
-        mock_deps.get.return_value = mock_torch
+    @patch("famex.utils.device.is_cuda_available", return_value=True)
+    def test_get_optimal_device_auto_detect_cuda(self, _mock_cuda):
+        assert get_optimal_device(None) == "cuda"
 
-        device = get_optimal_device(None)
+    @patch("famex.utils.device.is_cuda_available", return_value=False)
+    def test_get_optimal_device_auto_detect_cpu(self, _mock_cuda):
+        assert get_optimal_device(None) == "cpu"
 
-        assert device == "cuda"
-        mock_deps.has.assert_called_with("torch")
-        mock_deps.get.assert_called_with("torch")
+    @patch("famex.utils.device.is_cuda_available", return_value=False)
+    def test_get_optimal_device_no_torch(self, _mock_cuda):
+        assert get_optimal_device(None) == "cpu"
 
-    @patch("famex.backends.dependencies.deps")
-    def test_get_optimal_device_auto_detect_cpu(self, mock_deps):
-        mock_torch = MagicMock()
-        mock_torch.cuda.is_available.return_value = False
-        mock_deps.has.return_value = True
-        mock_deps.get.return_value = mock_torch
-
-        device = get_optimal_device(None)
-
-        assert device == "cpu"
-
-    @patch("famex.backends.dependencies.deps")
-    def test_get_optimal_device_no_torch(self, mock_deps):
-        mock_deps.has.return_value = False
-
-        device = get_optimal_device(None)
-
-        assert device == "cpu"
-
-    @patch("famex.backends.dependencies.deps")
-    def test_get_optimal_device_import_error(self, mock_deps):
-        mock_deps.has.side_effect = ImportError("No module named torch")
-
-        device = get_optimal_device(None)
-
-        assert device == "cpu"
+    @patch("famex.utils.device.is_cuda_available", return_value=False)
+    def test_get_optimal_device_import_error(self, _mock_cuda):
+        assert get_optimal_device(None) == "cpu"
 
     def test_resolve_backend_device_tblite_defaults_cpu(self):
         assert resolve_backend_device("tblite", None) == "cpu"
@@ -83,6 +74,10 @@ class TestDeviceUtilities:
     def test_resolve_backend_device_mlip_explicit_cpu(self):
         assert resolve_backend_device("mace", "cpu") == "cpu"
         assert resolve_backend_device("uma", "CPU") == "cpu"
+
+    def test_resolve_backend_device_uma_cuda_index(self):
+        assert resolve_backend_device("uma", "cuda:0") == "cuda"
+        assert resolve_backend_device("uma", "gpu") == "cuda"
 
     @patch("famex.backends.dependencies.deps")
     def test_get_device_info_cpu(self, mock_deps):

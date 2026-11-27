@@ -48,6 +48,30 @@ ML_BACKENDS = [
     BACKEND_PET,
 ]
 
+# Dependency requirements for backend availability (dispersion is optional for PySCF).
+BACKEND_REQUIREMENTS: dict[str, tuple[str, ...]] = {
+    BACKEND_MOCK: (),
+    BACKEND_AIMNET2: ("torch",),
+    BACKEND_UMA: ("fairchem", "torch"),
+    BACKEND_SO3LR: ("so3lr",),
+    BACKEND_MACE: ("mace", "torch"),
+    BACKEND_ORB: ("orb_models", "torch"),
+    BACKEND_TBLITE: ("tblite",),
+    BACKEND_PET: ("upet", "torch"),
+    BACKEND_PYSCF: ("pyscf",),
+}
+
+BACKEND_PACKAGE_NAMES: dict[str, tuple[str, ...]] = {
+    BACKEND_AIMNET2: ("torch",),
+    BACKEND_UMA: ("fairchem-core", "torch"),
+    BACKEND_SO3LR: ("so3lr",),
+    BACKEND_MACE: ("mace-torch", "torch"),
+    BACKEND_ORB: ("orb-models>=0.7.0", "torch"),
+    BACKEND_TBLITE: ("tblite",),
+    BACKEND_PET: ("upet", "torch"),
+    BACKEND_PYSCF: ("pyscf",),
+}
+
 _FAIRCHEM_PACKAGE = FAIRCHEM_INSTALL.split(">=")[0]
 
 # Pip install argument after ``pip install `` (package fragment).

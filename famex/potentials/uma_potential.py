@@ -14,12 +14,11 @@ from famex.backends.constants import (
     BACKEND_UMA,
     DEFAULT_UMA_MODEL,
     DEFAULT_UMA_TASK,
-    FAIRCHEM_INSTALL,
+    format_install_command,
 )
 from famex.backends.dependencies import deps
 from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
-from famex.utils.device import get_optimal_device
 from famex.utils.hessian_ops import coerce_square_hessian_shape, symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 from famex.utils.ml_warnings import quiet_backend_loading
@@ -50,9 +49,6 @@ class UMAPotential(BasePotential):
         dftd3_functional: str | None = None,
         **kwargs: Any,
     ) -> None:
-        if device is None:
-            device = get_optimal_device()
-
         self.predictor: Any = None
         self._calc: Any = None
         self._fairchem_calc: Any = None
@@ -130,7 +126,7 @@ class UMAPotential(BasePotential):
         DFTD3Calculator = deps.get("fairchem_dftd3_calculator")
         if not DFTD3Calculator:
             raise RuntimeError(
-                f"DFTD3Calculator is unavailable. Install with: pip install {FAIRCHEM_INSTALL}"
+                f"DFTD3Calculator is unavailable. Install with: {format_install_command(BACKEND_UMA)}"
             )
         device_param = "cuda" if self.device == "cuda" else "cpu"
         return DFTD3Calculator(
@@ -154,7 +150,7 @@ class UMAPotential(BasePotential):
                 if not deps.has("fairchem"):
                     msg = (
                         f"fairchem-core is required for UMA potentials. "
-                        f"Install with: pip install {FAIRCHEM_INSTALL}"
+                        f"Install with: {format_install_command(BACKEND_UMA)}"
                     )
                     raise ImportError(msg)
 
@@ -241,7 +237,7 @@ class UMAPotential(BasePotential):
                 calc.calculate(atoms, properties, system_changes)
             else:
                 logger.exception("Unexpected error during UMA calculation")
-                raise
+                raise exc from exc
 
         if properties is not None:
             if "energy" in properties:

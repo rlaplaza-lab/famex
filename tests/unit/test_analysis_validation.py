@@ -7,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 
 from famex.analysis.validation import validate_hessian
-from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
+from famex.utils.hessian_ops import build_translation_rotation_basis, project_hessian
 
 
 class TestValidateHessian:

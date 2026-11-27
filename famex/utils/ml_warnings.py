@@ -8,13 +8,15 @@ allows them through at high verbosity (>=2).
 from __future__ import annotations
 
 import contextlib
+import io
 import logging
 import sys
 import warnings
-from typing import TYPE_CHECKING, TextIO
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, TextIO, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
 
 # Verbosity at which third-party ML noise is shown (Explorer/CLI -vv and above).
 _ML_NOISE_VERBOSITY_THRESHOLD = 2
@@ -50,6 +52,20 @@ _NOISE_SUBSTRINGS: tuple[str, ...] = (
     "AnnAssign.__init__",
 )
 
+_SUPPRESSED_LOGGER_NAMES = ("fairchem", "torch", "triton", "transformers", "e3nn")
+
+
+@dataclass
+class _MLRuntimeSnapshot:
+    showwarning: Callable[..., None]
+    warning_filters: list[Any] = field(default_factory=list)
+    root_filters: list[Any] = field(default_factory=list)
+    logger_levels: dict[str, int] = field(default_factory=dict)
+
+
+_runtime_restore_stack: list[_MLRuntimeSnapshot] = []
+_pre_quiet_snapshot: _MLRuntimeSnapshot | None = None
+
 
 class VerboseFilter(logging.Filter):
     """Filter to suppress verbose messages from ML backends."""
@@ -74,6 +90,50 @@ class VerboseFilter(logging.Filter):
 
         message = record.getMessage()
         return all(pattern not in message for pattern in self.SUPPRESSED_PATTERNS)
+
+
+def _capture_ml_runtime() -> _MLRuntimeSnapshot:
+    root_logger = logging.getLogger()
+    levels = {name: logging.getLogger(name).level for name in _SUPPRESSED_LOGGER_NAMES}
+    return _MLRuntimeSnapshot(
+        showwarning=warnings.showwarning,
+        warning_filters=list(cast(Any, warnings.filters)),
+        root_filters=list(root_logger.filters),
+        logger_levels=levels,
+    )
+
+
+def _apply_ml_runtime(snapshot: _MLRuntimeSnapshot) -> None:
+    warnings.showwarning = snapshot.showwarning
+    cast(list[Any], warnings.filters)[:] = snapshot.warning_filters
+    root_logger = logging.getLogger()
+    root_logger.filters[:] = snapshot.root_filters
+    for name, level in snapshot.logger_levels.items():
+        logging.getLogger(name).setLevel(level)
+
+
+def push_ml_warnings_context() -> _MLRuntimeSnapshot:
+    """Snapshot ML warning/logging state for later restoration."""
+    snapshot = _capture_ml_runtime()
+    _runtime_restore_stack.append(snapshot)
+    return snapshot
+
+
+def pop_ml_warnings_context(token: _MLRuntimeSnapshot | None = None) -> None:
+    """Restore ML warning/logging state from a context token."""
+    if not _runtime_restore_stack:
+        return
+    if token is None:
+        token = _runtime_restore_stack[-1]
+    try:
+        index = _runtime_restore_stack.index(token)
+    except ValueError:
+        return
+    restored = _runtime_restore_stack.pop(index)
+    if _runtime_restore_stack:
+        _apply_ml_runtime(_runtime_restore_stack[-1])
+    else:
+        _apply_ml_runtime(restored)
 
 
 def _message_is_ml_noise(message: str) -> bool:
@@ -116,6 +176,40 @@ def _silence_torch_structured_logging() -> None:
         pass
 
 
+def _install_quiet_ml_state() -> None:
+    for message, category in _NOISE_WARNING_SPECS:
+        warnings.filterwarnings("ignore", message=message, category=category)
+    warnings.filterwarnings("ignore", category=UserWarning, module=r"e3nn(\.|$)")
+    warnings.filterwarnings("ignore", category=UserWarning, module=r"torch(\.|$)")
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+        module=r"fairchem(\.|$)",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=DeprecationWarning,
+        module=r"torch(\.|$)",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=DeprecationWarning,
+        module=r"triton(\.|$)",
+    )
+    warnings.filterwarnings("ignore", category=FutureWarning, module=r"transformers(\.|$)")
+
+    warnings.showwarning = _quiet_showwarning
+
+    root_logger = logging.getLogger()
+    if not any(isinstance(f, VerboseFilter) for f in root_logger.filters):
+        root_logger.addFilter(VerboseFilter())
+
+    for name in _SUPPRESSED_LOGGER_NAMES:
+        logging.getLogger(name).setLevel(logging.ERROR)
+
+    _silence_torch_structured_logging()
+
+
 def install_runtime_ml_filters(verbosity: int = 1) -> None:
     """Install or refresh session-wide ML noise filters.
 
@@ -125,50 +219,21 @@ def install_runtime_ml_filters(verbosity: int = 1) -> None:
         FAMEX verbosity. Noise is suppressed when ``verbosity < 2`` and allowed
         when ``verbosity >= 2``.
     """
-    global _configured_quiet
+    global _configured_quiet, _pre_quiet_snapshot
 
     quiet = verbosity < _ML_NOISE_VERBOSITY_THRESHOLD
     if _configured_quiet is quiet:
         return
 
     if quiet:
-        for message, category in _NOISE_WARNING_SPECS:
-            warnings.filterwarnings("ignore", message=message, category=category)
-        # Module-scoped catches for anything that slips past message filters.
-        warnings.filterwarnings("ignore", category=UserWarning, module=r"e3nn(\.|$)")
-        warnings.filterwarnings("ignore", category=UserWarning, module=r"torch(\.|$)")
-        warnings.filterwarnings(
-            "ignore",
-            category=UserWarning,
-            module=r"fairchem(\.|$)",
-        )
-        warnings.filterwarnings(
-            "ignore",
-            category=DeprecationWarning,
-            module=r"torch(\.|$)",
-        )
-        warnings.filterwarnings(
-            "ignore",
-            category=DeprecationWarning,
-            module=r"triton(\.|$)",
-        )
-        warnings.filterwarnings("ignore", category=FutureWarning, module=r"transformers(\.|$)")
-
-        warnings.showwarning = _quiet_showwarning
-
-        root_logger = logging.getLogger()
-        if not any(isinstance(f, VerboseFilter) for f in root_logger.filters):
-            root_logger.addFilter(VerboseFilter())
-
-        for name in ("fairchem", "torch", "triton", "transformers", "e3nn"):
-            logging.getLogger(name).setLevel(logging.ERROR)
-
-        _silence_torch_structured_logging()
+        if _pre_quiet_snapshot is None:
+            _pre_quiet_snapshot = _capture_ml_runtime()
+        _install_quiet_ml_state()
+    elif _pre_quiet_snapshot is not None:
+        _apply_ml_runtime(_pre_quiet_snapshot)
+        _pre_quiet_snapshot = None
     else:
-        # High verbosity: restore default warning display; leave logger levels alone
-        # so users can debug backends.
-        if warnings.showwarning is _quiet_showwarning:
-            warnings.showwarning = _original_showwarning
+        warnings.showwarning = _original_showwarning
 
     _configured_quiet = quiet
 
@@ -176,6 +241,7 @@ def install_runtime_ml_filters(verbosity: int = 1) -> None:
 @contextlib.contextmanager
 def suppress_ml_warnings() -> Generator[list[str], None, None]:
     """Context manager to suppress verbose warnings and info messages from ML backends."""
+    token = push_ml_warnings_context()
     install_runtime_ml_filters(verbosity=0)
 
     verbose_filter = VerboseFilter()
@@ -187,7 +253,7 @@ def suppress_ml_warnings() -> Generator[list[str], None, None]:
     original_stderr = sys.stderr
     captured_messages: list[str] = []
 
-    class FilteredStderr:
+    class FilteredStderr(io.TextIOBase):
         """Filtered stderr that suppresses verbose backend messages."""
 
         def write(self, text: str) -> int:
@@ -201,8 +267,7 @@ def suppress_ml_warnings() -> Generator[list[str], None, None]:
             original_stderr.flush()
 
         def close(self) -> None:
-            if hasattr(original_stderr, "close"):
-                original_stderr.close()
+            return None
 
     try:
         sys.stderr = FilteredStderr()
@@ -211,6 +276,7 @@ def suppress_ml_warnings() -> Generator[list[str], None, None]:
         sys.stderr = original_stderr
         if not already_filtered:
             root_logger.removeFilter(verbose_filter)
+        pop_ml_warnings_context(token)
 
 
 @contextlib.contextmanager
@@ -223,10 +289,15 @@ def quiet_backend_loading(
     verbose: int = 1,
 ) -> Generator[list[str], None, None]:
     """Context manager for quiet backend loading with optional model info display."""
-    from famex.utils.logging import is_in_quiet_context, print_model_info, set_quiet_context
+    from famex.utils.logging import (
+        enter_quiet_context,
+        exit_quiet_context,
+        is_in_quiet_context,
+        print_model_info,
+    )
 
     was_already_in_context = is_in_quiet_context()
-    set_quiet_context(True)
+    enter_quiet_context()
 
     try:
         if show_model_info and not was_already_in_context:
@@ -235,4 +306,4 @@ def quiet_backend_loading(
         with suppress_ml_warnings() as captured:
             yield captured
     finally:
-        set_quiet_context(False)
+        exit_quiet_context()

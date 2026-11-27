@@ -6,17 +6,26 @@ CI-NEB uses ORCA energy-weighted spring constants; interior images step with FIR
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 import numpy as np
 from ase import Atoms
 
-from famex.strategies.helpers import copy_labeled_frame
+from famex.strategies.helpers import copy_labeled_frame, neb_method_name
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
+
+
+def normalize_flat_tangent(tangent: np.ndarray, *, eps: float = 1e-10) -> np.ndarray:
+    """Flatten ``tangent`` and return a unit vector, or the flat vector if ``norm <= eps``."""
+    tangent_flat = np.asarray(tangent, dtype=float).ravel()
+    norm = float(np.linalg.norm(tangent_flat))
+    if norm > eps:
+        return cast(np.ndarray, tangent_flat / norm)
+    return tangent_flat
 
 
 def energy_weighted_spring_constants(
@@ -194,6 +203,40 @@ class _FIREBandStepper:
         return (r + dr).ravel()
 
 
+def run_interior_fire_relaxation(
+    fire: _FIREBandStepper,
+    *,
+    fmax: float,
+    max_steps: int,
+    interior_forces: Callable[[], Sequence[np.ndarray]],
+    interior_positions_flat: Callable[[], np.ndarray],
+    apply_interior_positions_flat: Callable[[np.ndarray], None],
+    on_iteration: Callable[[int], None] | None = None,
+    on_converged: Callable[[int, float], None] | None = None,
+) -> bool:
+    """FIRE relaxation of band interior images until force convergence."""
+    converged = False
+    for step in range(max_steps):
+        forces = list(interior_forces())
+        if not forces:
+            break
+
+        max_force = max(float(np.max(np.abs(force))) for force in forces)
+        if max_force < fmax:
+            converged = True
+            if on_converged is not None:
+                on_converged(step + 1, max_force)
+            break
+
+        flat_forces = np.concatenate([np.asarray(force, dtype=float).ravel() for force in forces])
+        new_flat_pos = fire.step(interior_positions_flat(), flat_forces)
+        apply_interior_positions_flat(new_flat_pos)
+        if on_iteration is not None:
+            on_iteration(step + 1)
+
+    return converged
+
+
 class NEBOptimizer:
     """NEB / CI-NEB with ASE improved-tangent forces and FIRE steps."""
 
@@ -244,7 +287,7 @@ class NEBOptimizer:
             fa=float(kwargs.get("fa", 0.99)),
         )
 
-        method_name = "CI-NEB" if self.climb else "NEB"
+        method_name = neb_method_name(climb=self.climb)
         if self.supports_batch:
             logger.info(
                 "Using batch evaluation for %s optimization with %d images",
@@ -287,35 +330,56 @@ class NEBOptimizer:
             self.iteration_frames.append(frame)
 
     def optimize(self) -> tuple[list[Atoms], bool]:
-        method_name = "CI-NEB" if self.climb else "NEB"
-        converged = False
+        method_name = neb_method_name(climb=self.climb)
         self._snapshot_band(0)
 
-        for step in range(self.steps):
+        converged_step = 0
+        converged_max_force = 0.0
+
+        def _interior_forces() -> list[np.ndarray]:
             energies, forces_list = self._calculate_energies_forces()
             neb_forces = self.compute_forces(energies, forces_list)
+            return list(neb_forces[1:-1])
 
-            interior_forces = neb_forces[1:-1]
-            if not interior_forces:
-                break
+        def _interior_positions_flat() -> np.ndarray:
+            return np.concatenate([img.positions.ravel() for img in self.images[1:-1]])
 
-            max_force = max(float(np.max(np.abs(force))) for force in interior_forces)
-            if max_force < self.fmax:
-                logger.info(
-                    "%s converged after %d steps (max force: %.6f)",
-                    method_name,
-                    step + 1,
-                    max_force,
-                )
-                if self.climb and self.climbing_image is not None:
-                    logger.info("Climbing image was image %d", self.climbing_image)
-                converged = True
-                break
+        def _apply_interior_positions_flat(new_flat: np.ndarray) -> None:
+            natoms = len(self.images[0])
+            ncoords = 3 * natoms
+            for idx, img in enumerate(self.images[1:-1]):
+                start = idx * ncoords
+                img.positions = new_flat[start : start + ncoords].reshape(natoms, 3)
 
-            self._fire_update(neb_forces)
-            self._snapshot_band(step + 1)
+        def _on_iteration(step: int) -> None:
+            self._snapshot_band(step)
 
-        if not converged:
+        def _on_converged(step: int, max_force: float) -> None:
+            nonlocal converged_step, converged_max_force
+            converged_step = step
+            converged_max_force = max_force
+
+        converged = run_interior_fire_relaxation(
+            self._fire,
+            fmax=self.fmax,
+            max_steps=self.steps,
+            interior_forces=_interior_forces,
+            interior_positions_flat=_interior_positions_flat,
+            apply_interior_positions_flat=_apply_interior_positions_flat,
+            on_iteration=_on_iteration,
+            on_converged=_on_converged,
+        )
+
+        if converged:
+            logger.info(
+                "%s converged after %d steps (max force: %.6f)",
+                method_name,
+                converged_step,
+                converged_max_force,
+            )
+            if self.climb and self.climbing_image is not None:
+                logger.info("Climbing image was image %d", self.climbing_image)
+        else:
             logger.warning("%s did not converge within %d steps", method_name, self.steps)
         return self.images, converged
 

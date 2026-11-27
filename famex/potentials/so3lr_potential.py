@@ -11,7 +11,9 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from ase.calculators.calculator import all_changes
 
+from famex.backends.constants import BACKEND_SO3LR, format_install_command
 from famex.backends.dependencies import deps
+from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
 from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
@@ -54,17 +56,6 @@ class SO3LRPotential(BasePotential):
             ``"cpu"`` or ``"cuda"``. CUDA when available if omitted.
 
         """
-        if not deps.has("so3lr"):
-            msg = (
-                "SO3LR is required for SO3LR potentials. "
-                "Install SO3LR with: git clone "
-                "https://github.com/general-molecular-simulations/so3lr.git && "
-                "cd so3lr && pip install ."
-            )
-            raise ImportError(
-                msg,
-            )
-
         # Store additional SO3LR-specific parameters
         self.model_path = model_path
 
@@ -85,9 +76,15 @@ class SO3LRPotential(BasePotential):
             atoms.info["charge"] = 0.0
 
     def _create_so3lr_calculator(self, *, calculate_hessian: bool, dtype: Any) -> Any:
+        if not deps.has("so3lr"):
+            msg = (
+                f"SO3LR is required for SO3LR potentials. "
+                f"Install with: {format_install_command(BACKEND_SO3LR)}"
+            )
+            raise ImportError(msg)
+
         so3lr = deps.get("so3lr")
         if so3lr is None:
-            logger.error("SO3LR module not available")
             msg = "SO3LR module not available"
             raise RuntimeError(msg)
 
@@ -106,17 +103,20 @@ class SO3LRPotential(BasePotential):
             return
         # After this point, we know _calc is None, so we need to load it
 
-        with quiet_backend_loading(
-            "so3lr",
-            self.model_name,
-            self.model_path,
-            self.device,
-            show_model_info=False,
-        ):
-            self._calc = self._create_so3lr_calculator(
-                calculate_hessian=False,
-                dtype=np.float32,
-            )
+        try:
+            with quiet_backend_loading(
+                "so3lr",
+                self.model_name,
+                self.model_path,
+                self.device,
+                show_model_info=False,
+            ):
+                self._calc = self._create_so3lr_calculator(
+                    calculate_hessian=False,
+                    dtype=np.float32,
+                )
+        except (ImportError, ValueError, TypeError, KeyError, OSError, RuntimeError) as exc:
+            raise_backend_load_error(BACKEND_SO3LR, self.model_name, exc)
 
     def _ensure_hessian_calculator(self) -> Any:
         if self._hessian_calc is None:

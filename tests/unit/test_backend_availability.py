@@ -15,7 +15,12 @@ from famex.backends.availability import (
     get_backend_error_message,
     is_backend_available,
 )
-from famex.backends.constants import BACKEND_MOCK, BACKEND_PET
+from famex.backends.constants import (
+    BACKEND_MOCK,
+    BACKEND_PET,
+    BACKEND_PYSCF,
+    BACKEND_REQUIREMENTS,
+)
 
 
 @pytest.fixture
@@ -29,16 +34,18 @@ class TestBackendAvailabilityChecker:
         assert isinstance(checker._conflict_cache, dict)
         assert len(checker._cache) == 0
         assert len(checker._conflict_cache) == 0
-        assert len(checker._requirements) > 0
+        assert len(BACKEND_REQUIREMENTS) > 0
 
     def test_check_basic_dependencies_mock(self, checker):
         result = checker._check_basic_dependencies(BACKEND_MOCK)
         assert result is True  # Mock has no dependencies
 
     def test_pet_backend_requirements_mapping(self, checker):
-        assert BACKEND_PET in checker._requirements
-        assert checker._requirements[BACKEND_PET] == ["upet", "torch"]
-        assert checker._package_names[BACKEND_PET] == ["upet", "torch"]
+        assert BACKEND_PET in BACKEND_REQUIREMENTS
+        assert BACKEND_REQUIREMENTS[BACKEND_PET] == ("upet", "torch")
+
+    def test_pyscf_backend_does_not_require_dispersion_for_availability(self):
+        assert BACKEND_REQUIREMENTS[BACKEND_PYSCF] == ("pyscf",)
 
     def test_pet_python_version_check(self, checker):
         with patch("famex.backends.availability.sys.version_info", (3, 10, 0)):

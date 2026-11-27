@@ -14,18 +14,11 @@ from famex.backends.constants import (
     DEFAULT_UMA_MODEL,
 )
 from famex.backends.registry import create_calculator
-from famex.core.charge_spin import check_missing_charge_spin, extract_charge_spin_from_atoms
+from famex.core.charge_spin import extract_charge_spin_from_atoms, set_charge_spin_defaults
 from famex.utils.device import resolve_backend_device
 from famex.utils.logging import get_famex_logger, is_in_quiet_context, print_model_info
 
 logger = get_famex_logger(__name__)
-
-
-def _coerce_info_int(info: dict[str, Any], key: str, default: int) -> None:
-    try:
-        info[key] = int(info.get(key, default))
-    except (ValueError, TypeError):
-        info[key] = int(default)
 
 
 class CalculatorManager:
@@ -52,7 +45,7 @@ class CalculatorManager:
         self.verbose = verbose
         self.task_name = task_name
         self.dftd3_functional = dftd3_functional
-        self._calculator_created = False
+        self._model_info_printed = False
         self._warned_about_defaults = False
 
     def get_effective_model_name(self) -> str:
@@ -84,14 +77,18 @@ class CalculatorManager:
         *,
         needs_hessian: bool = False,
     ) -> Any:
-        charge, spin = extract_charge_spin_from_atoms(atoms, self.default_charge, self.default_spin)
-        charge_missing, spin_missing = check_missing_charge_spin(atoms)
+        charge, spin, charge_present, spin_present = extract_charge_spin_from_atoms(
+            atoms,
+            self.default_charge,
+            self.default_spin,
+            return_presence=True,
+        )
 
-        if (charge_missing or spin_missing) and not self._warned_about_defaults:
+        if (not charge_present or not spin_present) and not self._warned_about_defaults:
             missing_parts = []
-            if charge_missing:
+            if not charge_present:
                 missing_parts.append(f"charge={charge}")
-            if spin_missing:
+            if not spin_present:
                 missing_parts.append(f"spin={spin}")
             missing_msg = ", ".join(missing_parts)
 
@@ -107,11 +104,9 @@ class CalculatorManager:
                 )
             self._warned_about_defaults = True
 
-        if getattr(atoms, "info", None) is not None:
-            _coerce_info_int(atoms.info, "charge", charge)
-            _coerce_info_int(atoms.info, "spin", spin)
+        set_charge_spin_defaults(atoms, charge, spin, overwrite=False, coerce=True)
 
-        if not self._calculator_created:
+        if not self._model_info_printed:
             if not is_in_quiet_context():
                 effective_model_name = self.get_effective_model_name()
                 print_model_info(
@@ -121,7 +116,7 @@ class CalculatorManager:
                     self.device,
                     verbose=self.verbose,
                 )
-            self._calculator_created = True
+            self._model_info_printed = True
 
         calc = create_calculator(
             backend=self.backend,

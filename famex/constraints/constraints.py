@@ -16,14 +16,38 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from ase.constraints import FixAtoms, FixConstraint, FixInternals, Hookean
-from ase.units import Ang, eV
 
+from famex.constraints.constants import (
+    DEFAULT_CLI_HARMONIC_FORCE_CONSTANT,
+    DEFAULT_HARMONIC_ANGLE_FORCE_CONSTANT,
+    DEFAULT_HARMONIC_FORCE_CONSTANT,
+    SUPPORTED_CLI_CONSTRAINT_TYPES_MSG,
+)
 from famex.utils.logging import get_famex_logger
 
 if TYPE_CHECKING:
     from ase import Atoms
 
 logger = get_famex_logger(__name__)
+
+
+def bond_angle_geometry(
+    pos_i: np.ndarray,
+    pos_j: np.ndarray,
+    pos_k: np.ndarray,
+) -> tuple[float, float, np.ndarray, np.ndarray, float, float] | None:
+    """Return (theta, cos_theta, r1, r2, n1, n2) or None if degenerate."""
+    r1 = pos_i - pos_j
+    r2 = pos_k - pos_j
+    n1 = float(np.linalg.norm(r1))
+    n2 = float(np.linalg.norm(r2))
+    if n1 < 1e-12 or n2 < 1e-12:
+        return None
+
+    cos_theta = float(np.dot(r1, r2) / (n1 * n2))
+    cos_theta = float(np.clip(cos_theta, -1.0 + 1e-12, 1.0 - 1e-12))
+    theta = float(np.arccos(cos_theta))
+    return theta, cos_theta, r1, r2, n1, n2
 
 
 class HarmonicAngleASEConstraint(FixConstraint):
@@ -44,20 +68,9 @@ class HarmonicAngleASEConstraint(FixConstraint):
         self,
         atoms: Atoms,
     ) -> tuple[float, float, np.ndarray, np.ndarray, float, float] | None:
-        """Return (theta, cos_theta, r1, r2, n1, n2) or None if degenerate."""
         i, j, k = self.indices
         positions = atoms.get_positions()
-        r1 = positions[i] - positions[j]
-        r2 = positions[k] - positions[j]
-        n1 = float(np.linalg.norm(r1))
-        n2 = float(np.linalg.norm(r2))
-        if n1 < 1e-12 or n2 < 1e-12:
-            return None
-
-        cos_theta = float(np.dot(r1, r2) / (n1 * n2))
-        cos_theta = float(np.clip(cos_theta, -1.0 + 1e-12, 1.0 - 1e-12))
-        theta = float(np.arccos(cos_theta))
-        return theta, cos_theta, r1, r2, n1, n2
+        return bond_angle_geometry(positions[i], positions[j], positions[k])
 
     def adjust_potential_energy(self, atoms: Atoms) -> float:
         geom = self._angle_geometry(atoms)
@@ -133,7 +146,7 @@ class FAMEXConstraintManager:
         self,
         constraint_type: str,
         atom_indices: list[int],
-        force_constant: float = 10.0,
+        force_constant: float = DEFAULT_HARMONIC_FORCE_CONSTANT,
     ) -> None:
         """Add a harmonic restraint toward the reference geometry.
 
@@ -314,7 +327,7 @@ class HarmonicPositionConstraint:
         self,
         atom_indices: list[int],
         reference_atoms: Atoms,
-        force_constant: float = 10.0,
+        force_constant: float = DEFAULT_HARMONIC_FORCE_CONSTANT,
     ) -> None:
         self.atom_indices = atom_indices
         self.reference_positions = reference_atoms.positions[atom_indices].copy()
@@ -353,7 +366,7 @@ class HarmonicBondConstraint:
         self,
         atom_indices: list[int],
         reference_atoms: Atoms,
-        force_constant: float = 10.0,
+        force_constant: float = DEFAULT_HARMONIC_FORCE_CONSTANT,
     ) -> None:
         if len(atom_indices) != 2:
             msg = "Bond constraint requires exactly 2 atoms"
@@ -397,7 +410,7 @@ class HarmonicAngleConstraint:
         self,
         atom_indices: list[int],
         reference_atoms: Atoms,
-        force_constant: float = 5.0,
+        force_constant: float = DEFAULT_HARMONIC_ANGLE_FORCE_CONSTANT,
     ) -> None:
         if len(atom_indices) != 3:
             msg = "Angle constraint requires exactly 3 atoms"
@@ -410,13 +423,11 @@ class HarmonicAngleConstraint:
         pos1 = reference_atoms.positions[atom_indices[0]]
         pos2 = reference_atoms.positions[atom_indices[1]]
         pos3 = reference_atoms.positions[atom_indices[2]]
-
-        vec1 = pos1 - pos2
-        vec2 = pos3 - pos2
-
-        cos_angle = np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
-        cos_angle = np.clip(cos_angle, -1.0, 1.0)
-        self.reference_value = float(np.arccos(cos_angle))
+        geom = bond_angle_geometry(pos1, pos2, pos3)
+        if geom is None:
+            msg = "Angle constraint reference geometry is degenerate"
+            raise ValueError(msg)
+        self.reference_value = geom[0]
 
     def to_ase_constraints(self) -> list:
         """Return the equivalent ASE constraint objects."""
@@ -477,9 +488,7 @@ class FixInternalsConstraint:
             return [FixInternals(angles_deg=[internal_coordinate])]
         if self.constraint_type == "dihedral":
             return [FixInternals(dihedrals_deg=[internal_coordinate])]
-
-        msg = f"Unknown FixInternals constraint type: {self.constraint_type}"
-        raise ValueError(msg)
+        return []
 
 
 def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> FAMEXConstraintManager:
@@ -528,7 +537,7 @@ def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> FAME
         elif constraint_type.startswith("harmonic_"):
             harmonic_type = constraint_type.replace("harmonic_", "")
             atom_indices = [int(x.strip()) for x in parts[1].split(",")]
-            force_constant = 10.0 * eV / Ang**2
+            force_constant = DEFAULT_CLI_HARMONIC_FORCE_CONSTANT
             for part in parts[2:]:
                 if part.startswith("k="):
                     force_constant = float(part.replace("k=", ""))
@@ -552,8 +561,7 @@ def parse_constraint_string(constraint_str: str, reference_atoms: Atoms) -> FAME
         else:
             msg = (
                 f"Unknown constraint type: {constraint_type} "
-                f"(supported types: fix, harmonic_position, harmonic_bond, harmonic_angle, "
-                f"fixinternals_bond, fixinternals_angle, fixinternals_dihedral)"
+                f"(supported types: {SUPPORTED_CLI_CONSTRAINT_TYPES_MSG})"
             )
             raise ValueError(msg)
 

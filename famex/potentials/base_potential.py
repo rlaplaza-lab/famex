@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 
 from famex.analysis.hessian import DEFAULT_FD_HESSIAN_DELTA, HessianCalculator
+from famex.core.charge_spin import set_charge_spin_defaults
 from famex.utils.device import resolve_backend_device
 from famex.utils.logging import get_famex_logger
 
@@ -157,14 +158,7 @@ class BasePotential:
     @staticmethod
     def _set_atoms_charge_spin(atoms: Atoms, charge: int, spin: int) -> None:
         """Ensure ``atoms.info`` contains integer charge and spin values."""
-        if "charge" not in atoms.info:
-            atoms.info["charge"] = int(charge)
-        else:
-            atoms.info["charge"] = int(atoms.info["charge"])
-        if "spin" not in atoms.info:
-            atoms.info["spin"] = int(spin)
-        else:
-            atoms.info["spin"] = int(atoms.info["spin"])
+        set_charge_spin_defaults(atoms, charge, spin, overwrite=False, coerce=True)
 
     def get_potential_energy(
         self,

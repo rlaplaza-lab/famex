@@ -125,7 +125,7 @@ class TestPotentialsInitBasic:
             lambda _name: _Module(),
         )
 
-        with pytest.raises(TypeError, match="Expected callable"):
+        with pytest.raises(ValueError, match="Expected callable"):
             _get_calculator_generic(BACKEND_MOCK)
 
 

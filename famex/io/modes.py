@@ -7,10 +7,10 @@ from typing import Any, cast
 
 import numpy as np
 from ase import Atoms
-from ase.constraints import FixAtoms
 
 from famex.analysis.physics_constants import IMAGINARY_MODE_THRESHOLD_CM
 from famex.io.xyz_io import write_xyz_with_metadata
+from famex.utils.normal_mode_atoms import fixed_atom_indices, mode_atom_indices
 
 __all__ = [
     "modes_output_dir",
@@ -86,7 +86,7 @@ def write_vibrational_modes(
 
     frequencies, normal_modes = _frequencies_and_modes(frequency_result)
     selected = _select_mode_indices(frequencies, which, mode_indices)
-    atom_indices = _mode_atom_indices(len(atoms), normal_modes, frequency_result)
+    atom_indices = mode_atom_indices(len(atoms), normal_modes, frequency_result)
     if atom_indices is None:
         msg = (
             f"Normal mode length {normal_modes.shape[0]} does not match "
@@ -161,21 +161,6 @@ def _select_mode_indices(
     return selected
 
 
-def _mode_atom_indices(
-    n_atoms: int,
-    normal_modes: np.ndarray,
-    frequency_result: dict[str, Any],
-) -> list[int] | None:
-    """Map normal-mode rows to atom indices, including partial Hessian analyses."""
-    if normal_modes.shape[0] == 3 * n_atoms:
-        return list(range(n_atoms))
-
-    indices = frequency_result.get("indices")
-    if indices is not None and normal_modes.shape[0] == 3 * len(indices):
-        return [int(index) for index in indices]
-    return None
-
-
 def _scaled_mode(
     mode_column: np.ndarray,
     atom_indices: list[int],
@@ -197,19 +182,11 @@ def _scaled_mode(
     return displacement
 
 
-def _fixed_atom_indices(atoms: Atoms) -> np.ndarray:
-    indices: list[int] = []
-    for constraint in atoms.constraints:
-        if isinstance(constraint, FixAtoms):
-            indices.extend(int(index) for index in constraint.get_indices())
-    return np.array(sorted(set(indices)), dtype=int)
-
-
 def _displace(atoms: Atoms, displacement: np.ndarray) -> Atoms:
     """Copy ``atoms`` and apply a Cartesian displacement that honors constraints."""
     frame = cast(Atoms, atoms.copy())
     shift = np.array(displacement, dtype=float, copy=True)
-    fixed = _fixed_atom_indices(frame)
+    fixed = fixed_atom_indices(frame)
     if fixed.size:
         shift[fixed] = 0.0
 

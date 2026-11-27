@@ -96,9 +96,6 @@ class BaseStrategy(ABC):
             self._validate_structure_compatibility(atoms_list)
 
     def _validate_structure_compatibility(self, atoms_list: list[Atoms]) -> None:
-        if not atoms_list:
-            return
-
         n_atoms = len(atoms_list[0])
         symbols_0 = atoms_list[0].get_chemical_symbols()
         for i, atoms in enumerate(atoms_list[1:], start=1):

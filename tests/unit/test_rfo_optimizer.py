@@ -57,7 +57,7 @@ class TestRFOTransitionState:
         atoms = water_dissociation_ts_with_mock
         opt = RFOTransitionState(atoms, logfile=None)
         x = opt._positions_to_x()
-        grad = opt._get_gradient(x)
+        grad = opt._get_ts_gradient(x)
 
         assert grad.shape == (9,)
         # Projected gradient should have smaller or equal norm than raw gradient
@@ -71,7 +71,7 @@ class TestRFOTransitionState:
         x = opt._positions_to_x()
 
         # First call should compute Hessian
-        hessian = opt._compute_hessian(x)
+        hessian = opt._refresh_projected_hessian(x, log_reuse=True)
         StandardTestAssertions.assert_hessian_valid(hessian, expected_shape=(9, 9))
         assert opt.hessian_calls == 1
 
@@ -81,7 +81,7 @@ class TestRFOTransitionState:
         x = opt._positions_to_x()
 
         # First call computes
-        opt._compute_hessian(x)
+        opt._refresh_projected_hessian(x, log_reuse=True)
         assert opt.hessian_calls == 1
 
         # Increment step counter but not enough for update
@@ -89,7 +89,7 @@ class TestRFOTransitionState:
         opt._last_full_hessian_step = 0
 
         # Second call should reuse (no new full Hessian)
-        opt._compute_hessian(x)
+        opt._refresh_projected_hessian(x, log_reuse=True)
         assert opt.hessian_calls == 1  # Still only 1 full Hessian
 
     def test_rfo_convergence(self, water_dissociation_ts_with_mock):
@@ -109,14 +109,14 @@ class TestRFOTransitionState:
         x = opt._positions_to_x()
 
         # Initial call
-        opt._compute_hessian(x)
+        opt._refresh_projected_hessian(x, log_reuse=True)
         assert opt.hessian_calls == 1
 
         # Simulate steps
         for step in range(1, 4):
             opt.nsteps = step
             opt._last_full_hessian_step = 0
-            opt._compute_hessian(x)
+            opt._refresh_projected_hessian(x, log_reuse=True)
 
         # Should have recomputed at step 3 (update_freq=3)
         assert opt.hessian_calls >= 2
@@ -181,7 +181,7 @@ class TestRFOTransitionState:
         x = opt._positions_to_x()
 
         # Should use initial hessian (may be updated)
-        hessian = opt._compute_hessian(x)
+        hessian = opt._refresh_projected_hessian(x, log_reuse=True)
         assert hessian is not None
 
     def test_rfo_trust_radius_adjustment(self, water_dissociation_ts_with_mock):
@@ -204,8 +204,8 @@ class TestRFOTransitionState:
 
         opt = RFOTransitionState(atoms, logfile=None)
         x = opt._positions_to_x()
-        gradient = opt._get_gradient(x)
-        hessian = opt._compute_hessian(x)
+        gradient = opt._get_ts_gradient(x)
+        hessian = opt._refresh_projected_hessian(x, log_reuse=True)
         rng = np.random.default_rng(0)
         step = rng.standard_normal(len(x)) * 0.01
 

@@ -13,19 +13,13 @@ from ase.data import atomic_numbers
 from ase.io import read as ase_read
 from ase.io import write as ase_write
 
+from famex.utils.hessian_ops import optional_int
 from famex.utils.logging import get_famex_logger
 
 if TYPE_CHECKING:
     from famex.io.geometry import Geometry
 
 logger = get_famex_logger(__name__)
-
-
-def _safe_int(value: object) -> int | None:
-    try:
-        return int(value)  # type: ignore[call-overload, no-any-return]
-    except (ValueError, TypeError):
-        return None
 
 
 def _raise_xyz_write_error(filename: Path | str, error: Exception, *, data_error: bool) -> None:
@@ -85,16 +79,16 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
     spin = None
 
     if hasattr(atoms, "charge"):
-        charge = _safe_int(atoms.charge)
+        charge = optional_int(atoms.charge)
 
     if hasattr(atoms, "mult"):
-        spin = _safe_int(atoms.mult)
+        spin = optional_int(atoms.mult)
 
     info = atoms.info if hasattr(atoms, "info") and atoms.info else {}
     if charge is None and "charge" in info:
-        charge = _safe_int(info["charge"])
+        charge = optional_int(info["charge"])
     if spin is None and "spin" in info:
-        spin = _safe_int(info["spin"])
+        spin = optional_int(info["spin"])
 
     if charge is not None:
         parts.append(f"charge={charge}")
@@ -107,7 +101,7 @@ def format_xyz_comment(atoms: Atoms, energy: float | None = None) -> str:
     for key in ("iteration", "image", "step", "mode"):
         if key not in info:
             continue
-        coerced = _safe_int(info[key])
+        coerced = optional_int(info[key])
         if coerced is not None:
             parts.append(f"{key}={coerced}")
 

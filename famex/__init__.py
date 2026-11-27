@@ -87,9 +87,9 @@ def __getattr__(name: str) -> Any:
         "PETPotential": (f"{__name__}.potentials.pet_potential", "PETPotential"),
         "get_pet_calculator": (f"{__name__}.potentials", "get_pet_calculator"),
         # errors
-        "FAMEXError": (f"{__name__}.utils.validation", "FAMEXError"),
-        "DependencyError": (f"{__name__}.utils.validation", "DependencyError"),
-        "BackendError": (f"{__name__}.utils.validation", "BackendError"),
+        "FAMEXError": (f"{__name__}.core.exceptions", "FAMEXError"),
+        "DependencyError": (f"{__name__}.core.exceptions", "DependencyError"),
+        "BackendError": (f"{__name__}.core.exceptions", "BackendError"),
         # expose the cli package as a module object
         "cli": (f"{__name__}.cli", None),
     }

@@ -1,159 +1,116 @@
-"""Device utilities for FAMEX.
+"""Device detection and normalization for FAMEX."""
 
-This module provides centralized device detection and management for CUDA vs CPU,
-ensuring consistent device handling across the entire FAMEX codebase.
-"""
+from __future__ import annotations
+
+import re
+from functools import lru_cache
 
 from famex.backends.constants import BACKEND_PYSCF, BACKEND_TBLITE
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
 
-# Backends that cannot use GPU (semi-empirical / CPU-only stacks).
 CPU_ONLY_BACKENDS: frozenset[str] = frozenset({BACKEND_TBLITE, BACKEND_PYSCF})
+_CUDA_INDEX_PATTERN = re.compile(r"^cuda:\d+$")
 
 
+def normalize_device(device: str) -> str:
+    """Normalize ``gpu`` / ``cuda`` / ``cuda:N`` / ``cpu`` to ``cpu`` or ``cuda``."""
+    normalized = device.strip().lower()
+    if not normalized:
+        raise ValueError("Device cannot be blank")
+    if normalized == "gpu":
+        return "cuda"
+    if normalized in {"cpu", "cuda"}:
+        return normalized
+    if _CUDA_INDEX_PATTERN.match(normalized):
+        return "cuda"
+    raise ValueError(f"Unknown device: {device!r}")
+
+
+@lru_cache(maxsize=1)
 def is_cuda_available() -> bool:
     """Return whether CUDA is available via PyTorch."""
     try:
         from famex.backends.dependencies import deps
 
         if deps.has("torch"):
-            torch = deps.get("torch")
-            return bool(torch.cuda.is_available())
+            return bool(deps.get("torch").cuda.is_available())
     except ImportError:
         pass
     return False
 
 
 def get_optimal_device(device: str | None = None) -> str:
-    """Get the optimal device for computation.
-
-    Parameters
-    ----------
-    device : str, optional
-        Explicitly requested device. If None, auto-detects.
-
-    Returns
-    -------
-    str
-        Device to use ('cpu' or 'cuda')
-
-    """
-    if device is not None:
-        return device.lower()
-
-    if is_cuda_available():
-        return "cuda"
-
-    # Fallback to CPU
-    return "cpu"
+    """Return ``device`` if set, otherwise auto-select ``cuda`` or ``cpu``."""
+    if device is not None and device.strip():
+        return normalize_device(device)
+    return "cuda" if is_cuda_available() else "cpu"
 
 
 def _requests_cuda(device: str | None) -> bool:
-    """Return whether ``device`` is an explicit CUDA/GPU request."""
     if device is None:
         return False
-    normalized = device.strip().lower()
-    return normalized == "gpu" or normalized.startswith("cuda")
+    text = device.strip().lower()
+    return bool(text) and (text == "gpu" or text == "cuda" or text.startswith("cuda:"))
 
 
 def resolve_backend_device(backend: str | None, device: str | None = None) -> str:
-    """Resolve device for a backend.
-
-    MLIP backends default to CUDA when available. CPU-only backends (e.g. TBLite)
-    run on CPU. An explicit CUDA request for a CPU-only backend is an error.
-    An explicit ``device`` is honored for MLIP backends.
-
-    Parameters
-    ----------
-    backend : str, optional
-        Backend name (e.g. ``uma``, ``mace``, ``tblite``).
-    device : str, optional
-        Explicit device request. If None, auto-select for MLIP backends.
-
-    Returns
-    -------
-    str
-        ``"cpu"`` or ``"cuda"``.
-
-    Raises
-    ------
-    ValueError
-        If a CPU-only backend is asked to run on CUDA.
-    """
+    """Resolve device for a backend; CPU-only backends reject CUDA requests."""
     backend_key = (backend or "").strip().lower()
     if backend_key in CPU_ONLY_BACKENDS:
         if _requests_cuda(device):
-            msg = (
+            raise ValueError(
                 f"Backend '{backend_key}' does not support CUDA. "
                 "Use device='cpu' or omit device to run on CPU."
             )
-            raise ValueError(msg)
         return "cpu"
     return get_optimal_device(device)
 
 
+def _torch_cuda_info() -> tuple[bool, str | None, int | None]:
+    try:
+        from famex.backends.dependencies import deps
+
+        if not deps.has("torch"):
+            return False, None, None
+        torch = deps.get("torch")
+        if not torch.cuda.is_available():
+            return False, None, None
+        return (
+            True,
+            torch.cuda.get_device_name(0),
+            torch.cuda.get_device_properties(0).total_memory,
+        )
+    except ImportError:
+        return False, None, None
+
+
 def print_device_info(device: str) -> None:
-    """Print device information for user feedback.
-
-    Parameters
-    ----------
-    device : str
-        Device being used
-
-    """
-    if device == "cuda":
-        try:
-            from famex.backends.dependencies import deps
-
-            if not deps.has("torch"):
-                logger.warning("PyTorch not available, using CPU")
-                return
-            torch = deps.get("torch")
-            if torch.cuda.is_available():
-                gpu_name = torch.cuda.get_device_name(0)
-                logger.info("Using CUDA device: %s", gpu_name)
-            else:
-                logger.warning("CUDA requested but not available, falling back to CPU")
-        except ImportError:
-            logger.warning("PyTorch not available, using CPU")
-    else:
+    """Log which device is being used."""
+    device = normalize_device(device)
+    if device != "cuda":
         logger.info("Using CPU device")
+        return
+    available, gpu_name, _memory = _torch_cuda_info()
+    if available:
+        logger.info("Using CUDA device: %s", gpu_name)
+    else:
+        logger.warning("CUDA requested but not available, falling back to CPU")
 
 
 def get_device_info(device: str) -> dict:
-    """Get detailed device information.
-
-    Parameters
-    ----------
-    device : str
-        Device to get information for
-
-    Returns
-    -------
-    dict
-        Dictionary containing device information
-
-    """
-    info = {
+    """Return a dict with device / CUDA availability details."""
+    device = normalize_device(device)
+    info: dict = {
         "device": device,
         "cuda_available": False,
         "gpu_name": None,
         "gpu_memory": None,
     }
-
     if device == "cuda":
-        try:
-            from famex.backends.dependencies import deps
-
-            if deps.has("torch"):
-                torch = deps.get("torch")
-                if torch.cuda.is_available():
-                    info["cuda_available"] = True
-                    info["gpu_name"] = torch.cuda.get_device_name(0)
-                    info["gpu_memory"] = torch.cuda.get_device_properties(0).total_memory
-        except ImportError:
-            pass
-
+        available, gpu_name, memory = _torch_cuda_info()
+        info["cuda_available"] = available
+        info["gpu_name"] = gpu_name
+        info["gpu_memory"] = memory
     return info

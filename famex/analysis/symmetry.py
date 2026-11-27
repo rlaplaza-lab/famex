@@ -128,12 +128,12 @@ class SymmetryHandler:
     ):
         """Resolve σ: explicit number, then point group, then molsymm, then C1."""
         self.warn_on_assumptions = warn_on_assumptions
-        self._symmetry_number: int | None = None
-        self._point_group: str | None = None
+        self._symmetry_number = 1
+        self._point_group = "C1"
 
         if symmetry_number is not None:
             self._symmetry_number = symmetry_number
-            self._point_group = point_group
+            self._point_group = point_group if point_group is not None else "C1"
         elif point_group is not None:
             try:
                 self._symmetry_number = get_point_group_symmetry_number(point_group)
@@ -145,29 +145,20 @@ class SymmetryHandler:
                         f"'{point_group}'. Using C1 symmetry (symmetry_number=1).",
                         exc,
                     )
-                self._symmetry_number = 1
-                self._point_group = "C1"
         elif atoms is not None:
             self._symmetry_number, self._point_group = detect_symmetry_from_atoms(atoms)
-        else:
-            if warn_on_assumptions:
-                _warn_assumption(
-                    "No symmetry number, point group, or atoms provided. "
-                    "Assuming C1 symmetry (symmetry_number=1)."
-                )
-            self._symmetry_number = 1
-            self._point_group = "C1"
+        elif warn_on_assumptions:
+            _warn_assumption(
+                "No symmetry number, point group, or atoms provided. "
+                "Assuming C1 symmetry (symmetry_number=1)."
+            )
 
     @property
     def symmetry_number(self) -> int:
-        if self._symmetry_number is None:
-            self._symmetry_number = 1
         return self._symmetry_number
 
     @property
     def point_group(self) -> str:
-        if self._point_group is None:
-            self._point_group = "C1"
         return self._point_group
 
     def __repr__(self) -> str:

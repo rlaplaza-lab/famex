@@ -199,12 +199,8 @@ class TestExplorerErrorHandling:
 
     def test_invalid_device_handled_gracefully(self, water_molecule):
         atoms = water_molecule.copy()
-        # Should either work with default or raise a clear error
-        explorer = Explorer(atoms, backend="mock", device="invalid_device")
-
-        # Device validation might happen later, or might be ignored
-        # Just verify Explorer is created
-        assert explorer.device == "invalid_device"
+        with pytest.raises(ValueError, match="Unknown device"):
+            Explorer(atoms, backend="mock", device="invalid_device")
 
     def test_constraints_parsing_error(self, water_molecule):
         atoms = water_molecule.copy()
@@ -307,6 +303,30 @@ class TestExtractChargeSpin:
 
         assert charge == 50
         assert spin == 51
+
+    def test_comment_sets_presence_flags(self, water_molecule):
+        """XYZ comment charge/spin must count as present (no false defaults warning)."""
+        from famex.core.charge_spin import check_missing_charge_spin
+
+        atoms = water_molecule.copy()
+        atoms.info = {"comment": "charge=-1 spin=2"}
+        charge, spin, charge_present, spin_present = _extract_charge_spin(
+            atoms, default_charge=0, default_spin=1, return_presence=True
+        )
+        assert charge == -1
+        assert spin == 2
+        assert charge_present is True
+        assert spin_present is True
+        assert check_missing_charge_spin(atoms) == (False, False)
+
+    def test_comment_partial_presence(self, water_molecule):
+        atoms = water_molecule.copy()
+        atoms.info = {"comment": "charge=3"}
+        _charge, _spin, charge_present, spin_present = _extract_charge_spin(
+            atoms, return_presence=True
+        )
+        assert charge_present is True
+        assert spin_present is False
 
 
 class TestExplorerRun:

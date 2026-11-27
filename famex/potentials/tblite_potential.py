@@ -16,8 +16,9 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 
-from famex.backends.constants import DEFAULT_TBLITE_MODEL
+from famex.backends.constants import BACKEND_TBLITE, DEFAULT_TBLITE_MODEL, format_install_command
 from famex.backends.dependencies import deps
+from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
 from famex.utils.logging import get_famex_logger
 from famex.utils.ml_warnings import quiet_backend_loading
@@ -128,23 +129,17 @@ class TBLitePotential(BasePotential):
         if self._calc is not None:
             return
 
-        with quiet_backend_loading("tblite", self.method, None, None, show_model_info=False):
-            try:
-                # Check TBLite availability
+        try:
+            with quiet_backend_loading("tblite", self.method, None, None, show_model_info=False):
                 if not deps.has("tblite"):
-                    msg = "TBLite is required for TBLite backend. Install with: pip install tblite"
-                    raise ImportError(
-                        msg,
+                    msg = (
+                        "TBLite is required for TBLite backend. "
+                        f"Install with: {format_install_command(BACKEND_TBLITE)}"
                     )
+                    raise ImportError(msg)
 
-                # Import TBLite ASE calculator
                 from tblite.ase import TBLite
 
-                # Always suppress tblite verbosity unless explicitly set very high
-                # TBLite output should only appear at verbosity 3+, which isn't
-                # currently supported in FAMEX, so we always set it to 0
-                # Create TBLite calculator with all parameters
-                # According to docs: TBLite(atoms: Atoms | None = None, **kwargs)
                 calc_kwargs = {
                     "method": self.method,
                     "accuracy": self.accuracy,
@@ -153,10 +148,9 @@ class TBLitePotential(BasePotential):
                     "initial_guess": self.initial_guess,
                     "mixer_damping": self.mixer_damping,
                     "cache_api": self.cache_api,
-                    "verbosity": 0,  # Set to 0 for quiet operation
+                    "verbosity": 0,
                 }
 
-                # Add optional parameters if provided
                 if self.charge is not None:
                     calc_kwargs["charge"] = self.charge
                 if self.multiplicity is not None:
@@ -169,15 +163,8 @@ class TBLitePotential(BasePotential):
                     calc_kwargs["solvation"] = self.solvation
 
                 self._calc = TBLite(**calc_kwargs)
-
-            except ImportError as e:
-                msg = f"TBLite not available ({e}). Install with: pip install tblite"
-                logger.error("%s", msg)
-                raise ImportError(msg) from e
-            except (ValueError, AttributeError, RuntimeError) as e:
-                msg = f"Failed to initialize TBLite calculator: {e}"
-                logger.error("%s", msg)
-                raise RuntimeError(msg) from e
+        except (ImportError, ValueError, TypeError, KeyError, OSError, RuntimeError) as exc:
+            raise_backend_load_error("tblite", self.model_name, exc)
 
     def calculate(
         self,

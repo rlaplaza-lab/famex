@@ -16,13 +16,13 @@ from famex.analysis.physics_constants import (
     J_PER_MOL_TO_EV,
     PLANCK_CONSTANT,
     SPEED_OF_LIGHT,
+    STANDARD_TEMPERATURE_K,
     gas_phase_concentration_1atm,
     ideal_gas_concentration,
 )
 from famex.analysis.quasiharmonic import (
     QuasiHarmonicHandler,
     calculate_damping_function,
-    calculate_qRRHO_energy,
     calculate_rrho_energy,
     calculate_rrho_entropy,
 )
@@ -42,7 +42,7 @@ from famex.analysis.symmetry import (
 )
 from famex.analysis.thermodynamics import ThermodynamicProperties, read_free_energy_correction
 
-_TEMPERATURE = 298.15
+_TEMPERATURE = STANDARD_TEMPERATURE_K
 
 
 def _thermal_factor(frequency_cm: float, temperature: float = _TEMPERATURE) -> float:
@@ -130,7 +130,7 @@ class TestQuasiHarmonic:
 
     def test_qrrho_energy_is_harmonic_energy(self):
         frequencies = np.array([50.0, 1000.0, 10000.0])
-        assert calculate_qRRHO_energy(frequencies, _TEMPERATURE) == pytest.approx(
+        assert calculate_rrho_energy(frequencies, _TEMPERATURE) == pytest.approx(
             calculate_rrho_energy(frequencies, _TEMPERATURE)
         )
 

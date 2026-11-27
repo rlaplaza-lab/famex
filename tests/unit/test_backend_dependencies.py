@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from famex.backends.dependencies import DependencyManager
+from famex.backends.dependencies import PACKAGE_NAME_MAP, DependencyManager
 
 
 @pytest.fixture
@@ -19,6 +19,10 @@ class TestDependencyManager:
         """Test DependencyManager initialization."""
         assert manager._cache == {}
         assert manager._availability_cache == {}
+
+    def test_package_name_map_contains_pyscf_dispersion(self):
+        assert PACKAGE_NAME_MAP["pyscf_dispersion"] == "pyscf.dispersion.dftd3"
+        assert PACKAGE_NAME_MAP["fairchem"] == "fairchem.core"
 
     def test_has_sella(self, manager):
         """Test checking for sella dependency."""
@@ -84,7 +88,11 @@ class TestDependencyManager:
 
     def test_require_nonexistent(self, manager):
         """Test require() for non-existent package raises ImportError."""
+        from famex.core.exceptions import DependencyError
+
         with pytest.raises(ImportError, match="Missing dependency"):
+            manager.require("nonexistent_package_xyz123", purpose="testing")
+        with pytest.raises(DependencyError, match="Missing dependency"):
             manager.require("nonexistent_package_xyz123", purpose="testing")
 
     def test_require_so3lr_uses_full_install_command(self, manager):

@@ -12,8 +12,9 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from famex.backends.constants import DEFAULT_PET_MODEL
+from famex.backends.constants import BACKEND_PET, DEFAULT_PET_MODEL, format_install_command
 from famex.backends.dependencies import deps
+from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
 from famex.utils.hessian_ops import autograd_hessian_rows_from_forces, symmetrize_hessian
 from famex.utils.logging import get_famex_logger
@@ -127,19 +128,22 @@ class PETPotential(BasePotential):
         if self._calc is not None:
             return
 
-        deps.require("torch", purpose="PET backend")
-        if not deps.has("upet"):
-            msg = "upet is required for PET backend. Install with: pip install upet"
-            raise ImportError(msg)
+        try:
+            deps.require("torch", purpose="PET backend")
+            if not deps.has("upet"):
+                msg = (
+                    f"upet is required for PET backend. "
+                    f"Install with: {format_install_command(BACKEND_PET)}"
+                )
+                raise ImportError(msg)
 
-        with quiet_backend_loading(
-            "pet",
-            self.pet_model,
-            self.model_path,
-            self.device,
-            show_model_info=False,
-        ):
-            try:
+            with quiet_backend_loading(
+                "pet",
+                self.pet_model,
+                self.model_path,
+                self.device,
+                show_model_info=False,
+            ):
                 from upet.calculator import UPETCalculator
 
                 device = self.device
@@ -151,10 +155,8 @@ class PETPotential(BasePotential):
                         version=self.pet_version,
                         device=device,
                     )
-            except ImportError as exc:
-                msg = f"UPET not available ({exc}). Install with: pip install upet"
-                logger.error("%s", msg)
-                raise ImportError(msg) from exc
+        except (ImportError, ValueError, TypeError, KeyError, OSError, RuntimeError) as exc:
+            raise_backend_load_error("pet", self.model_name, exc)
 
     def _ensure_hessian_calculator(self) -> Any:
         """Load an unscripted model; TorchScripted ASE path cannot second-differentiate."""

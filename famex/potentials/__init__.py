@@ -22,6 +22,7 @@ from famex.backends.constants import (
     BACKEND_UMA,
 )
 from famex.backends.registry import BACKEND_CLASSES
+from famex.potentials._load_utils import raise_backend_load_error
 
 __all__ = [
     "BasePotential",
@@ -78,7 +79,11 @@ def _get_calculator_generic(backend: str, **kwargs: Any) -> Any:
         raise TypeError(f"Expected callable, got {type(class_or_func)}")
 
     except ImportError as e:
-        raise ImportError(get_backend_error_message(backend)) from e
+        if not is_backend_available(backend):
+            raise ImportError(get_backend_error_message(backend)) from e
+        raise_backend_load_error(backend, kwargs.get("model_name"), e)
+    except (ValueError, TypeError, KeyError, OSError, RuntimeError) as exc:
+        raise_backend_load_error(backend, kwargs.get("model_name"), exc)
 
 
 def get_uma_calculator(**kwargs: Any) -> Any:

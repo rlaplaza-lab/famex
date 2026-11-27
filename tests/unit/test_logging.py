@@ -74,7 +74,7 @@ class TestSetupFamexLogging:
         setup_famex_logging(verbosity=1, force=False)
 
         assert host_handler in clear_famex_logger.handlers
-        assert clear_famex_logger.propagate is True
+        assert clear_famex_logger.propagate is False
 
     def test_logging_formatter_info_level(self, clear_famex_logger):
         setup_famex_logging(verbosity=2, force=True)
@@ -167,6 +167,16 @@ class TestGetFamexLogger:
 
 
 class TestGetFamexLogLevel:
+    def test_get_log_level_default_warning(self):
+        import famex.utils.logging as logging_mod
+
+        original = logging_mod._famex_log_level
+        try:
+            logging_mod._famex_log_level = logging.WARNING
+            assert get_famex_log_level() == logging.WARNING
+        finally:
+            logging_mod._famex_log_level = original
+
     def test_get_log_level_after_setup(self, clear_famex_logger):
         setup_famex_logging(verbosity=1, force=True)
 
@@ -189,6 +199,17 @@ class TestQuietContext:
         # Clear any existing context
         result = is_in_quiet_context()
         assert result is False
+
+    def test_nested_quiet_context_refcount(self):
+        from famex.utils.logging import enter_quiet_context, exit_quiet_context
+
+        enter_quiet_context()
+        enter_quiet_context()
+        assert is_in_quiet_context() is True
+        exit_quiet_context()
+        assert is_in_quiet_context() is True
+        exit_quiet_context()
+        assert is_in_quiet_context() is False
 
 
 class TestPrintModelInfo:

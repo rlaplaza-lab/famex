@@ -11,6 +11,14 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 from ase.optimize.optimize import Optimizer
 
+from famex.optimizers.messages import (
+    MSG_CONVERGENCE_CRITERION_FMAX,
+    MSG_INITIALIZED_OPTIMIZER_VERBOSITY,
+    MSG_MAXIMUM_STEPS,
+    MSG_OPTIMIZATION_CONVERGED,
+    MSG_OPTIMIZATION_STOPPED,
+    MSG_STARTING_NAMED_OPTIMIZATION,
+)
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
@@ -166,14 +174,14 @@ class VerboseOptimizerWrapper(Optimizer):
 
         if self.verbose >= 2:
             optimizer_name = wrapped_optimizer_class.__name__
-            logger.info("Initialized %s optimizer with verbosity control", optimizer_name)
+            logger.info(MSG_INITIALIZED_OPTIMIZER_VERBOSITY, optimizer_name)
 
     def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:
         if self.verbose >= 2:
             optimizer_name = self.wrapped_optimizer.__class__.__name__
-            logger.info("Starting %s optimization", optimizer_name)
-            logger.info("Convergence criterion: fmax = %s eV/Å", fmax)
-            logger.info("Maximum steps: %s", steps)
+            logger.info(MSG_STARTING_NAMED_OPTIMIZATION, optimizer_name)
+            logger.info(MSG_CONVERGENCE_CRITERION_FMAX, fmax)
+            logger.info(MSG_MAXIMUM_STEPS, steps)
         if self._logging_file is not None:
             with redirect_stdout(cast(TextIO, self._logging_file)):
                 result = self.wrapped_optimizer.run(fmax=fmax, steps=steps)
@@ -183,7 +191,7 @@ class VerboseOptimizerWrapper(Optimizer):
 
         if self.verbose >= 1:
             if result:
-                logger.info("Optimization converged!")
+                logger.info(MSG_OPTIMIZATION_CONVERGED)
             else:
                 actual_steps = self.wrapped_optimizer.get_number_of_steps()
                 scipy_reason = ""
@@ -193,9 +201,7 @@ class VerboseOptimizerWrapper(Optimizer):
                 ):
                     scipy_reason = str(getattr(self.wrapped_optimizer._scipy_result, "message", ""))
 
-                logger.warning(
-                    "Optimization stopped after %s steps without converging", actual_steps
-                )
+                logger.warning(MSG_OPTIMIZATION_STOPPED, actual_steps)
                 if scipy_reason and "Maximum number of iterations" not in scipy_reason:
                     logger.warning("  SciPy reason: %s", scipy_reason)
                 logger.warning("  (Max outer iterations limit: %s)", steps)
@@ -345,3 +351,19 @@ class VerboseSellaAnalytical(VerboseSella):
             profiler=profiler,
             **kwargs,
         )
+
+
+def get_verbose_ase_optimizer_class(name: str) -> type[Optimizer] | None:
+    """Return a verbosity-wrapped ASE optimizer class for a normalized name, if known."""
+    normalized = (name or "").lower()
+    if normalized in ("lbfgs", "l-bfgs", "l_bfgs"):
+        return VerboseLBFGS
+    if normalized == "bfgs":
+        return VerboseBFGS
+    if normalized == "fire":
+        return VerboseFIRE
+    if normalized == "sella":
+        return VerboseSella
+    if normalized in ("sella-analytical", "sella_analytical", "sellaanalytical"):
+        return VerboseSellaAnalytical
+    return None

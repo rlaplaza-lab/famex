@@ -9,9 +9,8 @@ from ase import Atoms
 
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
-from famex.optimizers.sella_utils import is_sella_optimizer
-from famex.strategies.frequency_cleanup import prepare_minima_hessian_optimizer_kwargs
-from famex.strategies.helpers import _run_local_optimization_common
+from famex.strategies.helpers import _run_local_optimization_common, build_optimizer_kwargs
+from famex.strategies.kwargs_policy import LOCAL_OPTIMIZATION_RUN_KEYS, pick_pass_through_kwargs
 
 
 class LocalMinimaStrategy(BaseStrategy):
@@ -35,21 +34,12 @@ class LocalMinimaStrategy(BaseStrategy):
         cleanup_frequencies: bool = False,
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
-        local_optimizer_name = kwargs.get("local_optimizer_name", "lbfgs")
-        verbose = kwargs.get("verbose", 1)
-        temperature = kwargs.get("temperature", 298.15)
+        run_extra = pick_pass_through_kwargs(kwargs, LOCAL_OPTIMIZATION_RUN_KEYS)
+        local_optimizer_name = run_extra.get("local_optimizer_name", "lbfgs")
+        verbose = run_extra.get("verbose", 1)
+        temperature = run_extra.get("temperature", 298.15)
         if cleanup_frequencies is False:
             cleanup_frequencies = bool(getattr(self.explorer, "cleanup_frequencies", False))
-
-        def prepare_minima_optimizer_kwargs(optimizer_name: str, explorer: Any) -> dict[str, Any]:
-            opt_kwargs = getattr(explorer, "optimizer_kwargs", {}) or {}
-            opt_kwargs = dict(opt_kwargs)
-
-            if is_sella_optimizer(optimizer_name.lower()):
-                opt_kwargs.setdefault("internal", True)
-                opt_kwargs.setdefault("order", 0)
-
-            return opt_kwargs
 
         force_fd = bool(getattr(self.explorer, "force_finite_diff_hessian", False))
 
@@ -65,7 +55,9 @@ class LocalMinimaStrategy(BaseStrategy):
             verbose=verbose,
             calculate_frequencies=calculate_frequencies,
             temperature=temperature,
-            prepare_optimizer_kwargs=prepare_minima_optimizer_kwargs,
+            prepare_optimizer_kwargs=lambda name, explorer: build_optimizer_kwargs(
+                name, explorer, target="minima_local"
+            ),
             post_optimization_hook=None,
             validation_hook=None,
             prepare_frequency_kwargs=prepare_frequency_kwargs,
@@ -73,8 +65,10 @@ class LocalMinimaStrategy(BaseStrategy):
             log_prefix="Minima",
             cleanup_frequencies=cleanup_frequencies,
             stationary_point_target="minima",
-            prepare_cleanup_optimizer_kwargs=prepare_minima_hessian_optimizer_kwargs,
-            record_history=bool(kwargs.get("record_history", False)),
+            prepare_cleanup_optimizer_kwargs=lambda name, explorer: build_optimizer_kwargs(
+                name, explorer, target="minima_hessian"
+            ),
+            record_history=bool(run_extra.get("record_history", False)),
         )
 
 

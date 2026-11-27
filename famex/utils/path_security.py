@@ -1,8 +1,4 @@
-"""Path security utilities for FAMEX.
-
-This module provides security utilities to prevent path traversal attacks
-and ensure file operations are restricted to safe directories.
-"""
+"""Path security utilities for FAMEX."""
 
 from __future__ import annotations
 
@@ -15,51 +11,36 @@ class PathSecurityError(ValueError):
     """Raised when an unsafe path is detected."""
 
 
+_ENCODED_TRAVERSAL_MARKERS = ("%2e", "\\x")
+_SUSPICIOUS_PATH_SUBSTRINGS = ("~", "$")
+
+
+def has_unsafe_components(path: Path | str, *, reject_parent_refs: bool = True) -> bool:
+    """Return True if ``path`` has ``..``, nulls, or other unsafe markers."""
+    try:
+        path_obj = Path(path)
+    except (TypeError, ValueError):
+        return True
+
+    path_str = os.fspath(path)
+    if "\x00" in path_str:
+        return True
+    if reject_parent_refs and ".." in path_obj.parts:
+        return True
+    lowered = path_str.lower()
+    if any(marker in lowered for marker in _ENCODED_TRAVERSAL_MARKERS):
+        return True
+    return any(marker in path_str for marker in _SUSPICIOUS_PATH_SUBSTRINGS)
+
+
 def sanitize_filename(filename: str, allow_path_sep: bool = False) -> str:
-    """Sanitize filename by removing all path traversal components.
-
-    This is the most aggressive sanitization - strips ALL directory components
-    and returns only the base filename with safe characters.
-
-    Parameters
-    ----------
-    filename : str
-        Input filename (may contain path components).
-    allow_path_sep : bool, optional
-        If False, removes all path separators. Default is False.
-
-    Returns
-    -------
-    str
-        Safe filename with only basename and safe characters.
-
-    Raises
-    ------
-    PathSecurityError
-        If filename is empty after sanitization.
-
-    """
-    # First, get just the basename (removes all directory components)
-    safe = os.path.basename(filename)
-
-    # Remove leading/trailing dots and spaces
-    safe = safe.strip(". ")
-
-    # Remove any remaining .. sequences (paranoid)
-    safe = safe.replace("..", "_")
-
-    # Remove or replace unsafe characters
-    # Allow: alphanumeric, dash, underscore, dot
+    """Return a basename with only safe filename characters."""
+    safe = os.path.basename(filename).strip(". ").replace("..", "_")
     if not allow_path_sep:
         safe = re.sub(r"[^\w\-.]", "_", safe)
-
-    # Remove leading dots again after character replacement (hidden files can be dangerous)
     safe = safe.lstrip(".")
-
-    # Ensure we have something left
     if not safe or safe.isspace():
         raise PathSecurityError(f"Filename '{filename}' contains no safe characters")
-
     return safe
 
 
@@ -69,71 +50,38 @@ def validate_safe_path(
     must_exist: bool = False,
     allow_absolute: bool = False,
 ) -> Path:
-    """Validate that a path is safe and within allowed boundaries.
-
-    Performs comprehensive security checks:
-    - Resolves symlinks and relative paths
-    - Checks for path traversal attempts
-    - Ensures path is within base_dir if provided
-    - Validates against various bypass techniques
-
-    Parameters
-    ----------
-    path : Path or str
-        Path to validate.
-    base_dir : Path or str, optional
-        Base directory that path must be within.
-    must_exist : bool, optional
-        If True, path must exist. Default is False.
-    allow_absolute : bool, optional
-        If True, allows absolute paths. Default is False.
-
-    Returns
-    -------
-    Path
-        Validated path (absolute, resolved).
-
-    Raises
-    ------
-    PathSecurityError
-        If path fails security checks.
-
-    """
+    """Validate that a path is safe and within ``base_dir`` when provided."""
     try:
         path_obj = Path(path)
     except (TypeError, ValueError) as e:
         raise PathSecurityError(f"Invalid path: {e}") from e
 
-    # Convert to string for validation checks
     path_str = str(path)
+    base_path = Path(base_dir).resolve() if base_dir else None
+    reject_parent_refs = base_path is None
+    if has_unsafe_components(path_obj, reject_parent_refs=reject_parent_refs):
+        if "\x00" in path_str:
+            raise PathSecurityError("Path contains null bytes")
+        if reject_parent_refs and ".." in path_obj.parts:
+            raise PathSecurityError("Path contains parent-directory components")
+        raise PathSecurityError(f"Unsafe path detected: {path_str}")
 
-    # Check for null bytes (can bypass security in C libraries)
-    if "\x00" in path_str:
-        raise PathSecurityError("Path contains null bytes")
-
-    # If no base_dir is specified and absolute paths not allowed, check for absolute
-    # Otherwise, wait until after resolution to check
     if not allow_absolute and not base_dir and path_obj.is_absolute():
         raise PathSecurityError(f"Absolute paths not allowed: {path_str}")
 
-    # Resolve the path (follows symlinks, resolves ..)
-    base_path = Path(base_dir).resolve() if base_dir else None
     try:
         if base_path is not None:
-            if path_obj.is_absolute():
-                resolved = path_obj.resolve()
-            else:
-                resolved = (base_path / path_obj).resolve()
+            resolved = (
+                path_obj.resolve() if path_obj.is_absolute() else (base_path / path_obj).resolve()
+            )
         else:
             resolved = path_obj.resolve()
     except (OSError, RuntimeError) as e:
         raise PathSecurityError(f"Cannot resolve path: {e}") from e
 
-    # Check if path must exist
     if must_exist and not resolved.exists():
         raise PathSecurityError(f"Path does not exist: {path_str}")
 
-    # If base_dir specified, ensure resolved path is within it
     if base_path is not None:
         try:
             resolved.relative_to(base_path)
@@ -146,39 +94,17 @@ def validate_safe_path(
 
 
 def is_safe_relative_path(path: str) -> bool:
-    """Quick check if a path string looks safe.
-
-    This is a lightweight check for use in validators.
-    For actual file operations, use validate_safe_path().
-
-    Parameters
-    ----------
-    path : str
-        Path string to check.
-
-    Returns
-    -------
-    bool
-        True if path appears safe, False otherwise.
-
-    """
+    """Lightweight relative-path safety check for validators."""
     if not path or not isinstance(path, str):
         return False
-
-    # Reject suspicious patterns
-    if any(p in path for p in ["..", "~", "$", "\x00", "\\x", "%2e"]):
+    if has_unsafe_components(path) or os.path.isabs(path):
         return False
-
-    # Reject absolute paths
-    if os.path.isabs(path):
-        return False
-
-    # Check for unusual characters
     return bool(re.match(r"^[\w\-./]+$", path))
 
 
 __all__ = [
     "PathSecurityError",
+    "has_unsafe_components",
     "sanitize_filename",
     "validate_safe_path",
     "is_safe_relative_path",

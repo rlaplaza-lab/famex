@@ -10,7 +10,8 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import preflight_band_path
+from famex.strategies.helpers import neb_method_name, preflight_band_path
+from famex.strategies.kwargs_policy import NEB_OPTIMIZER_KEYS, pick_pass_through_kwargs
 from famex.strategies.neb_optimizer import NEBOptimizer
 from famex.utils.logging import get_famex_logger
 
@@ -84,20 +85,21 @@ class MultiStructureNEBStrategy(BaseStrategy):
         if climb is None:
             climb = self.metadata.name == "path:cineb"
 
-        method_name = "CI-NEB" if climb else "NEB"
+        method_name = neb_method_name(climb=climb)
 
         path_mgr = PathManager(atoms_list)
         path = path_mgr.interpolate(npoints=npoints, method=method)
 
         preflight_band_path(path, self.explorer, method_name=method_name)
 
+        neb_extra = pick_pass_through_kwargs(kwargs, NEB_OPTIMIZER_KEYS)
         neb_opt = NEBOptimizer(
             images=path,
             spring_constant=spring_constant,
             climb=climb,
             fmax=fmax,
             steps=steps,
-            **kwargs,
+            **neb_extra,
         )
 
         optimized_path, converged = neb_opt.optimize()
@@ -108,8 +110,8 @@ class MultiStructureNEBStrategy(BaseStrategy):
                 PathManager.filter_redundant_structures(
                     optimized_path,
                     input_structures=atoms_list,
-                    rmsd_threshold=kwargs.get("rmsd_threshold", 0.1),
-                    energy_threshold=kwargs.get("energy_threshold", 0.001),
+                    rmsd_threshold=float(neb_extra.get("rmsd_threshold", 0.1)),
+                    energy_threshold=float(neb_extra.get("energy_threshold", 0.001)),
                     strategy_name=self.metadata.name,
                 )
             )
