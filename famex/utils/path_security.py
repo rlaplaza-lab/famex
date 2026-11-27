@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
 class PathSecurityError(ValueError):
@@ -25,8 +25,13 @@ def has_unsafe_components(path: Path | str, *, reject_parent_refs: bool = True) 
     path_str = os.fspath(path)
     if "\x00" in path_str:
         return True
-    if reject_parent_refs and ".." in path_obj.parts:
-        return True
+    if reject_parent_refs:
+        # Use both POSIX and Windows parsers so ``..\..`` is caught on Linux hosts.
+        parts = set(path_obj.parts)
+        parts.update(PurePosixPath(path_str).parts)
+        parts.update(PureWindowsPath(path_str).parts)
+        if ".." in parts:
+            return True
     lowered = path_str.lower()
     if any(marker in lowered for marker in _ENCODED_TRAVERSAL_MARKERS):
         return True

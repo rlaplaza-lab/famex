@@ -25,6 +25,7 @@ from famex.utils.path_security import (
     has_unsafe_components,
     is_safe_relative_path,
 )
+from famex.utils.path_security import validate_safe_path as validate_safe_path
 
 if TYPE_CHECKING:
     from ase import Atoms

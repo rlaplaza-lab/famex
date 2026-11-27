@@ -334,8 +334,11 @@ class HessianOptimizerBase(ProjectedHessianOptimizerMixin, Optimizer):
             raise RuntimeError("Hessian is None after update logic")
         return self.hessian / self.alpha
 
-    def _get_current_fmax(self) -> float:
-        return float(np.max(np.abs(self.atoms.get_forces())))
+    def _get_current_fmax(self) -> float | None:
+        try:
+            return float(np.max(np.abs(self.atoms.get_forces())))
+        except Exception:
+            return None
 
     def objective(self, x: np.ndarray) -> float:
         self.atoms.set_positions(self._x_to_positions(x))
