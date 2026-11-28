@@ -16,6 +16,7 @@ import numpy as np
 from ase import Atoms
 
 from famex.analysis.hessian import CalculatorProtocol
+from famex.analysis.symmetry import project_assembled_hessian
 from famex.analysis.utils import validate_indices
 from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
@@ -187,6 +188,11 @@ class EnergyBasedHessianCalculator:
                     raise RuntimeError(msg) from e
 
         symmetrized = symmetrize_hessian(hessian)
+        symmetrized = project_assembled_hessian(
+            self.atoms,
+            symmetrized,
+            calculator=self.calculator,
+        )
 
         if self.verbose >= 2:
             logger.info("Energy-based Hessian calculation completed")

@@ -15,6 +15,7 @@ from famex.backends.constants import (
 )
 from famex.backends.registry import create_calculator
 from famex.core.charge_spin import extract_charge_spin_from_atoms, set_charge_spin_defaults
+from famex.optimizers.ase_wrappers import SymmetryCalculatorWrapper
 from famex.utils.device import resolve_backend_device
 from famex.utils.logging import get_famex_logger, is_in_quiet_context, print_model_info
 
@@ -35,6 +36,7 @@ class CalculatorManager:
         verbose: int = 1,
         task_name: str | None = None,
         dftd3_functional: str | None = None,
+        molecular_symmetry: Any | None = None,
     ) -> None:
         self.backend = backend
         self.model_name = model_name
@@ -45,6 +47,7 @@ class CalculatorManager:
         self.verbose = verbose
         self.task_name = task_name
         self.dftd3_functional = dftd3_functional
+        self.molecular_symmetry = molecular_symmetry
         self._model_info_printed = False
         self._warned_about_defaults = False
 
@@ -132,5 +135,7 @@ class CalculatorManager:
             task_name=self.task_name,
             dftd3_functional=self.dftd3_functional,
         )
+        if self.molecular_symmetry is not None and self.molecular_symmetry.should_project:
+            calc = SymmetryCalculatorWrapper(calc, self.molecular_symmetry)
         atoms.calc = calc
         return calc

@@ -17,6 +17,7 @@ from famex.analysis.physics_constants import (
     normalize_frequencies_cm1,
 )
 from famex.analysis.quasiharmonic import harmonic_zero_point_energy_ev
+from famex.analysis.symmetry import project_assembled_hessian
 from famex.analysis.thermodynamics import ThermodynamicProperties
 from famex.analysis.utils import (
     get_calculator_property,
@@ -323,6 +324,11 @@ class FrequencyAnalysis:
                         ) / (2 * self.delta)
 
         symmetrized = symmetrize_hessian(hessian)
+        symmetrized = project_assembled_hessian(
+            self.atoms,
+            symmetrized,
+            calculator=self.calculator,
+        )
 
         if self.verbose >= 2:
             logger.debug("Hessian constructed from batch results")

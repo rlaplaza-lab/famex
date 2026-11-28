@@ -28,7 +28,7 @@ dependencies = [
     "click>=8.0.0",
     "requests>=2.25.0",
     "sella>=2.0.0",
-    "libmolsymm>=1.0.0",
+    "libmolsymm>=2.0.0",
 ]
 
 [project.optional-dependencies]

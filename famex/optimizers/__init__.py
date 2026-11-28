@@ -6,6 +6,7 @@ and SciPy-based optimizers.
 
 from famex.optimizers.ase_wrappers import (
     ProfilerCalculatorWrapper,
+    SymmetryCalculatorWrapper,
     VerboseBFGS,
     VerboseFIRE,
     VerboseLBFGS,
@@ -23,6 +24,7 @@ from famex.optimizers.sella_utils import (
 
 __all__ = [
     "ProfilerCalculatorWrapper",
+    "SymmetryCalculatorWrapper",
     "VerboseOptimizerWrapper",
     "VerboseLBFGS",
     "VerboseBFGS",

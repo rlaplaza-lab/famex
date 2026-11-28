@@ -26,6 +26,7 @@ from famex.analysis.finite_differences import (
     ForwardDifferenceScheme,
     SevenPointCentralDifferenceScheme,
 )
+from famex.analysis.symmetry import project_assembled_hessian
 from famex.analysis.utils import validate_indices
 from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
@@ -404,12 +405,17 @@ class HessianCalculator:
             if method_str == "central":
                 if self.verbose >= 1:
                     logger.info("Using ASE Vibrations for Hessian calculation")
-                return hessian_via_ase(
+                ase_hessian = hessian_via_ase(
                     atoms=self.atoms,
                     calculator=self.calculator,
                     delta=self.delta,
                     indices=self.indices,
                     verbose=self.verbose,
+                )
+                return project_assembled_hessian(
+                    self.atoms,
+                    ase_hessian,
+                    calculator=self.calculator,
                 )
 
         # Reset cache at start of calculation
@@ -973,6 +979,11 @@ class HessianCalculator:
                     )
 
         symmetrized = symmetrize_hessian(hessian)
+        symmetrized = project_assembled_hessian(
+            self.atoms,
+            symmetrized,
+            calculator=self.calculator,
+        )
 
         if self.verbose >= 1:
             elapsed = time.time() - (start_time or 0) if start_time else 0
