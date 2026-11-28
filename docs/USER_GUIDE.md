@@ -127,6 +127,15 @@ Structure inputs for `minima`, `ts`, and `path` can be a geometry file, a SMILES
 * - `--dry-run`
   - `False`
   - Validate inputs and show strategy selection without running
+* - `--no-symmetry`
+  - off (symmetry on)
+  - Disable point-group detection and force/Hessian symmetrization (libmolsymm)
+* - `--point-group`
+  - `None`
+  - Enforce this point group (e.g. `C2v`). Projects input geometry onto the group within `--symmetry-tolerance`, or errors if incompatible
+* - `--symmetry-tolerance`
+  - `1e-3`
+  - libmolsymm primary geometry tolerance in Å
 * - `--freq`, `--frequencies`
   - `False`
   - `minima` and `ts` only. Perform frequency analysis after optimization (includes thermodynamic properties)
@@ -611,6 +620,14 @@ props = thermo.calculate_complete_thermodynamics(energy=energy)
 ```
 
 Gas phase uses the ideal-gas concentration at `pressure`. Solution defaults to 1.0 mol/L. A set `concentration` overrides both. Solvents: `none`, `H2O`, `toluene`, `DMF`, `AcOH`, `chloroform`. The symmetry number comes from the geometry unless `symmetry_number` is set. A linear molecule uses one rotational temperature. See `examples/thermochemistry.py`.
+
+### Point-group force and Hessian symmetrization
+
+By default, FAMEX uses [libmolsymm](https://github.com/rlaplaza-lab/libmolsymm/) 2.0 to detect the molecular point group and project forces and Hessians onto that group. Coordinates are left unchanged in auto mode.
+
+- Disable with `--no-symmetry` / `Explorer(..., symmetry=False)`.
+- Enforce a group with `--point-group C2v` / `point_group="C2v"`: the input must fit within `--symmetry-tolerance` (default `1e-3` Å); FAMEX then projects the geometry onto that group, or raises a clear error if it does not fit.
+- Path strategies (NEB, CI-NEB, GSM, DHS, IRC, interpolate) only keep projection active when the endpoints share the same point group and principal axis; otherwise path forces/Hessians are left alone.
 
 ### Default Models
 

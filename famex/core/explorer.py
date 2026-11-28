@@ -12,6 +12,11 @@ from typing import TYPE_CHECKING, Any
 
 from ase import Atoms
 
+from famex.analysis.symmetry import (
+    MolecularSymmetry,
+    MolecularSymmetryPolicy,
+    is_path_workflow,
+)
 from famex.core.calculator_manager import CalculatorManager
 from famex.core.constraint_manager import ConstraintManager
 from famex.core.exceptions import StrategyNotFoundError
@@ -138,6 +143,16 @@ class Explorer:
         the wrong number of imaginary frequencies (0 for minima, 1 for TS), run a
         Hessian-based cleanup optimization until it does or the attempt limit is
         reached.
+    symmetry : bool, default True
+        Detect point-group symmetry with libmolsymm and symmetrize forces /
+        Hessians. Set ``False`` to disable. Path workflows only activate when
+        endpoints share the same point group and principal axis.
+    point_group : str, optional
+        Enforce this point group (e.g. ``C2v``). Projects input geometries onto
+        the group within ``symmetry_tolerance``, or raises ``ValueError`` if
+        incompatible.
+    symmetry_tolerance : float, default 1e-3
+        libmolsymm primary geometry tolerance in Å.
 
     Notes
     -----
@@ -172,6 +187,9 @@ class Explorer:
         cleanup_frequencies: bool = False,
         task_name: str | None = None,
         dftd3_functional: str | None = None,
+        symmetry: bool = True,
+        point_group: str | None = None,
+        symmetry_tolerance: float = 1e-3,
     ) -> None:
         """Initialize the Explorer; parameters are documented on the class."""
         if isinstance(atoms, Atoms):
@@ -209,6 +227,16 @@ class Explorer:
 
         self.initial_hessian = initial_hessian
 
+        self.molecular_symmetry = MolecularSymmetry(
+            MolecularSymmetryPolicy(
+                enabled=symmetry,
+                point_group=point_group,
+                primary=symmetry_tolerance,
+            ),
+            atoms_list=self.atoms_list,
+            is_path=is_path_workflow(target=self.target, strategy=self.strategy),
+        )
+
         self.calculator_manager = CalculatorManager(
             backend=backend,
             model_name=model_name,
@@ -219,6 +247,7 @@ class Explorer:
             verbose=verbose,
             task_name=task_name,
             dftd3_functional=dftd3_functional,
+            molecular_symmetry=self.molecular_symmetry,
         )
         self.constraint_manager = ConstraintManager(
             constraints_spec=constraints,
@@ -935,7 +964,12 @@ class Explorer:
         frequencies, _ = freq_analysis.diagonalize_hessian()
         vib_frequencies = freq_analysis.get_frequencies()
         vib_normal_modes = freq_analysis.get_normal_modes()
-        thermo = freq_analysis.get_thermodynamic_properties(temperature)
+        sym = self.molecular_symmetry
+        thermo = freq_analysis.get_thermodynamic_properties(
+            temperature,
+            symmetry_number=sym.symmetry_number,
+            point_group=sym.resolved_point_group,
+        )
         ts_analysis = freq_analysis.is_transition_state()
         minima_analysis = freq_analysis.is_minima()
 

@@ -280,6 +280,9 @@ def _create_explorer(
     cleanup_frequencies: bool,
     task_name: str | None = None,
     dftd3_functional: str | None = None,
+    symmetry: bool = True,
+    point_group: str | None = None,
+    symmetry_tolerance: float = 1e-3,
 ) -> tuple[Explorer, AbstractContextManager[list[str]]]:
     ctx: AbstractContextManager[list[str]]
     if verbose == 0:
@@ -315,6 +318,9 @@ def _create_explorer(
         cleanup_frequencies=cleanup_frequencies,
         task_name=task_name,
         dftd3_functional=dftd3_functional,
+        symmetry=symmetry,
+        point_group=point_group,
+        symmetry_tolerance=symmetry_tolerance,
     )
 
     return exp, ctx
@@ -626,6 +632,32 @@ def _common_explorer_options(*, include_freq: bool = True) -> Callable[[Any], An
                 default=False,
                 help="Validate inputs and show strategy selection without running",
             ),
+            click.option(
+                "--no-symmetry",
+                "symmetry",
+                is_flag=True,
+                flag_value=False,
+                default=True,
+                help=(
+                    "Disable point-group detection and force/Hessian symmetrization "
+                    "(enabled by default via libmolsymm)"
+                ),
+            ),
+            click.option(
+                "--point-group",
+                default=None,
+                help=(
+                    "Enforce this point group (e.g. C2v). Projects input geometry onto "
+                    "the group within --symmetry-tolerance, or errors if incompatible"
+                ),
+            ),
+            click.option(
+                "--symmetry-tolerance",
+                type=float,
+                default=1e-3,
+                show_default=True,
+                help="libmolsymm primary geometry tolerance in Å",
+            ),
         ]
         if include_freq:
             opts.extend(
@@ -816,6 +848,9 @@ def minima(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
+    symmetry: bool,
+    point_group: str | None,
+    symmetry_tolerance: float,
     calculate_frequencies: bool,
     temperature: float,
     force_finite_diff_hessian: bool,
@@ -869,6 +904,9 @@ def minima(
         cleanup_frequencies=cleanup_frequencies,
         task_name=task_name,
         dftd3_functional=dftd3_functional,
+        symmetry=symmetry,
+        point_group=point_group,
+        symmetry_tolerance=symmetry_tolerance,
     )
 
     _prepare_and_run(
@@ -1034,6 +1072,9 @@ def ts(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
+    symmetry: bool,
+    point_group: str | None,
+    symmetry_tolerance: float,
     calculate_frequencies: bool,
     temperature: float,
     force_finite_diff_hessian: bool,
@@ -1089,6 +1130,9 @@ def ts(
         cleanup_frequencies=cleanup_frequencies,
         task_name=task_name,
         dftd3_functional=dftd3_functional,
+        symmetry=symmetry,
+        point_group=point_group,
+        symmetry_tolerance=symmetry_tolerance,
     )
 
     dist_default = 0.5 if strategy == "dhs" else 0.1
@@ -1235,6 +1279,9 @@ def path(
     constraints: str | None,
     verbose: int,
     dry_run: bool,
+    symmetry: bool,
+    point_group: str | None,
+    symmetry_tolerance: float,
     force_finite_diff_hessian: bool,
 ) -> None:
     """Reaction path optimization using various strategies.
@@ -1297,6 +1344,9 @@ def path(
         cleanup_frequencies=False,
         task_name=task_name,
         dftd3_functional=dftd3_functional,
+        symmetry=symmetry,
+        point_group=point_group,
+        symmetry_tolerance=symmetry_tolerance,
     )
     first_file = structures[0]
 

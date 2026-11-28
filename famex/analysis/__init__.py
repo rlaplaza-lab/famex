@@ -12,7 +12,11 @@ from famex.analysis.noise_estimation import (
 from famex.analysis.quasiharmonic import QuasiHarmonicHandler
 from famex.analysis.solvation import SolvationHandler
 from famex.analysis.statistical_thermo import StatisticalThermodynamics
-from famex.analysis.symmetry import SymmetryHandler
+from famex.analysis.symmetry import (
+    MolecularSymmetry,
+    MolecularSymmetryPolicy,
+    SymmetryHandler,
+)
 from famex.analysis.thermodynamics import ThermodynamicProperties
 
 __all__ = [
@@ -26,6 +30,8 @@ __all__ = [
     "SolvationHandler",
     "StatisticalThermodynamics",
     "SymmetryHandler",
+    "MolecularSymmetry",
+    "MolecularSymmetryPolicy",
     # Noise estimation
     "estimate_force_noise",
     "estimate_optimal_delta",

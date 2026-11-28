@@ -134,6 +134,104 @@ class ProfilerCalculatorWrapper(Calculator):
         return self.calculator.check_state(atoms, tol)  # type: ignore[no-any-return]
 
 
+class SymmetryCalculatorWrapper(Calculator):
+    """Project forces and Hessians onto a resolved molecular point group."""
+
+    def __init__(self, calculator: Calculator, molecular_symmetry: Any) -> None:
+        super().__init__()
+        self.calculator = calculator
+        self.molecular_symmetry = molecular_symmetry
+        self._name = getattr(calculator, "name", "wrapped")
+        self.implemented_properties = getattr(
+            calculator,
+            "implemented_properties",
+            ["energy", "forces"],
+        ).copy()
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def __getattr__(self, name: str) -> Any:
+        if name in ("calculator", "molecular_symmetry", "_name"):
+            return object.__getattribute__(self, name)
+        attr = getattr(self.calculator, name)
+        # Forward get_hessian only when the backend has it, so property probes
+        # (hasattr / has_calculator_property) stay accurate for FD fallbacks.
+        if name == "get_hessian" and callable(attr):
+
+            def get_hessian(atoms: Atoms | None = None) -> np.ndarray:
+                hessian = np.asarray(attr(atoms), dtype=np.float64)
+                if not self.molecular_symmetry.should_project:
+                    return hessian
+                return np.asarray(
+                    self.molecular_symmetry.project_hessian(
+                        self._atoms_for_projection(atoms), hessian
+                    ),
+                    dtype=np.float64,
+                )
+
+            return get_hessian
+        return attr
+
+    def _atoms_for_projection(self, atoms: Atoms | None) -> Atoms:
+        if atoms is not None:
+            return atoms
+        calc_atoms = getattr(self.calculator, "atoms", None)
+        if calc_atoms is None:
+            raise RuntimeError("No atoms available for point-group projection")
+        return calc_atoms  # type: ignore[no-any-return]
+
+    def calculate(
+        self,
+        atoms: Atoms | None = None,
+        properties: list[str] | None = None,
+        system_changes: list[str] | None = None,
+    ) -> Any:
+        result = self.calculator.calculate(atoms, properties, system_changes)
+        results = getattr(self.calculator, "results", None)
+        if isinstance(results, dict) and self.molecular_symmetry.should_project:
+            target = self._atoms_for_projection(atoms)
+            if results.get("forces") is not None:
+                results["forces"] = self.molecular_symmetry.project_forces(
+                    target, results["forces"]
+                )
+            if results.get("hessian") is not None:
+                results["hessian"] = self.molecular_symmetry.project_hessian(
+                    target, results["hessian"]
+                )
+        return result
+
+    def get_property(
+        self, name: str, atoms: Atoms | None = None, allow_calculation: bool = True
+    ) -> Any:
+        if name == "forces":
+            return self.get_forces(atoms)
+        if name == "hessian" and hasattr(self.calculator, "get_hessian"):
+            return self.get_hessian(atoms)
+        return self.calculator.get_property(name, atoms, allow_calculation)
+
+    def get_potential_energy(
+        self, atoms: Atoms | None = None, force_consistent: bool = False
+    ) -> float:
+        return self.calculator.get_potential_energy(atoms, force_consistent)  # type: ignore[no-any-return]
+
+    def get_forces(self, atoms: Atoms | None = None) -> np.ndarray:
+        forces = np.asarray(self.calculator.get_forces(atoms), dtype=np.float64)
+        if not self.molecular_symmetry.should_project:
+            return forces
+        return np.asarray(
+            self.molecular_symmetry.project_forces(self._atoms_for_projection(atoms), forces),
+            dtype=np.float64,
+        )
+
+    def get_stress(self, atoms: Atoms | None = None) -> np.ndarray:
+        return self.calculator.get_stress(atoms)  # type: ignore[no-any-return]
+
+    def check_state(self, atoms: Atoms, tol: float = 1e-15) -> bool:
+        return self.calculator.check_state(atoms, tol)  # type: ignore[no-any-return]
+
+
 class VerboseOptimizerWrapper(Optimizer):
     def __init__(
         self,
