@@ -167,15 +167,13 @@ class TestGetFamexLogger:
 
 
 class TestGetFamexLogLevel:
-    def test_get_log_level_default_warning(self):
+    def test_module_default_matches_verbosity_one(self):
+        from pathlib import Path
+
         import famex.utils.logging as logging_mod
 
-        original = logging_mod._famex_log_level
-        try:
-            logging_mod._famex_log_level = logging.WARNING
-            assert get_famex_log_level() == logging.WARNING
-        finally:
-            logging_mod._famex_log_level = original
+        source = Path(logging_mod.__file__).read_text(encoding="utf-8")
+        assert "_famex_log_level = logging.INFO" in source
 
     def test_get_log_level_after_setup(self, clear_famex_logger):
         setup_famex_logging(verbosity=1, force=True)
@@ -228,6 +226,57 @@ class TestPrintModelInfo:
     def test_print_model_info_minimal(self, clear_famex_logger):
         setup_famex_logging(verbosity=1, force=True)
         print_model_info("mock")
+
+
+class TestLoggingConventions:
+    def test_library_modules_use_get_famex_logger(self):
+        """Library modules should not acquire loggers via logging.getLogger ad hoc."""
+        import ast
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[2] / "famex"
+        offenders: list[str] = []
+        allowed = {
+            root / "utils" / "logging.py",
+            root / "utils" / "ml_warnings.py",
+            root / "embed" / "parse.py",
+        }
+        for path in root.rglob("*.py"):
+            if path in allowed:
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                if (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "getLogger"
+                    and isinstance(func.value, ast.Name)
+                    and func.value.id == "logging"
+                ):
+                    offenders.append(str(path.relative_to(root.parent)))
+                    break
+        assert offenders == []
+
+    def test_messages_helpers_use_lazy_formatting(self):
+        import ast
+        from pathlib import Path
+
+        path = Path(__file__).resolve().parents[2] / "famex" / "optimizers" / "messages.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not node.args:
+                continue
+            func = node.func
+            if not (
+                isinstance(func, ast.Attribute)
+                and func.attr in {"debug", "info", "warning", "error", "exception"}
+            ):
+                continue
+            assert not isinstance(node.args[0], ast.JoinedStr), (
+                f"f-string log at line {node.lineno}"
+            )
 
 
 class TestLoggingIntegration:

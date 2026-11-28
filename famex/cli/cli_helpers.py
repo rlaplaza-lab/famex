@@ -12,15 +12,14 @@ import click
 import numpy as np
 from ase import Atoms
 from ase.io import read as ase_read
-from ase.io import write as ase_write
 
 from famex.analysis.thermodynamics import read_free_energy_correction
-from famex.core.file_io import validate_output_path
+from famex.core.file_io import write_atoms_safely, write_trajectory_safely
 from famex.embed.api import smiles_to_atoms
 from famex.io import pubchem
 from famex.io.geometry import read_geometry
 from famex.io.pubchem import parse_pubchem_query
-from famex.io.xyz_io import read_xyz_with_metadata, write_xyz_with_metadata
+from famex.io.xyz_io import read_xyz_with_metadata
 from famex.utils.logging import MARK_FAIL, MARK_OK, get_famex_logger
 from famex.utils.validation import format_atom_count_mismatch
 
@@ -136,12 +135,9 @@ def load_structure_or_smiles(text: str, *, embedder: str = "pysmiles") -> Atoms:
         ) from exc
 
 
-def load_atoms_from_xyz(path: str) -> Atoms:
+def load_atoms_from_xyz(path: str | Path) -> Atoms:
     """Load atoms from a structure file (XYZ uses FAMEX metadata-aware I/O)."""
-    if path.lower().endswith(".xyz"):
-        geom = read_geometry(path, frame="last")
-    else:
-        geom = read_geometry(path)
+    geom = read_geometry(path)
     if isinstance(geom, list):
         geom = geom[-1]
     return geom
@@ -192,34 +188,20 @@ def _coerce_to_atoms(obj: Any) -> Atoms:
 
 def write_atoms(
     atoms: Atoms | list[Atoms] | dict[str, Any] | str,
-    out_path: str | None,
+    out_path: str | Path | None,
 ) -> str | None:
     """Write atoms or trajectory to a file."""
     if not out_path:
         return None
 
-    validate_output_path(out_path)
-
-    parent_dir = Path(out_path).parent
-    if str(parent_dir) != ".":
-        parent_dir.mkdir(parents=True, exist_ok=True)
-
-    if out_path.lower().endswith(".xyz"):
-        if isinstance(atoms, list) and atoms and isinstance(atoms[0], Atoms):
-            write_xyz_with_metadata(atoms, out_path)
-            return out_path
-
-        atoms_obj = _coerce_to_atoms(atoms)
-        write_xyz_with_metadata(atoms_obj, out_path)
-        return out_path
-
+    path = Path(out_path)
     if isinstance(atoms, list) and atoms and isinstance(atoms[0], Atoms):
-        ase_write(out_path, atoms)
-        return out_path
+        write_trajectory_safely(atoms, path)
+        return str(path)
 
     atoms_obj = _coerce_to_atoms(atoms)
-    ase_write(out_path, atoms_obj)
-    return out_path
+    write_atoms_safely(atoms_obj, path)
+    return str(path)
 
 
 def validate_frequency_analysis(frequency_analysis: Any) -> list[str]:
@@ -415,9 +397,9 @@ def _serialize_frequency_analysis(freq_analysis: Any) -> dict[str, Any] | None:
     return freq_data
 
 
-def save_results_json(results: Any, output_path: str) -> None:
+def save_results_json(results: Any, output_path: str | Path) -> None:
     """Save complete results dictionary to JSON file."""
-    json_path = os.path.splitext(output_path)[0] + ".json"
+    json_path = os.path.splitext(str(Path(output_path)))[0] + ".json"
 
     if not isinstance(results, dict):
         msg = f"Results must be a dictionary, got {type(results)}"
@@ -446,7 +428,8 @@ def save_results_json(results: Any, output_path: str) -> None:
         )
 
     try:
-        with open(json_path, "w") as f:
+        Path(json_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump(serializable_results, f, indent=2, default=str)
         click.echo(f"Results saved to: {json_path}")
     except OSError as e:

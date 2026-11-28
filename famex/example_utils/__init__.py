@@ -31,7 +31,7 @@ from famex.backends.constants import DEFAULT_UMA_MODEL
 from famex.backends.registry import calculator_registry, create_calculator
 from famex.core.explorer import Explorer
 from famex.utils.device import get_optimal_device, print_device_info
-from famex.utils.logging import get_famex_logger
+from famex.utils.logging import get_famex_logger, setup_famex_logging
 from famex.utils.path_security import PathSecurityError, sanitize_filename
 
 logger = get_famex_logger(__name__)
@@ -114,7 +114,7 @@ class FAMEXExampleInterface:
         )
 
     def print_header(self, subtitle: str = "") -> None:
-        """Print standardized header."""
+        """Log a standardized header."""
         logger.info("=" * 80)
         logger.info("FAMEX %s", self.name)
         if subtitle:
@@ -122,7 +122,7 @@ class FAMEXExampleInterface:
         logger.info("=" * 80)
 
     def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
-        """Print standardized backend summary."""
+        """Log a standardized backend summary."""
         logger.info("\n%s", title)
         logger.info("-" * 50)
         for i, backend in enumerate(backends, 1):
@@ -130,29 +130,29 @@ class FAMEXExampleInterface:
         logger.info("Total: %d backends", len(backends))
 
     def print_configuration(self, config: dict[str, Any]) -> None:
-        """Print standardized configuration summary."""
+        """Log a standardized configuration summary."""
         logger.info("\nConfiguration:")
         for key, value in config.items():
             logger.info("  %s: %s", key, value)
 
     def print_success(self, message: str = "Completed successfully!") -> None:
-        """Print standardized success message."""
+        """Log a standardized success message."""
         elapsed = time.time() - self.start_time
         logger.info("\n%s", message)
         logger.info("Total time: %.1f seconds", elapsed)
 
     def print_error(self, message: str) -> None:
-        """Print standardized error message."""
+        """Log a standardized error message."""
         logger.error("\n%s", message)
 
     def print_warning(self, message: str) -> None:
-        """Print standardized warning message."""
+        """Log a standardized warning message."""
         logger.warning("\n%s", message)
 
     def save_results(
         self,
         results: dict[str, Any] | list[dict[str, Any]],
-        output_file: str | None = None,
+        output_file: str | Path | None = None,
     ) -> None:
         """Save results to JSON file.
 
@@ -160,7 +160,7 @@ class FAMEXExampleInterface:
         ----------
         results : dict[str, Any] | list[dict[str, Any]]
             Results to save (can be a dict or list of dicts)
-        output_file : str | None
+        output_file : str | Path | None
             Output file path (default: auto-generated based on example name)
         """
         if output_file is None:
@@ -169,7 +169,7 @@ class FAMEXExampleInterface:
         output_path = Path(output_file)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2, default=str)
 
     def get_default_output_file(self) -> str:
@@ -183,9 +183,7 @@ class FAMEXExampleInterface:
         return device
 
     def setup_logging(self, verbose: int = 1) -> None:
-        """Set up FAMEX logging based on verbosity level."""
-        from famex.utils.logging import setup_famex_logging
-
+        """Thin delegate to :func:`famex.utils.logging.setup_famex_logging`."""
         setup_famex_logging(verbosity=verbose)
 
     def select_backend(

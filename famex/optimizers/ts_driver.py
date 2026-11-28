@@ -69,7 +69,7 @@ def run_ts_optimization_loop(
             step = step_result.step
             step_norm = float(np.linalg.norm(step))
             if step_norm < 1e-12:
-                log_step_size_zero(verbose, log=logger)
+                log_step_size_zero()
                 break
 
             x_new = x + step
@@ -93,7 +93,7 @@ def run_ts_optimization_loop(
                 prev_energy = new_energy
             else:
                 atoms.set_positions(x_to_positions(x))
-                log_rejected_poor_ts_step(verbose, quality, log=logger)
+                log_rejected_poor_ts_step(quality)
 
             optimizer.nsteps += 1
             forces = atoms.get_forces()
@@ -104,7 +104,7 @@ def run_ts_optimization_loop(
                 raise ConvergedError
 
     except ConvergedError:
-        log_converged_error_caught(verbose, options.converged_error_message, log=logger)
+        log_converged_error_caught(options.converged_error_message)
         return True, x, current_trust, prev_energy
 
     forces = atoms.get_forces()
@@ -112,12 +112,12 @@ def run_ts_optimization_loop(
 
     if converged:
         if options.log_converged_after_loop:
-            log_converged_error_caught(verbose, options.converged_error_message, log=logger)
+            log_converged_error_caught(options.converged_error_message)
         return True, x, current_trust, prev_energy
 
     if options.log_stopped_without_converging and verbose >= 1:
         reported_steps = stop_message_steps if stop_message_steps is not None else max_steps
         logger.warning(MSG_OPTIMIZATION_STOPPED, reported_steps)
-        log_final_max_force(float(np.max(np.abs(forces))), log=logger)
+        log_final_max_force(float(np.max(np.abs(forces))))
 
     return converged, x, current_trust, prev_energy

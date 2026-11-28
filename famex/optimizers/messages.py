@@ -1,10 +1,14 @@
-"""User-facing optimizer log message strings."""
+"""User-facing optimizer log message strings and helpers."""
 
 from __future__ import annotations
 
 import logging
 
 import numpy as np
+
+from famex.utils.logging import get_famex_logger
+
+logger = get_famex_logger(__name__)
 
 MSG_OPTIMIZATION_CONVERGED = "Optimization converged!"
 MSG_TS_OPTIMIZATION_CONVERGED = "Transition-state optimization converged!"
@@ -19,41 +23,35 @@ MSG_STARTING_RFO = "Starting RFO transition state optimization"
 MSG_INITIALIZED_SCIPY_HESSIAN = "Initialized %s optimizer with Hessian support"
 
 
-def log_converged_error_caught(verbose: int, message: str, *, log: logging.Logger) -> None:
-    if verbose >= 1:
-        log.info(message)
+def log_converged_error_caught(message: str) -> None:
+    logger.info("%s", message)
 
 
-def log_optimization_converged(verbose: int, *, log: logging.Logger) -> None:
-    if verbose >= 1:
-        log.info(MSG_OPTIMIZATION_CONVERGED)
+def log_optimization_converged() -> None:
+    logger.info(MSG_OPTIMIZATION_CONVERGED)
 
 
-def log_step_size_zero(verbose: int, *, log: logging.Logger) -> None:
-    if verbose >= 1:
-        log.warning(MSG_STEP_SIZE_ZERO)
+def log_step_size_zero() -> None:
+    logger.warning(MSG_STEP_SIZE_ZERO)
 
 
-def log_rejected_poor_ts_step(verbose: int, quality: float, *, log: logging.Logger) -> None:
-    if verbose >= 1:
-        log.warning("Rejected poor TS step (Q=%.4f)", quality)
+def log_rejected_poor_ts_step(quality: float) -> None:
+    logger.warning("Rejected poor TS step (Q=%.4f)", quality)
 
 
-def log_final_max_force(fmax: float, *, log: logging.Logger) -> None:
-    log.warning("Final max force: %.6f eV/Å", fmax)
+def log_final_max_force(fmax: float) -> None:
+    logger.warning("Final max force: %.6f eV/Å", fmax)
 
 
 def log_scipy_trust_region_not_converged(
-    verbose: int,
     *,
-    log: logging.Logger,
     method: str,
     actual_steps: int,
     steps: int,
     scipy_message: str,
     forces: np.ndarray,
 ) -> None:
-    if verbose < 1:
+    if not logger.isEnabledFor(logging.WARNING):
         return
 
     scipy_stopped_due_to_maxiter = (
@@ -61,21 +59,21 @@ def log_scipy_trust_region_not_converged(
     )
 
     if scipy_stopped_due_to_maxiter:
-        log.warning(
+        logger.warning(
             "Optimization stopped after %s trust-region steps (reached max outer iterations: %s)",
             actual_steps,
             steps,
         )
     else:
-        log.warning(
+        logger.warning(
             "Optimization stopped after %s trust-region steps without converging",
             actual_steps,
         )
-        log.warning("  SciPy reason: %s", scipy_message)
+        logger.warning("  SciPy reason: %s", scipy_message)
         if "trust-krylov" in method:
-            log.warning(
+            logger.warning(
                 "  Note: Each trust-region step uses inner Krylov iterations to solve the subproblem. "
                 "Failure may indicate inner Krylov solver struggling with the subproblem "
                 "(each step may perform up to ~1000 inner Krylov iterations)."
             )
-    log_final_max_force(float(np.max(np.abs(forces))), log=log)
+    log_final_max_force(float(np.max(np.abs(forces))))

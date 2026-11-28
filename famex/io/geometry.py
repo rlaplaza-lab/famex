@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 from ase import Atoms
-from ase.io import read, write
+from ase.io import read
 
+from famex.core.file_io import write_atoms_safely
 from famex.io.xyz_io import read_xyz_with_metadata, write_xyz_with_metadata
 
 
@@ -226,7 +228,7 @@ class Geometry(Atoms):
         return fetch_pubchem(query, embedder=embedder)
 
 
-def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
+def read_geometry(filename: str | Path, **kwargs: Any) -> Geometry | list[Geometry]:
     """Read a structure file into FAMEX geometries.
 
     XYZ files are read with :func:`~famex.io.xyz_io.read_xyz_with_metadata`, which
@@ -238,8 +240,9 @@ def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
     filename : str or Path
         Path to the structure file (any format supported by ASE).
     **kwargs
-        Extra options. For XYZ files, ``frame`` selects ``"first"`` (default),
-        ``"last"``, ``"all"`` or an integer index. Other keywords go to the reader.
+        Extra options. For XYZ files, ``frame`` selects ``"first"``, ``"last"``
+        (default; see :func:`~famex.io.xyz_io.read_xyz_with_metadata`), ``"all"``
+        or an integer index. Other keywords go to the reader.
 
     Returns
     -------
@@ -247,24 +250,24 @@ def read_geometry(filename: str, **kwargs: Any) -> Geometry | list[Geometry]:
         One geometry, or a list when several frames are selected.
 
     """
-    filename_str = str(filename)
+    path = Path(filename)
+    path_str = str(path)
 
-    if filename_str.lower().endswith(".xyz"):
-        frame = kwargs.pop("frame", "first")
-        return read_xyz_with_metadata(filename_str, frame=frame, **kwargs)
+    if path_str.lower().endswith(".xyz"):
+        return read_xyz_with_metadata(path, **kwargs)
 
-    atoms = read(filename, **kwargs)
+    atoms = read(path_str, **kwargs)
     if isinstance(atoms, list):
         return [Geometry(ase_atoms=atom) for atom in atoms]
     return Geometry(ase_atoms=atoms)
 
 
-def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> None:
+def write_geometry(geometry: Geometry | Atoms, filename: str | Path, **kwargs: Any) -> None:
     """Write a structure to a file.
 
     XYZ files are written with :func:`~famex.io.xyz_io.write_xyz_with_metadata`,
-    so charge, spin and energy are stored in the comment line. Other formats are
-    written with :func:`ase.io.write`.
+    so charge, spin and energy are stored in the comment line. Other formats use
+    :func:`~famex.core.file_io.write_atoms_safely`.
 
     Parameters
     ----------
@@ -274,22 +277,23 @@ def write_geometry(geometry: Geometry | Atoms, filename: str, **kwargs: Any) -> 
         Output path; the format is taken from the extension.
     **kwargs
         Extra options. For XYZ files, ``energy`` (eV) is added to the comment line.
-        Other keywords go to the writer.
+        For other formats, ``format`` is forwarded to the safe writer.
 
     """
-    filename_str = str(filename)
+    path = Path(filename)
 
-    if filename_str.lower().endswith(".xyz"):
+    if str(path).lower().endswith(".xyz"):
         energy = kwargs.pop("energy", None)
-        write_xyz_with_metadata(geometry, filename_str, energy=energy, **kwargs)
+        write_xyz_with_metadata(geometry, path, energy=energy, **kwargs)
         return
 
-    write(filename, geometry, **kwargs)
+    write_atoms_safely(geometry, path, format=kwargs.get("format"))
 
 
-def read_gaussian_input(filename: str) -> tuple[Geometry, str]:
+def read_gaussian_input(filename: str | Path) -> tuple[Geometry, str]:
     """Read a Gaussian input file and determine calculation type."""
-    with open(filename) as f:
+    path = Path(filename)
+    with open(path, encoding="utf-8") as f:
         lines = f.readlines()
 
     route_line = ""

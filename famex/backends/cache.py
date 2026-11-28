@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import Any
 from weakref import WeakValueDictionary
 
+import requests
+
 from famex.utils.logging import get_famex_logger
 from famex.utils.path_security import PathSecurityError, sanitize_filename, validate_safe_path
 
@@ -207,7 +209,7 @@ class ModelCache:
         """Load cache metadata from file."""
         if self.metadata_file.exists():
             try:
-                with open(self.metadata_file) as f:
+                with open(self.metadata_file, encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, dict):
                         return data
@@ -219,8 +221,8 @@ class ModelCache:
     def _save_metadata(self) -> None:
         """Save cache metadata to file."""
         try:
-            with open(self.metadata_file, "w") as f:
-                json.dump(self.metadata, f, indent=2)
+            with open(self.metadata_file, "w", encoding="utf-8") as f:
+                json.dump(self.metadata, f, indent=2, default=str)
         except OSError as e:
             logger.warning("Could not save cache metadata: %s", e)
 
@@ -545,12 +547,11 @@ def download_and_cache_model(model_name: str, model_url: str) -> Path:
     if cached_path is not None:
         return cached_path
 
-    # Download model
-    import requests
+    from famex.io.http import get_with_retries  # deferred: avoid loading famex.io at import time
 
     logger.info("Downloading model %s from %s", model_name, model_url)
     try:
-        response = requests.get(model_url, timeout=30)
+        response = get_with_retries(model_url)
         response.raise_for_status()
         model_data = response.content
     except requests.RequestException as e:

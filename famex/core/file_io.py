@@ -8,17 +8,13 @@ from ase import Atoms
 from ase.io import write
 
 from famex.io.xyz_io import write_xyz_with_metadata
-from famex.utils.path_security import PathSecurityError, has_unsafe_components
+from famex.utils.path_security import validate_output_path
 
-
-def validate_output_path(output_file: str | Path) -> Path:
-    """Validate output file path for security."""
-    output_file = Path(output_file)
-
-    if has_unsafe_components(output_file):
-        raise PathSecurityError(f"Unsafe output path detected: {output_file}")
-
-    return output_file
+__all__ = [
+    "validate_output_path",
+    "write_atoms_safely",
+    "write_trajectory_safely",
+]
 
 
 def _create_clean_atoms(atoms: Atoms) -> Atoms:
@@ -43,11 +39,13 @@ def _write_with_clean_retry(
     entity_label: str,
     clean_payload: Atoms | list[Atoms],
 ) -> None:
+    path_str = str(output_file)
+
     def do_write(data: Atoms | list[Atoms]) -> None:
         if format is not None:
-            write(output_file, data, format=format)
+            write(path_str, data, format=format)
         else:
-            write(output_file, data)
+            write(path_str, data)
 
     try:
         do_write(payload)
@@ -72,7 +70,7 @@ def _write_xyz_safely(
     if not str(output_file).lower().endswith(".xyz"):
         return False
     try:
-        write_xyz_with_metadata(payload, str(output_file))
+        write_xyz_with_metadata(payload, output_file)
     except (OSError, ValueError, TypeError) as e:
         raise RuntimeError(f"Failed to save XYZ {entity_label} to {output_file}: {e}") from e
     return True
@@ -84,6 +82,7 @@ def write_atoms_safely(
     format: str | None = None,
 ) -> None:
     output_file = validate_output_path(output_file)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
 
     if _write_xyz_safely(atoms, output_file, entity_label="structure"):
         return
@@ -103,6 +102,7 @@ def write_trajectory_safely(
     format: str | None = None,
 ) -> None:
     output_file = validate_output_path(output_file)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
 
     if _write_xyz_safely(atoms_list, output_file, entity_label="trajectory"):
         return

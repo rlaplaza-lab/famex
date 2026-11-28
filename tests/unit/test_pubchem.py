@@ -52,6 +52,7 @@ class _Session:
         self.headers: dict[str, str] = {}
         self._responses = list(responses)
         self.calls: list[str] = []
+        self.closed = False
 
     def get(self, url: str, timeout: float | None = None) -> _Response:
         _ = timeout  # match requests.Session.get signature
@@ -60,10 +61,14 @@ class _Session:
             raise AssertionError(f"unexpected request {url}")
         return self._responses.pop(0)
 
+    def close(self) -> None:
+        self.closed = True
+
 
 def _patch_session(monkeypatch: pytest.MonkeyPatch, responses: list[_Response]) -> _Session:
     session = _Session(responses)
-    monkeypatch.setattr("famex.io.pubchem.requests.Session", lambda: session)
+    monkeypatch.setattr("famex.io.pubchem.create_session", lambda **_kwargs: session)
+    monkeypatch.setattr("famex.io.http.time.sleep", lambda _delay: None)
     return session
 
 
@@ -107,7 +112,6 @@ class TestPubChemDownload:
         assert geom.mult == 1
 
     def test_retries_while_pubchem_is_busy(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("famex.io.pubchem.time.sleep", lambda _delay: None)
         session = _patch_session(
             monkeypatch,
             [
@@ -122,7 +126,6 @@ class TestPubChemDownload:
         assert session.calls[0] == session.calls[1]
 
     def test_gives_up_when_pubchem_stays_busy(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("famex.io.pubchem.time.sleep", lambda _delay: None)
         _patch_session(
             monkeypatch,
             [_Response(202, text="waiting") for _ in range(4)],

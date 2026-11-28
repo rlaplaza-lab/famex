@@ -107,10 +107,21 @@ def is_safe_relative_path(path: str) -> bool:
     return bool(re.match(r"^[\w\-./]+$", path))
 
 
+def validate_output_path(output_file: str | Path) -> Path:
+    """Validate output file path for security and return a normalized ``Path``."""
+    output_file = Path(output_file)
+
+    if has_unsafe_components(output_file):
+        raise PathSecurityError(f"Unsafe output path detected: {output_file}")
+
+    return output_file
+
+
 __all__ = [
     "PathSecurityError",
     "has_unsafe_components",
     "sanitize_filename",
     "validate_safe_path",
     "is_safe_relative_path",
+    "validate_output_path",
 ]

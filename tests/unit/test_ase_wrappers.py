@@ -241,21 +241,20 @@ class TestVerboseOptimizerWrapper:
         assert isinstance(wrapper.atoms.calc, ProfilerCalculatorWrapper)
 
     def test_init_with_verbose_2(self, water_molecule, mock_backend):
-        """Test initialization with verbose=2 (verbose mode)."""
+        """Test initialization logs detail at DEBUG (verbosity >= 2)."""
         water_molecule.calc = mock_backend
         with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
-            mock_logger.info = MagicMock()  # Make it callable
-            mock_logger.getEffectiveLevel = MagicMock(return_value=10)  # INFO level
+            mock_logger.debug = MagicMock()
+            mock_logger.getEffectiveLevel = MagicMock(return_value=logging.DEBUG)
             VerboseOptimizerWrapper(
                 water_molecule,
                 BFGS,
                 verbose=2,
             )
-            # Should log initialization message
-            assert mock_logger.info.called
+            assert mock_logger.debug.called
 
     def test_run_with_verbose_2(self, water_molecule, mock_backend):
-        """Test run() method with verbose=2."""
+        """Test run() logs start details at DEBUG."""
         water_molecule.calc = mock_backend
         wrapper = VerboseOptimizerWrapper(
             water_molecule,
@@ -264,8 +263,7 @@ class TestVerboseOptimizerWrapper:
         )
         with patch("famex.optimizers.ase_wrappers.logger") as mock_logger:
             wrapper.run(fmax=LOOSE_FMAX, steps=QUICK_STEPS)
-            # Should log optimization start
-            mock_logger.info.assert_called()
+            mock_logger.debug.assert_called()
 
     def test_run_non_converged_with_scipy_reason(self, water_molecule, mock_backend):
         """Test run() method when optimization doesn't converge with scipy reason."""

@@ -417,7 +417,7 @@ class TestGlobalCacheFunctions:
 
         with (
             patch("famex.backends.cache._get_model_cache", return_value=cache),
-            patch("requests.get") as mock_get,
+            patch("famex.io.http.get_with_retries") as mock_get,
         ):
             mock_response = MagicMock()
             mock_response.content = model_data
@@ -435,7 +435,7 @@ class TestGlobalCacheFunctions:
 
         with (
             patch("famex.backends.cache._get_model_cache", return_value=cache),
-            patch("requests.get") as mock_get,
+            patch("famex.io.http.get_with_retries") as mock_get,
         ):
             import requests
 

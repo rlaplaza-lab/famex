@@ -13,9 +13,6 @@ from famex.io.path_manager import PathManager
 from famex.strategies.helpers import neb_method_name, preflight_band_path
 from famex.strategies.kwargs_policy import NEB_OPTIMIZER_KEYS, pick_pass_through_kwargs
 from famex.strategies.neb_optimizer import NEBOptimizer
-from famex.utils.logging import get_famex_logger
-
-logger = get_famex_logger(__name__)
 
 
 class MultiStructureNEBStrategy(BaseStrategy):

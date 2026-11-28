@@ -12,6 +12,7 @@ from famex.utils.path_security import (
     has_unsafe_components,
     is_safe_relative_path,
     sanitize_filename,
+    validate_output_path,
     validate_safe_path,
 )
 
@@ -252,6 +253,16 @@ class TestIsSafeRelativePath:
         assert is_safe_relative_path("file.txt") is True
         assert is_safe_relative_path("my_file-123.xyz") is True
         assert is_safe_relative_path("dir/subdir/file.txt") is True
+
+
+class TestValidateOutputPath:
+    def test_accepts_str_and_path(self):
+        assert validate_output_path("out.xyz") == Path("out.xyz")
+        assert validate_output_path(Path("nested/out.xyz")) == Path("nested/out.xyz")
+
+    def test_rejects_traversal(self):
+        with pytest.raises(PathSecurityError, match="Unsafe output path"):
+            validate_output_path("../out.xyz")
 
 
 class TestPathSecurityError:

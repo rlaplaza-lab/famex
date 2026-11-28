@@ -142,6 +142,23 @@ class TestWriteAtoms:
         result = write_atoms(atoms, None)
         assert result is None
 
+    def test_write_nested_path(self, tmp_path):
+        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        out = tmp_path / "nested" / "out.xyz"
+        result = write_atoms(atoms, out)
+        assert result == str(out)
+        assert out.exists()
+
+    def test_write_atoms_delegates_to_safe_writers(self, tmp_path):
+        from unittest.mock import patch
+
+        atoms = Atoms("H2", positions=[[0, 0, 0], [0.74, 0, 0]])
+        out = tmp_path / "delegated.xyz"
+        with patch("famex.cli.cli_helpers.write_atoms_safely") as mock_write:
+            write_atoms(atoms, out)
+            mock_write.assert_called_once()
+            assert mock_write.call_args.args[1] == out
+
 
 class TestPrintFrequencySummary:
     def test_print_minima_summary(self, capsys):

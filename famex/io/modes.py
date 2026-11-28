@@ -11,6 +11,7 @@ from ase import Atoms
 from famex.analysis.physics_constants import IMAGINARY_MODE_THRESHOLD_CM
 from famex.io.xyz_io import write_xyz_with_metadata
 from famex.utils.normal_mode_atoms import fixed_atom_indices, mode_atom_indices
+from famex.utils.path_security import validate_output_path
 
 __all__ = [
     "modes_output_dir",
@@ -94,7 +95,8 @@ def write_vibrational_modes(
         )
         raise ValueError(msg)
 
-    destination = Path(output_dir)
+    destination = validate_output_path(Path(output_dir))
+    destination.mkdir(parents=True, exist_ok=True)
     written: list[str] = []
     for column in selected:
         frequency = float(frequencies[column])
@@ -102,7 +104,7 @@ def write_vibrational_modes(
             normal_modes[:, column], atom_indices, len(atoms), amplitude, column
         )
         frames = _oscillate(atoms, direction, nframes, column, frequency)
-        filename = destination / (f"{filename_prefix}mode_{column:03d}_{frequency:.1f}cm-1.xyz")
+        filename = destination / f"{filename_prefix}mode_{column:03d}_{frequency:.1f}cm-1.xyz"
         write_xyz_with_metadata(frames, filename)
         written.append(str(filename))
     return written

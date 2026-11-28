@@ -15,6 +15,7 @@ from ase.io import write as ase_write
 
 from famex.utils.hessian_ops import optional_int
 from famex.utils.logging import get_famex_logger
+from famex.utils.path_security import validate_output_path
 
 if TYPE_CHECKING:
     from famex.io.geometry import Geometry
@@ -300,8 +301,7 @@ def write_xyz_with_metadata(
         If the file cannot be written.
 
     """
-    filename = Path(filename)
-
+    filename = validate_output_path(filename)
     filename.parent.mkdir(parents=True, exist_ok=True)
 
     if not isinstance(atoms, list):

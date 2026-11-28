@@ -270,16 +270,12 @@ class VerboseOptimizerWrapper(Optimizer):
         if getattr(atoms, "calc", None) is not None and self.profiler is not None:
             self.atoms.calc = ProfilerCalculatorWrapper(atoms.calc, self.profiler)
 
-        if self.verbose >= 2:
-            optimizer_name = wrapped_optimizer_class.__name__
-            logger.info(MSG_INITIALIZED_OPTIMIZER_VERBOSITY, optimizer_name)
+        logger.debug(MSG_INITIALIZED_OPTIMIZER_VERBOSITY, wrapped_optimizer_class.__name__)
 
     def run(self, fmax: float = 0.05, steps: int = 1000) -> bool:
-        if self.verbose >= 2:
-            optimizer_name = self.wrapped_optimizer.__class__.__name__
-            logger.info(MSG_STARTING_NAMED_OPTIMIZATION, optimizer_name)
-            logger.info(MSG_CONVERGENCE_CRITERION_FMAX, fmax)
-            logger.info(MSG_MAXIMUM_STEPS, steps)
+        logger.debug(MSG_STARTING_NAMED_OPTIMIZATION, self.wrapped_optimizer.__class__.__name__)
+        logger.debug(MSG_CONVERGENCE_CRITERION_FMAX, fmax)
+        logger.debug(MSG_MAXIMUM_STEPS, steps)
         if self._logging_file is not None:
             with redirect_stdout(cast(TextIO, self._logging_file)):
                 result = self.wrapped_optimizer.run(fmax=fmax, steps=steps)
@@ -287,24 +283,23 @@ class VerboseOptimizerWrapper(Optimizer):
         else:
             result = self.wrapped_optimizer.run(fmax=fmax, steps=steps)
 
-        if self.verbose >= 1:
-            if result:
-                logger.info(MSG_OPTIMIZATION_CONVERGED)
-            else:
-                actual_steps = self.wrapped_optimizer.get_number_of_steps()
-                scipy_reason = ""
-                if (
-                    hasattr(self.wrapped_optimizer, "_scipy_result")
-                    and self.wrapped_optimizer._scipy_result
-                ):
-                    scipy_reason = str(getattr(self.wrapped_optimizer._scipy_result, "message", ""))
+        if result:
+            logger.info(MSG_OPTIMIZATION_CONVERGED)
+        elif self.verbose >= 1:
+            actual_steps = self.wrapped_optimizer.get_number_of_steps()
+            scipy_reason = ""
+            if (
+                hasattr(self.wrapped_optimizer, "_scipy_result")
+                and self.wrapped_optimizer._scipy_result
+            ):
+                scipy_reason = str(getattr(self.wrapped_optimizer._scipy_result, "message", ""))
 
-                logger.warning(MSG_OPTIMIZATION_STOPPED, actual_steps)
-                if scipy_reason and "Maximum number of iterations" not in scipy_reason:
-                    logger.warning("  SciPy reason: %s", scipy_reason)
-                logger.warning("  (Max outer iterations limit: %s)", steps)
-                forces = self.atoms.get_forces()
-                logger.warning("Final max force: %.6f eV/Å", np.max(np.abs(forces)))
+            logger.warning(MSG_OPTIMIZATION_STOPPED, actual_steps)
+            if scipy_reason and "Maximum number of iterations" not in scipy_reason:
+                logger.warning("  SciPy reason: %s", scipy_reason)
+            logger.warning("  (Max outer iterations limit: %s)", steps)
+            forces = self.atoms.get_forces()
+            logger.warning("Final max force: %.6f eV/Å", np.max(np.abs(forces)))
 
         return result  # type: ignore[no-any-return]
 

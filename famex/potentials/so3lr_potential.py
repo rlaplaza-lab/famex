@@ -16,15 +16,12 @@ from famex.backends.dependencies import deps
 from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
 from famex.utils.hessian_ops import symmetrize_hessian
-from famex.utils.logging import get_famex_logger
 from famex.utils.ml_warnings import quiet_backend_loading
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from ase import Atoms
-
-logger = get_famex_logger(__name__)
 
 
 class SO3LRPotential(BasePotential):
