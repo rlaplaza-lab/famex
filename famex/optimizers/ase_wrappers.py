@@ -155,7 +155,24 @@ class SymmetryCalculatorWrapper(Calculator):
     def __getattr__(self, name: str) -> Any:
         if name in ("calculator", "molecular_symmetry", "_name"):
             return object.__getattribute__(self, name)
-        return getattr(self.calculator, name)
+        attr = getattr(self.calculator, name)
+        # Forward get_hessian only when the backend has it, so property probes
+        # (hasattr / has_calculator_property) stay accurate for FD fallbacks.
+        if name == "get_hessian" and callable(attr):
+
+            def get_hessian(atoms: Atoms | None = None) -> np.ndarray:
+                hessian = np.asarray(attr(atoms), dtype=np.float64)
+                if not self.molecular_symmetry.should_project:
+                    return hessian
+                return np.asarray(
+                    self.molecular_symmetry.project_hessian(
+                        self._atoms_for_projection(atoms), hessian
+                    ),
+                    dtype=np.float64,
+                )
+
+            return get_hessian
+        return attr
 
     def _atoms_for_projection(self, atoms: Atoms | None) -> Atoms:
         if atoms is not None:
@@ -190,7 +207,7 @@ class SymmetryCalculatorWrapper(Calculator):
     ) -> Any:
         if name == "forces":
             return self.get_forces(atoms)
-        if name == "hessian":
+        if name == "hessian" and hasattr(self.calculator, "get_hessian"):
             return self.get_hessian(atoms)
         return self.calculator.get_property(name, atoms, allow_calculation)
 
@@ -210,19 +227,6 @@ class SymmetryCalculatorWrapper(Calculator):
 
     def get_stress(self, atoms: Atoms | None = None) -> np.ndarray:
         return self.calculator.get_stress(atoms)  # type: ignore[no-any-return]
-
-    def get_hessian(self, atoms: Atoms | None = None) -> np.ndarray:
-        if not hasattr(self.calculator, "get_hessian"):
-            raise AttributeError(
-                f"Calculator {type(self.calculator).__name__} does not support Hessian calculation"
-            )
-        hessian = np.asarray(self.calculator.get_hessian(atoms), dtype=np.float64)
-        if not self.molecular_symmetry.should_project:
-            return hessian
-        return np.asarray(
-            self.molecular_symmetry.project_hessian(self._atoms_for_projection(atoms), hessian),
-            dtype=np.float64,
-        )
 
     def check_state(self, atoms: Atoms, tol: float = 1e-15) -> bool:
         return self.calculator.check_state(atoms, tol)  # type: ignore[no-any-return]
