@@ -59,7 +59,7 @@ def write_run_outputs(
     *,
     target: str,
     strategy: str,
-    output: str | None = None,
+    output: str | Path | None = None,
     history: bool = False,
 ) -> RunOutputResult:
     """Write the default artifact and, when asked, geometry history.
@@ -71,7 +71,10 @@ def write_run_outputs(
 
     Returns written paths (default file first) and the default artifact frame count.
     """
-    default_path = output or default_output_name(stem, target, strategy)
+    if output is not None:
+        default_path = str(Path(output))
+    else:
+        default_path = default_output_name(stem, target, strategy)
     written = [default_path]
     default_frames = select_default_frames(result, target)
     frame_count = len(default_frames) if isinstance(default_frames, list) else 1
@@ -110,7 +113,7 @@ def write_run_outputs(
 
 
 def _place_history(
-    default_path: str,
+    default_path: str | Path,
     stem: str,
     target: str,
     strategy: str,
@@ -120,7 +123,7 @@ def _place_history(
     return str(Path(default_path).parent / filename)
 
 
-def _write_frames(frames: Atoms | list[Atoms], path: str) -> None:
+def _write_frames(frames: Atoms | list[Atoms], path: str | Path) -> None:
     from famex.core.file_io import write_atoms_safely, write_trajectory_safely
 
     if isinstance(frames, Atoms):

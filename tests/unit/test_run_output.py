@@ -99,6 +99,20 @@ def test_write_run_outputs_places_history_beside_custom_output(tmp_path) -> None
     assert len(frames) == 2
 
 
+def test_write_run_outputs_accepts_path_and_nested_dir(tmp_path) -> None:
+    atoms = Atoms("H2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]])
+    nested = tmp_path / "deep" / "nested" / "out.xyz"
+    result = write_run_outputs(
+        {"optimized_atoms": atoms},
+        "water",
+        target="minima",
+        strategy="local",
+        output=nested,
+    )
+    assert result.written_paths[0] == str(nested)
+    assert nested.exists()
+
+
 def test_irc_history_writes_only_branches_that_exist(tmp_path) -> None:
     ts = Atoms("H2", positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.9]])
     forward = [ts.copy()]

@@ -214,7 +214,7 @@ Day-to-day calls go through {py:class}`~famex.core.explorer.Explorer`.
 
 ```{eval-rst}
 .. automodule:: famex.utils.logging
-   :members: setup_famex_logging, get_famex_logger, get_famex_log_level
+   :members: setup_famex_logging, get_famex_logger, get_famex_log_level, print_model_info
 ```
 
 `setup_famex_logging` only installs a default StreamHandler when the `famex`

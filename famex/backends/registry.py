@@ -70,19 +70,18 @@ class CalculatorRegistry:
             logger.debug("Backend '%s' not available (ImportError): %s", backend_name, exc)
         except AttributeError as exc:
             logger.error(
-                "Failed to load backend '%s': class '%s' not found in module '%s'. Error: %s.",
+                "Failed to load backend '%s': class '%s' not found in module '%s'. Error: %s",
                 backend_name,
                 class_name,
                 module_name,
                 exc,
             )
         except (RuntimeError, ValueError, TypeError) as exc:
-            logger.error(
-                "Failed to load backend '%s' from module '%s': %s.",
+            logger.exception(
+                "Failed to load backend '%s' from module '%s': %s",
                 backend_name,
                 module_name,
                 exc,
-                exc_info=True,
             )
 
     def register(self, backend_name: str, factory_func: Callable[..., Any]) -> None:

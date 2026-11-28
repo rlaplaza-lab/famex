@@ -7,7 +7,6 @@ the selected SMILES embedder.
 
 from __future__ import annotations
 
-import time
 from io import StringIO
 from typing import Any, Literal
 from urllib.parse import quote
@@ -17,16 +16,15 @@ from ase.io import read as ase_read
 
 from famex.embed.api import smiles_to_atoms
 from famex.io.geometry import Geometry
+from famex.io.http import TRANSIENT_STATUS_CODES, create_session, get_with_retries
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
 
 _BASE = "https://pubchem.ncbi.nlm.nih.gov/rest/pug"
-_USER_AGENT = "famex (https://github.com/rlaplaza-lab/famex)"
-_TIMEOUT_S = 60
-_RETRY_DELAYS_S = (1.0, 2.0, 4.0)
 _MAX_NAME_LENGTH = 1024
 _MAX_CID_DIGITS = 12
+_PUBCHEM_RETRY_STATUSES = frozenset(TRANSIENT_STATUS_CODES | {202})
 QueryKind = Literal["cid", "name"]
 
 
@@ -69,14 +67,15 @@ def fetch_pubchem(query: str, *, embedder: str = "pysmiles") -> Geometry:
         ``pubchem-3d`` or ``embedded``.
     """
     kind, value = parse_pubchem_query(query)
-    session = requests.Session()
-    session.headers["User-Agent"] = _USER_AGENT
+    session = create_session()
     try:
         cid = _resolve_cid(session, kind, value)
         props = _properties(session, cid)
         sdf = _conformer_sdf(session, cid)
     except requests.RequestException as exc:
         raise ValueError(f"PubChem request failed for {query!r}: {exc}") from exc
+    finally:
+        session.close()
 
     title = str(props.get("Title") or "")
     smiles = _smiles_from_properties(props)
@@ -179,12 +178,11 @@ def _stamp(geom: Geometry, *, cid: int, title: str, smiles: str, coordinates: st
 
 
 def _get(session: requests.Session, url: str) -> requests.Response:
-    response = session.get(url, timeout=_TIMEOUT_S)
-    for delay in _RETRY_DELAYS_S:
-        if response.status_code != 202:
-            break
-        time.sleep(delay)
-        response = session.get(url, timeout=_TIMEOUT_S)
+    response = get_with_retries(
+        url,
+        session=session,
+        retry_status_codes=_PUBCHEM_RETRY_STATUSES,
+    )
     if response.status_code == 202:
         raise ValueError("PubChem is still busy (HTTP 202) after retries")
     if 200 < response.status_code < 400:

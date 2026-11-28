@@ -10,7 +10,7 @@ from famex.utils.ml_warnings import install_runtime_ml_filters
 
 _quiet_context_local = threading.local()
 
-_famex_log_level = logging.WARNING
+_famex_log_level = logging.INFO
 
 SEPARATOR_LINE = "─" * 40
 MARK_OK = "✓"
@@ -90,12 +90,7 @@ def exit_quiet_context() -> None:
     _quiet_context_local.depth = depth
 
 
-def set_quiet_context(active: bool) -> None:
-    """Mark whether the current thread is inside a quiet-backend-loading context."""
-    if active:
-        enter_quiet_context()
-    else:
-        exit_quiet_context()
+logger = get_famex_logger(__name__)
 
 
 def print_model_info(
@@ -105,10 +100,9 @@ def print_model_info(
     device: str | None = None,
     verbose: int = 1,
 ) -> None:
+    """Log backend/model initialization details."""
     if verbose == 0:
         return
-
-    logger = get_famex_logger("famex")
 
     logger.info("\n🔧 Initializing %s Backend", backend.upper())
     logger.info("%s", SEPARATOR_LINE)

@@ -179,7 +179,7 @@ class UMAPotential(BasePotential):
             self._load_calculator()
         if self._calc is None:
             msg = "Failed to load UMA calculator"
-            logger.error(msg)
+            logger.error("%s", msg)
             raise RuntimeError(msg)
         return self._calc
 

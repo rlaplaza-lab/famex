@@ -151,7 +151,7 @@ class BasePotential:
         if calc is None:
             label = self.backend or self.__class__.__name__
             msg = f"Failed to load {label} calculator"
-            logger.error(msg)
+            logger.error("Failed to load %s calculator", label)
             raise RuntimeError(msg)
         return calc
 

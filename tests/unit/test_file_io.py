@@ -99,6 +99,16 @@ class TestWriteAtomsSafely:
         write_atoms_safely(water_molecule, output_file)
         assert output_file.exists()
 
+    def test_write_creates_nested_parent_dirs(self, water_molecule, tmp_path):
+        output_file = tmp_path / "nested" / "dir" / "test.xyz"
+        write_atoms_safely(water_molecule, output_file)
+        assert output_file.exists()
+
+    def test_write_accepts_str_path(self, water_molecule, tmp_path):
+        output_file = tmp_path / "str_path.xyz"
+        write_atoms_safely(water_molecule, str(output_file))
+        assert output_file.exists()
+
     @pytest.mark.parametrize("exception_class,exception_msg", _WRITE_IO_EXCEPTION_CASES)
     def test_write_xyz_errors(self, water_molecule, tmp_path, exception_class, exception_msg):
         """Test XYZ write with various error handling."""

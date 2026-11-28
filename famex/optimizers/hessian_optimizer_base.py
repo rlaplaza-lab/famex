@@ -472,14 +472,14 @@ class HessianOptimizerBase(ProjectedHessianOptimizerMixin, Optimizer):
             if self._scipy_result is not None:
                 self.atoms.set_positions(self._x_to_positions(self._scipy_result.x))  # type: ignore[unreachable]
         except ConvergedError:
-            log_optimization_converged(self.verbose, log=logger)
+            log_optimization_converged()
             return True
 
         forces = self.atoms.get_forces()
         converged = bool(self.converged(forces.ravel()))
 
         if converged:
-            log_optimization_converged(self.verbose, log=logger)
+            log_optimization_converged()
         else:
             actual_steps = (
                 self._scipy_result.nit if self._scipy_result is not None else self.nsteps - 1
@@ -490,8 +490,6 @@ class HessianOptimizerBase(ProjectedHessianOptimizerMixin, Optimizer):
                 else "unknown reason"
             )
             log_scipy_trust_region_not_converged(
-                self.verbose,
-                log=logger,
                 method=self.method,
                 actual_steps=actual_steps,
                 steps=steps,

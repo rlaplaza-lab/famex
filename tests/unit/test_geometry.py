@@ -250,6 +250,29 @@ class TestReadGeometry:
         assert isinstance(geom, Geometry)
         assert len(geom) == len(atoms)
 
+    def test_read_geometry_accepts_path(self, water_molecule, tmp_path):
+        test_file = tmp_path / "path_arg.xyz"
+        water_molecule.write(str(test_file))
+        geom = read_geometry(test_file)
+        assert isinstance(geom, Geometry)
+        assert len(geom) == len(water_molecule)
+
+    def test_read_geometry_multi_frame_defaults_to_last(self, tmp_path):
+        xyz_content = """2
+charge=0 spin=1
+H  0.0  0.0  0.0
+H  0.0  0.0  0.74
+2
+charge=1 spin=2
+H  0.0  0.0  0.0
+H  0.0  0.0  0.80
+"""
+        test_file = tmp_path / "multi.xyz"
+        test_file.write_text(xyz_content, encoding="utf-8")
+        geom = read_geometry(test_file)
+        assert isinstance(geom, Geometry)
+        assert geom.charge == 1
+
     def test_read_geometry_nonexistent_file(self):
         with pytest.raises((FileNotFoundError, OSError)):
             read_geometry("nonexistent_file.xyz")
@@ -289,6 +312,27 @@ class TestWriteGeometry:
             assert len(loaded) == len(geom)
         finally:
             Path(temp_path).unlink(missing_ok=True)
+
+    def test_write_geometry_nested_path(self, tmp_path):
+        geom = Geometry(
+            atoms=["H", "H"],
+            positions=[[0, 0, 0], [0.74, 0, 0]],
+            charge=0,
+            mult=1,
+        )
+        out = tmp_path / "nested" / "out.xyz"
+        write_geometry(geom, out)
+        assert out.exists()
+
+    def test_write_geometry_rejects_unsafe_path(self):
+        geom = Geometry(
+            atoms=["H", "H"],
+            positions=[[0, 0, 0], [0.74, 0, 0]],
+            charge=0,
+            mult=1,
+        )
+        with pytest.raises(ValueError, match="Unsafe output path"):
+            write_geometry(geom, "../unsafe.xyz")
 
     def test_write_geometry_ase_atoms(self, water_molecule):
         atoms = water_molecule.copy()

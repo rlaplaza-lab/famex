@@ -172,6 +172,10 @@ H  0.0  0.0  0.85
             geom = read_xyz_with_metadata(temp_file, frame="last")
             assert geom.charge == 2
 
+            # Default frame is last
+            geom = read_xyz_with_metadata(temp_file)
+            assert geom.charge == 2
+
             # Test all frames
             geoms = read_xyz_with_metadata(temp_file, frame="all")
             assert isinstance(geoms, list)
