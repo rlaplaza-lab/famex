@@ -2,10 +2,48 @@
 
 from __future__ import annotations
 
+import pytest
+
 from famex.core.exceptions import (
+    BackendError,
+    DependencyError,
+    FAMEXError,
     StrategyError,
     StrategyNotFoundError,
 )
+from famex.utils.validation import (
+    BackendError as ReexportedBackendError,
+)
+from famex.utils.validation import (
+    DependencyError as ReexportedDependencyError,
+)
+from famex.utils.validation import (
+    FAMEXError as ReexportedFAMEXError,
+)
+
+
+class TestFAMEXErrorFamily:
+    def test_famex_error_suggestion(self):
+        error = FAMEXError("boom", "fix it")
+        assert "boom" in str(error)
+        assert "fix it" in str(error)
+
+    def test_backend_error_is_import_error(self):
+        error = BackendError("mock", ["aimnet2"], "test")
+        assert isinstance(error, FAMEXError)
+        assert isinstance(error, ImportError)
+        with pytest.raises(ImportError):
+            raise error
+
+    def test_dependency_error_is_import_error(self):
+        error = DependencyError("torch", "calc", "pip install torch")
+        assert isinstance(error, FAMEXError)
+        assert isinstance(error, ImportError)
+
+    def test_reexported_from_validation(self):
+        assert ReexportedFAMEXError is FAMEXError
+        assert ReexportedBackendError is BackendError
+        assert ReexportedDependencyError is DependencyError
 
 
 class TestStrategyError:

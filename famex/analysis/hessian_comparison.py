@@ -14,8 +14,7 @@ from ase import Atoms
 
 from famex.analysis.hessian import CalculatorProtocol
 from famex.analysis.utils import has_calculator_property, validate_indices
-from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
-from famex.utils.hessian_ops import symmetrize_hessian
+from famex.utils.hessian_ops import condition_number_and_vibrational_eigenvalues
 from famex.utils.logging import MARK_OK, SEPARATOR_LINE, get_famex_logger
 
 logger = get_famex_logger(__name__)
@@ -221,33 +220,9 @@ def _compute_quality_metrics(
     asymmetry = np.abs(hessian - hessian.T)
     max_asymmetry = float(np.max(asymmetry))
 
-    matrix = symmetrize_hessian(hessian)
-    n_null = 0
-    if positions is not None and masses is not None:
-        positions = np.asarray(positions, dtype=np.float64)
-        masses = np.asarray(masses, dtype=np.float64)
-        n_atoms = positions.shape[0]
-        if (
-            positions.ndim == 2
-            and positions.shape[1] == 3
-            and masses.shape == (n_atoms,)
-            and matrix.shape == (3 * n_atoms, 3 * n_atoms)
-        ):
-            basis = build_translation_rotation_basis(positions, masses)
-            n_null = int(basis.shape[1]) if basis.size else 0
-            matrix = project_hessian(matrix, basis)
-
-    eigenvalues = np.linalg.eigvalsh(matrix)
-    eigenvalues = eigenvalues[np.isfinite(eigenvalues)]
-    if n_null > 0 and len(eigenvalues) > n_null:
-        vibrational = eigenvalues[np.argsort(np.abs(eigenvalues))[n_null:]]
-    else:
-        vibrational = eigenvalues
-    eigenvalues_abs = np.abs(vibrational[vibrational != 0])
-    if len(eigenvalues_abs) > 0:
-        condition_number = float(np.max(eigenvalues_abs) / np.min(eigenvalues_abs))
-    else:
-        condition_number = float("inf")
+    condition_number, _vibrational, _n_null = condition_number_and_vibrational_eigenvalues(
+        hessian, positions=positions, masses=masses
+    )
 
     return {
         "rms_value": rms_value,

@@ -19,9 +19,9 @@ from famex.backends.constants import (
     BACKEND_UMA,
     DEFAULT_TBLITE_MODEL,
 )
+from famex.core.exceptions import BackendError
 from famex.utils.device import resolve_backend_device
 from famex.utils.logging import get_famex_logger
-from famex.utils.validation import BackendError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -128,7 +128,7 @@ class CalculatorRegistry:
 
         Raises
         ------
-        BackendError
+        famex.core.exceptions.BackendError
             If the backend is not available.
 
         """

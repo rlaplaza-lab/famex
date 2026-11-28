@@ -18,6 +18,7 @@ from famex.utils.logging import get_famex_logger
 logger = get_famex_logger(__name__)
 
 StationaryPointTarget = Literal["minima", "ts"]
+OptimizerKwargsTarget = Literal["minima_local", "minima_hessian", "ts"]
 
 RFO_OPTIMIZER_ALIASES: frozenset[str] = frozenset(
     {
@@ -65,6 +66,34 @@ TRUST_MINIMA_HESSIAN_OPTIMIZER_ALIASES: frozenset[str] = (
     TRUST_OPTIMIZER_ALIASES | NEWTON_CG_OPTIMIZER_ALIASES
 )
 
+TRUST_EXACT_ONLY_OPTIMIZER_ALIASES: frozenset[str] = frozenset(
+    {
+        "trust-exact",
+        "trustexact",
+        "trust_exact",
+    }
+)
+
+SELLA_ANALYTICAL_HESSIAN_ALIASES: frozenset[str] = frozenset(
+    {
+        "sella-analytical",
+        "sella_analytical",
+        "sellaanalytical",
+    }
+)
+
+MINIMA_DENSE_HESSIAN_OPTIMIZER_ALIASES = TRUST_MINIMA_HESSIAN_OPTIMIZER_ALIASES
+
+SADDLE_DENSE_HESSIAN_OPTIMIZER_ALIASES: frozenset[str] = (
+    RFO_OPTIMIZER_ALIASES | TRUST_EXACT_ONLY_OPTIMIZER_ALIASES | SELLA_ANALYTICAL_HESSIAN_ALIASES
+)
+
+
+def neb_method_name(*, climb: bool) -> str:
+    """Return the user-facing NEB or CI-NEB method label."""
+    return "CI-NEB" if climb else "NEB"
+
+
 FORBIDDEN_BACKENDS_FOR_TS: frozenset[str] = frozenset({"mock"})
 FORBIDDEN_OPTIMIZERS_FOR_TS: frozenset[str] = frozenset(
     {
@@ -87,6 +116,28 @@ def profiler_section(profiler: Any | None, name: str) -> AbstractContextManager[
     if profiler is not None:
         return cast(AbstractContextManager[Any], profiler.profile_section(name))
     return nullcontext()
+
+
+def build_optimizer_kwargs(
+    optimizer_name: str,
+    explorer: Any,
+    *,
+    target: OptimizerKwargsTarget = "minima_local",
+) -> dict[str, Any]:
+    """Build default keyword arguments for local minima or TS optimizers."""
+    if target == "ts":
+        return prepare_ts_optimizer_kwargs(optimizer_name, explorer)
+    if target == "minima_hessian":
+        # Circular: frequency_cleanup imports this module.
+        from famex.strategies.frequency_cleanup import prepare_minima_hessian_optimizer_kwargs
+
+        return prepare_minima_hessian_optimizer_kwargs(optimizer_name, explorer)
+    opt_kwargs = dict(getattr(explorer, "optimizer_kwargs", {}) or {})
+    normalized_name = optimizer_name.lower()
+    if is_sella_optimizer(normalized_name):
+        opt_kwargs.setdefault("internal", True)
+        opt_kwargs.setdefault("order", 0)
+    return opt_kwargs
 
 
 def prepare_ts_optimizer_kwargs(optimizer_name: str, explorer: Any) -> dict[str, Any]:
@@ -352,7 +403,7 @@ def validate_ts_structure(
     except Exception as e:
         if verbose >= 1:
             logger.warning("Could not validate transition state: %s", e)
-        raise
+        raise e from e
 
 
 def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
@@ -381,15 +432,11 @@ def _validate_ts_optimization_setup(backend: str, optimizer_name: str) -> None:
 def _get_local_optimizer_class(name: str) -> type[Any]:
     name = (name or "").lower()
 
-    if name == "sella":
-        from famex.optimizers.ase_wrappers import VerboseSella
+    from famex.optimizers.ase_wrappers import get_verbose_ase_optimizer_class
 
-        return VerboseSella
-
-    if name in ("sella-analytical", "sella_analytical", "sellaanalytical"):
-        from famex.optimizers.ase_wrappers import VerboseSellaAnalytical
-
-        return VerboseSellaAnalytical
+    wrapper_cls = get_verbose_ase_optimizer_class(name)
+    if wrapper_cls is not None:
+        return wrapper_cls
 
     if name in TRUST_KRYLOV_OPTIMIZER_ALIASES:
         from famex.optimizers.scipy_optimizers import TrustKrylov
@@ -411,23 +458,6 @@ def _get_local_optimizer_class(name: str) -> type[Any]:
         from famex.optimizers.scipy_optimizers import NewtonCG
 
         return NewtonCG
-
-    try:
-        if name in ("lbfgs", "l-bfgs", "l_bfgs"):
-            from famex.optimizers.ase_wrappers import VerboseLBFGS
-
-            return VerboseLBFGS
-        if name in ("bfgs",):
-            from famex.optimizers.ase_wrappers import VerboseBFGS
-
-            return VerboseBFGS
-        if name in ("fire",):
-            from famex.optimizers.ase_wrappers import VerboseFIRE
-
-            return VerboseFIRE
-    except Exception as e:  # pragma: no cover - ASE optional in some envs
-        msg = f"Requested optimizer '{name}' is not available: {e}"
-        raise ImportError(msg) from e
 
     msg = f"Unknown optimizer name: {name}"
     raise ValueError(msg)

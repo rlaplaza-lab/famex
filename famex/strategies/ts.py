@@ -12,11 +12,12 @@ from famex.core.registry import REGISTRY
 from famex.strategies.helpers import (
     _run_local_optimization_common,
     _validate_ts_optimization_setup,
+    build_optimizer_kwargs,
     enforce_require_ts,
-    prepare_ts_optimizer_kwargs,
     resolve_require_ts,
     validate_ts_structure,
 )
+from famex.strategies.kwargs_policy import LOCAL_OPTIMIZATION_RUN_KEYS, pick_pass_through_kwargs
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
 
@@ -46,9 +47,10 @@ class LocalTSStrategy(BaseStrategy):
         require_ts: bool | None = None,
         **kwargs: Any,
     ) -> dict[str, Atoms | list[Atoms] | bool | int | float | str]:
-        local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
-        verbose = int(kwargs.get("verbose", getattr(self.explorer, "verbose", 1)))
-        temperature = kwargs.get("temperature", 298.15)
+        run_extra = pick_pass_through_kwargs(kwargs, LOCAL_OPTIMIZATION_RUN_KEYS)
+        local_optimizer_name = run_extra.get("local_optimizer_name", "rfo")
+        verbose = int(run_extra.get("verbose", getattr(self.explorer, "verbose", 1)))
+        temperature = run_extra.get("temperature", 298.15)
         if cleanup_frequencies is False:
             cleanup_frequencies = bool(getattr(self.explorer, "cleanup_frequencies", False))
 
@@ -91,7 +93,9 @@ class LocalTSStrategy(BaseStrategy):
             verbose=verbose,
             calculate_frequencies=calculate_frequencies,
             temperature=temperature,
-            prepare_optimizer_kwargs=prepare_ts_optimizer_kwargs,
+            prepare_optimizer_kwargs=lambda name, explorer: build_optimizer_kwargs(
+                name, explorer, target="ts"
+            ),
             post_optimization_hook=post_ts_optimization_hook if verbose >= 1 else None,
             validation_hook=ts_validation_hook if validate_ts else None,
             prepare_frequency_kwargs=prepare_frequency_kwargs,
@@ -99,8 +103,10 @@ class LocalTSStrategy(BaseStrategy):
             log_prefix="Transition state",
             cleanup_frequencies=cleanup_frequencies,
             stationary_point_target="ts",
-            prepare_cleanup_optimizer_kwargs=prepare_ts_optimizer_kwargs,
-            record_history=bool(kwargs.get("record_history", False)),
+            prepare_cleanup_optimizer_kwargs=lambda name, explorer: build_optimizer_kwargs(
+                name, explorer, target="ts"
+            ),
+            record_history=bool(run_extra.get("record_history", False)),
         )
 
         optimized_atoms = result.get("optimized_atoms")

@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 from ase import Atoms
 
+from famex.core.charge_spin import set_charge_spin_defaults
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
@@ -15,9 +16,7 @@ logger = get_famex_logger(__name__)
 class StrategyUtils:
     @staticmethod
     def ensure_charge_spin_info(atoms: Atoms, charge: int = 0, spin: int = 1) -> None:
-        if hasattr(atoms, "info") and atoms.info is not None:
-            atoms.info.setdefault("charge", charge)
-            atoms.info.setdefault("spin", spin)
+        set_charge_spin_defaults(atoms, charge, spin, overwrite=False, coerce=False)
 
     @staticmethod
     def get_step_count(optimizer: Any) -> int | None:

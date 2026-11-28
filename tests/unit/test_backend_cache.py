@@ -17,6 +17,7 @@ from famex.backends.cache import (
     get_model_cache,
     get_unified_cache,
 )
+from famex.utils.path_security import PathSecurityError
 
 
 class _WeakCalc:
@@ -184,6 +185,17 @@ class TestCalculatorCacheEdgeCases:
 
 
 class TestModelCacheEdgeCases:
+    def test_cache_model_rejects_null_byte_in_name(self, tmp_path):
+        cache = ModelCache(cache_dir=str(tmp_path))
+        try:
+            cache.cache_model("model\x00name", "http://example.com/model", b"payload")
+        except (ValueError, PathSecurityError):
+            pass
+        else:
+            cached = list(tmp_path.glob("*.jpt"))
+            assert cached
+            assert "\x00" not in str(cached[0])
+
     def test_model_cache_metadata_corruption_handling(self, tmp_path):
         cache = ModelCache(cache_dir=str(tmp_path))
 

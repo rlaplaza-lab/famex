@@ -13,6 +13,7 @@ import numpy as np
 from famex.backends.constants import DEFAULT_MACE_MODEL
 from famex.backends.dependencies import deps
 from famex.backends.mace_compat import format_mace_e3nn_conflict_message, is_mace_e3nn_error
+from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
 from famex.utils.hessian_ops import symmetrize_hessian
 from famex.utils.logging import get_famex_logger
@@ -84,16 +85,16 @@ class MACEPotential(BasePotential):
         if self._calc is not None:
             return
 
-        deps.require("torch", purpose="MACE backend")
+        try:
+            deps.require("torch", purpose="MACE backend")
 
-        with quiet_backend_loading(
-            "mace",
-            self.model_name,
-            None,
-            self.device,
-            show_model_info=False,
-        ):
-            try:
+            with quiet_backend_loading(
+                "mace",
+                self.model_name,
+                None,
+                self.device,
+                show_model_info=False,
+            ):
                 if self.model_name == DEFAULT_MACE_MODEL:
                     from mace.calculators import mace_omol
 
@@ -112,16 +113,10 @@ class MACEPotential(BasePotential):
                     from mace.calculators import mace_omol
 
                     self._calc = mace_omol(device=self.device)
-
-            except ImportError as e:
-                msg = f"MACE not available ({e}). Install with: pip install mace-torch"
-                logger.error("%s", msg)
-                raise ImportError(msg) from e
-            except (ValueError, AttributeError, RuntimeError) as e:
-                if is_mace_e3nn_error(e):
-                    self._raise_e3nn_conflict(e, context="compatibility issue")
-                logger.exception("Unexpected error loading MACE calculator")
-                raise
+        except (ImportError, ValueError, TypeError, KeyError, OSError, RuntimeError) as exc:
+            if is_mace_e3nn_error(exc):
+                self._raise_e3nn_conflict(exc, context="compatibility issue")
+            raise_backend_load_error("mace", self.model_name, exc)
 
     def calculate(
         self,
@@ -140,7 +135,7 @@ class MACEPotential(BasePotential):
             if is_mace_e3nn_error(e):
                 self._raise_e3nn_conflict(e, context="calculation")
             logger.exception("Unexpected error during MACE calculation")
-            raise
+            raise e from e
 
         try:
             self.results = calc.results.copy()
@@ -164,7 +159,7 @@ class MACEPotential(BasePotential):
             if is_mace_e3nn_error(e):
                 self._raise_e3nn_conflict(e, context="energy calculation")
             logger.exception("Unexpected error during MACE energy calculation")
-            raise
+            raise e from e
 
     def get_hessian(self, atoms: Atoms | None = None) -> Any:
         """Get analytical Hessian matrix.
@@ -208,4 +203,4 @@ class MACEPotential(BasePotential):
         except (AttributeError, RuntimeError) as e:
             if is_mace_e3nn_error(e):
                 self._raise_e3nn_conflict(e, hessian=True, context="Hessian calculation")
-            raise
+            raise e from e

@@ -10,6 +10,7 @@ from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
 from famex.strategies.helpers import preflight_band_path, refine_ts_guess_workflow
+from famex.strategies.kwargs_policy import TS_GUESS_RUN_KEYS, pick_pass_through_kwargs
 
 
 class MultiStructureTSGuessStrategy(BaseStrategy):
@@ -64,15 +65,18 @@ class MultiStructureTSGuessStrategy(BaseStrategy):
         """
         self.validate_inputs(atoms_list)
 
-        local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
-        record_history = bool(kwargs.get("record_history", False))
+        run_extra = pick_pass_through_kwargs(kwargs, TS_GUESS_RUN_KEYS)
+        local_optimizer_name = run_extra.get("local_optimizer_name", "rfo")
+        record_history = bool(run_extra.get("record_history", False))
 
         path_mgr = PathManager(atoms_list)
         path = path_mgr.interpolate(npoints=npoints, method=method)
         preflight_band_path(path, self.explorer, method_name="TS interpolation")
 
         ts_guess, _ts_index = PathManager.find_ts_guess(path)
-        ts_run_kwargs = {k: v for k, v in kwargs.items() if k != "local_optimizer_name"}
+        ts_run_kwargs = {
+            k: v for k, v in run_extra.items() if k not in {"local_optimizer_name", "path_fmax"}
+        }
         return refine_ts_guess_workflow(
             self,
             ts_guess,

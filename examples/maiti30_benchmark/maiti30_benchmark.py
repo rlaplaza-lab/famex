@@ -27,7 +27,8 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-from famex import Explorer, calculator_registry
+from famex import Explorer
+from famex.backends.availability import filter_available_backends as filter_backends
 from famex.example_utils import (
     FAMEXExampleInterface,
     create_standard_epilog,
@@ -310,11 +311,7 @@ class Maiti30Benchmark:
         verbose: bool = False,
     ) -> list[str]:
         """Filter requested backends to only available ones."""
-        available = []
-        for backend in requested_backends:
-            if calculator_registry.is_backend_available(backend):
-                available.append(backend)
-        return available
+        return filter_backends(requested_backends, verbose=verbose)
 
     def print_backend_summary(self, backends: list[str], title: str = "Available Backends") -> None:
         """Print a formatted summary of backends."""

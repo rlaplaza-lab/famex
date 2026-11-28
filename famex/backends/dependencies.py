@@ -23,6 +23,24 @@ from famex.backends.constants import (
 )
 from famex.utils.validation import DependencyError
 
+PACKAGE_NAME_MAP: dict[str, str] = {
+    "torch": "torch",
+    "sella": "sella",
+    BACKEND_AIMNET2: "torch",
+    "fairchem": "fairchem.core",
+    BACKEND_UMA: "fairchem.core",
+    BACKEND_SO3LR: "so3lr",
+    BACKEND_MACE: "mace.calculators",
+    "orb_models": "orb_models",
+    BACKEND_ORB: "orb_models",
+    BACKEND_TBLITE: "tblite",
+    "upet": "upet",
+    BACKEND_PET: "upet",
+    "pyscf": "pyscf",
+    BACKEND_PYSCF: "pyscf",
+    "pyscf_dispersion": "pyscf.dispersion.dftd3",
+}
+
 
 class DependencyManager:
     """Manages optional dependencies with lazy loading and consistent error handling.
@@ -136,28 +154,7 @@ class DependencyManager:
 
     def has(self, name: str) -> bool:
         """Check if a dependency is available without importing it."""
-        # Map backend names to package names for availability checking
-        package_mapping = {
-            "torch": "torch",
-            "sella": "sella",
-            # AIMNet2 is bundled; torch is sufficient (neighbor list has NumPy fallback)
-            BACKEND_AIMNET2: "torch",
-            "fairchem": "fairchem.core",
-            BACKEND_UMA: "fairchem.core",  # UMA uses fairchem-core
-            BACKEND_SO3LR: "so3lr",
-            BACKEND_MACE: "mace.calculators",
-            "orb_models": "orb_models",
-            BACKEND_ORB: "orb_models",  # Orb uses orb-models package
-            BACKEND_TBLITE: "tblite",
-            "upet": "upet",
-            BACKEND_PET: "upet",
-            "pyscf": "pyscf",
-            BACKEND_PYSCF: "pyscf",
-            "pyscf_dispersion": "pyscf.dispersion.dftd3",
-        }
-
-        package_name = package_mapping.get(name.lower(), name.lower())
-
+        package_name = PACKAGE_NAME_MAP.get(name.lower(), name.lower())
         return self._check_availability_lazy(package_name)
 
     def require(self, name: str, purpose: str = "this functionality") -> Any:

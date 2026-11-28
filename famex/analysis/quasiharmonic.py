@@ -30,7 +30,6 @@ __all__ = [
     "calculate_rrho_energy",
     "calculate_free_rotor_entropy",
     "calculate_qRRHO_entropy",
-    "calculate_qRRHO_energy",
     "harmonic_heat_capacity_factor",
     "harmonic_zero_point_energy_ev",
     "vibrational_thermal_factor",
@@ -244,15 +243,6 @@ def calculate_qRRHO_entropy(  # noqa: N802
         vibrational_thermal_factor(np.full_like(scaled, freq_cutoff), temperature)
     )
     return np.where(scaled > freq_cutoff, entropy_full, entropy_cutoff)
-
-
-def calculate_qRRHO_energy(  # noqa: N802
-    frequencies: np.ndarray,
-    temperature: float,
-    freq_scale_factor: float = 1.0,
-) -> np.ndarray:
-    """Harmonic vibrational energy, including the zero-point term."""
-    return calculate_rrho_energy(frequencies, temperature, freq_scale_factor)
 
 
 class QuasiHarmonicHandler:

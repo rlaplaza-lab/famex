@@ -19,6 +19,10 @@ from famex.core.file_io import write_atoms_safely, write_trajectory_safely
 from famex.core.registry import REGISTRY
 from famex.io.geometry import Geometry, read_geometry
 from famex.io.modes import write_vibrational_modes
+from famex.strategies.helpers import (
+    MINIMA_DENSE_HESSIAN_OPTIMIZER_ALIASES,
+    SADDLE_DENSE_HESSIAN_OPTIMIZER_ALIASES,
+)
 from famex.utils.device import resolve_backend_device
 from famex.utils.profiler import PerformanceProfiler
 
@@ -26,39 +30,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
     import numpy as np
-
-# Optimizers that build a dense Hessian for minima searches.
-_MINIMA_DENSE_HESSIAN_OPTS = frozenset(
-    {
-        "trust-krylov",
-        "trustkrylov",
-        "trust_krylov",
-        "trust-exact",
-        "trustexact",
-        "trust_exact",
-        "trust-ncg",
-        "trustncg",
-        "trust_ncg",
-        "newton-cg",
-        "newtoncg",
-        "newton_cg",
-    }
-)
-
-_SADDLE_DENSE_HESSIAN_OPTS = frozenset(
-    {
-        "rfo",
-        "rfo-ts",
-        "rational-function",
-        "rational_function",
-        "sella-analytical",
-        "sella_analytical",
-        "sellaanalytical",
-        "trust-exact",
-        "trustexact",
-        "trust_exact",
-    }
-)
 
 
 def compute_needs_hessian(
@@ -75,9 +46,9 @@ def compute_needs_hessian(
     target_norm = (target or "minima").strip().lower()
     opt = (local_optimizer or "").strip().lower()
 
-    if target_norm in {"ts", "saddle"} and opt in _SADDLE_DENSE_HESSIAN_OPTS:
+    if target_norm in {"ts", "saddle"} and opt in SADDLE_DENSE_HESSIAN_OPTIMIZER_ALIASES:
         return True
-    return target_norm == "minima" and opt in _MINIMA_DENSE_HESSIAN_OPTS
+    return target_norm == "minima" and opt in MINIMA_DENSE_HESSIAN_OPTIMIZER_ALIASES
 
 
 class Explorer:
@@ -323,7 +294,7 @@ class Explorer:
                 }
                 out[name] = entry
                 for alias in metadata.aliases:
-                    out[alias] = entry
+                    out[alias] = entry.copy()
         return out
 
     @staticmethod
@@ -476,6 +447,34 @@ class Explorer:
     # --- File I/O Methods ---
 
     @classmethod
+    def _from_geometry(
+        cls,
+        geom: Atoms | Geometry,
+        *,
+        backend: str = "uma",
+        model_name: str | None = None,
+        model_path: str | None = None,
+        device: str | None = None,
+        default_charge: int = 0,
+        default_spin: int = 1,
+        verbose: int = 1,
+        profile: bool = False,
+        **kwargs: Any,
+    ) -> Explorer:
+        return cls(
+            atoms=geom,
+            backend=backend,
+            model_name=model_name,
+            model_path=model_path,
+            device=device,
+            default_charge=default_charge,
+            default_spin=default_spin,
+            verbose=verbose,
+            profile=profile,
+            **kwargs,
+        )
+
+    @classmethod
     def from_file(
         cls,
         filename: str | Path,
@@ -553,8 +552,8 @@ class Explorer:
         geom = read_geometry(str(filename))
         if isinstance(geom, list):
             geom = geom[0]
-        return cls(
-            atoms=geom,
+        return cls._from_geometry(
+            geom,
             backend=backend,
             model_name=model_name,
             model_path=model_path,
@@ -627,8 +626,8 @@ class Explorer:
 
         """
         geom = Geometry.from_smiles(smiles, seed=seed, add_h=add_h, embedder=embedder)
-        return cls(
-            atoms=geom,
+        return cls._from_geometry(
+            geom,
             backend=backend,
             model_name=model_name,
             model_path=model_path,
@@ -694,8 +693,8 @@ class Explorer:
 
         """
         geom = Geometry.from_pubchem(query, embedder=embedder)
-        return cls(
-            atoms=geom,
+        return cls._from_geometry(
+            geom,
             backend=backend,
             model_name=model_name,
             model_path=model_path,

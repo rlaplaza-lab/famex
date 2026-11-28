@@ -10,8 +10,7 @@ from famex.utils.ml_warnings import install_runtime_ml_filters
 
 _quiet_context_local = threading.local()
 
-_famex_logging_configured = False
-_famex_log_level = logging.INFO
+_famex_log_level = logging.WARNING
 
 SEPARATOR_LINE = "─" * 40
 MARK_OK = "✓"
@@ -38,7 +37,7 @@ def _verbosity_to_log_level(verbosity: int) -> int:
 
 
 def setup_famex_logging(verbosity: int = 1, force: bool = False) -> None:
-    global _famex_logging_configured, _famex_log_level
+    global _famex_log_level
 
     # Suppress FairChem/torch/triton noise at normal verbosity; show at >=2.
     install_runtime_ml_filters(verbosity=verbosity)
@@ -48,6 +47,7 @@ def setup_famex_logging(verbosity: int = 1, force: bool = False) -> None:
 
     famex_logger = logging.getLogger("famex")
     famex_logger.setLevel(log_level)
+    famex_logger.propagate = False
 
     ase_level = logging.DEBUG if verbosity >= 2 else logging.WARNING
     logging.getLogger("ase").setLevel(ase_level)
@@ -60,12 +60,9 @@ def setup_famex_logging(verbosity: int = 1, force: bool = False) -> None:
         handler.setLevel(log_level)
         handler.setFormatter(FAMEXFormatter())
         famex_logger.addHandler(handler)
-        famex_logger.propagate = False
     else:
         for existing in famex_logger.handlers:
             existing.setLevel(log_level)
-
-    _famex_logging_configured = True
 
 
 def get_famex_logger(name: str) -> logging.Logger:
@@ -80,12 +77,25 @@ def get_famex_log_level() -> int:
 
 
 def is_in_quiet_context() -> bool:
-    return getattr(_quiet_context_local, "in_quiet_context", False)
+    return getattr(_quiet_context_local, "depth", 0) > 0
+
+
+def enter_quiet_context() -> None:
+    depth = getattr(_quiet_context_local, "depth", 0) + 1
+    _quiet_context_local.depth = depth
+
+
+def exit_quiet_context() -> None:
+    depth = max(0, getattr(_quiet_context_local, "depth", 0) - 1)
+    _quiet_context_local.depth = depth
 
 
 def set_quiet_context(active: bool) -> None:
     """Mark whether the current thread is inside a quiet-backend-loading context."""
-    _quiet_context_local.in_quiet_context = active
+    if active:
+        enter_quiet_context()
+    else:
+        exit_quiet_context()
 
 
 def print_model_info(

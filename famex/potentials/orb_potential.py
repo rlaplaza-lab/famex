@@ -14,16 +14,17 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import all_changes
 
+from famex.backends.constants import BACKEND_ORB, format_install_command
 from famex.backends.dependencies import deps
 from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
-from famex.utils.device import get_optimal_device
 from famex.utils.hessian_ops import autograd_hessian_rows_from_forces, symmetrize_hessian
 from famex.utils.ml_warnings import quiet_backend_loading
 
 _ORB_HESSIAN_PATCH_LOCK = threading.Lock()
 
-_ORB_INSTALL = 'pip install "orb-models>=0.7.0"'
+_ORB_INSTALL = format_install_command(BACKEND_ORB)
+_TORCH_INSTALL = format_install_command("torch")
 
 # Public model names mapped onto pretrained loaders. orb-models>=0.7.0
 # loaders return (model, atoms_adapter); older releases return the model.
@@ -103,11 +104,8 @@ class OrbPotential(BasePotential):
             raise ImportError(msg)
 
         if not deps.has("torch"):
-            msg = "PyTorch is required for Orb potentials. Install with: pip install torch"
+            msg = f"PyTorch is required for Orb potentials. Install with: {_TORCH_INSTALL}"
             raise ImportError(msg)
-
-        if device is None:
-            device = get_optimal_device()
 
         self._calc: Any | None = None
         self.charge = charge

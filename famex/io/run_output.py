@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from ase import Atoms
 
-from famex.core.file_io import write_atoms_safely, write_trajectory_safely
+
+class RunOutputResult(NamedTuple):
+    written_paths: list[str]
+    frame_count: int
 
 
 def default_output_name(stem: str, target: str, strategy: str) -> str:
@@ -58,7 +61,7 @@ def write_run_outputs(
     strategy: str,
     output: str | None = None,
     history: bool = False,
-) -> list[str]:
+) -> RunOutputResult:
     """Write the default artifact and, when asked, geometry history.
 
     History files are optimizer steps, a TS search path, NEB iteration frames,
@@ -66,14 +69,16 @@ def write_run_outputs(
     default file. History files use the canonical names and are placed in
     that file's directory.
 
-    Returns the paths that were written, default file first.
+    Returns written paths (default file first) and the default artifact frame count.
     """
     default_path = output or default_output_name(stem, target, strategy)
     written = [default_path]
-    _write_frames(select_default_frames(result, target), default_path)
+    default_frames = select_default_frames(result, target)
+    frame_count = len(default_frames) if isinstance(default_frames, list) else 1
+    _write_frames(default_frames, default_path)
 
     if not history:
-        return written
+        return RunOutputResult(written, frame_count)
 
     if target == "path" and strategy == "irc":
         for tag, key in (("forward", "forward_path"), ("reverse", "backward_path")):
@@ -83,7 +88,7 @@ def write_run_outputs(
             path = _place_history(default_path, stem, target, strategy, tag)
             _write_frames(branch, path)
             written.append(path)
-        return written
+        return RunOutputResult(written, frame_count)
 
     trajectory = _frame_list(result.get("optimization_trajectory"))
     if trajectory is not None:
@@ -101,7 +106,7 @@ def write_run_outputs(
             _write_frames(band, path)
             written.append(path)
 
-    return written
+    return RunOutputResult(written, frame_count)
 
 
 def _place_history(
@@ -116,6 +121,8 @@ def _place_history(
 
 
 def _write_frames(frames: Atoms | list[Atoms], path: str) -> None:
+    from famex.core.file_io import write_atoms_safely, write_trajectory_safely
+
     if isinstance(frames, Atoms):
         write_atoms_safely(frames, path)
         return
@@ -161,6 +168,7 @@ def _frame_list(value: Any) -> list[Atoms] | None:
 
 
 __all__ = [
+    "RunOutputResult",
     "default_output_name",
     "history_output_name",
     "select_default_frames",

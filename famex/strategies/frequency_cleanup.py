@@ -7,7 +7,6 @@ from typing import Any, cast
 
 import numpy as np
 from ase import Atoms
-from ase.constraints import FixAtoms
 
 from famex.analysis.physics_constants import IMAGINARY_MODE_THRESHOLD_CM
 from famex.optimizers.sella_utils import is_sella_optimizer
@@ -20,6 +19,7 @@ from famex.strategies.helpers import (
 )
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
+from famex.utils.normal_mode_atoms import fixed_atom_indices, mode_atom_indices
 
 logger = get_famex_logger(__name__)
 
@@ -100,15 +100,6 @@ def _resolve_cleanup_settings(
     return str(cleanup_optimizer), max(1, max_attempts), max(1, cleanup_steps)
 
 
-def _fixed_atom_indices(atoms: Atoms) -> np.ndarray:
-    """Atom indices held fixed by any FixAtoms constraint on ``atoms``."""
-    indices: list[int] = []
-    for constraint in atoms.constraints:
-        if isinstance(constraint, FixAtoms):
-            indices.extend(int(index) for index in constraint.get_indices())
-    return np.array(sorted(set(indices)), dtype=int)
-
-
 def _zero_fixed_displacements(displacement: np.ndarray, fixed_indices: np.ndarray) -> None:
     if fixed_indices.size:
         displacement[fixed_indices] = 0.0
@@ -124,7 +115,7 @@ def _apply_constrained_displacement(atoms: Atoms, displacement: np.ndarray) -> N
         )
         raise ValueError(msg)
 
-    _zero_fixed_displacements(displacement, _fixed_atom_indices(atoms))
+    _zero_fixed_displacements(displacement, fixed_atom_indices(atoms))
 
     new_positions = atoms.positions + displacement
     for constraint in atoms.constraints:
@@ -133,22 +124,6 @@ def _apply_constrained_displacement(atoms: Atoms, displacement: np.ndarray) -> N
             adjust_positions(atoms, new_positions)
 
     atoms.set_positions(new_positions)
-
-
-def _mode_atom_indices(
-    n_atoms: int,
-    normal_modes: np.ndarray,
-    frequency_result: dict[str, Any],
-) -> list[int] | None:
-    """Map normal-mode rows to atom indices, including partial Hessian analyses."""
-    if normal_modes.shape[0] == 3 * n_atoms:
-        return list(range(n_atoms))
-
-    indices = frequency_result.get("indices")
-    if indices is not None and normal_modes.shape[0] == 3 * len(indices):
-        return [int(index) for index in indices]
-
-    return None
 
 
 def _select_modes_to_follow(
@@ -194,7 +169,7 @@ def _perturb_along_modes(
     if normal_modes.shape[1] != frequencies.shape[0]:
         return False
 
-    atom_indices = _mode_atom_indices(len(atoms), normal_modes, frequency_result)
+    atom_indices = mode_atom_indices(len(atoms), normal_modes, frequency_result)
     if atom_indices is None:
         return False
 

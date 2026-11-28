@@ -16,18 +16,23 @@ from collections.abc import Callable, Generator, Sequence, Sized
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from ase import Atoms
 from ase.io import write as ase_write
 
-# Import FAMEX components
-from famex.backends.availability import is_backend_available
+from famex.backends.availability import (
+    filter_available_backends as filter_available_backends_global,
+)
+from famex.backends.availability import (
+    is_backend_available,
+)
 from famex.backends.cache import get_unified_cache
 from famex.backends.constants import DEFAULT_UMA_MODEL
 from famex.backends.registry import calculator_registry, create_calculator
-
-# Import device utilities
+from famex.core.explorer import Explorer
 from famex.utils.device import get_optimal_device, print_device_info
 from famex.utils.logging import get_famex_logger
+from famex.utils.path_security import PathSecurityError, sanitize_filename
 
 logger = get_famex_logger(__name__)
 
@@ -64,7 +69,6 @@ class FAMEXExampleInterface:
             epilog=self.epilog,
         )
 
-        # Standard arguments for all examples
         parser.add_argument(
             "--backends",
             type=str,
@@ -104,14 +108,10 @@ class FAMEXExampleInterface:
         verbose: int = 0,
     ) -> list[str]:
         """Filter requested backends to only available ones."""
-        available = []
-        for backend in requested_backends:
-            if is_backend_available(backend):
-                available.append(backend)
-            elif verbose >= 1:
-                logger.warning("Backend '%s' is not available, skipping", backend)
-
-        return available
+        return filter_available_backends_global(
+            requested_backends,
+            verbose=bool(verbose >= 1),
+        )
 
     def print_header(self, subtitle: str = "") -> None:
         """Print standardized header."""
@@ -220,6 +220,273 @@ class FAMEXExampleInterface:
         )
 
 
+def _benchmark_initial_results(
+    backend: str,
+    optimizer: str,
+    device: str,
+    model_name: str | None,
+    test_ts: bool,
+) -> dict[str, Any]:
+    return {
+        "backend": backend,
+        "optimizer": optimizer,
+        "device": device,
+        "model_name": model_name,
+        "test_ts": test_ts,
+        "available": False,
+        "error": None,
+        "timings": {},
+        "optimization_results": {},
+        "frequency_results": {},
+    }
+
+
+def _benchmark_prepare_ts_initial_hessian(
+    *,
+    structure: Atoms,
+    backend: str,
+    model_name: str | None,
+    device: str,
+    force_finite_diff_hessian: bool,
+    verbose: int,
+) -> Any | None:
+    try:
+        from famex.analysis.frequency import FrequencyAnalysis
+
+        charge = getattr(structure, "charge", None)
+        if charge is None and hasattr(structure, "info") and "charge" in structure.info:
+            charge = structure.info["charge"]
+        charge = charge if charge is not None else 0
+
+        multiplicity = getattr(structure, "spin", None)
+        if multiplicity is None and hasattr(structure, "info") and "spin" in structure.info:
+            multiplicity = structure.info["spin"]
+        multiplicity = multiplicity if multiplicity is not None else 1
+
+        temp_calc = create_calculator(
+            backend=backend,
+            model_name=model_name,
+            model_path=None,
+            device=device,
+            default_charge=charge,
+            default_spin=multiplicity,
+            charge=charge,
+            mult=multiplicity,
+        )
+        structure.calc = temp_calc
+
+        freq_analysis = FrequencyAnalysis(atoms=structure, calculator=temp_calc, verbose=0)
+        hessian_method = "finite_differences" if force_finite_diff_hessian else "auto"
+        initial_hessian = freq_analysis.calculate_hessian(method=hessian_method)
+        structure.calc = None
+        return initial_hessian
+    except Exception as e:
+        if verbose >= 1:
+            logger.warning("Failed to compute initial Hessian: %s. Continuing without it.", e)
+        return None
+
+
+def _benchmark_record_single_point_timings(explorer: Explorer, results: dict[str, Any]) -> None:
+    atoms = explorer.atoms_list[0]
+
+    energy_first_start = time.perf_counter()
+    atoms.get_potential_energy()
+    energy_first_time = time.perf_counter() - energy_first_start
+    results["timings"]["single_energy_first"] = energy_first_time
+
+    energy_second_start = time.perf_counter()
+    atoms.get_potential_energy()
+    energy_second_time = time.perf_counter() - energy_second_start
+    results["timings"]["single_energy_second"] = energy_second_time
+    results["timings"]["single_energy"] = energy_second_time
+
+    force_start = time.perf_counter()
+    forces = atoms.get_forces()
+    results["timings"]["single_forces"] = time.perf_counter() - force_start
+    results["single_point_max_force"] = float(np.max(np.abs(forces)))
+
+
+def _benchmark_collect_optimization_metrics(
+    run_results: dict[str, Any],
+    explorer: Explorer,
+    opt_time: float,
+) -> tuple[Any, bool, Any, float, float, np.ndarray | None, float | None]:
+    steps_taken = run_results.get("steps_taken", 0)
+    converged_raw = run_results.get("converged", False)
+    if isinstance(converged_raw, str):
+        converged = converged_raw.lower() in ("true", "1", "yes")
+    else:
+        converged = bool(converged_raw)
+    optimized_atoms = run_results.get("optimized_atoms", explorer.atoms_list[0])
+
+    final_forces: np.ndarray | None = None
+    if optimized_atoms is not None and hasattr(optimized_atoms, "get_potential_energy"):
+        final_energy = float(optimized_atoms.get_potential_energy())
+        if hasattr(optimized_atoms, "get_forces"):
+            final_forces = np.asarray(optimized_atoms.get_forces())
+            max_force = float(np.max(np.abs(final_forces)))
+        else:
+            max_force = float("inf")
+    else:
+        final_energy = 0.0
+        max_force = float("inf")
+
+    avg_time_per_step = (
+        (opt_time / steps_taken)
+        if isinstance(steps_taken, int | float) and steps_taken > 0
+        else None
+    )
+    return (
+        steps_taken,
+        converged,
+        optimized_atoms,
+        final_energy,
+        max_force,
+        final_forces,
+        avg_time_per_step,
+    )
+
+
+def _benchmark_maybe_write_structure(
+    *,
+    save_optimized_structure: bool,
+    optimized_atoms: Any,
+    structure_output_dir: str | Path | None,
+    structure_label: str | None,
+    optimizer: str,
+    backend: str,
+    test_ts: bool,
+    verbose: int,
+) -> str | None:
+    if not save_optimized_structure or optimized_atoms is None:
+        return None
+
+    output_dir = Path(structure_output_dir) if structure_output_dir else Path.cwd()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    raw_label = structure_label if structure_label else optimizer
+    if not raw_label:
+        raw_label = "optimizer"
+    try:
+        sanitized = sanitize_filename(raw_label)
+    except PathSecurityError:
+        sanitized = "optimizer"
+    try:
+        backend_key = sanitize_filename(backend)
+    except PathSecurityError:
+        backend_key = "backend"
+    target_tag = "ts" if test_ts else "min"
+    filename = f"{backend_key}_{sanitized}_{target_tag}.xyz"
+    xyz_path = output_dir / filename
+
+    try:
+        if isinstance(optimized_atoms, Atoms):
+            ase_write(xyz_path, optimized_atoms)
+            return str(xyz_path)
+        if (
+            isinstance(optimized_atoms, list)
+            and optimized_atoms
+            and isinstance(optimized_atoms[0], Atoms)
+            and all(isinstance(a, Atoms) for a in optimized_atoms)
+        ):
+            ase_write(xyz_path, optimized_atoms)
+            return str(xyz_path)
+        if verbose >= 1:
+            logger.warning(
+                "Cannot write optimized_atoms: invalid type %s",
+                type(optimized_atoms),
+            )
+    except Exception as exc:
+        if verbose >= 1:
+            logger.warning("Failed to write optimized structure to %s: %s", xyz_path, exc)
+    return None
+
+
+def _benchmark_build_frequency_results(
+    *,
+    test_ts: bool,
+    calculate_frequencies: bool,
+    freq_results: dict[str, Any],
+) -> dict[str, Any]:
+    frequencies = freq_results.get("frequencies", []) if freq_results else []
+    if not isinstance(frequencies, list | np.ndarray):
+        frequencies = []
+
+    if test_ts:
+        if calculate_frequencies and freq_results:
+            is_ts = freq_results.get("is_ts", False)
+            ts_analysis = freq_results.get("ts_analysis", {})
+            n_imaginary = (
+                ts_analysis.get("n_imaginary_frequencies", 0)
+                if isinstance(ts_analysis, dict)
+                else 0
+            )
+            is_valid_result = is_ts and (n_imaginary == 1)
+        else:
+            is_ts = False
+            ts_analysis = {}
+            n_imaginary = 0
+            is_valid_result = False
+
+        all_frequencies_from_freq = freq_results.get("all_frequencies", []) if freq_results else []
+        return {
+            "n_frequencies": (len(frequencies) if isinstance(frequencies, Sized) else 0),
+            "frequencies": (frequencies[:10] if isinstance(frequencies, Sequence) else []),
+            "all_frequencies": (
+                all_frequencies_from_freq[:20]
+                if isinstance(all_frequencies_from_freq, Sequence)
+                else []
+            ),
+            "zero_point_energy": (
+                freq_results.get("zero_point_energy", 0.0) if freq_results else 0.0
+            ),
+            "is_transition_state": is_ts,
+            "is_valid_result": is_valid_result,
+            "n_imaginary_frequencies": n_imaginary,
+            "method_used": (
+                freq_results.get("method_used", "unknown") if freq_results else "not_calculated"
+            ),
+            "result_type": "TS",
+            "ts_analysis": ts_analysis,
+        }
+
+    if calculate_frequencies and freq_results:
+        is_minimum = freq_results.get("is_minimum", False)
+        minima_analysis = freq_results.get("minima_analysis", {})
+        n_significant_imaginary = (
+            minima_analysis.get("n_significant_imaginary_frequencies", 0)
+            if isinstance(minima_analysis, dict)
+            else 0
+        )
+        n_small_negative = (
+            minima_analysis.get("n_small_negative_frequencies", 0)
+            if isinstance(minima_analysis, dict)
+            else 0
+        )
+        is_valid_result = is_minimum
+    else:
+        is_minimum = False
+        minima_analysis = {}
+        n_significant_imaginary = 0
+        n_small_negative = 0
+        is_valid_result = False
+
+    return {
+        "n_frequencies": (len(frequencies) if isinstance(frequencies, Sized) else 0),
+        "frequencies": (frequencies[:10] if isinstance(frequencies, Sequence) else []),
+        "zero_point_energy": (freq_results.get("zero_point_energy", 0.0) if freq_results else 0.0),
+        "is_minimum": is_minimum,
+        "is_valid_result": is_valid_result,
+        "n_significant_imaginary_frequencies": n_significant_imaginary,
+        "n_small_negative_frequencies": n_small_negative,
+        "method_used": (
+            freq_results.get("method_used", "unknown") if freq_results else "not_calculated"
+        ),
+        "result_type": "minima",
+        "minima_analysis": minima_analysis,
+    }
+
+
 def create_standard_epilog(script: str, *, quick: bool = False) -> str:
     """Examples block for a benchmark script's ``--help``."""
     lines = [
@@ -292,48 +559,18 @@ def benchmark_optimization(
         Benchmark results including timings for each step
 
     """
-    import numpy as np
-
-    # Import FAMEX components
-    try:
-        from famex.core.explorer import Explorer
-    except ImportError as e:
-        return {
-            "backend": backend,
-            "optimizer": optimizer,
-            "available": False,
-            "error": f"Failed to import FAMEX: {e}",
-            "timings": {},
-            "optimization_results": {},
-            "frequency_results": {},
-        }
-
-    # Auto-detect optimal device
     device = get_optimal_device(device)
 
     if verbose:
         print_device_info(device)
 
-    results: dict[str, Any] = {
-        "backend": backend,
-        "optimizer": optimizer,
-        "device": device,
-        "model_name": model_name,
-        "test_ts": test_ts,
-        "available": False,
-        "error": None,
-        "timings": {},
-        "optimization_results": {},
-        "frequency_results": {},
-    }
+    results = _benchmark_initial_results(backend, optimizer, device, model_name, test_ts)
 
     try:
-        # Check if backend is available
         if not calculator_registry.is_backend_available(backend):
             results["error"] = f"Backend '{backend}' is not available (dependencies missing)"
             return results
 
-        # Check if optimizer is suitable for this task
         if suitable_optimizers and optimizer.lower() not in suitable_optimizers:
             task = "TS" if test_ts else "minima"
             results["error"] = (
@@ -344,54 +581,22 @@ def benchmark_optimization(
 
         results["available"] = True
 
-        # Create appropriate structure
         if create_structure_func is None:
             results["error"] = "create_structure_func is required"
             return results
         structure = create_structure_func()
 
-        # For TS optimization, compute initial Hessian to help optimizers
-        # This ensures the optimizers have proper curvature information from the start
         initial_hessian = None
         if test_ts:
-            try:
-                from famex.analysis.frequency import FrequencyAnalysis
+            initial_hessian = _benchmark_prepare_ts_initial_hessian(
+                structure=structure,
+                backend=backend,
+                model_name=model_name,
+                device=device,
+                force_finite_diff_hessian=force_finite_diff_hessian,
+                verbose=verbose,
+            )
 
-                # Attach calculator temporarily to compute initial Hessian
-                # Extract charge/spin from structure if available
-                charge = getattr(structure, "charge", None)
-                if charge is None and hasattr(structure, "info") and "charge" in structure.info:
-                    charge = structure.info["charge"]
-                charge = charge if charge is not None else 0
-
-                multiplicity = getattr(structure, "spin", None)
-                if multiplicity is None and hasattr(structure, "info") and "spin" in structure.info:
-                    multiplicity = structure.info["spin"]
-                multiplicity = multiplicity if multiplicity is not None else 1
-
-                temp_calc = create_calculator(
-                    backend=backend,
-                    model_name=model_name,
-                    model_path=None,
-                    device=device,
-                    default_charge=charge,
-                    default_spin=multiplicity,
-                    charge=charge,
-                    mult=multiplicity,
-                )
-                structure.calc = temp_calc
-
-                freq_analysis = FrequencyAnalysis(atoms=structure, calculator=temp_calc, verbose=0)
-                hessian_method = "finite_differences" if force_finite_diff_hessian else "auto"
-                initial_hessian = freq_analysis.calculate_hessian(method=hessian_method)
-                structure.calc = None  # Detach calculator - Explorer will reattach
-            except Exception as e:
-                if verbose >= 1:
-                    logger.warning(
-                        "Failed to compute initial Hessian: %s. Continuing without it.", e
-                    )
-
-        # Initialize FAMEX optimizer
         init_start = time.perf_counter()
 
         explorer = Explorer(
@@ -414,47 +619,17 @@ def benchmark_optimization(
         init_time = time.perf_counter() - init_start
         results["timings"]["initialization"] = init_time
 
-        # Attach calculator to atoms object
         load_start = time.perf_counter()
 
-        # Attach calculator using Explorer's method
         explorer._create_and_attach_calculator(explorer.atoms_list[0])
 
         load_time = time.perf_counter() - load_start
         results["timings"]["structure_loading"] = load_time
 
-        # Test single energy calculation (first call - includes calculator initialization)
-        energy_first_start = time.perf_counter()
+        _benchmark_record_single_point_timings(explorer, results)
 
-        explorer.atoms_list[0].get_potential_energy()
-
-        energy_first_time = time.perf_counter() - energy_first_start
-        results["timings"]["single_energy_first"] = energy_first_time
-
-        # Test single energy calculation (second call - pure evaluation)
-        energy_second_start = time.perf_counter()
-
-        explorer.atoms_list[0].get_potential_energy()
-
-        energy_second_time = time.perf_counter() - energy_second_start
-        results["timings"]["single_energy_second"] = energy_second_time
-
-        # Store the pure evaluation time as the main single_energy metric
-        results["timings"]["single_energy"] = energy_second_time
-
-        # Test single force calculation
-        force_start = time.perf_counter()
-
-        forces = explorer.atoms_list[0].get_forces()
-        max_force = float(np.max(np.abs(forces)))
-
-        force_time = time.perf_counter() - force_start
-        results["timings"]["single_forces"] = force_time
-
-        # Optimization using Explorer strategies
         opt_start = time.perf_counter()
 
-        # Use Explorer's run method with appropriate strategy
         try:
             if test_ts:
                 run_results = explorer.run(
@@ -470,124 +645,51 @@ def benchmark_optimization(
             if "not suitable for transition state optimization" in str(e):
                 results["error"] = str(e)
                 return results
-            raise
-
-        # Handle results from Explorer's run method
-        # The run() method returns a dictionary with standardized results
-        # Note: run_results should always be a dict from Explorer.run()
-        steps_taken = run_results.get("steps_taken", 0)
-        converged_raw = run_results.get("converged", False)
-        # Ensure converged is always a boolean
-        if isinstance(converged_raw, str):
-            converged = converged_raw.lower() in ("true", "1", "yes")
-        else:
-            converged = bool(converged_raw)
-        optimized_atoms = run_results.get("optimized_atoms", explorer.atoms_list[0])
-
-        # Get optimization results
-        if optimized_atoms is not None and hasattr(optimized_atoms, "get_potential_energy"):
-            final_energy = float(optimized_atoms.get_potential_energy())
-            if hasattr(optimized_atoms, "get_forces"):
-                max_force = float(np.max(np.abs(optimized_atoms.get_forces())))
-            else:
-                max_force = float("inf")
-        else:
-            final_energy = 0.0
-            max_force = float("inf")
+            raise e from e
 
         opt_time = time.perf_counter() - opt_start
-
-        # Calculate average time per optimization step
-        if isinstance(steps_taken, int | float) and steps_taken > 0:
-            avg_time_per_step = opt_time / steps_taken
-        else:
-            avg_time_per_step = None
-
-        # Get final forces for verification
-        if optimized_atoms is not None and hasattr(optimized_atoms, "get_forces"):
-            final_forces = optimized_atoms.get_forces()
-            final_max_force = float(np.max(np.abs(final_forces)))
-        else:
-            final_max_force = max_force
-
-        opt_results = {
-            "converged": converged,
-            "final_energy": final_energy,
-            "steps_taken": steps_taken,
-            "optimized_atoms": optimized_atoms,
-            "max_force": final_max_force,
-        }
+        (
+            steps_taken,
+            converged,
+            optimized_atoms,
+            final_energy,
+            _max_force,
+            final_forces,
+            avg_time_per_step,
+        ) = _benchmark_collect_optimization_metrics(run_results, explorer, opt_time)
+        final_max_force = (
+            float(np.max(np.abs(final_forces))) if final_forces is not None else _max_force
+        )
 
         results["timings"]["optimization"] = opt_time
         results["timings"]["avg_time_per_step"] = avg_time_per_step
         results["optimization_results"] = {
-            "converged": opt_results["converged"],
-            "final_energy": opt_results["final_energy"],
-            "max_force": opt_results["max_force"],
+            "converged": converged,
+            "final_energy": final_energy,
+            "max_force": final_max_force,
             "steps_taken": steps_taken,
         }
 
-        saved_xyz_path: str | None = None
-        if save_optimized_structure and optimized_atoms is not None:
-            output_dir = Path(structure_output_dir) if structure_output_dir else Path.cwd()
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-            raw_label = structure_label if structure_label else optimizer
-            if not raw_label:
-                raw_label = "optimizer"
-            sanitized = "".join(
-                c if c.isalnum() or c in ("-", "_") else "_" for c in raw_label.strip()
-            )
-            sanitized = sanitized or "optimizer"
-            target_tag = "ts" if test_ts else "min"
-            filename = f"{backend}_{sanitized}_{target_tag}.xyz"
-            xyz_path = output_dir / filename
-
-            try:
-                # Narrow type for ase_write - it accepts Atoms or Sequence[Atoms]
-                # optimized_atoms could be Atoms | list[Atoms] | int | float | str from run_results
-                if isinstance(optimized_atoms, Atoms):
-                    ase_write(xyz_path, optimized_atoms)
-                    saved_xyz_path = str(xyz_path)
-                elif (
-                    isinstance(optimized_atoms, list)
-                    and optimized_atoms
-                    and isinstance(optimized_atoms[0], Atoms)
-                ):
-                    # Check all items are Atoms
-                    if all(isinstance(a, Atoms) for a in optimized_atoms):
-                        ase_write(xyz_path, optimized_atoms)
-                        saved_xyz_path = str(xyz_path)
-                    else:
-                        if verbose >= 1:
-                            logger.warning(
-                                "Cannot write optimized_atoms: list contains non-Atoms items"
-                            )
-                else:
-                    if verbose >= 1:
-                        logger.warning(
-                            "Cannot write optimized_atoms: invalid type %s",
-                            type(optimized_atoms),
-                        )
-            except Exception as exc:
-                if verbose >= 1:
-                    logger.warning("Failed to write optimized structure to %s: %s", xyz_path, exc)
-
+        saved_xyz_path = _benchmark_maybe_write_structure(
+            save_optimized_structure=save_optimized_structure,
+            optimized_atoms=optimized_atoms,
+            structure_output_dir=structure_output_dir,
+            structure_label=structure_label,
+            optimizer=optimizer,
+            backend=backend,
+            test_ts=test_ts,
+            verbose=verbose,
+        )
         if saved_xyz_path is not None:
             results["optimization_results"]["structure_file"] = saved_xyz_path
 
-        # Extract performance data from profiler if available
         if isinstance(run_results, dict) and "performance" in run_results:
             results["performance"] = run_results["performance"]
 
-        # Frequency analysis (optional, controlled by calculate_frequencies flag)
         freq_start = time.perf_counter()
         freq_results = {}
 
         if calculate_frequencies:
-            # Use the explorer's calculate_frequencies method directly
-            # This method handles the calculator attachment automatically
-            # Ensure optimized_atoms is the right type for calculate_frequencies
             atoms_for_freq = (
                 optimized_atoms
                 if isinstance(optimized_atoms, type(None) | type(explorer.atoms_list[0]))
@@ -609,107 +711,23 @@ def benchmark_optimization(
         freq_time = time.perf_counter() - freq_start
         results["timings"]["frequency_analysis"] = freq_time if calculate_frequencies else 0.0
 
-        # Enhanced validation based on task type using proper frequency analysis
-        frequencies = freq_results.get("frequencies", []) if freq_results else []
-        if not isinstance(frequencies, list | np.ndarray):
-            frequencies = []
+        results["frequency_results"] = _benchmark_build_frequency_results(
+            test_ts=test_ts,
+            calculate_frequencies=calculate_frequencies,
+            freq_results=freq_results,
+        )
 
-        if test_ts:
-            # TS optimization validation
-            if calculate_frequencies and freq_results:
-                is_ts = freq_results.get("is_ts", False)
-                ts_analysis = freq_results.get("ts_analysis", {})
-                n_imaginary = (
-                    ts_analysis.get("n_imaginary_frequencies", 0)
-                    if isinstance(ts_analysis, dict)
-                    else 0
-                )
-                is_valid_result = is_ts and (n_imaginary == 1)
-            else:
-                # No frequency analysis - can't validate TS
-                is_ts = False
-                ts_analysis = {}
-                n_imaginary = 0
-                is_valid_result = False
-
-            result_type = "TS"
-
-            # Store all_frequencies from freq_results (includes trans/rot modes)
-            # This is important for TS validation as it contains all frequencies including imaginary ones
-            all_frequencies_from_freq = (
-                freq_results.get("all_frequencies", []) if freq_results else []
-            )
-
-            results["frequency_results"] = {
-                "n_frequencies": (len(frequencies) if isinstance(frequencies, Sized) else 0),
-                "frequencies": (frequencies[:10] if isinstance(frequencies, Sequence) else []),
-                "all_frequencies": (
-                    all_frequencies_from_freq[:20]
-                    if isinstance(all_frequencies_from_freq, Sequence)
-                    else []
-                ),  # Store all frequencies (includes trans/rot)
-                "zero_point_energy": (
-                    freq_results.get("zero_point_energy", 0.0) if freq_results else 0.0
-                ),
-                "is_transition_state": is_ts,
-                "is_valid_result": is_valid_result,
-                "n_imaginary_frequencies": n_imaginary,
-                "method_used": (
-                    freq_results.get("method_used", "unknown") if freq_results else "not_calculated"
-                ),
-                "result_type": result_type,
-                "ts_analysis": ts_analysis,
-            }
-        else:
-            # Minima optimization validation
-            if calculate_frequencies and freq_results:
-                is_minimum = freq_results.get("is_minimum", False)
-                minima_analysis = freq_results.get("minima_analysis", {})
-                n_significant_imaginary = (
-                    minima_analysis.get("n_significant_imaginary_frequencies", 0)
-                    if isinstance(minima_analysis, dict)
-                    else 0
-                )
-                n_small_negative = (
-                    minima_analysis.get("n_small_negative_frequencies", 0)
-                    if isinstance(minima_analysis, dict)
-                    else 0
-                )
-                is_valid_result = is_minimum
-            else:
-                # No frequency analysis - can't validate
-                is_minimum = False
-                minima_analysis = {}
-                n_significant_imaginary = 0
-                n_small_negative = 0
-                is_valid_result = False
-
-            result_type = "minima"
-
-            results["frequency_results"] = {
-                "n_frequencies": (len(frequencies) if isinstance(frequencies, Sized) else 0),
-                "frequencies": (frequencies[:10] if isinstance(frequencies, Sequence) else []),
-                "zero_point_energy": (
-                    freq_results.get("zero_point_energy", 0.0) if freq_results else 0.0
-                ),
-                "is_minimum": is_minimum,
-                "is_valid_result": is_valid_result,
-                "n_significant_imaginary_frequencies": n_significant_imaginary,
-                "n_small_negative_frequencies": n_small_negative,
-                "method_used": (
-                    freq_results.get("method_used", "unknown") if freq_results else "not_calculated"
-                ),
-                "result_type": result_type,
-                "minima_analysis": minima_analysis,
-            }
-
-        # Calculate total time (excluding None values)
         timings = results.get("timings", {})
         if isinstance(timings, dict):
             total_time = sum(v for v in timings.values() if v is not None)
             results["timings"]["total"] = total_time
 
     except Exception as e:
+        logger.exception(
+            "benchmark_optimization failed for backend=%s optimizer=%s",
+            backend,
+            optimizer,
+        )
         results["error"] = str(e)
 
     return results
@@ -757,15 +775,12 @@ def setup_example_environment(func: Callable | None = None) -> Callable:
     As decorator:
         @setup_example_environment
         def main():
-            # Your code here
             pass
 
     As context manager:
         with setup_example_environment():
-            # Your code here
             pass
     """
-    # Store original environment variables
     original_display = os.environ.get("DISPLAY")
     original_mplbackend = os.environ.get("MPLBACKEND")
     original_qt = os.environ.get("QT_QPA_PLATFORM")
@@ -803,10 +818,8 @@ def setup_example_environment(func: Callable | None = None) -> Callable:
             _restore()
 
     if func is None:
-        # Used as context manager
         return _context_manager()
 
-    # Used as decorator
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         _setup()
@@ -845,28 +858,22 @@ def select_backend_with_fallback(
     tuple[str | None, list[str]]
         Selected backend (or None if none available) and list of all available backends
     """
-    # Get available ML backends
     available_backends = interface.get_available_ml_backends()
 
-    # If user requested specific backends, filter to available ones
     if requested_backends:
         filtered = interface.filter_available_backends(requested_backends, verbose=verbose)
         if required_backends:
-            # Check if any required backends are in the filtered list
             filtered_required = [b for b in filtered if b in required_backends]
             if not filtered_required:
                 return None, available_backends
         if filtered:
-            # Return first available from requested list
             return filtered[0], filtered
 
-    # Auto-select based on preferences
     if preferred_backends:
         for backend in preferred_backends:
             if backend in available_backends:
                 return backend, available_backends
 
-    # No preferences, return first available
     if available_backends:
         return available_backends[0], available_backends
 
@@ -904,10 +911,8 @@ def get_calculator_for_backend(
     if not is_backend_available(backend):
         raise RuntimeError(f"Backend '{backend}' is not available")
 
-    # Auto-detect device if not provided
     device = get_optimal_device(device)
 
-    # Create calculator based on backend
     if backend == "mace":
         calc = famex.get_mace_calculator(device=device)
     elif backend == "uma":
@@ -917,7 +922,6 @@ def get_calculator_for_backend(
     elif backend == "so3lr":
         calc = famex.get_so3lr_calculator(device=device)
     else:
-        # Fallback to registry
         calc = create_calculator(
             backend=backend,
             model_name=model_name,

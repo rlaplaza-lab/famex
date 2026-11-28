@@ -307,6 +307,37 @@ class TestMLWarnings:
         assert any(isinstance(f, VerboseFilter) for f in root.filters)
         assert torch_log.getEffectiveLevel() >= logging.ERROR
 
+    def test_filtered_stderr_is_text_io_base(self):
+        import io
+
+        original_stderr = sys.stderr
+        with suppress_ml_warnings():
+            assert isinstance(sys.stderr, io.TextIOBase)
+        assert sys.stderr == original_stderr
+
+    def test_install_runtime_ml_filters_verbosity_round_trip(self):
+        ml_warnings_mod._configured_quiet = None
+        ml_warnings_mod._pre_quiet_snapshot = None
+        try:
+            install_runtime_ml_filters(verbosity=0)
+            assert warnings.showwarning is ml_warnings_mod._quiet_showwarning
+            install_runtime_ml_filters(verbosity=2)
+            assert warnings.showwarning is ml_warnings_mod._original_showwarning
+        finally:
+            ml_warnings_mod._configured_quiet = None
+            ml_warnings_mod._pre_quiet_snapshot = None
+            install_runtime_ml_filters(verbosity=0)
+
+    def test_quiet_backend_loading_nested_without_mocks(self):
+        from famex.utils.logging import is_in_quiet_context
+
+        assert not is_in_quiet_context()
+        with quiet_backend_loading("mock", show_model_info=False):
+            with quiet_backend_loading("mock", show_model_info=False):
+                assert is_in_quiet_context()
+            assert is_in_quiet_context()
+        assert not is_in_quiet_context()
+
     def test_high_verbosity_restores_showwarning(self):
         ml_warnings_mod._configured_quiet = None
         try:

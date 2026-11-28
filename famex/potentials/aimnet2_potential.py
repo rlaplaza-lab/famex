@@ -8,21 +8,24 @@ from __future__ import annotations
 
 import os
 from collections.abc import Sequence
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import requests
 from ase.calculators.calculator import all_changes
 
+from famex.backends.cache import download_and_cache_model
 from famex.backends.dependencies import deps
 from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
-from famex.utils.device import get_optimal_device
 from famex.utils.hessian_ops import coerce_square_hessian_shape, symmetrize_hessian
 from famex.utils.logging import get_famex_logger
 from famex.utils.ml_warnings import quiet_backend_loading
-from famex.utils.path_security import PathSecurityError, is_safe_relative_path, validate_safe_path
+from famex.utils.path_security import (
+    PathSecurityError,
+    has_unsafe_components,
+    is_safe_relative_path,
+)
+from famex.utils.path_security import validate_safe_path as validate_safe_path
 
 if TYPE_CHECKING:
     from ase import Atoms
@@ -80,14 +83,14 @@ def get_model_path(model_name: str) -> str:
     the model in the registry and downloads it if necessary.
 
     """
+    if has_unsafe_components(model_name):
+        msg = f"Unsafe model path detected (path traversal attempt): {model_name}"
+        raise PathSecurityError(msg)
+
     # Security check: reject path traversal attempts and absolute paths
     if not is_safe_relative_path(model_name):
         if os.path.isabs(model_name):
             msg = f"Absolute paths not allowed for model: {model_name}"
-            raise PathSecurityError(msg)
-        # Check for path traversal patterns
-        if ".." in model_name or "~" in model_name:
-            msg = f"Unsafe model path detected (path traversal attempt): {model_name}"
             raise PathSecurityError(msg)
 
     # Direct file path
@@ -98,71 +101,19 @@ def get_model_path(model_name: str) -> str:
     # Check aliases
     model_path = MODEL_REGISTRY.get(model_name, model_name)
 
+    if has_unsafe_components(model_path):
+        msg = f"Unsafe model path detected (path traversal attempt): {model_path}"
+        raise PathSecurityError(msg)
+
     # Add .jpt extension if needed
     if not model_path.endswith(".jpt"):
         model_path = model_path + ".jpt"
 
-    # Create local assets directory
-    assets_dir = os.path.join(os.path.dirname(__file__), "assets")
-    assets_dir_path = Path(assets_dir)
-
-    # SECURITY: Validate model_path doesn't escape assets directory
-    # Resolve relative to assets_dir to prevent path traversal
-    try:
-        local_path = validate_safe_path(
-            assets_dir_path / model_path,
-            base_dir=assets_dir_path,
-            must_exist=False,
-            allow_absolute=False,
-        )
-    except PathSecurityError as e:
-        msg = f"Invalid model path {model_path}: {e}"
-        raise RuntimeError(msg) from e
-
-    # Create parent directory if needed
-    local_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if local_path.is_file():
-        logger.info("Found model file: %s", local_path)
-        return str(local_path)
-
-    # Download from model zoo
-    url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
-    logger.info("Downloading model from %s", url)
-
-    try:
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-
-        tmp_path = local_path.with_suffix(local_path.suffix + ".tmp")
-        with open(tmp_path, "wb") as f:
-            f.write(response.content)
-        os.replace(tmp_path, local_path)
-
-        logger.info("Saved to %s", local_path)
-        return str(local_path)
-
-    except requests.RequestException as e:
-        # Network errors (connection, timeout, HTTP errors)
-        msg = (
-            f"Failed to download model {model_name}: network error. "
-            f"Error: {e}. Check your internet connection and the model URL."
-        )
-        raise RuntimeError(msg) from e
-    except OSError as e:
-        # File system errors (permissions, disk space, etc.)
-        msg = (
-            f"Failed to download model {model_name}: file system error. "
-            f"Error: {e}. Check file permissions and available disk space."
-        )
-        raise RuntimeError(msg) from e
-    except (ValueError, TypeError) as e:
-        # Data format or configuration errors
-        msg = (
-            f"Failed to download model {model_name}: invalid data format. "
-            f"Error: {e}. The downloaded model may be corrupted."
-        )
-        raise RuntimeError(msg) from e
+    cache_key = f"aimnet2/{model_path}"
+    model_url = f"https://github.com/zubatyuk/aimnet-model-zoo/raw/main/{model_path}"
+    cached_path = download_and_cache_model(cache_key, model_url)
+    logger.info("Using AIMNet2 model at %s", cached_path)
+    return str(cached_path)
 
 
 def maybe_pad_dim0(a: Any, n: int, value: float = 0.0) -> Any:
@@ -492,8 +443,6 @@ class AIMNet2Potential(BasePotential):
 
         """
         deps.require("torch", purpose="AIMNet2 potentials")
-        if device is None:
-            device = get_optimal_device()
 
         self._calc: Any | None = None
         self.charge = charge

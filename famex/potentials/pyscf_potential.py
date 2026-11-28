@@ -12,8 +12,9 @@ import numpy as np
 from ase import Atoms
 from ase.units import Bohr, Hartree
 
-from famex.backends.constants import BACKEND_PYSCF, DEFAULT_PYSCF_MODEL
+from famex.backends.constants import BACKEND_PYSCF, DEFAULT_PYSCF_MODEL, format_install_command
 from famex.backends.dependencies import deps
+from famex.potentials._load_utils import raise_backend_load_error
 from famex.potentials.base_potential import BasePotential
 from famex.utils.hessian_ops import symmetrize_hessian
 
@@ -85,20 +86,26 @@ class PySCFPotential(BasePotential):
     def _load_calculator(self) -> None:
         if self._calc is not None:
             return
-        if not deps.has("pyscf"):
-            msg = "PySCF is required for the pyscf backend. Install with: pip install famex[pyscf]"
-            raise ImportError(msg)
-        if xc_needs_dispersion(self.xc) and not deps.has("pyscf_dispersion"):
-            msg = (
-                f"XC '{self.xc}' requires dispersion corrections. "
-                "Install with: pip install famex[pyscf]"
-            )
-            raise ImportError(msg)
-        from pyscf import dft, gto
+        try:
+            if not deps.has("pyscf"):
+                msg = (
+                    f"PySCF is required for the pyscf backend. "
+                    f"Install with: {format_install_command(BACKEND_PYSCF)}"
+                )
+                raise ImportError(msg)
+            if xc_needs_dispersion(self.xc) and not deps.has("pyscf_dispersion"):
+                msg = (
+                    f"XC '{self.xc}' requires dispersion corrections. "
+                    f"Install with: {format_install_command(BACKEND_PYSCF)}"
+                )
+                raise ImportError(msg)
+            from pyscf import dft, gto
 
-        self._pyscf_gto = gto
-        self._pyscf_dft = dft
-        self._calc = dft
+            self._pyscf_gto = gto
+            self._pyscf_dft = dft
+            self._calc = dft
+        except (ImportError, ValueError, TypeError, KeyError, OSError, RuntimeError) as exc:
+            raise_backend_load_error(BACKEND_PYSCF, self.model_name, exc)
 
     def _resolve_charge_mult(self, atoms: Atoms) -> tuple[int, int]:
         charge = (

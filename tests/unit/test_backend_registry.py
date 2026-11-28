@@ -298,10 +298,12 @@ class TestBackendAvailability:
         assert "available" in message.lower() or "install" in message.lower()
 
     def test_backend_availability_checker_init(self):
+        from famex.backends.constants import BACKEND_REQUIREMENTS
+
         checker = BackendAvailabilityChecker()
         assert isinstance(checker._cache, dict)
         assert isinstance(checker._conflict_cache, dict)
-        assert len(checker._requirements) > 0
+        assert len(BACKEND_REQUIREMENTS) > 0
 
     def test_check_basic_dependencies(self):
         checker = BackendAvailabilityChecker()

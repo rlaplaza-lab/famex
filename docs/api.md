@@ -43,9 +43,9 @@ Day-to-day calls go through {py:class}`~famex.core.explorer.Explorer`.
 * - {py:func}`~famex.backends.availability.get_available_backends`, {py:func}`~famex.backends.availability.is_backend_available`
   - Backends
   - Check which backends are installed
-* - {py:class}`~famex.utils.validation.FAMEXError`, {py:class}`~famex.utils.validation.BackendError`, {py:class}`~famex.utils.validation.DependencyError`
+* - {py:class}`~famex.core.exceptions.FAMEXError`, {py:class}`~famex.core.exceptions.BackendError`, {py:class}`~famex.core.exceptions.DependencyError`
   - Errors
-  - Exception types; `DependencyError` subclasses `ImportError` (`deps.require`)
+  - Exception types; `BackendError`/`DependencyError` also subclass `ImportError`
 * - {py:class}`~famex.potentials.base_potential.BasePotential`
   - Potentials
   - Shared calculator API (`get_property`, forces coercion, FD Hessian fallback)
@@ -77,13 +77,17 @@ Day-to-day calls go through {py:class}`~famex.core.explorer.Explorer`.
    :members:
 ```
 
-### Strategy Exceptions
+### Exceptions
 
 ```{eval-rst}
 .. automodule:: famex.core.exceptions
    :members:
    :show-inheritance:
 ```
+
+`FAMEXError`, `BackendError`, and `DependencyError` are also re-exported from
+`famex.utils.validation` and the top-level `famex` package. `BackendError` and
+`DependencyError` subclass `ImportError`.
 
 ## Structures and I/O
 
@@ -216,14 +220,3 @@ Day-to-day calls go through {py:class}`~famex.core.explorer.Explorer`.
 `setup_famex_logging` only installs a default StreamHandler when the `famex`
 logger has no handlers yet. Pre-existing handlers are preserved unless
 `force=True`. Called from `Explorer.__init__`.
-
-## Errors
-
-```{eval-rst}
-.. automodule:: famex.utils.validation
-   :members: FAMEXError, BackendError, DependencyError
-   :show-inheritance:
-```
-
-`DependencyError` is raised by `famex.backends.dependencies.deps.require` and
-subclasses `ImportError`.

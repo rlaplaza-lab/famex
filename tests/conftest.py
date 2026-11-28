@@ -174,16 +174,13 @@ def clear_famex_logger():
     original_handlers = logger.handlers[:]
     original_level = logger.level
     original_propagate = logger.propagate
-    original_configured = famex_logging._famex_logging_configured
     original_famex_level = famex_logging._famex_log_level
 
     logger.handlers.clear()
-    famex_logging._famex_logging_configured = False
 
     yield logger
 
     logger.handlers[:] = original_handlers
     logger.level = original_level
     logger.propagate = original_propagate
-    famex_logging._famex_logging_configured = original_configured
     famex_logging._famex_log_level = original_famex_level

@@ -9,6 +9,7 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
+from famex.strategies.kwargs_policy import PATH_INTERPOLATE_RUN_KEYS, pick_pass_through_kwargs
 
 
 class PathInterpolateStrategy(BaseStrategy):
@@ -32,6 +33,7 @@ class PathInterpolateStrategy(BaseStrategy):
     ) -> dict[str, Any]:
         """Generate interpolated path using PathManager without optimization."""
         self.validate_inputs(atoms_list)
+        _ = pick_pass_through_kwargs(kwargs, PATH_INTERPOLATE_RUN_KEYS)
 
         # Use PathManager to interpolate; do not optimize path
         path_mgr = PathManager(atoms_list)

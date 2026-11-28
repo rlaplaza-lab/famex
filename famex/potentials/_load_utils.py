@@ -32,4 +32,4 @@ def raise_backend_load_error(
         msg = f"Failed to load {backend} model '{label}': runtime error. Error: {exc}"
         logger.error("%s", msg)
         raise RuntimeError(msg) from exc
-    raise
+    raise exc from exc

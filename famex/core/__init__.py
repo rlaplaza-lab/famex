@@ -1,20 +1,32 @@
-"""Core API exports for FAMEX.
+"""Core API exports for FAMEX."""
 
-This module intentionally provides a compact public surface for the
-core package. New exports should be added here so users can import from
-``famex.core`` directly.
-"""
+from __future__ import annotations
 
-# Import strategy modules to register them
-import famex.strategies  # noqa: F401
+from typing import Any
+
 from famex.core.exceptions import (
+    BackendError,
+    DependencyError,
+    FAMEXError,
     StrategyError,
     StrategyNotFoundError,
 )
-from famex.core.explorer import Explorer
 
 __all__ = [
+    "BackendError",
+    "DependencyError",
     "Explorer",
+    "FAMEXError",
     "StrategyError",
     "StrategyNotFoundError",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "Explorer":
+        import famex.strategies  # noqa: F401
+        from famex.core.explorer import Explorer
+
+        return Explorer
+    msg = f"module '{__name__}' has no attribute '{name}'"
+    raise AttributeError(msg)

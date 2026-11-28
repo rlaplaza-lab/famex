@@ -9,7 +9,12 @@ from ase import Atoms
 from famex.core.base_strategy import BaseStrategy, StrategyMetadata
 from famex.core.registry import REGISTRY
 from famex.io.path_manager import PathManager
-from famex.strategies.helpers import preflight_band_path, refine_ts_guess_workflow
+from famex.strategies.helpers import neb_method_name, preflight_band_path, refine_ts_guess_workflow
+from famex.strategies.kwargs_policy import (
+    NEB_OPTIMIZER_KEYS,
+    TS_GUESS_RUN_KEYS,
+    pick_pass_through_kwargs,
+)
 from famex.strategies.neb_optimizer import NEBOptimizer
 from famex.utils.logging import get_famex_logger
 
@@ -44,15 +49,17 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
         """Run multi-structure TS search via CI-NEB."""
         self.validate_inputs(atoms_list)
 
-        local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
-        record_history = bool(kwargs.get("record_history", False))
-        band_fmax = 0.10 if path_fmax is None else float(path_fmax)
+        run_extra = pick_pass_through_kwargs(kwargs, TS_GUESS_RUN_KEYS)
+        local_optimizer_name = run_extra.get("local_optimizer_name", "rfo")
+        record_history = bool(run_extra.get("record_history", False))
+        effective_path_fmax = path_fmax if path_fmax is not None else run_extra.get("path_fmax")
+        band_fmax = 0.10 if effective_path_fmax is None else float(effective_path_fmax)
 
         path_mgr = PathManager(atoms_list)
         path = path_mgr.interpolate(npoints=npoints, method=method)
-        preflight_band_path(path, self.explorer, method_name="CI-NEB")
+        preflight_band_path(path, self.explorer, method_name=neb_method_name(climb=True))
 
-        neb_kwargs = {k: v for k, v in kwargs.items() if k != "record_history"}
+        neb_kwargs = pick_pass_through_kwargs(kwargs, NEB_OPTIMIZER_KEYS)
         neb_opt = NEBOptimizer(
             images=path,
             spring_constant=spring_constant,
@@ -72,7 +79,9 @@ class MultiStructureTSCINEBStrategy(BaseStrategy):
             logger.info("Using highest-energy image %d as TS guess", ts_index)
 
         ts_run_kwargs = {
-            k: v for k, v in kwargs.items() if k not in {"local_optimizer_name", "path_fmax"}
+            k: v
+            for k, v in run_extra.items()
+            if k not in {"local_optimizer_name", "path_fmax", "record_history"}
         }
         search_path = optimized_path if record_history and optimized_path else None
         return refine_ts_guess_workflow(

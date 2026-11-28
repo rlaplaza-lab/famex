@@ -10,6 +10,7 @@ from ase import Atoms
 
 from famex.interpolation.strategies import get_interpolation_strategy
 from famex.io.geometry import Geometry
+from famex.utils.hessian_ops import bond_key
 from famex.utils.logging import get_famex_logger
 from famex.utils.validation import validate_atoms_compatibility
 
@@ -212,13 +213,13 @@ class PathManager:
         return path_geometries
 
     @staticmethod
-    def _path_energies(path: Sequence[Atoms]) -> list[float]:
+    def path_energies(path: Sequence[Atoms], *, image_label: str = "path") -> list[float]:
         energies: list[float] = []
         for index, atoms in enumerate(path):
             try:
                 energies.append(float(atoms.get_potential_energy()))
             except Exception as exc:
-                msg = f"Failed to evaluate energy for path image {index}"
+                msg = f"Failed to evaluate energy for {image_label} image {index}"
                 raise RuntimeError(msg) from exc
         if not energies:
             raise RuntimeError("Path is empty; cannot select extrema")
@@ -244,7 +245,7 @@ class PathManager:
             If the path is empty or an energy cannot be evaluated.
 
         """
-        energies = PathManager._path_energies(path)
+        energies = PathManager.path_energies(path)
         ts_index = energies.index(max(energies))
         return path[ts_index], ts_index
 
@@ -450,7 +451,7 @@ class PathManager:
         rmsd_cache: dict[tuple[int, int], float] = {}
 
         def get_cached_rmsd(idx1: int, idx2: int) -> float:
-            key = (min(idx1, idx2), max(idx1, idx2))
+            key = bond_key(idx1, idx2)
             if key not in rmsd_cache:
                 rmsd_cache[key] = PathManager.calculate_rmsd(
                     structures[idx1],

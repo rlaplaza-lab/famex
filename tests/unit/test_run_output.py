@@ -80,7 +80,7 @@ def test_write_run_outputs_places_history_beside_custom_output(tmp_path) -> None
     }
     custom = tmp_path / "custom.xyz"
 
-    written = write_run_outputs(
+    output_result = write_run_outputs(
         result,
         str(tmp_path / "water"),
         target="ts",
@@ -89,7 +89,8 @@ def test_write_run_outputs_places_history_beside_custom_output(tmp_path) -> None
         history=True,
     )
 
-    assert written[0] == str(custom)
+    assert output_result.written_paths[0] == str(custom)
+    assert output_result.frame_count == 1
     assert custom.exists()
     assert (tmp_path / "water.ts.growing_string_trajectory.xyz").exists()
     assert (tmp_path / "water.ts.growing_string_path.xyz").exists()
@@ -108,7 +109,7 @@ def test_irc_history_writes_only_branches_that_exist(tmp_path) -> None:
         "backward_path": [],
     }
 
-    written = write_run_outputs(
+    output_result = write_run_outputs(
         result,
         "ts",
         target="path",
@@ -120,7 +121,8 @@ def test_irc_history_writes_only_branches_that_exist(tmp_path) -> None:
     assert (tmp_path / "ts.path.irc.xyz").exists()
     assert (tmp_path / "ts.path.irc_forward.xyz").exists()
     assert not (tmp_path / "ts.path.irc_reverse.xyz").exists()
-    assert len(written) == 2
+    assert len(output_result.written_paths) == 2
+    assert output_result.frame_count == 2
 
 
 def test_record_history_local_minima_keeps_more_than_the_final_structure(

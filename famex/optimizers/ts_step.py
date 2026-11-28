@@ -19,12 +19,25 @@ from ase import Atoms
 from scipy.linalg import eigh as scipy_eigh
 from scipy.sparse.linalg import LinearOperator, eigsh
 
-from famex.utils.hessian_ops import symmetrize_hessian
+from famex.utils.hessian_ops import (
+    build_translation_rotation_basis,
+    project_gradient,
+    project_hessian,
+    symmetrize_hessian,
+)
 
 HessianVectorProduct = Callable[[np.ndarray], np.ndarray]
 
 # Eigenvalues below this (eV/Å²) are treated as trans/rot null modes, not TS modes.
 NULL_MODE_THRESHOLD = 1e-3
+
+__all__ = [
+    "NULL_MODE_THRESHOLD",
+    "TSStepResult",
+    "build_translation_rotation_basis",
+    "project_gradient",
+    "project_hessian",
+]
 
 
 @dataclass
@@ -35,78 +48,6 @@ class TSStepResult:
     predicted_energy_change: float
     transition_mode: np.ndarray
     alpha: float = 1.0
-
-
-def build_translation_rotation_basis(positions: np.ndarray, masses: np.ndarray) -> np.ndarray:
-    """Build an orthonormal Cartesian basis for translation and rotation.
-
-    The basis is intended for projecting Cartesian gradients and Hessians.
-    Translations are uniform Cartesian displacements; rotations are rigid
-    displacements ``r × axis`` about the center of mass.
-
-    Parameters
-    ----------
-    positions : np.ndarray
-        Atomic positions, shape (n_atoms, 3).
-    masses : np.ndarray
-        Atomic masses, shape (n_atoms,). Used only to locate the center of mass.
-
-    Returns
-    -------
-    np.ndarray
-        Orthonormal basis matrix of shape (3 * n_atoms, n_modes).
-    """
-    n_atoms = positions.shape[0]
-    n_coords = 3 * n_atoms
-    if n_atoms == 0:
-        return np.zeros((0, 0))
-
-    total_mass = float(np.sum(masses))
-    com = np.sum(positions * masses[:, None], axis=0) / total_mass
-    rel = positions - com
-
-    modes: list[np.ndarray] = []
-
-    for axis in range(3):
-        mode = np.zeros(n_coords)
-        mode[axis::3] = 1.0
-        norm = np.linalg.norm(mode)
-        if norm > 1e-12:
-            modes.append(mode / norm)
-
-    if n_atoms >= 2:
-        for axis in range(3):
-            rot = np.zeros(n_coords)
-            axis_vec = np.zeros(3)
-            axis_vec[axis] = 1.0
-            for i in range(n_atoms):
-                disp = np.cross(axis_vec, rel[i])
-                rot[3 * i : 3 * i + 3] = disp
-            norm = np.linalg.norm(rot)
-            if norm > 1e-12:
-                modes.append(rot / norm)
-
-    if not modes:
-        return np.zeros((n_coords, 0))
-
-    basis = np.column_stack(modes)
-    q, _ = np.linalg.qr(basis)
-    return q
-
-
-def project_gradient(gradient: np.ndarray, basis: np.ndarray) -> np.ndarray:
-    """Project gradient onto subspace orthogonal to translation/rotation."""
-    if basis.size == 0:
-        return gradient
-    return cast(np.ndarray, gradient - basis @ (basis.T @ gradient))
-
-
-def project_hessian(hessian: np.ndarray, basis: np.ndarray) -> np.ndarray:
-    """Project Hessian onto subspace orthogonal to translation/rotation."""
-    if basis.size == 0:
-        return hessian
-    projector = np.eye(hessian.shape[0]) - basis @ basis.T
-    return cast(np.ndarray, projector @ hessian @ projector)
 
 
 def select_transition_mode(

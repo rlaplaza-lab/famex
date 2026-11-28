@@ -22,8 +22,13 @@ from famex.strategies.helpers import (
     ts_has_one_imaginary_mode,
     validate_ts_structure,
 )
+from famex.strategies.kwargs_policy import (
+    GSM_RUN_KEYS,
+    LOCAL_OPTIMIZATION_RUN_KEYS,
+    pick_pass_through_kwargs,
+)
 from famex.strategies.minima import LocalMinimaStrategy
-from famex.strategies.neb_optimizer import improved_tangent
+from famex.strategies.neb_optimizer import improved_tangent, normalize_flat_tangent
 from famex.strategies.ts import LocalTSStrategy
 from famex.strategies.utils import StrategyUtils
 from famex.utils.logging import get_famex_logger
@@ -191,21 +196,11 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         # For frontier nodes, use simple normalized coordinate difference
         if i == lf_ind and i < nimages - 1:
             tangent = self.images[i + 1].positions - self.images[i].positions
-            tangent_flat: np.ndarray = tangent.flatten()
-            norm = np.linalg.norm(tangent_flat)
-            if norm > 1e-10:
-                normalized = cast(np.ndarray, tangent_flat / norm)
-                return normalized
-            return tangent_flat
+            return normalize_flat_tangent(tangent)
 
         if i == rf_ind and i > 0:
             tangent = self.images[i].positions - self.images[i - 1].positions
-            tangent_flat = tangent.flatten()
-            norm = np.linalg.norm(tangent_flat)
-            if norm > 1e-10:
-                normalized = cast(np.ndarray, tangent_flat / norm)
-                return normalized
-            return tangent_flat
+            return normalize_flat_tangent(tangent)
 
         # For internal nodes, use the improved NEB tangent
         if len(self.all_energies) > 0 and len(self.all_energies[-1]) == nimages:
@@ -219,12 +214,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                 positions = [image.positions for image in self.images]
                 return improved_tangent(positions, energies, i)
 
-            tangent_flat = tangent.flatten()
-            norm = np.linalg.norm(tangent_flat)
-            if norm > 1e-10:
-                normalized = cast(np.ndarray, tangent_flat / norm)
-                return normalized
-            return tangent_flat
+            return normalize_flat_tangent(tangent)
 
         # Fallback: simple difference
         if i < nimages - 1:
@@ -235,12 +225,7 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
             zero_tangent = np.zeros(self.images[0].positions.shape).flatten()
             return zero_tangent
 
-        tangent_flat = tangent.flatten()
-        norm = np.linalg.norm(tangent_flat)
-        if norm > 1e-10:
-            normalized = cast(np.ndarray, tangent_flat / norm)
-            return normalized
-        return tangent_flat
+        return normalize_flat_tangent(tangent)
 
     def get_perpendicular_forces(self) -> list[np.ndarray]:
         """Calculate forces perpendicular to the path tangent.
@@ -524,17 +509,6 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
 
         return reparametrized
 
-    def _collect_path_energies(self, full_path: list[Atoms]) -> list[float]:
-        """Return potential energies for each image in the path."""
-        energies: list[float] = []
-        for index, atoms in enumerate(full_path):
-            try:
-                energies.append(float(atoms.get_potential_energy()))
-            except Exception as exc:
-                msg = f"Failed to evaluate energy for growing-string image {index}"
-                raise RuntimeError(msg) from exc
-        return energies
-
     def _rank_ts_guess_candidates(
         self,
         full_path: list[Atoms],
@@ -591,21 +565,9 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         if ts_refinement_optimizer.lower() == "sella":
             ts_refinement_optimizer = "rfo"
 
-        ts_call_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k
-            not in {
-                "fmax",
-                "steps",
-                "explorer",
-                "local_optimizer_name",
-                "ts_refinement_fmax",
-                "ts_refinement_steps",
-                "ts_refinement_candidates",
-            }
-        }
+        ts_call_kwargs = pick_pass_through_kwargs(kwargs, LOCAL_OPTIMIZATION_RUN_KEYS)
         ts_call_kwargs.pop("require_ts", None)
+        ts_call_kwargs.pop("local_optimizer_name", None)
 
         best_result: dict[str, Any] | None = None
         best_structure: Atoms | None = None
@@ -738,6 +700,276 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
                     if step_size < min_step_size:
                         break
 
+    def _prepare_growth_run(
+        self,
+        atoms_list: list[Atoms],
+        require_ts: bool | None,
+        kwargs: dict[str, Any],
+    ) -> tuple[Atoms, Atoms, dict[str, Any]]:
+        """Validate input, attach calculators, and optionally relax endpoints."""
+        if len(atoms_list) != 2:
+            msg = f"Growing string method requires exactly 2 Atoms objects, got {len(atoms_list)}"
+            raise ValueError(msg)
+
+        run_extra = pick_pass_through_kwargs(kwargs, GSM_RUN_KEYS)
+        resolved_require_ts = resolve_require_ts(require_ts, self.explorer)
+        run_extra.pop("require_ts", None)
+
+        self.max_nodes = run_extra.get("max_images") or run_extra.get("npoints", 15)
+        fmax = float(run_extra.get("fmax", 0.05))
+        perp_thresh_relaxed = float(run_extra.get("perp_thresh_relaxed", 1.0))
+        self.reparam_check = run_extra.get("reparam_check", "rms")
+        self.perp_thresh_relaxed = perp_thresh_relaxed
+        self.sk = 1.0 / max(self.max_nodes - 1, 1)
+
+        reactant, product = atoms_list[0].copy(), atoms_list[1].copy()
+        if self.explorer is not None:
+            PathManager.attach_calculators(self.explorer, [reactant, product])
+            StrategyUtils.ensure_charge_spin_info(reactant)
+            StrategyUtils.ensure_charge_spin_info(product)
+
+        if bool(run_extra.get("optimize_endpoints", True)):
+            logger.info("Growing String: Optimizing reactant to local minimum...")
+            minima_strategy = LocalMinimaStrategy(explorer=self.explorer)
+            r_result = minima_strategy.run(
+                [reactant], fmax=fmax, steps=200, local_optimizer_name="lbfgs"
+            )
+            reactant = ensure_atoms(r_result["optimized_atoms"], "Local minima optimization")
+
+            logger.info("Growing String: Optimizing product to local minimum...")
+            p_result = minima_strategy.run(
+                [product], fmax=fmax, steps=200, local_optimizer_name="lbfgs"
+            )
+            product = ensure_atoms(p_result["optimized_atoms"], "Local minima optimization")
+
+            if self.explorer is not None:
+                PathManager.attach_calculators(self.explorer, [reactant, product])
+                StrategyUtils.ensure_charge_spin_info(reactant)
+                StrategyUtils.ensure_charge_spin_info(product)
+
+        growth_settings = {
+            **run_extra,
+            "require_ts": resolved_require_ts,
+            "fmax": fmax,
+            "max_steps": int(run_extra.get("steps", 200)),
+            "perp_thresh": float(run_extra.get("perp_thresh", 0.05)),
+            "reparam_every": int(run_extra.get("reparam_every", 2)),
+            "reparam_every_full": int(run_extra.get("reparam_every_full", 3)),
+            "distance_threshold": float(run_extra.get("distance_threshold", 0.05)),
+        }
+        return reactant, product, growth_settings
+
+    def _initialize_growth_strings(
+        self, reactant: Atoms, product: Atoms, reparam_every: int
+    ) -> None:
+        self.all_energies = []
+        self.all_forces = []
+        self.perp_forces_list = []
+        self.new_image_inds = []
+
+        self.left_string = [reactant.copy()]
+        self.right_string = [product.copy()]
+        self._set_images_from_strings()
+
+        if self.explorer is not None:
+            PathManager.attach_calculators(self.explorer, self.images)
+            for atoms in self.images:
+                StrategyUtils.ensure_charge_spin_info(atoms)
+
+        logger.info(
+            "Growing String: Starting with %s images, max %s", len(self.images), self.max_nodes
+        )
+        self.reparam_in = reparam_every
+
+        if len(self.images) == 2:
+            logger.info("Growing String: Starting with 2 images, growing initial nodes...")
+            left_frontier = self.get_new_image(self.lf_ind)
+            self.left_string.append(left_frontier)
+            self._set_images_from_strings()
+            right_frontier = self.get_new_image(self.rf_ind)
+            self.right_string.append(right_frontier)
+            self._set_images_from_strings()
+
+            if self.explorer is not None:
+                PathManager.attach_calculators(self.explorer, self.images)
+                for atoms in self.images:
+                    StrategyUtils.ensure_charge_spin_info(atoms)
+
+            logger.info(
+                "Growing String: Initial growth complete. Now have %s images", len(self.images)
+            )
+
+    def _run_growth_and_reparam_loop(self, growth_settings: dict[str, Any]) -> bool:
+        fmax = float(growth_settings["fmax"])
+        max_steps = int(growth_settings["max_steps"])
+        perp_thresh = float(growth_settings["perp_thresh"])
+        reparam_every = int(growth_settings["reparam_every"])
+        reparam_every_full = int(growth_settings["reparam_every_full"])
+        distance_threshold = float(growth_settings["distance_threshold"])
+
+        strings_met = False
+        for iteration in range(max_steps):
+            if self.fully_grown:
+                logger.info(
+                    "Growing String: Reached maximum images (%s). String size: %s+%s=%s",
+                    self.max_nodes,
+                    self.left_size,
+                    self.right_size,
+                    self.string_size,
+                )
+                break
+
+            energies, forces_list = self._evaluate_band()
+            self.all_energies.append(energies)
+            self.all_forces.append(forces_list)
+
+            self.optimize_perpendicular(fmax, max_steps=20)
+            energies, forces_list = self._evaluate_band()
+            self.all_energies[-1] = energies
+            self.all_forces[-1] = forces_list
+
+            if len(self.left_string) > 0 and len(self.right_string) > 0:
+                forward_tip = self.left_string[-1].positions
+                backward_tip = self.right_string[-1].positions
+                distance = np.linalg.norm(forward_tip - backward_tip)
+
+                min_images_for_convergence = min(6, self.max_nodes // 2)
+                if distance < distance_threshold and (
+                    self.string_size >= min_images_for_convergence or self.fully_grown
+                ):
+                    strings_met = True
+                    logger.info(
+                        "Strings met: distance=%.6f Å < threshold=%.6f Å, string_size=%s",
+                        distance,
+                        distance_threshold,
+                        self.string_size,
+                    )
+
+            self.reparametrize(perp_thresh, reparam_every, reparam_every_full)
+
+            if (iteration + 1) % 10 == 0:
+                size_str = f"{self.left_size}+{self.right_size}"
+                size_info = f"String={size_str: >5s}"
+                barrier_info = ""
+                hei_info = ""
+                hei_str = ""
+                if len(energies) > 0:
+                    energies_arr = np.array(energies)
+                    barrier = energies_arr.max() - energies_arr[0]
+                    barrier_info = f"(E_hei-E_0)={barrier:6.1f} eV"
+                    hei_ind = energies_arr.argmax()
+                    if len(forces_list) > hei_ind:
+                        hei_norm = np.linalg.norm(forces_list[hei_ind])
+                        hei_info = f"norm(forces_true,hei)={hei_norm:.6f} eV/Å"
+                    hei_str = f"HEI={hei_ind + 1:02d}/{energies_arr.size:02d}"
+
+                strs = [size_info]
+                if hei_str:
+                    strs.append(hei_str)
+                if barrier_info:
+                    strs.append(barrier_info)
+                if hei_info:
+                    strs.append(hei_info)
+
+                logger.info("Growing String: Iteration %s, %s", iteration + 1, "\t".join(strs))
+
+        return strings_met
+
+    def _finalize_growth_run(
+        self,
+        strings_met: bool,
+        growth_settings: dict[str, Any],
+        *,
+        validate_ts: bool,
+        calculate_frequencies: bool,
+    ) -> dict[str, Any]:
+        full_path = self.left_string + self.right_string[::-1]
+
+        logger.info(
+            "Growing String: Complete with %s images (left: %s, right: %s, strings_met=%s)",
+            len(full_path),
+            len(self.left_string),
+            len(self.right_string),
+            strings_met,
+        )
+
+        refine_ts = bool(growth_settings.get("refine_ts", True))
+        local_optimizer_name = growth_settings.get("local_optimizer_name", "rfo")
+        require_ts = bool(growth_settings["require_ts"])
+
+        energies = PathManager.path_energies(full_path, image_label="growing-string")
+        ts_candidates = self._rank_ts_guess_candidates(full_path, energies)
+        ts_guess = full_path[ts_candidates[0][0]]
+
+        ts_result: dict[str, Any] | None = None
+        if refine_ts:
+            ts_result, ts_structure, ts_converged = self._refine_ts_candidates(
+                ts_candidates,
+                full_path,
+                local_optimizer_name=local_optimizer_name,
+                kwargs=growth_settings,
+            )
+        else:
+            ts_structure = ts_guess
+            ts_converged = strings_met
+
+        ts_structure = ensure_atoms(ts_structure, "Growing string TS candidate")
+
+        validation_result = None
+        if validate_ts:
+            validation_result = validate_ts_structure(ts_structure, self.explorer)
+
+        result = self.prepare_result(
+            ts_structure,
+            converged=ts_converged,
+            trajectory=full_path,
+            forward_string=self.left_string,
+            backward_string=self.right_string,
+            strings_met=strings_met,
+        )
+        if growth_settings.get("record_history"):
+            result["search_path"] = full_path
+
+        freq_analysis: dict[str, Any] | None = None
+        if ts_result is not None:
+            freq_analysis_val: Any = ts_result.get("frequency_analysis")
+            if freq_analysis_val is not None and isinstance(freq_analysis_val, dict):
+                freq_analysis = freq_analysis_val
+            take_optimization_trajectory(result, ts_result)
+
+        temperature = float(growth_settings.get("temperature", 298.15))
+        if require_ts:
+            freq_analysis = enforce_require_ts(
+                require_ts=True,
+                atoms=ts_structure if isinstance(ts_structure, Atoms) else None,
+                explorer=self.explorer,
+                freq_analysis=freq_analysis,
+                check_converged=(False if (refine_ts and not ts_converged) else None),
+                temperature=temperature,
+            )
+        elif (
+            calculate_frequencies
+            and freq_analysis is None
+            and isinstance(ts_structure, Atoms)
+            and self.explorer is not None
+        ):
+            freq_analysis = self.explorer.calculate_frequencies(
+                atoms=ts_structure,
+                temperature=temperature,
+                save_hessian=False,
+            )
+
+        if validation_result is not None:
+            result["ts_validation"] = validation_result
+
+        if freq_analysis is not None:
+            result["frequency_analysis"] = freq_analysis
+            result["is_ts"] = freq_analysis.get("is_ts")
+            if ts_result is not None and "free_energy_correction" in ts_result:
+                result["free_energy_correction"] = ts_result["free_energy_correction"]
+
+        return result
+
     def run(
         self,
         atoms_list: list[Atoms],
@@ -779,282 +1011,17 @@ class MultiStructureGrowingStringStrategy(BaseStrategy):
         """
         self.validate_inputs(atoms_list)
 
-        require_ts = resolve_require_ts(require_ts, self.explorer)
-        kwargs.pop("require_ts", None)
-
-        self.max_nodes = kwargs.get("max_images") or kwargs.get("npoints", 15)
-        fmax = kwargs.get("fmax", 0.05)
-        max_steps = kwargs.get("steps", 200)
-        # Use more lenient threshold for growth - allow growth if forces are improving
-        perp_thresh = kwargs.get("perp_thresh", 0.05)
-        # Fallback: allow growth if string is small and forces aren't too high
-        perp_thresh_relaxed = kwargs.get("perp_thresh_relaxed", 1.0)
-        reparam_every = kwargs.get("reparam_every", 2)
-        reparam_every_full = kwargs.get("reparam_every_full", 3)
-        optimize_endpoints = kwargs.get("optimize_endpoints", True)
-        refine_ts = kwargs.get("refine_ts", True)
-        local_optimizer_name = kwargs.get("local_optimizer_name", "rfo")
-        self.reparam_check = kwargs.get("reparam_check", "rms")  # "rms" or "norm"
-        self.perp_thresh_relaxed = perp_thresh_relaxed
-
-        # Index max_nodes - 1 is the product, at arc length 1.
-        self.sk = 1.0 / max(self.max_nodes - 1, 1)
-
-        # Enforce exactly two structures
-        if len(atoms_list) != 2:
-            msg = f"Growing string method requires exactly 2 Atoms objects, got {len(atoms_list)}"
-            raise ValueError(msg)
-
-        reactant, product = atoms_list[0].copy(), atoms_list[1].copy()
-
-        # Attach calculators using PathManager for consistency
-        if self.explorer is not None:
-            PathManager.attach_calculators(self.explorer, [reactant, product])
-            # Ensure charge/spin info is set
-            StrategyUtils.ensure_charge_spin_info(reactant)
-            StrategyUtils.ensure_charge_spin_info(product)
-
-        # Optimize endpoints if requested
-        if optimize_endpoints:
-            logger.info("Growing String: Optimizing reactant to local minimum...")
-            minima_strategy = LocalMinimaStrategy(explorer=self.explorer)
-            r_result = minima_strategy.run(
-                [reactant], fmax=fmax, steps=200, local_optimizer_name="lbfgs"
-            )
-            reactant = ensure_atoms(r_result["optimized_atoms"], "Local minima optimization")
-
-            logger.info("Growing String: Optimizing product to local minimum...")
-            p_result = minima_strategy.run(
-                [product], fmax=fmax, steps=200, local_optimizer_name="lbfgs"
-            )
-            product = ensure_atoms(p_result["optimized_atoms"], "Local minima optimization")
-
-            # Re-attach calculators using PathManager
-            if self.explorer is not None:
-                PathManager.attach_calculators(self.explorer, [reactant, product])
-                StrategyUtils.ensure_charge_spin_info(reactant)
-                StrategyUtils.ensure_charge_spin_info(product)
-
-        # Reset per-run state so repeated run() calls do not leak history.
-        self.all_energies = []
-        self.all_forces = []
-        self.perp_forces_list = []
-        self.new_image_inds = []
-
-        # Initialize strings
-        self.left_string = [reactant.copy()]
-        self.right_string = [product.copy()]
-        self._set_images_from_strings()
-
-        # Ensure calculators are attached using PathManager
-        if self.explorer is not None:
-            PathManager.attach_calculators(self.explorer, self.images)
-            for atoms in self.images:
-                StrategyUtils.ensure_charge_spin_info(atoms)
-
-        logger.info(
-            "Growing String: Starting with %s images, max %s", len(self.images), self.max_nodes
+        reactant, product, growth_settings = self._prepare_growth_run(
+            atoms_list, require_ts, dict(kwargs)
         )
-
-        # Initialize reparametrization counter
-        self.reparam_in = reparam_every
-
-        # If starting with 2 images, immediately grow one node on each side
-        # This matches pysisyphus behavior
-        if len(self.images) == 2:
-            logger.info("Growing String: Starting with 2 images, growing initial nodes...")
-            # Grow left frontier first (from reactant toward center)
-            left_frontier = self.get_new_image(self.lf_ind)
-            self.left_string.append(left_frontier)
-            self._set_images_from_strings()
-            right_frontier = self.get_new_image(self.rf_ind)
-            self.right_string.append(right_frontier)
-            self._set_images_from_strings()
-
-            # Ensure calculators are attached to new images
-            if self.explorer is not None:
-                PathManager.attach_calculators(self.explorer, self.images)
-                for atoms in self.images:
-                    StrategyUtils.ensure_charge_spin_info(atoms)
-
-            logger.info(
-                "Growing String: Initial growth complete. Now have %s images", len(self.images)
-            )
-
-        # Main GSM loop
-        strings_met = False
-        distance_threshold = kwargs.get("distance_threshold", 0.05)
-        for iteration in range(max_steps):
-            # Check if fully grown
-            if self.fully_grown:
-                logger.info(
-                    "Growing String: Reached maximum images (%s). String size: %s+%s=%s",
-                    self.max_nodes,
-                    self.left_size,
-                    self.right_size,
-                    self.string_size,
-                )
-                break
-
-            energies, forces_list = self._evaluate_band()
-            self.all_energies.append(energies)
-            self.all_forces.append(forces_list)
-
-            # Optimize perpendicular to path first, then judge growth on the relaxed forces.
-            self.optimize_perpendicular(fmax, max_steps=20)
-            energies, forces_list = self._evaluate_band()
-            self.all_energies[-1] = energies
-            self.all_forces[-1] = forces_list
-
-            # Check if strings have met (distance between frontiers)
-            if len(self.left_string) > 0 and len(self.right_string) > 0:
-                forward_tip = self.left_string[-1].positions
-                backward_tip = self.right_string[-1].positions
-                distance = np.linalg.norm(forward_tip - backward_tip)
-
-                # Only mark as met if we have at least 6 images (3 per string) or are fully grown
-                # This prevents premature termination when strings are still far from TS
-                min_images_for_convergence = min(6, self.max_nodes // 2)
-                if distance < distance_threshold and (
-                    self.string_size >= min_images_for_convergence or self.fully_grown
-                ):
-                    strings_met = True
-                    logger.info(
-                        "Strings met: distance=%.6f Å < threshold=%.6f Å, string_size=%s",
-                        distance,
-                        distance_threshold,
-                        self.string_size,
-                    )
-
-            # Reparametrize and potentially add new nodes
-            self.reparametrize(perp_thresh, reparam_every, reparam_every_full)
-
-            # Log progress
-            if (iteration + 1) % 10 == 0:
-                size_str = f"{self.left_size}+{self.right_size}"
-                size_info = f"String={size_str: >5s}"
-                barrier_info = ""
-                hei_info = ""
-                hei_str = ""
-                if len(energies) > 0:
-                    energies_arr = np.array(energies)
-                    barrier = energies_arr.max() - energies_arr[0]  # Energy difference in eV
-                    barrier_info = f"(E_hei-E_0)={barrier:6.1f} eV"
-                    hei_ind = energies_arr.argmax()
-                    if len(forces_list) > hei_ind:
-                        hei_norm = np.linalg.norm(forces_list[hei_ind])
-                        hei_info = f"norm(forces_true,hei)={hei_norm:.6f} eV/Å"
-                    hei_str = f"HEI={hei_ind + 1:02d}/{energies_arr.size:02d}"
-
-                strs = [size_info]
-                if hei_str:
-                    strs.append(hei_str)
-                if barrier_info:
-                    strs.append(barrier_info)
-                if hei_info:
-                    strs.append(hei_info)
-
-                logger.info("Growing String: Iteration %s, %s", iteration + 1, "\t".join(strs))
-
-        # Combine strings into full path
-        # right_string grows forward from product [P, R1, R2, ...] where R2 is closest to center
-        # In the final path, right_string nodes appear in reverse: ... -> R2 -> R1 -> P
-        full_path = self.left_string + self.right_string[::-1]
-
-        logger.info(
-            "Growing String: Complete with %s images (left: %s, right: %s, strings_met=%s)",
-            len(full_path),
-            len(self.left_string),
-            len(self.right_string),
+        self._initialize_growth_strings(reactant, product, growth_settings["reparam_every"])
+        strings_met = self._run_growth_and_reparam_loop(growth_settings)
+        return self._finalize_growth_run(
             strings_met,
+            growth_settings,
+            validate_ts=validate_ts,
+            calculate_frequencies=calculate_frequencies,
         )
-
-        # Filter redundant structures for consistency with other path strategies
-        # For GSM we retain all images to avoid collapsing back onto endpoints
-
-        energies = self._collect_path_energies(full_path)
-        ts_candidates = self._rank_ts_guess_candidates(full_path, energies)
-        ts_index = ts_candidates[0][0]
-        ts_guess = full_path[ts_index]
-
-        # Refine TS if requested
-        ts_result = None
-        if refine_ts:
-            ts_result, ts_structure, ts_converged = self._refine_ts_candidates(
-                ts_candidates,
-                full_path,
-                local_optimizer_name=local_optimizer_name,
-                kwargs=kwargs,
-            )
-        else:
-            ts_structure = ts_guess
-            ts_converged = strings_met
-
-        ts_structure = ensure_atoms(ts_structure, "Growing string TS candidate")
-
-        # Validate TS if requested
-        validation_result = None
-        if validate_ts:
-            validation_result = validate_ts_structure(ts_structure, self.explorer)
-
-        # Prepare result
-        result = self.prepare_result(
-            ts_structure,
-            converged=ts_converged,
-            trajectory=full_path,
-            forward_string=self.left_string,
-            backward_string=self.right_string,
-            strings_met=strings_met,
-        )
-        if kwargs.get("record_history"):
-            result["search_path"] = full_path
-
-        freq_analysis: dict[str, Any] | None = None
-        if ts_result is not None and isinstance(ts_result, dict):
-            # ts_result is dict[str, Atoms | list[Atoms] | bool | int | float | str]
-            # but frequency_analysis is actually dict[str, Any], so we need to handle this
-            freq_analysis_val: Any = ts_result.get("frequency_analysis")
-            # Type narrowing: check if it's a dict before assigning
-            if freq_analysis_val is not None and isinstance(freq_analysis_val, dict):
-                freq_analysis = freq_analysis_val
-            take_optimization_trajectory(result, ts_result)
-
-        temperature = float(kwargs.get("temperature", 298.15))
-        # Valid TS := vibrationally a first-order saddle (exactly one imaginary
-        # mode). ``strings_met`` is path-growth metadata only and must not gate
-        # TS validity (strings often hit max images before formally meeting).
-        if require_ts:
-            freq_analysis = enforce_require_ts(
-                require_ts=True,
-                atoms=ts_structure if isinstance(ts_structure, Atoms) else None,
-                explorer=self.explorer,
-                freq_analysis=freq_analysis,
-                check_converged=(False if (refine_ts and not ts_converged) else None),
-                temperature=temperature,
-            )
-        elif (
-            calculate_frequencies
-            and freq_analysis is None
-            and isinstance(ts_structure, Atoms)
-            and self.explorer is not None
-        ):
-            freq_analysis = self.explorer.calculate_frequencies(
-                atoms=ts_structure,
-                temperature=temperature,
-                save_hessian=False,
-            )
-
-        if validation_result is not None:
-            result["ts_validation"] = validation_result
-
-        if freq_analysis is not None:
-            result["frequency_analysis"] = freq_analysis
-            result["is_ts"] = freq_analysis.get("is_ts")
-            if ts_result is not None and isinstance(ts_result, dict):
-                if "free_energy_correction" in ts_result:
-                    result["free_energy_correction"] = ts_result["free_energy_correction"]
-
-        return result
 
 
 # Register the strategy

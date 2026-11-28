@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import cast
 
+MACE_BUILT_E3NN_VERSION = "0.4.4"
+E3NN_FAIRCHEM_CONFLICT_PREFIXES = ("0.5", "0.6")
+
 
 def get_e3nn_version() -> str:
     try:
@@ -30,7 +33,7 @@ def format_mace_e3nn_conflict_message(exc: BaseException, *, hessian: bool = Fal
     )
     return (
         f"MACE compatibility issue with e3nn versions. "
-        f"MACE 0.3.14 was built with e3nn==0.4.4, but e3nn "
+        f"MACE 0.3.14 was built with e3nn=={MACE_BUILT_E3NN_VERSION}, but e3nn "
         f"{get_e3nn_version()} is installed. "
         f"This causes serialization format incompatibilities. "
         f"\n\nWorkaround options:"

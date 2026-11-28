@@ -18,6 +18,8 @@ from famex.analysis.thermodynamics import read_free_energy_correction
 from famex.core.file_io import validate_output_path
 from famex.embed.api import smiles_to_atoms
 from famex.io import pubchem
+from famex.io.geometry import read_geometry
+from famex.io.pubchem import parse_pubchem_query
 from famex.io.xyz_io import read_xyz_with_metadata, write_xyz_with_metadata
 from famex.utils.logging import MARK_FAIL, MARK_OK, get_famex_logger
 from famex.utils.validation import format_atom_count_mismatch
@@ -69,10 +71,19 @@ def _is_pubchem_query(text: str) -> bool:
 
     A bare compound name is not detected. Pass ``pubchem:NAME`` for that.
     """
-    lowered = text.strip().lower()
+    stripped = text.strip()
+    if not stripped:
+        return False
+    lowered = stripped.lower()
     if lowered.startswith(("pubchem:", "cid:")):
         return True
-    return text.strip().isdigit()
+    if stripped.isdigit():
+        try:
+            parse_pubchem_query(stripped)
+        except ValueError:
+            return False
+        return True
+    return False
 
 
 def require_same_atom_count(structures: list[Atoms], labels: list[str]) -> None:
@@ -126,19 +137,14 @@ def load_structure_or_smiles(text: str, *, embedder: str = "pysmiles") -> Atoms:
 
 
 def load_atoms_from_xyz(path: str) -> Atoms:
-    """Load atoms from an XYZ file."""
+    """Load atoms from a structure file (XYZ uses FAMEX metadata-aware I/O)."""
     if path.lower().endswith(".xyz"):
-        geom = read_xyz_with_metadata(path, frame="last")
-        if isinstance(geom, list):
-            geom = geom[-1]
-        return geom
-
-    atoms_result = ase_read(path)
-    if isinstance(atoms_result, list):
-        atoms = atoms_result[-1]
+        geom = read_geometry(path, frame="last")
     else:
-        atoms = atoms_result
-    return atoms
+        geom = read_geometry(path)
+    if isinstance(geom, list):
+        geom = geom[-1]
+    return geom
 
 
 def load_path_structures(structures: tuple[str, ...], *, embedder: str = "pysmiles") -> list[Atoms]:
@@ -261,17 +267,23 @@ def validate_frequency_analysis(frequency_analysis: Any) -> list[str]:
     return warnings
 
 
-def print_frequency_summary(frequency_analysis: dict[str, Any], target: str = "minima") -> None:
+def print_frequency_summary(
+    frequency_analysis: dict[str, Any],
+    target: str = "minima",
+    *,
+    validate: bool = True,
+) -> None:
     """Print a formatted summary of frequency analysis results."""
     if not frequency_analysis:
         click.echo("Warning: Frequency analysis dictionary is empty", err=True)
         return
 
-    warnings = validate_frequency_analysis(frequency_analysis)
-    if warnings:
-        click.echo("Warning: Frequency analysis validation issues:", err=True)
-        for warning in warnings:
-            click.echo(f"  - {warning}", err=True)
+    if validate:
+        warnings = validate_frequency_analysis(frequency_analysis)
+        if warnings:
+            click.echo("Warning: Frequency analysis validation issues:", err=True)
+            for warning in warnings:
+                click.echo(f"  - {warning}", err=True)
 
     frequencies = frequency_analysis.get("frequencies", [])
     n_modes = len(frequencies) if isinstance(frequencies, list | tuple) else 0

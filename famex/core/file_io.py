@@ -8,14 +8,14 @@ from ase import Atoms
 from ase.io import write
 
 from famex.io.xyz_io import write_xyz_with_metadata
-from famex.utils.path_security import PathSecurityError
+from famex.utils.path_security import PathSecurityError, has_unsafe_components
 
 
 def validate_output_path(output_file: str | Path) -> Path:
     """Validate output file path for security."""
     output_file = Path(output_file)
 
-    if ".." in str(output_file) or "\x00" in str(output_file):
+    if has_unsafe_components(output_file):
         raise PathSecurityError(f"Unsafe output path detected: {output_file}")
 
     return output_file

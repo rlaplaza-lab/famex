@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from famex.utils.hessian_ops import symmetrize_hessian
+from famex.utils.hessian_ops import (
+    MAX_CONDITION_NUMBER,
+    condition_number_and_vibrational_eigenvalues,
+)
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
@@ -22,7 +25,7 @@ __all__ = ["validate_hessian"]
 def validate_hessian(
     hessian: np.ndarray,
     tolerance_symmetry: float = 1e-6,
-    max_condition_number: float = 1e18,
+    max_condition_number: float = MAX_CONDITION_NUMBER,
     warn_on_issues: bool = True,
     estimated_noise: float | None = None,
     force_noise_estimate: float | None = None,
@@ -116,52 +119,25 @@ def validate_hessian(
                 tolerance_symmetry,
             )
 
-        matrix = symmetrize_hessian(hessian)
-        n_null = 0
-        if positions is not None and masses is not None:
-            positions = np.asarray(positions, dtype=np.float64)
-            masses = np.asarray(masses, dtype=np.float64)
-            n_atoms = positions.shape[0]
-            if (
-                positions.ndim == 2
-                and positions.shape[1] == 3
-                and masses.shape == (n_atoms,)
-                and matrix.shape == (3 * n_atoms, 3 * n_atoms)
-            ):
-                # Lazy import avoids analysis ↔ optimizers cycle
-                from famex.optimizers.ts_step import (
-                    build_translation_rotation_basis,
-                    project_hessian,
+        condition_number, vibrational, n_null = condition_number_and_vibrational_eigenvalues(
+            hessian, positions=positions, masses=masses
+        )
+        eigenvalues_abs = np.abs(vibrational[vibrational != 0]) if len(vibrational) else vibrational
+
+        if hessian.shape[0] > n_null and len(eigenvalues_abs) == 0:
+            if warn_on_issues:
+                logger.warning(
+                    "Hessian has no finite eigenvalues. This indicates a severe problem."
                 )
-
-                basis = build_translation_rotation_basis(positions, masses)
-                n_null = int(basis.shape[1]) if basis.size else 0
-                matrix = project_hessian(matrix, basis)
-
-        if matrix.shape[0] > n_null:
-            eigenvalues = np.linalg.eigvalsh(matrix)
-            eigenvalues = eigenvalues[np.isfinite(eigenvalues)]
-            if n_null > 0 and len(eigenvalues) > n_null:
-                vibrational = eigenvalues[np.argsort(np.abs(eigenvalues))[n_null:]]
-            else:
-                vibrational = eigenvalues
-            eigenvalues_abs = np.abs(vibrational[vibrational != 0])
-
-            if len(eigenvalues_abs) == 0:
-                if warn_on_issues:
-                    logger.warning(
-                        "Hessian has no finite eigenvalues. This indicates a severe problem."
-                    )
-                results["is_valid"] = False
-            else:
-                condition_number = float(np.max(eigenvalues_abs) / np.min(eigenvalues_abs))
-                results["condition_number"] = condition_number
-                if condition_number > max_condition_number and warn_on_issues:
-                    logger.warning(
-                        "Hessian is ill-conditioned. Condition number: %.2e. Maximum acceptable: %.2e. This may lead to numerical instability in frequency calculations.",
-                        condition_number,
-                        max_condition_number,
-                    )
+            results["is_valid"] = False
+        elif len(eigenvalues_abs) > 0:
+            results["condition_number"] = condition_number
+            if condition_number > max_condition_number and warn_on_issues:
+                logger.warning(
+                    "Hessian is ill-conditioned. Condition number: %.2e. Maximum acceptable: %.2e. This may lead to numerical instability in frequency calculations.",
+                    condition_number,
+                    max_condition_number,
+                )
 
     if estimated_noise is not None and estimated_noise > HIGH_NOISE_THRESHOLD and warn_on_issues:
         logger.warning(

@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 
 from famex.analysis.hessian import HessianCalculator
 from famex.analysis.molecular_properties import determine_degrees_of_freedom
-from famex.analysis.normal_modes import convert_frequency_unit, diagonalize_mass_weighted_hessian
+from famex.analysis.normal_modes import convert_frequency_unit
 from famex.analysis.physics_constants import (
     IMAGINARY_MODE_THRESHOLD_CM,
     filter_positive_frequencies,
@@ -24,8 +24,11 @@ from famex.analysis.utils import (
     validate_indices,
 )
 from famex.analysis.validation import validate_hessian
-from famex.optimizers.ts_step import build_translation_rotation_basis, project_hessian
-from famex.utils.hessian_ops import symmetrize_hessian
+from famex.utils.hessian_ops import (
+    MAX_CONDITION_NUMBER,
+    frequencies_from_hessian,
+    symmetrize_hessian,
+)
 from famex.utils.logging import get_famex_logger
 from famex.utils.validation import FAMEXError
 
@@ -232,7 +235,7 @@ class FrequencyAnalysis:
 
         results = validate_hessian(self._hessian, **kwargs)
         cond = results["condition_number"]
-        ill_conditioned = isinstance(cond, float) and cond > 1e18
+        ill_conditioned = isinstance(cond, float) and cond > MAX_CONDITION_NUMBER
         if warn and (not results["is_valid"] or ill_conditioned):
             self._hessian_validation_warned = True
             if not results["is_valid"]:
@@ -422,20 +425,12 @@ class FrequencyAnalysis:
             msg = "Hessian not calculated. Call calculate_hessian() first."
             raise FAMEXError(msg)
 
-        positions = self.atoms.get_positions()[self.indices]
-        masses = self.atoms.get_masses()[self.indices]
-        basis = build_translation_rotation_basis(positions, masses)
-        hessian = project_hessian(self._hessian, basis)
-
-        frequencies, eigenvectors = diagonalize_mass_weighted_hessian(
-            hessian, self.atoms, self.indices
+        self._frequencies, self._normal_modes = frequencies_from_hessian(
+            self._hessian, self.atoms, self.indices, project_tr=True
         )
-
-        self._frequencies = normalize_frequencies_cm1(frequencies)
-        self._normal_modes = eigenvectors
         self._is_calculated = True
 
-        return self._frequencies, eigenvectors
+        return self._frequencies, self._normal_modes
 
     def _ensure_calculated(self) -> None:
         if not self._is_calculated:

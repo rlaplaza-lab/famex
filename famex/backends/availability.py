@@ -15,18 +15,27 @@ from famex.backends.constants import (
     BACKEND_AIMNET2,
     BACKEND_MACE,
     BACKEND_MOCK,
-    BACKEND_ORB,
+    BACKEND_PACKAGE_NAMES,
     BACKEND_PET,
-    BACKEND_PYSCF,
+    BACKEND_REQUIREMENTS,
     BACKEND_SO3LR,
-    BACKEND_TBLITE,
     BACKEND_UMA,
     format_install_command,
 )
 from famex.backends.dependencies import deps
+from famex.backends.mace_compat import (
+    E3NN_FAIRCHEM_CONFLICT_PREFIXES,
+    MACE_BUILT_E3NN_VERSION,
+)
 from famex.utils.logging import get_famex_logger
 
 logger = get_famex_logger(__name__)
+
+
+def _candidate_backends(include_mock: bool = True) -> list[str]:
+    if include_mock:
+        return list(ALL_BACKENDS)
+    return [b for b in ALL_BACKENDS if b != BACKEND_MOCK]
 
 
 def _check_e3nn_conflict() -> str | None:
@@ -45,10 +54,9 @@ def _check_e3nn_conflict() -> str | None:
 
         e3nn_version = e3nn.__version__
 
-        # MACE 0.3.14 was built with e3nn 0.4.4, FairChem needs e3nn >= 0.5
-        if e3nn_version.startswith(("0.5", "0.6")):
+        if e3nn_version.startswith(E3NN_FAIRCHEM_CONFLICT_PREFIXES):
             return (
-                f"e3nn version conflict: MACE requires e3nn==0.4.4 but "
+                f"e3nn version conflict: MACE requires e3nn=={MACE_BUILT_E3NN_VERSION} but "
                 f"e3nn {e3nn_version} is installed (required by FairChem)"
             )
     except ImportError:
@@ -65,33 +73,6 @@ class BackendAvailabilityChecker:
         self._cache: dict[str, bool] = {}
         self._conflict_cache: dict[str, str | None] = {}
 
-        # Centralized requirements mapping
-        self._requirements = {
-            BACKEND_MOCK: [],
-            # AIMNet2 is bundled (TorchScript model in repo). It only requires torch.
-            # Neighbor list generation has a NumPy fallback, so torch-cluster is optional.
-            BACKEND_AIMNET2: ["torch"],
-            BACKEND_UMA: ["fairchem", "torch"],
-            BACKEND_SO3LR: ["so3lr"],
-            BACKEND_MACE: ["mace", "torch"],
-            BACKEND_ORB: ["orb_models", "torch"],
-            BACKEND_TBLITE: ["tblite"],
-            BACKEND_PET: ["upet", "torch"],
-            BACKEND_PYSCF: ["pyscf", "pyscf_dispersion"],
-        }
-
-        # Human-readable package names for error messages
-        self._package_names = {
-            BACKEND_AIMNET2: ["torch"],
-            BACKEND_UMA: ["fairchem-core", "torch"],
-            BACKEND_SO3LR: ["so3lr"],
-            BACKEND_MACE: ["mace-torch", "torch"],
-            BACKEND_ORB: ["orb-models>=0.7.0", "torch"],
-            BACKEND_TBLITE: ["tblite"],
-            BACKEND_PET: ["upet", "torch"],
-            BACKEND_PYSCF: ["pyscf", "pyscf-dispersion"],
-        }
-
     def _check_python_version(self, backend: str) -> bool:
         """Check Python version requirements for a backend."""
         if backend == BACKEND_PET:
@@ -100,7 +81,7 @@ class BackendAvailabilityChecker:
 
     def _check_basic_dependencies(self, backend: str) -> bool:
         """Check basic package dependencies for a backend."""
-        required = self._requirements.get(backend, [])
+        required = BACKEND_REQUIREMENTS.get(backend, ())
         return all(deps.has(pkg) for pkg in required)
 
     def _check_import_compatibility(self, backend: str) -> str | None:
@@ -184,7 +165,7 @@ class BackendAvailabilityChecker:
             return "Requires Python 3.11+ (UPET requirement)"
 
         if not self._check_basic_dependencies(backend):
-            required = self._package_names.get(backend, [])
+            required = BACKEND_PACKAGE_NAMES.get(backend, ())
             return f"Missing dependencies: {', '.join(required)}"
 
         conflict = self._check_known_conflicts(backend)
@@ -199,10 +180,7 @@ class BackendAvailabilityChecker:
 
     def get_available_backends(self, include_mock: bool = True) -> list[str]:
         """Get list of all available backends."""
-        candidates = (
-            ALL_BACKENDS if include_mock else [b for b in ALL_BACKENDS if b != BACKEND_MOCK]
-        )
-        return [b for b in candidates if self.is_backend_available(b)]
+        return [b for b in _candidate_backends(include_mock) if self.is_backend_available(b)]
 
     def clear_cache(self) -> None:
         """Clear the availability cache (useful for testing)."""
@@ -314,10 +292,7 @@ def get_available_backends_with_logging(
     available = get_available_backends(include_mock=include_mock)
 
     if verbose:
-        candidates = (
-            ALL_BACKENDS if include_mock else [b for b in ALL_BACKENDS if b != BACKEND_MOCK]
-        )
-        for backend in candidates:
+        for backend in _candidate_backends(include_mock):
             is_available = backend in available
             if is_available:
                 logger.info("  %s", backend)

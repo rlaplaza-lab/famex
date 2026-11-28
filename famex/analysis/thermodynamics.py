@@ -16,6 +16,7 @@ from famex.analysis.physics_constants import (
     ATMOS_PA,
     GAS_CONSTANT,
     J_PER_MOL_TO_EV,
+    STANDARD_TEMPERATURE_K,
     filter_positive_frequencies,
 )
 from famex.analysis.quasiharmonic import (
@@ -99,7 +100,7 @@ class ThermodynamicProperties:
         self,
         frequencies: np.ndarray,
         atoms: Atoms,
-        temperature: float = 298.15,
+        temperature: float = STANDARD_TEMPERATURE_K,
         pressure: float = ATMOS_PA,
         # Quasi-harmonic parameters
         method: str = "rrho",
